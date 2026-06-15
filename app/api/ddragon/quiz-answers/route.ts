@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getSampleQuizItems } from '@/lib/riot';
+import { getQuizItems } from '@/lib/riot';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
     const category = request.nextUrl.searchParams.get('category');
-    const allItems = await getSampleQuizItems();
+    const allItems = await getQuizItems();
     const answersByType = allItems.reduce<Record<string, Set<string>>>((acc, item) => {
       if (!acc[item.type]) {
         acc[item.type] = new Set();
@@ -25,9 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Default: flatten all answers across all types for unified autocomplete
-    const allAnswers = Array.from(
-      new Set(Object.values(result).flat() as string[]),
-    ).sort();
+    const allAnswers = Array.from(new Set(Object.values(result).flat())).sort();
     return NextResponse.json(allAnswers);
   } catch (error) {
     console.error('Failed to prepare quiz answer index', error);

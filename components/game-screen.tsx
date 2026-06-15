@@ -1,20 +1,21 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Play, Check, ThumbsUp, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Check, Play, ThumbsUp } from 'lucide-react';
+import Image from 'next/image';
+import {
+  formatSeconds,
+  getAbilityKeyLabel,
+  getNextUtcResetLabel,
+  normalizeAnswer,
+  OPTION_DELAY_SECONDS,
+  PENALTY_TIMES_SECONDS,
+  shuffle,
+  type CompletedTime,
+  type QuizItem,
+} from '@/lib/quiz';
 
-type QuizItem = {
-  id: string;
-  type: 'spell' | 'passive' | 'ultimate';
-  title: string;
-  question: string;
-  answer: string;
-  imageUrl: string;
-  champion: string;
-  guessed?: boolean;
-};
-
-const sampleItems: QuizItem[] = [
+const placeholderItems: QuizItem[] = [
   {
     id: 'sample-spell',
     type: 'spell',
@@ -26,48 +27,8 @@ const sampleItems: QuizItem[] = [
   },
 ];
 
-const penaltyTimes = [5, 10, 20, 30];
-
-function formatSeconds(seconds: number) {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-function shuffle<T>(items: T[]) {
-  const result = [...items];
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
-function normalizeText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/gi, '');
-}
-
-function getAbilityKeyLabel(item: QuizItem) {
-  if (item.type === 'passive') {
-    return 'Passive';
-  }
-
-  if (item.type === 'ultimate') {
-    return 'R';
-  }
-
-  if (item.type === 'spell') {
-    const match = item.id.match(/-spell-(\d+)$/);
-    const index = match ? Number(match[1]) : NaN;
-    return ['Q', 'W', 'E', 'R'][index] || 'Spell';
-  }
-
-  return item.type;
-}
-
 export function GameScreen() {
-  const [items, setItems] = useState<QuizItem[]>(sampleItems);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<QuizItem[]>(placeholderItems);
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [pauseQueued, setPauseQueued] = useState(false);
@@ -85,10 +46,11 @@ export function GameScreen() {
   const [categoryAnswers, setCategoryAnswers] = useState<Record<string, string[]>>({});
   const [penaltyCount, setPenaltyCount] = useState(0);
   const [penaltyMessage, setPenaltyMessage] = useState('');
-  const [completedTimes, setCompletedTimes] = useState<Record<string, { total: number; duration: number }>>({});
+  const [completedTimes, setCompletedTimes] = useState<Record<string, CompletedTime>>({});
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [finished, setFinished] = useState(false);
   const [successFlash, setSuccessFlash] = useState(false);
+  const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
   const progressSectionRef = useRef<HTMLDivElement | null>(null);
   const currentProgressItemRef = useRef<HTMLDivElement | null>(null);
 
@@ -118,11 +80,6 @@ export function GameScreen() {
     return () => window.clearInterval(timer);
   }, [started, paused, countdown, finished]);
 
-  // Do not pre-load the daily set on mount; the set is fetched when the user presses Play
-  useEffect(() => {
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
     if (!currentItem) {
       return;
@@ -134,7 +91,7 @@ export function GameScreen() {
     setPenaltyMessage('');
     setStatus('idle');
     setInputValue('');
-    setTimeUntilOptions(10);
+    setTimeUntilOptions(OPTION_DELAY_SECONDS);
 
     const answerPool = categoryAnswers['all']?.length
       ? categoryAnswers['all']
@@ -149,14 +106,14 @@ export function GameScreen() {
       return;
     }
 
-    setTimeUntilOptions(10);
+    setTimeUntilOptions(OPTION_DELAY_SECONDS);
     setShowOptions(false);
 
     const interval = window.setInterval(() => {
       setTimeUntilOptions((value) => Math.max(0, value - 1));
     }, 1000);
 
-    const timeout = window.setTimeout(() => setShowOptions(true), 10000);
+    const timeout = window.setTimeout(() => setShowOptions(true), OPTION_DELAY_SECONDS * 1000);
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
@@ -184,7 +141,7 @@ export function GameScreen() {
   }, [categoryAnswers]);
 
   useEffect(() => {
-    const query = normalizeText(inputValue);
+    const query = normalizeAnswer(inputValue);
     if (!currentItem || !query) {
       setSuggestions([]);
       return;
@@ -195,7 +152,7 @@ export function GameScreen() {
       : Array.from(new Set(items.map((item) => item.answer)));
 
     const matches = candidateAnswers
-      .filter((answer) => normalizeText(answer).includes(query))
+      .filter((answer) => normalizeAnswer(answer).includes(query))
       .slice(0, 8);
     setSuggestions(matches);
   }, [inputValue, currentItem, items, categoryAnswers]);
@@ -206,7 +163,6 @@ export function GameScreen() {
     }
 
     const loadItems = async () => {
-      setLoading(true);
       try {
         const res = await fetch('/api/ddragon/quiz-items');
         const data = await res.json();
@@ -216,7 +172,6 @@ export function GameScreen() {
       } catch (err) {
         console.error('Failed to fetch daily set', err);
       } finally {
-        setLoading(false);
         setHasLoadedOnce(true);
       }
     };
@@ -318,12 +273,12 @@ export function GameScreen() {
       return;
     }
 
-    const normalized = normalizeText(inputValue);
+    const normalized = normalizeAnswer(inputValue);
     if (!normalized) {
       return;
     }
 
-    if (normalized === normalizeText(currentItem.answer)) {
+    if (normalized === normalizeAnswer(currentItem.answer)) {
       handleCorrectGuess();
     } else {
       setStatus('incorrect');
@@ -342,7 +297,7 @@ export function GameScreen() {
       return;
     }
 
-    const penalty = penaltyTimes[Math.min(penaltyCount, penaltyTimes.length - 1)];
+    const penalty = PENALTY_TIMES_SECONDS[Math.min(penaltyCount, PENALTY_TIMES_SECONDS.length - 1)];
     setPenaltyCount((count) => count + 1);
     setCurrentTime((value) => value + penalty);
     setTotalTime((value) => value + penalty);
@@ -352,17 +307,18 @@ export function GameScreen() {
     window.setTimeout(() => setPenaltyMessage(''), 1200);
   };
 
-  const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
+  const handleSuggestionSelect = (suggestion: string) => {
+    setInputValue(suggestion);
+    setSuggestions([]);
+
+    if (currentItem && normalizeAnswer(suggestion) === normalizeAnswer(currentItem.answer)) {
+      handleCorrectGuess();
+    }
+  };
 
   useEffect(() => {
     const getNextReset = () => {
-      const now = new Date();
-      const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-      const diff = Math.max(0, Math.floor((next.getTime() - now.getTime()) / 1000));
-      const hours = Math.floor(diff / 3600);
-      const minutes = Math.floor((diff % 3600) / 60);
-      const seconds = diff % 60;
-      setTimeToNextSet(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      setTimeToNextSet(getNextUtcResetLabel());
     };
 
     getNextReset();
@@ -394,7 +350,7 @@ export function GameScreen() {
     setPauseQueued(false);
     setFinished(false);
     setHasLoadedOnce(false);
-    setItems(sampleItems);
+    setItems(placeholderItems);
     setCountdown(3);
   };
 
@@ -455,9 +411,11 @@ export function GameScreen() {
                   {nextItem ? (
                     <div className="flex h-36 w-full max-w-xs flex-col items-center justify-center gap-4 rounded-3xl bg-slate-800/90 p-4 shadow-inner shadow-slate-950/60">
                       {nextItem.imageUrl ? (
-                        <img
+                        <Image
                           src={nextItem.imageUrl}
                           alt={nextItem.question}
+                          width={96}
+                          height={96}
                           className="h-24 w-24 rounded-3xl object-cover opacity-50 blur-sm"
                         />
                       ) : (
@@ -497,9 +455,11 @@ export function GameScreen() {
                   {started && currentItem ? (
                     <div className="flex h-36 w-full max-w-xs flex-col items-center justify-center gap-4 rounded-3xl bg-slate-800/90 p-4 shadow-inner shadow-slate-950/60">
                       {currentItem.imageUrl ? (
-                        <img
+                        <Image
                           src={currentItem.imageUrl}
                           alt={currentItem.question}
+                          width={96}
+                          height={96}
                           className="h-24 w-24 rounded-3xl object-cover"
                         />
                       ) : (
@@ -524,7 +484,7 @@ export function GameScreen() {
                   {previousItem ? (
                     <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400 sm:text-[0.75rem]">
                       <span>{previousItem.champion}</span>
-                      <span>•</span>
+                      <span>-</span>
                       <span>{getAbilityKeyLabel(previousItem)}</span>
                     </div>
                   ) : null}
@@ -539,9 +499,11 @@ export function GameScreen() {
                   {previousItem ? (
                     <div className="flex h-36 w-full max-w-xs flex-col items-center justify-center gap-4 rounded-3xl bg-slate-800/90 p-4 shadow-inner shadow-slate-950/60">
                       {previousItem.imageUrl ? (
-                        <img
+                        <Image
                           src={previousItem.imageUrl}
                           alt={previousItem.question}
+                          width={96}
+                          height={96}
                           className="h-24 w-24 rounded-3xl object-cover"
                         />
                       ) : (
@@ -619,14 +581,7 @@ export function GameScreen() {
                       <button
                         key={suggestion}
                         type="button"
-                        onClick={() => {
-                          setInputValue(suggestion);
-                          setSuggestions([]);
-                          setTimeout(() => {
-                            const form = document.querySelector('form');
-                            if (form) form.requestSubmit();
-                          }, 0);
-                        }}
+                        onClick={() => handleSuggestionSelect(suggestion)}
                         className="w-full px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-900"
                       >
                         {suggestion}
@@ -682,11 +637,11 @@ export function GameScreen() {
                       </div>
                       <p className="mt-3 text-sm leading-6 text-slate-400">
                         {item.state === 'current'
-                          ? `⏱ ${formatSeconds(currentTime)}`
+                          ? formatSeconds(currentTime)
                           : item.state === 'completed' && completedTimes[item.id]
                           ? `${formatSeconds(completedTimes[item.id].total)} - ${formatSeconds(completedTimes[item.id].duration)}`
                           : item.state === 'completed'
-                          ? '✔ Completed'
+                          ? 'Completed'
                           : 'TBD - TBD'}
                       </p>
                     </div>

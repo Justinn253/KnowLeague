@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSampleQuizItems } from '@/lib/riot';
+import { getQuizItems } from '@/lib/riot';
 
 function xmur3(seed: string) {
   let h = 1779033703 ^ seed.length;
@@ -27,7 +27,7 @@ function seededShuffle<T>(items: T[], seed: string) {
 export async function GET() {
   try {
     const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
-    const all = await getSampleQuizItems();
+    const all = await getQuizItems();
     const daily = seededShuffle(all, dateStr).slice(0, 50);
     return NextResponse.json(daily);
   } catch (error) {

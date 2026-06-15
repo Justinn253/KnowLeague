@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'League Quiz Hub',
-  description: 'Fast League of Legends quiz games with Next.js, Tailwind, and Supabase',
+  title: 'KnowLeague',
+  description: 'League of Legends quiz games and daily knowledge challenges',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,0 +1,452 @@
+[
+  {
+    "id": "KogMaw-spell-1",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Bio-Arcane Barrage",
+    "answer": "Bio-Arcane Barrage",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/KogMawBioArcaneBarrage.png",
+    "champion": "Kog'Maw"
+  },
+  {
+    "id": "Aurora-spell-1",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Across the Veil",
+    "answer": "Across the Veil",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/AuroraW.png",
+    "champion": "Aurora"
+  },
+  {
+    "id": "Leona-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Zenith Blade",
+    "answer": "Zenith Blade",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/LeonaZenithBlade.png",
+    "champion": "Leona"
+  },
+  {
+    "id": "Viego-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Sovereign's Domination",
+    "answer": "Sovereign's Domination",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Viego_Passive.png",
+    "champion": "Viego"
+  },
+  {
+    "id": "Renekton-spell-1",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Ruthless Predator",
+    "answer": "Ruthless Predator",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/RenektonPreExecute.png",
+    "champion": "Renekton"
+  },
+  {
+    "id": "Singed-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Noxious Slipstream",
+    "answer": "Noxious Slipstream",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Singed_Passive.png",
+    "champion": "Singed"
+  },
+  {
+    "id": "Briar-spell-0",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Head Rush",
+    "answer": "Head Rush",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/BriarQ.png",
+    "champion": "Briar"
+  },
+  {
+    "id": "Karma-spell-0",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Inner Flame",
+    "answer": "Inner Flame",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/KarmaQ.png",
+    "champion": "Karma"
+  },
+  {
+    "id": "Gangplank-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Trial by Fire",
+    "answer": "Trial by Fire",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Gangplank_Passive.png",
+    "champion": "Gangplank"
+  },
+  {
+    "id": "Kalista-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Fate's Call",
+    "answer": "Fate's Call",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/KalistaRx.png",
+    "champion": "Kalista"
+  },
+  {
+    "id": "Nasus-spell-1",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Wither",
+    "answer": "Wither",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/NasusW.png",
+    "champion": "Nasus"
+  },
+  {
+    "id": "Sona-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Crescendo",
+    "answer": "Crescendo",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/SonaR.png",
+    "champion": "Sona"
+  },
+  {
+    "id": "Gwen-spell-1",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Hallowed Mist",
+    "answer": "Hallowed Mist",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/GwenW.png",
+    "champion": "Gwen"
+  },
+  {
+    "id": "Rell-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Magnet Storm",
+    "answer": "Magnet Storm",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/RellR.png",
+    "champion": "Rell"
+  },
+  {
+    "id": "Irelia-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Flawless Duet",
+    "answer": "Flawless Duet",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/IreliaE.png",
+    "champion": "Irelia"
+  },
+  {
+    "id": "Ezreal-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Rising Spell Force",
+    "answer": "Rising Spell Force",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Ezreal_RisingSpellForce.png",
+    "champion": "Ezreal"
+  },
+  {
+    "id": "Viego-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Heartbreaker",
+    "answer": "Heartbreaker",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/ViegoR.png",
+    "champion": "Viego"
+  },
+  {
+    "id": "Lissandra-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Glacial Path",
+    "answer": "Glacial Path",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/LissandraE.png",
+    "champion": "Lissandra"
+  },
+  {
+    "id": "Nilah-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Apotheosis",
+    "answer": "Apotheosis",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/NilahR.png",
+    "champion": "Nilah"
+  },
+  {
+    "id": "Yuumi-spell-1",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "You and Me!",
+    "answer": "You and Me!",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/YuumiW.png",
+    "champion": "Yuumi"
+  },
+  {
+    "id": "Kassadin-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Force Pulse",
+    "answer": "Force Pulse",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/ForcePulse.png",
+    "champion": "Kassadin"
+  },
+  {
+    "id": "Soraka-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Salvation",
+    "answer": "Salvation",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Soraka_Passive.png",
+    "champion": "Soraka"
+  },
+  {
+    "id": "Ahri-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Charm",
+    "answer": "Charm",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/AhriE.png",
+    "champion": "Ahri"
+  },
+  {
+    "id": "Kayn-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Shadow Step",
+    "answer": "Shadow Step",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/KaynE.png",
+    "champion": "Kayn"
+  },
+  {
+    "id": "Yorick-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Eulogy of the Isles",
+    "answer": "Eulogy of the Isles",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/YorickR.png",
+    "champion": "Yorick"
+  },
+  {
+    "id": "Lulu-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Wild Growth",
+    "answer": "Wild Growth",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/LuluR.png",
+    "champion": "Lulu"
+  },
+  {
+    "id": "Ashe-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Hawkshot",
+    "answer": "Hawkshot",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/AsheSpiritOfTheHawk.png",
+    "champion": "Ashe"
+  },
+  {
+    "id": "Seraphine-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Beat Drop",
+    "answer": "Beat Drop",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/SeraphineE.png",
+    "champion": "Seraphine"
+  },
+  {
+    "id": "Samira-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Wild Rush",
+    "answer": "Wild Rush",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/SamiraE.png",
+    "champion": "Samira"
+  },
+  {
+    "id": "Vayne-spell-0",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Tumble",
+    "answer": "Tumble",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/VayneTumble.png",
+    "champion": "Vayne"
+  },
+  {
+    "id": "Swain-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Demonic Ascension",
+    "answer": "Demonic Ascension",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/SwainR.png",
+    "champion": "Swain"
+  },
+  {
+    "id": "Vladimir-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Hemoplague",
+    "answer": "Hemoplague",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/VladimirHemoplague.png",
+    "champion": "Vladimir"
+  },
+  {
+    "id": "Malphite-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Granite Shield",
+    "answer": "Granite Shield",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Malphite_GraniteShield.png",
+    "champion": "Malphite"
+  },
+  {
+    "id": "Ezreal-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Arcane Shift",
+    "answer": "Arcane Shift",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/EzrealE.png",
+    "champion": "Ezreal"
+  },
+  {
+    "id": "Tristana-spell-1",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Rocket Jump",
+    "answer": "Rocket Jump",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/TristanaW.png",
+    "champion": "Tristana"
+  },
+  {
+    "id": "Garen-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Demacian Justice",
+    "answer": "Demacian Justice",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/GarenR.png",
+    "champion": "Garen"
+  },
+  {
+    "id": "Gragas-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Happy Hour",
+    "answer": "Happy Hour",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/GragasPassiveHeal.png",
+    "champion": "Gragas"
+  },
+  {
+    "id": "Karthus-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Requiem",
+    "answer": "Requiem",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/KarthusFallenOne.png",
+    "champion": "Karthus"
+  },
+  {
+    "id": "Elise-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Spider Queen",
+    "answer": "Spider Queen",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/ElisePassive.png",
+    "champion": "Elise"
+  },
+  {
+    "id": "Morgana-spell-0",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Dark Binding",
+    "answer": "Dark Binding",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/MorganaQ.png",
+    "champion": "Morgana"
+  },
+  {
+    "id": "Aurora-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "The Weirding",
+    "answer": "The Weirding",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/AuroraE.png",
+    "champion": "Aurora"
+  },
+  {
+    "id": "Belveth-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Death in Lavender ",
+    "answer": "Death in Lavender ",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Belveth_Passive.png",
+    "champion": "Bel'Veth"
+  },
+  {
+    "id": "MissFortune-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Make It Rain",
+    "answer": "Make It Rain",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/MissFortuneScattershot.png",
+    "champion": "Miss Fortune"
+  },
+  {
+    "id": "DrMundo-spell-1",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Heart Zapper",
+    "answer": "Heart Zapper",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/DrMundoW.png",
+    "champion": "Dr. Mundo"
+  },
+  {
+    "id": "Kalista-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Martial Poise",
+    "answer": "Martial Poise",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Kalista_Passive.png",
+    "champion": "Kalista"
+  },
+  {
+    "id": "Azir-spell-2",
+    "type": "spell",
+    "title": "Ability Icon",
+    "question": "Shifting Sands",
+    "answer": "Shifting Sands",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/AzirEWrapper.png",
+    "champion": "Azir"
+  },
+  {
+    "id": "Kaisa-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Second Skin",
+    "answer": "Second Skin",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Kaisa_Passive.png",
+    "champion": "Kai'Sa"
+  },
+  {
+    "id": "Yone-spell-3",
+    "type": "ultimate",
+    "title": "Ultimate Clue",
+    "question": "Fate Sealed",
+    "answer": "Fate Sealed",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/spell/YoneR.png",
+    "champion": "Yone"
+  },
+  {
+    "id": "Lucian-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Lightslinger",
+    "answer": "Lightslinger",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Lucian_Passive.png",
+    "champion": "Lucian"
+  },
+  {
+    "id": "Karthus-passive",
+    "type": "passive",
+    "title": "Passive Ability",
+    "question": "Death Defied",
+    "answer": "Death Defied",
+    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.24.1/img/passive/Karthus_Passive.png",
+    "champion": "Karthus"
+  }
+]

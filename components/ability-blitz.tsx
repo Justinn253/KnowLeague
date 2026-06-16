@@ -323,6 +323,7 @@ export function AbilityBlitz() {
   const currentProgressItemRef = useRef<HTMLDivElement | null>(null);
   const difficultyMenuRef = useRef<HTMLDivElement | null>(null);
   const modifiersMenuRef = useRef<HTMLDivElement | null>(null);
+  const answerInputAreaRef = useRef<HTMLDivElement | null>(null);
 
   const currentItem = items[activeIndex];
   const nextItem = items[activeIndex + 1];
@@ -379,6 +380,7 @@ export function AbilityBlitz() {
       })),
     [items, activeIndex],
   );
+  const completedProgressCount = progressList.filter((item) => item.state === 'completed').length;
 
   useEffect(() => {
     if (!started || paused || countdown !== null || finished) {
@@ -464,7 +466,7 @@ export function AbilityBlitz() {
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
-    if (!currentItem || !query || !autocompleteEnabled) {
+    if (!currentItem || inputValue.trim().length < 3 || !query || !autocompleteEnabled) {
       setSuggestions([]);
       return;
     }
@@ -475,10 +477,7 @@ export function AbilityBlitz() {
       ? filteredAnswers
       : Array.from(new Set(items.map((item) => item.answer)));
 
-    const matches = candidateAnswers
-      .filter((answer) => normalizeAnswer(answer).includes(query))
-      .slice(0, 8);
-    setSuggestions(matches);
+    setSuggestions(candidateAnswers.filter((answer) => normalizeAnswer(answer).includes(query)));
   }, [inputValue, currentItem, items, filteredAnswers, autocompleteEnabled, categoryAnswers]);
 
   useEffect(() => {
@@ -555,6 +554,10 @@ export function AbilityBlitz() {
       }
 
       setOpenMenu(null);
+
+      if (!answerInputAreaRef.current?.contains(target)) {
+        setSuggestions([]);
+      }
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
@@ -1146,7 +1149,7 @@ export function AbilityBlitz() {
               <label className="sr-only" htmlFor="guess-input">
                 Enter answer
               </label>
-              <div className="relative flex-1">
+              <div ref={answerInputAreaRef} className="relative flex-1">
                 <input
                   id="guess-input"
                   name="quiz-answer"
@@ -1158,6 +1161,20 @@ export function AbilityBlitz() {
                   onChange={(event) => {
                     setInputValue(event.target.value);
                     setPendingConfirmedGuess('');
+                  }}
+                  onFocus={() => {
+                    const query = normalizeAnswer(inputValue);
+                    if (!currentItem || inputValue.trim().length < 3 || !query || !autocompleteEnabled) {
+                      return;
+                    }
+
+                    const candidateAnswers = categoryAnswers['all']?.length
+                      ? categoryAnswers['all']
+                      : filteredAnswers.length
+                      ? filteredAnswers
+                      : Array.from(new Set(items.map((item) => item.answer)));
+
+                    setSuggestions(candidateAnswers.filter((answer) => normalizeAnswer(answer).includes(query)));
                   }}
                   disabled={!started}
                   className={`w-full rounded-3xl border px-5 py-4 text-lg text-slate-100 outline-none transition duration-500 disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -1208,7 +1225,10 @@ export function AbilityBlitz() {
           </form>
 
           <div className="mt-8 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-            <h2 className="mb-4 text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
+              <span className="text-xs text-slate-500">{completedProgressCount}/{progressList.length}</span>
+            </div>
             <div ref={progressSectionRef} className="max-h-[22rem] overflow-y-auto scroll-smooth pr-2">
               <div className="grid gap-3 lg:grid-cols-4">
                 {progressList.map((item) => {

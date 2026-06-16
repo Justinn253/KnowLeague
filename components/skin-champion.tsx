@@ -17,8 +17,8 @@ import {
 
 const modifiers = [
   { id: 'greyscale', name: 'Greyscale', description: 'Splash art appears in greyscale.' },
-  { id: 'blurred', name: 'Blurred', description: 'Splash art starts blurred.' },
-  { id: 'cropped', name: 'Cropped', description: 'Only a cropped section is shown.' },
+  { id: 'blurred', name: 'Blurred', description: 'Splash art is slightly blurred.' },
+  { id: 'cropped', name: 'Cropped', description: 'Only a cropped section is shown, with wrong guesses zooming out.' },
   { id: 'hiddenTimer', name: 'Hidden Timer', description: 'Timer no longer displays.' },
   { id: 'confirmEntry', name: 'Confirm Entry', description: 'Guesses require a second submit or Enter press.' },
 ] as const;
@@ -27,22 +27,22 @@ const difficulties = [
   {
     id: 'iron',
     name: 'Iron',
-    description: 'Hints appear instantly, wrong guesses add no time, and auto-fill is active.',
+    description: 'No upcoming skin blur, hints appear instantly, wrong guesses add no time, and auto-fill is active.',
   },
   {
     id: 'gold',
     name: 'Gold',
-    description: 'Hints appear after 10 seconds, wrong guesses add 5 seconds, and auto-fill is active.',
+    description: 'Upcoming skins are blurred, hints appear after 10 seconds, wrong guesses add 5 seconds, and auto-fill is active.',
   },
   {
     id: 'diamond',
     name: 'Diamond',
-    description: 'Hints appear after 30 seconds, wrong guesses scale upward, and auto-fill is active.',
+    description: 'Upcoming skins are blocked, hints appear after 30 seconds, wrong guesses scale upward, and auto-fill is active.',
   },
   {
     id: 'challenger',
     name: 'Challenger',
-    description: 'Hints are disabled, wrong guesses end the game, and auto-fill is off.',
+    description: 'Upcoming skins are blocked, hints are disabled, wrong guesses end the game, and auto-fill is off.',
   },
 ] as const;
 
@@ -54,6 +54,7 @@ type ModifierState = Record<ModifierId, boolean>;
 type DifficultyRule = {
   hintDelaySeconds: number | null;
   wrongGuess: 'none' | 'flat-five' | 'scaled' | 'game-over';
+  upcomingVisibility: 'clear' | 'blurred' | 'blocked';
   autocomplete: boolean;
 };
 
@@ -61,21 +62,25 @@ const difficultyRules: Record<DifficultyId, DifficultyRule> = {
   iron: {
     hintDelaySeconds: 0,
     wrongGuess: 'none',
+    upcomingVisibility: 'clear',
     autocomplete: true,
   },
   gold: {
     hintDelaySeconds: 10,
     wrongGuess: 'flat-five',
+    upcomingVisibility: 'blurred',
     autocomplete: true,
   },
   diamond: {
     hintDelaySeconds: 30,
     wrongGuess: 'scaled',
+    upcomingVisibility: 'blocked',
     autocomplete: true,
   },
   challenger: {
     hintDelaySeconds: null,
     wrongGuess: 'game-over',
+    upcomingVisibility: 'blocked',
     autocomplete: false,
   },
 };
@@ -85,8 +90,8 @@ const defaultModifiers = modifiers.reduce(
   {} as ModifierState,
 );
 
-const CROPPED_INITIAL_ZOOM = 2.1;
-const CROPPED_ZOOM_STEP = 0.35;
+const CROPPED_INITIAL_ZOOM = 2;
+const CROPPED_ZOOM_STEP = 0.25;
 const CROPPED_MIN_ZOOM = 1;
 
 function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boolean }) {
@@ -108,6 +113,23 @@ function getSkinMeta(item?: QuizItem | null) {
   }
 
   return [item.champion, item.releaseDate ? `Released ${item.releaseDate}` : null].filter(Boolean);
+}
+
+function getCropOrigin(item?: QuizItem | null) {
+  const seed = item?.id ?? 'skin';
+  let hashA = 0;
+  let hashB = 0;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    const code = seed.charCodeAt(index);
+    hashA = Math.imul(31, hashA) + code;
+    hashB = Math.imul(131, hashB) + code;
+  }
+
+  const x = Math.abs(hashA % 101);
+  const y = Math.abs(hashB % 101);
+
+  return `${x}% ${y}%`;
 }
 
 export function SkinChampion() {
@@ -155,8 +177,21 @@ export function SkinChampion() {
   const autocompleteEnabled = difficultyRule.autocomplete;
   const shouldHideTimers = activeModifiers.hiddenTimer;
   const shouldRevealChampion = selectedDifficulty === 'iron';
+  const completedProgressCount = items.filter((item) => item.guessed).length;
 
-  const itemClassName = 'h-full w-full object-contain';
+  const getSkinImageClassName = (cardLabel: string) => {
+    const classes = ['h-full w-full object-contain transition duration-300'];
+
+    if (activeModifiers.greyscale) {
+      classes.push('grayscale');
+    }
+
+    if (activeModifiers.blurred || (cardLabel === 'Next item' && difficultyRule.upcomingVisibility === 'blurred')) {
+      classes.push('blur-sm');
+    }
+
+    return classes.join(' ');
+  };
 
   const filteredAnswers = useMemo(
     () => Array.from(new Set(items.map((item) => item.answer))).sort(),
@@ -200,7 +235,7 @@ export function SkinChampion() {
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
-    if (!currentItem || query.length < 3 || !autocompleteEnabled) {
+    if (!currentItem || inputValue.trim().length < 3 || !query || !autocompleteEnabled) {
       setSuggestions([]);
       return;
     }
@@ -639,7 +674,7 @@ export function SkinChampion() {
           </div>
         </header>
 
-        <section className="relative z-40 overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+        <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
           {afterNextItem?.imageUrl ? (
             <Image
               key={`preload-${afterNextItem.id}`}
@@ -685,19 +720,27 @@ export function SkinChampion() {
                     </span>
                   </div>
                   <div className="relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 border-slate-400/70 bg-slate-950/50 text-white shadow-2xl shadow-black/20">
-                    {card.item?.imageUrl ? (
+                    {card.item && card.label === 'Next item' && difficultyRule.upcomingVisibility === 'blocked' ? (
+                      <div className="flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-500">
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em]">Hidden</p>
+                      </div>
+                    ) : card.item?.imageUrl ? (
                       <Image
                         key={`${card.label}-${card.item.id}`}
                         src={card.item.imageUrl}
                         alt={card.item.question}
                         width={1215}
                         height={717}
-                        className={itemClassName}
+                        className={getSkinImageClassName(card.label)}
                         priority={card.label === 'Current item'}
                         style={{
                           transform:
-                            card.label === 'Current item' && activeModifiers.cropped
-                              ? `scale(${croppedZoom})`
+                            activeModifiers.cropped && card.label !== 'Completed'
+                              ? `scale(${card.label === 'Current item' ? croppedZoom : CROPPED_INITIAL_ZOOM})`
+                              : undefined,
+                          transformOrigin:
+                            activeModifiers.cropped && card.label !== 'Completed'
+                              ? getCropOrigin(card.item)
                               : undefined,
                           transition: 'transform 240ms ease',
                         }}
@@ -761,7 +804,7 @@ export function SkinChampion() {
                 placeholder={started ? 'Type the skin name' : 'Press Play to begin'}
                 onFocus={() => {
                   const query = normalizeAnswer(inputValue);
-                  if (!currentItem || query.length < 3 || !autocompleteEnabled) {
+                  if (!currentItem || inputValue.trim().length < 3 || !query || !autocompleteEnabled) {
                     return;
                   }
 
@@ -793,12 +836,12 @@ export function SkinChampion() {
                 {activeModifiers.confirmEntry && pendingConfirmedGuess ? 'Confirm' : 'Submit'}
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
               {!shouldHideTimers ? (
                 <>
-                  <span>Total time: {formatSeconds(totalTime)}</span>
-                  <span className="h-2 w-2 rounded-full bg-slate-700" />
-                  <span>Current item: {formatSeconds(currentTime)}</span>
+                  <span>Total time: <span className="text-white">{formatSeconds(totalTime)}</span></span>
+                  <span className="hidden h-3 w-3 rounded-full bg-slate-500 sm:inline-block" />
+                  <span>Current item: <span className="text-white">{formatSeconds(currentTime)}</span></span>
                 </>
               ) : (
                 <span>Timer hidden</span>
@@ -812,9 +855,9 @@ export function SkinChampion() {
           </form>
 
           <section className="relative z-0 mt-8 rounded-3xl border border-white/10 bg-slate-950/70 p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Round progress</p>
-              <span className="text-xs text-slate-500">{Math.min(activeIndex + (finished ? 1 : 0), items.length)}/{items.length}</span>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
+              <span className="text-xs text-slate-500">{completedProgressCount}/{items.length}</span>
             </div>
             <div ref={progressContainerRef} className="grid max-h-72 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((item, index) => {

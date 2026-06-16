@@ -94,7 +94,13 @@ async function buildSkinItems() {
   );
 
   return Object.values(skinsById)
-    .filter((skin) => skin.skinClassification === 'kChampion' && !skin.isBase && skin.name)
+    .filter(
+      (skin) =>
+        skin.skinClassification === 'kChampion' &&
+        !skin.isBase &&
+        skin.name &&
+        !/[()]/.test(skin.name),
+    )
     .map((skin) => {
       const championId = Math.floor(Number(skin.id) / 1000);
       const skinNumber = Number(skin.id) % 1000;

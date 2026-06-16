@@ -21,20 +21,20 @@ const games: GameLink[] = [
     icon: Clock3,
   },
   {
+    title: 'Skin Champion',
+    href: '/skin-champion',
+    description: 'Identify champions and cosmetics from skin-focused clues.',
+    status: 'Play',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Ezreal.png',
+    icon: Sparkles,
+  },
+  {
     title: 'Mastery Master',
     href: '/mastery-master',
     description: 'Build champion knowledge through focused mastery-style challenges.',
     status: 'Coming soon',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Lux.png',
     icon: Crown,
-  },
-  {
-    title: 'Skin Champion',
-    href: '/skin-champion',
-    description: 'Identify champions and cosmetics from skin-focused clues.',
-    status: 'Playable now',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Ezreal.png',
-    icon: Sparkles,
   },
 ];
 

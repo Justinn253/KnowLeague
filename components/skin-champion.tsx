@@ -15,19 +15,6 @@ import {
   type QuizItem,
 } from '@/lib/quiz';
 
-const placeholderItems: QuizItem[] = [
-  {
-    id: 'sample-skin',
-    type: 'skin',
-    title: 'Skin Splash',
-    question: 'Guess the skin',
-    answer: 'Arcade Ezreal',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Ezreal.png',
-    champion: 'Ezreal',
-    releaseDate: null,
-  },
-];
-
 const modifiers = [
   { id: 'greyscale', name: 'Greyscale', description: 'Splash art appears in greyscale.' },
   { id: 'blurred', name: 'Blurred', description: 'Splash art starts blurred.' },
@@ -124,7 +111,7 @@ function getSkinMeta(item?: QuizItem | null) {
 }
 
 export function SkinChampion() {
-  const [items, setItems] = useState<QuizItem[]>(placeholderItems);
+  const [items, setItems] = useState<QuizItem[]>([]);
   const [answers, setAnswers] = useState<string[]>([]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(defaultModifiers);
@@ -156,8 +143,9 @@ export function SkinChampion() {
   const answerInputAreaRef = useRef<HTMLDivElement>(null);
   const progressContainerRef = useRef<HTMLDivElement>(null);
 
-  const currentItem = started ? items[activeIndex] : null;
-  const nextItem = started ? items[activeIndex + 1] : null;
+  const currentItem = started ? items[activeIndex] ?? null : null;
+  const nextItem = started ? items[activeIndex + 1] ?? null : null;
+  const afterNextItem = started ? items[activeIndex + 2] ?? null : null;
   const previousItem = activeIndex > 0 ? items[activeIndex - 1] : null;
   const selectedDifficultyName = difficulties.find((difficulty) => difficulty.id === selectedDifficulty)?.name;
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
@@ -166,12 +154,18 @@ export function SkinChampion() {
   const hintsDisabled = difficultyRule.hintDelaySeconds === null;
   const autocompleteEnabled = difficultyRule.autocomplete;
   const shouldHideTimers = activeModifiers.hiddenTimer;
+  const shouldRevealChampion = selectedDifficulty === 'iron';
 
-  const itemClassName = 'h-full w-full rounded-2xl object-contain shadow-2xl ring-1 ring-white/10';
+  const itemClassName = 'h-full w-full object-contain';
 
   const filteredAnswers = useMemo(
     () => Array.from(new Set(items.map((item) => item.answer))).sort(),
     [items],
+  );
+
+  const autocompleteAnswers = useMemo(
+    () => (answers.length ? answers : filteredAnswers),
+    [answers, filteredAnswers],
   );
 
   useEffect(() => {
@@ -206,14 +200,13 @@ export function SkinChampion() {
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
-    if (!currentItem || !query || !autocompleteEnabled) {
+    if (!currentItem || query.length < 3 || !autocompleteEnabled) {
       setSuggestions([]);
       return;
     }
 
-    const pool = answers.length ? answers : filteredAnswers;
-    setSuggestions(pool.filter((answer) => normalizeAnswer(answer).includes(query)).slice(0, 8));
-  }, [answers, autocompleteEnabled, currentItem, filteredAnswers, inputValue]);
+    setSuggestions(autocompleteAnswers.filter((answer) => normalizeAnswer(answer).includes(query)));
+  }, [autocompleteAnswers, autocompleteEnabled, currentItem, inputValue]);
 
   useEffect(() => {
     if (!currentItem) {
@@ -345,7 +338,7 @@ export function SkinChampion() {
     setPenaltyMessage('');
     setPendingConfirmedGuess('');
     setHasLoadedOnce(false);
-    setItems(placeholderItems);
+    setItems([]);
     setCountdown(3);
   };
 
@@ -646,46 +639,55 @@ export function SkinChampion() {
           </div>
         </header>
 
-        <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
-          <div className={`grid gap-4 lg:grid-cols-3 lg:items-center transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
-            {[
-              { label: 'Next item', item: nextItem, fallback: 'Next skin will appear here' },
-              { label: 'Current item', item: currentItem, fallback: 'Press Play to reveal the next skin' },
-              { label: 'Completed', item: previousItem, fallback: 'Your completed skins appear here' },
-            ].map((card) => (
-              <div
-                key={card.label}
-                className={`rounded-[2.5rem] border bg-slate-950/80 p-8 shadow-lg ${
-                  card.label === 'Current item' && successFlash
-                    ? 'border-emerald-400/40 ring-1 ring-emerald-400/20'
-                    : card.label === 'Completed'
-                    ? 'border-emerald-500/20'
-                    : 'border-slate-700/50'
-                }`}
-              >
-                <div className="mb-5 flex flex-col gap-2 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.22em]">{card.label}</p>
-                    <p className="mt-1 text-sm text-slate-300">
-                      {card.label === 'Completed' ? card.item?.answer ?? 'Waiting...' : card.item?.title ?? 'Skin Splash'}
-                    </p>
-                    {card.label === 'Completed' && getSkinMeta(card.item) ? (
+        <section className="relative z-40 overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+          {afterNextItem?.imageUrl ? (
+            <Image
+              key={`preload-${afterNextItem.id}`}
+              src={afterNextItem.imageUrl}
+              alt=""
+              width={1215}
+              height={717}
+              aria-hidden="true"
+              className="pointer-events-none absolute h-px w-px opacity-0"
+            />
+          ) : null}
+          <div className="overflow-hidden">
+            <div className={`grid gap-4 lg:grid-cols-3 lg:items-start transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
+              {[
+                { label: 'Next item', item: nextItem, fallback: 'Next skin will appear here' },
+                { label: 'Current item', item: currentItem, fallback: 'Press Play to reveal the next skin' },
+                { label: 'Completed', item: previousItem, fallback: 'Your completed skins appear here' },
+              ].map((card) => (
+                <div
+                  key={card.label}
+                  className={`min-w-0 transition ${
+                    card.label === 'Current item' && successFlash ? 'rounded-2xl ring-1 ring-emerald-400/40' : ''
+                  }`}
+                >
+                  <div className="mb-3 flex min-h-[4.75rem] flex-col gap-2 px-1 text-slate-400 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em]">{card.label}</p>
+                      <p className="mt-1 text-sm text-slate-300">
+                        {card.label === 'Completed' ? card.item?.answer ?? 'Waiting...' : card.item?.title ?? 'Skin Splash'}
+                      </p>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400 sm:text-[0.75rem]">
-                        {getSkinMeta(card.item)?.map((meta, index) => (
-                          <span key={meta}>{index === 0 ? meta : `- ${meta}`}</span>
-                        ))}
+                        {card.label === 'Completed' && getSkinMeta(card.item) ? (
+                          getSkinMeta(card.item)?.map((meta, index) => (
+                            <span key={meta}>{index === 0 ? meta : `- ${meta}`}</span>
+                          ))
+                        ) : (
+                          <span>{shouldRevealChampion && card.item?.champion ? card.item.champion : 'Champion unknown'}</span>
+                        )}
                       </div>
-                    ) : null}
+                    </div>
+                    <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
+                      {card.label === 'Completed' ? <Check size={14} className="inline text-emerald-300" /> : 'Skin'}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
-                    {card.label === 'Completed' ? <Check size={14} className="inline text-emerald-300" /> : 'Skin'}
-                  </span>
-                </div>
-                <div className="relative flex h-72 items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900/90 text-white shadow-2xl shadow-black/20">
-                  <div className="absolute inset-0 bg-grid-slate opacity-10" />
-                  <div className="relative z-10 flex h-full w-full items-center justify-center px-2">
+                  <div className="relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 border-slate-400/70 bg-slate-950/50 text-white shadow-2xl shadow-black/20">
                     {card.item?.imageUrl ? (
                       <Image
+                        key={`${card.label}-${card.item.id}`}
                         src={card.item.imageUrl}
                         alt={card.item.question}
                         width={1215}
@@ -701,19 +703,19 @@ export function SkinChampion() {
                         }}
                       />
                     ) : (
-                      <div className="flex h-36 w-full max-w-xs items-center justify-center rounded-3xl bg-slate-800/80 p-4 text-center text-slate-400">
+                      <div className="flex h-full w-full items-center justify-center rounded-2xl bg-slate-950/70 p-4 text-center text-slate-400">
                         <p className="text-sm leading-6">{card.fallback}</p>
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
           <form
             onSubmit={handleSubmit}
-            className={`relative z-20 mt-8 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-5 shadow-inner shadow-slate-950/40 transition ${
+            className={`relative z-30 mt-8 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-5 shadow-inner shadow-slate-950/40 transition ${
               successFlash ? 'border-emerald-400/40 ring-1 ring-emerald-400/20' : 'border-white/10'
             }`}
           >
@@ -757,10 +759,18 @@ export function SkinChampion() {
                 spellCheck={false}
                 disabled={!started || finished}
                 placeholder={started ? 'Type the skin name' : 'Press Play to begin'}
-                className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                onFocus={() => {
+                  const query = normalizeAnswer(inputValue);
+                  if (!currentItem || query.length < 3 || !autocompleteEnabled) {
+                    return;
+                  }
+
+                  setSuggestions(autocompleteAnswers.filter((answer) => normalizeAnswer(answer).includes(query)));
+                }}
+                className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/10 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               />
               {suggestions.length > 0 && autocompleteEnabled ? (
-                <div className="absolute left-0 top-full z-30 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50 sm:w-[calc(100%-8rem)]">
+                <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50 sm:w-[calc(100%-8rem)]">
                   {suggestions.map((suggestion) => (
                     <button
                       key={suggestion}
@@ -800,50 +810,58 @@ export function SkinChampion() {
               ) : null}
             </div>
           </form>
-        </section>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Round progress</p>
-            <span className="text-xs text-slate-500">{Math.min(activeIndex + (finished ? 1 : 0), items.length)}/{items.length}</span>
-          </div>
-          <div ref={progressContainerRef} className="grid max-h-72 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((item, index) => {
-              const completed = item.guessed || index < activeIndex;
-              const active = started && index === activeIndex && !finished;
-              const time = completedTimes[item.id];
+          <section className="relative z-0 mt-8 rounded-3xl border border-white/10 bg-slate-950/70 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Round progress</p>
+              <span className="text-xs text-slate-500">{Math.min(activeIndex + (finished ? 1 : 0), items.length)}/{items.length}</span>
+            </div>
+            <div ref={progressContainerRef} className="grid max-h-72 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((item, index) => {
+                const completed = item.guessed || index < activeIndex;
+                const active = started && index === activeIndex && !finished;
+                const time = completedTimes[item.id];
 
-              return (
-                <div
-                  key={item.id}
-                  className={`min-h-20 rounded-2xl border p-4 text-sm ${
-                    active
-                      ? 'border-violet-500/60 bg-violet-500/10'
-                      : completed
-                      ? 'border-emerald-500/30 bg-emerald-500/10'
-                      : 'border-white/10 bg-slate-950/70'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Image
-                        src={item.imageUrl}
-                        alt=""
-                        width={44}
-                        height={44}
-                        className="h-11 w-11 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
-                      />
-                      <span className="truncate font-semibold text-white">{completed ? item.answer : '???'}</span>
+                return (
+                  <div
+                    key={item.id}
+                    className={`min-h-20 rounded-2xl border p-4 text-sm ${
+                      active
+                        ? 'border-violet-500/60 bg-violet-500/10'
+                        : completed
+                        ? 'border-emerald-500/30 bg-emerald-500/10'
+                        : 'border-white/10 bg-slate-950/70'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className={`h-11 w-11 shrink-0 overflow-hidden border ${
+                            completed ? 'border-slate-400/70' : 'border-white/10'
+                          }`}
+                        >
+                          <Image
+                            src={item.imageUrl}
+                            alt=""
+                            width={44}
+                            height={44}
+                            className={`h-full w-full object-cover ${completed ? '' : 'blur-sm brightness-75 scale-105'}`}
+                          />
+                        </span>
+                        <span className="truncate font-semibold text-white">{completed ? item.answer : '???'}</span>
+                      </div>
+                      <span className="rounded-full bg-slate-800 px-2 py-1 text-[0.65rem] uppercase text-slate-300">
+                        {active ? 'Now' : completed ? 'Done' : 'Next'}
+                      </span>
                     </div>
-                    <span className="rounded-full bg-slate-800 px-2 py-1 text-[0.65rem] uppercase text-slate-300">
-                      {active ? 'Now' : completed ? 'Done' : 'Next'}
-                    </span>
+                    <p className="mt-3 text-xs text-slate-400">
+                      {time ? `${formatSeconds(time.total)} - ${formatSeconds(time.duration)}` : 'TBD - TBD'}
+                    </p>
                   </div>
-                  <p className="mt-3 text-xs text-slate-400">{time ? formatSeconds(time.duration) : 'TBD'}</p>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </section>
         </section>
       </section>
     </main>

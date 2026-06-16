@@ -11840,16 +11840,6 @@
     "releaseDate": null
   },
   {
-    "id": "51029",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Arcade Caitlyn (2022)",
-    "answer": "Prestige Arcade Caitlyn (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Caitlyn_29.jpg",
-    "champion": "Caitlyn",
-    "releaseDate": null
-  },
-  {
     "id": "51051",
     "type": "skin",
     "title": "Skin Splash",
@@ -11896,16 +11886,6 @@
     "question": "Prestige Battle Academia Lux",
     "answer": "Prestige Battle Academia Lux",
     "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_16.jpg",
-    "champion": "Lux",
-    "releaseDate": null
-  },
-  {
-    "id": "99039",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Battle Academia Lux (2022)",
-    "answer": "Prestige Battle Academia Lux (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_39.jpg",
     "champion": "Lux",
     "releaseDate": null
   },
@@ -11960,16 +11940,6 @@
     "releaseDate": null
   },
   {
-    "id": "21033",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Bewitching Miss Fortune (2022)",
-    "answer": "Prestige Bewitching Miss Fortune (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/MissFortune_33.jpg",
-    "champion": "Miss Fortune",
-    "releaseDate": null
-  },
-  {
     "id": "25041",
     "type": "skin",
     "title": "Skin Splash",
@@ -11986,16 +11956,6 @@
     "question": "Prestige Blood Moon Aatrox",
     "answer": "Prestige Blood Moon Aatrox",
     "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Aatrox_8.jpg",
-    "champion": "Aatrox",
-    "releaseDate": null
-  },
-  {
-    "id": "266020",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Blood Moon Aatrox (2022)",
-    "answer": "Prestige Blood Moon Aatrox (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Aatrox_20.jpg",
     "champion": "Aatrox",
     "releaseDate": null
   },
@@ -12200,16 +12160,6 @@
     "releaseDate": null
   },
   {
-    "id": "67033",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Firecracker Vayne (2022)",
-    "answer": "Prestige Firecracker Vayne (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Vayne_33.jpg",
-    "champion": "Vayne",
-    "releaseDate": null
-  },
-  {
     "id": "221029",
     "type": "skin",
     "title": "Skin Splash",
@@ -12226,16 +12176,6 @@
     "question": "Prestige Fuzz Fizz",
     "answer": "Prestige Fuzz Fizz",
     "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Fizz_15.jpg",
-    "champion": "Fizz",
-    "releaseDate": null
-  },
-  {
-    "id": "105025",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Fuzz Fizz (2022)",
-    "answer": "Prestige Fuzz Fizz (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Fizz_25.jpg",
     "champion": "Fizz",
     "releaseDate": null
   },
@@ -12310,32 +12250,12 @@
     "releaseDate": null
   },
   {
-    "id": "103065",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige K/DA Ahri (2022)",
-    "answer": "Prestige K/DA Ahri (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ahri_65.jpg",
-    "champion": "Ahri",
-    "releaseDate": null
-  },
-  {
     "id": "84013",
     "type": "skin",
     "title": "Skin Splash",
     "question": "Prestige K/DA Akali",
     "answer": "Prestige K/DA Akali",
     "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Akali_13.jpg",
-    "champion": "Akali",
-    "releaseDate": null
-  },
-  {
-    "id": "84060",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige K/DA Akali (2022)",
-    "answer": "Prestige K/DA Akali (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Akali_60.jpg",
     "champion": "Akali",
     "releaseDate": null
   },
@@ -12360,32 +12280,12 @@
     "releaseDate": null
   },
   {
-    "id": "28031",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige K/DA Evelynn (2022)",
-    "answer": "Prestige K/DA Evelynn (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Evelynn_31.jpg",
-    "champion": "Evelynn",
-    "releaseDate": null
-  },
-  {
     "id": "145015",
     "type": "skin",
     "title": "Skin Splash",
     "question": "Prestige K/DA Kai'Sa",
     "answer": "Prestige K/DA Kai'Sa",
     "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kaisa_15.jpg",
-    "champion": "Kai'Sa",
-    "releaseDate": null
-  },
-  {
-    "id": "145039",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige K/DA Kai'Sa (2022)",
-    "answer": "Prestige K/DA Kai'Sa (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kaisa_39.jpg",
     "champion": "Kai'Sa",
     "releaseDate": null
   },
@@ -12490,16 +12390,6 @@
     "releaseDate": null
   },
   {
-    "id": "64039",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Nightbringer Lee Sin (2022)",
-    "answer": "Prestige Nightbringer Lee Sin (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/LeeSin_39.jpg",
-    "champion": "Lee Sin",
-    "releaseDate": null
-  },
-  {
     "id": "875009",
     "type": "skin",
     "title": "Skin Splash",
@@ -12570,16 +12460,6 @@
     "releaseDate": null
   },
   {
-    "id": "39036",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige PROJECT: Irelia (2022)",
-    "answer": "Prestige PROJECT: Irelia (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Irelia_36.jpg",
-    "champion": "Irelia",
-    "releaseDate": null
-  },
-  {
     "id": "517014",
     "type": "skin",
     "title": "Skin Splash",
@@ -12626,16 +12506,6 @@
     "question": "Prestige Pulsefire Thresh",
     "answer": "Prestige Pulsefire Thresh",
     "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Thresh_14.jpg",
-    "champion": "Thresh",
-    "releaseDate": null
-  },
-  {
-    "id": "412038",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Pulsefire Thresh (2022)",
-    "answer": "Prestige Pulsefire Thresh (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Thresh_38.jpg",
     "champion": "Thresh",
     "releaseDate": null
   },
@@ -12770,16 +12640,6 @@
     "releaseDate": null
   },
   {
-    "id": "518021",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Star Guardian Neeko (2022)",
-    "answer": "Prestige Star Guardian Neeko (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Neeko_21.jpg",
-    "champion": "Neeko",
-    "releaseDate": null
-  },
-  {
     "id": "16017",
     "type": "skin",
     "title": "Skin Splash",
@@ -12840,16 +12700,6 @@
     "releaseDate": null
   },
   {
-    "id": "246021",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige True Damage Qiyana (2022)",
-    "answer": "Prestige True Damage Qiyana (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Qiyana_21.jpg",
-    "champion": "Qiyana",
-    "releaseDate": null
-  },
-  {
     "id": "235009",
     "type": "skin",
     "title": "Skin Splash",
@@ -12876,16 +12726,6 @@
     "question": "Prestige Valiant Sword Riven",
     "answer": "Prestige Valiant Sword Riven",
     "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Riven_22.jpg",
-    "champion": "Riven",
-    "releaseDate": null
-  },
-  {
-    "id": "92045",
-    "type": "skin",
-    "title": "Skin Splash",
-    "question": "Prestige Valiant Sword Riven (2022)",
-    "answer": "Prestige Valiant Sword Riven (2022)",
-    "imageUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Riven_45.jpg",
     "champion": "Riven",
     "releaseDate": null
   },

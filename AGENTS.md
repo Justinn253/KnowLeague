@@ -14,11 +14,12 @@
 
 ## Structure
 - `app/page.tsx` renders the KnowLeague landing page and game-mode navigation.
-- `app/speed-blitz/page.tsx` renders the playable Speed Blitz game.
+- `app/ability-blitz/page.tsx` renders the playable Ability Blitz game.
+- `app/speed-blitz/page.tsx` redirects legacy links to Ability Blitz.
 - `app/mastery-master/page.tsx` and `app/skin-champion/page.tsx` are placeholder routes for future games.
 - `app/layout.tsx` defines root metadata and global CSS import.
 - `app/globals.css` contains Tailwind layers, global dark styling, and local animations.
-- `components/speed-blitz.tsx` contains the Speed Blitz client-side quiz flow and UI state.
+- `components/ability-blitz.tsx` contains the Ability Blitz client-side quiz flow and UI state.
 - `components/coming-soon-game.tsx` contains shared placeholder page UI for future game modes.
 - `components/feature-card.tsx` is a small reusable card component.
 - `app/api/ddragon/quiz-items/route.ts` builds the daily quiz set.
@@ -42,6 +43,7 @@
 - Supabase env vars default to empty strings; code using Supabase should validate configuration before relying on it.
 - The README lists planned features beyond what is fully implemented in the current UI.
 - Keep game-mode names, route names, and navigation labels consistent when adding or renaming games.
+- Current playable mode naming is `Ability Blitz`; keep legacy `/speed-blitz` links redirected rather than duplicated.
 
 ## Verification
 - Run `npx tsc --noEmit --incremental false` after TypeScript changes.

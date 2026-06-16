@@ -13,10 +13,10 @@ type GameLink = {
 
 const games: GameLink[] = [
   {
-    title: 'Speed Blitz',
-    href: '/speed-blitz',
+    title: 'Ability Blitz',
+    href: '/ability-blitz',
     description: 'Race the clock through a daily set of League ability icons.',
-    status: 'Playable now',
+    status: 'Play',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Yasuo.png',
     icon: Clock3,
   },

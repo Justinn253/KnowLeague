@@ -1,5 +1,5 @@
-import { SpeedBlitz } from '@/components/speed-blitz';
+import { redirect } from 'next/navigation';
 
 export default function SpeedBlitzPage() {
-  return <SpeedBlitz />;
+  redirect('/ability-blitz');
 }

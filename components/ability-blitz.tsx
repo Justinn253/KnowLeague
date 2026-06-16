@@ -289,7 +289,7 @@ function PixelatedIcon({
   );
 }
 
-export function SpeedBlitz() {
+export function AbilityBlitz() {
   const [items, setItems] = useState<QuizItem[]>(placeholderItems);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(defaultModifiers);
@@ -793,7 +793,7 @@ export function SpeedBlitz() {
             </Link>
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
-              <h1 className="text-xl font-semibold text-white">Speed Blitz</h1>
+              <h1 className="text-xl font-semibold text-white">Ability Blitz</h1>
               <p className="mt-1 text-xs text-slate-400">
                 {failed
                   ? 'Game over'

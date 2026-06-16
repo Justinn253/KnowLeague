@@ -6,6 +6,7 @@
 
 ## Commands
 - Install: `npm install`
+- Refresh generated Riot/CommunityDragon catalogues: `npm run data:generate`
 - Dev server: `npm run dev`
 - Production build: `npm run build`
 - Start built app: `npm run start`
@@ -16,15 +17,22 @@
 - `app/page.tsx` renders the KnowLeague landing page and game-mode navigation.
 - `app/ability-blitz/page.tsx` renders the playable Ability Blitz game.
 - `app/speed-blitz/page.tsx` redirects legacy links to Ability Blitz.
-- `app/mastery-master/page.tsx` and `app/skin-champion/page.tsx` are placeholder routes for future games.
+- `app/mastery-master/page.tsx` is a placeholder route for a future game.
+- `app/skin-champion/page.tsx` renders the playable Skin Champion game.
 - `app/layout.tsx` defines root metadata and global CSS import.
 - `app/globals.css` contains Tailwind layers, global dark styling, and local animations.
 - `components/ability-blitz.tsx` contains the Ability Blitz client-side quiz flow and UI state.
+- `components/skin-champion.tsx` contains the Skin Champion client-side skin quiz flow and UI state.
 - `components/coming-soon-game.tsx` contains shared placeholder page UI for future game modes.
 - `components/feature-card.tsx` is a small reusable card component.
-- `app/api/ddragon/quiz-items/route.ts` builds the daily quiz set.
-- `app/api/ddragon/quiz-answers/route.ts` builds answer/autocomplete data.
-- `lib/riot.ts` fetches and transforms Riot Data Dragon champion/ability data.
+- `app/api/ability-blitz/*` serves local generated ability quiz data.
+- `app/api/skin-champion/*` serves local generated skin quiz data.
+- `app/api/ddragon/*` is a legacy compatibility wrapper for Ability Blitz data.
+- `lib/catalogs.ts` reads generated local quiz catalogues.
+- `lib/riot.ts` contains older dynamic Data Dragon helpers and should not be used for new runtime quiz fetches.
+- `scripts/generate-catalogs.mjs` refreshes generated ability and skin catalogues.
+- `data/catalogs/ability-items.json` and `data/catalogs/skin-items.json` are generated runtime catalogues.
+- `data/catalogs/skin-release-dates.json` is an app-owned release-date override map merged into generated skin data.
 - `lib/supabaseClient.ts` creates the Supabase client and leaderboard helper.
 - `data/daily-sets/` contains static daily set JSON samples.
 
@@ -35,10 +43,13 @@
 - Use the `@/components/*` and `@/lib/*` path aliases from `tsconfig.json`.
 - Match the existing Tailwind-heavy styling unless explicitly redesigning the UI.
 - Preserve the dark League quiz interface and existing game flow unless the task asks otherwise.
+- Prefer generated local catalogue reads for quiz runtime data; do not fetch full Riot/CommunityDragon catalogues during gameplay.
 
 ## Fragile Areas
-- Data Dragon version is hardcoded in `lib/riot.ts`.
-- `getSampleQuizItems()` may fetch every champion individually, which can be slow and noisy.
+- Data Dragon version is hardcoded in `scripts/generate-catalogs.mjs` and `lib/riot.ts`.
+- Generated catalogue data can become stale after patches; run `npm run data:generate` when updating Riot data.
+- Skin release dates are not exposed by Data Dragon or the CommunityDragon skin catalogue used here; populate `data/catalogs/skin-release-dates.json` from a trusted source before regenerating if release dates are needed.
+- `getSampleQuizItems()` in the legacy dynamic Riot helper may fetch every champion individually, which can be slow and noisy.
 - `lib/riot.ts` contains debug logging and broad `any` casts.
 - Supabase env vars default to empty strings; code using Supabase should validate configuration before relying on it.
 - The README lists planned features beyond what is fully implemented in the current UI.

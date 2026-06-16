@@ -447,7 +447,7 @@ export function AbilityBlitz() {
       return;
     }
 
-    fetch(`/api/ddragon/quiz-answers`)
+    fetch(`/api/ability-blitz/quiz-answers`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
@@ -488,7 +488,7 @@ export function AbilityBlitz() {
 
     const loadItems = async () => {
       try {
-        const res = await fetch('/api/ddragon/quiz-items');
+        const res = await fetch('/api/ability-blitz/quiz-items');
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const filteredData = filterItemsByAbilitySlots(data, selectedAbilitySlots);

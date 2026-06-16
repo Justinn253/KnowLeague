@@ -1,4 +1,4 @@
-export type QuizItemType = 'spell' | 'passive' | 'ultimate';
+export type QuizItemType = 'spell' | 'passive' | 'ultimate' | 'skin';
 
 export type QuizItem = {
   id: string;
@@ -8,6 +8,7 @@ export type QuizItem = {
   answer: string;
   imageUrl: string;
   champion: string;
+  releaseDate?: string | null;
   guessed?: boolean;
 };
 

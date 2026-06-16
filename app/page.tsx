@@ -32,7 +32,7 @@ const games: GameLink[] = [
     title: 'Skin Champion',
     href: '/skin-champion',
     description: 'Identify champions and cosmetics from skin-focused clues.',
-    status: 'Coming soon',
+    status: 'Playable now',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Ezreal.png',
     icon: Sparkles,
   },

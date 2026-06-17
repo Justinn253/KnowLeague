@@ -31,6 +31,21 @@ export function getSupabaseClient() {
   return browserClient;
 }
 
+export function getOptionalSupabaseClient() {
+  if (browserClient) {
+    return browserClient;
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  browserClient = createClient(supabaseUrl, supabaseAnonKey);
+  return browserClient;
+}
+
 export function getSupabaseServiceClient() {
   if (!serviceClient) {
     serviceClient = createClient(

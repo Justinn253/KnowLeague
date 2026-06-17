@@ -5,6 +5,7 @@ import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, Search, UserCheck, UserX, Us
 import Image from 'next/image';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
+import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicPlayer } from '@/lib/skincognito';
 
 type SkinAnswer = {
@@ -34,6 +35,7 @@ type ChatGroup = {
 };
 
 const LOBBY_STORAGE_KEY = 'knowleague:v1:skincognito:lobby-code';
+const CHAT_MESSAGE_MAX_LENGTH = 240;
 
 const CATEGORY_DEFINITIONS: Array<{ id: Exclude<SkincognitoCategoryId, 'skin'>; label: string }> = [
   { id: 'champion', label: 'Champion' },
@@ -198,6 +200,22 @@ function getHeaderActionLabel(view: SkincognitoLobbyView | null) {
   return 'Lobby';
 }
 
+function getFinishedTargetPlayer(view: SkincognitoLobbyView | null) {
+  if (!view?.lobby.winner_player_id) {
+    return null;
+  }
+
+  if (view.lobby.winner_player_id === view.lobby.player_one_id) {
+    return getPlayerById(view, view.lobby.player_two_id);
+  }
+
+  if (view.lobby.winner_player_id === view.lobby.player_two_id) {
+    return getPlayerById(view, view.lobby.player_one_id);
+  }
+
+  return null;
+}
+
 export function Skincognito() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('Player');
@@ -210,6 +228,7 @@ export function Skincognito() {
   const [guessQuery, setGuessQuery] = useState('');
   const [guessMenuOpen, setGuessMenuOpen] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
+  const [returnToLobbyCountdown, setReturnToLobbyCountdown] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [codeRevealed, setCodeRevealed] = useState(false);
@@ -220,6 +239,7 @@ export function Skincognito() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const wasGuessesAtBottomRef = useRef(true);
   const wasChatAtBottomRef = useRef(true);
+  const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const nameDraftDirtyRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
@@ -238,6 +258,9 @@ export function Skincognito() {
   const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2 && activePlayers.every((player) => player.has_selected_skin));
   const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
   const playerTwo = getPlayerById(lobbyView, lobbyView?.lobby.player_two_id);
+  const winnerPlayer = getPlayerById(lobbyView, lobbyView?.lobby.winner_player_id);
+  const finishedTargetPlayer = getFinishedTargetPlayer(lobbyView);
+  const finishedTargetSkin = finishedTargetPlayer?.selected_skin ?? null;
   const opponentPlayer = requestingPlayer?.id === playerOne?.id ? playerTwo : playerOne;
   const topPlayer = requestingPlayer?.role === 'spectator' ? playerOne : opponentPlayer;
   const bottomPlayer = requestingPlayer?.role === 'spectator' ? playerTwo : requestingPlayer;
@@ -310,6 +333,10 @@ export function Skincognito() {
     return value ? { id: value, label: value, imageUrl: null } : null;
   }, [answers, guessedValues, guessQuery, selectedCategory]);
   const canSubmitExactGuess = Boolean(canSubmitAction && exactGuessSuggestion);
+  const finishedCorrectGuesses = lobbyView?.actions.filter((action) => action.is_correct).length ?? 0;
+  const finishedWrongGuesses = lobbyView?.actions.filter((action) => !action.is_correct).length ?? 0;
+  const isFinishedWinner = Boolean(requestingPlayer && winnerPlayer && requestingPlayer.id === winnerPlayer.id);
+  const isFinishedLoser = Boolean(requestingPlayer && finishedTargetPlayer && requestingPlayer.id === finishedTargetPlayer.id);
 
   const selectedSkinPreview = selectedSkin ?? (
     requestingPlayer?.selected_skin
@@ -380,6 +407,28 @@ export function Skincognito() {
       return null;
     } finally {
       setBusy(false);
+    }
+  }, [updateLobbyView]);
+
+  const refreshLobbyView = useCallback(async (code: string, nextClientId: string) => {
+    try {
+      const response = await fetch(`/api/skincognito/lobbies/${code}?clientId=${nextClientId}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to refresh Skincognito lobby.');
+      }
+
+      if (data.lobby && !data.requestingPlayer && hasRequestingPlayerRef.current) {
+        window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+        setLobbyView(null);
+        setMessage('You are no longer in this lobby.');
+        return;
+      }
+
+      updateLobbyView(data);
+    } catch (error) {
+      console.error('Failed to refresh Skincognito lobby', error);
     }
   }, [updateLobbyView]);
 
@@ -494,28 +543,74 @@ export function Skincognito() {
   }, [visibleChatMessages.length]);
 
   useEffect(() => {
-    if (!lobbyView?.lobby.code || !clientId || lobbyView.lobby.status === 'terminated') {
-      return;
+    if (!lobbyView?.lobby.return_to_lobby_at || !clientId) {
+      setReturnToLobbyCountdown(null);
+      return undefined;
     }
 
     const code = lobbyView.lobby.code;
-    const interval = window.setInterval(() => {
-      fetch(`/api/skincognito/lobbies/${code}?clientId=${clientId}`)
-        .then((response) => response.json())
-        .then((data) => {
-          if (!data.error && data.requestingPlayer) {
-            updateLobbyView(data);
-          } else if (!data.error) {
-            window.localStorage.removeItem(LOBBY_STORAGE_KEY);
-            setLobbyView(null);
-            setMessage('You are no longer in this lobby.');
-          }
-        })
-        .catch(() => undefined);
-    }, 3000);
+    const updateCountdown = () => {
+      const secondsRemaining = Math.max(
+        0,
+        Math.ceil((new Date(lobbyView.lobby.return_to_lobby_at as string).getTime() - Date.now()) / 1000),
+      );
+      setReturnToLobbyCountdown(secondsRemaining);
 
+      if (secondsRemaining === 0) {
+        void refreshLobbyView(code, clientId);
+      }
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 250);
     return () => window.clearInterval(interval);
-  }, [clientId, lobbyView?.lobby.code, lobbyView?.lobby.status, updateLobbyView]);
+  }, [clientId, lobbyView?.lobby.code, lobbyView?.lobby.return_to_lobby_at, refreshLobbyView]);
+
+  useEffect(() => {
+    if (!lobbyView?.lobby.id || !lobbyView.lobby.code || !clientId || lobbyView.lobby.status === 'terminated') {
+      return undefined;
+    }
+
+    const code = lobbyView.lobby.code;
+    const nextClientId = clientId;
+    const supabase = getOptionalSupabaseClient();
+    if (!supabase) {
+      console.warn('Supabase realtime is not available because public Supabase environment variables are not loaded.');
+      return undefined;
+    }
+
+    const channel = supabase
+      .channel(`skincognito-lobby-events:${lobbyView.lobby.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'skincognito_lobby_events',
+          filter: `lobby_id=eq.${lobbyView.lobby.id}`,
+        },
+        () => {
+          if (realtimeRefreshTimeoutRef.current) {
+            window.clearTimeout(realtimeRefreshTimeoutRef.current);
+          }
+
+          realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+            realtimeRefreshTimeoutRef.current = null;
+            void refreshLobbyView(code, nextClientId);
+          }, 100);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      if (realtimeRefreshTimeoutRef.current) {
+        window.clearTimeout(realtimeRefreshTimeoutRef.current);
+        realtimeRefreshTimeoutRef.current = null;
+      }
+
+      void supabase.removeChannel(channel);
+    };
+  }, [clientId, lobbyView?.lobby.code, lobbyView?.lobby.id, lobbyView?.lobby.status, refreshLobbyView]);
 
   useEffect(() => {
     if (!clientId || !lobbyView?.lobby.code) {
@@ -532,7 +627,7 @@ export function Skincognito() {
     };
 
     sendHeartbeat();
-    const interval = window.setInterval(sendHeartbeat, 5000);
+    const interval = window.setInterval(sendHeartbeat, 25000);
     return () => window.clearInterval(interval);
   }, [clientId, lobbyView?.lobby.code]);
 
@@ -664,8 +759,9 @@ export function Skincognito() {
       return;
     }
 
+    const code = lobbyView.lobby.code;
     setGuessMenuOpen(false);
-    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/actions`, {
+    void requestLobby(`/api/skincognito/lobbies/${code}/actions`, {
       clientId,
       actionType: categoryId === 'skin' ? 'skin_guess' : 'category_guess',
       categoryId,
@@ -674,8 +770,14 @@ export function Skincognito() {
       if (view) {
         setGuessQuery('');
       }
+
+      if (categoryId === 'skin') {
+        window.setTimeout(() => {
+          void refreshLobbyView(code, clientId);
+        }, 150);
+      }
     });
-  }, [canSubmitAction, clientId, lobbyView, requestLobby, selectedCategory]);
+  }, [canSubmitAction, clientId, lobbyView, refreshLobbyView, requestLobby, selectedCategory]);
 
   const chooseGuess = (label: string) => {
     setGuessQuery(label);
@@ -693,17 +795,28 @@ export function Skincognito() {
 
   const submitChat = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!clientId || !lobbyView || !chatDraft.trim()) {
+    const cleanMessage = chatDraft.trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
+    if (!clientId || !lobbyView || !cleanMessage) {
       return;
     }
 
     void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/chat`, {
       clientId,
-      message: chatDraft.trim(),
+      message: cleanMessage,
     }).then((view) => {
       if (view) {
         setChatDraft('');
       }
+    });
+  };
+
+  const scheduleReturnToLobby = () => {
+    if (!clientId || !lobbyView) {
+      return;
+    }
+
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/return`, {
+      clientId,
     });
   };
 
@@ -1152,8 +1265,9 @@ export function Skincognito() {
                     <input
                       value={chatDraft}
                       onChange={(event) => setChatDraft(event.target.value)}
+                      maxLength={CHAT_MESSAGE_MAX_LENGTH}
                       autoComplete="off"
-                      placeholder="Send a message"
+                      placeholder={`Send a message (${chatDraft.length}/${CHAT_MESSAGE_MAX_LENGTH})`}
                       className="min-h-10 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15"
                     />
                     <button
@@ -1192,7 +1306,81 @@ export function Skincognito() {
                 </p>
               </section>
 
-              {requestingPlayer?.role !== 'spectator' ? (
+              {lobbyView.lobby.status === 'finished' ? (
+                <section className={`relative isolate mt-4 rounded-2xl ${
+                  isFinishedWinner
+                    ? 'skindle-gradient-border shadow-lg shadow-violet-950/30'
+                    : isFinishedLoser
+                      ? 'border border-red-400/60 bg-red-500/10 shadow-lg shadow-red-950/30'
+                      : 'border border-amber-300/40 bg-amber-300/10 shadow-lg shadow-amber-950/20'
+                }`}>
+                  <div className={isFinishedWinner ? 'relative z-10 rounded-2xl bg-slate-950 p-4' : 'rounded-2xl p-4'}>
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+                      <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                        {finishedTargetSkin ? (
+                          <Image
+                            src={finishedTargetSkin.imageUrl}
+                            alt={finishedTargetSkin.answer}
+                            width={729}
+                            height={430}
+                            className="aspect-[1215/717] w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex aspect-[1215/717] items-center justify-center text-sm text-slate-500">
+                            Final skin unavailable
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Game Complete</p>
+                            <h3 className="mt-2 text-3xl font-bold text-white">
+                              {winnerPlayer ? `${winnerPlayer.display_name} won` : 'Game finished'}
+                            </h3>
+                            <p className="mt-3 text-lg font-semibold text-slate-100">
+                              The skin was {finishedTargetSkin?.answer ?? 'unknown'}.
+                            </p>
+                          </div>
+
+                          {isHost ? (
+                            <button
+                              type="button"
+                              onClick={scheduleReturnToLobby}
+                              disabled={busy || Boolean(lobbyView.lobby.return_to_lobby_at)}
+                              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {lobbyView.lobby.return_to_lobby_at
+                                ? `Returning in ${returnToLobbyCountdown ?? 5}s`
+                                : 'Return to Lobby'}
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                          <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3">
+                            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Turns</p>
+                            <p className="mt-2 text-xl font-bold text-white">{lobbyView.actions.length}</p>
+                          </div>
+                          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3">
+                            <p className="text-xs uppercase tracking-[0.18em] text-emerald-200">Correct</p>
+                            <p className="mt-2 text-xl font-bold text-white">{finishedCorrectGuesses}</p>
+                          </div>
+                          <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-3">
+                            <p className="text-xs uppercase tracking-[0.18em] text-red-200">Wrong</p>
+                            <p className="mt-2 text-xl font-bold text-white">{finishedWrongGuesses}</p>
+                          </div>
+                          <div className="rounded-2xl border border-violet-300/30 bg-violet-400/10 p-3">
+                            <p className="text-xs uppercase tracking-[0.18em] text-violet-200">Skin Uses</p>
+                            <p className="mt-2 text-xl font-bold text-white">{lobbyView.finishedSkinUseCount ?? 0}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : requestingPlayer?.role !== 'spectator' ? (
               <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
                 <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70">
                   {selectedSkinPreview ? (

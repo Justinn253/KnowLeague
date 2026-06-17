@@ -21,6 +21,7 @@ export type SkincognitoLobbyRecord = {
   started_at: string | null;
   finished_at: string | null;
   terminated_at: string | null;
+  return_to_lobby_at: string | null;
 };
 
 export type SkincognitoPlayerRecord = {
@@ -86,6 +87,7 @@ export type SkincognitoLobbyView = {
   players: SkincognitoPublicPlayer[];
   actions: SkincognitoActionRecord[];
   chatMessages: SkincognitoChatMessageRecord[];
+  finishedSkinUseCount: number | null;
 };
 
 type CreateOrJoinInput = {
@@ -103,6 +105,7 @@ type SubmitActionInput = {
 
 const LOBBY_CODE_LENGTH = 6;
 const MAX_LOBBY_PLAYERS = 10;
+const CHAT_MESSAGE_MAX_LENGTH = 240;
 const RECONNECT_GRACE_MS = 60_000;
 const HEARTBEAT_STALE_MS = 15_000;
 
@@ -314,6 +317,19 @@ async function addSystemMessage(lobbyId: string, message: string, playerId?: str
   }
 }
 
+async function addLobbyEvent(lobbyId: string, eventType: string) {
+  const { error } = await getSupabaseServiceClient()
+    .from('skincognito_lobby_events')
+    .insert({
+      lobby_id: lobbyId,
+      event_type: eventType,
+    });
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function getLobbyView(lobby: SkincognitoLobbyRecord, clientId?: string | null): Promise<SkincognitoLobbyView> {
   const [players, actions, chatMessages] = await Promise.all([
     fetchPlayers(lobby.id),
@@ -321,6 +337,11 @@ async function getLobbyView(lobby: SkincognitoLobbyRecord, clientId?: string | n
     fetchChatMessages(lobby.id),
   ]);
   const requestingPlayer = players.find((player) => player.client_id === clientId) ?? null;
+  const winnerPlayer = lobby.winner_player_id ? players.find((player) => player.id === lobby.winner_player_id) : null;
+  const targetPlayerId = winnerPlayer?.id === lobby.player_one_id ? lobby.player_two_id : winnerPlayer?.id === lobby.player_two_id ? lobby.player_one_id : null;
+  const targetPlayer = targetPlayerId ? players.find((player) => player.id === targetPlayerId) : null;
+  const finishedTargetSkinId = lobby.status === 'finished' ? targetPlayer?.selected_skin_id : null;
+  const finishedSkinUseCount = finishedTargetSkinId ? await countSkincognitoSkinUses(finishedTargetSkinId) : null;
 
   return {
     lobby,
@@ -328,7 +349,21 @@ async function getLobbyView(lobby: SkincognitoLobbyRecord, clientId?: string | n
     players: players.map((player) => toPublicPlayer(player, requestingPlayer?.id ?? null, lobby.status)),
     actions,
     chatMessages,
+    finishedSkinUseCount,
   };
+}
+
+async function countSkincognitoSkinUses(skinId: string) {
+  const { count, error } = await getSupabaseServiceClient()
+    .from('skincognito_players')
+    .select('id', { count: 'exact', head: true })
+    .eq('selected_skin_id', skinId);
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
 }
 
 async function upsertPlayer(lobby: SkincognitoLobbyRecord, input: CreateOrJoinInput, role: SkincognitoPlayerRole) {
@@ -414,6 +449,41 @@ async function updateLobby(lobbyId: string, values: Partial<SkincognitoLobbyReco
 
 async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
   let players = await fetchPlayers(lobby.id);
+  let nextLobby = lobby;
+
+  if (
+    nextLobby.status === 'finished' &&
+    nextLobby.return_to_lobby_at &&
+    Date.now() >= new Date(nextLobby.return_to_lobby_at).getTime()
+  ) {
+    const { error: actionsDeleteError } = await getSupabaseServiceClient()
+      .from('skincognito_actions')
+      .delete()
+      .eq('lobby_id', nextLobby.id);
+
+    if (actionsDeleteError) {
+      throw actionsDeleteError;
+    }
+
+    const { error: chatDeleteError } = await getSupabaseServiceClient()
+      .from('skincognito_chat_messages')
+      .delete()
+      .eq('lobby_id', nextLobby.id);
+
+    if (chatDeleteError) {
+      throw chatDeleteError;
+    }
+
+    nextLobby = await updateLobby(nextLobby.id, {
+      status: 'waiting',
+      current_turn_player_id: null,
+      winner_player_id: null,
+      started_at: null,
+      finished_at: null,
+      return_to_lobby_at: null,
+    });
+    await addLobbyEvent(nextLobby.id, 'returned_to_lobby');
+  }
 
   const stalePlayers = players.filter((player) => (
     player.connected &&
@@ -451,8 +521,6 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
       terminated_at: new Date().toISOString(),
     });
   }
-
-  let nextLobby = lobby;
 
   if (!lobby.host_player_id || !players.some((player) => player.id === lobby.host_player_id && player.connected)) {
     const nextHost = connectedPlayers[0];
@@ -570,11 +638,15 @@ export async function createSkincognitoLobby(input: CreateOrJoinInput) {
 
 export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInput) {
   const lobby = await fetchLobbyByCode(code);
-  if (!lobby || lobby.status === 'finished' || lobby.status === 'terminated') {
+  if (!lobby || lobby.status === 'terminated') {
     throw new Error('Lobby is not available.');
   }
 
   const reconciledLobby = await reconcileLobby(lobby);
+  if (reconciledLobby.status === 'finished' || reconciledLobby.status === 'terminated') {
+    throw new Error('Lobby is not available.');
+  }
+
   const players = await fetchPlayers(reconciledLobby.id);
   const bans = await fetchBans(reconciledLobby.id);
   const existingPlayer = players.find((player) => player.client_id === input.clientId);
@@ -594,6 +666,7 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
       ? await updateLobby(reconciledLobby.id, { player_two_id: player.id })
       : reconciledLobby;
 
+  await addLobbyEvent(updatedLobby.id, 'player_joined');
   return getLobbyView(updatedLobby, input.clientId);
 }
 
@@ -612,6 +685,7 @@ export async function leaveSkincognitoLobby(code: string, clientId: string) {
   const updatedLobby = await removePlayerFromLobby(lobby, player);
   await addSystemMessage(updatedLobby.id, `${player.display_name} left the lobby.`);
   const reconciledLobby = await reconcileLobby(updatedLobby);
+  await addLobbyEvent(reconciledLobby.id, 'player_left');
   return getLobbyView(reconciledLobby, clientId);
 }
 
@@ -650,6 +724,7 @@ export async function kickSkincognitoPlayer(code: string, clientId: string, targ
   const updatedLobby = await removePlayerFromLobby(lobby, target);
   await addSystemMessage(updatedLobby.id, `${target.display_name} was removed from the lobby.`, host.id);
   const reconciledLobby = await reconcileLobby(updatedLobby);
+  await addLobbyEvent(reconciledLobby.id, 'player_kicked');
   return getLobbyView(reconciledLobby, clientId);
 }
 
@@ -701,6 +776,7 @@ export async function promoteSkincognitoSpectator(code: string, clientId: string
   } as Partial<SkincognitoLobbyRecord>);
 
   await addSystemMessage(updatedLobby.id, `${target.display_name} became a player.`, host.id);
+  await addLobbyEvent(updatedLobby.id, 'player_promoted');
   return getLobbyView(updatedLobby, clientId);
 }
 
@@ -748,6 +824,7 @@ export async function selectSkincognitoSkin(code: string, clientId: string, skin
     throw error;
   }
 
+  await addLobbyEvent(lobby.id, 'skin_selected');
   return getLobbyView(lobby, clientId);
 }
 
@@ -770,6 +847,7 @@ export async function updateSkincognitoDisplayName(code: string, clientId: strin
     throw error;
   }
 
+  await addLobbyEvent(lobby.id, 'display_name_updated');
   return getLobbyView(lobby, clientId);
 }
 
@@ -816,9 +894,34 @@ export async function startSkincognitoLobby(code: string, clientId: string) {
   const updatedLobby = await updateLobby(lobby.id, {
     status: 'active',
     current_turn_player_id: startingPlayer.id,
+    winner_player_id: null,
     started_at: new Date().toISOString(),
+    finished_at: null,
+    return_to_lobby_at: null,
   });
 
+  await addLobbyEvent(updatedLobby.id, 'game_started');
+  return getLobbyView(updatedLobby, clientId);
+}
+
+export async function scheduleSkincognitoReturnToLobby(code: string, clientId: string) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status !== 'finished') {
+    throw new Error('Only finished games can return to the lobby.');
+  }
+
+  const players = await fetchPlayers(lobby.id);
+  const host = players.find((candidate) => candidate.id === lobby.host_player_id);
+  if (!host || host.client_id !== clientId) {
+    throw new Error('Only the host can return everyone to the lobby.');
+  }
+
+  const returnToLobbyAt = new Date(Date.now() + 5000).toISOString();
+  const updatedLobby = await updateLobby(lobby.id, {
+    return_to_lobby_at: returnToLobbyAt,
+  });
+
+  await addLobbyEvent(updatedLobby.id, 'return_to_lobby_scheduled');
   return getLobbyView(updatedLobby, clientId);
 }
 
@@ -885,6 +988,7 @@ export async function submitSkincognitoAction(code: string, input: SubmitActionI
         current_turn_player_id: opponent?.id ?? lobby.current_turn_player_id,
       });
 
+  await addLobbyEvent(updatedLobby.id, 'action_submitted');
   return getLobbyView(updatedLobby, input.clientId);
 }
 
@@ -900,7 +1004,7 @@ export async function postSkincognitoChatMessage(code: string, clientId: string,
     throw new Error('Player not found in lobby.');
   }
 
-  const cleanMessage = message.trim().slice(0, 500);
+  const cleanMessage = message.trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
   if (!cleanMessage) {
     throw new Error('Message cannot be empty.');
   }
@@ -918,6 +1022,7 @@ export async function postSkincognitoChatMessage(code: string, clientId: string,
     throw error;
   }
 
+  await addLobbyEvent(lobby.id, 'chat_message_posted');
   return getLobbyView(lobby, clientId);
 }
 

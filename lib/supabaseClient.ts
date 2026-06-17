@@ -7,7 +7,8 @@ type LeaderboardEntry = {
   created_at: string;
 };
 
-let client: SupabaseClient | null = null;
+let browserClient: SupabaseClient | null = null;
+let serviceClient: SupabaseClient | null = null;
 
 function getRequiredEnv(name: string) {
   const value = process.env[name];
@@ -20,14 +21,31 @@ function getRequiredEnv(name: string) {
 }
 
 export function getSupabaseClient() {
-  if (!client) {
-    client = createClient(
+  if (!browserClient) {
+    browserClient = createClient(
       getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL'),
       getRequiredEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
     );
   }
 
-  return client;
+  return browserClient;
+}
+
+export function getSupabaseServiceClient() {
+  if (!serviceClient) {
+    serviceClient = createClient(
+      getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL'),
+      getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY'),
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      },
+    );
+  }
+
+  return serviceClient;
 }
 
 export async function getLeaderboard() {

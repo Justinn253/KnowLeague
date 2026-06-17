@@ -1,4 +1,4 @@
-export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle';
+export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle' | 'skincognito';
 
 const STORAGE_PREFIX = 'knowleague:v1';
 const CLIENT_ID_KEY = `${STORAGE_PREFIX}:client-id`;

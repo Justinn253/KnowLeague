@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, Crown, Search, Sparkles } from 'lucide-react';
+import { ArrowRight, Clock3, Crown, Search, ShieldQuestion, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -35,6 +35,14 @@ const games: GameLink[] = [
     status: 'Play',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
     icon: Search,
+  },
+  {
+    title: 'Skincognito',
+    href: '/skincognito',
+    description: 'Create a PvP lobby and uncover your opponent’s hidden skin.',
+    status: 'Alpha',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shaco_0.jpg',
+    icon: ShieldQuestion,
   },
   {
     title: 'Mastery Master',

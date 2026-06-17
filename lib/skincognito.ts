@@ -1,0 +1,688 @@
+import { getSkinCatalog } from '@/lib/catalogs';
+import { normalizeAnswer, type QuizItem } from '@/lib/quiz';
+import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+
+export type SkincognitoCategoryId = 'skin' | 'champion' | 'skinLine' | 'releaseYear' | 'rarity' | 'gender' | 'role' | 'race';
+export type SkincognitoLobbyStatus = 'waiting' | 'active' | 'finished' | 'terminated';
+export type SkincognitoPlayerRole = 'host' | 'opponent' | 'spectator';
+export type SkincognitoActionType = 'category_guess' | 'skin_guess';
+
+export type SkincognitoLobbyRecord = {
+  id: string;
+  code: string;
+  status: SkincognitoLobbyStatus;
+  host_player_id: string | null;
+  player_one_id: string | null;
+  player_two_id: string | null;
+  current_turn_player_id: string | null;
+  winner_player_id: string | null;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  terminated_at: string | null;
+};
+
+export type SkincognitoPlayerRecord = {
+  id: string;
+  lobby_id: string;
+  client_id: string;
+  display_name: string;
+  role: SkincognitoPlayerRole;
+  selected_skin_id: string | null;
+  selected_skin_answer: string | null;
+  selected_skin_image_url: string | null;
+  connected: boolean;
+  joined_at: string;
+  last_seen_at: string;
+  disconnected_at: string | null;
+};
+
+export type SkincognitoActionRecord = {
+  id: string;
+  lobby_id: string;
+  player_id: string;
+  action_type: SkincognitoActionType;
+  category_id: SkincognitoCategoryId | null;
+  guess_value: string;
+  is_correct: boolean;
+  created_at: string;
+};
+
+export type SkincognitoChatMessageRecord = {
+  id: string;
+  lobby_id: string;
+  player_id: string | null;
+  message: string;
+  message_type: 'player' | 'system';
+  created_at: string;
+};
+
+export type SkincognitoPublicPlayer = Omit<
+  SkincognitoPlayerRecord,
+  'client_id' | 'selected_skin_id' | 'selected_skin_answer' | 'selected_skin_image_url'
+> & {
+  is_requesting_player: boolean;
+  selected_skin?: {
+    id: string;
+    answer: string;
+    imageUrl: string;
+  } | null;
+  has_selected_skin: boolean;
+};
+
+export type SkincognitoLobbyView = {
+  lobby: SkincognitoLobbyRecord;
+  requestingPlayer: SkincognitoPublicPlayer | null;
+  players: SkincognitoPublicPlayer[];
+  actions: SkincognitoActionRecord[];
+  chatMessages: SkincognitoChatMessageRecord[];
+};
+
+type CreateOrJoinInput = {
+  clientId: string;
+  displayName: string;
+  selectedSkinId?: string | null;
+};
+
+type SubmitActionInput = {
+  clientId: string;
+  actionType: SkincognitoActionType;
+  categoryId?: SkincognitoCategoryId | null;
+  guessValue: string;
+};
+
+const LOBBY_CODE_LENGTH = 6;
+const MAX_LOBBY_PLAYERS = 10;
+const RECONNECT_GRACE_MS = 60_000;
+
+function assertSupabaseConfigured() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  }
+}
+
+function generateLobbyCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+
+  for (let index = 0; index < LOBBY_CODE_LENGTH; index += 1) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return code;
+}
+
+function sanitizeDisplayName(displayName: string) {
+  const trimmedName = displayName.trim();
+  return trimmedName.slice(0, 24) || 'Player';
+}
+
+function getSkinById(skinId?: string | null) {
+  if (!skinId) {
+    return null;
+  }
+
+  return getSkinCatalog().find((skin) => skin.id === skinId) ?? null;
+}
+
+function getRandomSkin() {
+  const skins = getSkinCatalog();
+  return skins[Math.floor(Math.random() * skins.length)];
+}
+
+function getCategoryValue(item: QuizItem, categoryId: SkincognitoCategoryId) {
+  if (categoryId === 'skin') {
+    return item.answer;
+  }
+
+  if (categoryId === 'releaseYear') {
+    return item.releaseDate?.slice(0, 4) || 'Unknown';
+  }
+
+  const value = item[categoryId as keyof QuizItem];
+  return typeof value === 'string' && value.trim() ? value : 'Unknown';
+}
+
+function valuesMatch(categoryId: SkincognitoCategoryId, guessValue: string, targetSkin: QuizItem) {
+  const targetValue = getCategoryValue(targetSkin, categoryId);
+
+  if (categoryId === 'race') {
+    const guessedSpecies = guessValue.split(',').map(normalizeAnswer).filter(Boolean);
+    const targetSpecies = targetValue.split(',').map(normalizeAnswer).filter(Boolean);
+    return guessedSpecies.some((species) => targetSpecies.includes(species));
+  }
+
+  return normalizeAnswer(guessValue) === normalizeAnswer(targetValue);
+}
+
+function canSeeSelectedSkin(
+  player: SkincognitoPlayerRecord,
+  requestingPlayerId: string | null,
+  lobbyStatus: SkincognitoLobbyStatus,
+) {
+  return player.id === requestingPlayerId || lobbyStatus === 'finished' || lobbyStatus === 'terminated';
+}
+
+function toPublicPlayer(
+  player: SkincognitoPlayerRecord,
+  requestingPlayerId: string | null,
+  lobbyStatus: SkincognitoLobbyStatus,
+): SkincognitoPublicPlayer {
+  const revealSkin = canSeeSelectedSkin(player, requestingPlayerId, lobbyStatus);
+
+  return {
+    id: player.id,
+    lobby_id: player.lobby_id,
+    display_name: player.display_name,
+    role: player.role,
+    connected: player.connected,
+    joined_at: player.joined_at,
+    last_seen_at: player.last_seen_at,
+    disconnected_at: player.disconnected_at,
+    is_requesting_player: player.id === requestingPlayerId,
+    selected_skin: revealSkin && player.selected_skin_id && player.selected_skin_answer && player.selected_skin_image_url
+      ? {
+          id: player.selected_skin_id,
+          answer: player.selected_skin_answer,
+          imageUrl: player.selected_skin_image_url,
+        }
+      : null,
+    has_selected_skin: Boolean(player.selected_skin_id),
+  };
+}
+
+async function fetchLobbyByCode(code: string) {
+  assertSupabaseConfigured();
+
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from('skincognito_lobbies')
+    .select('*')
+    .eq('code', code.toUpperCase())
+    .maybeSingle<SkincognitoLobbyRecord>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function fetchPlayers(lobbyId: string) {
+  const { data, error } = await getSupabaseServiceClient()
+    .from('skincognito_players')
+    .select('*')
+    .eq('lobby_id', lobbyId)
+    .order('joined_at', { ascending: true })
+    .returns<SkincognitoPlayerRecord[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function fetchActions(lobbyId: string) {
+  const { data, error } = await getSupabaseServiceClient()
+    .from('skincognito_actions')
+    .select('*')
+    .eq('lobby_id', lobbyId)
+    .order('created_at', { ascending: true })
+    .limit(100)
+    .returns<SkincognitoActionRecord[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function fetchChatMessages(lobbyId: string) {
+  const { data, error } = await getSupabaseServiceClient()
+    .from('skincognito_chat_messages')
+    .select('*')
+    .eq('lobby_id', lobbyId)
+    .order('created_at', { ascending: true })
+    .limit(100)
+    .returns<SkincognitoChatMessageRecord[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function addSystemMessage(lobbyId: string, message: string, playerId?: string | null) {
+  const { error } = await getSupabaseServiceClient()
+    .from('skincognito_chat_messages')
+    .insert({
+      lobby_id: lobbyId,
+      player_id: playerId ?? null,
+      message,
+      message_type: 'system',
+    });
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function getLobbyView(lobby: SkincognitoLobbyRecord, clientId?: string | null): Promise<SkincognitoLobbyView> {
+  const [players, actions, chatMessages] = await Promise.all([
+    fetchPlayers(lobby.id),
+    fetchActions(lobby.id),
+    fetchChatMessages(lobby.id),
+  ]);
+  const requestingPlayer = players.find((player) => player.client_id === clientId) ?? null;
+
+  return {
+    lobby,
+    requestingPlayer: requestingPlayer ? toPublicPlayer(requestingPlayer, requestingPlayer.id, lobby.status) : null,
+    players: players.map((player) => toPublicPlayer(player, requestingPlayer?.id ?? null, lobby.status)),
+    actions,
+    chatMessages,
+  };
+}
+
+async function upsertPlayer(lobby: SkincognitoLobbyRecord, input: CreateOrJoinInput, role: SkincognitoPlayerRole) {
+  const selectedSkin = getSkinById(input.selectedSkinId);
+  const { data, error } = await getSupabaseServiceClient()
+    .from('skincognito_players')
+    .upsert(
+      {
+        lobby_id: lobby.id,
+        client_id: input.clientId,
+        display_name: sanitizeDisplayName(input.displayName),
+        role,
+        selected_skin_id: selectedSkin?.id ?? null,
+        selected_skin_answer: selectedSkin?.answer ?? null,
+        selected_skin_image_url: selectedSkin?.imageUrl ?? null,
+        connected: true,
+        last_seen_at: new Date().toISOString(),
+        disconnected_at: null,
+      },
+      { onConflict: 'lobby_id,client_id' },
+    )
+    .select('*')
+    .single<SkincognitoPlayerRecord>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function updateLobby(lobbyId: string, values: Partial<SkincognitoLobbyRecord>) {
+  const { data, error } = await getSupabaseServiceClient()
+    .from('skincognito_lobbies')
+    .update({
+      ...values,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', lobbyId)
+    .select('*')
+    .single<SkincognitoLobbyRecord>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
+  const players = await fetchPlayers(lobby.id);
+
+  if (players.length === 0) {
+    return updateLobby(lobby.id, {
+      status: 'terminated',
+      terminated_at: new Date().toISOString(),
+    });
+  }
+
+  const connectedPlayers = players.filter((player) => player.connected);
+  if (connectedPlayers.length === 0) {
+    return updateLobby(lobby.id, {
+      status: 'terminated',
+      terminated_at: new Date().toISOString(),
+    });
+  }
+
+  let nextLobby = lobby;
+
+  if (!lobby.host_player_id || !players.some((player) => player.id === lobby.host_player_id && player.connected)) {
+    const nextHost = connectedPlayers[0];
+    const { error } = await getSupabaseServiceClient()
+      .from('skincognito_players')
+      .update({ role: 'host' })
+      .eq('id', nextHost.id);
+
+    if (error) {
+      throw error;
+    }
+
+    nextLobby = await updateLobby(lobby.id, { host_player_id: nextHost.id });
+  }
+
+  if (nextLobby.status === 'active' && nextLobby.player_one_id && nextLobby.player_two_id) {
+    const activePlayerIds = [nextLobby.player_one_id, nextLobby.player_two_id];
+    const expiredPlayer = players.find((player) => {
+      if (!activePlayerIds.includes(player.id) || player.connected || !player.disconnected_at) {
+        return false;
+      }
+
+      return Date.now() - new Date(player.disconnected_at).getTime() > RECONNECT_GRACE_MS;
+    });
+
+    if (expiredPlayer) {
+      const replacement = connectedPlayers.find((player) => player.role === 'spectator');
+      if (replacement) {
+        const promotedColumn = expiredPlayer.id === nextLobby.player_one_id ? 'player_one_id' : 'player_two_id';
+        const { error } = await getSupabaseServiceClient()
+          .from('skincognito_players')
+          .update({ role: expiredPlayer.role })
+          .eq('id', replacement.id);
+
+        if (error) {
+          throw error;
+        }
+
+        nextLobby = await updateLobby(nextLobby.id, {
+          [promotedColumn]: replacement.id,
+          current_turn_player_id: nextLobby.current_turn_player_id === expiredPlayer.id ? replacement.id : nextLobby.current_turn_player_id,
+        } as Partial<SkincognitoLobbyRecord>);
+        await addSystemMessage(nextLobby.id, `${replacement.display_name} replaced a disconnected player.`, replacement.id);
+      } else {
+        const winnerId = activePlayerIds.find((playerId) => playerId !== expiredPlayer.id) ?? null;
+        nextLobby = await updateLobby(nextLobby.id, {
+          status: 'finished',
+          winner_player_id: winnerId,
+          finished_at: new Date().toISOString(),
+        });
+        await addSystemMessage(nextLobby.id, 'A player disconnected and did not return in time.');
+      }
+    }
+  }
+
+  return nextLobby;
+}
+
+export async function createSkincognitoLobby(input: CreateOrJoinInput) {
+  assertSupabaseConfigured();
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const code = generateLobbyCode();
+    const { data: lobby, error } = await getSupabaseServiceClient()
+      .from('skincognito_lobbies')
+      .insert({ code })
+      .select('*')
+      .single<SkincognitoLobbyRecord>();
+
+    if (error) {
+      if (error.code === '23505') {
+        continue;
+      }
+
+      throw error;
+    }
+
+    const player = await upsertPlayer(lobby, input, 'host');
+    const updatedLobby = await updateLobby(lobby.id, {
+      host_player_id: player.id,
+      player_one_id: player.id,
+    });
+    await addSystemMessage(updatedLobby.id, `${player.display_name} created the lobby.`, player.id);
+    return getLobbyView(updatedLobby, input.clientId);
+  }
+
+  throw new Error('Unable to generate a unique lobby code.');
+}
+
+export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInput) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status !== 'waiting') {
+    throw new Error('Lobby is not available.');
+  }
+
+  const reconciledLobby = await reconcileLobby(lobby);
+  const players = await fetchPlayers(reconciledLobby.id);
+  if (players.length >= MAX_LOBBY_PLAYERS && !players.some((player) => player.client_id === input.clientId)) {
+    throw new Error('Lobby is full.');
+  }
+
+  const activePlayerCount = players.filter((player) => player.role === 'host' || player.role === 'opponent').length;
+  const role: SkincognitoPlayerRole = activePlayerCount < 2 ? 'opponent' : 'spectator';
+  const player = await upsertPlayer(reconciledLobby, input, role);
+  const updatedLobby =
+    role === 'opponent' && !reconciledLobby.player_two_id
+      ? await updateLobby(reconciledLobby.id, { player_two_id: player.id })
+      : reconciledLobby;
+
+  await addSystemMessage(updatedLobby.id, `${player.display_name} joined the lobby.`, player.id);
+  return getLobbyView(updatedLobby, input.clientId);
+}
+
+export async function getSkincognitoLobby(code: string, clientId?: string | null) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby) {
+    throw new Error('Lobby not found.');
+  }
+
+  const reconciledLobby = await reconcileLobby(lobby);
+  return getLobbyView(reconciledLobby, clientId);
+}
+
+export async function selectSkincognitoSkin(code: string, clientId: string, skinId: string) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status !== 'waiting') {
+    throw new Error('Skin selection is closed.');
+  }
+
+  const skin = getSkinById(skinId);
+  if (!skin) {
+    throw new Error('Invalid skin selection.');
+  }
+
+  const { data: player, error } = await getSupabaseServiceClient()
+    .from('skincognito_players')
+    .update({
+      selected_skin_id: skin.id,
+      selected_skin_answer: skin.answer,
+      selected_skin_image_url: skin.imageUrl,
+      last_seen_at: new Date().toISOString(),
+    })
+    .eq('lobby_id', lobby.id)
+    .eq('client_id', clientId)
+    .select('*')
+    .single<SkincognitoPlayerRecord>();
+
+  if (error) {
+    throw error;
+  }
+
+  await addSystemMessage(lobby.id, `${player.display_name} selected a skin.`, player.id);
+  return getLobbyView(lobby, clientId);
+}
+
+export async function startSkincognitoLobby(code: string, clientId: string) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status !== 'waiting') {
+    throw new Error('Lobby cannot be started.');
+  }
+
+  const players = await fetchPlayers(lobby.id);
+  const host = players.find((player) => player.id === lobby.host_player_id);
+  if (!host || host.client_id !== clientId) {
+    throw new Error('Only the host can start this lobby.');
+  }
+
+  const activePlayers = players.filter((player) => player.id === lobby.player_one_id || player.id === lobby.player_two_id);
+  if (activePlayers.length !== 2) {
+    throw new Error('Two active players are required.');
+  }
+
+  await Promise.all(
+    activePlayers.map(async (player) => {
+      if (player.selected_skin_id) {
+        return;
+      }
+
+      const fallbackSkin = getRandomSkin();
+      const { error } = await getSupabaseServiceClient()
+        .from('skincognito_players')
+        .update({
+          selected_skin_id: fallbackSkin.id,
+          selected_skin_answer: fallbackSkin.answer,
+          selected_skin_image_url: fallbackSkin.imageUrl,
+        })
+        .eq('id', player.id);
+
+      if (error) {
+        throw error;
+      }
+    }),
+  );
+
+  const startingPlayer = activePlayers[Math.floor(Math.random() * activePlayers.length)];
+  const updatedLobby = await updateLobby(lobby.id, {
+    status: 'active',
+    current_turn_player_id: startingPlayer.id,
+    started_at: new Date().toISOString(),
+  });
+
+  await addSystemMessage(updatedLobby.id, `The game started. ${startingPlayer.display_name} goes first.`);
+  return getLobbyView(updatedLobby, clientId);
+}
+
+export async function submitSkincognitoAction(code: string, input: SubmitActionInput) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status !== 'active') {
+    throw new Error('Game is not active.');
+  }
+
+  const players = await fetchPlayers(lobby.id);
+  const actor = players.find((player) => player.client_id === input.clientId);
+  if (!actor || actor.id !== lobby.current_turn_player_id) {
+    throw new Error('It is not your turn.');
+  }
+
+  if (actor.role === 'spectator') {
+    throw new Error('Spectators cannot submit guesses.');
+  }
+
+  const opponentId = actor.id === lobby.player_one_id ? lobby.player_two_id : lobby.player_one_id;
+  const opponent = players.find((player) => player.id === opponentId);
+  if (!opponent?.selected_skin_id) {
+    throw new Error('Opponent skin is not available.');
+  }
+
+  const opponentSkin = getSkinById(opponent.selected_skin_id);
+  if (!opponentSkin) {
+    throw new Error('Opponent skin metadata is not available.');
+  }
+
+  const categoryId = input.actionType === 'skin_guess' ? 'skin' : input.categoryId;
+  if (!categoryId) {
+    throw new Error('Category is required.');
+  }
+
+  const isCorrect = input.actionType === 'skin_guess'
+    ? normalizeAnswer(input.guessValue) === normalizeAnswer(opponentSkin.answer)
+    : valuesMatch(categoryId, input.guessValue, opponentSkin);
+
+  const { error } = await getSupabaseServiceClient()
+    .from('skincognito_actions')
+    .insert({
+      lobby_id: lobby.id,
+      player_id: actor.id,
+      action_type: input.actionType,
+      category_id: categoryId,
+      guess_value: input.guessValue,
+      is_correct: isCorrect,
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  await addSystemMessage(
+    lobby.id,
+    `${actor.display_name} guessed ${input.guessValue}: ${isCorrect ? 'correct' : 'incorrect'}.`,
+    actor.id,
+  );
+
+  const updatedLobby = input.actionType === 'skin_guess' && isCorrect
+    ? await updateLobby(lobby.id, {
+        status: 'finished',
+        winner_player_id: actor.id,
+        finished_at: new Date().toISOString(),
+      })
+    : await updateLobby(lobby.id, {
+        current_turn_player_id: opponent?.id ?? lobby.current_turn_player_id,
+      });
+
+  return getLobbyView(updatedLobby, input.clientId);
+}
+
+export async function postSkincognitoChatMessage(code: string, clientId: string, message: string) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status === 'terminated') {
+    throw new Error('Lobby is not available.');
+  }
+
+  const players = await fetchPlayers(lobby.id);
+  const player = players.find((candidate) => candidate.client_id === clientId);
+  if (!player) {
+    throw new Error('Player not found in lobby.');
+  }
+
+  const cleanMessage = message.trim().slice(0, 500);
+  if (!cleanMessage) {
+    throw new Error('Message cannot be empty.');
+  }
+
+  const { error } = await getSupabaseServiceClient()
+    .from('skincognito_chat_messages')
+    .insert({
+      lobby_id: lobby.id,
+      player_id: player.id,
+      message: cleanMessage,
+      message_type: 'player',
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return getLobbyView(lobby, clientId);
+}
+
+export async function heartbeatSkincognitoPlayer(code: string, clientId: string, connected: boolean) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status === 'terminated') {
+    throw new Error('Lobby is not available.');
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await getSupabaseServiceClient()
+    .from('skincognito_players')
+    .update({
+      connected,
+      last_seen_at: now,
+      disconnected_at: connected ? null : now,
+    })
+    .eq('lobby_id', lobby.id)
+    .eq('client_id', clientId);
+
+  if (error) {
+    throw error;
+  }
+
+  const reconciledLobby = await reconcileLobby(lobby);
+  return getLobbyView(reconciledLobby, clientId);
+}

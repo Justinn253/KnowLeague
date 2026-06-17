@@ -1,9 +1,16 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import {
+  loadDailyGameState,
+  loadPlayerGameStats,
+  recordPlayerGameCompletion,
+  saveDailyGameState,
+  type PlayerGameStats,
+} from '@/lib/game-storage';
 import {
   formatSeconds,
   getAbilityKeyLabel,
@@ -118,6 +125,22 @@ type ModifierState = Record<ModifierId, boolean>;
 type AbilitySlotId = (typeof abilitySlots)[number]['id'];
 type AbilitySlotState = Record<AbilitySlotId, boolean>;
 type UpcomingVisibility = 'clear' | 'blurred' | 'blocked';
+
+type AbilityBlitzDailyState = {
+  items: QuizItem[];
+  selectedDifficulty: DifficultyId;
+  activeModifiers: ModifierState;
+  selectedAbilitySlots: AbilitySlotState;
+  started: boolean;
+  paused: boolean;
+  pauseQueued: boolean;
+  activeIndex: number;
+  currentTime: number;
+  totalTime: number;
+  completedTimes: Record<string, CompletedTime>;
+  finished: boolean;
+  failed: boolean;
+};
 
 type DifficultyRule = {
   hintDelaySeconds: number | null;
@@ -319,11 +342,14 @@ export function AbilityBlitz() {
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
+  const [storageReady, setStorageReady] = useState(false);
+  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('ability-blitz'));
   const progressSectionRef = useRef<HTMLDivElement | null>(null);
   const currentProgressItemRef = useRef<HTMLDivElement | null>(null);
   const difficultyMenuRef = useRef<HTMLDivElement | null>(null);
   const modifiersMenuRef = useRef<HTMLDivElement | null>(null);
   const answerInputAreaRef = useRef<HTMLDivElement | null>(null);
+  const hasRestoredStateRef = useRef(false);
 
   const currentItem = items[activeIndex];
   const nextItem = items[activeIndex + 1];
@@ -463,6 +489,81 @@ export function AbilityBlitz() {
         console.error('Failed to load quiz answer suggestions', error);
       });
   }, [categoryAnswers]);
+
+  useEffect(() => {
+    if (hasRestoredStateRef.current) {
+      return;
+    }
+
+    hasRestoredStateRef.current = true;
+    const savedState = loadDailyGameState<AbilityBlitzDailyState>('ability-blitz');
+    if (!savedState) {
+      setStorageReady(true);
+      return;
+    }
+
+    setItems(savedState.items.length ? savedState.items : placeholderItems);
+    setSelectedDifficulty(savedState.selectedDifficulty);
+    setActiveModifiers(savedState.activeModifiers);
+    setSelectedAbilitySlots(savedState.selectedAbilitySlots);
+    setStarted(savedState.started);
+    setPaused(savedState.paused);
+    setPauseQueued(savedState.pauseQueued);
+    setActiveIndex(savedState.activeIndex);
+    setCurrentTime(savedState.currentTime);
+    setTotalTime(savedState.totalTime);
+    setCompletedTimes(savedState.completedTimes);
+    setFinished(savedState.finished);
+    setFailed(savedState.failed);
+    setHasLoadedOnce(savedState.items.length > 0);
+    setCountdown(null);
+    setIsSliding(false);
+    setStorageReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
+      return;
+    }
+
+    saveDailyGameState<AbilityBlitzDailyState>('ability-blitz', {
+      items,
+      selectedDifficulty,
+      activeModifiers,
+      selectedAbilitySlots,
+      started,
+      paused,
+      pauseQueued,
+      activeIndex,
+      currentTime,
+      totalTime,
+      completedTimes,
+      finished,
+      failed,
+    });
+  }, [
+    activeIndex,
+    activeModifiers,
+    completedTimes,
+    currentTime,
+    failed,
+    finished,
+    hasLoadedOnce,
+    items,
+    paused,
+    pauseQueued,
+    selectedAbilitySlots,
+    selectedDifficulty,
+    started,
+    storageReady,
+    totalTime,
+  ]);
+
+  useEffect(() => {
+    if (finished) {
+      setPlayerStats(recordPlayerGameCompletion('ability-blitz'));
+    }
+  }, [finished]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -810,6 +911,11 @@ export function AbilityBlitz() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
+              <Flame size={16} className="text-amber-300" />
+              {playerStats.currentStreak} day streak
+            </div>
+
             <div className="flex flex-wrap items-center gap-3">
               <div ref={difficultyMenuRef} className="relative">
                 <button

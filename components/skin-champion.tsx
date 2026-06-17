@@ -1,9 +1,16 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import {
+  loadDailyGameState,
+  loadPlayerGameStats,
+  recordPlayerGameCompletion,
+  saveDailyGameState,
+  type PlayerGameStats,
+} from '@/lib/game-storage';
 import {
   formatSeconds,
   getNextUtcResetLabel,
@@ -50,6 +57,19 @@ type DifficultyId = (typeof difficulties)[number]['id'];
 type ModifierId = (typeof modifiers)[number]['id'];
 type OpenMenu = 'difficulty' | 'modifiers' | null;
 type ModifierState = Record<ModifierId, boolean>;
+
+type SkinChampionDailyState = {
+  items: QuizItem[];
+  selectedDifficulty: DifficultyId;
+  activeModifiers: ModifierState;
+  started: boolean;
+  activeIndex: number;
+  currentTime: number;
+  totalTime: number;
+  completedTimes: Record<string, CompletedTime>;
+  finished: boolean;
+  failed: boolean;
+};
 
 type DifficultyRule = {
   hintDelaySeconds: number | null;
@@ -160,10 +180,13 @@ export function SkinChampion() {
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
+  const [storageReady, setStorageReady] = useState(false);
+  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('skin-champion'));
   const difficultyMenuRef = useRef<HTMLDivElement>(null);
   const modifiersMenuRef = useRef<HTMLDivElement>(null);
   const answerInputAreaRef = useRef<HTMLDivElement>(null);
   const progressContainerRef = useRef<HTMLDivElement>(null);
+  const hasRestoredStateRef = useRef(false);
 
   const currentItem = started ? items[activeIndex] ?? null : null;
   const nextItem = started ? items[activeIndex + 1] ?? null : null;
@@ -232,6 +255,59 @@ export function SkinChampion() {
         console.error('Failed to load skin answer suggestions', error);
       });
   }, []);
+
+  useEffect(() => {
+    if (hasRestoredStateRef.current) {
+      return;
+    }
+
+    hasRestoredStateRef.current = true;
+    const savedState = loadDailyGameState<SkinChampionDailyState>('skin-champion');
+    if (!savedState) {
+      setStorageReady(true);
+      return;
+    }
+
+    setItems(savedState.items);
+    setSelectedDifficulty(savedState.selectedDifficulty);
+    setActiveModifiers(savedState.activeModifiers);
+    setStarted(savedState.started);
+    setActiveIndex(savedState.activeIndex);
+    setCurrentTime(savedState.currentTime);
+    setTotalTime(savedState.totalTime);
+    setCompletedTimes(savedState.completedTimes);
+    setFinished(savedState.finished);
+    setFailed(savedState.failed);
+    setHasLoadedOnce(savedState.items.length > 0);
+    setCountdown(null);
+    setIsSliding(false);
+    setStorageReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
+      return;
+    }
+
+    saveDailyGameState<SkinChampionDailyState>('skin-champion', {
+      items,
+      selectedDifficulty,
+      activeModifiers,
+      started,
+      activeIndex,
+      currentTime,
+      totalTime,
+      completedTimes,
+      finished,
+      failed,
+    });
+  }, [activeIndex, activeModifiers, completedTimes, currentTime, failed, finished, hasLoadedOnce, items, selectedDifficulty, started, storageReady, totalTime]);
+
+  useEffect(() => {
+    if (finished) {
+      setPlayerStats(recordPlayerGameCompletion('skin-champion'));
+    }
+  }, [finished]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -552,6 +628,11 @@ export function SkinChampion() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
+              <Flame size={16} className="text-amber-300" />
+              {playerStats.currentStreak} day streak
+            </div>
+
             <div className="flex flex-wrap items-center gap-3">
               <div ref={difficultyMenuRef} className="relative">
                 <button

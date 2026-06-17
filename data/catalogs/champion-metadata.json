@@ -1,0 +1,694 @@
+{
+  "Lux": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Aatrox": {
+    "gender": "Male",
+    "species": "Darkin, God-Warrior, Human"
+  },
+  "Ahri": {
+    "gender": "Female",
+    "species": "Vastayan"
+  },
+  "Akali": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Akshan": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Alistar": {
+    "gender": "Male",
+    "species": "Minotaur"
+  },
+  "Amumu": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Anivia": {
+    "gender": "Female",
+    "species": "Spirit God"
+  },
+  "Annie": {
+    "gender": "Female",
+    "species": "Human, Magical, Magical Alteration"
+  },
+  "Aphelios": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Ashe": {
+    "gender": "Female",
+    "species": "Human, Iceborn"
+  },
+  "Aurelion Sol": {
+    "gender": "Male",
+    "species": "Celestial Dragon"
+  },
+  "Azir": {
+    "gender": "Male",
+    "species": "God-Warrior, Undead, Human"
+  },
+  "Bard": {
+    "gender": "Male",
+    "species": "Celestial"
+  },
+  "Blitzcrank": {
+    "gender": "Other",
+    "species": "Techmaturgy, Golem"
+  },
+  "Brand": {
+    "gender": "Male",
+    "species": "Human, Magical, Magical Alteration"
+  },
+  "Braum": {
+    "gender": "Male",
+    "species": "Human, Iceborn"
+  },
+  "Caitlyn": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Camille": {
+    "gender": "Female",
+    "species": "Human, Cyborg"
+  },
+  "Cassiopeia": {
+    "gender": "Female",
+    "species": "Human, Magical Alteration"
+  },
+  "Cho'Gath": {
+    "gender": "Male",
+    "species": "Void-Being"
+  },
+  "Corki": {
+    "gender": "Male",
+    "species": "Spirit, Yordle"
+  },
+  "Darius": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Diana": {
+    "gender": "Female",
+    "species": "Aspect Host, Human"
+  },
+  "Dr. Mundo": {
+    "gender": "Male",
+    "species": "Human, Chemical Alteration"
+  },
+  "Draven": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Ekko": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Elise": {
+    "gender": "Female",
+    "species": "Human, Magical Alteration"
+  },
+  "Evelynn": {
+    "gender": "Female",
+    "species": "Demon"
+  },
+  "Ezreal": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Fiddlesticks": {
+    "gender": "Other",
+    "species": "Demon"
+  },
+  "Fiora": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Fizz": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Galio": {
+    "gender": "Male",
+    "species": "Petricite, Golem"
+  },
+  "Gangplank": {
+    "gender": "Male",
+    "species": "Human, Cyborg"
+  },
+  "Garen": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Gnar": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Gragas": {
+    "gender": "Male",
+    "species": "Human, Iceborn"
+  },
+  "Graves": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Gwen": {
+    "gender": "Female",
+    "species": "Human, Magical Alteration"
+  },
+  "Hecarim": {
+    "gender": "Male",
+    "species": "Wraith, Human, Horse"
+  },
+  "Heimerdinger": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Illaoi": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Irelia": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Ivern": {
+    "gender": "Male",
+    "species": "Human, Magical Alteration"
+  },
+  "Janna": {
+    "gender": "Female",
+    "species": "Spirit God"
+  },
+  "Jarvan IV": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Jax": {
+    "gender": "Male",
+    "species": "Troll"
+  },
+  "Jayce": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Jhin": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Jinx": {
+    "gender": "Female",
+    "species": "Human, Chemical Alteration"
+  },
+  "Kai'Sa": {
+    "gender": "Female",
+    "species": "Human, Void Touched"
+  },
+  "Kalista": {
+    "gender": "Female",
+    "species": "Wraith, Human"
+  },
+  "Karma": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Karthus": {
+    "gender": "Male",
+    "species": "Wraith, Human"
+  },
+  "Kassadin": {
+    "gender": "Male",
+    "species": "Human, Void Touched"
+  },
+  "Katarina": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Kayle": {
+    "gender": "Female",
+    "species": "Human, Magical Alteration, Aspect Host"
+  },
+  "Kayn": {
+    "gender": "Male",
+    "species": "Human, Magical Alteration, Darkin, God-Warrior"
+  },
+  "Kennen": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Kha'Zix": {
+    "gender": "Male",
+    "species": "Void-Being"
+  },
+  "Kindred": {
+    "gender": "Other",
+    "species": "Spirit God"
+  },
+  "Kled": {
+    "gender": "Male",
+    "species": "Yordle, Drakalops"
+  },
+  "Kog'Maw": {
+    "gender": "Male",
+    "species": "Void-Being"
+  },
+  "LeBlanc": {
+    "gender": "Female",
+    "species": "Human, Magical, Magical Alteration"
+  },
+  "Lee Sin": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Leona": {
+    "gender": "Female",
+    "species": "Aspect Host, Human"
+  },
+  "Lillia": {
+    "gender": "Female",
+    "species": "Fae Fawn"
+  },
+  "Lissandra": {
+    "gender": "Female",
+    "species": "Human, Iceborn"
+  },
+  "Lucian": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Lulu": {
+    "gender": "Female",
+    "species": "Yordle"
+  },
+  "Malphite": {
+    "gender": "Male",
+    "species": "Golem"
+  },
+  "Malzahar": {
+    "gender": "Male",
+    "species": "Human, Void Touched, Magical"
+  },
+  "Maokai": {
+    "gender": "Male",
+    "species": "Treant"
+  },
+  "Master Yi": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Miss Fortune": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Mordekaiser": {
+    "gender": "Male",
+    "species": "Revenant, Human"
+  },
+  "Morgana": {
+    "gender": "Female",
+    "species": "Human, Magical Alteration, Aspect Host"
+  },
+  "Nami": {
+    "gender": "Female",
+    "species": "Vastayan"
+  },
+  "Nasus": {
+    "gender": "Male",
+    "species": "God-Warrior, Human"
+  },
+  "Nautilus": {
+    "gender": "Male",
+    "species": "Revenant, Human"
+  },
+  "Neeko": {
+    "gender": "Female",
+    "species": "Vastayan"
+  },
+  "Nidalee": {
+    "gender": "Female",
+    "species": "Human, Magical, Vastayan"
+  },
+  "Nocturne": {
+    "gender": "Male",
+    "species": "Demon"
+  },
+  "Nunu & Willump": {
+    "gender": "Male",
+    "species": "Half Animal, Human"
+  },
+  "Olaf": {
+    "gender": "Male",
+    "species": "Human, Iceborn"
+  },
+  "Orianna": {
+    "gender": "Female",
+    "species": "Techmaturgy, Golem, Human"
+  },
+  "Ornn": {
+    "gender": "Male",
+    "species": "Spirit God"
+  },
+  "Pantheon": {
+    "gender": "Male",
+    "species": "Human, Aspect Host"
+  },
+  "Poppy": {
+    "gender": "Female",
+    "species": "Yordle"
+  },
+  "Pyke": {
+    "gender": "Male",
+    "species": "Revenant, Human"
+  },
+  "Qiyana": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Quinn": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Rakan": {
+    "gender": "Male",
+    "species": "Vastayan"
+  },
+  "Rammus": {
+    "gender": "Male",
+    "species": "Baccai"
+  },
+  "Rek'Sai": {
+    "gender": "Female",
+    "species": "Xer'Sai"
+  },
+  "Rell": {
+    "gender": "Female",
+    "species": "Human, Magical, Magical Alteration"
+  },
+  "Renekton": {
+    "gender": "Male",
+    "species": "God-Warrior, Human"
+  },
+  "Rengar": {
+    "gender": "Male",
+    "species": "Vastayan"
+  },
+  "Riven": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Rumble": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Ryze": {
+    "gender": "Male",
+    "species": "Human, Magical, Magical Alteration"
+  },
+  "Samira": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Sejuani": {
+    "gender": "Female",
+    "species": "Human, Iceborn"
+  },
+  "Senna": {
+    "gender": "Female",
+    "species": "Wraith, Human"
+  },
+  "Seraphine": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Sett": {
+    "gender": "Male",
+    "species": "Human, Magical, Vastayan"
+  },
+  "Shaco": {
+    "gender": "Male",
+    "species": "Demon"
+  },
+  "Shen": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Shyvana": {
+    "gender": "Female",
+    "species": "Terrestrial Dragon, Magical Alteration"
+  },
+  "Singed": {
+    "gender": "Male",
+    "species": "Human, Chemical Alteration"
+  },
+  "Sion": {
+    "gender": "Male",
+    "species": "Revenant, Human"
+  },
+  "Sivir": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Skarner": {
+    "gender": "Male",
+    "species": "Brackern"
+  },
+  "Sona": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Soraka": {
+    "gender": "Female",
+    "species": "Celestial"
+  },
+  "Swain": {
+    "gender": "Male",
+    "species": "Human, Magical Alteration"
+  },
+  "Sylas": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Syndra": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Tahm Kench": {
+    "gender": "Male",
+    "species": "Demon"
+  },
+  "Taliyah": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Talon": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Taric": {
+    "gender": "Male",
+    "species": "Aspect Host, Human"
+  },
+  "Teemo": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Thresh": {
+    "gender": "Male",
+    "species": "Wraith, Human"
+  },
+  "Tristana": {
+    "gender": "Female",
+    "species": "Yordle"
+  },
+  "Trundle": {
+    "gender": "Male",
+    "species": "Troll, Iceborn"
+  },
+  "Tryndamere": {
+    "gender": "Male",
+    "species": "Human, Magical Alteration"
+  },
+  "Twisted Fate": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Twitch": {
+    "gender": "Male",
+    "species": "Plague Rat, Chemical Alteration"
+  },
+  "Udyr": {
+    "gender": "Male",
+    "species": "Human, Magical, Vastayan"
+  },
+  "Urgot": {
+    "gender": "Male",
+    "species": "Human, Chemical Alteration, Cyborg"
+  },
+  "Varus": {
+    "gender": "Male",
+    "species": "Darkin, Human, God-Warrior"
+  },
+  "Vayne": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Veigar": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Vel'Koz": {
+    "gender": "Male",
+    "species": "Void-Being"
+  },
+  "Vex": {
+    "gender": "Female",
+    "species": "Yordle"
+  },
+  "Vi": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Viego": {
+    "gender": "Male",
+    "species": "Wraith, Human, Magical"
+  },
+  "Viktor": {
+    "gender": "Male",
+    "species": "Human, Cyborg"
+  },
+  "Vladimir": {
+    "gender": "Male",
+    "species": "Human, Magical Alteration"
+  },
+  "Volibear": {
+    "gender": "Male",
+    "species": "Spirit God"
+  },
+  "Warwick": {
+    "gender": "Male",
+    "species": "Human, Chemical Alteration, Cyborg"
+  },
+  "Wukong": {
+    "gender": "Male",
+    "species": "Shimon"
+  },
+  "Xayah": {
+    "gender": "Female",
+    "species": "Vastayan"
+  },
+  "Xerath": {
+    "gender": "Male",
+    "species": "Baccai, Human"
+  },
+  "Xin Zhao": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Yasuo": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Yone": {
+    "gender": "Male",
+    "species": "Human, Magical Alteration"
+  },
+  "Yorick": {
+    "gender": "Male",
+    "species": "Human, Magical, Magical Alteration"
+  },
+  "Yuumi": {
+    "gender": "Female",
+    "species": "Cat, Magical Alteration"
+  },
+  "Zac": {
+    "gender": "Male",
+    "species": "Golem"
+  },
+  "Zed": {
+    "gender": "Male",
+    "species": "Human, Magical Alteration"
+  },
+  "Zeri": {
+    "gender": "Female",
+    "species": "Human, Magical"
+  },
+  "Ziggs": {
+    "gender": "Male",
+    "species": "Yordle"
+  },
+  "Zilean": {
+    "gender": "Male",
+    "species": "Human, Magical"
+  },
+  "Zoe": {
+    "gender": "Female",
+    "species": "Aspect Host, Human"
+  },
+  "Zyra": {
+    "gender": "Female",
+    "species": "Plant / Human Hybrid"
+  },
+  "Renata Glasc": {
+    "gender": "Female",
+    "species": "Human, Chemical Alteration"
+  },
+  "Bel'Veth": {
+    "gender": "Female",
+    "species": "Void-Being"
+  },
+  "Nilah": {
+    "gender": "Female",
+    "species": "Human, Magical Alteration, Demon"
+  },
+  "K'Sante": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Urf": {
+    "gender": "Male",
+    "species": "Manatee"
+  },
+  "Ambessa": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Aurora": {
+    "gender": "Female",
+    "species": "Vastayan"
+  },
+  "Briar": {
+    "gender": "Female",
+    "species": "Golem"
+  },
+  "Hwei": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Mel": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Milio": {
+    "gender": "Male",
+    "species": "Human"
+  },
+  "Naafiri": {
+    "gender": "Female",
+    "species": "Darkin"
+  },
+  "Smolder": {
+    "gender": "Male",
+    "species": "Dragon"
+  },
+  "Yunara": {
+    "gender": "Female",
+    "species": "Human"
+  },
+  "Zaahen": {
+    "gender": "Male",
+    "species": "Darkin"
+  }
+}

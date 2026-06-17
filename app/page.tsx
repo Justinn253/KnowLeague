@@ -39,7 +39,7 @@ const games: GameLink[] = [
   {
     title: 'Skincognito',
     href: '/skincognito',
-    description: 'Create a PvP lobby and uncover your opponent’s hidden skin.',
+    description: 'Create a lobby and uncover your opponent’s hidden skin.',
     status: 'Alpha',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shaco_0.jpg',
     icon: ShieldQuestion,

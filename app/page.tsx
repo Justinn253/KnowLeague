@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, Crown, Sparkles } from 'lucide-react';
+import { ArrowRight, Clock3, Crown, Search, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -29,6 +29,14 @@ const games: GameLink[] = [
     icon: Sparkles,
   },
   {
+    title: 'Skindle',
+    href: '/skindle',
+    description: 'Guess the daily skin by comparing category clues after each attempt.',
+    status: 'Play',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
+    icon: Search,
+  },
+  {
     title: 'Mastery Master',
     href: '/mastery-master',
     description: 'Build champion knowledge through focused mastery-style challenges.',
@@ -53,7 +61,7 @@ export default function Home() {
           </p>
         </header>
 
-        <section aria-label="Game modes" className="grid gap-4 md:grid-cols-3">
+        <section aria-label="Game modes" className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {games.map((game) => {
             const Icon = game.icon;
 

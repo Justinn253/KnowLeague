@@ -19,20 +19,24 @@
 - `app/speed-blitz/page.tsx` redirects legacy links to Ability Blitz.
 - `app/mastery-master/page.tsx` is a placeholder route for a future game.
 - `app/skin-champion/page.tsx` renders the playable Skin Champion game.
+- `app/skindle/page.tsx` renders the playable Skindle category-comparison skin guessing game.
 - `app/layout.tsx` defines root metadata and global CSS import.
 - `app/globals.css` contains Tailwind layers, global dark styling, and local animations.
 - `components/ability-blitz.tsx` contains the Ability Blitz client-side quiz flow and UI state.
 - `components/skin-champion.tsx` contains the Skin Champion client-side skin quiz flow and UI state.
+- `components/skindle.tsx` contains the Skindle client-side category comparison UI.
 - `components/coming-soon-game.tsx` contains shared placeholder page UI for future game modes.
 - `components/feature-card.tsx` is a small reusable card component.
 - `app/api/ability-blitz/*` serves local generated ability quiz data.
 - `app/api/skin-champion/*` serves local generated skin quiz data.
+- `app/api/skindle/*` serves local generated skin metadata for Skindle.
 - `app/api/ddragon/*` is a legacy compatibility wrapper for Ability Blitz data.
 - `lib/catalogs.ts` reads generated local quiz catalogues.
 - `lib/riot.ts` contains older dynamic Data Dragon helpers and should not be used for new runtime quiz fetches.
 - `scripts/generate-catalogs.mjs` refreshes generated ability and skin catalogues.
 - `data/catalogs/ability-items.json` and `data/catalogs/skin-items.json` are generated runtime catalogues.
 - `data/catalogs/skin-release-dates.json` is an app-owned release-date override map merged into generated skin data.
+- Skin catalogue records include available Skindle metadata from CommunityDragon: skin line, rarity, and champion role; gender and race are app-owned fields currently defaulting to `Unknown`.
 - `lib/supabaseClient.ts` creates the Supabase client and leaderboard helper.
 - `data/daily-sets/` contains static daily set JSON samples.
 

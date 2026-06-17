@@ -37,6 +37,19 @@ function toSkinSplashUrl(championId, skinId) {
   return `${DATA_DRAGON_BASE_URL.replace(`/cdn/${DATA_DRAGON_VERSION}`, '/cdn/img')}/champion/splash/${championId}_${skinId}.jpg`;
 }
 
+function formatRarity(rarity) {
+  const labels = {
+    kNoRarity: 'Common',
+    kEpic: 'Epic',
+    kLegendary: 'Legendary',
+    kUltimate: 'Ultimate',
+    kMythic: 'Mythic',
+    kTranscendent: 'Transcendent',
+  };
+
+  return labels[rarity] ?? rarity ?? 'Unknown';
+}
+
 async function buildAbilityItems() {
   const championIndex = await fetchJson(`${DATA_DRAGON_BASE_URL}/data/en_US/champion.json`);
   const championIds = Object.keys(championIndex.data).sort();
@@ -75,11 +88,18 @@ async function buildAbilityItems() {
 }
 
 async function buildSkinItems() {
-  const [skinsById, championSummary, releaseDates] = await Promise.all([
+  const [skinsById, championSummary, skinLines, releaseDates] = await Promise.all([
     fetchJson(`${COMMUNITY_DRAGON_BASE_URL}/v1/skins.json`),
     fetchJson(`${COMMUNITY_DRAGON_BASE_URL}/v1/champion-summary.json`),
+    fetchJson(`${COMMUNITY_DRAGON_BASE_URL}/v1/skinlines.json`),
     readReleaseDateOverrides(),
   ]);
+
+  const skinLineById = new Map(
+    skinLines
+      .filter((line) => line.id && line.name)
+      .map((line) => [line.id, line.name]),
+  );
 
   const championById = new Map(
     championSummary
@@ -89,6 +109,7 @@ async function buildSkinItems() {
         {
           name: champion.name,
           alias: champion.alias,
+          role: champion.roles?.[0] ?? 'Unknown',
         },
       ]),
   );
@@ -106,6 +127,10 @@ async function buildSkinItems() {
       const skinNumber = Number(skin.id) % 1000;
       const champion = championById.get(championId);
       const releaseDate = releaseDates[String(skin.id)] ?? releaseDates[skin.name] ?? null;
+      const skinLine = skin.skinLines
+        ?.map((line) => skinLineById.get(line.id))
+        .filter(Boolean)
+        .join(', ') || 'None';
 
       return {
         id: String(skin.id),
@@ -116,6 +141,11 @@ async function buildSkinItems() {
         imageUrl: champion ? toSkinSplashUrl(champion.alias, skinNumber) : '',
         champion: champion?.name ?? 'Unknown',
         releaseDate,
+        skinLine,
+        rarity: formatRarity(skin.rarity),
+        role: champion?.role ?? 'Unknown',
+        gender: 'Unknown',
+        race: 'Unknown',
       };
     })
     .filter((skin) => skin.champion !== 'Unknown' && skin.imageUrl)

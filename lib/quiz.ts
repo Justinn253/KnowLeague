@@ -9,6 +9,11 @@ export type QuizItem = {
   imageUrl: string;
   champion: string;
   releaseDate?: string | null;
+  skinLine?: string | null;
+  rarity?: string | null;
+  role?: string | null;
+  gender?: string | null;
+  race?: string | null;
   guessed?: boolean;
 };
 

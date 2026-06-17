@@ -5,7 +5,7 @@ import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, Search, UserCheck, UserX, Us
 import Image from 'next/image';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
-import type { SkincognitoLobbyView } from '@/lib/skincognito';
+import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicPlayer } from '@/lib/skincognito';
 
 type SkinAnswer = {
   id: string;
@@ -15,9 +15,156 @@ type SkinAnswer = {
 
 type SkincognitoAnswers = {
   skin: SkinAnswer[];
+  champion: string[];
+  skinLine: string[];
+  releaseYear: string[];
+  rarity: string[];
+  gender: string[];
+  role: string[];
+  race: string[];
+};
+
+type ChatGroup = {
+  key: string;
+  playerId: string | null;
+  label: string;
+  alignRight: boolean;
+  colorClassName: string;
+  messages: string[];
 };
 
 const LOBBY_STORAGE_KEY = 'knowleague:v1:skincognito:lobby-code';
+
+const CATEGORY_DEFINITIONS: Array<{ id: Exclude<SkincognitoCategoryId, 'skin'>; label: string }> = [
+  { id: 'champion', label: 'Champion' },
+  { id: 'skinLine', label: 'Skin Line' },
+  { id: 'releaseYear', label: 'Release Year' },
+  { id: 'rarity', label: 'Rarity' },
+  { id: 'gender', label: 'Gender' },
+  { id: 'role', label: 'Role' },
+  { id: 'race', label: 'Species' },
+];
+
+const INPUT_CATEGORIES: Array<{ id: SkincognitoCategoryId; label: string }> = [
+  { id: 'skin', label: 'Skin' },
+  ...CATEGORY_DEFINITIONS,
+];
+
+const EMPTY_ANSWERS: SkincognitoAnswers = {
+  skin: [],
+  champion: [],
+  skinLine: [],
+  releaseYear: [],
+  rarity: [],
+  gender: [],
+  role: [],
+  race: [],
+};
+
+function getPlayerById(view: SkincognitoLobbyView | null, playerId?: string | null) {
+  if (!view || !playerId) {
+    return null;
+  }
+
+  return view.players.find((player) => player.id === playerId) ?? null;
+}
+
+function getCategoryCorrectSet(view: SkincognitoLobbyView | null, playerId?: string | null) {
+  if (!view || !playerId) {
+    return new Set<SkincognitoCategoryId>();
+  }
+
+  return new Set(
+    view.actions
+      .filter((action) => action.player_id === playerId && action.is_correct && action.category_id)
+      .map((action) => action.category_id as SkincognitoCategoryId),
+  );
+}
+
+function getCorrectCategoryValue(view: SkincognitoLobbyView | null, playerId: string | null | undefined, categoryId: SkincognitoCategoryId) {
+  if (!view || !playerId) {
+    return null;
+  }
+
+  return view.actions.find((action) => (
+    action.player_id === playerId &&
+    action.category_id === categoryId &&
+    action.is_correct
+  ))?.guess_value ?? null;
+}
+
+function getPlayerLabel(player: SkincognitoPublicPlayer | null) {
+  return player?.display_name ?? 'Player';
+}
+
+function isScrolledToBottom(element: HTMLElement) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight < 12;
+}
+
+function getChatColorClassName(view: SkincognitoLobbyView, playerId?: string | null) {
+  if (!playerId) {
+    return 'text-amber-300';
+  }
+
+  if (playerId === view.lobby.player_one_id) {
+    return 'text-sky-300';
+  }
+
+  if (playerId === view.lobby.player_two_id) {
+    return 'text-red-300';
+  }
+
+  const spectatorIndex = view.players
+    .filter((player) => player.role === 'spectator')
+    .findIndex((player) => player.id === playerId);
+  const spectatorColors = ['text-emerald-300', 'text-violet-300', 'text-amber-300', 'text-cyan-300', 'text-pink-300'];
+  return spectatorColors[Math.max(0, spectatorIndex) % spectatorColors.length];
+}
+
+function getNextAvailableCategory(correctCategories: Set<SkincognitoCategoryId>) {
+  return INPUT_CATEGORIES.find((category) => !correctCategories.has(category.id))?.id ?? 'skin';
+}
+
+function createChatGroups(
+  messages: SkincognitoLobbyView['chatMessages'],
+  view: SkincognitoLobbyView,
+  requestingPlayerId?: string | null,
+) {
+  return messages.reduce<ChatGroup[]>((groups, chat) => {
+    const actor = getPlayerById(view, chat.player_id);
+    const spectatorTag = actor?.role === 'spectator' ? ' (spectator)' : '';
+    const label = chat.message_type === 'system' ? 'System' : `${getPlayerLabel(actor)}${spectatorTag}`;
+    const alignRight = Boolean(chat.player_id && chat.player_id === requestingPlayerId);
+    const previousGroup = groups[groups.length - 1];
+
+    if (previousGroup && previousGroup.playerId === chat.player_id && previousGroup.label === label) {
+      previousGroup.messages.push(chat.message);
+      return groups;
+    }
+
+    return [
+      ...groups,
+      {
+        key: chat.id,
+        playerId: chat.player_id,
+        label,
+        alignRight,
+        colorClassName: getChatColorClassName(view, chat.player_id),
+        messages: [chat.message],
+      },
+    ];
+  }, []);
+}
+
+function isRoutineSystemMessage(message: string) {
+  return (
+    message.includes(' created the lobby.') ||
+    message.includes(' joined the lobby.') ||
+    message.includes(' selected a skin.') ||
+    message.includes('The game started.') ||
+    message.includes(' guessed ')
+  );
+}
 
 function getLobbyStatusLabel(view: SkincognitoLobbyView | null) {
   if (!view) {
@@ -39,19 +186,40 @@ function getLobbyStatusLabel(view: SkincognitoLobbyView | null) {
   return 'Lobby closed';
 }
 
+function getHeaderActionLabel(view: SkincognitoLobbyView | null) {
+  if (view?.lobby.status === 'active') {
+    return 'In Progress';
+  }
+
+  if (view?.lobby.status === 'finished') {
+    return 'Finished';
+  }
+
+  return 'Lobby';
+}
+
 export function Skincognito() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('Player');
   const [joinCode, setJoinCode] = useState('');
   const [lobbyView, setLobbyView] = useState<SkincognitoLobbyView | null>(null);
-  const [skinAnswers, setSkinAnswers] = useState<SkinAnswer[]>([]);
+  const [answers, setAnswers] = useState<SkincognitoAnswers>(EMPTY_ANSWERS);
   const [skinQuery, setSkinQuery] = useState('');
   const [selectedSkin, setSelectedSkin] = useState<SkinAnswer | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<SkincognitoCategoryId>('skin');
+  const [guessQuery, setGuessQuery] = useState('');
+  const [guessMenuOpen, setGuessMenuOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [codeRevealed, setCodeRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const skinSearchRef = useRef<HTMLDivElement>(null);
+  const guessSearchRef = useRef<HTMLDivElement>(null);
+  const guessesScrollRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const wasGuessesAtBottomRef = useRef(true);
+  const wasChatAtBottomRef = useRef(true);
   const nameDraftDirtyRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
@@ -68,16 +236,80 @@ export function Skincognito() {
     : [];
   const spectatorCount = lobbyView ? lobbyView.players.length - activePlayers.length : 0;
   const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2 && activePlayers.every((player) => player.has_selected_skin));
+  const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
+  const playerTwo = getPlayerById(lobbyView, lobbyView?.lobby.player_two_id);
+  const opponentPlayer = requestingPlayer?.id === playerOne?.id ? playerTwo : playerOne;
+  const topPlayer = requestingPlayer?.role === 'spectator' ? playerOne : opponentPlayer;
+  const bottomPlayer = requestingPlayer?.role === 'spectator' ? playerTwo : requestingPlayer;
+  const topCorrectCategories = getCategoryCorrectSet(lobbyView, topPlayer?.id);
+  const bottomCorrectCategories = getCategoryCorrectSet(lobbyView, bottomPlayer?.id);
+  const isTurn = Boolean(requestingPlayer && lobbyView?.lobby.current_turn_player_id === requestingPlayer.id);
+  const canSubmitAction = Boolean(lobbyView?.lobby.status === 'active' && requestingPlayer?.role !== 'spectator' && isTurn);
+  const guessedValues = useMemo(() => new Set(
+    (lobbyView?.actions ?? [])
+      .filter((action) => action.player_id === requestingPlayer?.id && action.category_id === selectedCategory)
+      .map((action) => normalizeAnswer(action.guess_value)),
+  ), [lobbyView?.actions, requestingPlayer?.id, selectedCategory]);
+  const ownCorrectCategories = useMemo(
+    () => getCategoryCorrectSet(lobbyView, requestingPlayer?.id),
+    [lobbyView, requestingPlayer?.id],
+  );
+  const availableInputCategories = useMemo(() => (
+    INPUT_CATEGORIES.filter((category) => !ownCorrectCategories.has(category.id))
+  ), [ownCorrectCategories]);
   const suggestions = useMemo(() => {
     const query = normalizeAnswer(skinQuery);
     if (query.length < 2 || selectedSkin?.label === skinQuery) {
       return [];
     }
 
-    return skinAnswers
-      .filter((skin) => normalizeAnswer(skin.label).includes(query))
-      .slice(0, 12);
-  }, [selectedSkin?.label, skinAnswers, skinQuery]);
+    return answers.skin
+      .filter((skin) => normalizeAnswer(skin.label).includes(query));
+  }, [answers.skin, selectedSkin?.label, skinQuery]);
+
+  const guessSuggestions = useMemo(() => {
+    const query = normalizeAnswer(guessQuery);
+    if (selectedCategory === 'skin' && query.length < 2) {
+      return [];
+    }
+
+    if (selectedCategory === 'skin') {
+      return answers.skin
+        .filter((skin) => normalizeAnswer(skin.label).includes(query))
+        .filter((skin) => !guessedValues.has(normalizeAnswer(skin.label)))
+        .map((skin) => ({ id: skin.id, label: skin.label, imageUrl: skin.imageUrl }));
+    }
+
+    return answers[selectedCategory]
+      .filter((value) => normalizeAnswer(value).includes(query))
+      .filter((value) => !guessedValues.has(normalizeAnswer(value)))
+      .map((value) => ({ id: value, label: value, imageUrl: null }));
+  }, [answers, guessedValues, guessQuery, selectedCategory]);
+
+  const recentActions = useMemo(() => (
+    [...(lobbyView?.actions ?? [])].slice(-8)
+  ), [lobbyView?.actions]);
+  const visibleChatMessages = useMemo(() => (
+    (lobbyView?.chatMessages ?? []).filter((chat) => chat.message_type !== 'system' || !isRoutineSystemMessage(chat.message))
+  ), [lobbyView?.chatMessages]);
+  const chatGroups = useMemo(() => (
+    lobbyView ? createChatGroups(visibleChatMessages, lobbyView, requestingPlayer?.id) : []
+  ), [lobbyView, requestingPlayer?.id, visibleChatMessages]);
+  const exactGuessSuggestion = useMemo(() => {
+    const query = normalizeAnswer(guessQuery);
+    if (!query || guessedValues.has(query)) {
+      return null;
+    }
+
+    if (selectedCategory === 'skin') {
+      const skin = answers.skin.find((answer) => normalizeAnswer(answer.label) === query);
+      return skin ? { id: skin.id, label: skin.label, imageUrl: skin.imageUrl } : null;
+    }
+
+    const value = answers[selectedCategory].find((answer) => normalizeAnswer(answer) === query);
+    return value ? { id: value, label: value, imageUrl: null } : null;
+  }, [answers, guessedValues, guessQuery, selectedCategory]);
+  const canSubmitExactGuess = Boolean(canSubmitAction && exactGuessSuggestion);
 
   const selectedSkinPreview = selectedSkin ?? (
     requestingPlayer?.selected_skin
@@ -160,7 +392,7 @@ export function Skincognito() {
 
     fetch('/api/skincognito/answers')
       .then((response) => response.json())
-      .then((data: SkincognitoAnswers) => setSkinAnswers(data.skin ?? []))
+      .then((data: SkincognitoAnswers) => setAnswers({ ...EMPTY_ANSWERS, ...data, skin: data.skin ?? [] }))
       .catch((error) => {
         console.error('Failed to load Skincognito skin answers', error);
         setMessage('Unable to load skin search data.');
@@ -221,6 +453,45 @@ export function Skincognito() {
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [selectedSkin]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!guessSearchRef.current?.contains(event.target as Node)) {
+        setGuessMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    if (!ownCorrectCategories.has(selectedCategory)) {
+      return;
+    }
+
+    setSelectedCategory(getNextAvailableCategory(ownCorrectCategories));
+    setGuessQuery('');
+    setGuessMenuOpen(false);
+  }, [ownCorrectCategories, selectedCategory]);
+
+  useEffect(() => {
+    const guessesElement = guessesScrollRef.current;
+    if (!guessesElement || !wasGuessesAtBottomRef.current) {
+      return;
+    }
+
+    guessesElement.scrollTop = guessesElement.scrollHeight;
+  }, [recentActions.length]);
+
+  useEffect(() => {
+    const chatElement = chatScrollRef.current;
+    if (!chatElement || !wasChatAtBottomRef.current) {
+      return;
+    }
+
+    chatElement.scrollTop = chatElement.scrollHeight;
+  }, [visibleChatMessages.length]);
 
   useEffect(() => {
     if (!lobbyView?.lobby.code || !clientId || lobbyView.lobby.status === 'terminated') {
@@ -330,6 +601,16 @@ export function Skincognito() {
   };
 
   const leaveLobby = async () => {
+    if (lobbyView?.lobby.status !== 'waiting') {
+      window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+      setLobbyView(null);
+      setSelectedSkin(null);
+      setSkinQuery('');
+      setGuessQuery('');
+      setMessage('');
+      return;
+    }
+
     if (clientId && lobbyView) {
       await requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/leave`, { clientId });
     }
@@ -378,10 +659,58 @@ export function Skincognito() {
     });
   };
 
+  const submitGuessValue = useCallback((guessValue: string, categoryId = selectedCategory) => {
+    if (!clientId || !lobbyView || !canSubmitAction || !guessValue.trim()) {
+      return;
+    }
+
+    setGuessMenuOpen(false);
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/actions`, {
+      clientId,
+      actionType: categoryId === 'skin' ? 'skin_guess' : 'category_guess',
+      categoryId,
+      guessValue: guessValue.trim(),
+    }).then((view) => {
+      if (view) {
+        setGuessQuery('');
+      }
+    });
+  }, [canSubmitAction, clientId, lobbyView, requestLobby, selectedCategory]);
+
+  const chooseGuess = (label: string) => {
+    setGuessQuery(label);
+    submitGuessValue(label);
+  };
+
+  const submitGuess = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!exactGuessSuggestion) {
+      return;
+    }
+
+    submitGuessValue(exactGuessSuggestion.label);
+  };
+
+  const submitChat = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!clientId || !lobbyView || !chatDraft.trim()) {
+      return;
+    }
+
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/chat`, {
+      clientId,
+      message: chatDraft.trim(),
+    }).then((view) => {
+      if (view) {
+        setChatDraft('');
+      }
+    });
+  };
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-10 lg:px-12">
-        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+      <section className="mx-auto flex min-h-screen max-w-6xl flex-col gap-5 px-6 py-6 lg:px-12">
+        <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -400,11 +729,11 @@ export function Skincognito() {
 
           <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
             <Users size={16} className="text-amber-300" />
-            Lobby
+            {getHeaderActionLabel(lobbyView)}
           </div>
         </header>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
+        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
           {!lobbyView ? (
             <div className="mx-auto max-w-3xl text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Create or Join</p>
@@ -448,7 +777,7 @@ export function Skincognito() {
                 </div>
               </form>
             </div>
-          ) : (
+          ) : lobbyView.lobby.status === 'waiting' ? (
             <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:flex-row">
               <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Lobby code</span>
               <span className="font-mono text-lg font-semibold tracking-[0.24em] text-white">
@@ -473,7 +802,7 @@ export function Skincognito() {
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
 
           {message ? (
             <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-center text-sm text-slate-300">
@@ -481,7 +810,7 @@ export function Skincognito() {
             </p>
           ) : null}
 
-          {lobbyView ? (
+          {lobbyView && lobbyView.lobby.status === 'waiting' ? (
             <div className="mt-8 border-t border-white/10 pt-8">
               <form onSubmit={updateDisplayName} className="mb-5 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:grid-cols-[1fr_auto] sm:items-end">
                 <div className="grid gap-2">
@@ -586,7 +915,7 @@ export function Skincognito() {
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Your skin</p>
                     <h3 className="mt-2 text-lg font-semibold text-white">
-                      {requestingPlayer?.role === 'spectator' ? 'Spectating' : 'Choose your hidden answer'}
+                      {requestingPlayer?.role === 'spectator' ? 'Spectating' : 'Choose your skin'}
                     </h3>
                   </div>
 
@@ -677,7 +1006,7 @@ export function Skincognito() {
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Play size={16} />
-                  {lobbyView.lobby.status === 'active' ? 'Game Started' : 'Start Game'}
+                  Start Game
                 </button>
               </div>
 
@@ -685,6 +1014,297 @@ export function Skincognito() {
                 <p className="mt-3 text-center text-xs text-slate-500">
                   The host can start once two active players have selected skins.
                 </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {lobbyView && lobbyView.lobby.status !== 'waiting' ? (
+            <div className="mt-4">
+              <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-amber-300">
+                      {lobbyView.lobby.status === 'finished' ? 'Game finished' : 'Current turn'}
+                    </p>
+                    <h2 className="mt-1 text-xl font-bold text-white">
+                      {lobbyView.lobby.status === 'finished'
+                        ? `${getPlayerLabel(getPlayerById(lobbyView, lobbyView.lobby.winner_player_id))} found the skin`
+                        : `${getPlayerLabel(getPlayerById(lobbyView, lobbyView.lobby.current_turn_player_id))}'s turn`}
+                    </h2>
+                  </div>
+                  <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                    canSubmitAction
+                      ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+                      : 'border-white/10 bg-slate-900 text-slate-400'
+                  }`}>
+                    {requestingPlayer?.role === 'spectator' ? 'Spectating' : canSubmitAction ? 'Your turn' : 'Waiting'}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                  {CATEGORY_DEFINITIONS.map((category) => {
+                    const isCorrect = topCorrectCategories.has(category.id);
+                    const correctValue = getCorrectCategoryValue(lobbyView, topPlayer?.id, category.id);
+                    return (
+                      <div
+                        key={category.id}
+                        className={`min-h-16 rounded-2xl border p-2 text-center transition ${
+                          isCorrect
+                            ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-100'
+                            : 'border-white/10 bg-slate-900 text-slate-400'
+                        }`}
+                      >
+                        <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">{category.label}</p>
+                        <p className="mt-2 text-sm font-semibold">{isCorrect ? correctValue : 'Unknown'}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {`${getPlayerLabel(topPlayer)}'s correct category guesses`}
+                </p>
+              </section>
+
+              <div className="mt-4 grid items-stretch gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <section className="flex h-72 flex-col rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Recent guesses</p>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-400">
+                      {recentActions.length}
+                    </span>
+                  </div>
+
+                  <div
+                    ref={guessesScrollRef}
+                    onScroll={(event) => {
+                      wasGuessesAtBottomRef.current = isScrolledToBottom(event.currentTarget);
+                    }}
+                    className="mt-3 grid flex-1 content-start gap-2 overflow-y-auto pr-3"
+                  >
+                    {recentActions.map((action) => {
+                      const actor = getPlayerById(lobbyView, action.player_id);
+                      const categoryLabel = INPUT_CATEGORIES.find((category) => category.id === action.category_id)?.label ?? 'Guess';
+                      return (
+                        <div
+                          key={action.id}
+                          className={`rounded-2xl border p-3 ${
+                            action.is_correct
+                              ? 'border-emerald-400/30 bg-emerald-500/10'
+                              : 'border-red-400/25 bg-red-500/10'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-white">{getPlayerLabel(actor)}</p>
+                              <p className="mt-1 truncate text-xs uppercase tracking-[0.16em] text-slate-500">
+                                {categoryLabel} - <span className="normal-case tracking-normal text-slate-200">{action.guess_value}</span>
+                                {action.category_id === 'releaseYear' && action.result_hint ? (
+                                  <span className="ml-2 text-amber-200">{action.result_hint === 'higher' ? '\u2191' : '\u2193'}</span>
+                                ) : null}
+                              </p>
+                            </div>
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              action.is_correct ? 'bg-emerald-400/15 text-emerald-200' : 'bg-red-400/15 text-red-200'
+                            }`}>
+                              {action.is_correct ? 'Correct' : 'Incorrect'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className="flex h-72 flex-col rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Chat</p>
+                  </div>
+
+                  <div
+                    ref={chatScrollRef}
+                    onScroll={(event) => {
+                      wasChatAtBottomRef.current = isScrolledToBottom(event.currentTarget);
+                    }}
+                    className="mt-3 grid flex-1 content-start gap-3 overflow-y-auto pr-5"
+                  >
+                    {chatGroups.map((group) => {
+                      return (
+                        <div
+                          key={group.key}
+                          className={`max-w-[78%] ${group.alignRight ? 'ml-auto mr-3 text-right' : 'mr-auto text-left'}`}
+                        >
+                          <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${group.colorClassName}`}>
+                            {group.label}
+                          </p>
+                          <div className="mt-1 grid gap-1 text-sm text-slate-200">
+                            {group.messages.map((chatMessage, index) => (
+                              <p key={`${group.key}-${index}`}>{chatMessage}</p>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <form onSubmit={submitChat} className="mt-3 flex gap-2">
+                    <input
+                      value={chatDraft}
+                      onChange={(event) => setChatDraft(event.target.value)}
+                      autoComplete="off"
+                      placeholder="Send a message"
+                      className="min-h-10 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15"
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy || !chatDraft.trim()}
+                      className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-slate-800 px-5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Send
+                    </button>
+                  </form>
+                </section>
+              </div>
+
+              <section className="mt-4 rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                  {CATEGORY_DEFINITIONS.map((category) => {
+                    const isCorrect = bottomCorrectCategories.has(category.id);
+                    const correctValue = getCorrectCategoryValue(lobbyView, bottomPlayer?.id, category.id);
+                    return (
+                      <div
+                        key={category.id}
+                        className={`min-h-16 rounded-2xl border p-2 text-center transition ${
+                          isCorrect
+                            ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-100'
+                            : 'border-white/10 bg-slate-900 text-slate-400'
+                        }`}
+                      >
+                        <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">{category.label}</p>
+                        <p className="mt-2 text-sm font-semibold">{isCorrect ? correctValue : 'Unknown'}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {`${getPlayerLabel(bottomPlayer)}'s correct category guesses`}
+                </p>
+              </section>
+
+              {requestingPlayer?.role !== 'spectator' ? (
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
+                <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70">
+                  {selectedSkinPreview ? (
+                    <Image
+                      src={selectedSkinPreview.imageUrl}
+                      alt={selectedSkinPreview.label}
+                      width={729}
+                      height={430}
+                      className="h-40 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex aspect-[1215/717] items-center justify-center text-sm text-slate-500">
+                      Hidden skin unavailable
+                    </div>
+                  )}
+                  <div className="border-t border-white/10 p-3">
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Your skin</p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {selectedSkinPreview?.label ?? 'Spectator view'}
+                    </p>
+                  </div>
+                </section>
+
+                <section className={`rounded-3xl border bg-slate-950/70 p-4 transition ${
+                  canSubmitAction ? 'border-amber-400/70 shadow-[0_0_28px_rgba(251,191,36,0.18)]' : 'border-white/10'
+                }`}>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Submit a guess</p>
+                    <h3 className="mt-1 text-base font-semibold text-white">
+                      {canSubmitAction ? 'Choose a category and answer' : 'Wait for your turn'}
+                    </h3>
+                  </div>
+
+                  <form onSubmit={submitGuess} className="mt-4 grid gap-3">
+                    <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
+                      <select
+                        value={selectedCategory}
+                        onChange={(event) => {
+                          setSelectedCategory(event.target.value as SkincognitoCategoryId);
+                          setGuessQuery('');
+                          setGuessMenuOpen(false);
+                        }}
+                        style={{
+                          backgroundImage:
+                            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+                          backgroundPosition: 'right 1.15rem center',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundSize: '16px 16px',
+                        }}
+                        className="min-h-11 appearance-none rounded-2xl border border-white/10 bg-slate-950 px-4 pr-12 text-sm font-semibold text-white outline-none transition focus:border-white/20 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {availableInputCategories.map((category) => (
+                          <option key={category.id} value={category.id}>{category.label}</option>
+                        ))}
+                      </select>
+
+                      <div ref={guessSearchRef} className="relative">
+                        <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                        <input
+                          value={guessQuery}
+                          onChange={(event) => {
+                            setGuessQuery(event.target.value);
+                            setGuessMenuOpen(true);
+                          }}
+                          onFocus={() => setGuessMenuOpen(true)}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          placeholder={selectedCategory === 'skin' ? 'Guess a skin' : `Guess ${INPUT_CATEGORIES.find((category) => category.id === selectedCategory)?.label.toLowerCase()}`}
+                          disabled={!canSubmitAction || availableInputCategories.length === 0}
+                          className="min-h-11 w-full rounded-2xl border border-white/10 bg-slate-950 px-11 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+
+                        {guessMenuOpen && guessSuggestions.length > 0 && canSubmitAction ? (
+                          <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50">
+                            {guessSuggestions.map((suggestion) => (
+                              <button
+                                key={`${selectedCategory}-${suggestion.id}`}
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => chooseGuess(suggestion.label)}
+                                className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                              >
+                                {suggestion.imageUrl ? (
+                                  <Image
+                                    src={suggestion.imageUrl}
+                                    alt=""
+                                    width={72}
+                                    height={42}
+                                    className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
+                                  />
+                                ) : null}
+                                <span className="min-w-0 truncate">{suggestion.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={busy || !canSubmitExactGuess || availableInputCategories.length === 0}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-6 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Search size={16} />
+                      Submit Guess
+                    </button>
+                  </form>
+                </section>
+              </div>
               ) : null}
             </div>
           ) : null}

@@ -46,6 +46,7 @@ export type SkincognitoActionRecord = {
   category_id: SkincognitoCategoryId | null;
   guess_value: string;
   is_correct: boolean;
+  result_hint: string | null;
   created_at: string;
 };
 
@@ -149,6 +150,11 @@ function getCategoryValue(item: QuizItem, categoryId: SkincognitoCategoryId) {
     return item.releaseDate?.slice(0, 4) || 'Unknown';
   }
 
+  if (categoryId === 'rarity') {
+    const rarity = item.rarity || 'Unknown';
+    return rarity.startsWith('k') ? rarity.slice(1) : rarity;
+  }
+
   const value = item[categoryId as keyof QuizItem];
   return typeof value === 'string' && value.trim() ? value : 'Unknown';
 }
@@ -163,6 +169,20 @@ function valuesMatch(categoryId: SkincognitoCategoryId, guessValue: string, targ
   }
 
   return normalizeAnswer(guessValue) === normalizeAnswer(targetValue);
+}
+
+function getResultHint(categoryId: SkincognitoCategoryId, guessValue: string, targetSkin: QuizItem) {
+  if (categoryId !== 'releaseYear') {
+    return null;
+  }
+
+  const guessedYear = Number(guessValue);
+  const targetYear = Number(getCategoryValue(targetSkin, categoryId));
+  if (!Number.isFinite(guessedYear) || !Number.isFinite(targetYear) || guessedYear === targetYear) {
+    return null;
+  }
+
+  return guessedYear < targetYear ? 'higher' : 'lower';
 }
 
 function canSeeSelectedSkin(
@@ -542,7 +562,6 @@ export async function createSkincognitoLobby(input: CreateOrJoinInput) {
       host_player_id: player.id,
       player_one_id: player.id,
     });
-    await addSystemMessage(updatedLobby.id, `${player.display_name} created the lobby.`, player.id);
     return getLobbyView(updatedLobby, input.clientId);
   }
 
@@ -558,15 +577,15 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
   const reconciledLobby = await reconcileLobby(lobby);
   const players = await fetchPlayers(reconciledLobby.id);
   const bans = await fetchBans(reconciledLobby.id);
+  const existingPlayer = players.find((player) => player.client_id === input.clientId);
   if (bans.some((ban) => ban.client_id === input.clientId)) {
     throw new Error('You cannot rejoin this lobby.');
   }
 
-  if (players.length >= MAX_LOBBY_PLAYERS && !players.some((player) => player.client_id === input.clientId)) {
+  if (players.length >= MAX_LOBBY_PLAYERS && !existingPlayer) {
     throw new Error('Lobby is full.');
   }
 
-  const existingPlayer = players.find((player) => player.client_id === input.clientId);
   const role: SkincognitoPlayerRole =
     existingPlayer?.role ?? (reconciledLobby.status === 'waiting' && !reconciledLobby.player_two_id ? 'opponent' : 'spectator');
   const player = await upsertPlayer(reconciledLobby, input, role);
@@ -575,7 +594,6 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
       ? await updateLobby(reconciledLobby.id, { player_two_id: player.id })
       : reconciledLobby;
 
-  await addSystemMessage(updatedLobby.id, `${player.display_name} joined the lobby.`, player.id);
   return getLobbyView(updatedLobby, input.clientId);
 }
 
@@ -730,7 +748,6 @@ export async function selectSkincognitoSkin(code: string, clientId: string, skin
     throw error;
   }
 
-  await addSystemMessage(lobby.id, `${player.display_name} selected a skin.`, player.id);
   return getLobbyView(lobby, clientId);
 }
 
@@ -802,7 +819,6 @@ export async function startSkincognitoLobby(code: string, clientId: string) {
     started_at: new Date().toISOString(),
   });
 
-  await addSystemMessage(updatedLobby.id, `The game started. ${startingPlayer.display_name} goes first.`);
   return getLobbyView(updatedLobby, clientId);
 }
 
@@ -841,6 +857,7 @@ export async function submitSkincognitoAction(code: string, input: SubmitActionI
   const isCorrect = input.actionType === 'skin_guess'
     ? normalizeAnswer(input.guessValue) === normalizeAnswer(opponentSkin.answer)
     : valuesMatch(categoryId, input.guessValue, opponentSkin);
+  const resultHint = getResultHint(categoryId, input.guessValue, opponentSkin);
 
   const { error } = await getSupabaseServiceClient()
     .from('skincognito_actions')
@@ -851,17 +868,12 @@ export async function submitSkincognitoAction(code: string, input: SubmitActionI
       category_id: categoryId,
       guess_value: input.guessValue,
       is_correct: isCorrect,
+      result_hint: resultHint,
     });
 
   if (error) {
     throw error;
   }
-
-  await addSystemMessage(
-    lobby.id,
-    `${actor.display_name} guessed ${input.guessValue}: ${isCorrect ? 'correct' : 'incorrect'}.`,
-    actor.id,
-  );
 
   const updatedLobby = input.actionType === 'skin_guess' && isCorrect
     ? await updateLobby(lobby.id, {

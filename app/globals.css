@@ -65,6 +65,70 @@ select {
   animation: slide-in 0.45s ease-out;
 }
 
+@keyframes skindle-reveal {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(102%);
+  }
+}
+
+.animate-skindle-reveal {
+  animation: skindle-reveal 1.17s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@property --skindle-gradient-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes skindle-gradient-flow {
+  from {
+    --skindle-gradient-angle: 0deg;
+  }
+  to {
+    --skindle-gradient-angle: 360deg;
+  }
+}
+
+.skindle-gradient-border {
+  position: relative;
+  padding: 4px;
+}
+
+.skindle-gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--skindle-gradient-angle),
+    #fb7185,
+    #fbbf24,
+    #a3e635,
+    #22d3ee,
+    #a78bfa,
+    #fb7185
+  );
+  animation: skindle-gradient-flow 3s linear infinite;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.skindle-gradient-border-content {
+  position: relative;
+  z-index: 1;
+  border-radius: 0.55rem;
+  background: #020617;
+  padding: 0.25rem;
+}
+
 @keyframes carousel-slide {
   from {
     transform: translateX(0);
@@ -76,4 +140,17 @@ select {
 
 .animate-carousel-slide {
   animation: carousel-slide 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 4s linear infinite;
 }

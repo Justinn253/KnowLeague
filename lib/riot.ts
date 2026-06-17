@@ -1,5 +1,37 @@
+import type { QuizItem, QuizItemType } from '@/lib/quiz';
+import { shuffle } from '@/lib/quiz';
+
 const DATA_DRAGON_VERSION = '14.24.1';
-const DATA_DRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DATA_DRAGON_VERSION}`;
+const DATA_DRAGON_BASE_URL = `https://ddragon.leagueoflegends.com/cdn/${DATA_DRAGON_VERSION}`;
+const FALLBACK_CHAMPION_IDS = ['Yasuo', 'Ashe', 'Lux', 'Thresh', 'Ahri', 'Garen'] as const;
+
+type DataDragonImage = {
+  full: string;
+};
+
+type DataDragonSkill = {
+  name: string;
+  description: string;
+  image: DataDragonImage;
+};
+
+type DataDragonChampion = {
+  id: string;
+  name: string;
+  title: string;
+  tags: string[];
+  image: DataDragonImage;
+  passive: DataDragonSkill;
+  spells: DataDragonSkill[];
+};
+
+type DataDragonChampionResponse = {
+  data: Record<string, DataDragonChampion>;
+};
+
+type DataDragonChampionIndexResponse = {
+  data: Record<string, { id: string }>;
+};
 
 export type ChampionSkill = {
   name: string;
@@ -17,36 +49,29 @@ export type ChampionData = {
   spells: ChampionSkill[];
 };
 
-export type QuizItem = {
-  id: string;
-  type: 'champion' | 'spell' | 'passive' | 'ultimate' | 'skin';
-  title: string;
-  question: string;
-  answer: string;
-  imageUrl: string;
-  champion: string;
-};
-
 function championIconUrl(imageFile: string) {
-  return `${DATA_DRAGON_BASE}/img/champion/${imageFile}`;
+  return `${DATA_DRAGON_BASE_URL}/img/champion/${imageFile}`;
 }
 
 function spellIconUrl(imageFile: string) {
-  return `${DATA_DRAGON_BASE}/img/spell/${imageFile}`;
+  return `${DATA_DRAGON_BASE_URL}/img/spell/${imageFile}`;
 }
 
 function passiveIconUrl(imageFile: string) {
-  return `${DATA_DRAGON_BASE}/img/passive/${imageFile}`;
+  return `${DATA_DRAGON_BASE_URL}/img/passive/${imageFile}`;
 }
 
-export async function getChampionData(championId: string): Promise<ChampionData | null> {
-  const response = await fetch(`${DATA_DRAGON_BASE}/data/en_US/champion/${championId}.json`);
+async function fetchJson<T>(url: string): Promise<T | null> {
+  const response = await fetch(url);
+
   if (!response.ok) {
     return null;
   }
 
-  const json = await response.json();
-  const champion = Object.values(json.data)[0] as any;
+  return (await response.json()) as T;
+}
+
+function toChampionData(champion: DataDragonChampion): ChampionData {
   return {
     id: champion.id,
     name: champion.name,
@@ -58,7 +83,7 @@ export async function getChampionData(championId: string): Promise<ChampionData 
       description: champion.passive.description,
       imageUrl: passiveIconUrl(champion.passive.image.full),
     },
-    spells: champion.spells.map((spell: any) => ({
+    spells: champion.spells.map((spell) => ({
       name: spell.name,
       description: spell.description,
       imageUrl: spellIconUrl(spell.image.full),
@@ -66,121 +91,70 @@ export async function getChampionData(championId: string): Promise<ChampionData 
   };
 }
 
-function shuffle<T>(items: T[]) {
-  const result = [...items];
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
+function toQuizItems(champion: ChampionData): QuizItem[] {
+  const passiveItem: QuizItem = {
+    id: `${champion.id}-passive`,
+    type: 'passive',
+    title: 'Passive Ability',
+    question: champion.passive.name,
+    answer: champion.passive.name,
+    imageUrl: champion.passive.imageUrl,
+    champion: champion.name,
+  };
+
+  const spellItems = champion.spells.map<QuizItem>((spell, index) => {
+    const type: QuizItemType = index === 3 ? 'ultimate' : 'spell';
+
+    return {
+      id: `${champion.id}-spell-${index}`,
+      type,
+      title: type === 'ultimate' ? 'Ultimate Clue' : 'Ability Icon',
+      question: spell.name,
+      answer: spell.name,
+      imageUrl: spell.imageUrl,
+      champion: champion.name,
+    };
+  });
+
+  return [passiveItem, ...spellItems].filter((item) => item.answer && item.imageUrl);
 }
 
-export async function getSampleQuizItems(): Promise<QuizItem[]> {
-  // Try fetching the combined champion data file and build items.
-  try {
-    const url = `${DATA_DRAGON_BASE}/data/en_US/champion.json`;
-    const res = await fetch(url);
-    console.log('[riot] fetch champion.json response ok=', res.ok, 'status=', res.status);
-    if (res.ok) {
-      const json = await res.json();
-      const data = json.data as Record<string, any>;
-      const keys = Object.keys(data || {});
-      console.log('[riot] champion.json entries=', keys.length);
-      if (keys.length > 0) {
-        const sample = data[keys[0]];
-        console.log('[riot] sample champion name=', sample?.name, 'hasPassiveImage=', !!(sample?.passive?.image?.full), 'spells=', Array.isArray(sample?.spells) ? sample.spells.length : 0);
-      }
-      const items: QuizItem[] = [];
+export async function getChampionData(championId: string): Promise<ChampionData | null> {
+  const json = await fetchJson<DataDragonChampionResponse>(
+    `${DATA_DRAGON_BASE_URL}/data/en_US/champion/${championId}.json`,
+  );
+  const champion = json ? Object.values(json.data)[0] : null;
 
-      // Champion index doesn't include full ability/passive images in some DDragon variants.
-      // Fetch each champion's full data to ensure spells/passive images are available.
-      for (const champId of keys) {
-        try {
-          const champion = await getChampionData(champId);
-          if (!champion) continue;
+  return champion ? toChampionData(champion) : null;
+}
 
-          // passive
-          if (champion.passive && champion.passive.imageUrl) {
-            items.push({
-              id: `${champion.id}-passive`,
-              type: 'passive',
-              title: 'Passive Ability',
-              question: champion.passive.name || 'Passive',
-              answer: champion.passive.name || champion.name,
-              imageUrl: champion.passive.imageUrl,
-              champion: champion.name,
-            });
-          }
+async function getChampionIds() {
+  const json = await fetchJson<DataDragonChampionIndexResponse>(
+    `${DATA_DRAGON_BASE_URL}/data/en_US/champion.json`,
+  );
 
-          // spells (Q/W/E/R)
-          champion.spells.forEach((spell: any, idx: number) => {
-            if (spell && spell.imageUrl) {
-              const spellType = idx === 3 ? 'ultimate' : 'spell';
-              items.push({
-                id: `${champion.id}-spell-${idx}`,
-                type: spellType,
-                title: spellType === 'ultimate' ? 'Ultimate Clue' : 'Ability Icon',
-                question: spell.name || `Spell ${idx}`,
-                answer: spell.name || champion.name,
-                imageUrl: spell.imageUrl,
-                champion: champion.name,
-              });
-            }
-          });
-        } catch (e) {
-          // ignore individual champion errors
-        }
-      }
+  return json ? Object.keys(json.data) : null;
+}
 
-      // Remove any items lacking imageUrl or answer
-      console.log('[riot] items generated before filter=', items.length);
-      const filtered = items.filter((it) => it.imageUrl && it.answer);
-      console.log('[riot] items after filter=', filtered.length);
-      return filtered;
+async function getQuizItemsForChampionIds(championIds: readonly string[]) {
+  const results = await Promise.allSettled(championIds.map((championId) => getChampionData(championId)));
+
+  return results.flatMap((result) => {
+    if (result.status === 'rejected' || !result.value) {
+      return [];
     }
-  } catch (err) {
-    // fall through to per-champion fallback
-    console.warn('Failed to fetch champion.json, falling back to per-champion fetch', err);
+
+    return toQuizItems(result.value);
+  });
+}
+
+export async function getQuizItems(): Promise<QuizItem[]> {
+  const championIds = await getChampionIds().catch(() => null);
+  const primaryItems = championIds ? await getQuizItemsForChampionIds(championIds) : [];
+
+  if (primaryItems.length > 0) {
+    return primaryItems;
   }
 
-  // Fallback: fetch a small set of champions individually (helps in restricted network environments)
-  const fallbackIds = ['Yasuo', 'Ashe', 'Lux', 'Thresh', 'Ahri', 'Garen'];
-  const fallbackItems: QuizItem[] = [];
-  for (const id of fallbackIds) {
-    try {
-      const champion = await getChampionData(id);
-      if (!champion) continue;
-
-      if (champion.passive && champion.passive.imageUrl) {
-        fallbackItems.push({
-          id: `${champion.id}-passive`,
-          type: 'passive',
-          title: 'Passive Ability',
-          question: champion.passive.name,
-          answer: champion.passive.name,
-          imageUrl: champion.passive.imageUrl,
-          champion: champion.name,
-        });
-      }
-
-      champion.spells.forEach((spell, idx) => {
-        if (spell && spell.imageUrl) {
-          const spellType = idx === 3 ? 'ultimate' : 'spell';
-          fallbackItems.push({
-            id: `${champion.id}-spell-${idx}`,
-            type: spellType,
-            title: spellType === 'ultimate' ? 'Ultimate Clue' : 'Ability Icon',
-            question: spell.name,
-            answer: spell.name,
-            imageUrl: spell.imageUrl,
-            champion: champion.name,
-          });
-        }
-      });
-    } catch (e) {
-      // ignore champion fetch errors
-    }
-  }
-
-  return shuffle(fallbackItems);
+  return shuffle(await getQuizItemsForChampionIds(FALLBACK_CHAMPION_IDS));
 }

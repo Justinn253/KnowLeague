@@ -6,6 +6,7 @@ type JoinLobbyBody = {
   code: string;
   clientId: string;
   displayName: string;
+  authUserId?: string | null;
   selectedSkinId?: string | null;
 };
 
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
     const view = await joinSkincognitoLobby(requireString(body.code, 'code'), {
       clientId: requireString(body.clientId, 'clientId'),
       displayName: requireString(body.displayName, 'displayName'),
+      authUserId: typeof body.authUserId === 'string' ? body.authUserId : null,
       selectedSkinId: typeof body.selectedSkinId === 'string' ? body.selectedSkinId : null,
     });
 

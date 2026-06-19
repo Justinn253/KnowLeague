@@ -15,6 +15,7 @@
 
 ## Structure
 - `app/page.tsx` renders the KnowLeague landing page and game-mode navigation.
+- `app/login/page.tsx`, `app/profile/page.tsx`, `app/profile/[username]/page.tsx`, and `app/reset-password/page.tsx` contain the Supabase Auth/profile flow.
 - `app/ability-blitz/page.tsx` renders the playable Ability Blitz game.
 - `app/speed-blitz/page.tsx` redirects legacy links to Ability Blitz.
 - `app/mastery-master/page.tsx` is a placeholder route for a future game.
@@ -26,16 +27,25 @@
 - `components/skin-champion.tsx` contains the Skin Champion client-side skin quiz flow and UI state.
 - `components/skindle.tsx` contains the Skindle client-side category comparison UI.
 - `components/skincognito.tsx` contains the Supabase-backed multiplayer Skincognito lobby and game UI.
+- `components/auth-screen.tsx`, `components/profile-screen.tsx`, `components/public-profile-screen.tsx`, and `components/reset-password-screen.tsx` contain account/profile UI.
+- `components/global-actions.tsx` contains the fixed Profile and Contact actions mounted from the root layout.
+- `components/contact-us-widget.tsx` contains the global contact/feedback popup mounted from the root layout.
 - `components/coming-soon-game.tsx` contains shared placeholder page UI for future game modes.
 - `app/api/ability-blitz/*` serves local generated ability quiz data.
 - `app/api/skin-champion/*` serves local generated skin quiz data.
 - `app/api/skindle/*` serves local generated skin metadata for Skindle.
 - `app/api/skincognito/*` contains lobby, realtime event, chat, heartbeat, and game-action endpoints.
+- `app/api/contact/route.ts` stores user feedback, bug reports, and suggestions in Supabase.
+- `app/api/friends/*` contains authenticated friend requests, friend lists, search, and friend message endpoints.
 - `app/api/ddragon/*` is a legacy compatibility wrapper for Ability Blitz data.
 - `lib/catalogs.ts` reads generated local quiz catalogues.
 - `lib/riot.ts` contains older dynamic Data Dragon helpers and should not be used for new runtime quiz fetches.
 - `lib/skincognito.ts` owns Skincognito lobby state, role changes, turn submission, return-to-lobby logic, and Supabase persistence.
 - `lib/game-storage.ts` owns local daily game state, anonymous client IDs, display names, and per-game personal stats.
+- `supabase/migrations/008_profiles.sql`, `009_profile_username_conflicts.sql`, and `010_profile_details.sql` create the user profile table, auth signup trigger, and profile detail fields.
+- `supabase/migrations/011_friends.sql` creates friend request, friendship, message, and profile presence/preferences fields.
+- `supabase/migrations/012_friend_refinements.sql` adds unread-message tracking, profile ban filtering, and auth profile IDs for Skincognito players.
+- Supabase Auth emails should use custom SMTP in production; current recommended provider is Resend for low setup cost and strong transactional reliability.
 - `scripts/generate-catalogs.mjs` refreshes generated ability and skin catalogues.
 - `data/catalogs/ability-items.json` and `data/catalogs/skin-items.json` are generated runtime catalogues.
 - `data/catalogs/skin-release-dates.json` is an app-owned release-date override map merged into generated skin data.

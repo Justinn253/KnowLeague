@@ -28,6 +28,7 @@ export type SkincognitoPlayerRecord = {
   id: string;
   lobby_id: string;
   client_id: string;
+  auth_user_id: string | null;
   display_name: string;
   role: SkincognitoPlayerRole;
   selected_skin_id: string | null;
@@ -93,6 +94,7 @@ export type SkincognitoLobbyView = {
 type CreateOrJoinInput = {
   clientId: string;
   displayName: string;
+  authUserId?: string | null;
   selectedSkinId?: string | null;
 };
 
@@ -206,6 +208,7 @@ function toPublicPlayer(
   return {
     id: player.id,
     lobby_id: player.lobby_id,
+    auth_user_id: player.auth_user_id,
     display_name: player.display_name,
     role: player.role,
     connected: player.connected,
@@ -368,13 +371,24 @@ async function countSkincognitoSkinUses(skinId: string) {
 
 async function upsertPlayer(lobby: SkincognitoLobbyRecord, input: CreateOrJoinInput, role: SkincognitoPlayerRole) {
   const selectedSkin = role === 'spectator' ? null : getSkinById(input.selectedSkinId);
+  let displayName = sanitizeDisplayName(input.displayName);
+  if (input.authUserId) {
+    const { data: profile } = await getSupabaseServiceClient()
+      .from('profiles')
+      .select('username, display_name')
+      .eq('id', input.authUserId)
+      .maybeSingle<{ username: string; display_name: string }>();
+    displayName = sanitizeDisplayName(profile?.display_name || profile?.username || displayName);
+  }
+
   const { data, error } = await getSupabaseServiceClient()
     .from('skincognito_players')
     .upsert(
       {
         lobby_id: lobby.id,
         client_id: input.clientId,
-        display_name: sanitizeDisplayName(input.displayName),
+        auth_user_id: input.authUserId ?? null,
+        display_name: displayName,
         role,
         selected_skin_id: selectedSkin?.id ?? null,
         selected_skin_answer: selectedSkin?.answer ?? null,

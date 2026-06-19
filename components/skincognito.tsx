@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, Search, UserCheck, UserX, Users } from 'lucide-react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -32,6 +33,14 @@ type ChatGroup = {
   alignRight: boolean;
   colorClassName: string;
   messages: string[];
+};
+
+type PlayerContextMenuState = {
+  x: number;
+  y: number;
+  displayName: string;
+  authUserId: string | null;
+  isFriend: boolean;
 };
 
 const LOBBY_STORAGE_KEY = 'knowleague:v1:skincognito:lobby-code';
@@ -97,6 +106,24 @@ function getCorrectCategoryValue(view: SkincognitoLobbyView | null, playerId: st
 
 function getPlayerLabel(player: SkincognitoPublicPlayer | null) {
   return player?.display_name ?? 'Player';
+}
+
+function openPublicProfileOverlay(username: string) {
+  window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
+}
+
+function getSkincognitoInviteUrl(message: string) {
+  const match = message.match(/Join my Skincognito game:\s*(https?:\/\/\S+)/i);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  try {
+    const url = new URL(match[1]);
+    return url.pathname === '/skincognito' && url.searchParams.get('code') ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function isScrolledToBottom(element: HTMLElement) {
@@ -217,6 +244,7 @@ function getFinishedTargetPlayer(view: SkincognitoLobbyView | null) {
 }
 
 export function Skincognito() {
+  const router = useRouter();
   const [clientId, setClientId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('Player');
   const [joinCode, setJoinCode] = useState('');
@@ -229,6 +257,8 @@ export function Skincognito() {
   const [guessMenuOpen, setGuessMenuOpen] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
   const [returnToLobbyCountdown, setReturnToLobbyCountdown] = useState<number | null>(null);
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [friendProfileIds, setFriendProfileIds] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [codeRevealed, setCodeRevealed] = useState(false);
@@ -240,6 +270,7 @@ export function Skincognito() {
   const wasGuessesAtBottomRef = useRef(true);
   const wasChatAtBottomRef = useRef(true);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
+  const [playerContextMenu, setPlayerContextMenu] = useState<PlayerContextMenuState | null>(null);
   const nameDraftDirtyRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
@@ -432,12 +463,50 @@ export function Skincognito() {
     }
   }, [updateLobbyView]);
 
+  const refreshFriendIds = useCallback(async () => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      setFriendProfileIds(new Set());
+      return;
+    }
+
+    setAuthUserId(data.session.user.id);
+    fetch('/api/friends', {
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    })
+      .then((response) => response.json())
+      .then((friendData) => setFriendProfileIds(new Set((friendData.friends ?? []).map((friend: { id: string }) => friend.id))))
+      .catch(() => undefined);
+  }, []);
+
   useEffect(() => {
     const nextClientId = getOrCreateClientId();
     setClientId(nextClientId);
     const fallbackName = nextClientId ? `Player ${nextClientId.slice(-4).toUpperCase()}` : 'Player';
     const storedName = loadPlayerDisplayName(fallbackName);
     setDisplayName(storedName);
+
+    const supabase = getOptionalSupabaseClient();
+    supabase?.auth.getSession().then(async ({ data }) => {
+      const userId = data.session?.user.id ?? null;
+      setAuthUserId(userId);
+      if (!userId || !data.session) {
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, display_name')
+        .eq('id', userId)
+        .maybeSingle<{ username: string; display_name: string }>();
+      const profileName = profile?.display_name || profile?.username;
+      if (profileName) {
+        setDisplayName(profileName);
+      }
+
+      void refreshFriendIds();
+    });
 
     fetch('/api/skincognito/answers')
       .then((response) => response.json())
@@ -454,20 +523,37 @@ export function Skincognito() {
       setJoinCode(reconnectCode);
       fetch(`/api/skincognito/lobbies/${reconnectCode}?clientId=${nextClientId}`)
         .then((response) => response.json())
-        .then((data) => {
+        .then(async (data) => {
           if (!data.error && data.requestingPlayer) {
             updateLobbyView(data);
             return;
           }
 
           if (!data.error && urlCode) {
+            let joinAuthUserId: string | null = null;
+            let joinDisplayName = storedName;
+            const authData = await supabase?.auth.getSession();
+            const session = authData?.data.session ?? null;
+            if (session) {
+              joinAuthUserId = session.user.id;
+              const { data: profile } = await supabase!
+                .from('profiles')
+                .select('username, display_name')
+                .eq('id', session.user.id)
+                .maybeSingle<{ username: string; display_name: string }>();
+              joinDisplayName = profile?.display_name || profile?.username || storedName;
+              setAuthUserId(session.user.id);
+              setDisplayName(joinDisplayName);
+            }
+
             fetch('/api/skincognito/lobbies/join', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 code: urlCode,
                 clientId: nextClientId,
-                displayName: storedName,
+                authUserId: joinAuthUserId,
+                displayName: joinDisplayName,
                 selectedSkinId: null,
               }),
             })
@@ -487,7 +573,7 @@ export function Skincognito() {
         })
         .catch(() => undefined);
     }
-  }, [updateLobbyView]);
+  }, [refreshFriendIds, updateLobbyView]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -502,6 +588,22 @@ export function Skincognito() {
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [selectedSkin]);
+
+  useEffect(() => {
+    const closeMenu = () => setPlayerContextMenu(null);
+    document.addEventListener('click', closeMenu);
+    return () => document.removeEventListener('click', closeMenu);
+  }, []);
+
+  useEffect(() => {
+    if (!authUserId) {
+      return undefined;
+    }
+
+    void refreshFriendIds();
+    const interval = window.setInterval(refreshFriendIds, 10000);
+    return () => window.clearInterval(interval);
+  }, [authUserId, refreshFriendIds]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -638,6 +740,7 @@ export function Skincognito() {
 
     void requestLobby('/api/skincognito/lobbies', {
       clientId,
+      authUserId,
       displayName,
       selectedSkinId: selectedSkin?.id ?? null,
     });
@@ -652,6 +755,7 @@ export function Skincognito() {
     void requestLobby('/api/skincognito/lobbies/join', {
       code: joinCode.trim().toUpperCase(),
       clientId,
+      authUserId,
       displayName,
       selectedSkinId: selectedSkin?.id ?? null,
     });
@@ -696,22 +800,28 @@ export function Skincognito() {
   };
 
   const leaveLobby = async () => {
-    if (lobbyView?.lobby.status !== 'waiting') {
+    if (!lobbyView) {
+      router.push('/');
+      return;
+    }
+
+    if (lobbyView.lobby.status !== 'waiting') {
       window.localStorage.removeItem(LOBBY_STORAGE_KEY);
       setLobbyView(null);
       setSelectedSkin(null);
       setSkinQuery('');
       setGuessQuery('');
       setMessage('');
+      window.history.replaceState(null, '', '/skincognito');
       return;
     }
 
-    if (clientId && lobbyView) {
+    if (clientId) {
       await requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/leave`, { clientId });
     }
 
     window.localStorage.removeItem(LOBBY_STORAGE_KEY);
-    window.location.href = '/';
+    router.push('/');
   };
 
   const kickPlayer = (targetPlayerId: string) => {
@@ -818,6 +928,44 @@ export function Skincognito() {
     void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/return`, {
       clientId,
     });
+  };
+
+  const unfriendPlayer = async (targetAuthUserId: string) => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      return;
+    }
+
+    await fetch(`/api/friends/${targetAuthUserId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    });
+    setPlayerContextMenu(null);
+    await refreshFriendIds();
+  };
+
+  const addFriendPlayer = async (targetAuthUserId: string) => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      return;
+    }
+
+    const response = await fetch('/api/friends/requests', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${data.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ targetUserId: targetAuthUserId }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      setMessage(body.error ?? 'Unable to send friend request.');
+    }
+    setPlayerContextMenu(null);
+    await refreshFriendIds();
   };
 
   return (
@@ -966,12 +1114,35 @@ export function Skincognito() {
                     {lobbyView.players.map((player) => (
                       <div
                         key={player.id}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          if (!player.auth_user_id || player.is_requesting_player || player.auth_user_id === authUserId) {
+                            return;
+                          }
+                          setPlayerContextMenu({
+                            x: event.clientX,
+                            y: event.clientY,
+                            displayName: player.display_name,
+                            authUserId: player.auth_user_id,
+                            isFriend: Boolean(player.auth_user_id && friendProfileIds.has(player.auth_user_id)),
+                          });
+                        }}
                         className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-white">
-                            {player.display_name}
-                            {player.is_requesting_player ? ' (you)' : ''}
+                          <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-white">
+                            <span className="truncate">
+                              {player.display_name}
+                              {player.is_requesting_player ? ' (you)' : ''}
+                            </span>
+                            {player.auth_user_id && friendProfileIds.has(player.auth_user_id) ? (
+                              <span className="group relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-300/40 bg-amber-300/10 text-amber-200">
+                                <Users size={11} />
+                                <span className="pointer-events-none absolute left-0 top-7 z-50 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-200 opacity-0 shadow-xl transition group-hover:opacity-100">
+                                  Friend
+                                </span>
+                              </span>
+                            ) : null}
                           </p>
                           <p className="mt-1 text-xs capitalize text-slate-500">
                             {player.role}
@@ -1252,9 +1423,25 @@ export function Skincognito() {
                             {group.label}
                           </p>
                           <div className="mt-1 grid gap-1 text-sm text-slate-200">
-                            {group.messages.map((chatMessage, index) => (
-                              <p key={`${group.key}-${index}`}>{chatMessage}</p>
-                            ))}
+                            {group.messages.map((chatMessage, index) => {
+                              const inviteUrl = getSkincognitoInviteUrl(chatMessage);
+                              return inviteUrl ? (
+                                <div key={`${group.key}-${index}`} className={`flex flex-wrap items-center gap-2 ${group.alignRight ? 'justify-end' : 'justify-start'}`}>
+                                  <span>Skincognito invite</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      window.location.href = inviteUrl;
+                                    }}
+                                    className="inline-flex min-h-8 items-center justify-center rounded-xl bg-amber-300 px-3 text-xs font-bold text-slate-950 transition hover:bg-amber-200"
+                                  >
+                                    Join Game
+                                  </button>
+                                </div>
+                              ) : (
+                                <p key={`${group.key}-${index}`}>{chatMessage}</p>
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -1497,6 +1684,56 @@ export function Skincognito() {
             </div>
           ) : null}
         </section>
+        {playerContextMenu ? (
+          <div
+            className="fixed z-[60] min-w-44 rounded-2xl border border-white/10 bg-slate-950 p-2"
+            style={{ left: playerContextMenu.x, top: playerContextMenu.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {playerContextMenu.isFriend && playerContextMenu.authUserId ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openPublicProfileOverlay(playerContextMenu.displayName.trim().toLowerCase());
+                    setPlayerContextMenu(null);
+                  }}
+                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
+                >
+                  View Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => unfriendPlayer(playerContextMenu.authUserId as string)}
+                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/10"
+                >
+                  Unfriend
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openPublicProfileOverlay(playerContextMenu.displayName.trim().toLowerCase());
+                    setPlayerContextMenu(null);
+                  }}
+                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
+                >
+                  View Profile
+                </button>
+                <button
+                  type="button"
+                  disabled={!playerContextMenu.authUserId || !authUserId}
+                  onClick={() => playerContextMenu.authUserId && authUserId && addFriendPlayer(playerContextMenu.authUserId)}
+                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Add Friend
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
       </section>
     </main>
   );

@@ -5,6 +5,9 @@ import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, SlidersHorizontal, Trophy, U
 import { useRouter } from 'next/navigation';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
+import { AbilityBlitz } from '@/components/ability-blitz';
+import { SkinChampion } from '@/components/skin-champion';
+import { MultiplayerGameProgress } from '@/components/multiplayer-game-progress';
 import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
@@ -81,6 +84,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
   const selectedModifiers = useMemo(() => new Set(view?.lobby.modifiers ?? []), [view?.lobby.modifiers]);
+  const activeLobbyCode = view?.lobby.status === 'active' ? view.lobby.code : null;
 
   const applyView = useCallback((nextView: MultiplayerQuizLobbyView) => {
     setView(nextView);
@@ -182,6 +186,28 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       void supabase.removeChannel(channel);
     };
   }, [clientId, refreshLobby, view?.lobby.code, view?.lobby.id]);
+
+  useEffect(() => {
+    if (!activeLobbyCode || !clientId) {
+      return undefined;
+    }
+    const code = activeLobbyCode;
+    const sendHeartbeat = async () => {
+      try {
+        const response = await fetch(`/api/multiplayer/lobbies/${code}/heartbeat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId }),
+        });
+        applyView(await readResponse(response));
+      } catch {
+        // Realtime or the next heartbeat will retry transient failures.
+      }
+    };
+    void sendHeartbeat();
+    const interval = window.setInterval(sendHeartbeat, 15_000);
+    return () => window.clearInterval(interval);
+  }, [activeLobbyCode, applyView, clientId]);
 
   const createLobby = async () => {
     if (!clientId) {
@@ -298,6 +324,42 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
   };
 
+  const startGame = async () => {
+    if (!view || !clientId || !isHost) {
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      });
+      applyView(await readResponse(response));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to start game.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reportProgress = useCallback(async (progress: number, elapsedSeconds: number, finished: boolean) => {
+    if (!view || !clientId) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, progress, elapsedSeconds, finished }),
+      });
+      applyView(await readResponse(response));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to update multiplayer progress.');
+    }
+  }, [applyView, clientId, view]);
+
   const copyInvite = () => {
     if (!view) {
       return;
@@ -306,6 +368,23 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     setCodeCopied(true);
     window.setTimeout(() => setCodeCopied(false), 1400);
   };
+
+  if (view && view.lobby.status !== 'waiting' && view.requestingPlayer && view.quizItems.length > 0) {
+    const runtime = {
+      items: view.quizItems,
+      difficulty: view.lobby.difficulty,
+      modifiers: view.lobby.modifiers,
+      initialProgress: view.requestingPlayer.progress,
+      initialElapsedSeconds: view.requestingPlayer.elapsed_seconds,
+      gameEnded: view.lobby.status === 'finished',
+      progressPanel: <MultiplayerGameProgress players={view.players} totalItems={view.lobby.total_items} />,
+      onProgress: reportProgress,
+      onExit: leaveLobby,
+    };
+    return gameMode === 'ability_blitz'
+      ? <AbilityBlitz multiplayer={runtime} />
+      : <SkinChampion multiplayer={runtime} />;
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -426,7 +505,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
               </div>
 
               <div className="flex flex-col items-center gap-3 py-1">
-                <button type="button" disabled={!isHost || view.players.length < 2} onClick={() => setMessage('The multiplayer game flow will be implemented after the lobby is finalized.')} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">
+                <button type="button" disabled={!isHost || view.players.length < 2 || busy} onClick={startGame} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">
                   <Play size={17} /> Start Game
                 </button>
                 <p className="text-xs text-slate-500">The host can start once at least two players have joined.</p>
@@ -437,11 +516,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
           {message ? <p className="mt-5 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-center text-sm text-slate-300">{message}</p> : null}
         </section>
 
-        {view ? (
-          <div className="flex justify-center">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600"><Trophy size={14} /> Gameplay coming next</span>
-          </div>
-        ) : null}
+        {view ? <div className="flex justify-center"><span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600"><Trophy size={14} /> Waiting for players</span></div> : null}
       </section>
     </main>
   );

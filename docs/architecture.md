@@ -24,6 +24,8 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 - Shared roster/social/host controls: `components/multiplayer-lobby-roster.tsx`, used by quiz lobbies and Skincognito.
 - Shared quiz lobby routes/domain: `app/api/multiplayer/lobbies/*`, `lib/multiplayer-quiz.ts`.
 - Multiplayer quiz pages: `app/multiplayer/ability-blitz` and `app/multiplayer/skin-champion`.
+- Active races reuse `components/ability-blitz.tsx` and `components/skin-champion.tsx` through the runtime contract in `components/multiplayer-game-progress.tsx`.
+- Multiplayer race state is server-authoritative for item order, monotonic progress, elapsed-time snapshots, connection state, and lobby completion.
 
 ## Accounts and Social
 - Authentication: `components/auth-screen.tsx`, reset-password component, Supabase Auth.

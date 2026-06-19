@@ -21,6 +21,7 @@ import {
   type CompletedTime,
   type QuizItem,
 } from '@/lib/quiz';
+import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
 
 const modifiers = [
   { id: 'greyscale', name: 'Greyscale', description: 'Splash art appears in greyscale.' },
@@ -110,6 +111,13 @@ const defaultModifiers = modifiers.reduce(
   {} as ModifierState,
 );
 
+function createModifierState(activeIds: readonly string[] = []) {
+  return modifiers.reduce(
+    (state, modifier) => ({ ...state, [modifier.id]: activeIds.includes(modifier.id) }),
+    {} as ModifierState,
+  );
+}
+
 const CROPPED_INITIAL_ZOOM = 2;
 const CROPPED_ZOOM_STEP = 0.25;
 const CROPPED_MIN_ZOOM = 1;
@@ -152,20 +160,24 @@ function getCropOrigin(item?: QuizItem | null) {
   return `${x}% ${y}%`;
 }
 
-export function SkinChampion() {
-  const [items, setItems] = useState<QuizItem[]>([]);
+export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRuntime }) {
+  const multiplayerItems = multiplayer?.items.map((item, index) => ({
+    ...item,
+    guessed: index < multiplayer.initialProgress,
+  }));
+  const [items, setItems] = useState<QuizItem[]>(multiplayerItems ?? []);
   const [answers, setAnswers] = useState<string[]>([]);
-  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('gold');
-  const [activeModifiers, setActiveModifiers] = useState<ModifierState>(defaultModifiers);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
+  const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isSliding, setIsSliding] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(multiplayer ? Math.min(multiplayer.initialProgress, Math.max(0, multiplayer.items.length - 1)) : 0);
   const [inputValue, setInputValue] = useState('');
   const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle');
   const [currentTime, setCurrentTime] = useState(0);
-  const [totalTime, setTotalTime] = useState(0);
+  const [totalTime, setTotalTime] = useState(multiplayer?.initialElapsedSeconds ?? 0);
   const [showOptions, setShowOptions] = useState(false);
   const [timeUntilOptions, setTimeUntilOptions] = useState(OPTION_DELAY_SECONDS);
   const [options, setOptions] = useState<string[]>([]);
@@ -174,13 +186,13 @@ export function SkinChampion() {
   const [penaltyMessage, setPenaltyMessage] = useState('');
   const [croppedZoom, setCroppedZoom] = useState(CROPPED_INITIAL_ZOOM);
   const [completedTimes, setCompletedTimes] = useState<Record<string, CompletedTime>>({});
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(Boolean(multiplayer));
+  const [finished, setFinished] = useState(Boolean(multiplayer && (multiplayer.gameEnded || multiplayer.initialProgress >= multiplayer.items.length)));
   const [failed, setFailed] = useState(false);
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
-  const [storageReady, setStorageReady] = useState(false);
+  const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
   const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('skin-champion'));
   const difficultyMenuRef = useRef<HTMLDivElement>(null);
   const modifiersMenuRef = useRef<HTMLDivElement>(null);
@@ -193,6 +205,7 @@ export function SkinChampion() {
   const afterNextItem = started ? items[activeIndex + 2] ?? null : null;
   const previousItem = activeIndex > 0 ? items[activeIndex - 1] : null;
   const selectedDifficultyName = difficulties.find((difficulty) => difficulty.id === selectedDifficulty)?.name;
+  const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
   const configurationLocked = started || countdown !== null;
   const difficultyRule = difficultyRules[selectedDifficulty];
@@ -262,6 +275,9 @@ export function SkinChampion() {
     }
 
     hasRestoredStateRef.current = true;
+    if (multiplayer) {
+      return;
+    }
     const savedState = loadDailyGameState<SkinChampionDailyState>('skin-champion');
     if (!savedState) {
       setStorageReady(true);
@@ -282,10 +298,10 @@ export function SkinChampion() {
     setCountdown(null);
     setIsSliding(false);
     setStorageReady(true);
-  }, []);
+  }, [multiplayer]);
 
   useEffect(() => {
-    if (!storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
+    if (multiplayer || !storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
       return;
     }
 
@@ -301,13 +317,13 @@ export function SkinChampion() {
       finished,
       failed,
     });
-  }, [activeIndex, activeModifiers, completedTimes, currentTime, failed, finished, hasLoadedOnce, items, selectedDifficulty, started, storageReady, totalTime]);
+  }, [activeIndex, activeModifiers, completedTimes, currentTime, failed, finished, hasLoadedOnce, items, multiplayer, selectedDifficulty, started, storageReady, totalTime]);
 
   useEffect(() => {
-    if (finished) {
+    if (finished && !multiplayer) {
       setPlayerStats(recordPlayerGameCompletion('skin-champion'));
     }
-  }, [finished]);
+  }, [finished, multiplayer]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -369,7 +385,7 @@ export function SkinChampion() {
   }, [countdown, currentItem, difficultyRule.hintDelaySeconds, finished, hintsDisabled, showOptions, started]);
 
   useEffect(() => {
-    if (!started || hasLoadedOnce) {
+    if (multiplayer || !started || hasLoadedOnce) {
       return;
     }
 
@@ -388,7 +404,7 @@ export function SkinChampion() {
     };
 
     loadItems();
-  }, [hasLoadedOnce, started]);
+  }, [hasLoadedOnce, multiplayer, started]);
 
   useEffect(() => {
     if (countdown === null) {
@@ -437,6 +453,9 @@ export function SkinChampion() {
   }, [activeIndex, started]);
 
   const handleTogglePlay = () => {
+    if (multiplayer) {
+      return;
+    }
     if (countdown !== null || (started && !finished)) {
       return;
     }
@@ -491,8 +510,11 @@ export function SkinChampion() {
       setPendingConfirmedGuess('');
       setFinished(true);
       setStarted(false);
+      multiplayer?.onProgress(activeIndex + 1, totalTime, true);
       return;
     }
+
+    multiplayer?.onProgress(activeIndex + 1, totalTime, false);
 
     setSuccessFlash(true);
     window.setTimeout(() => setSuccessFlash(false), 260);
@@ -520,6 +542,7 @@ export function SkinChampion() {
       setStarted(false);
       setStatus('incorrect');
       setPenaltyMessage('Game Over');
+      multiplayer?.onProgress(activeIndex, totalTime, true);
       return;
     }
 
@@ -605,24 +628,30 @@ export function SkinChampion() {
       <section className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 lg:px-12">
         <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              aria-label="Back to game hub"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
-            >
-              <ArrowLeft size={20} />
-            </Link>
+            {multiplayer ? (
+              <button type="button" onClick={multiplayer.onExit} aria-label="Leave multiplayer game" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+                <ArrowLeft size={20} />
+              </button>
+            ) : (
+              <Link href="/" aria-label="Back to game hub" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+                <ArrowLeft size={20} />
+              </Link>
+            )}
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
               <h1 className="text-xl font-semibold text-white">Skin Champion</h1>
               <p className="mt-1 text-xs text-slate-400">
-                {failed
+                {multiplayerRaceEndedEarly
+                  ? 'Race ended'
+                  : failed
                   ? 'Game over'
                   : finished
                   ? shouldHideTimers
                     ? 'Completed'
                     : `Completed in ${formatSeconds(totalTime)}`
-                  : `Daily set resets in ${timeToNextSet}`}
+                  : multiplayer
+                    ? 'Multiplayer race in progress'
+                    : `Daily set resets in ${timeToNextSet}`}
               </p>
             </div>
           </div>
@@ -747,13 +776,15 @@ export function SkinChampion() {
               type="button"
               onClick={handleTogglePlay}
               className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/90 px-4 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/10 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={countdown !== null || (started && !finished)}
+              disabled={countdown !== null || (started && !finished) || Boolean(multiplayer)}
             >
               <Play size={16} />
               {countdown !== null ? `Starting in ${countdown}` : started && !finished ? 'In Progress' : 'Play'}
             </button>
           </div>
         </header>
+
+        {multiplayer?.progressPanel}
 
         <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
           {afterNextItem?.imageUrl ? (

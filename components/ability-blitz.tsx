@@ -21,6 +21,7 @@ import {
   type CompletedTime,
   type QuizItem,
 } from '@/lib/quiz';
+import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
 
 const placeholderItems: QuizItem[] = [
   {
@@ -181,6 +182,13 @@ const defaultModifiers = modifiers.reduce(
   {} as ModifierState,
 );
 
+function createModifierState(activeIds: readonly string[] = []) {
+  return modifiers.reduce(
+    (state, modifier) => ({ ...state, [modifier.id]: activeIds.includes(modifier.id) }),
+    {} as ModifierState,
+  );
+}
+
 const defaultAbilitySlots = abilitySlots.reduce(
   (state, slot) => ({ ...state, [slot.id]: true }),
   {} as AbilitySlotState,
@@ -312,22 +320,26 @@ function PixelatedIcon({
   );
 }
 
-export function AbilityBlitz() {
-  const [items, setItems] = useState<QuizItem[]>(placeholderItems);
-  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('gold');
-  const [activeModifiers, setActiveModifiers] = useState<ModifierState>(defaultModifiers);
+export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRuntime }) {
+  const multiplayerItems = multiplayer?.items.map((item, index) => ({
+    ...item,
+    guessed: index < multiplayer.initialProgress,
+  }));
+  const [items, setItems] = useState<QuizItem[]>(multiplayerItems?.length ? multiplayerItems : placeholderItems);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
+  const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [selectedAbilitySlots, setSelectedAbilitySlots] = useState<AbilitySlotState>(defaultAbilitySlots);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [paused, setPaused] = useState(false);
   const [pauseQueued, setPauseQueued] = useState(false);
   const [isSliding, setIsSliding] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(multiplayer ? Math.min(multiplayer.initialProgress, Math.max(0, multiplayer.items.length - 1)) : 0);
   const [inputValue, setInputValue] = useState('');
   const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle');
   const [currentTime, setCurrentTime] = useState(0);
-  const [totalTime, setTotalTime] = useState(0);
+  const [totalTime, setTotalTime] = useState(multiplayer?.initialElapsedSeconds ?? 0);
   const [showOptions, setShowOptions] = useState(false);
   const [timeUntilOptions, setTimeUntilOptions] = useState(10);
   const [options, setOptions] = useState<string[]>([]);
@@ -336,13 +348,13 @@ export function AbilityBlitz() {
   const [penaltyCount, setPenaltyCount] = useState(0);
   const [penaltyMessage, setPenaltyMessage] = useState('');
   const [completedTimes, setCompletedTimes] = useState<Record<string, CompletedTime>>({});
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(Boolean(multiplayer));
+  const [finished, setFinished] = useState(Boolean(multiplayer && (multiplayer.gameEnded || multiplayer.initialProgress >= multiplayer.items.length)));
   const [failed, setFailed] = useState(false);
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
-  const [storageReady, setStorageReady] = useState(false);
+  const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
   const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('ability-blitz'));
   const progressSectionRef = useRef<HTMLDivElement | null>(null);
   const currentProgressItemRef = useRef<HTMLDivElement | null>(null);
@@ -355,6 +367,7 @@ export function AbilityBlitz() {
   const nextItem = items[activeIndex + 1];
   const previousItem = items[activeIndex - 1];
   const configurationLocked = started || countdown !== null;
+  const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
   const selectedDifficultyName = difficulties.find((difficulty) => difficulty.id === selectedDifficulty)?.name;
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
   const selectedAbilitySlotCount = Object.values(selectedAbilitySlots).filter(Boolean).length;
@@ -496,6 +509,9 @@ export function AbilityBlitz() {
     }
 
     hasRestoredStateRef.current = true;
+    if (multiplayer) {
+      return;
+    }
     const savedState = loadDailyGameState<AbilityBlitzDailyState>('ability-blitz');
     if (!savedState) {
       setStorageReady(true);
@@ -519,10 +535,10 @@ export function AbilityBlitz() {
     setCountdown(null);
     setIsSliding(false);
     setStorageReady(true);
-  }, []);
+  }, [multiplayer]);
 
   useEffect(() => {
-    if (!storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
+    if (multiplayer || !storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
       return;
     }
 
@@ -557,13 +573,14 @@ export function AbilityBlitz() {
     started,
     storageReady,
     totalTime,
+    multiplayer,
   ]);
 
   useEffect(() => {
-    if (finished) {
+    if (finished && !multiplayer) {
       setPlayerStats(recordPlayerGameCompletion('ability-blitz'));
     }
-  }, [finished]);
+  }, [finished, multiplayer]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -582,7 +599,7 @@ export function AbilityBlitz() {
   }, [inputValue, currentItem, items, filteredAnswers, autocompleteEnabled, categoryAnswers]);
 
   useEffect(() => {
-    if (!started || hasLoadedOnce) {
+    if (multiplayer || !started || hasLoadedOnce) {
       return;
     }
 
@@ -602,7 +619,7 @@ export function AbilityBlitz() {
     };
 
     loadItems();
-  }, [started, hasLoadedOnce, selectedAbilitySlots]);
+  }, [started, hasLoadedOnce, selectedAbilitySlots, multiplayer]);
 
   useEffect(() => {
     if (countdown === null) {
@@ -702,6 +719,7 @@ export function AbilityBlitz() {
     window.setTimeout(() => setSuccessFlash(false), 700);
 
     const isFinalItem = activeIndex >= items.length - 1;
+    multiplayer?.onProgress(activeIndex + 1, completedAt, isFinalItem);
     if (isFinalItem) {
       setFinished(true);
       setStarted(false);
@@ -726,6 +744,7 @@ export function AbilityBlitz() {
       setPauseQueued(false);
       setStatus('incorrect');
       setPenaltyMessage('Game Over');
+      multiplayer?.onProgress(activeIndex, totalTime, true);
       return;
     }
 
@@ -815,6 +834,9 @@ export function AbilityBlitz() {
   }, []);
 
   const handleTogglePlay = () => {
+    if (multiplayer) {
+      return;
+    }
     if (countdown !== null) {
       return;
     }
@@ -888,24 +910,30 @@ export function AbilityBlitz() {
       <section className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 lg:px-12">
         <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              aria-label="Back to game hub"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
-            >
-              <ArrowLeft size={20} />
-            </Link>
+            {multiplayer ? (
+              <button type="button" onClick={multiplayer.onExit} aria-label="Leave multiplayer game" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+                <ArrowLeft size={20} />
+              </button>
+            ) : (
+              <Link href="/" aria-label="Back to game hub" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+                <ArrowLeft size={20} />
+              </Link>
+            )}
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
               <h1 className="text-xl font-semibold text-white">Ability Blitz</h1>
               <p className="mt-1 text-xs text-slate-400">
-                {failed
+                {multiplayerRaceEndedEarly
+                  ? 'Race ended'
+                  : failed
                   ? 'Game over'
                   : finished
                   ? shouldHideTimers
                     ? 'Completed'
                     : `Completed in ${formatSeconds(totalTime)}`
-                  : `Daily set resets in ${timeToNextSet}`}
+                  : multiplayer
+                    ? 'Multiplayer race in progress'
+                    : `Daily set resets in ${timeToNextSet}`}
               </p>
             </div>
           </div>
@@ -1067,7 +1095,7 @@ export function AbilityBlitz() {
               type="button"
               onClick={handleTogglePlay}
               className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/90 px-4 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/10 transition hover:bg-slate-900"
-              disabled={countdown !== null}
+              disabled={countdown !== null || Boolean(multiplayer)}
             >
               <Play size={16} />
               {countdown !== null
@@ -1077,11 +1105,13 @@ export function AbilityBlitz() {
                 : pauseQueued
                 ? 'Pause Queued'
                 : started
-                ? 'Pause'
+                ? multiplayer ? 'In Progress' : 'Pause'
                 : 'Play'}
             </button>
           </div>
         </header>
+
+        {multiplayer?.progressPanel}
 
         <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl overflow-hidden">
           <div className={`grid gap-4 lg:grid-cols-3 lg:items-center transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>

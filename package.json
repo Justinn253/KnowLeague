@@ -7,7 +7,9 @@
     "data:generate": "node scripts/generate-catalogs.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit --incremental false",
+    "check": "npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.0.0",

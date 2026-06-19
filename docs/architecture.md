@@ -1,0 +1,51 @@
+# KnowLeague Architecture Index
+
+Use this file to route cross-cutting work. For narrow changes, start with the owning file and its nearest `AGENTS.md`.
+
+## Application Shell
+- `app/layout.tsx`: root metadata, global CSS, and global actions.
+- `app/page.tsx`: game hub and game cards.
+- `components/global-actions.tsx`: profile/public-profile/contact/friends overlay shell.
+
+## Solo Games
+| Feature | UI | API/Data | Persistence |
+| --- | --- | --- | --- |
+| Ability Blitz | `components/ability-blitz.tsx` | `app/api/ability-blitz`, `lib/catalogs.ts` | `lib/game-storage.ts` |
+| Skin Champion | `components/skin-champion.tsx` | `app/api/skin-champion`, `lib/catalogs.ts` | `lib/game-storage.ts` |
+| Skindle | `components/skindle.tsx` | `app/api/skindle`, skin metadata catalogues | local daily state + Supabase stats |
+
+## Multiplayer
+- UI and Realtime subscriptions: `components/skincognito.tsx`.
+- HTTP command routes: `app/api/skincognito/lobbies/*`.
+- Authoritative lobby rules: `lib/skincognito.ts`.
+- Schema/history: early Skincognito migrations plus later auth/friend refinements.
+- Lobby state is server-authoritative. Local storage only supports client identity/preferences.
+
+## Accounts and Social
+- Authentication: `components/auth-screen.tsx`, reset-password component, Supabase Auth.
+- Owner profile: `components/profile-screen.tsx`.
+- Public profile: `components/public-profile-screen.tsx`.
+- Friends UI/presence/messages: `components/friends-widget.tsx`.
+- Friend API/domain: `app/api/friends/*`, `lib/friends.ts`.
+- Profile/friend schema: migrations `008` through `014`.
+
+## Contact
+- UI: `components/contact-us-widget.tsx`.
+- API/domain: `app/api/contact/route.ts`, `lib/contact.ts`.
+- Schema: contact submission migrations.
+
+## Generated Data
+- Generator: `scripts/generate-catalogs.mjs`.
+- Runtime catalogues: `data/catalogs/*.json`.
+- Release-date overrides: `data/catalogs/skin-release-dates.json`.
+- Generated JSON is large; search it narrowly and do not load it for unrelated work.
+
+## High-Cost Files
+- `components/skincognito.tsx`, `ability-blitz.tsx`, `skin-champion.tsx`, and `skindle.tsx` are large stateful components.
+- `lib/skincognito.ts` is a large server domain module.
+- Use `rg` to locate handlers/types and read focused ranges before deciding whether a broader refactor is needed.
+
+## Product Direction
+- KnowLeague is a League of Legends quiz and guessing-game platform with solo and multiplayer modes.
+- Planned areas include richer profiles, personal/global stats, leaderboards, social features, and eventual monetization.
+- Treat planned features as context, not implemented contracts.

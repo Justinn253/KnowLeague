@@ -9,6 +9,8 @@
 - `skin-champion.tsx`: Skin Champion gameplay and skin-image behavior.
 - `skindle.tsx`: Daily Skindle guesses, reveal flow, and global statistics UI.
 - `skincognito.tsx`: Multiplayer lobby/game UI, Realtime refreshes, chat, and lifecycle requests.
+- `multiplayer-quiz-lobby.tsx`: Shared pre-game lobby for multiplayer Ability Blitz and Skin Champion.
+- `multiplayer-lobby-roster.tsx`: Shared lobby roster, social context menu, and host management controls for multiplayer games.
 - `profile-screen.tsx` and `public-profile-screen.tsx`: owner/public profile presentations.
 - `friends-widget.tsx`: friend list, direct messages, presence, and game invites.
 - `global-actions.tsx`: global overlays and fixed account/contact actions.

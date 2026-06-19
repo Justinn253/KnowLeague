@@ -11,6 +11,7 @@
 ## Feature Routing
 - `friends/*`: authenticated friendship, request, and direct-message operations.
 - `skincognito/*`: lobby commands and reads; authoritative rules live in `lib/skincognito.ts`.
+- `multiplayer/lobbies/*`: shared Ability Blitz and Skin Champion lobby commands; rules live in `lib/multiplayer-quiz.ts`.
 - `contact`: records feedback with authenticated profile context when available.
 - Quiz-data routes should read generated local catalogues.
 

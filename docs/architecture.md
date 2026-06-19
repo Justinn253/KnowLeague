@@ -20,6 +20,10 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 - Authoritative lobby rules: `lib/skincognito.ts`.
 - Schema/history: early Skincognito migrations plus later auth/friend refinements.
 - Lobby state is server-authoritative. Local storage only supports client identity/preferences.
+- Shared quiz lobby UI: `components/multiplayer-quiz-lobby.tsx`.
+- Shared roster/social/host controls: `components/multiplayer-lobby-roster.tsx`, used by quiz lobbies and Skincognito.
+- Shared quiz lobby routes/domain: `app/api/multiplayer/lobbies/*`, `lib/multiplayer-quiz.ts`.
+- Multiplayer quiz pages: `app/multiplayer/ability-blitz` and `app/multiplayer/skin-champion`.
 
 ## Accounts and Social
 - Authentication: `components/auth-screen.tsx`, reset-password component, Supabase Auth.

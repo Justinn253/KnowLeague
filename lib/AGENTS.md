@@ -2,6 +2,7 @@
 
 ## Ownership
 - `skincognito.ts`: authoritative multiplayer lobby state and Supabase persistence.
+- `multiplayer-quiz.ts`: shared pre-game lobby state for competitive quiz modes.
 - `friends.ts`: friendship, requests, messages, unread state, and profile eligibility.
 - `game-storage.ts`: browser persistence, anonymous client IDs, daily state, and personal stats.
 - `catalogs.ts`: generated local quiz catalogue access.

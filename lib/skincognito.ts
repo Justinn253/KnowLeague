@@ -808,6 +808,53 @@ export async function promoteSkincognitoSpectator(code: string, clientId: string
   return getLobbyView(updatedLobby, clientId);
 }
 
+export async function transferSkincognitoHost(code: string, clientId: string, targetPlayerId: string) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status !== 'waiting') {
+    throw new Error('Host can only be transferred before the game starts.');
+  }
+  const players = await fetchPlayers(lobby.id);
+  const host = players.find((player) => player.id === lobby.host_player_id);
+  const target = players.find((player) => player.id === targetPlayerId);
+  if (!host || host.client_id !== clientId) {
+    throw new Error('Only the host can transfer host.');
+  }
+  if (!target || target.id === host.id) {
+    throw new Error('Invalid host target.');
+  }
+
+  const nextPlayerOneId = target.id;
+  const nextPlayerTwoId = target.id === lobby.player_two_id ? host.id : lobby.player_two_id;
+  await Promise.all(players.map(async (player) => {
+    const nextRole: SkincognitoPlayerRole = player.id === nextPlayerOneId
+      ? 'host'
+      : player.id === nextPlayerTwoId
+        ? 'opponent'
+        : 'spectator';
+    const { error } = await getSupabaseServiceClient()
+      .from('skincognito_players')
+      .update({
+        role: nextRole,
+        selected_skin_id: nextRole === 'spectator' ? null : player.selected_skin_id,
+        selected_skin_answer: nextRole === 'spectator' ? null : player.selected_skin_answer,
+        selected_skin_image_url: nextRole === 'spectator' ? null : player.selected_skin_image_url,
+      })
+      .eq('id', player.id);
+    if (error) {
+      throw error;
+    }
+  }));
+
+  const updatedLobby = await updateLobby(lobby.id, {
+    host_player_id: target.id,
+    player_one_id: nextPlayerOneId,
+    player_two_id: nextPlayerTwoId,
+  });
+  await addSystemMessage(updatedLobby.id, `${target.display_name} is now the host.`, host.id);
+  await addLobbyEvent(updatedLobby.id, 'host_transferred');
+  return getLobbyView(updatedLobby, clientId);
+}
+
 export async function getSkincognitoLobby(code: string, clientId?: string | null) {
   const lobby = await fetchLobbyByCode(code);
   if (!lobby) {

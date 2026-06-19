@@ -1,9 +1,10 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, Search, UserCheck, UserX, Users } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, Search, Users } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -33,14 +34,6 @@ type ChatGroup = {
   alignRight: boolean;
   colorClassName: string;
   messages: string[];
-};
-
-type PlayerContextMenuState = {
-  x: number;
-  y: number;
-  displayName: string;
-  authUserId: string | null;
-  isFriend: boolean;
 };
 
 const LOBBY_STORAGE_KEY = 'knowleague:v1:skincognito:lobby-code';
@@ -110,10 +103,6 @@ function getPlayerLabel(player: SkincognitoPublicPlayer | null) {
   }
 
   return `${player.display_name}${player.auth_user_id ? '' : ' (Guest)'}`;
-}
-
-function openPublicProfileOverlay(username: string) {
-  window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
 }
 
 function getSkincognitoInviteUrl(message: string) {
@@ -262,7 +251,6 @@ export function Skincognito() {
   const [chatDraft, setChatDraft] = useState('');
   const [returnToLobbyCountdown, setReturnToLobbyCountdown] = useState<number | null>(null);
   const [authUserId, setAuthUserId] = useState<string | null>(null);
-  const [friendProfileIds, setFriendProfileIds] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [codeRevealed, setCodeRevealed] = useState(false);
@@ -274,7 +262,6 @@ export function Skincognito() {
   const wasGuessesAtBottomRef = useRef(true);
   const wasChatAtBottomRef = useRef(true);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
-  const [playerContextMenu, setPlayerContextMenu] = useState<PlayerContextMenuState | null>(null);
   const nameDraftDirtyRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
@@ -468,23 +455,6 @@ export function Skincognito() {
     }
   }, [updateLobbyView]);
 
-  const refreshFriendIds = useCallback(async () => {
-    const supabase = getOptionalSupabaseClient();
-    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
-    if (!data.session) {
-      setFriendProfileIds(new Set());
-      return;
-    }
-
-    setAuthUserId(data.session.user.id);
-    fetch('/api/friends', {
-      headers: { Authorization: `Bearer ${data.session.access_token}` },
-    })
-      .then((response) => response.json())
-      .then((friendData) => setFriendProfileIds(new Set((friendData.friends ?? []).map((friend: { id: string }) => friend.id))))
-      .catch(() => undefined);
-  }, []);
-
   useEffect(() => {
     const nextClientId = getOrCreateClientId();
     setClientId(nextClientId);
@@ -510,7 +480,6 @@ export function Skincognito() {
         setDisplayName(profileName);
       }
 
-      void refreshFriendIds();
     });
 
     fetch('/api/skincognito/answers')
@@ -576,7 +545,7 @@ export function Skincognito() {
         })
         .catch(() => undefined);
     }
-  }, [refreshFriendIds, updateLobbyView]);
+  }, [updateLobbyView]);
 
   useEffect(() => {
     latestWaitingLobbyRef.current = lobbyView?.lobby.status === 'waiting' && clientId
@@ -624,22 +593,6 @@ export function Skincognito() {
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [selectedSkin]);
-
-  useEffect(() => {
-    const closeMenu = () => setPlayerContextMenu(null);
-    document.addEventListener('click', closeMenu);
-    return () => document.removeEventListener('click', closeMenu);
-  }, []);
-
-  useEffect(() => {
-    if (!authUserId) {
-      return undefined;
-    }
-
-    void refreshFriendIds();
-    const interval = window.setInterval(refreshFriendIds, 10000);
-    return () => window.clearInterval(interval);
-  }, [authUserId, refreshFriendIds]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -882,6 +835,17 @@ export function Skincognito() {
     });
   };
 
+  const makeHost = (targetPlayerId: string) => {
+    if (!clientId || !lobbyView) {
+      return;
+    }
+
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/make-host`, {
+      clientId,
+      targetPlayerId,
+    });
+  };
+
   const updateDisplayName = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!clientId || !lobbyView) {
@@ -964,44 +928,6 @@ export function Skincognito() {
     void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/return`, {
       clientId,
     });
-  };
-
-  const unfriendPlayer = async (targetAuthUserId: string) => {
-    const supabase = getOptionalSupabaseClient();
-    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
-    if (!data.session) {
-      return;
-    }
-
-    await fetch(`/api/friends/${targetAuthUserId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${data.session.access_token}` },
-    });
-    setPlayerContextMenu(null);
-    await refreshFriendIds();
-  };
-
-  const addFriendPlayer = async (targetAuthUserId: string) => {
-    const supabase = getOptionalSupabaseClient();
-    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
-    if (!data.session) {
-      return;
-    }
-
-    const response = await fetch('/api/friends/requests', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${data.session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ targetUserId: targetAuthUserId }),
-    });
-    const body = await response.json();
-    if (!response.ok) {
-      setMessage(body.error ?? 'Unable to send friend request.');
-    }
-    setPlayerContextMenu(null);
-    await refreshFriendIds();
   };
 
   return (
@@ -1138,102 +1064,34 @@ export function Skincognito() {
               </form>
 
               <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
-                <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Lobby</p>
-                      <h3 className="mt-2 text-lg font-semibold text-white">
-                        {activePlayers.length}/2 Players - {spectatorCount}/8 Spectators
-                      </h3>
-                    </div>
-                    <Users size={20} className="text-amber-300" />
-                  </div>
-
-                  <div className="mt-5 grid gap-2">
-                    {lobbyView.players.map((player) => (
-                      <div
-                        key={player.id}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          if (!player.auth_user_id || player.is_requesting_player || player.auth_user_id === authUserId) {
-                            return;
-                          }
-                          setPlayerContextMenu({
-                            x: event.clientX,
-                            y: event.clientY,
-                            displayName: player.display_name,
-                            authUserId: player.auth_user_id,
-                            isFriend: Boolean(player.auth_user_id && friendProfileIds.has(player.auth_user_id)),
-                          });
-                        }}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3"
+                <MultiplayerLobbyRoster
+                  countLabel={`${activePlayers.length}/2 Players - ${spectatorCount}/8 Spectators`}
+                  canManage={isHost && lobbyView.lobby.status === 'waiting'}
+                  players={lobbyView.players.map((player) => ({
+                    id: player.id,
+                    authUserId: player.auth_user_id,
+                    displayName: player.display_name,
+                    role: player.role,
+                    isCurrentUser: player.is_requesting_player,
+                    isHost: player.id === lobbyView.lobby.host_player_id,
+                    canPromote: player.role === 'spectator',
+                    status: (
+                      <span
+                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
+                          player.has_selected_skin
+                            ? 'border-emerald-300/40 bg-emerald-400/15 text-emerald-200'
+                            : 'border-white/10 bg-slate-950 text-slate-500'
+                        }`}
+                        aria-label={player.has_selected_skin ? 'Skin selected' : 'No skin selected'}
                       >
-                        <div className="min-w-0">
-                          <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-white">
-                            <span className="truncate">
-                              {player.display_name}
-                              {player.auth_user_id ? '' : ' (Guest)'}
-                              {player.is_requesting_player ? ' (you)' : ''}
-                            </span>
-                            {player.auth_user_id && friendProfileIds.has(player.auth_user_id) ? (
-                              <span className="group relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-300/40 bg-amber-300/10 text-amber-200">
-                                <Users size={11} />
-                                <span className="pointer-events-none absolute left-0 top-7 z-50 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-200 opacity-0 shadow-xl transition group-hover:opacity-100">
-                                  Friend
-                                </span>
-                              </span>
-                            ) : null}
-                          </p>
-                          <p className="mt-1 text-xs capitalize text-slate-500">
-                            {player.role}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {isHost && player.role === 'spectator' && lobbyView.lobby.status === 'waiting' ? (
-                            <span className="group relative inline-flex">
-                              <button
-                                type="button"
-                                onClick={() => promoteSpectator(player.id)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 transition hover:bg-emerald-500/20"
-                                aria-label={`Make ${player.display_name} a player`}
-                              >
-                                <UserCheck size={14} />
-                              </button>
-                              <span className="pointer-events-none absolute right-0 top-10 z-50 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-200 opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-within:opacity-100">
-                                Make player
-                              </span>
-                            </span>
-                          ) : null}
-                          {isHost && !player.is_requesting_player && lobbyView.lobby.status === 'waiting' ? (
-                            <span className="group relative inline-flex">
-                              <button
-                                type="button"
-                                onClick={() => kickPlayer(player.id)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-400/30 bg-red-500/10 text-red-200 transition hover:bg-red-500/20"
-                                aria-label={`Kick ${player.display_name}`}
-                              >
-                                <UserX size={14} />
-                              </button>
-                              <span className="pointer-events-none absolute right-0 top-10 z-50 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-200 opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-within:opacity-100">
-                                Kick
-                              </span>
-                            </span>
-                          ) : null}
-                          <span
-                            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
-                              player.has_selected_skin
-                                ? 'border-emerald-300/40 bg-emerald-400/15 text-emerald-200'
-                                : 'border-white/10 bg-slate-950 text-slate-500'
-                            }`}
-                            aria-label={player.has_selected_skin ? 'Skin selected' : 'No skin selected'}
-                          >
-                            <Check size={15} />
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
+                        <Check size={15} />
+                      </span>
+                    ),
+                  }))}
+                  onKick={kickPlayer}
+                  onPromote={promoteSpectator}
+                  onMakeHost={makeHost}
+                />
 
                 <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
                   <div>
@@ -1724,56 +1582,6 @@ export function Skincognito() {
             </div>
           ) : null}
         </section>
-        {playerContextMenu ? (
-          <div
-            className="fixed z-[60] min-w-44 rounded-2xl border border-white/10 bg-slate-950 p-2"
-            style={{ left: playerContextMenu.x, top: playerContextMenu.y }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {playerContextMenu.isFriend && playerContextMenu.authUserId ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    openPublicProfileOverlay(playerContextMenu.displayName.trim().toLowerCase());
-                    setPlayerContextMenu(null);
-                  }}
-                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
-                >
-                  View Profile
-                </button>
-                <button
-                  type="button"
-                  onClick={() => unfriendPlayer(playerContextMenu.authUserId as string)}
-                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/10"
-                >
-                  Unfriend
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    openPublicProfileOverlay(playerContextMenu.displayName.trim().toLowerCase());
-                    setPlayerContextMenu(null);
-                  }}
-                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
-                >
-                  View Profile
-                </button>
-                <button
-                  type="button"
-                  disabled={!playerContextMenu.authUserId || !authUserId}
-                  onClick={() => playerContextMenu.authUserId && authUserId && addFriendPlayer(playerContextMenu.authUserId)}
-                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Add Friend
-                </button>
-              </>
-            )}
-          </div>
-        ) : null}
       </section>
     </main>
   );

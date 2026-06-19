@@ -121,7 +121,7 @@ export function GlobalActions() {
               type="button"
               onClick={() => setProfileOpen(false)}
               aria-label="Close profile"
-              className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+              className="absolute right-4 top-8 z-10 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
             >
               <X size={18} />
             </button>

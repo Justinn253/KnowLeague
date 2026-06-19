@@ -79,16 +79,16 @@ export default function Home() {
               <Link
                 key={game.href}
                 href={game.href}
-                className={`group relative flex min-h-[19rem] flex-col justify-between overflow-hidden rounded-2xl border bg-slate-900/85 shadow-glow transition hover:-translate-y-1 hover:border-amber-300/60 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 ${
+                className={`group relative flex min-h-[19rem] flex-col justify-between overflow-visible rounded-2xl border bg-slate-900/85 shadow-glow transition hover:-translate-y-1 hover:border-amber-300/60 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 ${
                   game.mostPlayed ? 'border-amber-300/80 shadow-amber-950/30' : 'border-white/10'
                 }`}
               >
                 {game.mostPlayed ? (
-                  <span className="absolute right-4 top-0 z-10 -translate-y-1/2 rounded-full border border-amber-200/60 bg-amber-300 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-950 shadow-lg shadow-amber-950/30">
+                  <span className="absolute right-4 top-0 z-40 -translate-y-1/2 rounded-full border border-amber-200/60 bg-amber-300 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-950 shadow-lg shadow-amber-950/30">
                     Most Popular
                   </span>
                 ) : null}
-                <div className="relative h-28 border-b border-white/10 bg-slate-950">
+                <div className="relative h-28 rounded-t-2xl border-b border-white/10 bg-slate-950">
                   <Image
                     src={game.imageUrl}
                     alt=""
@@ -101,7 +101,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="flex flex-1 flex-col gap-4 p-5">
+                <div className="flex flex-1 flex-col gap-4 rounded-b-2xl p-5">
                   <div>
                     <div className="flex items-center justify-between gap-3">
                       <h2 className="text-xl font-semibold text-white">{game.title}</h2>

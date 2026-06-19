@@ -8,6 +8,11 @@ type CreateContactSubmissionInput = {
   clientId?: string | null;
   pagePath?: string | null;
   userAgent?: string | null;
+  viewport?: string | null;
+  timezone?: string | null;
+  username?: string | null;
+  userUid?: string | null;
+  email?: string | null;
 };
 
 const contactCategories = new Set<ContactSubmissionCategory>(['feedback', 'bug_report', 'suggestion']);
@@ -37,9 +42,14 @@ export async function createContactSubmission(input: CreateContactSubmissionInpu
     .insert({
       category: input.category,
       message,
+      username: input.username?.trim() || 'Guest',
+      user_uid: input.userUid?.trim() || 'Guest',
+      email: input.email?.trim() || 'Guest',
       client_id: input.clientId?.trim() || null,
       page_path: input.pagePath?.trim().slice(0, 500) || null,
       user_agent: input.userAgent?.trim().slice(0, 500) || null,
+      viewport: input.viewport?.trim().slice(0, 100) || null,
+      timezone: input.timezone?.trim().slice(0, 100) || null,
     })
     .select('id, created_at')
     .single<{ id: string; created_at: string }>();

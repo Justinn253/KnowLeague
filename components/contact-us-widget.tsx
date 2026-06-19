@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, X } from 'lucide-react';
 import { getOrCreateClientId } from '@/lib/game-storage';
+import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { ContactSubmissionCategory } from '@/lib/contact';
 
 const CONTACT_MESSAGE_MAX_LENGTH = 2000;
@@ -58,20 +59,27 @@ export function ContactUsWidget() {
     setErrorMessage('');
 
     try {
+      const supabase = getOptionalSupabaseClient();
+      const { data: sessionData } = await supabase?.auth.getSession() ?? { data: { session: null } };
       const response = await fetch('/api/contact', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionData.session ? { Authorization: `Bearer ${sessionData.session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           category,
           message: cleanMessage,
           clientId: getOrCreateClientId(),
           pagePath: window.location.pathname,
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
 
-      const data = await response.json();
+      const responseData = await response.json();
       if (!response.ok) {
-        throw new Error(data.error ?? 'Unable to submit contact form.');
+        throw new Error(responseData.error ?? 'Unable to submit contact form.');
       }
 
       setMessage('');

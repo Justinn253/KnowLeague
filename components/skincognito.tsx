@@ -105,7 +105,11 @@ function getCorrectCategoryValue(view: SkincognitoLobbyView | null, playerId: st
 }
 
 function getPlayerLabel(player: SkincognitoPublicPlayer | null) {
-  return player?.display_name ?? 'Player';
+  if (!player) {
+    return 'Player';
+  }
+
+  return `${player.display_name}${player.auth_user_id ? '' : ' (Guest)'}`;
 }
 
 function openPublicProfileOverlay(username: string) {
@@ -201,7 +205,7 @@ function getLobbyStatusLabel(view: SkincognitoLobbyView | null) {
   }
 
   if (view.lobby.status === 'waiting') {
-    return `Lobby ${view.lobby.code}`;
+    return 'Lobby';
   }
 
   if (view.lobby.status === 'active') {
@@ -274,6 +278,7 @@ export function Skincognito() {
   const nameDraftDirtyRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
+  const latestWaitingLobbyRef = useRef<{ code: string; clientId: string } | null>(null);
 
   const requestingPlayer = lobbyView?.requestingPlayer ?? null;
   const isHost = Boolean(requestingPlayer && lobbyView?.lobby.host_player_id === requestingPlayer.id);
@@ -516,9 +521,7 @@ export function Skincognito() {
         setMessage('Unable to load skin search data.');
       });
 
-    const urlCode = new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '';
-    const savedCode = window.localStorage.getItem(LOBBY_STORAGE_KEY) ?? '';
-    const reconnectCode = urlCode || savedCode;
+    const reconnectCode = new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '';
     if (nextClientId && reconnectCode) {
       setJoinCode(reconnectCode);
       fetch(`/api/skincognito/lobbies/${reconnectCode}?clientId=${nextClientId}`)
@@ -529,7 +532,7 @@ export function Skincognito() {
             return;
           }
 
-          if (!data.error && urlCode) {
+          if (!data.error && reconnectCode) {
             let joinAuthUserId: string | null = null;
             let joinDisplayName = storedName;
             const authData = await supabase?.auth.getSession();
@@ -550,7 +553,7 @@ export function Skincognito() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                code: urlCode,
+                code: reconnectCode,
                 clientId: nextClientId,
                 authUserId: joinAuthUserId,
                 displayName: joinDisplayName,
@@ -574,6 +577,39 @@ export function Skincognito() {
         .catch(() => undefined);
     }
   }, [refreshFriendIds, updateLobbyView]);
+
+  useEffect(() => {
+    latestWaitingLobbyRef.current = lobbyView?.lobby.status === 'waiting' && clientId
+      ? { code: lobbyView.lobby.code, clientId }
+      : null;
+  }, [clientId, lobbyView?.lobby.code, lobbyView?.lobby.status]);
+
+  useEffect(() => {
+    const leaveWaitingLobbyOnPageExit = () => {
+      const waitingLobby = latestWaitingLobbyRef.current;
+      if (!waitingLobby) {
+        return;
+      }
+
+      window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+      const body = JSON.stringify({ clientId: waitingLobby.clientId });
+      const url = `/api/skincognito/lobbies/${waitingLobby.code}/leave`;
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+        return;
+      }
+
+      void fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      });
+    };
+
+    window.addEventListener('pagehide', leaveWaitingLobbyOnPageExit);
+    return () => window.removeEventListener('pagehide', leaveWaitingLobbyOnPageExit);
+  }, []);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -1082,12 +1118,15 @@ export function Skincognito() {
                     id="display-name"
                     value={displayName}
                     onChange={(event) => {
-                      setDisplayName(event.target.value);
+                      setDisplayName(event.target.value.slice(0, 16));
                       nameDraftDirtyRef.current = true;
                     }}
-                    maxLength={24}
+                    maxLength={16}
                     className="min-h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15"
                   />
+                  {displayName.length >= 16 ? (
+                    <span className="text-xs font-semibold text-amber-200">16/16</span>
+                  ) : null}
                 </div>
                 <button
                   type="submit"
@@ -1133,6 +1172,7 @@ export function Skincognito() {
                           <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-white">
                             <span className="truncate">
                               {player.display_name}
+                              {player.auth_user_id ? '' : ' (Guest)'}
                               {player.is_requesting_player ? ' (you)' : ''}
                             </span>
                             {player.auth_user_id && friendProfileIds.has(player.auth_user_id) ? (

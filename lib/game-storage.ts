@@ -94,7 +94,7 @@ export function savePlayerDisplayName(displayName: string) {
     return;
   }
 
-  const cleanDisplayName = displayName.trim().slice(0, 24);
+  const cleanDisplayName = displayName.trim().slice(0, 16);
   if (!cleanDisplayName) {
     return;
   }

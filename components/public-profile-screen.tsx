@@ -14,6 +14,7 @@ type PublicProfileRecord = {
   friend_requests_open: boolean;
   discord_username: string | null;
   riot_account_name: string | null;
+  created_at: string;
 };
 
 type FriendCandidate = {
@@ -38,6 +39,18 @@ async function getAuthHeaders() {
 
 function getLinkedValue(value?: string | null) {
   return value?.trim() || 'Not linked';
+}
+
+function formatProfileDate(value?: string | null) {
+  if (!value) {
+    return 'Unknown';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(value));
 }
 
 function PublicConnectionRow({ label, value }: { label: string; value: string }) {
@@ -81,7 +94,7 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
 
     supabase
       .from('profiles')
-      .select('id, username, display_name, about_me, friends_count, friend_requests_open, discord_username, riot_account_name')
+      .select('id, username, display_name, about_me, friends_count, friend_requests_open, discord_username, riot_account_name, created_at')
       .eq('username', username.toLowerCase())
       .maybeSingle<PublicProfileRecord>()
       .then(({ data, error }) => {
@@ -156,7 +169,7 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
         ? 'mx-auto flex w-full max-w-4xl flex-col px-6 py-8'
         : 'mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center px-6 py-10'}
       >
-        <header className={`mb-5 flex items-center gap-3 ${presentation === 'overlay' ? 'pr-12' : ''}`}>
+        <header className={`mb-5 flex min-h-12 items-center gap-3 ${presentation === 'overlay' ? 'pr-14' : ''}`}>
           <Link
             href="/"
             aria-label="Back to game hub"
@@ -165,8 +178,7 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
             <ArrowLeft size={20} />
           </Link>
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Profile</p>
-            <h1 className="text-xl font-semibold text-white">KnowLeague player profile</h1>
+            <h1 className="text-xl font-semibold text-white">Profile</h1>
           </div>
         </header>
 
@@ -179,9 +191,15 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Username</p>
                   <h2 className="mt-2 text-4xl font-bold text-white">{profile.display_name || profile.username}</h2>
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-sm font-semibold text-slate-300">
-                    <Users size={16} className="text-amber-300" />
-                    {profile.friends_count} friends
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-sm font-semibold text-slate-300">
+                      <Users size={16} className="text-amber-300" />
+                      {profile.friends_count} friends
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-sm font-semibold text-slate-300">
+                      <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Created</span>
+                      {formatProfileDate(profile.created_at)}
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 lg:justify-end">

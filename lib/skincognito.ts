@@ -130,7 +130,7 @@ function generateLobbyCode() {
 
 function sanitizeDisplayName(displayName: string) {
   const trimmedName = displayName.trim();
-  return trimmedName.slice(0, 24) || 'Player';
+  return trimmedName.slice(0, 16) || 'Player';
 }
 
 function getSkinById(skinId?: string | null) {
@@ -553,28 +553,42 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
   if (nextLobby.status === 'waiting') {
     const refreshedPlayers = await fetchPlayers(nextLobby.id);
     const connectedWaitingPlayers = refreshedPlayers.filter((player) => player.connected);
-    const playerOne = nextLobby.player_one_id
-      ? refreshedPlayers.find((player) => player.id === nextLobby.player_one_id)
-      : connectedWaitingPlayers.find((player) => player.role === 'host');
-    const playerTwo = nextLobby.player_two_id
-      ? refreshedPlayers.find((player) => player.id === nextLobby.player_two_id)
-      : connectedWaitingPlayers.find((player) => player.id !== playerOne?.id && player.role !== 'host');
+    const currentPlayerOne = nextLobby.player_one_id
+      ? connectedWaitingPlayers.find((player) => player.id === nextLobby.player_one_id)
+      : null;
+    const currentPlayerTwo = nextLobby.player_two_id
+      ? connectedWaitingPlayers.find((player) => player.id === nextLobby.player_two_id)
+      : null;
+    const playerOne = currentPlayerOne
+      ?? connectedWaitingPlayers.find((player) => player.id === nextLobby.host_player_id)
+      ?? connectedWaitingPlayers[0]
+      ?? null;
+    const playerTwo = currentPlayerTwo && currentPlayerTwo.id !== playerOne?.id
+      ? currentPlayerTwo
+      : connectedWaitingPlayers.find((player) => player.id !== playerOne?.id)
+        ?? null;
 
     nextLobby = await updateLobby(nextLobby.id, {
       player_one_id: playerOne?.id ?? null,
       player_two_id: playerTwo?.id ?? null,
+      host_player_id: playerOne?.id ?? nextLobby.host_player_id,
     });
 
-    if (playerTwo && playerTwo.role === 'spectator') {
+    const roleUpdates = connectedWaitingPlayers.map((player) => ({
+      id: player.id,
+      role: player.id === playerOne?.id ? 'host' : player.id === playerTwo?.id ? 'opponent' : 'spectator',
+    }));
+
+    await Promise.all(roleUpdates.map(async (roleUpdate) => {
       const { error } = await getSupabaseServiceClient()
         .from('skincognito_players')
-        .update({ role: 'opponent' })
-        .eq('id', playerTwo.id);
+        .update({ role: roleUpdate.role })
+        .eq('id', roleUpdate.id);
 
       if (error) {
         throw error;
       }
-    }
+    }));
   }
 
   if (nextLobby.status === 'active' && nextLobby.player_one_id && nextLobby.player_two_id) {

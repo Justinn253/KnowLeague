@@ -10,7 +10,7 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 type AuthMode = 'login' | 'signup' | 'password';
 type UsernameStatus = 'idle' | 'invalid' | 'checking' | 'available' | 'taken';
 
-const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,16}$/;
 
 function getAuthRedirectUrl(path: string) {
   if (typeof window === 'undefined') {
@@ -106,7 +106,7 @@ export function AuthScreen() {
         }
 
         if (!USERNAME_PATTERN.test(cleanUsername)) {
-          throw new Error('Username must be 3-20 characters and use only letters, numbers, or underscores.');
+          throw new Error('Username must be 3-16 characters and use only letters, numbers, or underscores.');
         }
 
         if (usernameStatus === 'checking') {
@@ -225,14 +225,18 @@ export function AuthScreen() {
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Username</span>
                 <input
                   value={username}
-                  onChange={(event) => setUsername(event.target.value)}
+                  onChange={(event) => setUsername(event.target.value.slice(0, 16))}
                   autoComplete="username"
+                  maxLength={16}
                   placeholder="Username"
                   className="min-h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 focus:ring-1 focus:ring-white/15"
                 />
+                {username.length >= 16 ? (
+                  <span className="text-xs font-semibold text-amber-200">16/16</span>
+                ) : null}
                 {usernameStatus === 'invalid' ? (
                   <span className="text-xs font-semibold text-red-200">
-                    Use 3-20 letters, numbers, or underscores.
+                    Use 3-16 letters, numbers, or underscores.
                   </span>
                 ) : null}
                 {usernameStatus === 'checking' ? (

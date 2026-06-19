@@ -56,6 +56,20 @@ function getCurrentMultiplayerInviteUrl() {
   return currentUrl.toString();
 }
 
+function getSkincognitoInviteUrl(message: string) {
+  const match = message.match(/Join my Skincognito game:\s*(https?:\/\/\S+)/i);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  try {
+    const url = new URL(match[1]);
+    return url.pathname === '/skincognito' && url.searchParams.get('code') ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getAuthHeaders() {
   const supabase = getOptionalSupabaseClient();
   const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
@@ -461,17 +475,38 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                   <div className="mt-3 grid flex-1 content-start gap-2 overflow-y-auto">
                     {messages.map((chatMessage) => {
                       const isOwnMessage = chatMessage.sender_id === currentUserId;
+                      const inviteUrl = getSkincognitoInviteUrl(chatMessage.message);
+
                       return (
-                      <p
-                        key={chatMessage.id}
-                        className={`max-w-[82%] rounded-xl px-3 py-2 text-sm ${
-                          isOwnMessage
-                            ? 'ml-auto bg-amber-300 text-right font-medium text-slate-950'
-                            : 'mr-auto bg-slate-900 text-slate-200'
-                        }`}
-                      >
-                        {chatMessage.message}
-                      </p>
+                        <div
+                          key={chatMessage.id}
+                          className={`max-w-[82%] rounded-xl px-3 py-2 text-sm ${
+                            isOwnMessage
+                              ? 'ml-auto bg-amber-300 text-right font-medium text-slate-950'
+                              : 'mr-auto bg-slate-900 text-slate-200'
+                          }`}
+                        >
+                          {inviteUrl ? (
+                            <div className={`flex flex-wrap items-center gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                              <span>Skincognito invite</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  window.location.href = inviteUrl;
+                                }}
+                                className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                                  isOwnMessage
+                                    ? 'bg-slate-950 text-amber-200 hover:bg-slate-800'
+                                    : 'bg-amber-300 text-slate-950 hover:bg-amber-200'
+                                }`}
+                              >
+                                Join Game
+                              </button>
+                            </div>
+                          ) : (
+                            chatMessage.message
+                          )}
+                        </div>
                       );
                     })}
                   </div>

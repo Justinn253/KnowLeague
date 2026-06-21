@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Crown, MoreHorizontal, UserCheck, UserX, Users } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -253,7 +254,7 @@ export function MultiplayerLobbyRoster({
 
       {status ? <p className="mt-3 text-xs font-semibold text-slate-400">{status}</p> : null}
 
-      {contextMenu ? (
+      {contextMenu ? createPortal((
         <div className="fixed z-[90] min-w-48 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
           {contextMenu.player.authUserId && profileUsernames[contextMenu.player.authUserId] ? (
             <button type="button" onClick={() => { openPublicProfileOverlay(profileUsernames[contextMenu.player.authUserId as string]); setContextMenu(null); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</button>
@@ -275,7 +276,7 @@ export function MultiplayerLobbyRoster({
             <button type="button" onClick={() => runManagementAction(onKick)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/10"><UserX size={14} />Kick</button>
           ) : null}
         </div>
-      ) : null}
+      ), document.body) : null}
     </section>
   );
 }

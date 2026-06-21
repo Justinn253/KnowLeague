@@ -1,7 +1,7 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, SlidersHorizontal, Trophy, Users } from 'lucide-react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, SlidersHorizontal, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
@@ -12,6 +12,8 @@ import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
   MultiplayerQuizLobbyView,
+  MultiplayerQuizPlayerResult,
+  MultiplayerQuizPublicLobby,
 } from '@/lib/multiplayer-quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -81,12 +83,47 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const [busy, setBusy] = useState(false);
   const [codeRevealed, setCodeRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [publicLobbies, setPublicLobbies] = useState<MultiplayerQuizPublicLobby[]>([]);
+  const latestLobbyRef = useRef<{ code: string; clientId: string; status: MultiplayerQuizLobbyView['lobby']['status'] } | null>(null);
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
   const selectedModifiers = useMemo(() => new Set(view?.lobby.modifiers ?? []), [view?.lobby.modifiers]);
   const activeLobbyCode = view?.lobby.status === 'active' ? view.lobby.code : null;
 
+  useEffect(() => {
+    latestLobbyRef.current = view && clientId
+      ? { code: view.lobby.code, clientId, status: view.lobby.status }
+      : null;
+  }, [clientId, view]);
+
+  useEffect(() => {
+    const disconnectOnPageExit = () => {
+      const activeLobby = latestLobbyRef.current;
+      if (!activeLobby) return;
+      const endpoint = activeLobby.status === 'waiting' ? 'leave' : 'heartbeat';
+      const body = JSON.stringify({
+        clientId: activeLobby.clientId,
+        ...(endpoint === 'heartbeat' ? { connected: false } : {}),
+      });
+      const url = `/api/multiplayer/lobbies/${activeLobby.code}/${endpoint}`;
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+      } else {
+        void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true });
+      }
+    };
+    window.addEventListener('pagehide', disconnectOnPageExit);
+    return () => window.removeEventListener('pagehide', disconnectOnPageExit);
+  }, []);
+
   const applyView = useCallback((nextView: MultiplayerQuizLobbyView) => {
+    if (!nextView.requestingPlayer && latestLobbyRef.current) {
+      latestLobbyRef.current = null;
+      setView(null);
+      setMessage('You were removed from the lobby.');
+      window.history.replaceState(null, '', config.route);
+      return;
+    }
     setView(nextView);
     if (nextView.requestingPlayer?.display_name) {
       setDisplayName(nextView.requestingPlayer.display_name);
@@ -103,6 +140,21 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       setMessage(error instanceof Error ? error.message : 'Unable to refresh lobby.');
     }
   }, [applyView]);
+
+  const loadPublicLobbies = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/multiplayer/lobbies/public?gameMode=${gameMode}`);
+      if (response.ok) setPublicLobbies(await response.json());
+    } catch {
+      // Public discovery is optional; code-based joining remains available.
+    }
+  }, [gameMode]);
+
+  useEffect(() => {
+    if (view) return undefined;
+    void loadPublicLobbies();
+    return undefined;
+  }, [loadPublicLobbies, view]);
 
   useEffect(() => {
     let cancelled = false;
@@ -229,8 +281,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
   };
 
-  const joinLobby = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const joinLobbyByCode = async (code: string) => {
     if (!clientId) {
       return;
     }
@@ -240,7 +291,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch('/api/multiplayer/lobbies/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: joinCode, gameMode, clientId, displayName, authUserId }),
+        body: JSON.stringify({ code, gameMode, clientId, displayName, authUserId }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -248,6 +299,11 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     } finally {
       setBusy(false);
     }
+  };
+
+  const joinLobby = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await joinLobbyByCode(joinCode);
   };
 
   const leaveLobby = async () => {
@@ -285,7 +341,12 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
   };
 
-  const updateSettings = async (difficulty: MultiplayerQuizDifficulty, modifiers: string[]) => {
+  const updateSettings = async (
+    difficulty: MultiplayerQuizDifficulty,
+    modifiers: string[],
+    totalItems = view?.lobby.total_items ?? 50,
+    isPublic = view?.lobby.is_public ?? false,
+  ) => {
     if (!view || !clientId || !isHost) {
       return;
     }
@@ -294,7 +355,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, difficulty, modifiers }),
+        body: JSON.stringify({ clientId, difficulty, modifiers, totalItems, isPublic }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -344,7 +405,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
   };
 
-  const reportProgress = useCallback(async (progress: number, elapsedSeconds: number, finished: boolean) => {
+  const reportProgress = useCallback(async (progress: number, elapsedSeconds: number, result: MultiplayerQuizPlayerResult) => {
     if (!view || !clientId) {
       return;
     }
@@ -352,7 +413,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/progress`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, progress, elapsedSeconds, finished }),
+        body: JSON.stringify({ clientId, progress, elapsedSeconds, result }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -395,14 +456,20 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
               <ArrowLeft size={20} />
             </button>
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
               <h1 className="text-xl font-semibold text-white">{config.title}</h1>
               <p className="mt-1 text-xs text-slate-400">{view ? 'Lobby' : 'Create or join a lobby'}</p>
             </div>
           </div>
           <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
             <Users size={16} className="text-amber-300" />
-            Lobby
+            {view?.lobby.status === 'waiting'
+              ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : 'Waiting for players'}`
+              : view?.lobby.status === 'active'
+                ? 'In Progress'
+                : view?.lobby.status === 'finished'
+                  ? 'Finished'
+                  : 'Lobby'}
           </div>
         </header>
 
@@ -425,6 +492,25 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                     <button type="submit" disabled={busy || joinCode.trim().length !== 6} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-violet-700 px-5 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60">Join</button>
                   </div>
                 </form>
+              </div>
+              <div className="mt-8 border-t border-white/10 pt-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p>
+                    <p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p>
+                  </div>
+                  <button type="button" onClick={() => void loadPublicLobbies()} disabled={busy} title="Refresh public lobbies" aria-label="Refresh public lobbies" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60">
+                    <RefreshCw size={17} />
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-2">
+                  {publicLobbies.length ? publicLobbies.map((lobby) => (
+                    <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
+                      <span className="min-w-0"><span className="block truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span><span className="mt-1 block text-xs text-slate-400">{lobby.difficulty} · {lobby.totalItems} entries</span></span>
+                      <span className="shrink-0 text-xs font-semibold text-slate-300">{lobby.playerCount}/{lobby.maxPlayers}</span>
+                    </button>
+                  )) : <p className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">No public lobbies are waiting.</p>}
+                </div>
               </div>
             </div>
           ) : (
@@ -466,13 +552,25 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                 />
 
                 <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Game Settings</p>
                       <h3 className="mt-2 text-lg font-semibold text-white">Difficulty and modifiers</h3>
                     </div>
-                    <SlidersHorizontal size={20} className="text-amber-300" />
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+                        Entries
+                        <select value={view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => updateSettings(view.lobby.difficulty, view.lobby.modifiers, Number(event.target.value))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
+                          {[10, 25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
+                        </select>
+                      </label>
+                      <SlidersHorizontal size={20} className="text-amber-300" />
+                    </div>
                   </div>
+                  <button type="button" disabled={!isHost || busy} onClick={() => updateSettings(view.lobby.difficulty, view.lobby.modifiers, view.lobby.total_items, !view.lobby.is_public)} className={`mt-4 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${view.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-900/70'} disabled:opacity-60`}>
+                    <span><span className="block text-sm font-semibold text-white">Public lobby</span><span className="mt-1 block text-xs text-slate-400">Allow players to discover and join this lobby.</span></span>
+                    <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${view.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${view.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
+                  </button>
                   <fieldset disabled={!isHost || busy} className="mt-5 grid gap-5 disabled:opacity-65">
                     <div>
                       <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Difficulty</legend>
@@ -516,7 +614,6 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
           {message ? <p className="mt-5 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-center text-sm text-slate-300">{message}</p> : null}
         </section>
 
-        {view ? <div className="flex justify-center"><span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600"><Trophy size={14} /> Waiting for players</span></div> : null}
       </section>
     </main>
   );

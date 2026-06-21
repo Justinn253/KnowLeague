@@ -38,6 +38,9 @@ export function getSupabaseServiceClient() {
           persistSession: false,
           autoRefreshToken: false,
         },
+        global: {
+          fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+        },
       },
     );
   }

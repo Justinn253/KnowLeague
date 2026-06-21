@@ -1,14 +1,14 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, Search, Users } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Search, Users } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicPlayer } from '@/lib/skincognito';
+import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
 
 type SkinAnswer = {
   id: string;
@@ -217,6 +217,10 @@ function getHeaderActionLabel(view: SkincognitoLobbyView | null) {
     return 'Finished';
   }
 
+  if (view?.lobby.status === 'waiting') {
+    return `Lobby - ${view.players.length >= 10 ? 'Full' : 'Waiting for players'}`;
+  }
+
   return 'Lobby';
 }
 
@@ -255,6 +259,7 @@ export function Skincognito() {
   const [busy, setBusy] = useState(false);
   const [codeRevealed, setCodeRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [publicLobbies, setPublicLobbies] = useState<SkincognitoPublicLobby[]>([]);
   const skinSearchRef = useRef<HTMLDivElement>(null);
   const guessSearchRef = useRef<HTMLDivElement>(null);
   const guessesScrollRef = useRef<HTMLDivElement>(null);
@@ -265,7 +270,7 @@ export function Skincognito() {
   const nameDraftDirtyRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
-  const latestWaitingLobbyRef = useRef<{ code: string; clientId: string } | null>(null);
+  const latestLobbyRef = useRef<{ code: string; clientId: string; status: SkincognitoLobbyView['lobby']['status'] } | null>(null);
 
   const requestingPlayer = lobbyView?.requestingPlayer ?? null;
   const isHost = Boolean(requestingPlayer && lobbyView?.lobby.host_player_id === requestingPlayer.id);
@@ -548,21 +553,24 @@ export function Skincognito() {
   }, [updateLobbyView]);
 
   useEffect(() => {
-    latestWaitingLobbyRef.current = lobbyView?.lobby.status === 'waiting' && clientId
-      ? { code: lobbyView.lobby.code, clientId }
+    const code = lobbyView?.lobby.code;
+    const status = lobbyView?.lobby.status;
+    latestLobbyRef.current = code && status && clientId
+      ? { code, clientId, status }
       : null;
   }, [clientId, lobbyView?.lobby.code, lobbyView?.lobby.status]);
 
   useEffect(() => {
     const leaveWaitingLobbyOnPageExit = () => {
-      const waitingLobby = latestWaitingLobbyRef.current;
-      if (!waitingLobby) {
+      const activeLobby = latestLobbyRef.current;
+      if (!activeLobby) {
         return;
       }
 
-      window.localStorage.removeItem(LOBBY_STORAGE_KEY);
-      const body = JSON.stringify({ clientId: waitingLobby.clientId });
-      const url = `/api/skincognito/lobbies/${waitingLobby.code}/leave`;
+      const endpoint = activeLobby.status === 'waiting' ? 'leave' : 'heartbeat';
+      if (endpoint === 'leave') window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+      const body = JSON.stringify({ clientId: activeLobby.clientId, ...(endpoint === 'heartbeat' ? { connected: false } : {}) });
+      const url = `/api/skincognito/lobbies/${activeLobby.code}/${endpoint}`;
       if (navigator.sendBeacon) {
         navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
         return;
@@ -703,6 +711,21 @@ export function Skincognito() {
     };
   }, [clientId, lobbyView?.lobby.code, lobbyView?.lobby.id, lobbyView?.lobby.status, refreshLobbyView]);
 
+  const loadPublicLobbies = useCallback(async () => {
+    try {
+      const response = await fetch('/api/skincognito/lobbies/public');
+      if (response.ok) setPublicLobbies(await response.json());
+    } catch {
+      // Code-based joining remains available if discovery is temporarily unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (lobbyView) return undefined;
+    void loadPublicLobbies();
+    return undefined;
+  }, [loadPublicLobbies, lobbyView]);
+
   useEffect(() => {
     if (!clientId || !lobbyView?.lobby.code) {
       return;
@@ -735,18 +758,30 @@ export function Skincognito() {
     });
   };
 
-  const joinLobby = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const joinLobbyByCode = (code: string) => {
     if (!clientId) {
       return;
     }
 
     void requestLobby('/api/skincognito/lobbies/join', {
-      code: joinCode.trim().toUpperCase(),
+      code: code.trim().toUpperCase(),
       clientId,
       authUserId,
       displayName,
       selectedSkinId: selectedSkin?.id ?? null,
+    });
+  };
+
+  const joinLobby = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    joinLobbyByCode(joinCode);
+  };
+
+  const updateLobbyVisibility = () => {
+    if (!clientId || !lobbyView || !isHost) return;
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/visibility`, {
+      clientId,
+      isPublic: !lobbyView.lobby.is_public,
     });
   };
 
@@ -944,7 +979,7 @@ export function Skincognito() {
               <ArrowLeft size={20} />
             </button>
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
               <h1 className="text-xl font-semibold text-white">Skincognito</h1>
               <p className="mt-1 text-xs text-slate-400">{getLobbyStatusLabel(lobbyView)}</p>
             </div>
@@ -1027,6 +1062,25 @@ export function Skincognito() {
             </div>
           ) : null}
 
+          {!lobbyView ? (
+            <div className="mx-auto mt-8 max-w-3xl border-t border-white/10 pt-6 text-left">
+              <div className="flex items-center justify-between gap-3">
+                <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p><p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p></div>
+                <button type="button" onClick={() => void loadPublicLobbies()} disabled={busy} title="Refresh public lobbies" aria-label="Refresh public lobbies" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60">
+                  <RefreshCw size={17} />
+                </button>
+              </div>
+              <div className="mt-4 grid gap-2">
+                {publicLobbies.length ? publicLobbies.map((lobby) => (
+                  <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
+                    <span className="truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span>
+                    <span className="shrink-0 text-xs font-semibold text-slate-300">{lobby.playerCount}/{lobby.maxPlayers}</span>
+                  </button>
+                )) : <p className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">No public lobbies are waiting.</p>}
+              </div>
+            </div>
+          ) : null}
+
           {message ? (
             <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-center text-sm text-slate-300">
               {message}
@@ -1035,6 +1089,10 @@ export function Skincognito() {
 
           {lobbyView && lobbyView.lobby.status === 'waiting' ? (
             <div className="mt-8 border-t border-white/10 pt-8">
+              <button type="button" disabled={!isHost || busy} onClick={updateLobbyVisibility} className={`mb-5 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${lobbyView.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-950/70'} disabled:opacity-60`}>
+                <span><span className="block text-sm font-semibold text-white">Public lobby</span><span className="mt-1 block text-xs text-slate-400">Allow players to discover and join this lobby.</span></span>
+                <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${lobbyView.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${lobbyView.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
+              </button>
               <form onSubmit={updateDisplayName} className="mb-5 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:grid-cols-[1fr_auto] sm:items-end">
                 <div className="grid gap-2">
                   <label htmlFor="display-name" className="text-xs uppercase tracking-[0.18em] text-slate-500">

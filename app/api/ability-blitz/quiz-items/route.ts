@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getAbilityCatalog } from '@/lib/catalogs';
-import { dailySeed, seededShuffle } from '@/lib/daily-set';
+import { shuffle } from '@/lib/quiz';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const daily = seededShuffle(getAbilityCatalog(), dailySeed('ability-blitz')).slice(0, 50);
-  return NextResponse.json(daily);
+  return NextResponse.json(shuffle(getAbilityCatalog()), {
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }

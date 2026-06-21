@@ -43,7 +43,7 @@ const singlePlayerGames: GameLink[] = [
   {
     title: 'Ability Blitz',
     href: '/ability-blitz',
-    description: 'Race the clock through a daily set of League ability icons.',
+    description: 'Race the clock through a randomized set of League ability icons.',
     status: 'Play',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Yasuo.png',
     icon: Clock3,

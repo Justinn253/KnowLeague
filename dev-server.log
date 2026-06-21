@@ -1,0 +1,12 @@
+
+> league-quiz-app@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1498ms
+ ○ Compiling / ...
+ ✓ Compiled / in 3s (691 modules)

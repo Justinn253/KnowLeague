@@ -26,6 +26,7 @@
 - Preserve established game behavior and visual consistency unless the request changes it.
 - Use generated local catalogues during gameplay; do not fetch full Riot or CommunityDragon datasets at runtime.
 - Prefer existing shared helpers before adding another implementation.
+- Treat multiplayer session behavior as a cross-game contract. Apply relevant lobby, presence, reconnect, moderation, discovery, and lifecycle changes to every multiplayer game unless a game-specific rule makes the behavior inappropriate.
 - Do not expose service-role keys or other server secrets to client components.
 
 ## Context Routing

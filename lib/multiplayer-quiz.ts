@@ -4,6 +4,7 @@ import { shuffle, type QuizItem } from '@/lib/quiz';
 
 export type MultiplayerQuizGameMode = 'ability_blitz' | 'skin_champion';
 export type MultiplayerQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
+export type MultiplayerQuizPlayerResult = 'active' | 'completed' | 'failed';
 
 export type MultiplayerQuizLobby = {
   id: string;
@@ -14,6 +15,7 @@ export type MultiplayerQuizLobby = {
   difficulty: MultiplayerQuizDifficulty;
   modifiers: string[];
   max_players: number;
+  is_public: boolean;
   created_at: string;
   updated_at: string;
   terminated_at: string | null;
@@ -38,6 +40,7 @@ type MultiplayerQuizPlayerRecord = {
   connected: boolean;
   last_seen_at: string;
   disconnected_at: string | null;
+  result: MultiplayerQuizPlayerResult;
 };
 
 export type MultiplayerQuizPublicPlayer = Omit<MultiplayerQuizPlayerRecord, 'client_id'> & {
@@ -51,6 +54,17 @@ export type MultiplayerQuizLobbyView = {
   quizItems: QuizItem[];
 };
 
+export type MultiplayerQuizPublicLobby = {
+  code: string;
+  gameMode: MultiplayerQuizGameMode;
+  difficulty: MultiplayerQuizDifficulty;
+  modifiers: string[];
+  totalItems: number;
+  playerCount: number;
+  maxPlayers: number;
+  hostName: string;
+};
+
 type CreateOrJoinInput = {
   gameMode: MultiplayerQuizGameMode;
   clientId: string;
@@ -60,7 +74,6 @@ type CreateOrJoinInput = {
 
 const LOBBY_CODE_LENGTH = 6;
 const MAX_PLAYERS = 10;
-const GAME_ITEM_COUNT = 50;
 const HEARTBEAT_STALE_MS = 40_000;
 const difficulties = new Set<MultiplayerQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
 const modifierIds: Record<MultiplayerQuizGameMode, Set<string>> = {
@@ -218,6 +231,7 @@ async function getLobbyView(lobby: MultiplayerQuizLobby, clientId?: string | nul
     connected: player.connected,
     last_seen_at: player.last_seen_at,
     disconnected_at: player.disconnected_at,
+    result: player.result,
     is_requesting_player: player.id === requestingPlayer?.id,
   });
 
@@ -299,7 +313,14 @@ export async function joinMultiplayerQuizLobby(code: string, input: CreateOrJoin
     const now = new Date().toISOString();
     const { error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_players')
-      .update({ connected: true, last_seen_at: now, disconnected_at: null, updated_at: now })
+      .update({
+        auth_user_id: input.authUserId ?? existingPlayer.auth_user_id,
+        display_name: sanitizeDisplayName(input.displayName),
+        connected: true,
+        last_seen_at: now,
+        disconnected_at: null,
+        updated_at: now,
+      })
       .eq('id', existingPlayer.id);
     if (error) {
       throw error;
@@ -341,11 +362,11 @@ export async function startMultiplayerQuizLobby(code: string, clientId: string) 
   if (players.length < 2) {
     throw new Error('At least two players are required.');
   }
-  const itemIds = shuffle(getGameCatalog(lobby.game_mode)).slice(0, GAME_ITEM_COUNT).map((item) => item.id);
+  const itemIds = shuffle(getGameCatalog(lobby.game_mode)).slice(0, lobby.total_items).map((item) => item.id);
   const now = new Date().toISOString();
   const { error: playerError } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
-    .update({ progress: 0, elapsed_seconds: 0, finished_at: null, connected: true, last_seen_at: now, disconnected_at: null, updated_at: now })
+    .update({ progress: 0, elapsed_seconds: 0, finished_at: null, result: 'active', connected: true, last_seen_at: now, disconnected_at: null, updated_at: now })
     .eq('lobby_id', lobby.id);
   if (playerError) {
     throw playerError;
@@ -368,7 +389,7 @@ export async function updateMultiplayerQuizProgress(
   clientId: string,
   progress: number,
   elapsedSeconds: number,
-  finished: boolean,
+  result: MultiplayerQuizPlayerResult,
 ) {
   const lobby = await fetchLobby(code);
   if (!lobby || lobby.status !== 'active') {
@@ -387,13 +408,17 @@ export async function updateMultiplayerQuizProgress(
     throw new Error('Invalid progress update.');
   }
   const now = new Date().toISOString();
-  const shouldFinish = nextProgress >= lobby.total_items || (finished && lobby.difficulty === 'challenger');
+  const completed = result === 'completed' && nextProgress >= lobby.total_items;
+  const failed = result === 'failed' && lobby.difficulty === 'challenger';
+  const nextResult: MultiplayerQuizPlayerResult = completed ? 'completed' : failed ? 'failed' : 'active';
+  const shouldFinish = nextResult !== 'active';
   const { error } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
     .update({
       progress: nextProgress,
       elapsed_seconds: Math.max(player.elapsed_seconds, Math.floor(elapsedSeconds)),
       finished_at: shouldFinish ? player.finished_at ?? now : null,
+      result: nextResult,
       connected: true,
       last_seen_at: now,
       disconnected_at: null,
@@ -407,7 +432,7 @@ export async function updateMultiplayerQuizProgress(
   return getLobbyView(lobby, clientId);
 }
 
-export async function heartbeatMultiplayerQuizPlayer(code: string, clientId: string) {
+export async function heartbeatMultiplayerQuizPlayer(code: string, clientId: string, connected = true) {
   const lobby = await fetchLobby(code);
   if (!lobby || lobby.status === 'terminated') {
     throw new Error('Lobby not found.');
@@ -415,12 +440,13 @@ export async function heartbeatMultiplayerQuizPlayer(code: string, clientId: str
   const now = new Date().toISOString();
   const { error } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
-    .update({ connected: true, last_seen_at: now, disconnected_at: null, updated_at: now })
+    .update({ connected, last_seen_at: now, disconnected_at: connected ? null : now, updated_at: now })
     .eq('lobby_id', lobby.id)
     .eq('client_id', clientId);
   if (error) {
     throw error;
   }
+  await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
   return getLobbyView(lobby, clientId);
 }
 
@@ -446,6 +472,8 @@ export async function updateMultiplayerQuizSettings(
   clientId: string,
   difficulty: string,
   modifiers: unknown,
+  totalItems: number,
+  isPublic: boolean,
 ) {
   const lobby = await fetchLobby(code);
   if (!lobby || lobby.status !== 'waiting') {
@@ -462,12 +490,19 @@ export async function updateMultiplayerQuizSettings(
   const validModifiers = Array.isArray(modifiers)
     ? [...new Set(modifiers.filter((value): value is string => typeof value === 'string' && modifierIds[lobby.game_mode].has(value)))]
     : [];
+  const catalogSize = getGameCatalog(lobby.game_mode).length;
+  const validTotalItems = Math.min(catalogSize, Math.max(1, Math.floor(totalItems)));
+  if (!Number.isFinite(totalItems)) {
+    throw new Error('Invalid entry count.');
+  }
 
   const { data: updatedLobby, error } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_lobbies')
     .update({
       difficulty,
       modifiers: validModifiers,
+      total_items: validTotalItems,
+      is_public: isPublic,
       updated_at: new Date().toISOString(),
     })
     .eq('id', lobby.id)
@@ -480,6 +515,49 @@ export async function updateMultiplayerQuizSettings(
   return getLobbyView(updatedLobby, clientId);
 }
 
+export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuizGameMode) {
+  assertSupabaseConfigured();
+  const { data: lobbies, error } = await getSupabaseServiceClient()
+    .from('multiplayer_quiz_lobbies')
+    .select('*')
+    .eq('game_mode', gameMode)
+    .eq('status', 'waiting')
+    .eq('is_public', true)
+    .order('created_at', { ascending: false })
+    .limit(30)
+    .returns<MultiplayerQuizLobby[]>();
+  if (error) {
+    throw error;
+  }
+  if (lobbies.length === 0) return [];
+  const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
+    .from('multiplayer_quiz_players')
+    .select('id, lobby_id, display_name')
+    .in('lobby_id', lobbies.map((lobby) => lobby.id))
+    .returns<Array<Pick<MultiplayerQuizPlayerRecord, 'id' | 'lobby_id' | 'display_name'>>>();
+  if (playersError) {
+    throw playersError;
+  }
+
+  return lobbies.map((lobby): MultiplayerQuizPublicLobby | null => {
+    const players = publicPlayers.filter((player) => player.lobby_id === lobby.id);
+    if (players.length >= lobby.max_players) {
+      return null;
+    }
+    const host = players.find((player) => player.id === lobby.host_player_id);
+    return {
+      code: lobby.code,
+      gameMode: lobby.game_mode,
+      difficulty: lobby.difficulty,
+      modifiers: lobby.modifiers,
+      totalItems: lobby.total_items,
+      playerCount: players.length,
+      maxPlayers: lobby.max_players,
+      hostName: host?.display_name ?? 'Host',
+    };
+  }).filter((entry): entry is MultiplayerQuizPublicLobby => entry !== null);
+}
+
 export async function leaveMultiplayerQuizLobby(code: string, clientId: string) {
   const lobby = await fetchLobby(code);
   if (!lobby || lobby.status === 'terminated') {
@@ -488,6 +566,19 @@ export async function leaveMultiplayerQuizLobby(code: string, clientId: string) 
   const players = await fetchPlayers(lobby.id);
   const leavingPlayer = players.find((player) => player.client_id === clientId);
   if (!leavingPlayer) {
+    return { left: true };
+  }
+  if (lobby.status === 'active') {
+    const now = new Date().toISOString();
+    const { error } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_players')
+      .update({ connected: false, disconnected_at: now, last_seen_at: now, updated_at: now })
+      .eq('id', leavingPlayer.id);
+    if (error) {
+      throw error;
+    }
+    await addLobbyEvent(lobby.id, 'player_disconnected');
+    await reconcileActiveLobby(lobby);
     return { left: true };
   }
   const { error: deleteError } = await getSupabaseServiceClient()

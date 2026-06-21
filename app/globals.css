@@ -129,6 +129,26 @@ select {
   padding: 0.25rem;
 }
 
+.multiplayer-victory-border {
+  border: 3px solid transparent;
+  background:
+    linear-gradient(#020617, #020617) padding-box,
+    conic-gradient(
+      from var(--skindle-gradient-angle),
+      #fb7185,
+      #fbbf24,
+      #a3e635,
+      #22d3ee,
+      #a78bfa,
+      #fb7185
+    ) border-box;
+  animation: skindle-gradient-flow 3s linear infinite;
+}
+
+.multiplayer-victory-border > div {
+  border-color: transparent;
+}
+
 @keyframes carousel-slide {
   from {
     transform: translateX(0);

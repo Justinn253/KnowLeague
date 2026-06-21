@@ -402,7 +402,7 @@ export function Skindle() {
               <ArrowLeft size={20} />
             </Link>
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Single Player Game</p>
               <h1 className="text-xl font-semibold text-white">Skindle</h1>
               <p className="mt-1 text-xs text-slate-400">
                 {solved ? `Solved in ${guesses.length}` : `Daily skin resets in ${timeToNextSet}`}

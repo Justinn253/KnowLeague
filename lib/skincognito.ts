@@ -22,6 +22,7 @@ export type SkincognitoLobbyRecord = {
   finished_at: string | null;
   terminated_at: string | null;
   return_to_lobby_at: string | null;
+  is_public: boolean;
 };
 
 export type SkincognitoPlayerRecord = {
@@ -89,6 +90,13 @@ export type SkincognitoLobbyView = {
   actions: SkincognitoActionRecord[];
   chatMessages: SkincognitoChatMessageRecord[];
   finishedSkinUseCount: number | null;
+};
+
+export type SkincognitoPublicLobby = {
+  code: string;
+  hostName: string;
+  playerCount: number;
+  maxPlayers: number;
 };
 
 type CreateOrJoinInput = {
@@ -698,6 +706,49 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
   return getLobbyView(updatedLobby, input.clientId);
 }
 
+export async function listPublicSkincognitoLobbies() {
+  assertSupabaseConfigured();
+  const { data: lobbies, error } = await getSupabaseServiceClient()
+    .from('skincognito_lobbies')
+    .select('*')
+    .eq('status', 'waiting')
+    .eq('is_public', true)
+    .order('created_at', { ascending: false })
+    .limit(30)
+    .returns<SkincognitoLobbyRecord[]>();
+  if (error) throw error;
+  if (lobbies.length === 0) return [];
+  const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
+    .from('skincognito_players')
+    .select('id, lobby_id, display_name')
+    .in('lobby_id', lobbies.map((lobby) => lobby.id))
+    .returns<Array<Pick<SkincognitoPlayerRecord, 'id' | 'lobby_id' | 'display_name'>>>();
+  if (playersError) throw playersError;
+
+  return lobbies.map((lobby): SkincognitoPublicLobby | null => {
+    const players = publicPlayers.filter((player) => player.lobby_id === lobby.id);
+    if (players.length >= MAX_LOBBY_PLAYERS) return null;
+    const host = players.find((player) => player.id === lobby.host_player_id);
+    return {
+      code: lobby.code,
+      hostName: host?.display_name ?? 'Host',
+      playerCount: players.length,
+      maxPlayers: MAX_LOBBY_PLAYERS,
+    };
+  }).filter((entry): entry is SkincognitoPublicLobby => entry !== null);
+}
+
+export async function updateSkincognitoLobbyVisibility(code: string, clientId: string, isPublic: boolean) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby || lobby.status !== 'waiting') throw new Error('Lobby is not available.');
+  const players = await fetchPlayers(lobby.id);
+  const host = players.find((player) => player.id === lobby.host_player_id);
+  if (!host || host.client_id !== clientId) throw new Error('Only the host can change lobby visibility.');
+  const updatedLobby = await updateLobby(lobby.id, { is_public: isPublic });
+  await addLobbyEvent(lobby.id, 'visibility_updated');
+  return getLobbyView(updatedLobby, clientId);
+}
+
 export async function leaveSkincognitoLobby(code: string, clientId: string) {
   const lobby = await fetchLobbyByCode(code);
   if (!lobby || lobby.status === 'terminated') {
@@ -1121,6 +1172,8 @@ export async function heartbeatSkincognitoPlayer(code: string, clientId: string,
   if (error) {
     throw error;
   }
+
+  await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
 
   const reconciledLobby = await reconcileLobby(lobby);
   return getLobbyView(reconciledLobby, clientId);

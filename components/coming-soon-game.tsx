@@ -22,7 +22,7 @@ export function ComingSoonGame({ title, description, imageUrl }: ComingSoonGameP
               <ArrowLeft size={20} />
             </Link>
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Single Player Game</p>
               <h1 className="text-xl font-semibold text-white">{title}</h1>
             </div>
           </div>

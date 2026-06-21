@@ -13,7 +13,6 @@ import {
 } from '@/lib/game-storage';
 import {
   formatSeconds,
-  getNextUtcResetLabel,
   normalizeAnswer,
   OPTION_DELAY_SECONDS,
   PENALTY_TIMES_SECONDS,
@@ -22,6 +21,7 @@ import {
   type QuizItem,
 } from '@/lib/quiz';
 import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
+import { GameInfoMenu } from '@/components/game-info-menu';
 
 const modifiers = [
   { id: 'greyscale', name: 'Greyscale', description: 'Splash art appears in greyscale.' },
@@ -191,7 +191,6 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [failed, setFailed] = useState(false);
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
-  const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
   const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
   const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('skin-champion'));
   const difficultyMenuRef = useRef<HTMLDivElement>(null);
@@ -206,6 +205,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const previousItem = activeIndex > 0 ? items[activeIndex - 1] : null;
   const selectedDifficultyName = difficulties.find((difficulty) => difficulty.id === selectedDifficulty)?.name;
   const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
+  const multiplayerGameEnded = multiplayer?.gameEnded ?? false;
+  const multiplayerInitialProgress = multiplayer?.initialProgress;
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
   const configurationLocked = started || countdown !== null;
   const difficultyRule = difficultyRules[selectedDifficulty];
@@ -214,6 +215,17 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const shouldHideTimers = activeModifiers.hiddenTimer;
   const shouldRevealChampion = selectedDifficulty === 'iron';
   const completedProgressCount = items.filter((item) => item.guessed).length;
+
+  useEffect(() => {
+    if (multiplayerInitialProgress === undefined) return;
+    setItems((current) => current.map((item, index) => (
+      index < multiplayerInitialProgress ? { ...item, guessed: true } : item
+    )));
+    if (multiplayerGameEnded) {
+      setStarted(false);
+      setFinished(true);
+    }
+  }, [multiplayerGameEnded, multiplayerInitialProgress]);
 
   const getSkinImageClassName = (cardLabel: string) => {
     const classes = ['h-full w-full object-contain transition duration-300'];
@@ -397,7 +409,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
           setItems(shuffle(data));
         }
       } catch (error) {
-        console.error('Failed to fetch daily skin set', error);
+        console.error('Failed to fetch randomized skin set', error);
       } finally {
         setHasLoadedOnce(true);
       }
@@ -432,14 +444,6 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }, 1000);
     return () => window.clearInterval(interval);
   }, [countdown, finished, started]);
-
-  useEffect(() => {
-    const getNextReset = () => setTimeToNextSet(getNextUtcResetLabel());
-
-    getNextReset();
-    const interval = window.setInterval(getNextReset, 1000);
-    return () => window.clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (!started || activeIndex === 0) {
@@ -510,11 +514,11 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       setPendingConfirmedGuess('');
       setFinished(true);
       setStarted(false);
-      multiplayer?.onProgress(activeIndex + 1, totalTime, true);
+      multiplayer?.onProgress(activeIndex + 1, totalTime, 'completed');
       return;
     }
 
-    multiplayer?.onProgress(activeIndex + 1, totalTime, false);
+    multiplayer?.onProgress(activeIndex + 1, totalTime, 'active');
 
     setSuccessFlash(true);
     window.setTimeout(() => setSuccessFlash(false), 260);
@@ -542,7 +546,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       setStarted(false);
       setStatus('incorrect');
       setPenaltyMessage('Game Over');
-      multiplayer?.onProgress(activeIndex, totalTime, true);
+      multiplayer?.onProgress(activeIndex, totalTime, 'failed');
       return;
     }
 
@@ -638,25 +642,30 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
               </Link>
             )}
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{multiplayer ? 'Multiplayer Game' : 'Single Player Game'}</p>
               <h1 className="text-xl font-semibold text-white">Skin Champion</h1>
               <p className="mt-1 text-xs text-slate-400">
-                {multiplayerRaceEndedEarly
-                  ? 'Race ended'
-                  : failed
+                {failed
                   ? 'Game over'
+                  : multiplayerRaceEndedEarly
+                  ? ''
                   : finished
                   ? shouldHideTimers
                     ? 'Completed'
                     : `Completed in ${formatSeconds(totalTime)}`
                   : multiplayer
                     ? 'Multiplayer race in progress'
-                    : `Daily set resets in ${timeToNextSet}`}
+                    : ''}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <GameInfoMenu title="Skin Champion" steps={[
+              'Identify the skin splash art and submit its exact skin name.',
+              'Use hints and autocomplete when the selected difficulty allows them.',
+              multiplayer ? 'Finish the shared randomized set before your opponents.' : 'Complete the randomized set as quickly as possible.',
+            ]} />
             <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
               <Flame size={16} className="text-amber-300" />
               {playerStats.currentStreak} day streak
@@ -969,7 +978,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
           <section className="relative z-0 mt-8 rounded-3xl border border-white/10 bg-slate-950/70 p-6">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
-              <span className="text-xs text-slate-500">{completedProgressCount}/{items.length}</span>
+              <div className="flex items-center gap-3">
+                {multiplayerGameEnded ? <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">Race Ended</span> : null}
+                <span className="text-xs text-slate-500">{completedProgressCount}/{items.length}</span>
+              </div>
             </div>
             <div ref={progressContainerRef} className="grid max-h-72 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((item, index) => {

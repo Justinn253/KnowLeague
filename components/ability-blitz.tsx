@@ -14,7 +14,6 @@ import {
 import {
   formatSeconds,
   getAbilityKeyLabel,
-  getNextUtcResetLabel,
   normalizeAnswer,
   PENALTY_TIMES_SECONDS,
   shuffle,
@@ -22,6 +21,7 @@ import {
   type QuizItem,
 } from '@/lib/quiz';
 import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
+import { GameInfoMenu } from '@/components/game-info-menu';
 
 const placeholderItems: QuizItem[] = [
   {
@@ -353,7 +353,6 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [failed, setFailed] = useState(false);
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
-  const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
   const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
   const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('ability-blitz'));
   const progressSectionRef = useRef<HTMLDivElement | null>(null);
@@ -368,6 +367,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const previousItem = items[activeIndex - 1];
   const configurationLocked = started || countdown !== null;
   const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
+  const multiplayerGameEnded = multiplayer?.gameEnded ?? false;
+  const multiplayerInitialProgress = multiplayer?.initialProgress;
   const selectedDifficultyName = difficulties.find((difficulty) => difficulty.id === selectedDifficulty)?.name;
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
   const selectedAbilitySlotCount = Object.values(selectedAbilitySlots).filter(Boolean).length;
@@ -415,11 +416,27 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     () =>
       items.map((item, index) => ({
         ...item,
-        state: index === activeIndex ? 'current' : index < activeIndex ? 'completed' : 'pending',
+        state: item.guessed || index < activeIndex
+          ? 'completed'
+          : index === activeIndex && !finished
+            ? 'current'
+            : 'pending',
       })),
-    [items, activeIndex],
+    [items, activeIndex, finished],
   );
   const completedProgressCount = progressList.filter((item) => item.state === 'completed').length;
+
+  useEffect(() => {
+    if (multiplayerInitialProgress === undefined) return;
+    setItems((current) => current.map((item, index) => (
+      index < multiplayerInitialProgress ? { ...item, guessed: true } : item
+    )));
+    if (multiplayerGameEnded) {
+      setStarted(false);
+      setPaused(false);
+      setFinished(true);
+    }
+  }, [multiplayerGameEnded, multiplayerInitialProgress]);
 
   useEffect(() => {
     if (!started || paused || countdown !== null || finished) {
@@ -448,11 +465,15 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setPendingConfirmedGuess('');
     setTimeUntilOptions(difficultyRule.hintDelaySeconds ?? 0);
 
-    const answerPool = filteredAnswers.length ? filteredAnswers : items.map((item) => item.answer);
+    const answerPool = categoryAnswers['all']?.length
+      ? categoryAnswers['all']
+      : filteredAnswers.length
+        ? filteredAnswers
+        : items.map((item) => item.answer);
 
     const wrongAnswers = shuffle(answerPool.filter((answer) => answer !== currentItem.answer)).slice(0, 9);
     setOptions(shuffle([currentItem.answer, ...wrongAnswers]));
-  }, [currentItem, items, filteredAnswers, difficultyRule.hintDelaySeconds]);
+  }, [currentItem, items, filteredAnswers, difficultyRule.hintDelaySeconds, categoryAnswers]);
 
   useEffect(() => {
     if (!started || paused || countdown !== null || !currentItem || showOptions || hintsDisabled) {
@@ -609,10 +630,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const filteredData = filterItemsByAbilitySlots(data, selectedAbilitySlots);
-          setItems(shuffle(filteredData.length ? filteredData : data));
+          setItems(shuffle(filteredData.length ? filteredData : data).slice(0, 50));
         }
       } catch (err) {
-        console.error('Failed to fetch daily set', err);
+        console.error('Failed to fetch randomized ability set', err);
       } finally {
         setHasLoadedOnce(true);
       }
@@ -643,7 +664,9 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
-    currentProgressItemRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const container = progressSectionRef.current;
+    const item = currentProgressItemRef.current;
+    container.scrollTo({ top: Math.max(0, item.offsetTop - container.offsetTop - 8), behavior: 'smooth' });
   }, [activeIndex]);
 
   useEffect(() => {
@@ -719,7 +742,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     window.setTimeout(() => setSuccessFlash(false), 700);
 
     const isFinalItem = activeIndex >= items.length - 1;
-    multiplayer?.onProgress(activeIndex + 1, completedAt, isFinalItem);
+    multiplayer?.onProgress(activeIndex + 1, completedAt, isFinalItem ? 'completed' : 'active');
     if (isFinalItem) {
       setFinished(true);
       setStarted(false);
@@ -744,7 +767,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       setPauseQueued(false);
       setStatus('incorrect');
       setPenaltyMessage('Game Over');
-      multiplayer?.onProgress(activeIndex, totalTime, true);
+      multiplayer?.onProgress(activeIndex, totalTime, 'failed');
       return;
     }
 
@@ -822,16 +845,6 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setSuggestions([]);
     submitGuess(suggestion);
   };
-
-  useEffect(() => {
-    const getNextReset = () => {
-      setTimeToNextSet(getNextUtcResetLabel());
-    };
-
-    getNextReset();
-    const interval = window.setInterval(getNextReset, 1000);
-    return () => window.clearInterval(interval);
-  }, []);
 
   const handleTogglePlay = () => {
     if (multiplayer) {
@@ -920,25 +933,30 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               </Link>
             )}
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{multiplayer ? 'Multiplayer Game' : 'Single Player Game'}</p>
               <h1 className="text-xl font-semibold text-white">Ability Blitz</h1>
               <p className="mt-1 text-xs text-slate-400">
-                {multiplayerRaceEndedEarly
-                  ? 'Race ended'
-                  : failed
+                {failed
                   ? 'Game over'
+                  : multiplayerRaceEndedEarly
+                  ? ''
                   : finished
                   ? shouldHideTimers
                     ? 'Completed'
                     : `Completed in ${formatSeconds(totalTime)}`
                   : multiplayer
                     ? 'Multiplayer race in progress'
-                    : `Daily set resets in ${timeToNextSet}`}
+                    : ''}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <GameInfoMenu title="Ability Blitz" steps={[
+              'Identify the ability shown and submit its exact name.',
+              'Correct answers advance through the randomized set; difficulty controls hints and penalties.',
+              multiplayer ? 'Finish the shared set before your opponents.' : 'Complete the set as quickly as possible.',
+            ]} />
             <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
               <Flame size={16} className="text-amber-300" />
               {playerStats.currentStreak} day streak
@@ -1363,7 +1381,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
           <div className="mt-8 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
-              <span className="text-xs text-slate-500">{completedProgressCount}/{progressList.length}</span>
+              <div className="flex items-center gap-3">
+                {multiplayerGameEnded ? <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">Race Ended</span> : null}
+                <span className="text-xs text-slate-500">{completedProgressCount}/{progressList.length}</span>
+              </div>
             </div>
             <div ref={progressSectionRef} className="max-h-[22rem] overflow-y-auto scroll-smooth pr-2">
               <div className="grid gap-3 lg:grid-cols-4">
@@ -1379,7 +1400,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     <div
                       key={item.id}
                       ref={item.state === 'current' ? currentProgressItemRef : undefined}
-                      className={`rounded-3xl border p-4 transition ${itemClass}`}
+                      className={`relative min-h-28 overflow-hidden rounded-3xl border p-4 pr-16 transition ${itemClass}`}
                     >
                       <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-100">
                         <span>{item.guessed ? item.answer : '???'}</span>
@@ -1404,6 +1425,15 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                           ? 'Completed'
                           : 'TBD - TBD'}
                       </p>
+                      {item.imageUrl ? (
+                        <Image
+                          src={item.imageUrl}
+                          alt=""
+                          width={44}
+                          height={44}
+                          className={`absolute bottom-3 right-3 h-11 w-11 rounded-xl border border-white/10 object-cover ${item.state === 'pending' ? 'blur-sm brightness-50' : ''}`}
+                        />
+                      ) : null}
                     </div>
                   );
                 })}

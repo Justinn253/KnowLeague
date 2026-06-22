@@ -33,6 +33,11 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 - The host owns pre-match settings and lobby management. UI role labels must reflect the authoritative `host_player_id`.
 - A lobby terminates when no connected members remain. Termination clears public visibility and active player references; stale clients return to the main game hub.
 - Presence uses the shared timing constants and lifecycle resolver in `lib/multiplayer-lifecycle.ts`. Heartbeat intervals must remain comfortably below the stale threshold.
+- An active player who disconnects has a server-authoritative 60-second reconnect window. The lobby code stored in the browser is only a pointer used to request eligibility; the server decides whether rejoin is allowed and preserves game progress.
+- Spectators do not receive reconnect windows. If no active players remain, terminate immediately. When a reconnect window expires, resolve that player as disconnected and finish the match when only one active player remains.
+- Multiplayer create/join screens must show an eligible rejoin action above public discovery and active game views must display the reconnect deadline for disconnected players.
+- All game screens must render player disconnects with `MultiplayerDisconnectStatus` from `components/multiplayer-reconnect.tsx`. The shared component owns disconnect/expired icons, wording, timers, and visual states; do not recreate or override them per game.
+- Creating or joining a different multiplayer lobby forfeits outstanding reconnect windows across every game mode and publishes a realtime lobby event so remaining players see the result immediately.
 - Public discovery is manual-refresh and bounded. Joined-lobby state changes use scoped Realtime events.
 - New multiplayer games must adopt this contract unless their documented game rules require a deliberate exception.
 

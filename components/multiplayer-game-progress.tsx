@@ -1,9 +1,10 @@
 'use client';
 
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Check, WifiOff, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import type { QuizItem } from '@/lib/quiz';
 import type { MultiplayerQuizDifficulty, MultiplayerQuizPlayerResult, MultiplayerQuizPublicPlayer } from '@/lib/multiplayer-quiz';
+import { MultiplayerDisconnectStatus } from '@/components/multiplayer-reconnect';
 
 export type MultiplayerGameRuntime = {
   items: QuizItem[];
@@ -86,6 +87,19 @@ export function MultiplayerGameProgress({
           const placement = placements.get(player.id);
           const won = player.id === winnerId;
           const flashing = flashingPlayerIds.has(player.id);
+          if (!completed && !player.connected && player.disconnected_at) {
+            return (
+              <MultiplayerDisconnectStatus
+                key={player.id}
+                playerName={player.display_name}
+                disconnectedAt={player.disconnected_at}
+                unavailable={player.result !== 'active'}
+              >
+                <span>{player.progress}/{totalItems}</span>
+                <span className="font-mono text-slate-400">{formatRaceTime(player.elapsed_seconds)}</span>
+              </MultiplayerDisconnectStatus>
+            );
+          }
           const content = (
             <div className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors duration-200 ${
               flashing
@@ -102,7 +116,6 @@ export function MultiplayerGameProgress({
             }`}>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-white">{player.display_name}</p>
-                {!player.connected && !player.finished_at ? <p className="mt-0.5 text-[0.65rem] uppercase tracking-[0.16em] text-slate-500">Disconnected</p> : null}
                 {placement ? <p className="mt-0.5 text-xs font-semibold text-emerald-300">{formatPlace(placement)} place</p> : null}
                 {failed ? <p className="mt-0.5 text-xs font-semibold text-red-300">Did not finish</p> : null}
               </div>
@@ -111,7 +124,6 @@ export function MultiplayerGameProgress({
                 <span className="font-mono text-slate-400">{formatRaceTime(player.elapsed_seconds)}</span>
                 {completed ? <Check size={17} className="text-emerald-300" /> : null}
                 {failed ? <X size={17} className="text-red-300" /> : null}
-                {!player.connected && !player.finished_at ? <WifiOff size={17} className="text-slate-500" aria-label="Disconnected" /> : null}
               </div>
             </div>
           );

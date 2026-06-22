@@ -1,7 +1,8 @@
 import { getSkinCatalog } from '@/lib/catalogs';
 import { normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
-import { MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
+import { canReconnect, getReconnectDeadline, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
+import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 
 export type SkincognitoCategoryId = 'skin' | 'champion' | 'skinLine' | 'releaseYear' | 'rarity' | 'gender' | 'role' | 'race';
 export type SkincognitoLobbyStatus = 'waiting' | 'active' | 'finished' | 'terminated';
@@ -117,7 +118,6 @@ type SubmitActionInput = {
 const LOBBY_CODE_LENGTH = 6;
 const MAX_LOBBY_PLAYERS = 10;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
-const RECONNECT_GRACE_MS = 60_000;
 
 function assertSupabaseConfigured() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -529,6 +529,21 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
 
   const lifecycle = resolveMultiplayerLifecycle(players, nextLobby.host_player_id);
   const connectedPlayers = players.filter((player) => lifecycle.connectedMemberIds.includes(player.id));
+  const activePlayerIds = [nextLobby.player_one_id, nextLobby.player_two_id].filter((id): id is string => Boolean(id));
+  const connectedActivePlayers = players.filter((player) => activePlayerIds.includes(player.id) && player.connected);
+  if (nextLobby.status === 'active' && connectedActivePlayers.length === 0) {
+    const terminatedLobby = await updateLobby(lobby.id, {
+      status: 'terminated',
+      host_player_id: null,
+      player_one_id: null,
+      player_two_id: null,
+      current_turn_player_id: null,
+      is_public: false,
+      terminated_at: new Date().toISOString(),
+    });
+    await addLobbyEvent(lobby.id, 'lobby_terminated');
+    return terminatedLobby;
+  }
   if (lifecycle.shouldTerminate) {
     const terminatedLobby = await updateLobby(lobby.id, {
       status: 'terminated',
@@ -620,42 +635,24 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
   }
 
   if (nextLobby.status === 'active' && nextLobby.player_one_id && nextLobby.player_two_id) {
-    const activePlayerIds = [nextLobby.player_one_id, nextLobby.player_two_id];
     const expiredPlayer = players.find((player) => {
       if (!activePlayerIds.includes(player.id) || player.connected || !player.disconnected_at) {
         return false;
       }
 
-      return Date.now() - new Date(player.disconnected_at).getTime() > RECONNECT_GRACE_MS;
+      return !canReconnect(player.disconnected_at);
     });
 
     if (expiredPlayer) {
-      const replacement = connectedPlayers.find((player) => player.role === 'spectator');
-      if (replacement) {
-        const promotedColumn = expiredPlayer.id === nextLobby.player_one_id ? 'player_one_id' : 'player_two_id';
-        const { error } = await getSupabaseServiceClient()
-          .from('skincognito_players')
-          .update({ role: expiredPlayer.role })
-          .eq('id', replacement.id);
-
-        if (error) {
-          throw error;
-        }
-
-        nextLobby = await updateLobby(nextLobby.id, {
-          [promotedColumn]: replacement.id,
-          current_turn_player_id: nextLobby.current_turn_player_id === expiredPlayer.id ? replacement.id : nextLobby.current_turn_player_id,
-        } as Partial<SkincognitoLobbyRecord>);
-        await addSystemMessage(nextLobby.id, `${replacement.display_name} replaced a disconnected player.`, replacement.id);
-      } else {
-        const winnerId = activePlayerIds.find((playerId) => playerId !== expiredPlayer.id) ?? null;
-        nextLobby = await updateLobby(nextLobby.id, {
-          status: 'finished',
-          winner_player_id: winnerId,
-          finished_at: new Date().toISOString(),
-        });
-        await addSystemMessage(nextLobby.id, 'A player disconnected and did not return in time.');
-      }
+      const winnerId = connectedActivePlayers[0]?.id ?? null;
+      nextLobby = await updateLobby(nextLobby.id, {
+        status: 'finished',
+        winner_player_id: winnerId,
+        current_turn_player_id: null,
+        finished_at: new Date().toISOString(),
+      });
+      await addSystemMessage(nextLobby.id, 'A player disconnected and did not return in time.');
+      await addLobbyEvent(nextLobby.id, 'game_finished');
     }
   }
 
@@ -664,6 +661,7 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
 
 export async function createSkincognitoLobby(input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await forfeitOutstandingReconnects(input.clientId);
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const code = generateLobbyCode();
@@ -697,6 +695,7 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
   if (!lobby || lobby.status === 'terminated') {
     throw new Error('Lobby is not available.');
   }
+  await forfeitOutstandingReconnects(input.clientId, { skincognitoLobbyId: lobby.id });
 
   const reconciledLobby = await reconcileLobby(lobby);
   if (reconciledLobby.status === 'finished' || reconciledLobby.status === 'terminated') {
@@ -714,6 +713,27 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
     throw new Error('Lobby is full.');
   }
 
+  if (existingPlayer && reconciledLobby.status === 'active') {
+    const isActivePlayer = existingPlayer.id === reconciledLobby.player_one_id || existingPlayer.id === reconciledLobby.player_two_id;
+    if (!isActivePlayer || existingPlayer.role === 'spectator' || (!existingPlayer.connected && !canReconnect(existingPlayer.disconnected_at))) {
+      throw new Error('This player cannot rejoin the active game.');
+    }
+    const now = new Date().toISOString();
+    const { error } = await getSupabaseServiceClient()
+      .from('skincognito_players')
+      .update({
+        auth_user_id: input.authUserId ?? existingPlayer.auth_user_id,
+        display_name: sanitizeDisplayName(input.displayName),
+        connected: true,
+        last_seen_at: now,
+        disconnected_at: null,
+      })
+      .eq('id', existingPlayer.id);
+    if (error) throw error;
+    await addLobbyEvent(reconciledLobby.id, 'player_reconnected');
+    return getLobbyView(reconciledLobby, input.clientId);
+  }
+
   const role: SkincognitoPlayerRole =
     existingPlayer?.role ?? (reconciledLobby.status === 'waiting' && !reconciledLobby.player_two_id ? 'opponent' : 'spectator');
   const player = await upsertPlayer(reconciledLobby, input, role);
@@ -724,6 +744,24 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
 
   await addLobbyEvent(updatedLobby.id, 'player_joined');
   return getLobbyView(updatedLobby, input.clientId);
+}
+
+export async function getSkincognitoRejoinEligibility(code: string, clientId: string) {
+  const lobby = await fetchLobbyByCode(code);
+  if (!lobby) return { eligible: false as const };
+  const reconciledLobby = await reconcileLobby(lobby);
+  if (reconciledLobby.status !== 'active') return { eligible: false as const };
+  const players = await fetchPlayers(reconciledLobby.id);
+  const player = players.find((candidate) => candidate.client_id === clientId);
+  const isActivePlayer = player && (player.id === reconciledLobby.player_one_id || player.id === reconciledLobby.player_two_id);
+  if (!player || !isActivePlayer || player.role === 'spectator' || player.connected || !canReconnect(player.disconnected_at)) {
+    return { eligible: false as const };
+  }
+  return {
+    eligible: true as const,
+    code: reconciledLobby.code,
+    expiresAt: new Date(getReconnectDeadline(player.disconnected_at as string)).toISOString(),
+  };
 }
 
 export async function listPublicSkincognitoLobbies() {
@@ -1198,6 +1236,16 @@ export async function heartbeatSkincognitoPlayer(code: string, clientId: string,
   const lobby = await fetchLobbyByCode(code);
   if (!lobby || lobby.status === 'terminated') {
     throw new Error('Lobby is not available.');
+  }
+
+  const players = await fetchPlayers(lobby.id);
+  const player = players.find((candidate) => candidate.client_id === clientId);
+  if (!player) throw new Error('Player not found.');
+  if (connected && lobby.status === 'active' && !player.connected) {
+    const isActivePlayer = player.id === lobby.player_one_id || player.id === lobby.player_two_id;
+    if (!isActivePlayer || player.role === 'spectator' || !canReconnect(player.disconnected_at)) {
+      throw new Error('The reconnect window has expired.');
+    }
   }
 
   const now = new Date().toISOString();

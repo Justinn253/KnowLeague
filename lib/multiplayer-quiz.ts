@@ -1,7 +1,13 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { getAbilityCatalog, getSkinCatalog } from '@/lib/catalogs';
 import { shuffle, type QuizItem } from '@/lib/quiz';
-import { MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
+import {
+  canReconnect,
+  getReconnectDeadline,
+  MULTIPLAYER_STALE_AFTER_MS,
+  resolveMultiplayerLifecycle,
+} from '@/lib/multiplayer-lifecycle';
+import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 
 export type MultiplayerQuizGameMode = 'ability_blitz' | 'skin_champion';
 export type MultiplayerQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
@@ -229,8 +235,40 @@ async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {
     return nextLobby;
   }
 
-  const allCurrentPlayersFinished = connectedPlayers.every((player) => Boolean(player.finished_at));
-  if (allCurrentPlayersFinished) {
+  if (connectedPlayers.length === 0) {
+    const now = new Date().toISOString();
+    const { data, error } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_lobbies')
+      .update({ status: 'terminated', host_player_id: null, is_public: false, terminated_at: now, updated_at: now })
+      .eq('id', nextLobby.id)
+      .select('*')
+      .single<MultiplayerQuizLobby>();
+    if (error) throw error;
+    await addLobbyEvent(lobby.id, 'lobby_terminated');
+    return data;
+  }
+
+  const expiredPlayers = players.filter((player) => (
+    player.result === 'active' && !player.connected && player.disconnected_at && !canReconnect(player.disconnected_at)
+  ));
+  if (expiredPlayers.length > 0) {
+    const now = new Date().toISOString();
+    const { error } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_players')
+      .update({ result: 'failed', finished_at: now, updated_at: now })
+      .in('id', expiredPlayers.map((player) => player.id));
+    if (error) throw error;
+    players = await fetchPlayers(lobby.id);
+    await addLobbyEvent(lobby.id, 'reconnect_window_expired');
+  }
+
+  const pendingReconnect = players.some((player) => (
+    player.result === 'active' && !player.connected && canReconnect(player.disconnected_at)
+  ));
+  const activeConnectedPlayers = players.filter((player) => player.connected && player.result === 'active');
+  const allPlayersResolved = players.every((player) => player.result !== 'active');
+  const shouldFinish = !pendingReconnect && (allPlayersResolved || (expiredPlayers.length > 0 && activeConnectedPlayers.length === 1));
+  if (shouldFinish) {
     const now = new Date().toISOString();
     const { data, error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_lobbies')
@@ -299,6 +337,7 @@ async function insertPlayer(lobby: MultiplayerQuizLobby, input: CreateOrJoinInpu
 
 export async function createMultiplayerQuizLobby(input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await forfeitOutstandingReconnects(input.clientId);
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const { data: lobby, error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_lobbies')
@@ -336,8 +375,9 @@ export async function joinMultiplayerQuizLobby(code: string, input: CreateOrJoin
   if (!fetchedLobby || fetchedLobby.status === 'terminated' || fetchedLobby.game_mode !== input.gameMode) {
     throw new Error('Lobby not found.');
   }
+  await forfeitOutstandingReconnects(input.clientId, { multiplayerQuizLobbyId: fetchedLobby.id });
   const lobby = await reconcileMultiplayerQuizLobby(fetchedLobby);
-  if (lobby.status === 'terminated') throw new Error('Lobby not found.');
+  if (lobby.status === 'finished' || lobby.status === 'terminated') throw new Error('Lobby not found.');
 
   const players = await fetchPlayers(lobby.id);
   const bannedClientIds = await fetchBannedClientIds(lobby.id);
@@ -346,6 +386,12 @@ export async function joinMultiplayerQuizLobby(code: string, input: CreateOrJoin
   }
   const existingPlayer = players.find((player) => player.client_id === input.clientId);
   if (existingPlayer) {
+    if (lobby.status === 'active' && (
+      existingPlayer.result !== 'active' ||
+      (!existingPlayer.connected && !canReconnect(existingPlayer.disconnected_at))
+    )) {
+      throw new Error('This player cannot rejoin the active game.');
+    }
     const now = new Date().toISOString();
     const { error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_players')
@@ -374,6 +420,23 @@ export async function joinMultiplayerQuizLobby(code: string, input: CreateOrJoin
   await insertPlayer(lobby, input, 'player');
   await addLobbyEvent(lobby.id, 'player_joined');
   return getLobbyView(lobby, input.clientId);
+}
+
+export async function getMultiplayerQuizRejoinEligibility(code: string, clientId: string) {
+  const lobby = await fetchLobby(code);
+  if (!lobby) return { eligible: false as const };
+  const reconciledLobby = await reconcileMultiplayerQuizLobby(lobby);
+  if (reconciledLobby.status !== 'active') return { eligible: false as const };
+  const players = await fetchPlayers(reconciledLobby.id);
+  const player = players.find((candidate) => candidate.client_id === clientId);
+  if (!player || player.connected || player.result !== 'active' || !canReconnect(player.disconnected_at)) {
+    return { eligible: false as const };
+  }
+  return {
+    eligible: true as const,
+    code: reconciledLobby.code,
+    expiresAt: new Date(getReconnectDeadline(player.disconnected_at as string)).toISOString(),
+  };
 }
 
 export async function getMultiplayerQuizLobby(code: string, clientId?: string | null) {
@@ -476,6 +539,12 @@ export async function heartbeatMultiplayerQuizPlayer(code: string, clientId: str
   const lobby = await fetchLobby(code);
   if (!lobby || lobby.status === 'terminated') {
     throw new Error('Lobby not found.');
+  }
+  const players = await fetchPlayers(lobby.id);
+  const player = players.find((candidate) => candidate.client_id === clientId);
+  if (!player) throw new Error('Player not found.');
+  if (connected && lobby.status === 'active' && !player.connected && !canReconnect(player.disconnected_at)) {
+    throw new Error('The reconnect window has expired.');
   }
   const now = new Date().toISOString();
   const { error } = await getSupabaseServiceClient()

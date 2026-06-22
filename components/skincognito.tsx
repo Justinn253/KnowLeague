@@ -5,6 +5,7 @@ import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Search, Users } f
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
+import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -261,6 +262,7 @@ export function Skincognito() {
   const [codeRevealed, setCodeRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<SkincognitoPublicLobby[]>([]);
+  const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const skinSearchRef = useRef<HTMLDivElement>(null);
   const guessSearchRef = useRef<HTMLDivElement>(null);
   const guessesScrollRef = useRef<HTMLDivElement>(null);
@@ -281,9 +283,9 @@ export function Skincognito() {
       requestingPlayer.role !== 'spectator' &&
       lobbyView?.lobby.status === 'waiting',
   );
-  const activePlayers = lobbyView
+  const activePlayers = useMemo(() => lobbyView
     ? lobbyView.players.filter((player) => player.id === lobbyView.lobby.player_one_id || player.id === lobbyView.lobby.player_two_id)
-    : [];
+    : [], [lobbyView]);
   const spectatorCount = lobbyView ? lobbyView.players.length - activePlayers.length : 0;
   const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2);
   const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
@@ -393,7 +395,12 @@ export function Skincognito() {
     }
     hasRequestingPlayerRef.current = Boolean(view.requestingPlayer);
     setLobbyView(view);
-    window.localStorage.setItem(LOBBY_STORAGE_KEY, view.lobby.code);
+    setRejoinCandidate(null);
+    if (view.lobby.status === 'waiting' || view.lobby.status === 'active') {
+      window.localStorage.setItem(LOBBY_STORAGE_KEY, view.lobby.code);
+    } else {
+      window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+    }
 
     if (view.requestingPlayer?.display_name && !nameDraftDirtyRef.current) {
       setDisplayName(view.requestingPlayer.display_name);
@@ -517,17 +524,32 @@ export function Skincognito() {
       });
 
     const reconnectCode = new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '';
+    if (nextClientId && !reconnectCode) {
+      const storedCode = window.localStorage.getItem(LOBBY_STORAGE_KEY);
+      if (storedCode) {
+        fetch(`/api/skincognito/lobbies/${storedCode}/rejoin?clientId=${encodeURIComponent(nextClientId)}`)
+          .then((response) => response.json())
+          .then((eligibility: ReconnectCandidate & { eligible: boolean }) => {
+            if (eligibility.eligible) {
+              setRejoinCandidate({ code: eligibility.code, expiresAt: eligibility.expiresAt });
+            } else {
+              window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+            }
+          })
+          .catch(() => window.localStorage.removeItem(LOBBY_STORAGE_KEY));
+      }
+    }
     if (nextClientId && reconnectCode) {
       setJoinCode(reconnectCode);
       fetch(`/api/skincognito/lobbies/${reconnectCode}?clientId=${nextClientId}`)
         .then((response) => response.json())
         .then(async (data) => {
-          if (!data.error && data.requestingPlayer) {
+          if (!data.error && data.requestingPlayer && (data.lobby.status !== 'active' || data.requestingPlayer.connected)) {
             updateLobbyView(data);
             return;
           }
 
-          if (!data.error && reconnectCode) {
+          if (!data.error && reconnectCode && (!data.requestingPlayer || data.requestingPlayer.role !== 'spectator')) {
             let joinAuthUserId: string | null = null;
             let joinDisplayName = storedName;
             const authData = await supabase?.auth.getSession();
@@ -565,6 +587,13 @@ export function Skincognito() {
             return;
           }
 
+          if (!data.error && data.requestingPlayer?.role === 'spectator') {
+            window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+            setMessage('Spectators cannot rejoin a game in progress.');
+            window.history.replaceState(null, '', '/skincognito');
+            return;
+          }
+
           if (!data.error) {
             window.localStorage.removeItem(LOBBY_STORAGE_KEY);
           }
@@ -572,6 +601,17 @@ export function Skincognito() {
         .catch(() => undefined);
     }
   }, [updateLobbyView]);
+
+  useEffect(() => {
+    if (!lobbyView || !clientId || lobbyView.lobby.status !== 'active') return undefined;
+    const deadlines = activePlayers
+      .filter((player) => !player.connected && player.disconnected_at)
+      .map((player) => new Date(player.disconnected_at as string).getTime() + 60_000);
+    if (deadlines.length === 0) return undefined;
+    const delay = Math.max(0, Math.min(...deadlines) - Date.now() + 150);
+    const timeout = window.setTimeout(() => void refreshLobbyView(lobbyView.lobby.code, clientId), delay);
+    return () => window.clearTimeout(timeout);
+  }, [activePlayers, clientId, lobbyView, refreshLobbyView]);
 
   useEffect(() => {
     const code = lobbyView?.lobby.code;
@@ -856,15 +896,12 @@ export function Skincognito() {
     const code = lobbyView.lobby.code;
     isLeavingLobbyRef.current = true;
     latestLobbyRef.current = null;
-    window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+    if (wasWaiting) window.localStorage.removeItem(LOBBY_STORAGE_KEY);
     setLobbyView(null);
     setSelectedSkin(null);
     setSkinQuery('');
     setGuessQuery('');
     setMessage('');
-    if (wasWaiting) router.push('/');
-    else window.history.replaceState(null, '', '/skincognito');
-
     if (clientId) {
       const endpoint = wasWaiting ? 'leave' : 'heartbeat';
       await fetch(`/api/skincognito/lobbies/${code}/${endpoint}`, {
@@ -873,6 +910,7 @@ export function Skincognito() {
         body: JSON.stringify({ clientId, ...(wasWaiting ? {} : { connected: false }) }),
       }).catch(() => undefined);
     }
+    router.push('/');
   };
 
   const kickPlayer = (targetPlayerId: string) => {
@@ -1091,6 +1129,17 @@ export function Skincognito() {
 
           {!lobbyView ? (
             <div className="mx-auto mt-8 max-w-3xl border-t border-white/10 pt-6 text-left">
+              {rejoinCandidate ? (
+                <ReconnectButton
+                  candidate={rejoinCandidate}
+                  disabled={busy}
+                  onReconnect={() => void joinLobbyByCode(rejoinCandidate.code)}
+                  onExpire={() => {
+                    window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+                    setRejoinCandidate(null);
+                  }}
+                />
+              ) : null}
               <div className="flex items-center justify-between gap-3">
                 <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p><p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p></div>
                 <button type="button" onClick={() => void loadPublicLobbies()} disabled={busy} title="Refresh public lobbies" aria-label="Refresh public lobbies" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60">
@@ -1307,6 +1356,19 @@ export function Skincognito() {
                     {requestingPlayer?.role === 'spectator' ? 'Spectating' : canSubmitAction ? 'Your turn' : 'Waiting'}
                   </div>
                 </div>
+
+                {activePlayers.some((player) => !player.connected && player.disconnected_at) ? (
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {activePlayers.filter((player) => !player.connected && player.disconnected_at).map((player) => (
+                      <MultiplayerDisconnectStatus
+                        key={player.id}
+                        playerName={player.display_name}
+                        disconnectedAt={player.disconnected_at as string}
+                        unavailable={lobbyView.lobby.status === 'finished'}
+                      />
+                    ))}
+                  </div>
+                ) : null}
 
                 <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
                   {CATEGORY_DEFINITIONS.map((category) => {

@@ -5,6 +5,15 @@ export type MultiplayerLifecycleMember = {
 
 export const MULTIPLAYER_HEARTBEAT_INTERVAL_MS = 15_000;
 export const MULTIPLAYER_STALE_AFTER_MS = 45_000;
+export const MULTIPLAYER_RECONNECT_GRACE_MS = 60_000;
+
+export function getReconnectDeadline(disconnectedAt: string) {
+  return new Date(disconnectedAt).getTime() + MULTIPLAYER_RECONNECT_GRACE_MS;
+}
+
+export function canReconnect(disconnectedAt: string | null, now = Date.now()) {
+  return Boolean(disconnectedAt && now < getReconnectDeadline(disconnectedAt));
+}
 
 export type MultiplayerLifecycleResolution = {
   connectedMemberIds: string[];

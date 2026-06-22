@@ -8,6 +8,7 @@ import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { AbilityBlitz } from '@/components/ability-blitz';
 import { SkinChampion } from '@/components/skin-champion';
 import { MultiplayerGameProgress } from '@/components/multiplayer-game-progress';
+import { ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
@@ -64,6 +65,8 @@ const configs: Record<MultiplayerQuizGameMode, MultiplayerQuizConfig> = {
   },
 };
 
+const getLobbyStorageKey = (gameMode: MultiplayerQuizGameMode) => `knowleague:v1:multiplayer:${gameMode}:lobby-code`;
+
 async function readResponse(response: Response) {
   const data = await response.json();
   if (!response.ok) {
@@ -85,6 +88,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const [codeRevealed, setCodeRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<MultiplayerQuizPublicLobby[]>([]);
+  const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: MultiplayerQuizLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
 
@@ -105,6 +109,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const activeLobby = latestLobbyRef.current;
       if (!activeLobby) return;
       const endpoint = activeLobby.status === 'waiting' ? 'leave' : 'heartbeat';
+      if (endpoint === 'leave') window.localStorage.removeItem(getLobbyStorageKey(gameMode));
       const body = JSON.stringify({
         clientId: activeLobby.clientId,
         ...(endpoint === 'heartbeat' ? { connected: false } : {}),
@@ -118,12 +123,14 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     };
     window.addEventListener('pagehide', disconnectOnPageExit);
     return () => window.removeEventListener('pagehide', disconnectOnPageExit);
-  }, []);
+  }, [gameMode]);
 
   const applyView = useCallback((nextView: MultiplayerQuizLobbyView) => {
     if (isLeavingLobbyRef.current) return;
     if (nextView.lobby.status === 'terminated') {
       latestLobbyRef.current = null;
+      window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+      setRejoinCandidate(null);
       setView(null);
       router.replace('/');
       return;
@@ -136,12 +143,18 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       return;
     }
     setView(nextView);
+    setRejoinCandidate(null);
+    if (nextView.lobby.status === 'waiting' || nextView.lobby.status === 'active') {
+      window.localStorage.setItem(getLobbyStorageKey(gameMode), nextView.lobby.code);
+    } else {
+      window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+    }
     if (nextView.requestingPlayer?.display_name) {
       setDisplayName(nextView.requestingPlayer.display_name);
       savePlayerDisplayName(nextView.requestingPlayer.display_name);
     }
     window.history.replaceState(null, '', `${config.route}?code=${nextView.lobby.code}`);
-  }, [config.route, router]);
+  }, [config.route, gameMode, router]);
 
   const refreshLobby = useCallback(async (code: string, activeClientId: string) => {
     if (isLeavingLobbyRef.current) return;
@@ -204,6 +217,20 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
       const inviteCode = new URLSearchParams(window.location.search).get('code')?.trim().toUpperCase();
       if (!inviteCode) {
+        const storedCode = window.localStorage.getItem(getLobbyStorageKey(gameMode));
+        if (storedCode) {
+          try {
+            const response = await fetch(`/api/multiplayer/lobbies/${storedCode}/rejoin?clientId=${encodeURIComponent(nextClientId)}`);
+            const eligibility = await response.json() as ReconnectCandidate & { eligible: boolean };
+            if (eligibility.eligible && !cancelled) {
+              setRejoinCandidate({ code: eligibility.code, expiresAt: eligibility.expiresAt });
+            } else {
+              window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+            }
+          } catch {
+            window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+          }
+        }
         return;
       }
       setJoinCode(inviteCode);
@@ -279,6 +306,17 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     return () => window.clearInterval(interval);
   }, [connectedLobbyCode, applyView, clientId]);
 
+  useEffect(() => {
+    if (!view || !clientId || view.lobby.status !== 'active') return undefined;
+    const deadlines = view.players
+      .filter((player) => !player.connected && player.result === 'active' && player.disconnected_at)
+      .map((player) => new Date(player.disconnected_at as string).getTime() + 60_000);
+    if (deadlines.length === 0) return undefined;
+    const delay = Math.max(0, Math.min(...deadlines) - Date.now() + 150);
+    const timeout = window.setTimeout(() => void refreshLobby(view.lobby.code, clientId), delay);
+    return () => window.clearTimeout(timeout);
+  }, [clientId, refreshLobby, view]);
+
   const createLobby = async () => {
     if (!clientId) {
       return;
@@ -332,16 +370,19 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       return;
     }
     const code = view.lobby.code;
+    const wasWaiting = view.lobby.status === 'waiting';
     isLeavingLobbyRef.current = true;
     latestLobbyRef.current = null;
     setView(null);
     setMessage('');
     window.history.replaceState(null, '', config.route);
+    if (wasWaiting) window.localStorage.removeItem(getLobbyStorageKey(gameMode));
     await fetch(`/api/multiplayer/lobbies/${code}/leave`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId }),
     }).catch(() => undefined);
+    if (!wasWaiting) router.push('/');
   };
 
   const updateName = async (event: FormEvent<HTMLFormElement>) => {
@@ -517,6 +558,17 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                 </form>
               </div>
               <div className="mt-8 border-t border-white/10 pt-6">
+                {rejoinCandidate ? (
+                  <ReconnectButton
+                    candidate={rejoinCandidate}
+                    disabled={busy}
+                    onReconnect={() => void joinLobbyByCode(rejoinCandidate.code)}
+                    onExpire={() => {
+                      window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+                      setRejoinCandidate(null);
+                    }}
+                  />
+                ) : null}
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p>

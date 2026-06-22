@@ -12,6 +12,7 @@ import { ReconnectButton, type ReconnectCandidate } from '@/components/multiplay
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { GameSettingsSection } from '@/components/game-settings-section';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
 import type {
   MultiplayerQuizDifficulty,
@@ -83,7 +84,6 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const router = useRouter();
   const config = configs[gameMode];
   const [clientId, setClientId] = useState<string | null>(null);
-  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [view, setView] = useState<MultiplayerQuizLobbyView | null>(null);
   const [message, setMessage] = useState('');
@@ -94,6 +94,24 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: MultiplayerQuizLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
+
+  useMultiplayerAuthTransition(async () => {
+    const activeLobby = latestLobbyRef.current;
+    if (!activeLobby) return;
+
+    isLeavingLobbyRef.current = true;
+    latestLobbyRef.current = null;
+    window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+    setView(null);
+    setMessage('');
+    window.history.replaceState(null, '', config.route);
+    await fetch(`/api/multiplayer/lobbies/${activeLobby.code}/leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: activeLobby.clientId, forfeit: true }),
+    }).catch(() => undefined);
+    router.push('/');
+  });
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
   const selectedModifiers = useMemo(() => new Set(view?.lobby.modifiers ?? []), [view?.lobby.modifiers]);
@@ -194,16 +212,11 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         return;
       }
       setClientId(nextClientId);
-      let nextAuthUserId: string | null = null;
       const supabase = getOptionalSupabaseClient();
       const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
-      if (data.session) {
-        nextAuthUserId = data.session.user.id;
-      }
       if (cancelled) {
         return;
       }
-      setAuthUserId(nextAuthUserId);
 
       const inviteCode = new URLSearchParams(window.location.search).get('code')?.trim().toUpperCase();
       if (!inviteCode) {
@@ -228,12 +241,14 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       try {
         const response = await fetch('/api/multiplayer/lobbies/join', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {}),
+          },
           body: JSON.stringify({
             code: inviteCode,
             gameMode,
             clientId: nextClientId,
-            authUserId: nextAuthUserId,
           }),
         });
         applyView(await readResponse(response));
@@ -314,10 +329,14 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     isLeavingLobbyRef.current = false;
     setMessage('');
     try {
+      const { data } = await getOptionalSupabaseClient()?.auth.getSession() ?? { data: { session: null } };
       const response = await fetch('/api/multiplayer/lobbies', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameMode, clientId, authUserId }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ gameMode, clientId }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -335,10 +354,14 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     isLeavingLobbyRef.current = false;
     setMessage('');
     try {
+      const { data } = await getOptionalSupabaseClient()?.auth.getSession() ?? { data: { session: null } };
       const response = await fetch('/api/multiplayer/lobbies/join', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, gameMode, clientId, authUserId }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ code, gameMode, clientId }),
       });
       applyView(await readResponse(response));
     } catch (error) {

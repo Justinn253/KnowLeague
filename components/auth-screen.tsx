@@ -5,10 +5,12 @@ import { ArrowLeft, Eye, EyeOff, Mail, Shield, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isValidPassword, PasswordRequirements } from '@/components/password-requirements';
+import { getAuthSessionId } from '@/lib/auth-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type AuthMode = 'login' | 'signup' | 'password';
 type UsernameStatus = 'idle' | 'invalid' | 'checking' | 'available' | 'taken';
+type EmailDelivery = { type: 'signup' | 'password'; email: string };
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,16}$/;
 
@@ -31,6 +33,7 @@ export function AuthScreen() {
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [emailDelivery, setEmailDelivery] = useState<EmailDelivery | null>(null);
 
   const title = useMemo(() => {
     if (mode === 'signup') {
@@ -87,10 +90,50 @@ export function AuthScreen() {
     return () => window.clearTimeout(timeout);
   }, [mode, username]);
 
+  const activateSession = async (accessToken: string, userId: string) => {
+    const supabase = getOptionalSupabaseClient();
+    if (!supabase) throw new Error('Supabase auth is not configured.');
+    const sessionId = getAuthSessionId(accessToken);
+    if (!sessionId) throw new Error('Unable to identify the authenticated session.');
+
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' });
+    if (signOutError) throw signOutError;
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ active_session_id: sessionId })
+      .eq('id', userId);
+    if (profileError) throw profileError;
+  };
+
+  const resendEmail = async () => {
+    const supabase = getOptionalSupabaseClient();
+    if (!supabase || !emailDelivery) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const { error } = emailDelivery.type === 'signup'
+        ? await supabase.auth.resend({
+            type: 'signup',
+            email: emailDelivery.email,
+            options: { emailRedirectTo: getAuthRedirectUrl('/') },
+          })
+        : await supabase.auth.resetPasswordForEmail(emailDelivery.email, {
+            redirectTo: getAuthRedirectUrl('/reset-password'),
+          });
+      if (error) throw error;
+      setMessage(emailDelivery.type === 'signup' ? 'Sign-up email resent.' : 'Password reset email resent.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to resend email.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submitAuthForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const supabase = getOptionalSupabaseClient();
     setMessage('');
+    setEmailDelivery(null);
 
     if (!supabase) {
       setMessage('Supabase auth is not configured.');
@@ -133,11 +176,20 @@ export function AuthScreen() {
           throw error;
         }
 
+        if (data.user && data.user.identities?.length === 0) {
+          throw new Error('An account already exists for this email address. Log in or reset your password instead.');
+        }
+
         if (data.session) {
+          await activateSession(data.session.access_token, data.session.user.id);
+          setEmail('');
+          setUsername('');
+          setPassword('');
           router.push('/');
           return;
         }
 
+        setEmailDelivery({ type: 'signup', email: email.trim() });
         setMessage('Please check your email to finish the sign up process.');
         return;
       }
@@ -151,11 +203,12 @@ export function AuthScreen() {
           throw error;
         }
 
+        setEmailDelivery({ type: 'password', email: email.trim() });
         setMessage('Password reset email sent if an account exists for that address.');
         return;
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -164,6 +217,10 @@ export function AuthScreen() {
         throw error;
       }
 
+      await activateSession(data.session.access_token, data.session.user.id);
+      setEmail('');
+      setUsername('');
+      setPassword('');
       router.push('/');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Authentication failed.');
@@ -201,6 +258,7 @@ export function AuthScreen() {
                 onClick={() => {
                   setMode(nextMode as AuthMode);
                   setMessage('');
+                  setEmailDelivery(null);
                 }}
                 className={`min-h-10 rounded-xl px-3 text-sm font-semibold transition ${
                   mode === nextMode ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900'
@@ -255,6 +313,7 @@ export function AuthScreen() {
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Email</span>
               <input
                 type="email"
+                required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 autoComplete="email"
@@ -316,6 +375,7 @@ export function AuthScreen() {
                   onClick={() => {
                     setMode(mode === 'password' ? 'login' : 'password');
                     setMessage('');
+                    setEmailDelivery(null);
                   }}
                   className="font-semibold text-amber-300 transition hover:text-amber-200"
                 >
@@ -328,6 +388,13 @@ export function AuthScreen() {
               <p className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
                 {message}
               </p>
+            ) : null}
+            {emailDelivery ? (
+              <div className="text-center text-sm">
+                <button type="button" onClick={() => void resendEmail()} disabled={busy} className="font-semibold text-amber-300 transition hover:text-amber-200 disabled:opacity-60">
+                  Resend email
+                </button>
+              </div>
             ) : null}
           </div>
         </section>

@@ -3,6 +3,7 @@ import { getAbilityCatalog, getSkinCatalog } from '@/lib/catalogs';
 import { shuffle, type QuizItem } from '@/lib/quiz';
 import {
   canReconnect,
+  assertMultiplayerAccountAvailable,
   getMultiplayerGuestDisplayName,
   getReconnectDeadline,
   MULTIPLAYER_STALE_AFTER_MS,
@@ -397,6 +398,7 @@ export async function joinMultiplayerQuizLobby(code: string, input: CreateOrJoin
   if (lobby.status === 'finished' || lobby.status === 'terminated') throw new Error('Lobby not found.');
 
   const players = await fetchPlayers(lobby.id);
+  assertMultiplayerAccountAvailable(players, input.authUserId, input.clientId);
   const bannedClientIds = await fetchBannedClientIds(lobby.id);
   if (bannedClientIds.has(input.clientId)) {
     throw new Error('You cannot rejoin this lobby.');
@@ -690,7 +692,7 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
   }).filter((entry): entry is MultiplayerQuizPublicLobby => entry !== null);
 }
 
-export async function leaveMultiplayerQuizLobby(code: string, clientId: string) {
+export async function leaveMultiplayerQuizLobby(code: string, clientId: string, forfeit = false) {
   const lobby = await fetchLobby(code);
   if (!lobby || lobby.status === 'terminated') {
     return { left: true };
@@ -700,7 +702,7 @@ export async function leaveMultiplayerQuizLobby(code: string, clientId: string) 
   if (!leavingPlayer) {
     return { left: true };
   }
-  if (lobby.status === 'active') {
+  if (lobby.status === 'active' && !forfeit) {
     const now = new Date().toISOString();
     const { error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_players')
@@ -761,6 +763,20 @@ export async function leaveMultiplayerQuizLobby(code: string, clientId: string) 
       .eq('id', lobby.id);
     if (lobbyError) {
       throw lobbyError;
+    }
+  }
+
+  if (lobby.status === 'active') {
+    const remainingActivePlayers = remainingPlayers.filter((player) => player.result === 'active');
+    if (remainingActivePlayers.length <= 1) {
+      const now = new Date().toISOString();
+      const { error } = await getSupabaseServiceClient()
+        .from('multiplayer_quiz_lobbies')
+        .update({ status: 'finished', is_public: false, updated_at: now })
+        .eq('id', lobby.id);
+      if (error) throw error;
+      await addLobbyEvent(lobby.id, 'game_finished');
+      return { left: true };
     }
   }
 

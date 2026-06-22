@@ -116,6 +116,32 @@ async function fetchAuthedJson(url: string, options: RequestInit = {}) {
   return data;
 }
 
+async function broadcastFriendMessageNotification(friendId: string) {
+  const supabase = getOptionalSupabaseClient();
+  if (!supabase) return;
+
+  const channel = supabase.channel(`friend-social:${friendId}`);
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      void supabase.removeChannel(channel);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, 3_000);
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.send({ type: 'broadcast', event: 'new_message', payload: {} });
+        finish();
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        finish();
+      }
+    });
+  });
+}
+
 export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [dashboard, setDashboard] = useState<FriendDashboard | null>(null);
@@ -223,6 +249,9 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       const nextSocialChannel = supabase.channel(`friend-social:${userId}`);
       socialChannel = nextSocialChannel;
       nextSocialChannel
+        .on('broadcast', { event: 'new_message' }, () => {
+          scheduleDashboardRefresh();
+        })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests' }, (payload) => {
           const row = { ...(payload.old as Record<string, unknown>), ...(payload.new as Record<string, unknown>) };
           if (row.requester_id === userId || row.addressee_id === userId) {
@@ -312,6 +341,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
         method: 'POST',
         body: JSON.stringify({ friendId: activeFriend.id, message: messageDraft }),
       });
+      await broadcastFriendMessageNotification(activeFriend.id);
       setMessages(data.messages ?? []);
       setMessageDraft('');
       await refreshDashboard();
@@ -391,6 +421,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
           message: `Join my ${invite.gameName} game: ${invite.url}`,
         }),
       });
+      await broadcastFriendMessageNotification(friend.id);
       setContextFriend(null);
       setStatus('Game invite sent.');
       scheduleDashboardRefresh();

@@ -1,7 +1,7 @@
 import { getSkinCatalog } from '@/lib/catalogs';
 import { normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
-import { canReconnect, getMultiplayerGuestDisplayName, getReconnectDeadline, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
+import { assertMultiplayerAccountAvailable, canReconnect, getMultiplayerGuestDisplayName, getReconnectDeadline, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 
 export type SkincognitoCategoryId = 'skin' | 'champion' | 'skinLine' | 'releaseYear' | 'rarity' | 'gender' | 'role' | 'race';
@@ -707,6 +707,7 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
   }
 
   const players = await fetchPlayers(reconciledLobby.id);
+  assertMultiplayerAccountAvailable(players, input.authUserId, input.clientId);
   const bans = await fetchBans(reconciledLobby.id);
   const existingPlayer = players.find((player) => player.client_id === input.clientId);
   if (bans.some((ban) => ban.client_id === input.clientId)) {
@@ -818,7 +819,7 @@ export async function updateSkincognitoLobbyVisibility(code: string, clientId: s
   return getLobbyView(updatedLobby, clientId);
 }
 
-export async function leaveSkincognitoLobby(code: string, clientId: string) {
+export async function leaveSkincognitoLobby(code: string, clientId: string, forfeit = false) {
   const lobby = await fetchLobbyByCode(code);
   if (!lobby || lobby.status === 'terminated') {
     throw new Error('Lobby is not available.');
@@ -832,7 +833,25 @@ export async function leaveSkincognitoLobby(code: string, clientId: string) {
 
   const updatedLobby = await removePlayerFromLobby(lobby, player);
   await addSystemMessage(updatedLobby.id, `${player.display_name} left the lobby.`);
-  const reconciledLobby = await reconcileLobby(updatedLobby);
+  let reconciledLobby = await reconcileLobby(updatedLobby);
+  if (forfeit && lobby.status === 'active' && reconciledLobby.status === 'active') {
+    const activePlayerIds = [reconciledLobby.player_one_id, reconciledLobby.player_two_id]
+      .filter((id): id is string => Boolean(id));
+    const remainingActivePlayers = players.filter((candidate) => (
+      candidate.id !== player.id && candidate.connected && activePlayerIds.includes(candidate.id)
+    ));
+    if (remainingActivePlayers.length === 1) {
+      reconciledLobby = await updateLobby(reconciledLobby.id, {
+        status: 'finished',
+        winner_player_id: remainingActivePlayers[0].id,
+        current_turn_player_id: null,
+        is_public: false,
+        finished_at: new Date().toISOString(),
+      });
+      await addLobbyEvent(reconciledLobby.id, 'game_finished');
+      return getLobbyView(reconciledLobby, clientId);
+    }
+  }
   await addLobbyEvent(reconciledLobby.id, 'player_left');
   return getLobbyView(reconciledLobby, clientId);
 }

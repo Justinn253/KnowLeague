@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { UserCircle, X } from 'lucide-react';
 import Link from 'next/link';
+import type { Session } from '@supabase/supabase-js';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { FriendsWidget } from '@/components/friends-widget';
 import { ProfileScreen } from '@/components/profile-screen';
 import { PublicProfileScreen } from '@/components/public-profile-screen';
+import { getAuthSessionId } from '@/lib/auth-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 export function GlobalActions() {
@@ -22,33 +24,65 @@ export function GlobalActions() {
     if (!supabase) {
       return undefined;
     }
+    let signInCheckTimeout: number | null = null;
 
-    const updateProfileAction = async (userId?: string | null) => {
-      if (!userId) {
+    const updateProfileAction = async (session?: Session | null, mismatchRetries = 0) => {
+      if (!session) {
         setProfileHref('/login');
         setProfileLabel('Profile');
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
         return;
       }
+      const userId = session.user.id;
 
       setIsLoggedIn(true);
       setProfileHref('/profile');
       const { data } = await supabase
         .from('profiles')
-        .select('username, display_name')
+        .select('username, display_name, active_session_id')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string }>();
+        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null }>();
 
+      const sessionId = getAuthSessionId(session.access_token);
+      if (data?.active_session_id && sessionId && data.active_session_id !== sessionId) {
+        if (mismatchRetries > 0) {
+          signInCheckTimeout = window.setTimeout(() => {
+            signInCheckTimeout = null;
+            void updateProfileAction(session, mismatchRetries - 1);
+          }, 500);
+          return;
+        }
+        await supabase.auth.signOut({ scope: 'local' });
+        setProfileHref('/login');
+        setProfileLabel('Profile');
+        setIsLoggedIn(false);
+        setPendingFriendRequests(0);
+        setProfileOpen(false);
+        return;
+      }
+
+      if (signInCheckTimeout) {
+        window.clearTimeout(signInCheckTimeout);
+        signInCheckTimeout = null;
+      }
       setProfileLabel(data?.display_name || data?.username || 'Profile');
     };
 
     supabase.auth.getSession().then(({ data }) => {
-      void updateProfileAction(data.session?.user.id ?? null);
+      void updateProfileAction(data.session);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      void updateProfileAction(session?.user.id ?? null);
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (signInCheckTimeout) {
+        window.clearTimeout(signInCheckTimeout);
+        signInCheckTimeout = null;
+      }
+      if (event === 'SIGNED_IN' && session) {
+        void updateProfileAction(session, 6);
+        return;
+      }
+      void updateProfileAction(session);
     });
 
     const profileChannel = supabase
@@ -57,13 +91,16 @@ export function GlobalActions() {
         const profileId = (payload.new as { id?: string }).id;
         supabase.auth.getSession().then(({ data }) => {
           if (profileId && profileId === data.session?.user.id) {
-            void updateProfileAction(profileId);
+            void updateProfileAction(data.session);
           }
         });
       })
       .subscribe();
 
     return () => {
+      if (signInCheckTimeout) {
+        window.clearTimeout(signInCheckTimeout);
+      }
       listener.subscription.unsubscribe();
       void supabase.removeChannel(profileChannel);
     };

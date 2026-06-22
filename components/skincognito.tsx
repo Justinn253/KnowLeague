@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
@@ -256,7 +257,6 @@ export function Skincognito() {
   const [guessMenuOpen, setGuessMenuOpen] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
   const [returnToLobbyCountdown, setReturnToLobbyCountdown] = useState<number | null>(null);
-  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [codeRevealed, setCodeRevealed] = useState(false);
@@ -274,6 +274,27 @@ export function Skincognito() {
   const hasRequestingPlayerRef = useRef(false);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: SkincognitoLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
+
+  useMultiplayerAuthTransition(async () => {
+    const activeLobby = latestLobbyRef.current;
+    if (!activeLobby) return;
+
+    isLeavingLobbyRef.current = true;
+    latestLobbyRef.current = null;
+    window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+    setLobbyView(null);
+    setSelectedSkin(null);
+    setSkinQuery('');
+    setGuessQuery('');
+    setMessage('');
+    window.history.replaceState(null, '', '/skincognito');
+    await fetch(`/api/skincognito/lobbies/${activeLobby.code}/leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: activeLobby.clientId, forfeit: true }),
+    }).catch(() => undefined);
+    router.push('/');
+  });
 
   const requestingPlayer = lobbyView?.requestingPlayer ?? null;
   const isHost = Boolean(requestingPlayer && lobbyView?.lobby.host_player_id === requestingPlayer.id);
@@ -425,9 +446,13 @@ export function Skincognito() {
     setMessage('');
 
     try {
+      const { data: authData } = await getOptionalSupabaseClient()?.auth.getSession() ?? { data: { session: null } };
       const response = await fetch(url, {
         method: body ? 'POST' : 'GET',
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        headers: body ? {
+          'Content-Type': 'application/json',
+          ...(authData.session ? { Authorization: `Bearer ${authData.session.access_token}` } : {}),
+        } : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await response.json();
@@ -486,14 +511,6 @@ export function Skincognito() {
     const nextClientId = getOrCreateClientId();
     setClientId(nextClientId);
     const supabase = getOptionalSupabaseClient();
-    supabase?.auth.getSession().then(async ({ data }) => {
-      const userId = data.session?.user.id ?? null;
-      setAuthUserId(userId);
-      if (!userId || !data.session) {
-        return;
-      }
-
-    });
 
     fetch('/api/skincognito/answers')
       .then((response) => response.json())
@@ -530,21 +547,18 @@ export function Skincognito() {
           }
 
           if (!data.error && reconnectCode && (!data.requestingPlayer || data.requestingPlayer.role !== 'spectator')) {
-            let joinAuthUserId: string | null = null;
             const authData = await supabase?.auth.getSession();
             const session = authData?.data.session ?? null;
-            if (session) {
-              joinAuthUserId = session.user.id;
-              setAuthUserId(session.user.id);
-            }
 
             fetch('/api/skincognito/lobbies/join', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+              },
               body: JSON.stringify({
                 code: reconnectCode,
                 clientId: nextClientId,
-                authUserId: joinAuthUserId,
                 selectedSkinId: null,
               }),
             })
@@ -785,7 +799,6 @@ export function Skincognito() {
     isLeavingLobbyRef.current = false;
     void requestLobby('/api/skincognito/lobbies', {
       clientId,
-      authUserId,
       selectedSkinId: selectedSkin?.id ?? null,
     });
   };
@@ -799,7 +812,6 @@ export function Skincognito() {
     void requestLobby('/api/skincognito/lobbies/join', {
       code: code.trim().toUpperCase(),
       clientId,
-      authUserId,
       selectedSkinId: selectedSkin?.id ?? null,
     });
   };

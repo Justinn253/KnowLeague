@@ -8,6 +8,7 @@ import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
 
 type SkinAnswer = {
@@ -271,6 +272,7 @@ export function Skincognito() {
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: SkincognitoLobbyView['lobby']['status'] } | null>(null);
+  const isLeavingLobbyRef = useRef(false);
 
   const requestingPlayer = lobbyView?.requestingPlayer ?? null;
   const isHost = Boolean(requestingPlayer && lobbyView?.lobby.host_player_id === requestingPlayer.id);
@@ -283,7 +285,7 @@ export function Skincognito() {
     ? lobbyView.players.filter((player) => player.id === lobbyView.lobby.player_one_id || player.id === lobbyView.lobby.player_two_id)
     : [];
   const spectatorCount = lobbyView ? lobbyView.players.length - activePlayers.length : 0;
-  const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2 && activePlayers.every((player) => player.has_selected_skin));
+  const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2);
   const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
   const playerTwo = getPlayerById(lobbyView, lobbyView?.lobby.player_two_id);
   const winnerPlayer = getPlayerById(lobbyView, lobbyView?.lobby.winner_player_id);
@@ -377,6 +379,18 @@ export function Skincognito() {
   );
 
   const updateLobbyView = useCallback((view: SkincognitoLobbyView) => {
+    if (isLeavingLobbyRef.current) return;
+    if (view.lobby.status === 'terminated') {
+      hasRequestingPlayerRef.current = false;
+      window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+      setLobbyView(null);
+      setSelectedSkin(null);
+      setSkinQuery('');
+      setGuessQuery('');
+      setMessage('');
+      router.replace('/');
+      return;
+    }
     hasRequestingPlayerRef.current = Boolean(view.requestingPlayer);
     setLobbyView(view);
     window.localStorage.setItem(LOBBY_STORAGE_KEY, view.lobby.code);
@@ -403,7 +417,7 @@ export function Skincognito() {
         setSkinQuery('');
       }
     }
-  }, []);
+  }, [router]);
 
   const requestLobby = useCallback(async (url: string, body?: Record<string, unknown>) => {
     setBusy(true);
@@ -439,11 +453,18 @@ export function Skincognito() {
   }, [updateLobbyView]);
 
   const refreshLobbyView = useCallback(async (code: string, nextClientId: string) => {
+    if (isLeavingLobbyRef.current) return;
     try {
       const response = await fetch(`/api/skincognito/lobbies/${code}?clientId=${nextClientId}`);
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 404) {
+          window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+          setLobbyView(null);
+          router.replace('/');
+          return;
+        }
         throw new Error(data.error || 'Unable to refresh Skincognito lobby.');
       }
 
@@ -458,7 +479,7 @@ export function Skincognito() {
     } catch (error) {
       console.error('Failed to refresh Skincognito lobby', error);
     }
-  }, [updateLobbyView]);
+  }, [router, updateLobbyView]);
 
   useEffect(() => {
     const nextClientId = getOrCreateClientId();
@@ -741,7 +762,7 @@ export function Skincognito() {
     };
 
     sendHeartbeat();
-    const interval = window.setInterval(sendHeartbeat, 25000);
+    const interval = window.setInterval(sendHeartbeat, MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [clientId, lobbyView?.lobby.code]);
 
@@ -750,6 +771,7 @@ export function Skincognito() {
       return;
     }
 
+    isLeavingLobbyRef.current = false;
     void requestLobby('/api/skincognito/lobbies', {
       clientId,
       authUserId,
@@ -763,6 +785,7 @@ export function Skincognito() {
       return;
     }
 
+    isLeavingLobbyRef.current = false;
     void requestLobby('/api/skincognito/lobbies/join', {
       code: code.trim().toUpperCase(),
       clientId,
@@ -829,23 +852,27 @@ export function Skincognito() {
       return;
     }
 
-    if (lobbyView.lobby.status !== 'waiting') {
-      window.localStorage.removeItem(LOBBY_STORAGE_KEY);
-      setLobbyView(null);
-      setSelectedSkin(null);
-      setSkinQuery('');
-      setGuessQuery('');
-      setMessage('');
-      window.history.replaceState(null, '', '/skincognito');
-      return;
-    }
+    const wasWaiting = lobbyView.lobby.status === 'waiting';
+    const code = lobbyView.lobby.code;
+    isLeavingLobbyRef.current = true;
+    latestLobbyRef.current = null;
+    window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+    setLobbyView(null);
+    setSelectedSkin(null);
+    setSkinQuery('');
+    setGuessQuery('');
+    setMessage('');
+    if (wasWaiting) router.push('/');
+    else window.history.replaceState(null, '', '/skincognito');
 
     if (clientId) {
-      await requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/leave`, { clientId });
+      const endpoint = wasWaiting ? 'leave' : 'heartbeat';
+      await fetch(`/api/skincognito/lobbies/${code}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, ...(wasWaiting ? {} : { connected: false }) }),
+      }).catch(() => undefined);
     }
-
-    window.localStorage.removeItem(LOBBY_STORAGE_KEY);
-    router.push('/');
   };
 
   const kickPlayer = (targetPlayerId: string) => {
@@ -1252,7 +1279,7 @@ export function Skincognito() {
 
               {!canStart && lobbyView.lobby.status === 'waiting' ? (
                 <p className="mt-3 text-center text-xs text-slate-500">
-                  The host can start once two active players have selected skins.
+                  The host can start once two active players have joined. Missing skin selections use a random skin.
                 </p>
               ) : null}
             </div>

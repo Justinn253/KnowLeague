@@ -41,30 +41,48 @@ function openPublicProfileOverlay(username: string) {
   window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
 }
 
-function getCurrentMultiplayerInviteUrl() {
-  if (typeof window === 'undefined' || window.location.pathname !== '/skincognito') {
+type MultiplayerInvite = {
+  gameName: 'Skincognito' | 'Ability Blitz' | 'Skin Champion';
+  url: string;
+};
+
+const multiplayerInviteGames: Record<string, MultiplayerInvite['gameName']> = {
+  '/skincognito': 'Skincognito',
+  '/multiplayer/ability-blitz': 'Ability Blitz',
+  '/multiplayer/skin-champion': 'Skin Champion',
+};
+
+function getCurrentMultiplayerInvite(): MultiplayerInvite | null {
+  if (typeof window === 'undefined') {
     return null;
   }
 
   const currentUrl = new URL(window.location.href);
-  const code = currentUrl.searchParams.get('code') || window.localStorage.getItem('knowleague:v1:skincognito:lobby-code');
+  const gameName = multiplayerInviteGames[currentUrl.pathname];
+  if (!gameName) return null;
+  const code = currentUrl.searchParams.get('code') || (
+    currentUrl.pathname === '/skincognito'
+      ? window.localStorage.getItem('knowleague:v1:skincognito:lobby-code')
+      : null
+  );
   if (!code) {
     return null;
   }
 
   currentUrl.searchParams.set('code', code);
-  return currentUrl.toString();
+  return { gameName, url: currentUrl.toString() };
 }
 
-function getSkincognitoInviteUrl(message: string) {
-  const match = message.match(/Join my Skincognito game:\s*(https?:\/\/\S+)/i);
-  if (!match?.[1]) {
+function getMultiplayerInvite(message: string): MultiplayerInvite | null {
+  const match = message.match(/Join my (Skincognito|Ability Blitz|Skin Champion) game:\s*(https?:\/\/\S+)/i);
+  if (!match?.[1] || !match[2]) {
     return null;
   }
 
   try {
-    const url = new URL(match[1]);
-    return url.pathname === '/skincognito' && url.searchParams.get('code') ? url.toString() : null;
+    const url = new URL(match[2]);
+    const gameName = multiplayerInviteGames[url.pathname];
+    return gameName && url.searchParams.get('code') ? { gameName, url: url.toString() } : null;
   } catch {
     return null;
   }
@@ -359,8 +377,8 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   };
 
   const inviteFriendToGame = async (friend: FriendSummary) => {
-    const inviteUrl = getCurrentMultiplayerInviteUrl();
-    if (!inviteUrl) {
+    const invite = getCurrentMultiplayerInvite();
+    if (!invite) {
       setStatus('No active multiplayer game invite is available.');
       return;
     }
@@ -370,7 +388,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
         method: 'POST',
         body: JSON.stringify({
           friendId: friend.id,
-          message: `Join my Skincognito game: ${inviteUrl}`,
+          message: `Join my ${invite.gameName} game: ${invite.url}`,
         }),
       });
       setContextFriend(null);
@@ -475,7 +493,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                   <div className="mt-3 grid flex-1 content-start gap-2 overflow-y-auto">
                     {messages.map((chatMessage) => {
                       const isOwnMessage = chatMessage.sender_id === currentUserId;
-                      const inviteUrl = getSkincognitoInviteUrl(chatMessage.message);
+                      const invite = getMultiplayerInvite(chatMessage.message);
 
                       return (
                         <div
@@ -486,13 +504,13 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                               : 'mr-auto bg-slate-900 text-slate-200'
                           }`}
                         >
-                          {inviteUrl ? (
+                          {invite ? (
                             <div className={`flex flex-wrap items-center gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                              <span>Skincognito invite</span>
+                              <span>{invite.gameName} invite</span>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  window.location.href = inviteUrl;
+                                  window.location.href = invite.url;
                                 }}
                                 className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
                                   isOwnMessage
@@ -584,7 +602,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
               >
                 Unfriend
               </button>
-              {getCurrentMultiplayerInviteUrl() ? (
+              {getCurrentMultiplayerInvite() ? (
                 <button
                   type="button"
                   onClick={() => inviteFriendToGame(contextFriend.friend)}

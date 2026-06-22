@@ -16,6 +16,7 @@ import type {
   MultiplayerQuizPublicLobby,
 } from '@/lib/multiplayer-quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 
 type SettingOption = { id: string; name: string; description: string };
 type MultiplayerQuizConfig = {
@@ -85,10 +86,13 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<MultiplayerQuizPublicLobby[]>([]);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: MultiplayerQuizLobbyView['lobby']['status'] } | null>(null);
+  const isLeavingLobbyRef = useRef(false);
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
   const selectedModifiers = useMemo(() => new Set(view?.lobby.modifiers ?? []), [view?.lobby.modifiers]);
-  const activeLobbyCode = view?.lobby.status === 'active' ? view.lobby.code : null;
+  const connectedLobbyCode = view && (view.lobby.status === 'waiting' || view.lobby.status === 'active')
+    ? view.lobby.code
+    : null;
 
   useEffect(() => {
     latestLobbyRef.current = view && clientId
@@ -117,6 +121,13 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   }, []);
 
   const applyView = useCallback((nextView: MultiplayerQuizLobbyView) => {
+    if (isLeavingLobbyRef.current) return;
+    if (nextView.lobby.status === 'terminated') {
+      latestLobbyRef.current = null;
+      setView(null);
+      router.replace('/');
+      return;
+    }
     if (!nextView.requestingPlayer && latestLobbyRef.current) {
       latestLobbyRef.current = null;
       setView(null);
@@ -130,16 +141,23 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       savePlayerDisplayName(nextView.requestingPlayer.display_name);
     }
     window.history.replaceState(null, '', `${config.route}?code=${nextView.lobby.code}`);
-  }, [config.route]);
+  }, [config.route, router]);
 
   const refreshLobby = useCallback(async (code: string, activeClientId: string) => {
+    if (isLeavingLobbyRef.current) return;
     try {
       const response = await fetch(`/api/multiplayer/lobbies/${code}?clientId=${encodeURIComponent(activeClientId)}`);
+      if (response.status === 404) {
+        latestLobbyRef.current = null;
+        setView(null);
+        router.replace('/');
+        return;
+      }
       applyView(await readResponse(response));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to refresh lobby.');
     }
-  }, [applyView]);
+  }, [applyView, router]);
 
   const loadPublicLobbies = useCallback(async () => {
     try {
@@ -240,10 +258,10 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   }, [clientId, refreshLobby, view?.lobby.code, view?.lobby.id]);
 
   useEffect(() => {
-    if (!activeLobbyCode || !clientId) {
+    if (!connectedLobbyCode || !clientId) {
       return undefined;
     }
-    const code = activeLobbyCode;
+    const code = connectedLobbyCode;
     const sendHeartbeat = async () => {
       try {
         const response = await fetch(`/api/multiplayer/lobbies/${code}/heartbeat`, {
@@ -257,15 +275,16 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       }
     };
     void sendHeartbeat();
-    const interval = window.setInterval(sendHeartbeat, 15_000);
+    const interval = window.setInterval(sendHeartbeat, MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [activeLobbyCode, applyView, clientId]);
+  }, [connectedLobbyCode, applyView, clientId]);
 
   const createLobby = async () => {
     if (!clientId) {
       return;
     }
     setBusy(true);
+    isLeavingLobbyRef.current = false;
     setMessage('');
     try {
       const response = await fetch('/api/multiplayer/lobbies', {
@@ -286,6 +305,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       return;
     }
     setBusy(true);
+    isLeavingLobbyRef.current = false;
     setMessage('');
     try {
       const response = await fetch('/api/multiplayer/lobbies/join', {
@@ -311,14 +331,17 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       router.push('/');
       return;
     }
-    await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/leave`, {
+    const code = view.lobby.code;
+    isLeavingLobbyRef.current = true;
+    latestLobbyRef.current = null;
+    setView(null);
+    setMessage('');
+    window.history.replaceState(null, '', config.route);
+    await fetch(`/api/multiplayer/lobbies/${code}/leave`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId }),
     }).catch(() => undefined);
-    setView(null);
-    setMessage('');
-    window.history.replaceState(null, '', config.route);
   };
 
   const updateName = async (event: FormEvent<HTMLFormElement>) => {

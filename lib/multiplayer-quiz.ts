@@ -1,6 +1,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { getAbilityCatalog, getSkinCatalog } from '@/lib/catalogs';
 import { shuffle, type QuizItem } from '@/lib/quiz';
+import { MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
 
 export type MultiplayerQuizGameMode = 'ability_blitz' | 'skin_champion';
 export type MultiplayerQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
@@ -74,7 +75,6 @@ type CreateOrJoinInput = {
 
 const LOBBY_CODE_LENGTH = 6;
 const MAX_PLAYERS = 10;
-const HEARTBEAT_STALE_MS = 40_000;
 const difficulties = new Set<MultiplayerQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
 const modifierIds: Record<MultiplayerQuizGameMode, Set<string>> = {
   ability_blitz: new Set(['greyscale', 'pixelated', 'rotating', 'disappearing', 'hiddenTimer', 'confirmEntry']),
@@ -160,39 +160,73 @@ function getGameCatalog(gameMode: MultiplayerQuizGameMode) {
   return gameMode === 'ability_blitz' ? getAbilityCatalog() : getSkinCatalog();
 }
 
-async function reconcileActiveLobby(lobby: MultiplayerQuizLobby) {
-  if (lobby.status !== 'active') {
+async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {
+  if (lobby.status === 'finished' || lobby.status === 'terminated') {
     return lobby;
   }
+  let nextLobby = lobby;
   let players = await fetchPlayers(lobby.id);
   const stalePlayers = players.filter((player) => (
-    player.connected && Date.now() - new Date(player.last_seen_at).getTime() > HEARTBEAT_STALE_MS
+    player.connected && Date.now() - new Date(player.last_seen_at).getTime() > MULTIPLAYER_STALE_AFTER_MS
   ));
   if (stalePlayers.length > 0) {
+    const stalePlayerIds = stalePlayers.map((player) => player.id);
+    const query = getSupabaseServiceClient().from('multiplayer_quiz_players');
     const now = new Date().toISOString();
-    const { error } = await getSupabaseServiceClient()
-      .from('multiplayer_quiz_players')
-      .update({ connected: false, disconnected_at: now, updated_at: now })
-      .in('id', stalePlayers.map((player) => player.id));
+    const { error } = lobby.status === 'waiting'
+      ? await query.delete().in('id', stalePlayerIds)
+      : await query.update({ connected: false, disconnected_at: now, updated_at: now }).in('id', stalePlayerIds);
     if (error) {
       throw error;
     }
     players = await fetchPlayers(lobby.id);
+    await addLobbyEvent(lobby.id, 'stale_players_removed');
   }
 
-  const connectedPlayers = players.filter((player) => player.connected);
-  if (connectedPlayers.length === 0) {
+  const lifecycle = resolveMultiplayerLifecycle(players, nextLobby.host_player_id);
+  const connectedPlayers = players.filter((player) => lifecycle.connectedMemberIds.includes(player.id));
+  if (lifecycle.shouldTerminate) {
     const now = new Date().toISOString();
     const { data, error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_lobbies')
-      .update({ status: 'terminated', terminated_at: now, updated_at: now })
+      .update({ status: 'terminated', host_player_id: null, is_public: false, terminated_at: now, updated_at: now })
       .eq('id', lobby.id)
       .select('*')
       .single<MultiplayerQuizLobby>();
     if (error) {
       throw error;
     }
+    await addLobbyEvent(lobby.id, 'lobby_terminated');
     return data;
+  }
+
+  if (lifecycle.hostChanged && lifecycle.hostPlayerId) {
+    const { error: demoteError } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_players')
+      .update({ role: 'player', updated_at: new Date().toISOString() })
+      .eq('lobby_id', lobby.id)
+      .eq('role', 'host');
+    if (demoteError) throw demoteError;
+
+    const { error: promoteError } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_players')
+      .update({ role: 'host', updated_at: new Date().toISOString() })
+      .eq('id', lifecycle.hostPlayerId);
+    if (promoteError) throw promoteError;
+
+    const { data, error: lobbyError } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_lobbies')
+      .update({ host_player_id: lifecycle.hostPlayerId, updated_at: new Date().toISOString() })
+      .eq('id', lobby.id)
+      .select('*')
+      .single<MultiplayerQuizLobby>();
+    if (lobbyError) throw lobbyError;
+    nextLobby = data;
+    await addLobbyEvent(lobby.id, 'host_transferred');
+  }
+
+  if (nextLobby.status === 'waiting') {
+    return nextLobby;
   }
 
   const allCurrentPlayersFinished = connectedPlayers.every((player) => Boolean(player.finished_at));
@@ -201,7 +235,7 @@ async function reconcileActiveLobby(lobby: MultiplayerQuizLobby) {
     const { data, error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_lobbies')
       .update({ status: 'finished', finished_at: now, updated_at: now })
-      .eq('id', lobby.id)
+      .eq('id', nextLobby.id)
       .select('*')
       .single<MultiplayerQuizLobby>();
     if (error) {
@@ -210,11 +244,11 @@ async function reconcileActiveLobby(lobby: MultiplayerQuizLobby) {
     await addLobbyEvent(lobby.id, 'game_finished');
     return data;
   }
-  return lobby;
+  return nextLobby;
 }
 
 async function getLobbyView(lobby: MultiplayerQuizLobby, clientId?: string | null): Promise<MultiplayerQuizLobbyView> {
-  const reconciledLobby = await reconcileActiveLobby(lobby);
+  const reconciledLobby = await reconcileMultiplayerQuizLobby(lobby);
   const players = await fetchPlayers(reconciledLobby.id);
   const requestingPlayer = players.find((player) => player.client_id === clientId) ?? null;
   const toPublicPlayer = (player: MultiplayerQuizPlayerRecord): MultiplayerQuizPublicPlayer => ({
@@ -298,10 +332,12 @@ export async function createMultiplayerQuizLobby(input: CreateOrJoinInput) {
 
 export async function joinMultiplayerQuizLobby(code: string, input: CreateOrJoinInput) {
   assertSupabaseConfigured();
-  const lobby = await fetchLobby(code);
-  if (!lobby || lobby.status === 'terminated' || lobby.game_mode !== input.gameMode) {
+  const fetchedLobby = await fetchLobby(code);
+  if (!fetchedLobby || fetchedLobby.status === 'terminated' || fetchedLobby.game_mode !== input.gameMode) {
     throw new Error('Lobby not found.');
   }
+  const lobby = await reconcileMultiplayerQuizLobby(fetchedLobby);
+  if (lobby.status === 'terminated') throw new Error('Lobby not found.');
 
   const players = await fetchPlayers(lobby.id);
   const bannedClientIds = await fetchBannedClientIds(lobby.id);
@@ -350,8 +386,12 @@ export async function getMultiplayerQuizLobby(code: string, clientId?: string | 
 }
 
 export async function startMultiplayerQuizLobby(code: string, clientId: string) {
-  const lobby = await fetchLobby(code);
-  if (!lobby || lobby.status !== 'waiting') {
+  const fetchedLobby = await fetchLobby(code);
+  if (!fetchedLobby) {
+    throw new Error('Lobby cannot be started.');
+  }
+  const lobby = await reconcileMultiplayerQuizLobby(fetchedLobby);
+  if (lobby.status !== 'waiting') {
     throw new Error('Lobby cannot be started.');
   }
   const players = await fetchPlayers(lobby.id);
@@ -532,15 +572,20 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
   if (lobbies.length === 0) return [];
   const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
-    .select('id, lobby_id, display_name')
+    .select('id, lobby_id, display_name, connected, last_seen_at')
     .in('lobby_id', lobbies.map((lobby) => lobby.id))
-    .returns<Array<Pick<MultiplayerQuizPlayerRecord, 'id' | 'lobby_id' | 'display_name'>>>();
+    .returns<Array<Pick<MultiplayerQuizPlayerRecord, 'id' | 'lobby_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
   if (playersError) {
     throw playersError;
   }
 
   return lobbies.map((lobby): MultiplayerQuizPublicLobby | null => {
-    const players = publicPlayers.filter((player) => player.lobby_id === lobby.id);
+    const players = publicPlayers.filter((player) => (
+      player.lobby_id === lobby.id
+      && player.connected
+      && Date.now() - new Date(player.last_seen_at).getTime() <= MULTIPLAYER_STALE_AFTER_MS
+    ));
+    if (players.length === 0) return null;
     if (players.length >= lobby.max_players) {
       return null;
     }
@@ -578,7 +623,7 @@ export async function leaveMultiplayerQuizLobby(code: string, clientId: string) 
       throw error;
     }
     await addLobbyEvent(lobby.id, 'player_disconnected');
-    await reconcileActiveLobby(lobby);
+    await reconcileMultiplayerQuizLobby(lobby);
     return { left: true };
   }
   const { error: deleteError } = await getSupabaseServiceClient()
@@ -590,19 +635,32 @@ export async function leaveMultiplayerQuizLobby(code: string, clientId: string) 
   }
 
   const remainingPlayers = players.filter((player) => player.id !== leavingPlayer.id);
-  if (remainingPlayers.length === 0) {
+  const lifecycle = resolveMultiplayerLifecycle(remainingPlayers, lobby.host_player_id);
+  if (lifecycle.shouldTerminate) {
     const { error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_lobbies')
-      .update({ status: 'terminated', terminated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .update({ status: 'terminated', host_player_id: null, is_public: false, terminated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq('id', lobby.id);
     if (error) {
       throw error;
     }
+    await addLobbyEvent(lobby.id, 'lobby_terminated');
     return { left: true };
   }
 
-  if (leavingPlayer.id === lobby.host_player_id) {
-    const nextHost = remainingPlayers[0];
+  if (lifecycle.hostChanged && lifecycle.hostPlayerId) {
+    const nextHost = remainingPlayers.find((player) => player.id === lifecycle.hostPlayerId);
+    if (!nextHost) {
+      throw new Error('Unable to assign a lobby host.');
+    }
+    const { error: demoteError } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_players')
+      .update({ role: 'player', updated_at: new Date().toISOString() })
+      .eq('lobby_id', lobby.id)
+      .eq('role', 'host');
+    if (demoteError) {
+      throw demoteError;
+    }
     const { error: roleError } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_players')
       .update({ role: 'host', updated_at: new Date().toISOString() })
@@ -670,15 +728,17 @@ export async function transferMultiplayerQuizHost(code: string, clientId: string
     throw new Error('Invalid host target.');
   }
 
-  const { error: roleError } = await getSupabaseServiceClient()
+  const now = new Date().toISOString();
+  const { error: demoteError } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
-    .upsert([
-      { ...host, role: 'player', updated_at: new Date().toISOString() },
-      { ...target, role: 'host', updated_at: new Date().toISOString() },
-    ]);
-  if (roleError) {
-    throw roleError;
-  }
+    .update({ role: 'player', updated_at: now })
+    .eq('id', host.id);
+  if (demoteError) throw demoteError;
+  const { error: promoteError } = await getSupabaseServiceClient()
+    .from('multiplayer_quiz_players')
+    .update({ role: 'host', updated_at: now })
+    .eq('id', target.id);
+  if (promoteError) throw promoteError;
   const { data: updatedLobby, error: lobbyError } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_lobbies')
     .update({ host_player_id: target.id, updated_at: new Date().toISOString() })

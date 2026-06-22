@@ -1,6 +1,7 @@
 import { getSkinCatalog } from '@/lib/catalogs';
 import { normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
 
 export type SkincognitoCategoryId = 'skin' | 'champion' | 'skinLine' | 'releaseYear' | 'rarity' | 'gender' | 'role' | 'race';
 export type SkincognitoLobbyStatus = 'waiting' | 'active' | 'finished' | 'terminated';
@@ -117,7 +118,6 @@ const LOBBY_CODE_LENGTH = 6;
 const MAX_LOBBY_PLAYERS = 10;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
 const RECONNECT_GRACE_MS = 60_000;
-const HEARTBEAT_STALE_MS = 15_000;
 
 function assertSupabaseConfigured() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -509,53 +509,73 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
 
   const stalePlayers = players.filter((player) => (
     player.connected &&
-    Date.now() - new Date(player.last_seen_at).getTime() > HEARTBEAT_STALE_MS
+    Date.now() - new Date(player.last_seen_at).getTime() > MULTIPLAYER_STALE_AFTER_MS
   ));
 
   if (stalePlayers.length > 0) {
-    const now = new Date().toISOString();
-    const { error } = await getSupabaseServiceClient()
-      .from('skincognito_players')
-      .update({
-        connected: false,
-        disconnected_at: now,
-      })
-      .in('id', stalePlayers.map((player) => player.id));
+    const stalePlayerIds = stalePlayers.map((player) => player.id);
+    const query = getSupabaseServiceClient().from('skincognito_players');
+    const { error } = nextLobby.status === 'waiting'
+      ? await query.delete().in('id', stalePlayerIds)
+      : await query.update({ connected: false, disconnected_at: new Date().toISOString() }).in('id', stalePlayerIds);
 
     if (error) {
       throw error;
     }
 
     players = await fetchPlayers(lobby.id);
+    await addLobbyEvent(lobby.id, 'stale_players_removed');
   }
 
-  if (players.length === 0) {
-    return updateLobby(lobby.id, {
+  const lifecycle = resolveMultiplayerLifecycle(players, nextLobby.host_player_id);
+  const connectedPlayers = players.filter((player) => lifecycle.connectedMemberIds.includes(player.id));
+  if (lifecycle.shouldTerminate) {
+    const terminatedLobby = await updateLobby(lobby.id, {
       status: 'terminated',
+      host_player_id: null,
+      player_one_id: null,
+      player_two_id: null,
+      current_turn_player_id: null,
+      is_public: false,
       terminated_at: new Date().toISOString(),
     });
+    await addLobbyEvent(lobby.id, 'lobby_terminated');
+    return terminatedLobby;
   }
 
-  const connectedPlayers = players.filter((player) => player.connected);
-  if (connectedPlayers.length === 0) {
-    return updateLobby(lobby.id, {
-      status: 'terminated',
-      terminated_at: new Date().toISOString(),
-    });
-  }
+  if (lifecycle.hostChanged && lifecycle.hostPlayerId) {
+    const nextHost = connectedPlayers.find((player) => player.id === lifecycle.hostPlayerId);
+    if (!nextHost) {
+      throw new Error('Unable to assign a lobby host.');
+    }
+    const { error: demoteError } = await getSupabaseServiceClient()
+      .from('skincognito_players')
+      .update({ role: 'spectator' })
+      .eq('lobby_id', lobby.id)
+      .eq('role', 'host');
+    if (demoteError) throw demoteError;
 
-  if (!lobby.host_player_id || !players.some((player) => player.id === lobby.host_player_id && player.connected)) {
-    const nextHost = connectedPlayers[0];
-    const { error } = await getSupabaseServiceClient()
+    await Promise.all(players.filter((player) => player.id !== nextHost.id).map(async (player) => {
+      const role: SkincognitoPlayerRole = player.id === nextHost.id
+        ? 'host'
+        : player.id === nextLobby.player_one_id || player.id === nextLobby.player_two_id
+          ? 'opponent'
+          : 'spectator';
+      const { error } = await getSupabaseServiceClient()
+        .from('skincognito_players')
+        .update({ role })
+        .eq('id', player.id);
+      if (error) throw error;
+    }));
+
+    const { error: promoteError } = await getSupabaseServiceClient()
       .from('skincognito_players')
       .update({ role: 'host' })
       .eq('id', nextHost.id);
-
-    if (error) {
-      throw error;
-    }
+    if (promoteError) throw promoteError;
 
     nextLobby = await updateLobby(lobby.id, { host_player_id: nextHost.id });
+    await addLobbyEvent(lobby.id, 'host_transferred');
   }
 
   if (nextLobby.status === 'waiting') {
@@ -720,13 +740,18 @@ export async function listPublicSkincognitoLobbies() {
   if (lobbies.length === 0) return [];
   const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
     .from('skincognito_players')
-    .select('id, lobby_id, display_name')
+    .select('id, lobby_id, display_name, connected, last_seen_at')
     .in('lobby_id', lobbies.map((lobby) => lobby.id))
-    .returns<Array<Pick<SkincognitoPlayerRecord, 'id' | 'lobby_id' | 'display_name'>>>();
+    .returns<Array<Pick<SkincognitoPlayerRecord, 'id' | 'lobby_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
   if (playersError) throw playersError;
 
   return lobbies.map((lobby): SkincognitoPublicLobby | null => {
-    const players = publicPlayers.filter((player) => player.lobby_id === lobby.id);
+    const players = publicPlayers.filter((player) => (
+      player.lobby_id === lobby.id
+      && player.connected
+      && Date.now() - new Date(player.last_seen_at).getTime() <= MULTIPLAYER_STALE_AFTER_MS
+    ));
+    if (players.length === 0) return null;
     if (players.length >= MAX_LOBBY_PLAYERS) return null;
     const host = players.find((player) => player.id === lobby.host_player_id);
     return {
@@ -876,7 +901,14 @@ export async function transferSkincognitoHost(code: string, clientId: string, ta
 
   const nextPlayerOneId = target.id;
   const nextPlayerTwoId = target.id === lobby.player_two_id ? host.id : lobby.player_two_id;
-  await Promise.all(players.map(async (player) => {
+  const { error: demoteError } = await getSupabaseServiceClient()
+    .from('skincognito_players')
+    .update({ role: 'spectator' })
+    .eq('lobby_id', lobby.id)
+    .eq('role', 'host');
+  if (demoteError) throw demoteError;
+
+  await Promise.all(players.filter((player) => player.id !== target.id).map(async (player) => {
     const nextRole: SkincognitoPlayerRole = player.id === nextPlayerOneId
       ? 'host'
       : player.id === nextPlayerTwoId
@@ -895,6 +927,12 @@ export async function transferSkincognitoHost(code: string, clientId: string, ta
       throw error;
     }
   }));
+
+  const { error: promoteError } = await getSupabaseServiceClient()
+    .from('skincognito_players')
+    .update({ role: 'host' })
+    .eq('id', target.id);
+  if (promoteError) throw promoteError;
 
   const updatedLobby = await updateLobby(lobby.id, {
     host_player_id: target.id,
@@ -978,8 +1016,12 @@ export async function updateSkincognitoDisplayName(code: string, clientId: strin
 }
 
 export async function startSkincognitoLobby(code: string, clientId: string) {
-  const lobby = await fetchLobbyByCode(code);
-  if (!lobby || lobby.status !== 'waiting') {
+  const fetchedLobby = await fetchLobbyByCode(code);
+  if (!fetchedLobby) {
+    throw new Error('Lobby cannot be started.');
+  }
+  const lobby = await reconcileLobby(fetchedLobby);
+  if (lobby.status !== 'waiting') {
     throw new Error('Lobby cannot be started.');
   }
 

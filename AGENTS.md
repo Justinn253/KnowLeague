@@ -16,6 +16,8 @@
 
 ## Verification Safety
 - Do not run `npm run build` while the user's dev server is running. Both use `.next`, and concurrent use can invalidate dev chunks.
+- Never run more than one `next dev` process from this workspace, even on different ports. All instances share `.next` and will corrupt each other's generated routes and assets.
+- Before starting the dev server, check for an existing KnowLeague `next dev` process and reuse it instead of starting another port.
 - For normal edits, use `npm run check`.
 - Run a production build only when explicitly requested or after confirming the dev server is stopped.
 - Do not regenerate catalogues or push Supabase migrations unless the task requires it.

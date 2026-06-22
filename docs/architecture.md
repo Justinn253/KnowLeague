@@ -27,6 +27,15 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 - Active races reuse `components/ability-blitz.tsx` and `components/skin-champion.tsx` through the runtime contract in `components/multiplayer-game-progress.tsx`.
 - Multiplayer race state is server-authoritative for item order, monotonic progress, elapsed-time snapshots, connection state, and lobby completion.
 
+### Multiplayer Session Contract
+- Every multiplayer mode must use a server-authoritative lobby with a public/private visibility setting, roster section, and unique join code.
+- Every non-terminated lobby with connected members has exactly one host. Host succession uses connected members in stable `joined_at` order.
+- The host owns pre-match settings and lobby management. UI role labels must reflect the authoritative `host_player_id`.
+- A lobby terminates when no connected members remain. Termination clears public visibility and active player references; stale clients return to the main game hub.
+- Presence uses the shared timing constants and lifecycle resolver in `lib/multiplayer-lifecycle.ts`. Heartbeat intervals must remain comfortably below the stale threshold.
+- Public discovery is manual-refresh and bounded. Joined-lobby state changes use scoped Realtime events.
+- New multiplayer games must adopt this contract unless their documented game rules require a deliberate exception.
+
 ## Accounts and Social
 - Authentication: `components/auth-screen.tsx`, reset-password component, Supabase Auth.
 - Owner profile: `components/profile-screen.tsx`.

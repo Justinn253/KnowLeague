@@ -39,6 +39,7 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 - All game screens must render player disconnects with `MultiplayerDisconnectStatus` from `components/multiplayer-reconnect.tsx`. The shared component owns disconnect/expired icons, wording, timers, and visual states; do not recreate or override them per game.
 - Creating or joining a different multiplayer lobby forfeits outstanding reconnect windows across every game mode and publishes a realtime lobby event so remaining players see the result immediately.
 - Public discovery is manual-refresh and bounded. Joined-lobby state changes use scoped Realtime events.
+- Games with difficulty settings must use `components/difficulty-style.tsx` for tier names, colors, and selected states. Public lobby entries must show the styled difficulty and every enabled modifier by display name.
 - New multiplayer games must adopt this contract unless their documented game rules require a deliberate exception.
 
 ## Accounts and Social

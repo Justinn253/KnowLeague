@@ -6,6 +6,7 @@
 
 ## Ownership
 - `ability-blitz.tsx`: Ability Blitz gameplay, difficulty, modifiers, progress, and animations.
+- `difficulty-style.tsx`: authoritative cross-game difficulty labels, tier colors, and selected-state styling.
 - `skin-champion.tsx`: Skin Champion gameplay and skin-image behavior.
 - `skindle.tsx`: Daily Skindle guesses, reveal flow, and global statistics UI.
 - `skincognito.tsx`: Multiplayer lobby/game UI, Realtime refreshes, chat, and lifecycle requests.

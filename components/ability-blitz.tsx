@@ -22,6 +22,7 @@ import {
 } from '@/lib/quiz';
 import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 
 const placeholderItems: QuizItem[] = [
   {
@@ -369,7 +370,6 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
   const multiplayerGameEnded = multiplayer?.gameEnded ?? false;
   const multiplayerInitialProgress = multiplayer?.initialProgress;
-  const selectedDifficultyName = difficulties.find((difficulty) => difficulty.id === selectedDifficulty)?.name;
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
   const selectedAbilitySlotCount = Object.values(selectedAbilitySlots).filter(Boolean).length;
   const difficultyRule = difficultyRules[selectedDifficulty];
@@ -972,9 +972,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 >
                   <Trophy size={16} className="text-amber-300" />
                   Difficulty
-                  <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">
-                    {selectedDifficultyName}
-                  </span>
+                  <span className="rounded-full bg-slate-800 px-2 py-1 text-xs"><DifficultyLabel difficulty={selectedDifficulty} /></span>
                   <ChevronDown size={16} className={openMenu === 'difficulty' ? 'rotate-180 transition' : 'transition'} />
                 </button>
 
@@ -998,13 +996,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                             disabled={configurationLocked}
                             className={`rounded-xl border p-3 text-left transition ${
                               isSelected
-                                ? 'border-amber-300/60 bg-amber-300/10'
+                                ? getDifficultyStyle(difficulty.id).selected
                                 : 'border-white/10 bg-slate-900/80 hover:border-white/25'
                             } ${configurationLocked ? 'cursor-not-allowed opacity-70' : ''}`}
                           >
                             <span className="flex items-center justify-between gap-3">
-                              <span className="font-semibold text-white">{difficulty.name}</span>
-                              <span className={`h-3 w-3 rounded-full border ${isSelected ? 'border-amber-300 bg-amber-300' : 'border-slate-500'}`} />
+                              <DifficultyLabel difficulty={difficulty.id} />
+                              <span className={`h-3 w-3 rounded-full border ${isSelected ? getDifficultyStyle(difficulty.id).dot : 'border-slate-500'}`} />
                             </span>
                             <span className="mt-2 block text-xs leading-5 text-slate-400">{difficulty.description}</span>
                           </button>

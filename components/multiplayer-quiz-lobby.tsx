@@ -9,6 +9,7 @@ import { AbilityBlitz } from '@/components/ability-blitz';
 import { SkinChampion } from '@/components/skin-champion';
 import { MultiplayerGameProgress } from '@/components/multiplayer-game-progress';
 import { ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
+import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
@@ -581,7 +582,21 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                 <div className="mt-4 grid gap-2">
                   {publicLobbies.length ? publicLobbies.map((lobby) => (
                     <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
-                      <span className="min-w-0"><span className="block truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span><span className="mt-1 block text-xs text-slate-400">{lobby.difficulty} · {lobby.totalItems} entries</span></span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span>
+                        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+                          <DifficultyLabel difficulty={lobby.difficulty} />
+                          <span aria-hidden="true">|</span>
+                          <span>{lobby.totalItems} entries</span>
+                        </span>
+                        <span className="mt-2 flex flex-wrap gap-1.5">
+                          {lobby.modifiers.length > 0 ? lobby.modifiers.map((modifierId) => (
+                            <span key={modifierId} className="rounded-md border border-violet-300/20 bg-violet-400/10 px-2 py-1 text-[0.65rem] font-semibold text-violet-200">
+                              {config.modifiers.find((modifier) => modifier.id === modifierId)?.name ?? modifierId}
+                            </span>
+                          )) : <span className="text-[0.65rem] text-slate-500">No modifiers</span>}
+                        </span>
+                      </span>
                       <span className="shrink-0 text-xs font-semibold text-slate-300">{lobby.playerCount}/{lobby.maxPlayers}</span>
                     </button>
                   )) : <p className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">No public lobbies are waiting.</p>}
@@ -651,8 +666,8 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                       <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Difficulty</legend>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         {config.difficulties.map((difficulty) => (
-                          <button key={difficulty.id} type="button" onClick={() => updateSettings(difficulty.id as MultiplayerQuizDifficulty, view.lobby.modifiers)} className={`rounded-2xl border p-3 text-left transition ${view.lobby.difficulty === difficulty.id ? 'border-amber-300/60 bg-amber-300/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
-                            <span className="text-sm font-bold text-white">{difficulty.name}</span>
+                          <button key={difficulty.id} type="button" onClick={() => updateSettings(difficulty.id as MultiplayerQuizDifficulty, view.lobby.modifiers)} className={`rounded-2xl border p-3 text-left transition ${view.lobby.difficulty === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                            <DifficultyLabel difficulty={difficulty.id} className="text-sm" />
                             <span className="mt-1 block text-xs leading-5 text-slate-400">{difficulty.description}</span>
                           </button>
                         ))}

@@ -2,7 +2,6 @@ export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle' | 'skincognit
 
 const STORAGE_PREFIX = 'knowleague:v1';
 const CLIENT_ID_KEY = `${STORAGE_PREFIX}:client-id`;
-const PLAYER_DISPLAY_NAME_KEY = `${STORAGE_PREFIX}:player-display-name`;
 
 export type PlayerGuessStat = {
   itemId: string;
@@ -78,28 +77,6 @@ export function getOrCreateClientId() {
   const clientId = createClientId();
   window.localStorage.setItem(CLIENT_ID_KEY, clientId);
   return clientId;
-}
-
-export function loadPlayerDisplayName(fallback = 'Player') {
-  if (!isStorageAvailable()) {
-    return fallback;
-  }
-
-  const displayName = window.localStorage.getItem(PLAYER_DISPLAY_NAME_KEY)?.trim();
-  return displayName || fallback;
-}
-
-export function savePlayerDisplayName(displayName: string) {
-  if (!isStorageAvailable()) {
-    return;
-  }
-
-  const cleanDisplayName = displayName.trim().slice(0, 16);
-  if (!cleanDisplayName) {
-    return;
-  }
-
-  window.localStorage.setItem(PLAYER_DISPLAY_NAME_KEY, cleanDisplayName);
 }
 
 function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {

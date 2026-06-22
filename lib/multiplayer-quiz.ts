@@ -3,6 +3,7 @@ import { getAbilityCatalog, getSkinCatalog } from '@/lib/catalogs';
 import { shuffle, type QuizItem } from '@/lib/quiz';
 import {
   canReconnect,
+  getMultiplayerGuestDisplayName,
   getReconnectDeadline,
   MULTIPLAYER_STALE_AFTER_MS,
   resolveMultiplayerLifecycle,
@@ -78,7 +79,6 @@ export type MultiplayerQuizPublicLobby = {
 type CreateOrJoinInput = {
   gameMode: MultiplayerQuizGameMode;
   clientId: string;
-  displayName: string;
   authUserId?: string | null;
 };
 
@@ -106,6 +106,19 @@ export function parseMultiplayerQuizGameMode(value: unknown): MultiplayerQuizGam
 
 function sanitizeDisplayName(value: string) {
   return value.trim().slice(0, 16) || 'Player';
+}
+
+async function resolveMultiplayerDisplayName(input: CreateOrJoinInput) {
+  let displayName = getMultiplayerGuestDisplayName(input.clientId);
+  if (input.authUserId) {
+    const { data: profile } = await getSupabaseServiceClient()
+      .from('profiles')
+      .select('username, display_name')
+      .eq('id', input.authUserId)
+      .maybeSingle<{ username: string; display_name: string }>();
+    displayName = profile?.display_name || profile?.username || displayName;
+  }
+  return sanitizeDisplayName(displayName);
 }
 
 function generateLobbyCode() {
@@ -321,13 +334,14 @@ async function getLobbyView(lobby: MultiplayerQuizLobby, clientId?: string | nul
 }
 
 async function insertPlayer(lobby: MultiplayerQuizLobby, input: CreateOrJoinInput, role: 'host' | 'player') {
+  const displayName = await resolveMultiplayerDisplayName(input);
   const { data, error } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
     .insert({
       lobby_id: lobby.id,
       client_id: input.clientId,
       auth_user_id: input.authUserId ?? null,
-      display_name: sanitizeDisplayName(input.displayName),
+      display_name: displayName,
       role,
     })
     .select('*')
@@ -396,11 +410,12 @@ export async function joinMultiplayerQuizLobby(code: string, input: CreateOrJoin
       throw new Error('This player cannot rejoin the active game.');
     }
     const now = new Date().toISOString();
+    const displayName = await resolveMultiplayerDisplayName(input);
     const { error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_players')
       .update({
         auth_user_id: input.authUserId ?? existingPlayer.auth_user_id,
-        display_name: sanitizeDisplayName(input.displayName),
+        display_name: displayName,
         connected: true,
         last_seen_at: now,
         disconnected_at: null,
@@ -566,23 +581,6 @@ export async function heartbeatMultiplayerQuizPlayer(code: string, clientId: str
   return getLobbyView(lobby, clientId);
 }
 
-export async function updateMultiplayerQuizDisplayName(code: string, clientId: string, displayName: string) {
-  const lobby = await fetchLobby(code);
-  if (!lobby || lobby.status !== 'waiting') {
-    throw new Error('Lobby not found.');
-  }
-  const { error } = await getSupabaseServiceClient()
-    .from('multiplayer_quiz_players')
-    .update({ display_name: sanitizeDisplayName(displayName), updated_at: new Date().toISOString() })
-    .eq('lobby_id', lobby.id)
-    .eq('client_id', clientId);
-  if (error) {
-    throw error;
-  }
-  await addLobbyEvent(lobby.id, 'display_name_updated');
-  return getLobbyView(lobby, clientId);
-}
-
 export async function updateMultiplayerQuizSettings(
   code: string,
   clientId: string,
@@ -677,6 +675,7 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
       return null;
     }
     const host = players.find((player) => player.id === lobby.host_player_id);
+    if (!host) return null;
     return {
       code: lobby.code,
       gameMode: lobby.game_mode,
@@ -686,7 +685,7 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
       totalItems: lobby.total_items,
       playerCount: players.length,
       maxPlayers: lobby.max_players,
-      hostName: host?.display_name ?? 'Host',
+      hostName: host.display_name,
     };
   }).filter((entry): entry is MultiplayerQuizPublicLobby => entry !== null);
 }

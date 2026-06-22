@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Crown, MoreHorizontal, UserCheck, UserX, Users } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -48,6 +48,7 @@ export function MultiplayerLobbyRoster({
   const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
   const [profileUsernames, setProfileUsernames] = useState<Record<string, string>>({});
   const [status, setStatus] = useState('');
+  const menuRef = useRef<HTMLDivElement>(null);
   const profileIds = useMemo(
     () => [...new Set(players.flatMap((player) => player.authUserId ? [player.authUserId] : []))],
     [players],
@@ -55,9 +56,18 @@ export function MultiplayerLobbyRoster({
   const profileIdKey = profileIds.join(',');
 
   useEffect(() => {
-    const closeMenu = () => setContextMenu(null);
-    document.addEventListener('click', closeMenu);
-    return () => document.removeEventListener('click', closeMenu);
+    const closeMenu = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || menuRef.current?.contains(target)) {
+        return;
+      }
+      if (target instanceof Element && target.closest('[data-roster-menu-trigger]')) {
+        return;
+      }
+      setContextMenu(null);
+    };
+    document.addEventListener('pointerdown', closeMenu);
+    return () => document.removeEventListener('pointerdown', closeMenu);
   }, []);
 
   useEffect(() => {
@@ -165,19 +175,20 @@ export function MultiplayerLobbyRoster({
     setContextMenu(null);
   };
 
-  const openContextMenu = (event: React.MouseEvent, player: MultiplayerLobbyRosterPlayer) => {
+  const openActionsMenu = (event: React.MouseEvent<HTMLButtonElement>, player: MultiplayerLobbyRosterPlayer) => {
     if (player.isCurrentUser) {
       return;
     }
-    const hasSocialActions = Boolean(player.authUserId && profileUsernames[player.authUserId]);
-    if (!hasSocialActions && !canManage) {
+    event.stopPropagation();
+    if (contextMenu?.player.id === player.id) {
+      setContextMenu(null);
       return;
     }
-    event.preventDefault();
+    const buttonBounds = event.currentTarget.getBoundingClientRect();
     setContextMenu({
       player,
-      x: Math.min(event.clientX, window.innerWidth - 210),
-      y: Math.min(event.clientY, window.innerHeight - 260),
+      x: Math.max(12, Math.min(buttonBounds.right - 192, window.innerWidth - 204)),
+      y: Math.max(12, Math.min(buttonBounds.bottom + 8, window.innerHeight - 260)),
     });
   };
 
@@ -189,8 +200,16 @@ export function MultiplayerLobbyRoster({
     setContextMenu(null);
   };
 
+  const hasMenuActions = (player: MultiplayerLobbyRosterPlayer) => Boolean(
+    (player.authUserId && profileUsernames[player.authUserId])
+    || (player.authUserId && currentAuthUserId && player.authUserId !== currentAuthUserId)
+    || (canManage && onMakeHost && !player.isHost)
+    || (canManage && player.canPromote && onPromote)
+    || (canManage && onKick),
+  );
+
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
+    <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Lobby</p>
@@ -205,44 +224,24 @@ export function MultiplayerLobbyRoster({
           return (
             <div
               key={player.id}
-              onContextMenu={(event) => openContextMenu(event, player)}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3"
+              className="flex min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3"
             >
-              <div className="min-w-0">
-                <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-white">
-                  <span className="truncate">
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm font-semibold text-white">
+                  <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                     {player.displayName}{player.authUserId ? '' : ' (Guest)'}{player.isCurrentUser ? ' (you)' : ''}
                   </span>
-                  {isFriend ? (
-                    <span className="group relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-300/40 bg-amber-300/10 text-amber-200">
-                      <Users size={11} />
-                      <span className="pointer-events-none absolute left-0 top-7 z-50 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-200 opacity-0 shadow-xl transition group-hover:opacity-100">Friend</span>
-                    </span>
-                  ) : null}
                 </p>
-                <p className="mt-1 text-xs capitalize text-slate-500">{player.role}</p>
+                <p className="mt-1 flex items-center gap-1 text-xs capitalize text-slate-500">
+                  {isFriend ? <><Users size={12} className="shrink-0 text-amber-300" aria-label="Friend" /> <span aria-hidden="true">-</span></> : null}
+                  <span>{player.role}</span>
+                </p>
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                {canManage && player.canPromote && !player.isCurrentUser && onPromote ? (
-                  <span className="group relative inline-flex">
-                    <button type="button" onClick={() => onPromote(player.id)} aria-label={`Make ${player.displayName} a player`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 transition hover:bg-emerald-500/20">
-                      <UserCheck size={14} />
-                    </button>
-                    <span className="pointer-events-none absolute right-0 top-10 z-50 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-200 opacity-0 shadow-xl transition group-hover:opacity-100">Make player</span>
-                  </span>
-                ) : null}
-                {canManage && !player.isCurrentUser && onKick ? (
-                  <span className="group relative inline-flex">
-                    <button type="button" onClick={() => onKick(player.id)} aria-label={`Kick ${player.displayName}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-400/30 bg-red-500/10 text-red-200 transition hover:bg-red-500/20">
-                      <UserX size={14} />
-                    </button>
-                    <span className="pointer-events-none absolute right-0 top-10 z-50 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-200 opacity-0 shadow-xl transition group-hover:opacity-100">Kick</span>
-                  </span>
-                ) : null}
                 {player.status}
                 {!player.isCurrentUser ? (
-                  <button type="button" onClick={(event) => openContextMenu(event, player)} aria-label={`More actions for ${player.displayName}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-950 text-slate-400 transition hover:bg-slate-800 hover:text-white">
+                  <button type="button" data-roster-menu-trigger onClick={(event) => openActionsMenu(event, player)} aria-label={`More actions for ${player.displayName}`} aria-expanded={contextMenu?.player.id === player.id} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-950 text-slate-400 transition hover:bg-slate-800 hover:text-white">
                     <MoreHorizontal size={14} />
                   </button>
                 ) : null}
@@ -255,7 +254,7 @@ export function MultiplayerLobbyRoster({
       {status ? <p className="mt-3 text-xs font-semibold text-slate-400">{status}</p> : null}
 
       {contextMenu ? createPortal((
-        <div className="fixed z-[90] min-w-48 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
+        <div ref={menuRef} className="fixed z-[90] min-w-48 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl" style={{ left: contextMenu.x, top: contextMenu.y }}>
           {contextMenu.player.authUserId && profileUsernames[contextMenu.player.authUserId] ? (
             <button type="button" onClick={() => { openPublicProfileOverlay(profileUsernames[contextMenu.player.authUserId as string]); setContextMenu(null); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</button>
           ) : null}
@@ -274,6 +273,9 @@ export function MultiplayerLobbyRoster({
           ) : null}
           {canManage && onKick ? (
             <button type="button" onClick={() => runManagementAction(onKick)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/10"><UserX size={14} />Kick</button>
+          ) : null}
+          {!hasMenuActions(contextMenu.player) ? (
+            <p className="px-3 py-2 text-sm text-slate-500">No actions available</p>
           ) : null}
         </div>
       ), document.body) : null}

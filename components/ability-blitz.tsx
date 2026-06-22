@@ -1060,7 +1060,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               </div>
             </div>
 
-            <button
+            {!multiplayer ? <button
               type="button"
               onClick={handleTogglePlay}
               className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/90 px-4 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/10 transition hover:bg-slate-900"
@@ -1076,7 +1076,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 : started
                 ? multiplayer ? 'In Progress' : 'Pause'
                 : 'Play'}
-            </button>
+            </button> : null}
           </div>
         </header>
 

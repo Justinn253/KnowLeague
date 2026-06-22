@@ -1,7 +1,7 @@
 import { getSkinCatalog } from '@/lib/catalogs';
 import { normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
-import { canReconnect, getReconnectDeadline, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
+import { canReconnect, getMultiplayerGuestDisplayName, getReconnectDeadline, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 
 export type SkincognitoCategoryId = 'skin' | 'champion' | 'skinLine' | 'releaseYear' | 'rarity' | 'gender' | 'role' | 'race';
@@ -103,7 +103,6 @@ export type SkincognitoPublicLobby = {
 
 type CreateOrJoinInput = {
   clientId: string;
-  displayName: string;
   authUserId?: string | null;
   selectedSkinId?: string | null;
 };
@@ -139,6 +138,19 @@ function generateLobbyCode() {
 function sanitizeDisplayName(displayName: string) {
   const trimmedName = displayName.trim();
   return trimmedName.slice(0, 16) || 'Player';
+}
+
+async function resolveMultiplayerDisplayName(input: CreateOrJoinInput) {
+  let displayName = getMultiplayerGuestDisplayName(input.clientId);
+  if (input.authUserId) {
+    const { data: profile } = await getSupabaseServiceClient()
+      .from('profiles')
+      .select('username, display_name')
+      .eq('id', input.authUserId)
+      .maybeSingle<{ username: string; display_name: string }>();
+    displayName = profile?.display_name || profile?.username || displayName;
+  }
+  return sanitizeDisplayName(displayName);
 }
 
 function getSkinById(skinId?: string | null) {
@@ -379,15 +391,7 @@ async function countSkincognitoSkinUses(skinId: string) {
 
 async function upsertPlayer(lobby: SkincognitoLobbyRecord, input: CreateOrJoinInput, role: SkincognitoPlayerRole) {
   const selectedSkin = role === 'spectator' ? null : getSkinById(input.selectedSkinId);
-  let displayName = sanitizeDisplayName(input.displayName);
-  if (input.authUserId) {
-    const { data: profile } = await getSupabaseServiceClient()
-      .from('profiles')
-      .select('username, display_name')
-      .eq('id', input.authUserId)
-      .maybeSingle<{ username: string; display_name: string }>();
-    displayName = sanitizeDisplayName(profile?.display_name || profile?.username || displayName);
-  }
+  const displayName = await resolveMultiplayerDisplayName(input);
 
   const { data, error } = await getSupabaseServiceClient()
     .from('skincognito_players')
@@ -719,11 +723,12 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
       throw new Error('This player cannot rejoin the active game.');
     }
     const now = new Date().toISOString();
+    const displayName = await resolveMultiplayerDisplayName(input);
     const { error } = await getSupabaseServiceClient()
       .from('skincognito_players')
       .update({
         auth_user_id: input.authUserId ?? existingPlayer.auth_user_id,
-        display_name: sanitizeDisplayName(input.displayName),
+        display_name: displayName,
         connected: true,
         last_seen_at: now,
         disconnected_at: null,
@@ -792,9 +797,10 @@ export async function listPublicSkincognitoLobbies() {
     if (players.length === 0) return null;
     if (players.length >= MAX_LOBBY_PLAYERS) return null;
     const host = players.find((player) => player.id === lobby.host_player_id);
+    if (!host) return null;
     return {
       code: lobby.code,
-      hostName: host?.display_name ?? 'Host',
+      hostName: host.display_name,
       playerCount: players.length,
       maxPlayers: MAX_LOBBY_PLAYERS,
     };
@@ -1027,29 +1033,6 @@ export async function selectSkincognitoSkin(code: string, clientId: string, skin
   }
 
   await addLobbyEvent(lobby.id, 'skin_selected');
-  return getLobbyView(lobby, clientId);
-}
-
-export async function updateSkincognitoDisplayName(code: string, clientId: string, displayName: string) {
-  const lobby = await fetchLobbyByCode(code);
-  if (!lobby || lobby.status === 'terminated') {
-    throw new Error('Lobby is not available.');
-  }
-
-  const { error } = await getSupabaseServiceClient()
-    .from('skincognito_players')
-    .update({
-      display_name: sanitizeDisplayName(displayName),
-      last_seen_at: new Date().toISOString(),
-    })
-    .eq('lobby_id', lobby.id)
-    .eq('client_id', clientId);
-
-  if (error) {
-    throw error;
-  }
-
-  await addLobbyEvent(lobby.id, 'display_name_updated');
   return getLobbyView(lobby, clientId);
 }
 

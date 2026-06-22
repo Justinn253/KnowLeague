@@ -5,8 +5,9 @@ import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Search, Users } f
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
+import { GameInfoMenu } from '@/components/game-info-menu';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
-import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
+import { getOrCreateClientId } from '@/lib/game-storage';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
@@ -245,7 +246,6 @@ function getFinishedTargetPlayer(view: SkincognitoLobbyView | null) {
 export function Skincognito() {
   const router = useRouter();
   const [clientId, setClientId] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState('Player');
   const [joinCode, setJoinCode] = useState('');
   const [lobbyView, setLobbyView] = useState<SkincognitoLobbyView | null>(null);
   const [answers, setAnswers] = useState<SkincognitoAnswers>(EMPTY_ANSWERS);
@@ -270,7 +270,6 @@ export function Skincognito() {
   const wasGuessesAtBottomRef = useRef(true);
   const wasChatAtBottomRef = useRef(true);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
-  const nameDraftDirtyRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: SkincognitoLobbyView['lobby']['status'] } | null>(null);
@@ -402,11 +401,6 @@ export function Skincognito() {
       window.localStorage.removeItem(LOBBY_STORAGE_KEY);
     }
 
-    if (view.requestingPlayer?.display_name && !nameDraftDirtyRef.current) {
-      setDisplayName(view.requestingPlayer.display_name);
-      savePlayerDisplayName(view.requestingPlayer.display_name);
-    }
-
     if (view.requestingPlayer?.selected_skin) {
       const nextSelectedSkin = {
         id: view.requestingPlayer.selected_skin.id,
@@ -491,26 +485,12 @@ export function Skincognito() {
   useEffect(() => {
     const nextClientId = getOrCreateClientId();
     setClientId(nextClientId);
-    const fallbackName = nextClientId ? `Player ${nextClientId.slice(-4).toUpperCase()}` : 'Player';
-    const storedName = loadPlayerDisplayName(fallbackName);
-    setDisplayName(storedName);
-
     const supabase = getOptionalSupabaseClient();
     supabase?.auth.getSession().then(async ({ data }) => {
       const userId = data.session?.user.id ?? null;
       setAuthUserId(userId);
       if (!userId || !data.session) {
         return;
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('username, display_name')
-        .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string }>();
-      const profileName = profile?.display_name || profile?.username;
-      if (profileName) {
-        setDisplayName(profileName);
       }
 
     });
@@ -551,19 +531,11 @@ export function Skincognito() {
 
           if (!data.error && reconnectCode && (!data.requestingPlayer || data.requestingPlayer.role !== 'spectator')) {
             let joinAuthUserId: string | null = null;
-            let joinDisplayName = storedName;
             const authData = await supabase?.auth.getSession();
             const session = authData?.data.session ?? null;
             if (session) {
               joinAuthUserId = session.user.id;
-              const { data: profile } = await supabase!
-                .from('profiles')
-                .select('username, display_name')
-                .eq('id', session.user.id)
-                .maybeSingle<{ username: string; display_name: string }>();
-              joinDisplayName = profile?.display_name || profile?.username || storedName;
               setAuthUserId(session.user.id);
-              setDisplayName(joinDisplayName);
             }
 
             fetch('/api/skincognito/lobbies/join', {
@@ -573,7 +545,6 @@ export function Skincognito() {
                 code: reconnectCode,
                 clientId: nextClientId,
                 authUserId: joinAuthUserId,
-                displayName: joinDisplayName,
                 selectedSkinId: null,
               }),
             })
@@ -782,7 +753,7 @@ export function Skincognito() {
   }, []);
 
   useEffect(() => {
-    if (lobbyView) return undefined;
+    if (lobbyView || isLeavingLobbyRef.current) return undefined;
     void loadPublicLobbies();
     return undefined;
   }, [loadPublicLobbies, lobbyView]);
@@ -815,7 +786,6 @@ export function Skincognito() {
     void requestLobby('/api/skincognito/lobbies', {
       clientId,
       authUserId,
-      displayName,
       selectedSkinId: selectedSkin?.id ?? null,
     });
   };
@@ -830,7 +800,6 @@ export function Skincognito() {
       code: code.trim().toUpperCase(),
       clientId,
       authUserId,
-      displayName,
       selectedSkinId: selectedSkin?.id ?? null,
     });
   };
@@ -902,6 +871,7 @@ export function Skincognito() {
     setSkinQuery('');
     setGuessQuery('');
     setMessage('');
+    setPublicLobbies((current) => current.filter((lobby) => lobby.code !== code));
     if (clientId) {
       const endpoint = wasWaiting ? 'leave' : 'heartbeat';
       await fetch(`/api/skincognito/lobbies/${code}/${endpoint}`, {
@@ -910,7 +880,13 @@ export function Skincognito() {
         body: JSON.stringify({ clientId, ...(wasWaiting ? {} : { connected: false }) }),
       }).catch(() => undefined);
     }
-    router.push('/');
+    if (wasWaiting) {
+      isLeavingLobbyRef.current = false;
+      window.history.replaceState(null, '', '/skincognito');
+      await loadPublicLobbies();
+    } else {
+      router.push('/');
+    }
   };
 
   const kickPlayer = (targetPlayerId: string) => {
@@ -943,24 +919,6 @@ export function Skincognito() {
     void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/make-host`, {
       clientId,
       targetPlayerId,
-    });
-  };
-
-  const updateDisplayName = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!clientId || !lobbyView) {
-      return;
-    }
-
-    nameDraftDirtyRef.current = false;
-    savePlayerDisplayName(displayName);
-    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/name`, {
-      clientId,
-      displayName,
-    }).then((view) => {
-      if (view) {
-        nameDraftDirtyRef.current = false;
-      }
     });
   };
 
@@ -1050,9 +1008,16 @@ export function Skincognito() {
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
-            <Users size={16} className="text-amber-300" />
-            {getHeaderActionLabel(lobbyView)}
+          <div className="flex items-center gap-2">
+            <GameInfoMenu title="Skincognito" steps={[
+              'Choose a skin for your opponent to identify before the match starts.',
+              'Take turns asking category questions and use the answers to narrow down the skin.',
+              'Identify your opponent’s selected skin before they identify yours.',
+            ]} />
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
+              <Users size={16} className="text-amber-300" />
+              {getHeaderActionLabel(lobbyView)}
+            </div>
           </div>
         </header>
 
@@ -1169,35 +1134,7 @@ export function Skincognito() {
                 <span><span className="block text-sm font-semibold text-white">Public lobby</span><span className="mt-1 block text-xs text-slate-400">Allow players to discover and join this lobby.</span></span>
                 <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${lobbyView.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${lobbyView.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
               </button>
-              <form onSubmit={updateDisplayName} className="mb-5 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:grid-cols-[1fr_auto] sm:items-end">
-                <div className="grid gap-2">
-                  <label htmlFor="display-name" className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Display name
-                  </label>
-                  <input
-                    id="display-name"
-                    value={displayName}
-                    onChange={(event) => {
-                      setDisplayName(event.target.value.slice(0, 16));
-                      nameDraftDirtyRef.current = true;
-                    }}
-                    maxLength={16}
-                    className="min-h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15"
-                  />
-                  {displayName.length >= 16 ? (
-                    <span className="text-xs font-semibold text-amber-200">16/16</span>
-                  ) : null}
-                </div>
-                <button
-                  type="submit"
-                  disabled={busy || displayName.trim().length === 0}
-                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 px-5 text-sm font-semibold text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Update
-                </button>
-              </form>
-
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
+              <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
                 <MultiplayerLobbyRoster
                   countLabel={`${activePlayers.length}/2 Players - ${spectatorCount}/8 Spectators`}
                   canManage={isHost && lobbyView.lobby.status === 'waiting'}
@@ -1326,7 +1263,7 @@ export function Skincognito() {
                 </button>
               </div>
 
-              {!canStart && lobbyView.lobby.status === 'waiting' ? (
+              {lobbyView.lobby.status === 'waiting' ? (
                 <p className="mt-3 text-center text-xs text-slate-500">
                   The host can start once two active players have joined. Missing skin selections use a random skin.
                 </p>

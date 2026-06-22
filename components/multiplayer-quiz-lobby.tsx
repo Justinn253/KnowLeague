@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, SlidersHorizontal, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getOrCreateClientId, loadPlayerDisplayName, savePlayerDisplayName } from '@/lib/game-storage';
+import { getOrCreateClientId } from '@/lib/game-storage';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { AbilityBlitz } from '@/components/ability-blitz';
 import { SkinChampion } from '@/components/skin-champion';
@@ -11,6 +11,7 @@ import { MultiplayerGameProgress } from '@/components/multiplayer-game-progress'
 import { ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { GameSettingsSection } from '@/components/game-settings-section';
+import { GameInfoMenu } from '@/components/game-info-menu';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
 import type {
   MultiplayerQuizDifficulty,
@@ -83,7 +84,6 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const config = configs[gameMode];
   const [clientId, setClientId] = useState<string | null>(null);
   const [authUserId, setAuthUserId] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState('Player');
   const [joinCode, setJoinCode] = useState('');
   const [view, setView] = useState<MultiplayerQuizLobbyView | null>(null);
   const [message, setMessage] = useState('');
@@ -152,10 +152,6 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     } else {
       window.localStorage.removeItem(getLobbyStorageKey(gameMode));
     }
-    if (nextView.requestingPlayer?.display_name) {
-      setDisplayName(nextView.requestingPlayer.display_name);
-      savePlayerDisplayName(nextView.requestingPlayer.display_name);
-    }
     window.history.replaceState(null, '', `${config.route}?code=${nextView.lobby.code}`);
   }, [config.route, gameMode, router]);
 
@@ -185,7 +181,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   }, [gameMode]);
 
   useEffect(() => {
-    if (view) return undefined;
+    if (view || isLeavingLobbyRef.current) return undefined;
     void loadPublicLobbies();
     return undefined;
   }, [loadPublicLobbies, view]);
@@ -198,25 +194,16 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         return;
       }
       setClientId(nextClientId);
-      const fallbackName = `Player ${nextClientId.slice(-4).toUpperCase()}`;
-      let nextDisplayName = loadPlayerDisplayName(fallbackName).slice(0, 16);
       let nextAuthUserId: string | null = null;
       const supabase = getOptionalSupabaseClient();
       const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
       if (data.session) {
         nextAuthUserId = data.session.user.id;
-        const { data: profile } = await supabase!
-          .from('profiles')
-          .select('username, display_name')
-          .eq('id', data.session.user.id)
-          .maybeSingle<{ username: string; display_name: string }>();
-        nextDisplayName = (profile?.display_name || profile?.username || nextDisplayName).slice(0, 16);
       }
       if (cancelled) {
         return;
       }
       setAuthUserId(nextAuthUserId);
-      setDisplayName(nextDisplayName);
 
       const inviteCode = new URLSearchParams(window.location.search).get('code')?.trim().toUpperCase();
       if (!inviteCode) {
@@ -246,7 +233,6 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
             code: inviteCode,
             gameMode,
             clientId: nextClientId,
-            displayName: nextDisplayName,
             authUserId: nextAuthUserId,
           }),
         });
@@ -331,7 +317,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch('/api/multiplayer/lobbies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameMode, clientId, displayName, authUserId }),
+        body: JSON.stringify({ gameMode, clientId, authUserId }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -352,7 +338,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch('/api/multiplayer/lobbies/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, gameMode, clientId, displayName, authUserId }),
+        body: JSON.stringify({ code, gameMode, clientId, authUserId }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -380,31 +366,17 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     setMessage('');
     window.history.replaceState(null, '', config.route);
     if (wasWaiting) window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+    setPublicLobbies((current) => current.filter((lobby) => lobby.code !== code));
     await fetch(`/api/multiplayer/lobbies/${code}/leave`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId }),
     }).catch(() => undefined);
-    if (!wasWaiting) router.push('/');
-  };
-
-  const updateName = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!view || !clientId || !displayName.trim()) {
-      return;
-    }
-    setBusy(true);
-    try {
-      const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/name`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, displayName }),
-      });
-      applyView(await readResponse(response));
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to update display name.');
-    } finally {
-      setBusy(false);
+    if (wasWaiting) {
+      isLeavingLobbyRef.current = false;
+      await loadPublicLobbies();
+    } else {
+      router.push('/');
     }
   };
 
@@ -529,15 +501,26 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
               <p className="mt-1 text-xs text-slate-400">{view ? 'Lobby' : 'Create or join a lobby'}</p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
-            <Users size={16} className="text-amber-300" />
-            {view?.lobby.status === 'waiting'
-              ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : 'Waiting for players'}`
-              : view?.lobby.status === 'active'
-                ? 'In Progress'
-                : view?.lobby.status === 'finished'
-                  ? 'Finished'
-                  : 'Lobby'}
+          <div className="flex items-center gap-2">
+            <GameInfoMenu title={config.title} steps={gameMode === 'ability_blitz' ? [
+              'Identify the ability shown and submit its exact name.',
+              'Correct answers advance through the shared randomized set; difficulty controls hints and penalties.',
+              'Finish the set before your opponents.',
+            ] : [
+              'Identify the skin splash art and submit its exact skin name.',
+              'Use hints and autocomplete when the selected difficulty allows them.',
+              'Finish the shared randomized set before your opponents.',
+            ]} />
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
+              <Users size={16} className="text-amber-300" />
+              {view?.lobby.status === 'waiting'
+                ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : 'Waiting for players'}`
+                : view?.lobby.status === 'active'
+                  ? 'In Progress'
+                  : view?.lobby.status === 'finished'
+                    ? 'Finished'
+                    : 'Lobby'}
+            </div>
           </div>
         </header>
 
@@ -622,15 +605,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                 </button>
               </div>
 
-              <form onSubmit={updateName} className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:grid-cols-[1fr_auto] sm:items-end">
-                <label className="grid gap-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Display name</span>
-                  <input value={displayName} onChange={(event) => setDisplayName(event.target.value.slice(0, 16))} maxLength={16} autoComplete="off" className="min-h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none focus:border-white/20" />
-                </label>
-                <button type="submit" disabled={busy || !displayName.trim()} className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">Update</button>
-              </form>
-
-              <div className="grid gap-5 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.4fr)]">
+              <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)]">
                 <MultiplayerLobbyRoster
                   countLabel={`${view.players.length}/${view.lobby.max_players} Players`}
                   canManage={isHost && view.lobby.status === 'waiting'}

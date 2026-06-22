@@ -283,8 +283,14 @@ async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {
     player.result === 'active' && !player.connected && canReconnect(player.disconnected_at)
   ));
   const activeConnectedPlayers = players.filter((player) => player.connected && player.result === 'active');
+  const unavailableDisconnectedPlayers = players.filter((player) => (
+    player.result !== 'active' && !player.connected && player.disconnected_at && !canReconnect(player.disconnected_at)
+  ));
   const allPlayersResolved = players.every((player) => player.result !== 'active');
-  const shouldFinish = !pendingReconnect && (allPlayersResolved || (expiredPlayers.length > 0 && activeConnectedPlayers.length === 1));
+  const shouldFinish = !pendingReconnect && (
+    allPlayersResolved ||
+    (activeConnectedPlayers.length === 1 && unavailableDisconnectedPlayers.length > 0)
+  );
   if (shouldFinish) {
     const now = new Date().toISOString();
     const { data, error } = await getSupabaseServiceClient()
@@ -702,16 +708,27 @@ export async function leaveMultiplayerQuizLobby(code: string, clientId: string, 
   if (!leavingPlayer) {
     return { left: true };
   }
-  if (lobby.status === 'active' && !forfeit) {
+  if (forfeit && lobby.status === 'finished') {
+    return { left: true };
+  }
+  if (lobby.status === 'active') {
     const now = new Date().toISOString();
+    const disconnectedAt = forfeit ? '1970-01-01T00:00:00.000Z' : now;
+    const resultUpdate = forfeit ? { result: 'failed' as const, finished_at: now } : {};
     const { error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_players')
-      .update({ connected: false, disconnected_at: now, last_seen_at: now, updated_at: now })
+      .update({
+        connected: false,
+        disconnected_at: disconnectedAt,
+        last_seen_at: now,
+        updated_at: now,
+        ...resultUpdate,
+      })
       .eq('id', leavingPlayer.id);
     if (error) {
       throw error;
     }
-    await addLobbyEvent(lobby.id, 'player_disconnected');
+    await addLobbyEvent(lobby.id, forfeit ? 'reconnect_forfeited' : 'player_disconnected');
     await reconcileMultiplayerQuizLobby(lobby);
     return { left: true };
   }
@@ -763,20 +780,6 @@ export async function leaveMultiplayerQuizLobby(code: string, clientId: string, 
       .eq('id', lobby.id);
     if (lobbyError) {
       throw lobbyError;
-    }
-  }
-
-  if (lobby.status === 'active') {
-    const remainingActivePlayers = remainingPlayers.filter((player) => player.result === 'active');
-    if (remainingActivePlayers.length <= 1) {
-      const now = new Date().toISOString();
-      const { error } = await getSupabaseServiceClient()
-        .from('multiplayer_quiz_lobbies')
-        .update({ status: 'finished', is_public: false, updated_at: now })
-        .eq('id', lobby.id);
-      if (error) throw error;
-      await addLobbyEvent(lobby.id, 'game_finished');
-      return { left: true };
     }
   }
 

@@ -9,6 +9,7 @@ import { GameInfoMenu } from '@/components/game-info-menu';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { getOrCreateClientId } from '@/lib/game-storage';
+import { disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
@@ -40,7 +41,7 @@ type ChatGroup = {
   messages: string[];
 };
 
-const LOBBY_STORAGE_KEY = 'knowleague:v1:skincognito:lobby-code';
+const LOBBY_STORAGE_KEY = SKINCOGNITO_LOBBY_STORAGE_KEY;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
 
 const CATEGORY_DEFINITIONS: Array<{ id: Exclude<SkincognitoCategoryId, 'skin'>; label: string }> = [
@@ -613,25 +614,18 @@ export function Skincognito() {
         return;
       }
 
-      const endpoint = activeLobby.status === 'waiting' ? 'leave' : 'heartbeat';
-      if (endpoint === 'leave') window.localStorage.removeItem(LOBBY_STORAGE_KEY);
-      const body = JSON.stringify({ clientId: activeLobby.clientId, ...(endpoint === 'heartbeat' ? { connected: false } : {}) });
-      const url = `/api/skincognito/lobbies/${activeLobby.code}/${endpoint}`;
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-        return;
-      }
-
-      void fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-        keepalive: true,
+      disconnectMultiplayerSession({
+        ...activeLobby,
+        storageKey: LOBBY_STORAGE_KEY,
+        baseUrl: '/api/skincognito/lobbies',
       });
     };
 
     window.addEventListener('pagehide', leaveWaitingLobbyOnPageExit);
-    return () => window.removeEventListener('pagehide', leaveWaitingLobbyOnPageExit);
+    return () => {
+      window.removeEventListener('pagehide', leaveWaitingLobbyOnPageExit);
+      leaveWaitingLobbyOnPageExit();
+    };
   }, []);
 
   useEffect(() => {

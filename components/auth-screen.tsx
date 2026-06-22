@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isValidPassword, PasswordRequirements } from '@/components/password-requirements';
 import { getAuthSessionId } from '@/lib/auth-session';
+import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type AuthMode = 'login' | 'signup' | 'password';
@@ -182,6 +183,7 @@ export function AuthScreen() {
 
         if (data.session) {
           await activateSession(data.session.access_token, data.session.user.id);
+          await forfeitStoredMultiplayerSessions();
           setEmail('');
           setUsername('');
           setPassword('');
@@ -218,6 +220,7 @@ export function AuthScreen() {
       }
 
       await activateSession(data.session.access_token, data.session.user.id);
+      await forfeitStoredMultiplayerSessions();
       setEmail('');
       setUsername('');
       setPassword('');

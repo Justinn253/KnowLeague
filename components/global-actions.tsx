@@ -9,6 +9,7 @@ import { FriendsWidget } from '@/components/friends-widget';
 import { ProfileScreen } from '@/components/profile-screen';
 import { PublicProfileScreen } from '@/components/public-profile-screen';
 import { getAuthSessionId } from '@/lib/auth-session';
+import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 export function GlobalActions() {
@@ -53,6 +54,7 @@ export function GlobalActions() {
           }, 500);
           return;
         }
+        await forfeitStoredMultiplayerSessions();
         await supabase.auth.signOut({ scope: 'local' });
         setProfileHref('/login');
         setProfileLabel('Profile');

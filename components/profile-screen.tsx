@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
 
 type ProfileRecord = {
   username: string;
@@ -323,6 +324,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
 
   const signOut = async () => {
     const supabase = getOptionalSupabaseClient();
+    await forfeitStoredMultiplayerSessions();
     await supabase?.auth.signOut();
     router.push('/login');
   };

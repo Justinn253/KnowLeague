@@ -14,6 +14,7 @@ import { GameSettingsSection } from '@/components/game-settings-section';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
+import { disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
 import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
@@ -70,8 +71,6 @@ const configs: Record<MultiplayerQuizGameMode, MultiplayerQuizConfig> = {
   },
 };
 
-const getLobbyStorageKey = (gameMode: MultiplayerQuizGameMode) => `knowleague:v1:multiplayer:${gameMode}:lobby-code`;
-
 async function readResponse(response: Response) {
   const data = await response.json();
   if (!response.ok) {
@@ -101,7 +100,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
     isLeavingLobbyRef.current = true;
     latestLobbyRef.current = null;
-    window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+    window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
     setView(null);
     setMessage('');
     window.history.replaceState(null, '', config.route);
@@ -129,28 +128,24 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     const disconnectOnPageExit = () => {
       const activeLobby = latestLobbyRef.current;
       if (!activeLobby) return;
-      const endpoint = activeLobby.status === 'waiting' ? 'leave' : 'heartbeat';
-      if (endpoint === 'leave') window.localStorage.removeItem(getLobbyStorageKey(gameMode));
-      const body = JSON.stringify({
-        clientId: activeLobby.clientId,
-        ...(endpoint === 'heartbeat' ? { connected: false } : {}),
+      disconnectMultiplayerSession({
+        ...activeLobby,
+        storageKey: getMultiplayerQuizLobbyStorageKey(gameMode),
+        baseUrl: '/api/multiplayer/lobbies',
       });
-      const url = `/api/multiplayer/lobbies/${activeLobby.code}/${endpoint}`;
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-      } else {
-        void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true });
-      }
     };
     window.addEventListener('pagehide', disconnectOnPageExit);
-    return () => window.removeEventListener('pagehide', disconnectOnPageExit);
+    return () => {
+      window.removeEventListener('pagehide', disconnectOnPageExit);
+      disconnectOnPageExit();
+    };
   }, [gameMode]);
 
   const applyView = useCallback((nextView: MultiplayerQuizLobbyView) => {
     if (isLeavingLobbyRef.current) return;
     if (nextView.lobby.status === 'terminated') {
       latestLobbyRef.current = null;
-      window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+      window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
       setRejoinCandidate(null);
       setView(null);
       router.replace('/');
@@ -166,9 +161,9 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     setView(nextView);
     setRejoinCandidate(null);
     if (nextView.lobby.status === 'waiting' || nextView.lobby.status === 'active') {
-      window.localStorage.setItem(getLobbyStorageKey(gameMode), nextView.lobby.code);
+      window.localStorage.setItem(getMultiplayerQuizLobbyStorageKey(gameMode), nextView.lobby.code);
     } else {
-      window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+      window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
     }
     window.history.replaceState(null, '', `${config.route}?code=${nextView.lobby.code}`);
   }, [config.route, gameMode, router]);
@@ -220,7 +215,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
       const inviteCode = new URLSearchParams(window.location.search).get('code')?.trim().toUpperCase();
       if (!inviteCode) {
-        const storedCode = window.localStorage.getItem(getLobbyStorageKey(gameMode));
+        const storedCode = window.localStorage.getItem(getMultiplayerQuizLobbyStorageKey(gameMode));
         if (storedCode) {
           try {
             const response = await fetch(`/api/multiplayer/lobbies/${storedCode}/rejoin?clientId=${encodeURIComponent(nextClientId)}`);
@@ -228,10 +223,10 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
             if (eligibility.eligible && !cancelled) {
               setRejoinCandidate({ code: eligibility.code, expiresAt: eligibility.expiresAt });
             } else {
-              window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+              window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
             }
           } catch {
-            window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+            window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
           }
         }
         return;
@@ -388,7 +383,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     setView(null);
     setMessage('');
     window.history.replaceState(null, '', config.route);
-    if (wasWaiting) window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+    if (wasWaiting) window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
     setPublicLobbies((current) => current.filter((lobby) => lobby.code !== code));
     await fetch(`/api/multiplayer/lobbies/${code}/leave`, {
       method: 'POST',
@@ -574,7 +569,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                     disabled={busy}
                     onReconnect={() => void joinLobbyByCode(rejoinCandidate.code)}
                     onExpire={() => {
-                      window.localStorage.removeItem(getLobbyStorageKey(gameMode));
+                      window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
                       setRejoinCandidate(null);
                     }}
                   />

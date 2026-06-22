@@ -23,6 +23,7 @@ import {
 import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
+import { ABILITY_SLOTS as abilitySlots, filterItemsByAbilitySlots, type AbilitySlotId, type AbilitySlotState } from '@/lib/ability-slots';
 
 const placeholderItems: QuizItem[] = [
   {
@@ -92,40 +93,10 @@ const modifiers = [
   },
 ] as const;
 
-const abilitySlots = [
-  {
-    id: 'p',
-    label: 'P',
-    name: 'Passive',
-  },
-  {
-    id: 'q',
-    label: 'Q',
-    name: 'Ability 1',
-  },
-  {
-    id: 'w',
-    label: 'W',
-    name: 'Ability 2',
-  },
-  {
-    id: 'e',
-    label: 'E',
-    name: 'Ability 3',
-  },
-  {
-    id: 'r',
-    label: 'R',
-    name: 'Ultimate',
-  },
-] as const;
-
 type DifficultyId = (typeof difficulties)[number]['id'];
 type ModifierId = (typeof modifiers)[number]['id'];
 type OpenMenu = 'difficulty' | 'modifiers' | null;
 type ModifierState = Record<ModifierId, boolean>;
-type AbilitySlotId = (typeof abilitySlots)[number]['id'];
-type AbilitySlotState = Record<AbilitySlotId, boolean>;
 type UpcomingVisibility = 'clear' | 'blurred' | 'blocked';
 
 type AbilityBlitzDailyState = {
@@ -194,24 +165,6 @@ const defaultAbilitySlots = abilitySlots.reduce(
   (state, slot) => ({ ...state, [slot.id]: true }),
   {} as AbilitySlotState,
 );
-
-function getAbilitySlotId(item: QuizItem): AbilitySlotId {
-  if (item.type === 'passive') {
-    return 'p';
-  }
-
-  if (item.type === 'ultimate') {
-    return 'r';
-  }
-
-  const match = item.id.match(/-spell-(\d+)$/);
-  const index = match ? Number(match[1]) : 0;
-  return ['q', 'w', 'e', 'r'][index] as AbilitySlotId;
-}
-
-function filterItemsByAbilitySlots(items: readonly QuizItem[], selectedSlots: AbilitySlotState) {
-  return items.filter((item) => selectedSlots[getAbilitySlotId(item)]);
-}
 
 function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boolean }) {
   return (

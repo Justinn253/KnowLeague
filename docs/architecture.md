@@ -40,6 +40,8 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 - Creating or joining a different multiplayer lobby forfeits outstanding reconnect windows across every game mode and publishes a realtime lobby event so remaining players see the result immediately.
 - Public discovery is manual-refresh and bounded. Joined-lobby state changes use scoped Realtime events.
 - Games with difficulty settings must use `components/difficulty-style.tsx` for tier names, colors, and selected states. Public lobby entries must show the styled difficulty and every enabled modifier by display name.
+- Multiplayer lobby configuration uses `GameSettingsSection` for collapsible setting groups. Difficulty opens by default; modifiers and game-specific groups open on demand. Future settings must use the same component rather than extending the page vertically with always-open panels.
+- Ability Blitz multiplayer stores selected ability slots on the lobby, exposes them in public discovery, and filters the catalog server-side before randomization so every player receives the same eligible set.
 - New multiplayer games must adopt this contract unless their documented game rules require a deliberate exception.
 
 ## Accounts and Social

@@ -8,6 +8,7 @@ import {
   resolveMultiplayerLifecycle,
 } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
+import { ALL_ABILITY_SLOT_IDS, filterItemsByAbilitySlots, type AbilitySlotId } from '@/lib/ability-slots';
 
 export type MultiplayerQuizGameMode = 'ability_blitz' | 'skin_champion';
 export type MultiplayerQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
@@ -21,6 +22,7 @@ export type MultiplayerQuizLobby = {
   host_player_id: string | null;
   difficulty: MultiplayerQuizDifficulty;
   modifiers: string[];
+  ability_slots: AbilitySlotId[];
   max_players: number;
   is_public: boolean;
   created_at: string;
@@ -66,6 +68,7 @@ export type MultiplayerQuizPublicLobby = {
   gameMode: MultiplayerQuizGameMode;
   difficulty: MultiplayerQuizDifficulty;
   modifiers: string[];
+  abilitySlots: AbilitySlotId[];
   totalItems: number;
   playerCount: number;
   maxPlayers: number;
@@ -465,7 +468,11 @@ export async function startMultiplayerQuizLobby(code: string, clientId: string) 
   if (players.length < 2) {
     throw new Error('At least two players are required.');
   }
-  const itemIds = shuffle(getGameCatalog(lobby.game_mode)).slice(0, lobby.total_items).map((item) => item.id);
+  const catalog = getGameCatalog(lobby.game_mode);
+  const eligibleItems = lobby.game_mode === 'ability_blitz'
+    ? filterItemsByAbilitySlots(catalog, lobby.ability_slots)
+    : catalog;
+  const itemIds = shuffle(eligibleItems).slice(0, lobby.total_items).map((item) => item.id);
   const now = new Date().toISOString();
   const { error: playerError } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
@@ -583,6 +590,7 @@ export async function updateMultiplayerQuizSettings(
   modifiers: unknown,
   totalItems: number,
   isPublic: boolean,
+  abilitySlots: unknown,
 ) {
   const lobby = await fetchLobby(code);
   if (!lobby || lobby.status !== 'waiting') {
@@ -599,7 +607,16 @@ export async function updateMultiplayerQuizSettings(
   const validModifiers = Array.isArray(modifiers)
     ? [...new Set(modifiers.filter((value): value is string => typeof value === 'string' && modifierIds[lobby.game_mode].has(value)))]
     : [];
-  const catalogSize = getGameCatalog(lobby.game_mode).length;
+  const validAbilitySlots = lobby.game_mode === 'ability_blitz' && Array.isArray(abilitySlots)
+    ? ALL_ABILITY_SLOT_IDS.filter((slot) => abilitySlots.includes(slot))
+    : ALL_ABILITY_SLOT_IDS;
+  if (validAbilitySlots.length === 0) {
+    throw new Error('Select at least one ability set.');
+  }
+  const catalog = getGameCatalog(lobby.game_mode);
+  const catalogSize = lobby.game_mode === 'ability_blitz'
+    ? filterItemsByAbilitySlots(catalog, validAbilitySlots).length
+    : catalog.length;
   const validTotalItems = Math.min(catalogSize, Math.max(1, Math.floor(totalItems)));
   if (!Number.isFinite(totalItems)) {
     throw new Error('Invalid entry count.');
@@ -610,6 +627,7 @@ export async function updateMultiplayerQuizSettings(
     .update({
       difficulty,
       modifiers: validModifiers,
+      ability_slots: validAbilitySlots,
       total_items: validTotalItems,
       is_public: isPublic,
       updated_at: new Date().toISOString(),
@@ -664,6 +682,7 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
       gameMode: lobby.game_mode,
       difficulty: lobby.difficulty,
       modifiers: lobby.modifiers,
+      abilitySlots: lobby.ability_slots,
       totalItems: lobby.total_items,
       playerCount: players.length,
       maxPlayers: lobby.max_players,

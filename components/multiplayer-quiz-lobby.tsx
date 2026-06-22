@@ -10,6 +10,8 @@ import { SkinChampion } from '@/components/skin-champion';
 import { MultiplayerGameProgress } from '@/components/multiplayer-game-progress';
 import { ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
+import { GameSettingsSection } from '@/components/game-settings-section';
+import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
 import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
@@ -411,6 +413,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     modifiers: string[],
     totalItems = view?.lobby.total_items ?? 50,
     isPublic = view?.lobby.is_public ?? false,
+    abilitySlots: AbilitySlotId[] = view?.lobby.ability_slots ?? [...ABILITY_SLOTS.map((slot) => slot.id)],
   ) => {
     if (!view || !clientId || !isHost) {
       return;
@@ -420,7 +423,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, difficulty, modifiers, totalItems, isPublic }),
+        body: JSON.stringify({ clientId, difficulty, modifiers, totalItems, isPublic, abilitySlots }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -587,7 +590,10 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                         <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
                           <DifficultyLabel difficulty={lobby.difficulty} />
                           <span aria-hidden="true">|</span>
-                          <span>{lobby.totalItems} entries</span>
+                          <span>{lobby.totalItems} Entries</span>
+                          {lobby.gameMode === 'ability_blitz' ? (
+                            <><span aria-hidden="true">|</span><span>Abilities: {formatAbilitySlotSelection(lobby.abilitySlots)}</span></>
+                          ) : null}
                         </span>
                         <span className="mt-2 flex flex-wrap gap-1.5">
                           {lobby.modifiers.length > 0 ? lobby.modifiers.map((modifierId) => (
@@ -661,32 +667,59 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                     <span><span className="block text-sm font-semibold text-white">Public lobby</span><span className="mt-1 block text-xs text-slate-400">Allow players to discover and join this lobby.</span></span>
                     <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${view.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${view.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
                   </button>
-                  <fieldset disabled={!isHost || busy} className="mt-5 grid gap-5 disabled:opacity-65">
-                    <div>
-                      <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Difficulty</legend>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <fieldset className="mt-5 grid gap-5">
+                    <legend className="sr-only">Game settings</legend>
+                    <GameSettingsSection title="Difficulty" defaultOpen summary={<DifficultyLabel difficulty={view.lobby.difficulty} />}>
+                      <div className="grid gap-2 sm:grid-cols-2">
                         {config.difficulties.map((difficulty) => (
-                          <button key={difficulty.id} type="button" onClick={() => updateSettings(difficulty.id as MultiplayerQuizDifficulty, view.lobby.modifiers)} className={`rounded-2xl border p-3 text-left transition ${view.lobby.difficulty === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                          <button key={difficulty.id} type="button" disabled={!isHost || busy} onClick={() => updateSettings(difficulty.id as MultiplayerQuizDifficulty, view.lobby.modifiers)} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${view.lobby.difficulty === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
                             <DifficultyLabel difficulty={difficulty.id} className="text-sm" />
                             <span className="mt-1 block text-xs leading-5 text-slate-400">{difficulty.description}</span>
                           </button>
                         ))}
                       </div>
-                    </div>
-                    <div>
-                      <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Modifiers</legend>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    </GameSettingsSection>
+                    <GameSettingsSection title="Modifiers" summary={`${view.lobby.modifiers.length} active`}>
+                      <div className="grid gap-2 sm:grid-cols-2">
                         {config.modifiers.map((modifier) => {
                           const checked = selectedModifiers.has(modifier.id);
                           return (
-                            <button key={modifier.id} type="button" onClick={() => updateSettings(view.lobby.difficulty, checked ? view.lobby.modifiers.filter((id) => id !== modifier.id) : [...view.lobby.modifiers, modifier.id])} className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                            <button key={modifier.id} type="button" disabled={!isHost || busy} onClick={() => updateSettings(view.lobby.difficulty, checked ? view.lobby.modifiers.filter((id) => id !== modifier.id) : [...view.lobby.modifiers, modifier.id])} className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
                               <span><span className="block text-sm font-bold text-white">{modifier.name}</span><span className="mt-1 block text-xs leading-5 text-slate-400">{modifier.description}</span></span>
                               <span className={`mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ${checked ? 'bg-violet-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${checked ? 'translate-x-4' : ''}`} /></span>
                             </button>
                           );
                         })}
                       </div>
-                    </div>
+                    </GameSettingsSection>
+                    {gameMode === 'ability_blitz' ? (
+                      <GameSettingsSection title="Ability Set" summary={`${view.lobby.ability_slots.length}/5`}>
+                        <p className="mb-3 text-xs leading-5 text-slate-400">Select which abilities can appear in the shared round.</p>
+                        <div className="grid grid-cols-5 gap-2">
+                          {ABILITY_SLOTS.map((slot) => {
+                            const selected = view.lobby.ability_slots.includes(slot.id);
+                            return (
+                              <button
+                                key={slot.id}
+                                type="button"
+                                title={slot.name}
+                                disabled={!isHost || busy}
+                                onClick={() => {
+                                  if (selected && view.lobby.ability_slots.length === 1) return;
+                                  const nextSlots = selected
+                                    ? view.lobby.ability_slots.filter((id) => id !== slot.id)
+                                    : [...view.lobby.ability_slots, slot.id];
+                                  void updateSettings(view.lobby.difficulty, view.lobby.modifiers, view.lobby.total_items, view.lobby.is_public, nextSlots);
+                                }}
+                                className={`flex h-12 items-center justify-center rounded-xl border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-65 ${selected ? 'border-amber-300/60 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900/80 text-slate-400 hover:border-white/25'}`}
+                              >
+                                {slot.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </GameSettingsSection>
+                    ) : null}
                   </fieldset>
                   {!isHost ? <p className="mt-4 text-xs text-slate-500">Only the host can change game settings.</p> : null}
                 </section>

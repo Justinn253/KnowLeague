@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, ChevronDown, Clock3, Crown, Loader2, Medal, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import { BarChart3, ChevronDown, Crown, Loader2, Medal, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
 import Image from 'next/image';
+import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -19,6 +20,28 @@ type SharedRiotIdSuggestion = {
 const lastSearchStorageKey = 'knowleague:riot-account-viewer:last-search';
 const recentSearchesStorageKey = 'knowleague:riot-account-viewer:recent-searches';
 const maxRecentSearches = 5;
+const globalRankingSampleThreshold = 1000;
+const globalRankingTooltip = 'Global ranking is based on our own data from searched accounts and does not reflect the true League of Legends data.';
+const showPlaceholderRankings = process.env.NODE_ENV !== 'production';
+
+const platformLabels: Record<PlatformRoute, string> = {
+  BR1: 'BR - Brazil',
+  EUN1: 'EUNE - Europe Nordic & East',
+  EUW1: 'EUW - Europe West',
+  JP1: 'JP - Japan',
+  KR: 'KR - Korea',
+  LA1: 'LAN - Latin America North',
+  LA2: 'LAS - Latin America South',
+  NA1: 'NA - North America',
+  OC1: 'OCE - Oceania',
+  TR1: 'TR - Turkey',
+  RU: 'RU - Russia',
+  PH2: 'PH - Philippines',
+  SG2: 'SG - Singapore',
+  TH2: 'TH - Thailand',
+  TW2: 'TW - Taiwan',
+  VN2: 'VN - Vietnam',
+};
 
 const tabs: Array<{ id: ViewerTab; label: string; icon: typeof BarChart3 }> = [
   { id: 'overview', label: 'Overview', icon: UserRound },
@@ -32,11 +55,6 @@ function formatNumber(value: number | null | undefined) {
   return new Intl.NumberFormat('en-US').format(value);
 }
 
-function formatDate(timestamp: number | null | undefined) {
-  if (!timestamp) return 'Unknown';
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(timestamp));
-}
-
 function formatDateTime(timestamp: number | null | undefined) {
   if (!timestamp) return 'Unknown';
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
@@ -46,6 +64,71 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function formatTopPercent(value: number) {
+  return `Top ${value}%`;
+}
+
+function formatGlobalTopPercent(value: number | null | undefined, sampleSize: number, placeholder: number) {
+  if (sampleSize >= globalRankingSampleThreshold && value !== null && value !== undefined) return formatTopPercent(value);
+  return showPlaceholderRankings ? formatTopPercent(placeholder) : undefined;
+}
+
+function formatRankedDivision(tier: string, rank: string) {
+  return tier === 'MASTER' || tier === 'GRANDMASTER' || tier === 'CHALLENGER'
+    ? tier
+    : `${tier} ${rank}`;
+}
+
+function rankTierKey(tier: string): LeagueRankTier {
+  const normalized = tier.toLowerCase();
+  if (
+    normalized === 'iron'
+    || normalized === 'bronze'
+    || normalized === 'silver'
+    || normalized === 'gold'
+    || normalized === 'platinum'
+    || normalized === 'emerald'
+    || normalized === 'diamond'
+    || normalized === 'master'
+    || normalized === 'grandmaster'
+    || normalized === 'challenger'
+  ) {
+    return normalized;
+  }
+  return 'iron';
+}
+
+function masteryPointsRankTier(championLevel: number): LeagueRankTier | 'rainbow' {
+  if (championLevel >= 100) return 'rainbow';
+  if (championLevel >= 66) return 'challenger';
+  if (championLevel >= 51) return 'grandmaster';
+  if (championLevel >= 36) return 'master';
+  if (championLevel >= 26) return 'diamond';
+  if (championLevel >= 16) return 'platinum';
+  if (championLevel >= 11) return 'gold';
+  if (championLevel >= 6) return 'silver';
+  if (championLevel >= 3) return 'bronze';
+  return 'iron';
+}
+
+function masteryTextClass(championLevel: number) {
+  const tier = masteryPointsRankTier(championLevel);
+  if (tier === 'rainbow') {
+    return 'animate-rainbow-text bg-gradient-to-r from-rose-300 via-amber-200 via-emerald-300 via-cyan-200 to-rose-300 bg-clip-text text-transparent';
+  }
+  return getLeagueRankStyle(tier).text;
+}
+
+function statToneClass(value: number, threshold: number) {
+  if (value < threshold) return 'text-rose-300';
+  if (value === threshold) return 'text-yellow-300';
+  return 'text-emerald-300';
+}
+
+function getChampionKda(stats: { kills: number; deaths: number; assists: number }) {
+  return Math.round(((stats.kills + stats.assists) / Math.max(1, stats.deaths)) * 100) / 100;
 }
 
 function rankedLabel(queueType: string) {
@@ -100,14 +183,56 @@ function writeStoredSearch(riotId: string, platform: PlatformRoute) {
   window.localStorage.setItem(recentSearchesStorageKey, JSON.stringify(recentSearches));
 }
 
-function StatTile({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Trophy }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+function StatTile({
+  label,
+  value,
+  icon: Icon,
+  topPercent,
+  topPercentTitle,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon: typeof Trophy;
+  topPercent?: string;
+  topPercentTitle?: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
         <Icon size={17} className="text-amber-300" />
       </div>
       <p className="mt-3 text-2xl font-bold text-white">{value}</p>
+      {topPercent ? (
+        <p className="group relative mt-2 w-fit text-xs font-bold uppercase tracking-[0.14em] text-amber-300">
+          {topPercent}
+          {topPercentTitle ? (
+            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] normal-case leading-5 tracking-normal text-slate-200 shadow-xl group-hover:block">
+              {topPercentTitle}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-amber-300/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300/60"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+      {content}
     </div>
   );
 }
@@ -127,18 +252,63 @@ function ChampionIcon({ src, name, size = 'md' }: { src: string; name: string; s
   return <Image src={src} alt="" width={dimension} height={dimension} className={`${className} shrink-0 object-cover ring-1 ring-white/10`} />;
 }
 
-function OverviewTab({ data }: { data: RiotAccountViewerResponse }) {
+function RankIcon({ tier }: { tier: string }) {
+  const rank = rankTierKey(tier);
+  return (
+    <Image
+      src={getLeagueRankIconUrl(rank)}
+      alt=""
+      width={96}
+      height={96}
+      className="h-20 w-20 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(251,191,36,0.18)]"
+    />
+  );
+}
+
+function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; onTabChange: (tab: ViewerTab) => void }) {
   const soloQueue = data.ranked.find((entry) => entry.queueType === 'RANKED_SOLO_5x5');
   const flexQueue = data.ranked.find((entry) => entry.queueType === 'RANKED_FLEX_SR');
   const topMasteries = data.masteries.slice(0, 5);
+  const championStats = useMemo(() => {
+    const stats = new Map<number, { games: number; wins: number; kills: number; deaths: number; assists: number }>();
+    data.matches.forEach((match) => {
+      const previous = stats.get(match.champion.id) ?? { games: 0, wins: 0, kills: 0, deaths: 0, assists: 0 };
+      previous.games += 1;
+      previous.wins += match.win ? 1 : 0;
+      previous.kills += match.kills;
+      previous.deaths += match.deaths;
+      previous.assists += match.assists;
+      stats.set(match.champion.id, previous);
+    });
+    return stats;
+  }, [data.matches]);
 
   return (
     <div className="grid gap-5">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Summoner Level" value={formatNumber(data.summoner.summonerLevel)} icon={Shield} />
-        <StatTile label="Total Mastery" value={formatNumber(data.summary.totalMasteryPoints)} icon={Medal} />
-        <StatTile label="Recent Win Rate" value={data.summary.recentWinRate === null ? 'No matches' : `${data.summary.recentWinRate}%`} icon={Trophy} />
-        <StatTile label="Challenge Points" value={formatNumber(data.challenges?.totalPoints?.current)} icon={Crown} />
+        <StatTile
+          label="Total Mastery"
+          value={formatNumber(data.summary.totalMasteryPoints)}
+          icon={Medal}
+          topPercent={formatGlobalTopPercent(data.analytics.totalMasteryTopPercent, data.analytics.sampleSize, 14.2)}
+          topPercentTitle={globalRankingTooltip}
+          onClick={() => onTabChange('mastery')}
+        />
+        <StatTile
+          label="Recent Win Rate"
+          value={data.summary.recentWinRate === null ? 'No matches' : `${data.summary.recentWinRate}%`}
+          icon={Trophy}
+          onClick={() => onTabChange('matches')}
+        />
+        <StatTile
+          label="Challenge Points"
+          value={formatNumber(data.challenges?.totalPoints?.current)}
+          icon={Crown}
+          topPercent={formatGlobalTopPercent(data.analytics.challengePointsTopPercent, data.analytics.sampleSize, 21.8)}
+          topPercentTitle={globalRankingTooltip}
+          onClick={() => onTabChange('challenges')}
+        />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
@@ -156,8 +326,31 @@ function OverviewTab({ data }: { data: RiotAccountViewerResponse }) {
                 </p>
                 {entry ? (
                   <>
-                    <p className="mt-3 text-xl font-bold text-white">{entry.tier} {entry.rank}</p>
-                    <p className="mt-1 text-sm text-slate-400">{entry.leaguePoints} LP - {entry.wins}W {entry.losses}L - {entry.winRate}% WR</p>
+                    <div className="mt-3 flex items-center gap-4">
+                      <RankIcon tier={entry.tier} />
+                      <div>
+                        <p className={`text-xl font-bold ${getLeagueRankStyle(rankTierKey(entry.tier)).text}`}>
+                          {formatRankedDivision(entry.tier, entry.rank)}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">{entry.leaguePoints} LP - {entry.wins}W {entry.losses}L</p>
+                        <p className={`text-sm font-bold ${statToneClass(entry.winRate, 50)}`}>{entry.winRate}% WR</p>
+                      </div>
+                    </div>
+                    {(() => {
+                      const placement = data.analytics.rankedPlacements[index === 0 ? 'solo' : 'flex'];
+                      const useStoredPlacement = Boolean(placement && placement.sampleSize >= globalRankingSampleThreshold);
+                      const regionalRank = useStoredPlacement ? placement?.regionalRank ?? null : showPlaceholderRankings ? index === 0 ? 11391 : 28422 : null;
+                      const topPercent = useStoredPlacement ? placement?.topPercent ?? null : showPlaceholderRankings ? index === 0 ? 7.5 : 18.4 : null;
+                      if (regionalRank === null || topPercent === null) return null;
+                      return (
+                        <p className="group relative mt-3 w-fit text-sm font-bold text-amber-300">
+                          #{formatNumber(regionalRank)} regional - {formatTopPercent(topPercent)}
+                          <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] font-semibold leading-5 text-slate-200 shadow-xl group-hover:block">
+                            {globalRankingTooltip}
+                          </span>
+                        </p>
+                      );
+                    })()}
                   </>
                 ) : (
                   <p className="mt-3 text-sm leading-6 text-slate-400">No ranked data returned for this queue.</p>
@@ -165,20 +358,43 @@ function OverviewTab({ data }: { data: RiotAccountViewerResponse }) {
               </div>
             ))}
           </div>
+          <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Ranked history</p>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Riot exposes current ranked entries and ladder lists, but not previous-season final rank history through the public account APIs. KnowLeague can show seasonal history after we begin storing snapshots.
+            </p>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
           <div className="mt-5 grid gap-3">
-            {topMasteries.map((mastery) => (
-              <div key={mastery.champion.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
-                <ChampionIcon src={mastery.champion.imageUrl} name={mastery.champion.name} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-white">{mastery.champion.name}</p>
-                  <p className="text-sm text-slate-400">Level {mastery.championLevel} - {formatNumber(mastery.championPoints)} points</p>
+            {topMasteries.map((mastery) => {
+              const stats = championStats.get(mastery.champion.id);
+              const winRate = stats ? Math.round((stats.wins / stats.games) * 1000) / 10 : null;
+              const kda = stats ? getChampionKda(stats) : null;
+              return (
+                <div key={mastery.champion.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
+                  <ChampionIcon src={mastery.champion.imageUrl} name={mastery.champion.name} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-bold text-white">{mastery.champion.name}</p>
+                    <p className={`text-sm font-semibold ${masteryTextClass(mastery.championLevel)}`}>
+                      Level {mastery.championLevel} - {formatNumber(mastery.championPoints)} points
+                    </p>
+                    {stats && winRate !== null && kda !== null ? (
+                      <p className="mt-1 text-xs font-semibold">
+                        <span className={statToneClass(winRate, 50)}>{winRate}% WR</span>
+                        <span className="text-slate-500"> - </span>
+                        <span className={statToneClass(kda, 1)}>{kda} KDA</span>
+                        <span className="text-slate-500"> in {stats.games} recent matches</span>
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-500">No recent matches played for this champion.</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
@@ -624,7 +840,7 @@ export function RiotAccountViewer() {
                 onChange={(event) => setPlatform(event.target.value as PlatformRoute)}
                 className="min-h-12 w-full appearance-none rounded-2xl border border-white/10 bg-slate-950 py-2 pl-4 pr-14 text-sm font-bold text-white outline-none transition focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40"
               >
-                {platformRoutes.map((route) => <option key={route} value={route}>{route}</option>)}
+                {platformRoutes.map((route) => <option key={route} value={route}>{platformLabels[route]}</option>)}
               </select>
               <ChevronDown size={18} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-white" />
             </label>
@@ -664,7 +880,7 @@ export function RiotAccountViewer() {
               })}
             </nav>
 
-            {activeTab === 'overview' ? <OverviewTab data={data} /> : null}
+            {activeTab === 'overview' ? <OverviewTab data={data} onTabChange={setActiveTab} /> : null}
             {activeTab === 'mastery' ? <MasteryTab data={data} /> : null}
             {activeTab === 'matches' ? <MatchHistoryTab data={data} /> : null}
             {activeTab === 'challenges' ? <ChallengesTab data={data} /> : null}

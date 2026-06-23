@@ -180,3 +180,17 @@ select {
 .animate-spin-slow {
   animation: spin-slow 4s linear infinite;
 }
+
+@keyframes rainbow-text-flow {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+.animate-rainbow-text {
+  background-size: 200% 100%;
+  animation: rainbow-text-flow 2.4s linear infinite;
+}

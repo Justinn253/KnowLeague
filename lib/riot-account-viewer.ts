@@ -2,7 +2,9 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 const DATA_DRAGON_VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json';
 const RIOT_API_KEY_HEADER = 'X-Riot-Token';
-const DEFAULT_MATCH_COUNT = 10;
+const MATCH_COUNT = process.env.NODE_ENV === 'production' ? 20 : 4;
+const MATCH_DETAIL_BATCH_SIZE = 4;
+const MATCH_DETAIL_BATCH_DELAY_MS = 350;
 
 export const RIOT_PLATFORM_ROUTES = [
   'BR1',
@@ -25,6 +27,7 @@ export const RIOT_PLATFORM_ROUTES = [
 
 export type RiotPlatformRoute = (typeof RIOT_PLATFORM_ROUTES)[number];
 type RiotRegionalRoute = 'americas' | 'asia' | 'europe' | 'sea';
+type RankedQueueKey = 'solo' | 'flex';
 
 type RiotAccountDto = {
   puuid: string;
@@ -272,6 +275,23 @@ export type RiotAccountViewerResponse = {
     recentWinRate: number | null;
     matchSampleSize: number;
   };
+  analytics: {
+    sampleSize: number;
+    totalMasteryTopPercent: number | null;
+    challengePointsTopPercent: number | null;
+    rankedPlacements: {
+      solo: {
+        regionalRank: number;
+        topPercent: number;
+        sampleSize: number;
+      } | null;
+      flex: {
+        regionalRank: number;
+        topPercent: number;
+        sampleSize: number;
+      } | null;
+    };
+  };
 };
 
 export type RiotAccountSearchSuggestion = {
@@ -366,6 +386,90 @@ export async function getRiotAccountSearchSuggestions(query: string, platform?: 
   }
 }
 
+async function recordRiotAccountProfileMetrics(input: {
+  puuid: string;
+  riotId: string;
+  platform: RiotPlatformRoute;
+  summonerLevel: number;
+  totalMasteryPoints: number;
+  challengePoints: number;
+  soloRankScore: number | null;
+  flexRankScore: number | null;
+}) {
+  try {
+    await getSupabaseServiceClient()
+      .from('riot_account_profile_metrics')
+      .upsert({
+        puuid: input.puuid,
+        platform: input.platform,
+        riot_id: input.riotId,
+        riot_id_normalized: input.riotId.toLowerCase(),
+        summoner_level: input.summonerLevel,
+        total_mastery_points: input.totalMasteryPoints,
+        challenge_points: input.challengePoints,
+        solo_rank_score: input.soloRankScore,
+        flex_rank_score: input.flexRankScore,
+        last_searched_at: new Date().toISOString(),
+      }, {
+        onConflict: 'puuid,platform',
+      });
+  } catch {
+    // KnowLeague analytics are best-effort and should not block Riot data.
+  }
+}
+
+async function getCountWhere(column: string, operator: 'gte' | 'not.is', value: number | null, platform?: RiotPlatformRoute) {
+  let request = getSupabaseServiceClient()
+    .from('riot_account_profile_metrics')
+    .select('puuid', { count: 'exact', head: true });
+
+  if (platform) request = request.eq('platform', platform);
+  if (operator === 'gte') request = request.gte(column, value ?? 0);
+  if (operator === 'not.is') request = request.not(column, 'is', null);
+
+  const { count, error } = await request;
+  if (error) return null;
+  return count ?? 0;
+}
+
+function toTopPercent(rank: number, sampleSize: number) {
+  if (sampleSize <= 0) return null;
+  return Math.max(0.1, Math.round((rank / sampleSize) * 1000) / 10);
+}
+
+async function getMetricTopPercent(column: 'total_mastery_points' | 'challenge_points', value: number) {
+  try {
+    const [sampleSize, aheadOrTied] = await Promise.all([
+      getCountWhere(column, 'gte', 0),
+      getCountWhere(column, 'gte', value),
+    ]);
+    if (!sampleSize || aheadOrTied === null) return { sampleSize: sampleSize ?? 0, topPercent: null };
+    return { sampleSize, topPercent: toTopPercent(aheadOrTied, sampleSize) };
+  } catch {
+    return { sampleSize: 0, topPercent: null };
+  }
+}
+
+async function getRankedPlacement(platform: RiotPlatformRoute, queue: RankedQueueKey, rankScore: number | null) {
+  if (rankScore === null) return null;
+
+  const column = queue === 'solo' ? 'solo_rank_score' : 'flex_rank_score';
+  try {
+    const [sampleSize, aheadOrTied] = await Promise.all([
+      getCountWhere(column, 'not.is', null, platform),
+      getCountWhere(column, 'gte', rankScore, platform),
+    ]);
+    if (!sampleSize || aheadOrTied === null) return null;
+    return {
+      regionalRank: aheadOrTied,
+      topPercent: toTopPercent(aheadOrTied, sampleSize) ?? 0,
+      sampleSize,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function getRiotApiKey() {
   const apiKey = process.env.RIOT_API_KEY;
   if (!apiKey) {
@@ -396,12 +500,21 @@ async function riotFetch<T>(url: string, options?: { optional404?: boolean }): P
       throw new Error('Riot API rejected the configured API key.');
     }
     if (response.status === 429) {
-      throw new Error('Riot API rate limit reached. Try again in a moment.');
+      const retryAfter = response.headers.get('retry-after');
+      throw new Error(retryAfter
+        ? `Riot API rate limit reached. Try again in ${retryAfter} seconds.`
+        : 'Riot API rate limit reached. Try again in a moment.');
     }
     throw new Error(`Riot API request failed with status ${response.status}.`);
   }
 
   return (await response.json()) as T;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 async function fetchDataDragonJson<T>(url: string) {
@@ -466,6 +579,36 @@ function withWinRate(entry: RiotLeagueEntryDto) {
     ...entry,
     winRate: games > 0 ? Math.round((entry.wins / games) * 1000) / 10 : 0,
   };
+}
+
+const tierScores: Record<string, number> = {
+  IRON: 0,
+  BRONZE: 400,
+  SILVER: 800,
+  GOLD: 1200,
+  PLATINUM: 1600,
+  EMERALD: 2000,
+  DIAMOND: 2400,
+  MASTER: 2800,
+  GRANDMASTER: 3200,
+  CHALLENGER: 3600,
+};
+
+const divisionScores: Record<string, number> = {
+  IV: 0,
+  III: 100,
+  II: 200,
+  I: 300,
+};
+
+function getRankScore(entry: RiotLeagueEntryDto | undefined) {
+  if (!entry) return null;
+  const tierScore = tierScores[entry.tier] ?? null;
+  if (tierScore === null) return null;
+  const divisionScore = entry.tier === 'MASTER' || entry.tier === 'GRANDMASTER' || entry.tier === 'CHALLENGER'
+    ? 0
+    : divisionScores[entry.rank] ?? 0;
+  return tierScore + divisionScore + entry.leaguePoints;
 }
 
 function normalizeMastery(mastery: RiotChampionMasteryDto, champions: Map<number, RiotChampionSummary>): RiotAccountViewerMastery {
@@ -575,6 +718,26 @@ function normalizeCurrentGame(
   };
 }
 
+async function getMatchDetails(matchIds: string[], regionalRoute: RiotRegionalRoute) {
+  const matches: RiotMatchDto[] = [];
+
+  for (let index = 0; index < matchIds.length; index += MATCH_DETAIL_BATCH_SIZE) {
+    const batch = matchIds.slice(index, index + MATCH_DETAIL_BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map((matchId) => riotFetch<RiotMatchDto>(
+        `https://${regionalRoute}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
+      )),
+    );
+    matches.push(...results);
+
+    if (index + MATCH_DETAIL_BATCH_SIZE < matchIds.length) {
+      await delay(MATCH_DETAIL_BATCH_DELAY_MS);
+    }
+  }
+
+  return matches;
+}
+
 export async function getRiotAccountViewerData(riotId: string, platform: RiotPlatformRoute): Promise<RiotAccountViewerResponse> {
   const parsed = parseRiotId(riotId);
   const regionalRoute = getRegionalRoute(platform);
@@ -607,21 +770,43 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
       { optional404: true },
     ),
     riotFetch<string[]>(
-      `https://${regionalRoute}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(account.puuid)}/ids?start=0&count=${DEFAULT_MATCH_COUNT}`,
+      `https://${regionalRoute}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(account.puuid)}/ids?start=0&count=${MATCH_COUNT}`,
     ),
   ]);
 
-  const matches = await Promise.all(
-    matchIds.map((matchId) => riotFetch<RiotMatchDto>(
-      `https://${regionalRoute}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
-    )),
-  );
+  const matches = await getMatchDetails(matchIds, regionalRoute);
 
   const normalizedMatches = matches
     .map((match) => normalizeMatch(match, account.puuid, champions))
     .filter((match): match is RiotAccountViewerMatch => Boolean(match));
   const normalizedMasteries = masteries.map((mastery) => normalizeMastery(mastery, champions));
+  const normalizedRanked = ranked.map(withWinRate);
+  const soloQueue = normalizedRanked.find((entry) => entry.queueType === 'RANKED_SOLO_5x5');
+  const flexQueue = normalizedRanked.find((entry) => entry.queueType === 'RANKED_FLEX_SR');
+  const soloRankScore = getRankScore(soloQueue);
+  const flexRankScore = getRankScore(flexQueue);
   const recentWins = normalizedMatches.filter((match) => match.win).length;
+  const totalMasteryPoints = normalizedMasteries.reduce((sum, mastery) => sum + mastery.championPoints, 0);
+  const challengePoints = challengeData?.totalPoints?.current ?? 0;
+  const canonicalRiotId = `${account.gameName ?? parsed.gameName}#${account.tagLine ?? parsed.tagLine}`;
+
+  await recordRiotAccountProfileMetrics({
+    puuid: account.puuid,
+    riotId: canonicalRiotId,
+    platform,
+    summonerLevel: summoner.summonerLevel,
+    totalMasteryPoints,
+    challengePoints,
+    soloRankScore,
+    flexRankScore,
+  });
+
+  const [masteryPercentile, challengePercentile, soloPlacement, flexPlacement] = await Promise.all([
+    getMetricTopPercent('total_mastery_points', totalMasteryPoints),
+    getMetricTopPercent('challenge_points', challengePoints),
+    getRankedPlacement(platform, 'solo', soloRankScore),
+    getRankedPlacement(platform, 'flex', flexRankScore),
+  ]);
 
   return {
     searchedRiotId: parsed.normalized,
@@ -639,16 +824,25 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
       summonerLevel: summoner.summonerLevel,
       revisionDate: summoner.revisionDate,
     },
-    ranked: ranked.map(withWinRate),
+    ranked: normalizedRanked,
     masteries: normalizedMasteries,
     matches: normalizedMatches,
     currentGame: normalizeCurrentGame(currentGame, account.puuid, champions),
     challenges: normalizeChallenges(challengeData),
     summary: {
-      totalMasteryPoints: normalizedMasteries.reduce((sum, mastery) => sum + mastery.championPoints, 0),
+      totalMasteryPoints,
       topChampion: normalizedMasteries[0]?.champion ?? null,
       recentWinRate: normalizedMatches.length > 0 ? Math.round((recentWins / normalizedMatches.length) * 1000) / 10 : null,
       matchSampleSize: normalizedMatches.length,
+    },
+    analytics: {
+      sampleSize: Math.max(masteryPercentile.sampleSize, challengePercentile.sampleSize),
+      totalMasteryTopPercent: masteryPercentile.topPercent,
+      challengePointsTopPercent: challengePercentile.topPercent,
+      rankedPlacements: {
+        solo: soloPlacement,
+        flex: flexPlacement,
+      },
     },
   };
 }

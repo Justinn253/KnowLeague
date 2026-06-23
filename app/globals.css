@@ -129,6 +129,7 @@ select {
   padding: 0.25rem;
 }
 
+.app-gradient-border,
 .multiplayer-victory-border {
   border: 3px solid transparent;
   background:
@@ -145,6 +146,7 @@ select {
   animation: skindle-gradient-flow 3s linear infinite;
 }
 
+.app-gradient-border > div,
 .multiplayer-victory-border > div {
   border-color: transparent;
 }

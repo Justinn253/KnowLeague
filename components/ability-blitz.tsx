@@ -5,6 +5,7 @@ import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp
 import Image from 'next/image';
 import Link from 'next/link';
 import {
+  clearDailyGameState,
   loadDailyGameState,
   loadPlayerGameStats,
   recordPlayerGameCompletion,
@@ -104,9 +105,8 @@ type AbilityBlitzDailyState = {
   selectedDifficulty: DifficultyId;
   activeModifiers: ModifierState;
   selectedAbilitySlots: AbilitySlotState;
+  entryCount: number;
   started: boolean;
-  paused: boolean;
-  pauseQueued: boolean;
   activeIndex: number;
   currentTime: number;
   totalTime: number;
@@ -165,6 +165,8 @@ const defaultAbilitySlots = abilitySlots.reduce(
   (state, slot) => ({ ...state, [slot.id]: true }),
   {} as AbilitySlotState,
 );
+
+const entryCountOptions = [10, 25, 50, 75, 100] as const;
 
 function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boolean }) {
   return (
@@ -283,10 +285,9 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [selectedAbilitySlots, setSelectedAbilitySlots] = useState<AbilitySlotState>(defaultAbilitySlots);
+  const [entryCount, setEntryCount] = useState(50);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
-  const [paused, setPaused] = useState(false);
-  const [pauseQueued, setPauseQueued] = useState(false);
   const [isSliding, setIsSliding] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [activeIndex, setActiveIndex] = useState(multiplayer ? Math.min(multiplayer.initialProgress, Math.max(0, multiplayer.items.length - 1)) : 0);
@@ -322,6 +323,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const configurationLocked = started || countdown !== null;
   const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
   const multiplayerGameEnded = multiplayer?.gameEnded ?? false;
+  const showSinglePlayerEndState = !multiplayer && finished;
   const multiplayerInitialProgress = multiplayer?.initialProgress;
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
   const selectedAbilitySlotCount = Object.values(selectedAbilitySlots).filter(Boolean).length;
@@ -386,13 +388,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     )));
     if (multiplayerGameEnded) {
       setStarted(false);
-      setPaused(false);
       setFinished(true);
     }
   }, [multiplayerGameEnded, multiplayerInitialProgress]);
 
   useEffect(() => {
-    if (!started || paused || countdown !== null || finished) {
+    if (!started || countdown !== null || finished) {
       return;
     }
 
@@ -402,7 +403,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [started, paused, countdown, finished]);
+  }, [started, countdown, finished]);
 
   useEffect(() => {
     if (!currentItem) {
@@ -429,7 +430,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   }, [currentItem, items, filteredAnswers, difficultyRule.hintDelaySeconds, categoryAnswers]);
 
   useEffect(() => {
-    if (!started || paused || countdown !== null || !currentItem || showOptions || hintsDisabled) {
+    if (!started || countdown !== null || !currentItem || showOptions || hintsDisabled) {
       return;
     }
 
@@ -455,7 +456,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       window.clearInterval(interval);
       window.clearTimeout(timeout);
     };
-  }, [activeIndex, started, paused, countdown, currentItem, showOptions, hintsDisabled, difficultyRule.hintDelaySeconds]);
+  }, [activeIndex, started, countdown, currentItem, showOptions, hintsDisabled, difficultyRule.hintDelaySeconds]);
 
   useEffect(() => {
     if (categoryAnswers['all']?.length) {
@@ -496,9 +497,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setSelectedDifficulty(savedState.selectedDifficulty);
     setActiveModifiers(savedState.activeModifiers);
     setSelectedAbilitySlots(savedState.selectedAbilitySlots);
+    setEntryCount(savedState.entryCount ?? 50);
     setStarted(savedState.started);
-    setPaused(savedState.paused);
-    setPauseQueued(savedState.pauseQueued);
     setActiveIndex(savedState.activeIndex);
     setCurrentTime(savedState.currentTime);
     setTotalTime(savedState.totalTime);
@@ -521,9 +521,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       selectedDifficulty,
       activeModifiers,
       selectedAbilitySlots,
+      entryCount,
       started,
-      paused,
-      pauseQueued,
       activeIndex,
       currentTime,
       totalTime,
@@ -535,13 +534,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     activeIndex,
     activeModifiers,
     completedTimes,
+    entryCount,
     currentTime,
     failed,
     finished,
     hasLoadedOnce,
     items,
-    paused,
-    pauseQueued,
     selectedAbilitySlots,
     selectedDifficulty,
     started,
@@ -583,7 +581,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const filteredData = filterItemsByAbilitySlots(data, selectedAbilitySlots);
-          setItems(shuffle(filteredData.length ? filteredData : data).slice(0, 50));
+          setItems(shuffle(filteredData.length ? filteredData : data).slice(0, entryCount));
         }
       } catch (err) {
         console.error('Failed to fetch randomized ability set', err);
@@ -593,7 +591,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     };
 
     loadItems();
-  }, [started, hasLoadedOnce, selectedAbilitySlots, multiplayer]);
+  }, [started, hasLoadedOnce, selectedAbilitySlots, entryCount, multiplayer]);
 
   useEffect(() => {
     if (countdown === null) {
@@ -699,13 +697,6 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     if (isFinalItem) {
       setFinished(true);
       setStarted(false);
-      setPauseQueued(false);
-      return;
-    }
-
-    if (pauseQueued) {
-      setPaused(true);
-      setPauseQueued(false);
       return;
     }
 
@@ -716,8 +707,6 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     if (difficultyRule.wrongGuess === 'game-over') {
       setFailed(true);
       setStarted(false);
-      setPaused(false);
-      setPauseQueued(false);
       setStatus('incorrect');
       setPenaltyMessage('Game Over');
       multiplayer?.onProgress(activeIndex, totalTime, 'failed');
@@ -799,7 +788,31 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     submitGuess(suggestion);
   };
 
-  const handleTogglePlay = () => {
+  const resetSinglePlayerRound = () => {
+    setStarted(false);
+    setFinished(false);
+    setFailed(false);
+    setCountdown(null);
+    setIsSliding(false);
+    setActiveIndex(0);
+    setCurrentTime(0);
+    setTotalTime(0);
+    setCompletedTimes({});
+    setInputValue('');
+    setStatus('idle');
+    setShowOptions(false);
+    setOptions([]);
+    setSuggestions([]);
+    setPenaltyCount(0);
+    setPenaltyMessage('');
+    setPendingConfirmedGuess('');
+    setSuccessFlash(false);
+    setHasLoadedOnce(false);
+    setItems(placeholderItems);
+    clearDailyGameState('ability-blitz');
+  };
+
+  const handleGameControl = () => {
     if (multiplayer) {
       return;
     }
@@ -807,27 +820,26 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
-    if (started && !paused) {
-      setPauseQueued(true);
-      return;
-    }
-
-    if (started && paused) {
-      setPaused(false);
-      setPauseQueued(false);
-      handleAdvance();
+    if (started || finished || failed) {
+      resetSinglePlayerRound();
       return;
     }
 
     setCurrentTime(0);
     setTotalTime(0);
     setActiveIndex(0);
-    setPaused(false);
-    setPauseQueued(false);
+    setCompletedTimes({});
+    setInputValue('');
+    setStatus('idle');
+    setShowOptions(false);
+    setOptions([]);
+    setSuggestions([]);
+    setPenaltyCount(0);
     setFinished(false);
     setFailed(false);
     setPenaltyMessage('');
     setPendingConfirmedGuess('');
+    setSuccessFlash(false);
     setHasLoadedOnce(false);
     setItems(placeholderItems);
     setCountdown(3);
@@ -850,6 +862,14 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       ...current,
       [modifierId]: !current[modifierId],
     }));
+  };
+
+  const handleEntryCountChange = (count: number) => {
+    if (configurationLocked) {
+      return;
+    }
+
+    setEntryCount(count);
   };
 
   const handleAbilitySlotToggle = (slotId: AbilitySlotId) => {
@@ -1018,6 +1038,22 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       })}
                     </div>
                     <div className="mt-4 border-t border-white/10 pt-4">
+                      <label className="flex items-center justify-between gap-3">
+                        <span>
+                          <span className="block text-sm font-semibold text-white">Entries</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-400">Select how many abilities appear this round.</span>
+                        </span>
+                        <select
+                          value={entryCount}
+                          disabled={configurationLocked}
+                          onChange={(event) => handleEntryCountChange(Number(event.target.value))}
+                          className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {entryCountOptions.map((count) => <option key={count} value={count}>{count}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="mt-4 border-t border-white/10 pt-4">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-white">Ability Set</p>
@@ -1062,20 +1098,16 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
             {!multiplayer ? <button
               type="button"
-              onClick={handleTogglePlay}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/90 px-4 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/10 transition hover:bg-slate-900"
+              onClick={handleGameControl}
+              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                started || finished || failed
+                  ? 'bg-red-500 text-white hover:bg-red-400'
+                  : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+              }`}
               disabled={countdown !== null || Boolean(multiplayer)}
             >
-              <Play size={16} />
-              {countdown !== null
-                ? `Starting in ${countdown}`
-                : paused
-                ? 'Continue'
-                : pauseQueued
-                ? 'Pause Queued'
-                : started
-                ? multiplayer ? 'In Progress' : 'Pause'
-                : 'Play'}
+              {started || finished || failed ? null : <Play size={16} />}
+              {countdown !== null ? `Starting in ${countdown}` : started || finished || failed ? 'End Game' : 'Play'}
             </button> : null}
           </div>
         </header>
@@ -1083,16 +1115,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
         {multiplayer?.progressPanel}
 
         <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl overflow-hidden">
-          <div className={`grid gap-4 lg:grid-cols-3 lg:items-center transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
+          {!showSinglePlayerEndState ? <div className={`grid gap-4 lg:grid-cols-3 lg:items-center transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
             {/* Next Item Card */}
             <div className="rounded-[2.5rem] border border-slate-700/50 bg-slate-950/80 p-8 shadow-lg">
-              <div className="mb-5 flex flex-col gap-2 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em]">Next item</p>
-                  <p className="mt-1 text-sm text-slate-300">{nextItem?.title || 'Upcoming'}</p>
-                </div>
+              <div className="mb-5 flex items-center justify-between gap-3 text-slate-400">
+                <p className="text-xs uppercase tracking-[0.22em]">Next item</p>
                 <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
-                  {nextItem?.type || '???'}
+                  Ability
                 </span>
               </div>
               <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900/90 text-white shadow-2xl shadow-black/20">
@@ -1116,9 +1145,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       )}
                     </div>
                   ) : (
-                    <div className="flex h-36 w-full max-w-xs items-center justify-center rounded-3xl bg-slate-800/80 p-4 text-center text-slate-400">
-                      <p className="text-sm leading-6">Next item will appear here</p>
-                    </div>
+                    <div className="h-36 w-full max-w-xs rounded-3xl bg-slate-800/80 p-4" />
                   )}
                 </div>
               </div>
@@ -1133,13 +1160,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   : 'border border-violet-500/20 shadow-violet-500/10'
               }`}
             >
-              <div className="mb-5 flex flex-col gap-2 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em]">Current item</p>
-                  <p className="mt-1 text-sm text-slate-300">{currentItem?.title}</p>
-                </div>
+              <div className="mb-5 flex items-center justify-between gap-3 text-slate-400">
+                <p className="text-xs uppercase tracking-[0.22em]">Current item</p>
                 <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
-                  {currentItem?.type}
+                  Ability
                 </span>
               </div>
               <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900/90 text-white shadow-2xl shadow-black/20">
@@ -1159,9 +1183,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       )}
                     </div>
                   ) : (
-                    <div className="flex h-36 w-full max-w-xs items-center justify-center rounded-3xl bg-slate-800/80 p-4 text-center text-slate-400">
-                      <p className="text-sm leading-6">Press Play to reveal the next ability.</p>
-                    </div>
+                    <div className="h-36 w-full max-w-xs rounded-3xl bg-slate-800/80 p-4" />
                   )}
                 </div>
               </div>
@@ -1169,16 +1191,14 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
             {/* Previous Item Card */}
             <div className="rounded-[2.5rem] border border-emerald-500/20 bg-slate-950/80 p-8 shadow-lg">
-              <div className="mb-5 flex flex-col gap-2 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+              <div className="mb-5 flex items-start justify-between gap-3 text-slate-400">
+                <div className="min-w-0">
                   <p className="text-xs uppercase tracking-[0.22em]">Completed</p>
-                  <p className="mt-1 text-sm text-slate-300">{previousItem?.answer ?? 'Waiting...'}</p>
                   {previousItem ? (
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400 sm:text-[0.75rem]">
-                      <span>{previousItem.champion}</span>
-                      <span>-</span>
-                      <span>{getAbilityKeyLabel(previousItem)}</span>
-                    </div>
+                    <p className="mt-1 truncate text-sm text-slate-300">
+                      <span>{previousItem.answer}</span>
+                      <span className="ml-3 text-xs text-slate-400">{previousItem.champion} - {getAbilityKeyLabel(previousItem)}</span>
+                    </p>
                   ) : null}
                 </div>
                 <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-emerald-300">
@@ -1202,16 +1222,14 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       )}
                     </div>
                   ) : (
-                    <div className="flex h-36 w-full max-w-xs items-center justify-center rounded-3xl bg-slate-800/80 p-4 text-center text-slate-400">
-                      <p className="text-sm leading-6">Your completed items appear here</p>
-                    </div>
+                    <div className="h-36 w-full max-w-xs rounded-3xl bg-slate-800/80 p-4" />
                   )}
                 </div>
               </div>
             </div>
-          </div>
+          </div> : null}
 
-          <form
+          {!showSinglePlayerEndState ? <form
             onSubmit={handleSubmit}
             className={`mt-8 flex flex-col gap-4 rounded-3xl border p-5 bg-slate-950/80 shadow-inner shadow-slate-950/40 transition ${
               successFlash
@@ -1245,9 +1263,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 Answers appear in <span className="font-semibold text-slate-100">{timeUntilOptions}s</span>
               </div>
             ) : (
-              <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 text-sm text-slate-400">
-                Press Play to begin and reveal the first ability.
-              </div>
+              null
             )}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -1327,9 +1343,9 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 {penaltyMessage ? <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-red-300">{penaltyMessage}</span> : null}
               </div>
             ) : null}
-          </form>
+          </form> : null}
 
-          <div className="mt-8 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-5">
+          <div className={`${showSinglePlayerEndState ? 'app-gradient-border' : 'border border-white/10'} mt-8 overflow-hidden rounded-3xl bg-slate-950/70 p-5`}>
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
               <div className="flex items-center gap-3">
@@ -1351,19 +1367,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     <div
                       key={item.id}
                       ref={item.state === 'current' ? currentProgressItemRef : undefined}
-                      className={`relative min-h-28 overflow-hidden rounded-3xl border p-4 pr-16 transition ${itemClass}`}
+                      className={`relative min-h-20 overflow-hidden rounded-3xl border px-4 py-3 pr-16 transition ${itemClass}`}
                     >
-                      <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-100">
+                      <div className="text-sm font-semibold text-slate-100">
                         <span>{item.guessed ? item.answer : '???'}</span>
-                        {item.state === 'current' ? (
-                          <span className="rounded-full bg-slate-900/80 px-2 py-1 text-xs text-slate-300">Now</span>
-                        ) : item.state === 'completed' ? (
-                          <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">Done</span>
-                        ) : (
-                          <span className="rounded-full bg-slate-800/80 px-2 py-1 text-xs text-slate-500">Next</span>
-                        )}
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-slate-400">
+                      <p className="mt-2 text-sm leading-5 text-slate-400">
                         {shouldHideTimers
                           ? item.state === 'completed'
                             ? 'Completed'
@@ -1380,9 +1389,9 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                         <Image
                           src={item.imageUrl}
                           alt=""
-                          width={44}
-                          height={44}
-                          className={`absolute bottom-3 right-3 h-11 w-11 rounded-xl border border-white/10 object-cover ${item.state === 'pending' ? 'blur-sm brightness-50' : ''}`}
+                          width={40}
+                          height={40}
+                          className={`absolute right-3 top-3 h-10 w-10 rounded-xl border border-white/10 object-cover ${item.state === 'pending' ? 'blur-sm brightness-50' : ''}`}
                         />
                       ) : null}
                     </div>

@@ -5,6 +5,7 @@ import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp
 import Image from 'next/image';
 import Link from 'next/link';
 import {
+  clearDailyGameState,
   loadDailyGameState,
   loadPlayerGameStats,
   recordPlayerGameCompletion,
@@ -64,6 +65,7 @@ type SkinChampionDailyState = {
   items: QuizItem[];
   selectedDifficulty: DifficultyId;
   activeModifiers: ModifierState;
+  entryCount: number;
   started: boolean;
   activeIndex: number;
   currentTime: number;
@@ -112,6 +114,8 @@ const defaultModifiers = modifiers.reduce(
   {} as ModifierState,
 );
 
+const entryCountOptions = [10, 25, 50, 75, 100] as const;
+
 function createModifierState(activeIds: readonly string[] = []) {
   return modifiers.reduce(
     (state, modifier) => ({ ...state, [modifier.id]: activeIds.includes(modifier.id) }),
@@ -134,14 +138,6 @@ function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boole
       <span className={`h-4 w-4 rounded-full bg-white shadow transition ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
     </span>
   );
-}
-
-function getSkinMeta(item?: QuizItem | null) {
-  if (!item) {
-    return null;
-  }
-
-  return [item.champion, item.releaseDate ? `Released ${item.releaseDate}` : null].filter(Boolean);
 }
 
 function getCropOrigin(item?: QuizItem | null) {
@@ -170,6 +166,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [answers, setAnswers] = useState<string[]>([]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
+  const [entryCount, setEntryCount] = useState(50);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -213,8 +210,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const hintsDisabled = difficultyRule.hintDelaySeconds === null;
   const autocompleteEnabled = difficultyRule.autocomplete;
   const shouldHideTimers = activeModifiers.hiddenTimer;
-  const shouldRevealChampion = selectedDifficulty === 'iron';
   const completedProgressCount = items.filter((item) => item.guessed).length;
+  const showSinglePlayerEndState = !multiplayer && finished;
 
   useEffect(() => {
     if (multiplayerInitialProgress === undefined) return;
@@ -299,6 +296,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setItems(savedState.items);
     setSelectedDifficulty(savedState.selectedDifficulty);
     setActiveModifiers(savedState.activeModifiers);
+    setEntryCount(savedState.entryCount ?? 50);
     setStarted(savedState.started);
     setActiveIndex(savedState.activeIndex);
     setCurrentTime(savedState.currentTime);
@@ -321,6 +319,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       items,
       selectedDifficulty,
       activeModifiers,
+      entryCount,
       started,
       activeIndex,
       currentTime,
@@ -329,7 +328,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       finished,
       failed,
     });
-  }, [activeIndex, activeModifiers, completedTimes, currentTime, failed, finished, hasLoadedOnce, items, multiplayer, selectedDifficulty, started, storageReady, totalTime]);
+  }, [activeIndex, activeModifiers, completedTimes, currentTime, entryCount, failed, finished, hasLoadedOnce, items, multiplayer, selectedDifficulty, started, storageReady, totalTime]);
 
   useEffect(() => {
     if (finished && !multiplayer) {
@@ -406,7 +405,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
         const response = await fetch('/api/skin-champion/quiz-items');
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          setItems(shuffle(data));
+          setItems(shuffle(data).slice(0, entryCount));
         }
       } catch (error) {
         console.error('Failed to fetch randomized skin set', error);
@@ -416,7 +415,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     };
 
     loadItems();
-  }, [hasLoadedOnce, multiplayer, started]);
+  }, [entryCount, hasLoadedOnce, multiplayer, started]);
 
   useEffect(() => {
     if (countdown === null) {
@@ -456,21 +455,60 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     });
   }, [activeIndex, started]);
 
-  const handleTogglePlay = () => {
+  const resetSinglePlayerRound = () => {
+    setStarted(false);
+    setFinished(false);
+    setFailed(false);
+    setCountdown(null);
+    setIsSliding(false);
+    setActiveIndex(0);
+    setCurrentTime(0);
+    setTotalTime(0);
+    setCompletedTimes({});
+    setInputValue('');
+    setStatus('idle');
+    setShowOptions(false);
+    setOptions([]);
+    setSuggestions([]);
+    setPenaltyCount(0);
+    setPenaltyMessage('');
+    setCroppedZoom(CROPPED_INITIAL_ZOOM);
+    setPendingConfirmedGuess('');
+    setSuccessFlash(false);
+    setHasLoadedOnce(false);
+    setItems([]);
+    clearDailyGameState('skin-champion');
+  };
+
+  const handleGameControl = () => {
     if (multiplayer) {
       return;
     }
-    if (countdown !== null || (started && !finished)) {
+    if (countdown !== null) {
+      return;
+    }
+
+    if (started || finished || failed) {
+      resetSinglePlayerRound();
       return;
     }
 
     setCurrentTime(0);
     setTotalTime(0);
     setActiveIndex(0);
+    setCompletedTimes({});
+    setInputValue('');
+    setStatus('idle');
+    setShowOptions(false);
+    setOptions([]);
+    setSuggestions([]);
+    setPenaltyCount(0);
     setFinished(false);
     setFailed(false);
     setPenaltyMessage('');
+    setCroppedZoom(CROPPED_INITIAL_ZOOM);
     setPendingConfirmedGuess('');
+    setSuccessFlash(false);
     setHasLoadedOnce(false);
     setItems([]);
     setCountdown(3);
@@ -493,6 +531,14 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       ...current,
       [modifierId]: !current[modifierId],
     }));
+  };
+
+  const handleEntryCountChange = (count: number) => {
+    if (configurationLocked) {
+      return;
+    }
+
+    setEntryCount(count);
   };
 
   const advance = () => {
@@ -771,6 +817,22 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                         );
                       })}
                     </div>
+                    <div className="mt-4 border-t border-white/10 pt-4">
+                      <label className="flex items-center justify-between gap-3">
+                        <span>
+                          <span className="block text-sm font-semibold text-white">Entries</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-400">Select how many skins appear this round.</span>
+                        </span>
+                        <select
+                          value={entryCount}
+                          disabled={configurationLocked}
+                          onChange={(event) => handleEntryCountChange(Number(event.target.value))}
+                          className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {entryCountOptions.map((count) => <option key={count} value={count}>{count}</option>)}
+                        </select>
+                      </label>
+                    </div>
                     {configurationLocked ? (
                       <p className="mt-3 text-xs text-slate-500">Modifiers are locked while a round is active.</p>
                     ) : null}
@@ -781,12 +843,16 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
             {!multiplayer ? <button
               type="button"
-              onClick={handleTogglePlay}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/90 px-4 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/10 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={countdown !== null || (started && !finished) || Boolean(multiplayer)}
+              onClick={handleGameControl}
+              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                started || finished || failed
+                  ? 'bg-red-500 text-white hover:bg-red-400'
+                  : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+              }`}
+              disabled={countdown !== null || Boolean(multiplayer)}
             >
-              <Play size={16} />
-              {countdown !== null ? `Starting in ${countdown}` : started && !finished ? 'In Progress' : 'Play'}
+              {started || finished || failed ? null : <Play size={16} />}
+              {countdown !== null ? `Starting in ${countdown}` : started || finished || failed ? 'End Game' : 'Play'}
             </button> : null}
           </div>
         </header>
@@ -805,7 +871,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
               className="pointer-events-none absolute h-px w-px opacity-0"
             />
           ) : null}
-          <div className="overflow-hidden">
+          {!showSinglePlayerEndState ? <div className="overflow-hidden">
             <div className={`grid gap-4 lg:grid-cols-3 lg:items-start transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
               {[
                 { label: 'Next item', item: nextItem, fallback: 'Next skin will appear here' },
@@ -822,17 +888,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     <div>
                       <p className="text-xs uppercase tracking-[0.22em]">{card.label}</p>
                       <p className="mt-1 text-sm text-slate-300">
-                        {card.label === 'Completed' ? card.item?.answer ?? 'Waiting...' : card.item?.title ?? 'Skin Splash'}
+                        {card.label === 'Completed' ? card.item?.answer ?? '' : 'Skin Splash'}
                       </p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400 sm:text-[0.75rem]">
-                        {card.label === 'Completed' && getSkinMeta(card.item) ? (
-                          getSkinMeta(card.item)?.map((meta, index) => (
-                            <span key={meta}>{index === 0 ? meta : `- ${meta}`}</span>
-                          ))
-                        ) : (
-                          <span>{shouldRevealChampion && card.item?.champion ? card.item.champion : 'Champion unknown'}</span>
-                        )}
-                      </div>
                     </div>
                     <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
                       {card.label === 'Completed' ? <Check size={14} className="inline text-emerald-300" /> : 'Skin'}
@@ -873,9 +930,9 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 </div>
               ))}
             </div>
-          </div>
+          </div> : null}
 
-          <form
+          {!showSinglePlayerEndState ? <form
             onSubmit={handleSubmit}
             className={`relative z-30 mt-8 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-5 shadow-inner shadow-slate-950/40 transition ${
               successFlash ? 'border-emerald-400/40 ring-1 ring-emerald-400/20' : 'border-white/10'
@@ -971,9 +1028,9 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <span className="font-semibold text-amber-300">Submit again to confirm</span>
               ) : null}
             </div>
-          </form>
+          </form> : null}
 
-          <section className="relative z-0 mt-8 rounded-3xl border border-white/10 bg-slate-950/70 p-6">
+          <section className={`relative z-0 mt-8 rounded-3xl bg-slate-950/70 p-5 ${showSinglePlayerEndState ? 'app-gradient-border' : 'border border-white/10'}`}>
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
               <div className="flex items-center gap-3">
@@ -981,7 +1038,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <span className="text-xs text-slate-500">{completedProgressCount}/{items.length}</span>
               </div>
             </div>
-            <div ref={progressContainerRef} className="grid max-h-72 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div ref={progressContainerRef} className="grid max-h-72 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-4">
               {items.map((item, index) => {
                 const completed = item.guessed || index < activeIndex;
                 const active = started && index === activeIndex && !finished;
@@ -990,7 +1047,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 return (
                   <div
                     key={item.id}
-                    className={`min-h-20 rounded-2xl border p-4 text-sm ${
+                    className={`relative min-h-20 overflow-hidden rounded-3xl border px-4 py-3 pr-16 text-sm transition ${
                       active
                         ? 'border-violet-500/60 bg-violet-500/10'
                         : completed
@@ -998,30 +1055,19 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                         : 'border-white/10 bg-slate-950/70'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span
-                          className={`h-11 w-11 shrink-0 overflow-hidden border ${
-                            completed ? 'border-slate-400/70' : 'border-white/10'
-                          }`}
-                        >
-                          <Image
-                            src={item.imageUrl}
-                            alt=""
-                            width={44}
-                            height={44}
-                            className={`h-full w-full object-cover ${completed ? '' : 'blur-sm brightness-75 scale-105'}`}
-                          />
-                        </span>
-                        <span className="truncate font-semibold text-white">{completed ? item.answer : '???'}</span>
-                      </div>
-                      <span className="rounded-full bg-slate-800 px-2 py-1 text-[0.65rem] uppercase text-slate-300">
-                        {active ? 'Now' : completed ? 'Done' : 'Next'}
-                      </span>
+                    <div className="text-sm font-semibold text-white">
+                      <span>{completed ? item.answer : '???'}</span>
                     </div>
-                    <p className="mt-3 text-xs text-slate-400">
+                    <p className="mt-2 text-sm leading-5 text-slate-400">
                       {time ? `${formatSeconds(time.total)} - ${formatSeconds(time.duration)}` : 'TBD - TBD'}
                     </p>
+                    <Image
+                      src={item.imageUrl}
+                      alt=""
+                      width={40}
+                      height={40}
+                      className={`absolute right-3 top-3 h-10 w-10 rounded-xl border border-white/10 object-cover ${completed ? '' : 'blur-sm brightness-75 scale-105'}`}
+                    />
                   </div>
                 );
               })}

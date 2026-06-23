@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, Crown, Search, ShieldQuestion, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, BarChart3, Clock3, Search, ShieldQuestion, Sparkles, Users } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -65,14 +65,6 @@ const singlePlayerGames: GameLink[] = [
     icon: Search,
     mostPlayed: true,
   },
-  {
-    title: 'Mastery Master',
-    href: '/mastery-master',
-    description: 'Build champion knowledge through focused mastery-style challenges.',
-    status: 'Coming soon',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Lux.png',
-    icon: Crown,
-  },
 ];
 
 function GameCard({ game }: { game: GameLink }) {
@@ -132,12 +124,23 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 px-6 py-12 lg:px-12">
-        <header className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">League quiz hub</p>
-          <h1 className="mt-4 text-5xl font-bold text-white sm:text-6xl">KnowLeague</h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">
-            Choose a solo challenge or create a lobby to test your League knowledge with other players.
-          </p>
+        <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">League quiz hub</p>
+            <h1 className="mt-4 text-5xl font-bold text-white sm:text-6xl">KnowLeague</h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">
+              Choose a solo challenge or create a lobby to test your League knowledge with other players.
+            </p>
+          </div>
+          <Link
+            href="/riot-account-viewer"
+            className="group relative inline-flex min-h-14 shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-amber-200/40 bg-gradient-to-br from-amber-200 via-amber-300 to-yellow-500 px-5 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-lg shadow-amber-950/30 transition hover:-translate-y-0.5 hover:shadow-amber-900/40 focus:outline-none focus:ring-2 focus:ring-amber-100 lg:mt-1"
+          >
+            <span className="absolute inset-y-0 left-0 w-1/3 bg-white/30 opacity-0 blur-xl transition group-hover:opacity-100" />
+            <BarChart3 size={20} />
+            Riot Account Viewer
+            <ArrowRight size={17} className="transition group-hover:translate-x-1" />
+          </Link>
         </header>
 
         <GameSection

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Clock3, Crown, Loader2, Medal, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import { BarChart3, ChevronDown, Clock3, Crown, Loader2, Medal, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -9,6 +9,16 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 const platformRoutes = ['NA1', 'BR1', 'LA1', 'LA2', 'EUW1', 'EUN1', 'KR', 'JP1', 'OC1', 'TR1', 'RU', 'PH2', 'SG2', 'TH2', 'TW2', 'VN2'] as const;
 type ViewerTab = 'overview' | 'mastery' | 'matches' | 'challenges';
 type MasterySort = 'points' | 'level' | 'recent';
+type PlatformRoute = (typeof platformRoutes)[number];
+type SharedRiotIdSuggestion = {
+  riotId: string;
+  platform: PlatformRoute;
+  searchCount: number;
+};
+
+const lastSearchStorageKey = 'knowleague:riot-account-viewer:last-search';
+const recentSearchesStorageKey = 'knowleague:riot-account-viewer:recent-searches';
+const maxRecentSearches = 5;
 
 const tabs: Array<{ id: ViewerTab; label: string; icon: typeof BarChart3 }> = [
   { id: 'overview', label: 'Overview', icon: UserRound },
@@ -45,6 +55,49 @@ function rankedLabel(queueType: string) {
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function isPlatformRoute(value: string | null): value is PlatformRoute {
+  return Boolean(value && platformRoutes.includes(value as PlatformRoute));
+}
+
+function readStoredLastSearch() {
+  try {
+    const raw = window.localStorage.getItem(lastSearchStorageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { riotId?: unknown; platform?: unknown };
+    if (typeof parsed.riotId !== 'string' || !parsed.riotId.trim()) return null;
+    return {
+      riotId: parsed.riotId.trim(),
+      platform: isPlatformRoute(typeof parsed.platform === 'string' ? parsed.platform.toUpperCase() : null)
+        ? typeof parsed.platform === 'string' ? parsed.platform.toUpperCase() as PlatformRoute : 'NA1'
+        : 'NA1',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readStoredRecentSearches() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(recentSearchesStorageKey) ?? '[]') as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is string => typeof value === 'string' && value.trim().includes('#')).slice(0, maxRecentSearches);
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredSearch(riotId: string, platform: PlatformRoute) {
+  const normalizedRiotId = riotId.trim();
+  if (!normalizedRiotId) return;
+
+  window.localStorage.setItem(lastSearchStorageKey, JSON.stringify({ riotId: normalizedRiotId, platform }));
+  const recentSearches = [
+    normalizedRiotId,
+    ...readStoredRecentSearches().filter((recentRiotId) => recentRiotId.toLowerCase() !== normalizedRiotId.toLowerCase()),
+  ].slice(0, maxRecentSearches);
+  window.localStorage.setItem(recentSearchesStorageKey, JSON.stringify(recentSearches));
 }
 
 function StatTile({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Trophy }) {
@@ -92,10 +145,8 @@ function OverviewTab({ data }: { data: RiotAccountViewerResponse }) {
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Ranked snapshot</p>
-              <h2 className="mt-2 text-2xl font-bold text-white">Current queues</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Ranked Queues Placement</p>
             </div>
-            <Trophy className="text-amber-300" size={24} />
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[soloQueue, flexQueue].map((entry, index) => (
@@ -118,7 +169,6 @@ function OverviewTab({ data }: { data: RiotAccountViewerResponse }) {
 
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
-          <h2 className="mt-2 text-2xl font-bold text-white">Top mastery picks</h2>
           <div className="mt-5 grid gap-3">
             {topMasteries.map((mastery) => (
               <div key={mastery.champion.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
@@ -162,7 +212,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
     <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Champion mastery</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Top Champion mastery</p>
           <h2 className="mt-2 text-2xl font-bold text-white">Horizontally scrollable bar chart</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -175,7 +225,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
             </select>
           </label>
           <label className="grid gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Champion category</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Champion Role</span>
             <select value={tag} onChange={(event) => setTag(event.target.value)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">
               {tags.map((championTag) => <option key={championTag} value={championTag}>{championTag}</option>)}
             </select>
@@ -392,7 +442,7 @@ function EmptyState() {
       </div>
       <h2 className="mt-5 text-2xl font-bold text-white">Search a Riot account</h2>
       <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-        Enter a Riot ID like Test#NA1 and choose the League platform region. Logged-in players with a saved Riot account will auto-load from their KnowLeague profile.
+        Check your Riot account stats by searching your Riot ID and region above. If you have a KnowLeague account with a saved Riot account, your data will be automatically populated here.
       </p>
     </section>
   );
@@ -400,12 +450,14 @@ function EmptyState() {
 
 export function RiotAccountViewer() {
   const [riotId, setRiotId] = useState('');
-  const [platform, setPlatform] = useState<(typeof platformRoutes)[number]>('NA1');
+  const [platform, setPlatform] = useState<PlatformRoute>('NA1');
   const [activeTab, setActiveTab] = useState<ViewerTab>('overview');
   const [data, setData] = useState<RiotAccountViewerResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoLoadMessage, setAutoLoadMessage] = useState<string | null>(null);
+  const [riotIdSuggestions, setRiotIdSuggestions] = useState<string[]>([]);
+  const [sharedSuggestions, setSharedSuggestions] = useState<SharedRiotIdSuggestion[]>([]);
   const autoLoadedRef = useRef(false);
 
   const loadAccount = useCallback(async (nextRiotId = riotId, nextPlatform = platform) => {
@@ -425,6 +477,8 @@ export function RiotAccountViewer() {
         throw new Error(typeof result.error === 'string' ? result.error : 'Unable to load Riot account data.');
       }
       setData(result as RiotAccountViewerResponse);
+      writeStoredSearch(trimmedRiotId, nextPlatform);
+      setRiotIdSuggestions(readStoredRecentSearches());
       setActiveTab('overview');
     } catch (nextError) {
       setData(null);
@@ -435,20 +489,56 @@ export function RiotAccountViewer() {
   }, [platform, riotId]);
 
   useEffect(() => {
+    const query = riotId.trim();
+    if (query.length < 2) {
+      setSharedSuggestions([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      fetch(`/api/riot-account/suggestions?q=${encodeURIComponent(query)}&platform=${encodeURIComponent(platform)}`, {
+        signal: controller.signal,
+      })
+        .then((response) => response.ok ? response.json() : { suggestions: [] })
+        .then((result: { suggestions?: SharedRiotIdSuggestion[] }) => {
+          setSharedSuggestions(Array.isArray(result.suggestions) ? result.suggestions : []);
+        })
+        .catch((nextError) => {
+          if ((nextError as Error).name !== 'AbortError') {
+            setSharedSuggestions([]);
+          }
+        });
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [platform, riotId]);
+
+  useEffect(() => {
     if (autoLoadedRef.current) return;
     autoLoadedRef.current = true;
 
     const params = new URLSearchParams(window.location.search);
     const queryRiotId = params.get('riotId');
-    const queryPlatform = params.get('platform')?.toUpperCase();
+    const queryPlatform = params.get('platform')?.toUpperCase() ?? null;
+    const storedLastSearch = readStoredLastSearch();
+    setRiotIdSuggestions(readStoredRecentSearches());
     if (queryRiotId) {
-      const safePlatform = platformRoutes.includes(queryPlatform as (typeof platformRoutes)[number])
-        ? queryPlatform as (typeof platformRoutes)[number]
+      const safePlatform = isPlatformRoute(queryPlatform)
+        ? queryPlatform
         : 'NA1';
       setRiotId(queryRiotId);
       setPlatform(safePlatform);
       void loadAccount(queryRiotId, safePlatform);
       return;
+    }
+
+    if (storedLastSearch) {
+      setRiotId(storedLastSearch.riotId);
+      setPlatform(storedLastSearch.platform);
     }
 
     const supabase = getOptionalSupabaseClient();
@@ -466,12 +556,21 @@ export function RiotAccountViewer() {
 
       const savedRiotId = profile?.riot_account_name?.trim();
       if (savedRiotId) {
+        setRiotIdSuggestions(Array.from(new Set([savedRiotId, ...readStoredRecentSearches()])));
         setAutoLoadMessage('Loading the Riot account saved to your KnowLeague profile.');
         setRiotId(savedRiotId);
-        void loadAccount(savedRiotId, 'NA1');
+        void loadAccount(savedRiotId, storedLastSearch?.platform ?? 'NA1');
       }
     });
   }, [loadAccount]);
+
+  const mergedRiotIdSuggestions = useMemo(() => {
+    const suggestions = new Map<string, string>();
+    [...riotIdSuggestions, ...sharedSuggestions.map((suggestion) => suggestion.riotId)].forEach((suggestion) => {
+      suggestions.set(suggestion.toLowerCase(), suggestion);
+    });
+    return Array.from(suggestions.values()).slice(0, maxRecentSearches + 8);
+  }, [riotIdSuggestions, sharedSuggestions]);
 
   const title = data ? `${data.account.gameName}#${data.account.tagLine}` : 'KnowLeague - Riot Account Viewer';
 
@@ -483,9 +582,6 @@ export function RiotAccountViewer() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">League account intelligence</p>
               <h1 className="mt-3 text-3xl font-black text-white sm:text-5xl">{title}</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-                Search official Riot account, mastery, ranked, match, current-game, and challenge data from one wider viewer panel.
-              </p>
             </div>
 
             {data ? (
@@ -512,19 +608,25 @@ export function RiotAccountViewer() {
               <input
                 value={riotId}
                 onChange={(event) => setRiotId(event.target.value)}
-                placeholder="Riot ID, for example Test#NA1"
+                list="riot-account-viewer-suggestions"
+                autoComplete="username"
+                placeholder="Riot ID"
                 className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 pr-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40"
               />
+              <datalist id="riot-account-viewer-suggestions">
+                {mergedRiotIdSuggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
+              </datalist>
             </label>
-            <label>
+            <label className="relative">
               <span className="sr-only">League platform</span>
               <select
                 value={platform}
-                onChange={(event) => setPlatform(event.target.value as (typeof platformRoutes)[number])}
-                className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-white outline-none transition focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40"
+                onChange={(event) => setPlatform(event.target.value as PlatformRoute)}
+                className="min-h-12 w-full appearance-none rounded-2xl border border-white/10 bg-slate-950 py-2 pl-4 pr-14 text-sm font-bold text-white outline-none transition focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40"
               >
                 {platformRoutes.map((route) => <option key={route} value={route}>{route}</option>)}
               </select>
+              <ChevronDown size={18} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-white" />
             </label>
             <button
               type="submit"

@@ -1,3 +1,5 @@
+import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+
 const DATA_DRAGON_VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json';
 const RIOT_API_KEY_HEADER = 'X-Riot-Token';
 const DEFAULT_MATCH_COUNT = 10;
@@ -272,6 +274,12 @@ export type RiotAccountViewerResponse = {
   };
 };
 
+export type RiotAccountSearchSuggestion = {
+  riotId: string;
+  platform: RiotPlatformRoute;
+  searchCount: number;
+};
+
 let cachedChampionLookup: Promise<Map<number, RiotChampionSummary>> | null = null;
 let cachedDataDragonVersion: Promise<string> | null = null;
 
@@ -302,6 +310,60 @@ export function getRegionalRoute(platform: RiotPlatformRoute): RiotRegionalRoute
     return 'sea';
   }
   return 'americas';
+}
+
+export async function recordRiotAccountSearch(input: {
+  riotId: string;
+  gameName: string;
+  tagLine: string;
+  platform: RiotPlatformRoute;
+}) {
+  try {
+    await getSupabaseServiceClient().rpc('record_riot_account_search', {
+      search_riot_id: input.riotId,
+      search_game_name: input.gameName,
+      search_tag_line: input.tagLine,
+      search_platform: input.platform,
+    });
+  } catch {
+    // Search suggestions are best-effort and should not block a successful Riot lookup.
+  }
+}
+
+export async function getRiotAccountSearchSuggestions(query: string, platform?: RiotPlatformRoute) {
+  try {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.length < 2) return [];
+
+    let request = getSupabaseServiceClient()
+      .from('riot_account_searches')
+      .select('riot_id, platform, search_count')
+      .ilike('riot_id_normalized', `${normalizedQuery}%`)
+      .order('search_count', { ascending: false })
+      .order('last_searched_at', { ascending: false })
+      .limit(8);
+
+    if (platform) {
+      request = request.eq('platform', platform);
+    }
+
+    const { data, error } = await request;
+    if (error) return [];
+
+    return (data ?? [])
+      .filter((row): row is { riot_id: string; platform: RiotPlatformRoute; search_count: number } => (
+        typeof row.riot_id === 'string'
+        && isRiotPlatformRoute(row.platform)
+        && typeof row.search_count === 'number'
+      ))
+      .map<RiotAccountSearchSuggestion>((row) => ({
+        riotId: row.riot_id,
+        platform: row.platform,
+        searchCount: row.search_count,
+      }));
+  } catch {
+    return [];
+  }
 }
 
 function getRiotApiKey() {

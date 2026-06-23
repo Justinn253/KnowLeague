@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRiotAccountViewerData, isRiotPlatformRoute } from '@/lib/riot-account-viewer';
+import { getRiotAccountViewerData, isRiotPlatformRoute, recordRiotAccountSearch } from '@/lib/riot-account-viewer';
 
 export const runtime = 'nodejs';
 
@@ -27,6 +27,12 @@ export async function GET(request: Request) {
     }
 
     const data = await getRiotAccountViewerData(riotId, platform);
+    await recordRiotAccountSearch({
+      riotId: `${data.account.gameName}#${data.account.tagLine}`,
+      gameName: data.account.gameName,
+      tagLine: data.account.tagLine,
+      platform: data.platform,
+    });
     return NextResponse.json(data);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load Riot account data.';

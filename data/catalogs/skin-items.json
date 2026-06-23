@@ -12,7 +12,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "103006",
@@ -102,7 +102,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "21032",
@@ -147,7 +147,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "516029",
@@ -162,7 +162,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "10006",
@@ -177,7 +177,7 @@
     "rarity": "Legendary",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "103089",
@@ -267,7 +267,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "24003",
@@ -387,7 +387,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "81009",
@@ -417,7 +417,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "145017",
@@ -432,7 +432,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "21007",
@@ -537,7 +537,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "202055",
@@ -552,7 +552,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "30035",
@@ -567,7 +567,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "236031",
@@ -732,7 +732,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human"
+    "race": "Human, Magical"
   },
   {
     "id": "222037",
@@ -957,7 +957,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "75006",
@@ -972,7 +972,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "63007",
@@ -1002,7 +1002,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "67006",
@@ -1062,7 +1062,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "85005",
@@ -1092,7 +1092,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "51004",
@@ -1137,7 +1137,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Male",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "75035",
@@ -1152,7 +1152,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "80036",
@@ -1167,7 +1167,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "82042",
@@ -1182,7 +1182,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "98049",
@@ -1227,7 +1227,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Celestial Dragon"
+    "race": "Dragon"
   },
   {
     "id": "517034",
@@ -1257,7 +1257,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "432008",
@@ -1287,7 +1287,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "105026",
@@ -1362,7 +1362,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "78016",
@@ -1392,7 +1392,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "27019",
@@ -1467,7 +1467,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "35005",
@@ -1527,7 +1527,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "God-Warrior, Undead, Human"
+    "race": "God-Warrior, Undead"
   },
   {
     "id": "27005",
@@ -1557,7 +1557,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "45007",
@@ -1617,7 +1617,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "15004",
@@ -1662,7 +1662,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "89009",
@@ -1677,7 +1677,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "432006",
@@ -1797,7 +1797,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "141026",
@@ -1812,7 +1812,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical Alteration, Darkin, God-Warrior"
+    "race": "Human, Magical Alteration, Darkin"
   },
   {
     "id": "89021",
@@ -1827,7 +1827,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "99015",
@@ -1872,7 +1872,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "498057",
@@ -1947,7 +1947,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "200001",
@@ -1977,7 +1977,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "63006",
@@ -2007,7 +2007,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "246001",
@@ -2157,7 +2157,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "1050",
@@ -2232,7 +2232,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "114089",
@@ -2277,7 +2277,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "55029",
@@ -2292,7 +2292,7 @@
     "rarity": "Legendary",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "21060",
@@ -2397,7 +2397,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "72003",
@@ -2442,7 +2442,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "31005",
@@ -2532,7 +2532,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "119005",
@@ -2562,7 +2562,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "23008",
@@ -2667,7 +2667,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "53056",
@@ -2682,7 +2682,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "34037",
@@ -2697,7 +2697,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "69028",
@@ -2757,7 +2757,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "7045",
@@ -2772,7 +2772,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "21018",
@@ -2802,7 +2802,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "267032",
@@ -2967,7 +2967,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "50002",
@@ -3012,7 +3012,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "3006",
@@ -3027,7 +3027,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "117001",
@@ -3117,7 +3117,7 @@
     "rarity": "Legendary",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "421009",
@@ -3132,7 +3132,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Xer'Sai"
+    "race": "Void-Being"
   },
   {
     "id": "58018",
@@ -3147,7 +3147,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "14022",
@@ -3162,7 +3162,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "161011",
@@ -3207,7 +3207,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "25003",
@@ -3222,7 +3222,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "127002",
@@ -3252,7 +3252,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "74002",
@@ -3282,7 +3282,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "120001",
@@ -3297,7 +3297,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "8005",
@@ -3327,7 +3327,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "84005",
@@ -3357,7 +3357,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "60003",
@@ -3417,7 +3417,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "429001",
@@ -3432,7 +3432,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "55021",
@@ -3447,7 +3447,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "85006",
@@ -3477,7 +3477,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "555009",
@@ -3567,7 +3567,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "23010",
@@ -3657,7 +3657,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "58003",
@@ -3672,7 +3672,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "127001",
@@ -3702,7 +3702,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Male",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "102002",
@@ -3717,7 +3717,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Terrestrial Dragon, Magical Alteration"
+    "race": "Dragon, Magical Alteration"
   },
   {
     "id": "53003",
@@ -3732,7 +3732,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "876037",
@@ -3747,7 +3747,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Fae Fawn"
+    "race": "Spirit"
   },
   {
     "id": "201003",
@@ -3762,7 +3762,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "498017",
@@ -3792,7 +3792,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "245056",
@@ -3822,7 +3822,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "31023",
@@ -3942,7 +3942,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "53066",
@@ -3957,7 +3957,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "18005",
@@ -3987,7 +3987,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "2006",
@@ -4002,7 +4002,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "6002",
@@ -4242,7 +4242,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "106004",
@@ -4257,7 +4257,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "35064",
@@ -4347,7 +4347,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "29055",
@@ -4362,7 +4362,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "23009",
@@ -4407,7 +4407,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "11002",
@@ -4422,7 +4422,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "799001",
@@ -4452,7 +4452,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "203034",
@@ -4467,7 +4467,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "80038",
@@ -4482,7 +4482,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "50032",
@@ -4512,7 +4512,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "223003",
@@ -4542,7 +4542,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "86003",
@@ -4662,7 +4662,7 @@
     "rarity": "kRare",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "110007",
@@ -4677,7 +4677,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "48004",
@@ -4692,7 +4692,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Troll, Iceborn"
+    "race": "Troll"
   },
   {
     "id": "54002",
@@ -4722,7 +4722,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "36003",
@@ -4752,7 +4752,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "101032",
@@ -4797,7 +4797,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "120014",
@@ -4812,7 +4812,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "497001",
@@ -4917,7 +4917,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "110017",
@@ -4932,7 +4932,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "76018",
@@ -4962,7 +4962,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "99018",
@@ -5007,7 +5007,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "14040",
@@ -5022,7 +5022,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "20035",
@@ -5037,7 +5037,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "22011",
@@ -5052,7 +5052,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "38005",
@@ -5067,7 +5067,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "72005",
@@ -5142,7 +5142,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "240002",
@@ -5157,7 +5157,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Yordle, Drakalops"
+    "race": "Yordle"
   },
   {
     "id": "8001",
@@ -5217,7 +5217,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "164002",
@@ -5292,7 +5292,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "127004",
@@ -5322,7 +5322,7 @@
     "rarity": "Legendary",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "267051",
@@ -5382,7 +5382,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "21001",
@@ -5427,7 +5427,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "104003",
@@ -5547,7 +5547,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "29004",
@@ -5562,7 +5562,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "92002",
@@ -5637,7 +5637,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "50012",
@@ -5667,7 +5667,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "121079",
@@ -5697,7 +5697,7 @@
     "rarity": "Mythic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "101030",
@@ -5727,7 +5727,7 @@
     "rarity": "Mythic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "89050",
@@ -5742,7 +5742,7 @@
     "rarity": "Mythic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "163021",
@@ -5847,7 +5847,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "166001",
@@ -5877,7 +5877,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "9007",
@@ -5907,7 +5907,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "202037",
@@ -5922,7 +5922,7 @@
     "rarity": "Mythic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "202005",
@@ -5937,7 +5937,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "127012",
@@ -6027,7 +6027,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "43008",
@@ -6087,7 +6087,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "61007",
@@ -6102,7 +6102,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "35008",
@@ -6147,7 +6147,7 @@
     "rarity": "Legendary",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "110006",
@@ -6162,7 +6162,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "101005",
@@ -6207,7 +6207,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "131001",
@@ -6222,7 +6222,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "131012",
@@ -6237,7 +6237,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "8008",
@@ -6267,7 +6267,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Terrestrial Dragon, Magical Alteration"
+    "race": "Dragon, Magical Alteration"
   },
   {
     "id": "59003",
@@ -6297,7 +6297,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "40066",
@@ -6312,7 +6312,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "429024",
@@ -6327,7 +6327,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "43019",
@@ -6357,7 +6357,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "76011",
@@ -6387,7 +6387,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "92016",
@@ -6522,7 +6522,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "112004",
@@ -6612,7 +6612,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "126002",
@@ -6642,7 +6642,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "89033",
@@ -6657,7 +6657,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "90028",
@@ -6672,7 +6672,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "11042",
@@ -6687,7 +6687,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "254003",
@@ -6732,7 +6732,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "96006",
@@ -6777,7 +6777,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "89002",
@@ -6792,7 +6792,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "53005",
@@ -6807,7 +6807,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "77004",
@@ -6882,7 +6882,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "254004",
@@ -6987,7 +6987,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Magical"
+    "race": "Wraith, Undead"
   },
   {
     "id": "136038",
@@ -7002,7 +7002,7 @@
     "rarity": "Mythic",
     "role": "mage",
     "gender": "Male",
-    "race": "Celestial Dragon"
+    "race": "Dragon"
   },
   {
     "id": "122064",
@@ -7032,7 +7032,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "34027",
@@ -7047,7 +7047,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "16002",
@@ -7077,7 +7077,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "37006",
@@ -7107,7 +7107,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "64003",
@@ -7122,7 +7122,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "3019",
@@ -7137,7 +7137,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "82001",
@@ -7152,7 +7152,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "50004",
@@ -7197,7 +7197,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "74006",
@@ -7302,7 +7302,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "497037",
@@ -7347,7 +7347,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "131018",
@@ -7362,7 +7362,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "59002",
@@ -7392,7 +7392,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "2016",
@@ -7407,7 +7407,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "80006",
@@ -7422,7 +7422,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "48006",
@@ -7437,7 +7437,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Troll, Iceborn"
+    "race": "Troll"
   },
   {
     "id": "29036",
@@ -7452,7 +7452,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "67003",
@@ -7497,7 +7497,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "119006",
@@ -7542,7 +7542,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "122014",
@@ -7572,7 +7572,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "157055",
@@ -7602,7 +7602,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "84068",
@@ -7632,7 +7632,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "51048",
@@ -7662,7 +7662,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "57033",
@@ -7677,7 +7677,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "16001",
@@ -7707,7 +7707,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "32053",
@@ -7812,7 +7812,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "202023",
@@ -7827,7 +7827,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "85023",
@@ -7857,7 +7857,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "76027",
@@ -7947,7 +7947,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "523018",
@@ -7992,7 +7992,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Magical"
+    "race": "Wraith, Undead"
   },
   {
     "id": "350037",
@@ -8022,7 +8022,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "150004",
@@ -8067,7 +8067,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "201002",
@@ -8082,7 +8082,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "103017",
@@ -8127,7 +8127,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "God-Warrior, Undead, Human"
+    "race": "God-Warrior, Undead"
   },
   {
     "id": "432001",
@@ -8172,7 +8172,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "30026",
@@ -8187,7 +8187,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "7005",
@@ -8202,7 +8202,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "516002",
@@ -8217,7 +8217,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "497009",
@@ -8247,7 +8247,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Xer'Sai"
+    "race": "Void-Being"
   },
   {
     "id": "45013",
@@ -8277,7 +8277,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "498008",
@@ -8322,7 +8322,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Male",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "84082",
@@ -8382,7 +8382,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "897001",
@@ -8412,7 +8412,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "99042",
@@ -8442,7 +8442,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "56026",
@@ -8487,7 +8487,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "711010",
@@ -8562,7 +8562,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "91012",
@@ -8592,7 +8592,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Troll, Iceborn"
+    "race": "Troll"
   },
   {
     "id": "131076",
@@ -8607,7 +8607,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "89064",
@@ -8622,7 +8622,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "63008",
@@ -8652,7 +8652,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "69008",
@@ -8697,7 +8697,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Xer'Sai"
+    "race": "Void-Being"
   },
   {
     "id": "36005",
@@ -8727,7 +8727,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "81004",
@@ -8757,7 +8757,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "81033",
@@ -8802,7 +8802,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "55047",
@@ -8817,7 +8817,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "876028",
@@ -8832,7 +8832,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Fae Fawn"
+    "race": "Spirit"
   },
   {
     "id": "99061",
@@ -8862,7 +8862,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Human"
+    "race": "Human, Magical"
   },
   {
     "id": "147024",
@@ -8952,7 +8952,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "44027",
@@ -8967,7 +8967,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "75054",
@@ -8982,7 +8982,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "19005",
@@ -9012,7 +9012,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "34007",
@@ -9027,7 +9027,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "57003",
@@ -9042,7 +9042,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "9005",
@@ -9087,7 +9087,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "51054",
@@ -9117,7 +9117,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "222002",
@@ -9162,7 +9162,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "147059",
@@ -9387,7 +9387,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "79008",
@@ -9402,7 +9402,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "40006",
@@ -9417,7 +9417,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "59006",
@@ -9447,7 +9447,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "40005",
@@ -9462,7 +9462,7 @@
     "rarity": "Legendary",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "157068",
@@ -9507,7 +9507,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "103003",
@@ -9537,7 +9537,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "64029",
@@ -9552,7 +9552,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "54025",
@@ -9582,7 +9582,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "67015",
@@ -9627,7 +9627,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "33004",
@@ -9642,7 +9642,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "517008",
@@ -9747,7 +9747,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "20044",
@@ -9762,7 +9762,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "555064",
@@ -9822,7 +9822,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Troll, Iceborn"
+    "race": "Troll"
   },
   {
     "id": "6023",
@@ -9882,7 +9882,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "39004",
@@ -9897,7 +9897,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "81003",
@@ -10017,7 +10017,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "33006",
@@ -10032,7 +10032,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "45023",
@@ -10077,7 +10077,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "God-Warrior, Undead, Human"
+    "race": "God-Warrior, Undead"
   },
   {
     "id": "75001",
@@ -10092,7 +10092,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "58001",
@@ -10107,7 +10107,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "238013",
@@ -10137,7 +10137,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "3004",
@@ -10152,7 +10152,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "62002",
@@ -10167,7 +10167,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "157087",
@@ -10227,7 +10227,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "6001",
@@ -10272,7 +10272,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "119002",
@@ -10302,7 +10302,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "950020",
@@ -10332,7 +10332,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "57005",
@@ -10347,7 +10347,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "64011",
@@ -10362,7 +10362,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "24013",
@@ -10452,7 +10452,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "147004",
@@ -10482,7 +10482,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "79004",
@@ -10497,7 +10497,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "119058",
@@ -10542,7 +10542,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "91059",
@@ -10572,7 +10572,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "God-Warrior, Undead, Human"
+    "race": "God-Warrior, Undead"
   },
   {
     "id": "19001",
@@ -10602,7 +10602,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "30003",
@@ -10617,7 +10617,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "26002",
@@ -10647,7 +10647,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "40020",
@@ -10662,7 +10662,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "121002",
@@ -10692,7 +10692,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "107023",
@@ -10827,7 +10827,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "57004",
@@ -10842,7 +10842,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "143002",
@@ -10857,7 +10857,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "56004",
@@ -10932,7 +10932,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "76006",
@@ -10977,7 +10977,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "114003",
@@ -11067,7 +11067,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "222029",
@@ -11112,7 +11112,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "133004",
@@ -11142,7 +11142,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "67004",
@@ -11232,7 +11232,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical Alteration, Darkin, God-Warrior"
+    "race": "Human, Magical Alteration, Darkin"
   },
   {
     "id": "875056",
@@ -11292,7 +11292,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "81044",
@@ -11322,7 +11322,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "145059",
@@ -11337,7 +11337,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "64051",
@@ -11352,7 +11352,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "11096",
@@ -11367,7 +11367,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "901001",
@@ -11442,7 +11442,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "1010",
@@ -11472,7 +11472,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "40002",
@@ -11487,7 +11487,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "59009",
@@ -11517,7 +11517,7 @@
     "rarity": "Mythic",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "96010",
@@ -11547,7 +11547,7 @@
     "rarity": "Mythic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "56016",
@@ -11592,7 +11592,7 @@
     "rarity": "Mythic",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "58017",
@@ -11607,7 +11607,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "113015",
@@ -11622,7 +11622,7 @@
     "rarity": "Mythic",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "27002",
@@ -11652,7 +11652,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "50011",
@@ -11712,7 +11712,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "22017",
@@ -11727,7 +11727,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "122016",
@@ -11772,7 +11772,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "120008",
@@ -11787,7 +11787,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "39018",
@@ -11802,7 +11802,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "202001",
@@ -11817,7 +11817,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "55037",
@@ -11832,7 +11832,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "89034",
@@ -11847,7 +11847,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "236008",
@@ -11877,7 +11877,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "526020",
@@ -11937,7 +11937,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "223020",
@@ -11982,7 +11982,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "4005",
@@ -12012,7 +12012,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "6009",
@@ -12042,7 +12042,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "112014",
@@ -12132,7 +12132,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "104001",
@@ -12177,7 +12177,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "15003",
@@ -12222,7 +12222,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "102004",
@@ -12237,7 +12237,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Terrestrial Dragon, Magical Alteration"
+    "race": "Dragon, Magical Alteration"
   },
   {
     "id": "29012",
@@ -12252,7 +12252,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "42002",
@@ -12267,7 +12267,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "164010",
@@ -12312,7 +12312,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "145016",
@@ -12327,7 +12327,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "7019",
@@ -12342,7 +12342,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "497004",
@@ -12372,7 +12372,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "102017",
@@ -12387,7 +12387,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Terrestrial Dragon, Magical Alteration"
+    "race": "Dragon, Magical Alteration"
   },
   {
     "id": "37045",
@@ -12552,7 +12552,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "131003",
@@ -12567,7 +12567,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "3013",
@@ -12582,7 +12582,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "43061",
@@ -12612,7 +12612,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "85008",
@@ -12642,7 +12642,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "75005",
@@ -12657,7 +12657,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "2044",
@@ -12672,7 +12672,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "98016",
@@ -12702,7 +12702,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "161004",
@@ -12732,7 +12732,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "136021",
@@ -12747,7 +12747,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Celestial Dragon"
+    "race": "Dragon"
   },
   {
     "id": "145048",
@@ -12762,7 +12762,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "64072",
@@ -12777,7 +12777,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "11089",
@@ -12792,7 +12792,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "895021",
@@ -12837,7 +12837,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "77006",
@@ -12867,7 +12867,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "157056",
@@ -12912,7 +12912,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "10008",
@@ -12927,7 +12927,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "89003",
@@ -12942,7 +12942,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "54007",
@@ -12987,7 +12987,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "69004",
@@ -13032,7 +13032,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "24005",
@@ -13077,7 +13077,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "48002",
@@ -13092,7 +13092,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Troll, Iceborn"
+    "race": "Troll"
   },
   {
     "id": "31004",
@@ -13137,7 +13137,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "134001",
@@ -13242,7 +13242,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "147001",
@@ -13287,7 +13287,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "85003",
@@ -13317,7 +13317,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "85004",
@@ -13347,7 +13347,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Yordle, Drakalops"
+    "race": "Yordle"
   },
   {
     "id": "45051",
@@ -13377,7 +13377,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "33001",
@@ -13392,7 +13392,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "23002",
@@ -13422,7 +13422,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Magical"
+    "race": "Wraith, Undead"
   },
   {
     "id": "29001",
@@ -13437,7 +13437,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "76039",
@@ -13467,7 +13467,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "64010",
@@ -13482,7 +13482,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "267001",
@@ -13602,7 +13602,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "53021",
@@ -13617,7 +13617,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "53020",
@@ -13632,7 +13632,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "62006",
@@ -13647,7 +13647,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "120007",
@@ -13662,7 +13662,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "76002",
@@ -13707,7 +13707,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Troll, Iceborn"
+    "race": "Troll"
   },
   {
     "id": "96005",
@@ -13857,7 +13857,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "14003",
@@ -13872,7 +13872,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "12029",
@@ -13977,7 +13977,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Magical"
+    "race": "Wraith, Undead"
   },
   {
     "id": "266021",
@@ -13992,7 +13992,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "89011",
@@ -14007,7 +14007,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "235026",
@@ -14037,7 +14037,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "22052",
@@ -14052,7 +14052,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "99008",
@@ -14097,7 +14097,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "121069",
@@ -14142,7 +14142,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "19010",
@@ -14187,7 +14187,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "517001",
@@ -14277,7 +14277,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "115002",
@@ -14322,7 +14322,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "429005",
@@ -14337,7 +14337,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "240009",
@@ -14352,7 +14352,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Yordle, Drakalops"
+    "race": "Yordle"
   },
   {
     "id": "2005",
@@ -14367,7 +14367,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "19008",
@@ -14637,7 +14637,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "136002",
@@ -14652,7 +14652,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Celestial Dragon"
+    "race": "Dragon"
   },
   {
     "id": "121001",
@@ -14742,7 +14742,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "875001",
@@ -14787,7 +14787,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "54006",
@@ -14832,7 +14832,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "29003",
@@ -14847,7 +14847,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "57006",
@@ -14862,7 +14862,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "83004",
@@ -14892,7 +14892,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "103002",
@@ -14922,7 +14922,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "7003",
@@ -14937,7 +14937,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "33003",
@@ -14952,7 +14952,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "96003",
@@ -15042,7 +15042,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "36004",
@@ -15087,7 +15087,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "4006",
@@ -15117,7 +15117,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "69003",
@@ -15147,7 +15147,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Petricite, Golem"
+    "race": "Golem"
   },
   {
     "id": "86033",
@@ -15177,7 +15177,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "59044",
@@ -15207,7 +15207,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "267058",
@@ -15252,7 +15252,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "24007",
@@ -15342,7 +15342,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "523001",
@@ -15387,7 +15387,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "59035",
@@ -15417,7 +15417,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical Alteration, Darkin, God-Warrior"
+    "race": "Human, Magical Alteration, Darkin"
   },
   {
     "id": "64027",
@@ -15432,7 +15432,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "876010",
@@ -15447,7 +15447,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Fae Fawn"
+    "race": "Spirit"
   },
   {
     "id": "75045",
@@ -15462,7 +15462,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "16016",
@@ -15597,7 +15597,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "50001",
@@ -15627,7 +15627,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "8003",
@@ -15672,7 +15672,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "78001",
@@ -15702,7 +15702,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "20004",
@@ -15717,7 +15717,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "84004",
@@ -15792,7 +15792,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "76029",
@@ -15867,7 +15867,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "222013",
@@ -15912,7 +15912,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical Alteration, Darkin, God-Warrior"
+    "race": "Human, Magical Alteration, Darkin"
   },
   {
     "id": "121060",
@@ -16062,7 +16062,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "427011",
@@ -16107,7 +16107,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "56007",
@@ -16212,7 +16212,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "45009",
@@ -16242,7 +16242,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "16005",
@@ -16272,7 +16272,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "43004",
@@ -16302,7 +16302,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "90004",
@@ -16317,7 +16317,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "6015",
@@ -16482,7 +16482,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "34008",
@@ -16497,7 +16497,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "20008",
@@ -16512,7 +16512,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "420037",
@@ -16527,7 +16527,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "24004",
@@ -16617,7 +16617,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "10033",
@@ -16632,7 +16632,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "82023",
@@ -16647,7 +16647,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "2035",
@@ -16662,7 +16662,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "37026",
@@ -16707,7 +16707,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "10009",
@@ -16722,7 +16722,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "82003",
@@ -16737,7 +16737,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "2004",
@@ -16752,7 +16752,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "37002",
@@ -16797,7 +16797,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "164044",
@@ -16842,7 +16842,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "876046",
@@ -16857,7 +16857,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Female",
-    "race": "Fae Fawn"
+    "race": "Spirit"
   },
   {
     "id": "157088",
@@ -16902,7 +16902,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "30001",
@@ -16917,7 +16917,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "32001",
@@ -16947,7 +16947,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "76004",
@@ -16992,7 +16992,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "53004",
@@ -17007,7 +17007,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "74003",
@@ -17052,7 +17052,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "15010",
@@ -17082,7 +17082,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "201033",
@@ -17097,7 +17097,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "51013",
@@ -17157,7 +17157,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "104005",
@@ -17217,7 +17217,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "89004",
@@ -17232,7 +17232,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "117005",
@@ -17307,7 +17307,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "421002",
@@ -17322,7 +17322,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Xer'Sai"
+    "race": "Void-Being"
   },
   {
     "id": "58006",
@@ -17337,7 +17337,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "875010",
@@ -17397,7 +17397,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "29064",
@@ -17412,7 +17412,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "154002",
@@ -17457,7 +17457,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "103004",
@@ -17532,7 +17532,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "203012",
@@ -17547,7 +17547,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "127023",
@@ -17607,7 +17607,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "136031",
@@ -17622,7 +17622,7 @@
     "rarity": "Legendary",
     "role": "mage",
     "gender": "Male",
-    "race": "Celestial Dragon"
+    "race": "Dragon"
   },
   {
     "id": "81025",
@@ -17652,7 +17652,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "9009",
@@ -17697,7 +17697,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "34006",
@@ -17712,7 +17712,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "31006",
@@ -17742,7 +17742,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "51020",
@@ -17787,7 +17787,7 @@
     "rarity": "Mythic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "80026",
@@ -17802,7 +17802,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "89023",
@@ -17817,7 +17817,7 @@
     "rarity": "Mythic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "99016",
@@ -17877,7 +17877,7 @@
     "rarity": "Mythic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "131026",
@@ -17892,7 +17892,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "21020",
@@ -17922,7 +17922,7 @@
     "rarity": "Mythic",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "266008",
@@ -17937,7 +17937,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "498026",
@@ -18027,7 +18027,7 @@
     "rarity": "Mythic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "143006",
@@ -18042,7 +18042,7 @@
     "rarity": "Mythic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "350050",
@@ -18072,7 +18072,7 @@
     "rarity": "Mythic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "131065",
@@ -18087,7 +18087,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "54024",
@@ -18147,7 +18147,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "106009",
@@ -18162,7 +18162,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "897002",
@@ -18192,7 +18192,7 @@
     "rarity": "Mythic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "142043",
@@ -18207,7 +18207,7 @@
     "rarity": "Mythic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "55048",
@@ -18222,7 +18222,7 @@
     "rarity": "Mythic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "67013",
@@ -18402,7 +18402,7 @@
     "rarity": "Mythic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "28007",
@@ -18432,7 +18432,7 @@
     "rarity": "Mythic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "888021",
@@ -18492,7 +18492,7 @@
     "rarity": "Mythic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "86023",
@@ -18522,7 +18522,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "69038",
@@ -18567,7 +18567,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical Alteration, Darkin, God-Warrior"
+    "race": "Human, Magical Alteration, Darkin"
   },
   {
     "id": "64028",
@@ -18582,7 +18582,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "875009",
@@ -18642,7 +18642,7 @@
     "rarity": "Mythic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "127033",
@@ -18687,7 +18687,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "517014",
@@ -18762,7 +18762,7 @@
     "rarity": "Mythic",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "37075",
@@ -18792,7 +18792,7 @@
     "rarity": "Mythic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "555054",
@@ -18882,7 +18882,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "523040",
@@ -19107,7 +19107,7 @@
     "rarity": "Mythic",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "59054",
@@ -19152,7 +19152,7 @@
     "rarity": "Mythic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human"
+    "race": "Human, Magical"
   },
   {
     "id": "19046",
@@ -19182,7 +19182,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "107015",
@@ -19302,7 +19302,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "200019",
@@ -19347,7 +19347,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Xer'Sai"
+    "race": "Void-Being"
   },
   {
     "id": "13005",
@@ -19392,7 +19392,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "127003",
@@ -19467,7 +19467,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "11116",
@@ -19482,7 +19482,7 @@
     "rarity": "Mythic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "245003",
@@ -19527,7 +19527,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "39016",
@@ -19542,7 +19542,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "24033",
@@ -19572,7 +19572,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "222020",
@@ -19602,7 +19602,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "89008",
@@ -19617,7 +19617,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "236006",
@@ -19647,7 +19647,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "950011",
@@ -19707,7 +19707,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "113016",
@@ -19722,7 +19722,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "235016",
@@ -19782,7 +19782,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "67011",
@@ -19857,7 +19857,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "238003",
@@ -19932,7 +19932,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "11033",
@@ -19947,7 +19947,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "555025",
@@ -20082,7 +20082,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "96009",
@@ -20187,7 +20187,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "92018",
@@ -20232,7 +20232,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "4011",
@@ -20307,7 +20307,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "134003",
@@ -20352,7 +20352,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "78004",
@@ -20442,7 +20442,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Human"
+    "race": "Human, Magical"
   },
   {
     "id": "18070",
@@ -20487,7 +20487,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "32004",
@@ -20517,7 +20517,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "16004",
@@ -20562,7 +20562,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "55002",
@@ -20577,7 +20577,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "4008",
@@ -20727,7 +20727,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "51001",
@@ -20757,7 +20757,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "126015",
@@ -20817,7 +20817,7 @@
     "rarity": "kExalted",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Magical"
+    "race": "Wraith, Undead"
   },
   {
     "id": "1006",
@@ -20847,7 +20847,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "18001",
@@ -20892,7 +20892,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "10007",
@@ -20907,7 +20907,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "27001",
@@ -20967,7 +20967,7 @@
     "rarity": "Transcendent",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "7055",
@@ -20982,7 +20982,7 @@
     "rarity": "Mythic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "67064",
@@ -21162,7 +21162,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "102008",
@@ -21177,7 +21177,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Terrestrial Dragon, Magical Alteration"
+    "race": "Dragon, Magical Alteration"
   },
   {
     "id": "68001",
@@ -21207,7 +21207,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "101001",
@@ -21237,7 +21237,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "53001",
@@ -21252,7 +21252,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "80002",
@@ -21267,7 +21267,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   },
   {
     "id": "13009",
@@ -21297,7 +21297,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "40008",
@@ -21312,7 +21312,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "32007",
@@ -21372,7 +21372,7 @@
     "rarity": "kExalted",
     "role": "fighter",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "41003",
@@ -21387,7 +21387,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "43002",
@@ -21417,7 +21417,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "555001",
@@ -21477,7 +21477,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "86001",
@@ -21507,7 +21507,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "119012",
@@ -21537,7 +21537,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "84008",
@@ -21567,7 +21567,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "78006",
@@ -21597,7 +21597,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "101003",
@@ -21627,7 +21627,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "157045",
@@ -21657,7 +21657,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "21003",
@@ -21702,7 +21702,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "131027",
@@ -21717,7 +21717,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "104035",
@@ -21747,7 +21747,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "2025",
@@ -21762,7 +21762,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "555034",
@@ -21837,7 +21837,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "28001",
@@ -21867,7 +21867,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "203001",
@@ -21882,7 +21882,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "54001",
@@ -21942,7 +21942,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "96046",
@@ -21972,7 +21972,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Fae Fawn"
+    "race": "Spirit"
   },
   {
     "id": "111009",
@@ -21987,7 +21987,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "518012",
@@ -22047,7 +22047,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "350039",
@@ -22077,7 +22077,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Male",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "246020",
@@ -22152,7 +22152,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Terrestrial Dragon, Magical Alteration"
+    "race": "Dragon, Magical Alteration"
   },
   {
     "id": "37003",
@@ -22182,7 +22182,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "84006",
@@ -22227,7 +22227,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human"
+    "race": "Human, Magical"
   },
   {
     "id": "25002",
@@ -22242,7 +22242,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "240001",
@@ -22257,7 +22257,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Yordle, Drakalops"
+    "race": "Yordle"
   },
   {
     "id": "69002",
@@ -22302,7 +22302,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "God-Warrior, Undead, Human"
+    "race": "God-Warrior, Undead"
   },
   {
     "id": "245011",
@@ -22362,7 +22362,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "429003",
@@ -22377,7 +22377,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "64006",
@@ -22392,7 +22392,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "267008",
@@ -22422,7 +22422,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "58008",
@@ -22437,7 +22437,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "13010",
@@ -22527,7 +22527,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "55007",
@@ -22542,7 +22542,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "76001",
@@ -22617,7 +22617,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "27006",
@@ -22692,7 +22692,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "103076",
@@ -22737,7 +22737,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "141015",
@@ -22752,7 +22752,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical Alteration, Darkin, God-Warrior"
+    "race": "Human, Magical Alteration, Darkin"
   },
   {
     "id": "25060",
@@ -22767,7 +22767,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "110044",
@@ -22782,7 +22782,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "74004",
@@ -22842,7 +22842,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "113026",
@@ -22857,7 +22857,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "15043",
@@ -22947,7 +22947,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "99038",
@@ -23052,7 +23052,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Magical"
+    "race": "Wraith, Undead"
   },
   {
     "id": "119001",
@@ -23082,7 +23082,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical Alteration, Darkin, God-Warrior"
+    "race": "Human, Magical Alteration, Darkin"
   },
   {
     "id": "67010",
@@ -23127,7 +23127,7 @@
     "rarity": "Legendary",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "79020",
@@ -23142,7 +23142,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "887001",
@@ -23232,7 +23232,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "20016",
@@ -23247,7 +23247,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "516011",
@@ -23262,7 +23262,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "68013",
@@ -23307,7 +23307,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "17047",
@@ -23382,7 +23382,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "154001",
@@ -23502,7 +23502,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "432037",
@@ -23577,7 +23577,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human"
+    "race": "Human, Magical"
   },
   {
     "id": "39055",
@@ -23592,7 +23592,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "427030",
@@ -23637,7 +23637,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "203003",
@@ -23652,7 +23652,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "876001",
@@ -23667,7 +23667,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Fae Fawn"
+    "race": "Spirit"
   },
   {
     "id": "11052",
@@ -23682,7 +23682,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "25080",
@@ -23697,7 +23697,7 @@
     "rarity": "kExalted",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "76058",
@@ -23832,7 +23832,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "804001",
@@ -23892,7 +23892,7 @@
     "rarity": "Legendary",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "18051",
@@ -23922,7 +23922,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "67014",
@@ -23997,7 +23997,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "63005",
@@ -24057,7 +24057,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "81019",
@@ -24207,7 +24207,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "29007",
@@ -24222,7 +24222,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "103014",
@@ -24297,7 +24297,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "222004",
@@ -24327,7 +24327,7 @@
     "rarity": "Legendary",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Void Touched"
+    "race": "Human, Void-Being"
   },
   {
     "id": "117006",
@@ -24417,7 +24417,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "78007",
@@ -24597,7 +24597,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "9027",
@@ -24627,7 +24627,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "711020",
@@ -24657,7 +24657,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "412028",
@@ -24672,7 +24672,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "86006",
@@ -24732,7 +24732,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Celestial Dragon"
+    "race": "Dragon"
   },
   {
     "id": "64031",
@@ -24747,7 +24747,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "63033",
@@ -24837,7 +24837,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "164021",
@@ -24912,7 +24912,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "201024",
@@ -24927,7 +24927,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "28008",
@@ -24987,7 +24987,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "23005",
@@ -25032,7 +25032,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "236072",
@@ -25137,7 +25137,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "76009",
@@ -25182,7 +25182,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Terrestrial Dragon, Magical Alteration"
+    "race": "Dragon, Magical Alteration"
   },
   {
     "id": "85007",
@@ -25242,7 +25242,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "27003",
@@ -25362,7 +25362,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Baccai"
+    "race": "Unknown"
   },
   {
     "id": "1009",
@@ -25497,7 +25497,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "61038",
@@ -25512,7 +25512,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "555075",
@@ -25542,7 +25542,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "254049",
@@ -25632,7 +25632,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "34001",
@@ -25647,7 +25647,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "40001",
@@ -25662,7 +25662,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "24006",
@@ -25722,7 +25722,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "166020",
@@ -25752,7 +25752,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "98051",
@@ -25782,7 +25782,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "106001",
@@ -25797,7 +25797,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "26004",
@@ -25827,7 +25827,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "36001",
@@ -25857,7 +25857,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Cyborg"
+    "race": "Human"
   },
   {
     "id": "31032",
@@ -25917,7 +25917,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "61004",
@@ -25932,7 +25932,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "98006",
@@ -25977,7 +25977,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "113003",
@@ -25992,7 +25992,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "48003",
@@ -26007,7 +26007,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Troll, Iceborn"
+    "race": "Troll"
   },
   {
     "id": "43044",
@@ -26037,7 +26037,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "5047",
@@ -26232,7 +26232,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "50003",
@@ -26262,7 +26262,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "412027",
@@ -26277,7 +26277,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "12005",
@@ -26352,7 +26352,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "9002",
@@ -26427,7 +26427,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Spirit, Yordle"
+    "race": "Yordle"
   },
   {
     "id": "19009",
@@ -26487,7 +26487,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "32002",
@@ -26532,7 +26532,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "24002",
@@ -26562,7 +26562,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "8004",
@@ -26592,7 +26592,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Darkin, Human, God-Warrior"
+    "race": "Darkin"
   },
   {
     "id": "45003",
@@ -26622,7 +26622,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Darkin, God-Warrior, Human"
+    "race": "Darkin"
   },
   {
     "id": "34046",
@@ -26637,7 +26637,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "53036",
@@ -26652,7 +26652,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "201051",
@@ -26667,7 +26667,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "119068",
@@ -26742,7 +26742,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "59004",
@@ -26802,7 +26802,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "11106",
@@ -26817,7 +26817,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "25006",
@@ -26832,7 +26832,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "61008",
@@ -26847,7 +26847,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "113036",
@@ -26862,7 +26862,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "15008",
@@ -26967,7 +26967,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Human, Magical Alteration, Aspect Host"
+    "race": "Human, Magical Alteration, Aspect"
   },
   {
     "id": "5003",
@@ -27027,7 +27027,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "420001",
@@ -27042,7 +27042,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "105004",
@@ -27087,7 +27087,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Shimon"
+    "race": "Vastayan"
   },
   {
     "id": "79011",
@@ -27102,7 +27102,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "24012",
@@ -27147,7 +27147,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "133005",
@@ -27252,7 +27252,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "268004",
@@ -27267,7 +27267,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "God-Warrior, Undead, Human"
+    "race": "God-Warrior, Undead"
   },
   {
     "id": "86011",
@@ -27312,7 +27312,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "76007",
@@ -27417,7 +27417,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Male",
-    "race": "Plague Rat, Chemical Alteration"
+    "race": "Rat, Chemical Alteration"
   },
   {
     "id": "45001",
@@ -27447,7 +27447,7 @@
     "rarity": "Common",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "117002",
@@ -27492,7 +27492,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Plant / Human Hybrid"
+    "race": "Plant, Human"
   },
   {
     "id": "5004",
@@ -27552,7 +27552,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Human"
+    "race": "Human, Magical"
   },
   {
     "id": "518001",
@@ -27582,7 +27582,7 @@
     "rarity": "Common",
     "role": "mage",
     "gender": "Female",
-    "race": "Techmaturgy, Golem, Human"
+    "race": "Golem"
   },
   {
     "id": "16009",
@@ -27657,7 +27657,7 @@
     "rarity": "Legendary",
     "role": "fighter",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "120031",
@@ -27672,7 +27672,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "910001",
@@ -27687,7 +27687,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human"
+    "race": "Human, Magical"
   },
   {
     "id": "236052",
@@ -27777,7 +27777,7 @@
     "rarity": "Epic",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "19045",
@@ -27822,7 +27822,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Female",
-    "race": "Aspect Host, Human"
+    "race": "Aspect, Human"
   },
   {
     "id": "53022",
@@ -27837,7 +27837,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "60015",
@@ -27912,7 +27912,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "122003",
@@ -27957,7 +27957,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Other",
-    "race": "Spirit God"
+    "race": "Spirit, God"
   },
   {
     "id": "20002",
@@ -27972,7 +27972,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "35004",
@@ -28002,7 +28002,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Horse"
+    "race": "Wraith, Undead"
   },
   {
     "id": "90009",
@@ -28017,7 +28017,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "Human, Void Touched, Magical"
+    "race": "Human, Void-Being, Magical"
   },
   {
     "id": "57016",
@@ -28032,7 +28032,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Treant"
+    "race": "Spirit"
   },
   {
     "id": "75010",
@@ -28047,7 +28047,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "111005",
@@ -28062,7 +28062,7 @@
     "rarity": "Common",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "14014",
@@ -28077,7 +28077,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Revenant, Human"
+    "race": "Revenant"
   },
   {
     "id": "48005",
@@ -28092,7 +28092,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Troll, Iceborn"
+    "race": "Troll"
   },
   {
     "id": "92004",
@@ -28122,7 +28122,7 @@
     "rarity": "Common",
     "role": "support",
     "gender": "Male",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "102005",
@@ -28137,7 +28137,7 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Female",
-    "race": "Terrestrial Dragon, Magical Alteration"
+    "race": "Dragon, Magical Alteration"
   },
   {
     "id": "429002",
@@ -28152,7 +28152,7 @@
     "rarity": "Common",
     "role": "marksman",
     "gender": "Female",
-    "race": "Wraith, Human"
+    "race": "Wraith, Undead"
   },
   {
     "id": "238010",
@@ -28182,7 +28182,7 @@
     "rarity": "Epic",
     "role": "marksman",
     "gender": "Female",
-    "race": "Human, Iceborn"
+    "race": "Human"
   },
   {
     "id": "121011",
@@ -28227,7 +28227,7 @@
     "rarity": "Epic",
     "role": "assassin",
     "gender": "Female",
-    "race": "Human, Magical, Magical Alteration"
+    "race": "Human, Magical Alteration"
   },
   {
     "id": "59030",
@@ -28257,7 +28257,7 @@
     "rarity": "Epic",
     "role": "mage",
     "gender": "Male",
-    "race": "God-Warrior, Undead, Human"
+    "race": "God-Warrior, Undead"
   },
   {
     "id": "58042",
@@ -28272,7 +28272,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "God-Warrior, Human"
+    "race": "God-Warrior"
   },
   {
     "id": "234037",
@@ -28287,7 +28287,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Wraith, Human, Magical"
+    "race": "Wraith, Undead"
   },
   {
     "id": "98002",
@@ -28362,7 +28362,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Other",
-    "race": "Techmaturgy, Golem"
+    "race": "Golem"
   },
   {
     "id": "126025",
@@ -28392,7 +28392,7 @@
     "rarity": "Epic",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Magical"
+    "race": "Human"
   },
   {
     "id": "154024",
@@ -28437,7 +28437,7 @@
     "rarity": "Epic",
     "role": "tank",
     "gender": "Male",
-    "race": "Half Animal, Human"
+    "race": "Yeti, Human"
   },
   {
     "id": "13006",
@@ -28482,6 +28482,6 @@
     "rarity": "Common",
     "role": "fighter",
     "gender": "Male",
-    "race": "Human, Aspect Host"
+    "race": "Human, Aspect"
   }
 ]

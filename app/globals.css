@@ -192,5 +192,56 @@ select {
 
 .animate-rainbow-text {
   background-size: 200% 100%;
-  animation: rainbow-text-flow 2.4s linear infinite;
+  animation: rainbow-text-flow 9.6s linear infinite;
+}
+
+@keyframes mastery-bar-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.animate-mastery-bar-rise {
+  transform-origin: bottom;
+  animation: mastery-bar-rise 850ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-rainbow-flow {
+  background-size: 300% 100%;
+  animation: rainbow-text-flow 9.6s linear infinite;
+}
+
+.rainbow-flow-bg {
+  background-image: repeating-linear-gradient(
+    135deg,
+    #fb7185 0%,
+    #fbbf24 12.5%,
+    #34d399 25%,
+    #22d3ee 37.5%,
+    #a78bfa 50%,
+    #fb7185 62.5%,
+    #fbbf24 75%,
+    #34d399 87.5%,
+    #22d3ee 100%
+  );
+  background-size: 240% 240%;
+  animation: rainbow-text-flow 9.6s linear infinite;
+}
+
+@keyframes mastery-badge-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-mastery-badge-reveal {
+  animation: mastery-badge-reveal 220ms ease-out 850ms both;
 }

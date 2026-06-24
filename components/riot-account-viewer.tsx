@@ -9,7 +9,6 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 const platformRoutes = ['NA1', 'BR1', 'LA1', 'LA2', 'EUW1', 'EUN1', 'KR', 'JP1', 'OC1', 'TR1', 'RU', 'PH2', 'SG2', 'TH2', 'TW2', 'VN2'] as const;
 type ViewerTab = 'overview' | 'mastery' | 'matches' | 'challenges';
-type MasterySort = 'points' | 'level' | 'recent';
 type PlatformRoute = (typeof platformRoutes)[number];
 type SharedRiotIdSuggestion = {
   riotId: string;
@@ -119,6 +118,35 @@ function masteryTextClass(championLevel: number) {
     return 'animate-rainbow-text bg-gradient-to-r from-rose-300 via-amber-200 via-emerald-300 via-cyan-200 to-rose-300 bg-clip-text text-transparent';
   }
   return getLeagueRankStyle(tier).text;
+}
+
+function masteryBarClass(championLevel: number) {
+  const tier = masteryPointsRankTier(championLevel);
+  if (tier === 'rainbow') {
+    return 'border-white/30 bg-white/10';
+  }
+  const style = getLeagueRankStyle(tier);
+  return `${style.border} ${style.bg}`;
+}
+
+function masteryBarFillClass(championLevel: number) {
+  const tier = masteryPointsRankTier(championLevel);
+  if (tier === 'rainbow') {
+    return 'rainbow-flow-bg';
+  }
+  const gradients: Record<LeagueRankTier, string> = {
+    iron: 'from-[#7a4f3f] via-[#c9825b] to-[#f0c2a8]',
+    bronze: 'from-[#8f4f42] via-[#cd8b73] to-[#ffd1bd]',
+    silver: 'from-[#64748b] via-[#c8d6f1] to-white',
+    gold: 'from-amber-500 via-amber-300 to-yellow-100',
+    platinum: 'from-cyan-600 via-cyan-300 to-cyan-100',
+    emerald: 'from-emerald-700 via-emerald-300 to-emerald-100',
+    diamond: 'from-blue-700 via-blue-300 to-cyan-100',
+    master: 'from-fuchsia-800 via-fuchsia-300 to-pink-100',
+    grandmaster: 'from-orange-800 via-orange-300 to-red-100',
+    challenger: 'from-cyan-700 via-cyan-200 to-amber-100',
+  };
+  return `bg-gradient-to-t ${gradients[tier]}`;
 }
 
 function statToneClass(value: number, threshold: number) {
@@ -265,6 +293,32 @@ function RankIcon({ tier }: { tier: string }) {
   );
 }
 
+function MasteryCrest({ championLevel }: { championLevel: number }) {
+  const crestLevel = championLevel >= 10 ? '10+' : String(Math.max(1, championLevel));
+  const src = `/mastery-crests/120px-Mastery_Level_${crestLevel}_Crest.png`;
+
+  return (
+    <div className="animate-mastery-badge-reveal flex h-12 w-14 items-center justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        className="h-12 w-14 object-contain drop-shadow-[0_0_14px_rgba(251,191,36,0.2)]"
+      />
+    </div>
+  );
+}
+
+function MasteryLevelPlate({ championLevel }: { championLevel: number }) {
+  return (
+    <div className="relative mx-auto mt-1 flex min-h-5 w-14 items-center justify-center px-1 text-[0.68rem] font-black text-slate-950">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/mastery-crests/Mastery_Level_Plate.png" alt="" className="absolute inset-0 h-full w-full object-fill" />
+      <span className="relative z-10">L{championLevel}</span>
+    </div>
+  );
+}
+
 function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; onTabChange: (tab: ViewerTab) => void }) {
   const soloQueue = data.ranked.find((entry) => entry.queueType === 'RANKED_SOLO_5x5');
   const flexQueue = data.ranked.find((entry) => entry.queueType === 'RANKED_FLEX_SR');
@@ -403,8 +457,16 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
 }
 
 function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
-  const [sort, setSort] = useState<MasterySort>('points');
   const [tag, setTag] = useState('All');
+  const [championQuery, setChampionQuery] = useState('');
+  const [selectedChampionIds, setSelectedChampionIds] = useState<Set<number>>(() => new Set(data.masteries.map((mastery) => mastery.champion.id)));
+  const [championDropdownOpen, setChampionDropdownOpen] = useState(false);
+  const [visibleStartIndex, setVisibleStartIndex] = useState(0);
+  const [visibleItemCount, setVisibleItemCount] = useState(12);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const championDropdownRef = useRef<HTMLDivElement | null>(null);
+  const masteryItemWidth = 72;
+  const allChampionIds = useMemo(() => data.masteries.map((mastery) => mastery.champion.id), [data.masteries]);
 
   const tags = useMemo(() => {
     const next = new Set<string>();
@@ -412,34 +474,144 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
     return ['All', ...Array.from(next).sort()];
   }, [data.masteries]);
 
+  const championStats = useMemo(() => {
+    const stats = new Map<number, { games: number; wins: number; kills: number; deaths: number; assists: number }>();
+    data.matches.forEach((match) => {
+      const previous = stats.get(match.champion.id) ?? { games: 0, wins: 0, kills: 0, deaths: 0, assists: 0 };
+      previous.games += 1;
+      previous.wins += match.win ? 1 : 0;
+      previous.kills += match.kills;
+      previous.deaths += match.deaths;
+      previous.assists += match.assists;
+      stats.set(match.champion.id, previous);
+    });
+    return stats;
+  }, [data.matches]);
+
   const masteries = useMemo(() => {
     return [...data.masteries]
       .filter((mastery) => tag === 'All' || mastery.champion.tags.includes(tag))
-      .sort((left, right) => {
-        if (sort === 'level') return right.championLevel - left.championLevel || right.championPoints - left.championPoints;
-        if (sort === 'recent') return right.lastPlayTime - left.lastPlayTime;
-        return right.championPoints - left.championPoints;
-      });
-  }, [data.masteries, sort, tag]);
+      .filter((mastery) => selectedChampionIds.has(mastery.champion.id))
+      .sort((left, right) => right.championPoints - left.championPoints);
+  }, [data.masteries, selectedChampionIds, tag]);
 
-  const maxPoints = Math.max(...masteries.map((mastery) => mastery.championPoints), 1);
+  const championOptions = useMemo(() => {
+    const normalizedQuery = championQuery.trim().toLowerCase();
+    return data.masteries
+      .filter((mastery) => !normalizedQuery || mastery.champion.name.toLowerCase().includes(normalizedQuery))
+      .sort((left, right) => left.champion.name.localeCompare(right.champion.name));
+  }, [championQuery, data.masteries]);
+
+  const allSelected = selectedChampionIds.size === allChampionIds.length;
+
+  const masteryRankByChampionId = useMemo(() => {
+    return new Map(data.masteries.map((mastery, index) => [mastery.champion.id, index + 1]));
+  }, [data.masteries]);
+
+  const visibleMasteries = masteries.slice(visibleStartIndex, visibleStartIndex + visibleItemCount);
+  const maxPoints = Math.max(...visibleMasteries.map((mastery) => mastery.championPoints), masteries[visibleStartIndex]?.championPoints ?? 1, 1);
+  const markers = [1, 0.75, 0.5, 0.25, 0];
+
+  const updateVisibleWindow = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    setVisibleStartIndex(masteries.length > 0
+      ? Math.min(masteries.length - 1, Math.max(0, Math.floor(container.scrollLeft / masteryItemWidth)))
+      : 0);
+    setVisibleItemCount(Math.max(1, Math.ceil(container.clientWidth / masteryItemWidth)));
+  }, [masteries.length]);
+
+  useEffect(() => {
+    updateVisibleWindow();
+    window.addEventListener('resize', updateVisibleWindow);
+    return () => window.removeEventListener('resize', updateVisibleWindow);
+  }, [updateVisibleWindow]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container) container.scrollLeft = 0;
+    setVisibleStartIndex(0);
+  }, [selectedChampionIds, tag]);
+
+  useEffect(() => {
+    if (!championDropdownOpen) return undefined;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!championDropdownRef.current?.contains(event.target as Node)) {
+        setChampionDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [championDropdownOpen]);
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+    <section className="overflow-visible rounded-2xl border border-white/10 bg-slate-950/70 p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="grid gap-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Top Champion mastery</p>
-          <h2 className="mt-2 text-2xl font-bold text-white">Horizontally scrollable bar chart</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div ref={championDropdownRef} className="relative w-full sm:w-72">
+              <button
+                type="button"
+                onClick={() => setChampionDropdownOpen((current) => !current)}
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900 px-3 text-left text-sm font-semibold text-white outline-none transition hover:bg-slate-800 focus:border-amber-300/60"
+              >
+                <span className="truncate">{allSelected ? 'All champions' : `${selectedChampionIds.size} champions selected`}</span>
+                <ChevronDown size={16} className="shrink-0 text-slate-400" />
+              </button>
+              {championDropdownOpen ? (
+                <div className="absolute left-0 top-full z-[95] mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+                  <label className="relative block">
+                    <span className="sr-only">Search champions</span>
+                    <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      value={championQuery}
+                      onChange={(event) => setChampionQuery(event.target.value)}
+                      placeholder="Search champions"
+                      className="min-h-10 w-full rounded-xl border border-white/10 bg-slate-900 pl-9 pr-3 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/60"
+                    />
+                  </label>
+                  <div className="mt-3 max-h-64 overflow-y-auto pr-1">
+                    {championOptions.map((mastery) => (
+                      <label key={mastery.champion.id} className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10">
+                        <input
+                          type="checkbox"
+                          checked={selectedChampionIds.has(mastery.champion.id)}
+                          onChange={(event) => {
+                            setSelectedChampionIds((current) => {
+                              const next = new Set(current);
+                              if (event.target.checked) next.add(mastery.champion.id);
+                              else next.delete(mastery.champion.id);
+                              return next;
+                            });
+                          }}
+                          className="h-4 w-4 accent-amber-300"
+                        />
+                        <ChampionIcon src={mastery.champion.imageUrl} name={mastery.champion.name} size="sm" />
+                        <span className="truncate">{mastery.champion.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedChampionIds(allSelected ? new Set() : new Set(allChampionIds));
+              }}
+              className={`min-h-11 rounded-xl border px-4 text-sm font-bold transition ${
+                allSelected ? 'border-amber-300/60 bg-amber-300/10 text-amber-200' : 'border-white/10 bg-slate-900 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              {allSelected ? 'Hide All' : 'Show All'}
+            </button>
+          </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Sort</span>
-            <select value={sort} onChange={(event) => setSort(event.target.value as MasterySort)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">
-              <option value="points">Mastery total</option>
-              <option value="level">Mastery level</option>
-              <option value="recent">Recently played</option>
-            </select>
-          </label>
+        <div className="flex justify-end">
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Champion Role</span>
             <select value={tag} onChange={(event) => setTag(event.target.value)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">
@@ -449,35 +621,89 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
         </div>
       </div>
 
-      <div className="mt-6 overflow-x-auto pb-3">
-        <div className="flex min-h-[28rem] w-max items-end gap-4 pr-2">
-          {masteries.map((mastery) => {
-            const height = Math.max(44, Math.round((mastery.championPoints / maxPoints) * 300));
-            return (
-              <div key={mastery.champion.id} className="flex w-24 shrink-0 flex-col items-center gap-3">
-                <div className="flex h-[19rem] items-end">
-                  <div
-                    className="group relative w-16 rounded-t-2xl border border-amber-200/30 bg-gradient-to-t from-amber-500 via-amber-300 to-yellow-100 shadow-lg shadow-amber-950/30"
-                    style={{ height }}
-                    aria-label={`${mastery.champion.name}: ${mastery.championPoints} mastery points`}
-                  >
-                    <div className="absolute -top-16 left-1/2 hidden w-44 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-center text-xs text-slate-200 shadow-xl group-hover:block">
-                      <span className="font-bold text-white">{mastery.champion.name}</span>
-                      <br />
-                      Level {mastery.championLevel} - {formatNumber(mastery.championPoints)} points
+      {masteries.length === 0 ? (
+        <div className="mt-6 flex min-h-[24rem] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-slate-900/30 p-8 text-center">
+          <div>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-300/30 bg-amber-300/10 text-amber-300">
+              <Search size={20} />
+            </div>
+            <p className="mt-4 text-lg font-bold text-white">No champions selected</p>
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
+              Choose champions from the dropdown or use Show All to restore the full mastery chart.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="relative mt-6 overflow-visible pl-14">
+          <div className="pointer-events-none absolute left-0 right-0 top-16 z-20 h-[300px]">
+            {markers.map((marker) => (
+              <div
+                key={marker}
+                className="absolute left-0 right-0 flex items-center"
+                style={{ top: `${(1 - marker) * 300}px` }}
+              >
+                <div className="flex w-12 items-center justify-end gap-2 text-[0.65rem] font-semibold text-slate-500">
+                  <span>{formatNumber(Math.round(maxPoints * marker))}</span>
+                  <span className="h-px w-2 bg-white/15" />
+                </div>
+                <span className="ml-2 h-px flex-1 bg-white/10" />
+              </div>
+            ))}
+          </div>
+
+          <div ref={scrollContainerRef} onScroll={updateVisibleWindow} className="overflow-x-auto overflow-y-visible pb-3">
+            <div className="flex w-max items-start gap-2 pr-4">
+              {masteries.map((mastery, index) => {
+                const stats = championStats.get(mastery.champion.id);
+                const winRate = stats ? Math.round((stats.wins / stats.games) * 1000) / 10 : null;
+                const kda = stats ? getChampionKda(stats) : null;
+                const height = Math.max(28, Math.round((mastery.championPoints / maxPoints) * 300));
+                const masteryRank = masteryRankByChampionId.get(mastery.champion.id) ?? index + 1;
+                const hoverPositionClass = index <= visibleStartIndex + 1
+                  ? 'left-0'
+                  : index >= visibleStartIndex + visibleItemCount - 2
+                    ? 'right-0'
+                    : 'left-1/2 -translate-x-1/2';
+                return (
+                  <div key={mastery.champion.id} className="flex w-16 shrink-0 flex-col items-center gap-3">
+                    <div className="flex h-16 items-end justify-center">
+                      <MasteryCrest championLevel={mastery.championLevel} />
+                    </div>
+                    <div className="flex h-[300px] items-end justify-center">
+                      <div
+                        className={`animate-mastery-bar-rise group relative w-10 rounded-t-xl border shadow-lg shadow-amber-950/30 ${masteryBarClass(mastery.championLevel)}`}
+                        style={{ height }}
+                        aria-label={`${mastery.champion.name}: ${mastery.championPoints} mastery points`}
+                      >
+                        <div className={`h-full rounded-t-xl ${masteryBarFillClass(mastery.championLevel)}`} />
+                        <div className={`absolute top-4 z-[90] hidden w-52 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-center text-xs text-slate-200 shadow-xl group-hover:block ${hoverPositionClass}`}>
+                          <span className="font-bold text-white">{mastery.champion.name}</span>
+                          <br />
+                          Level {mastery.championLevel} - {formatNumber(mastery.championPoints)} points
+                          {stats && winRate !== null && kda !== null ? (
+                            <>
+                              <br />
+                              <span className={statToneClass(winRate, 50)}>{winRate}% WR</span>
+                              <span className="text-slate-500"> - </span>
+                              <span className={statToneClass(kda, 1)}>{kda} KDA</span>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                    <ChampionIcon src={mastery.champion.imageUrl} name={mastery.champion.name} />
+                    <div className="min-h-16 text-center">
+                      <p className="w-16 truncate text-sm font-bold text-white">{mastery.champion.name}</p>
+                      <MasteryLevelPlate championLevel={mastery.championLevel} />
+                      <p className="text-[0.68rem] font-bold text-amber-300">#{masteryRank}</p>
                     </div>
                   </div>
-                </div>
-                <ChampionIcon src={mastery.champion.imageUrl} name={mastery.champion.name} />
-                <div className="min-h-16 text-center">
-                  <p className="line-clamp-2 text-sm font-bold text-white">{mastery.champion.name}</p>
-                  <p className="text-xs text-slate-400">L{mastery.championLevel}</p>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

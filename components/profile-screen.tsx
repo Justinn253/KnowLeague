@@ -559,7 +559,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                       actionLabel="Link Discord Soon"
                     />
                     <ConnectionCard
-                      title="Riot Account"
+                      title="League Account"
                       value={getLinkedValue(profile?.riot_account_name)}
                       description="Riot linking will connect to the future masteries page and account-specific League data."
                       actionLabel="Link Riot Soon"

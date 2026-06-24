@@ -1,4 +1,4 @@
-Champion mastery assets used by the Riot Account Viewer.
+Champion mastery assets used by the League Account Viewer.
 
 The chart currently uses the non-banner crest images:
 

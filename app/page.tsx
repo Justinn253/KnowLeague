@@ -138,7 +138,7 @@ export default function Home() {
           >
             <span className="absolute inset-y-0 left-0 w-1/3 bg-white/30 opacity-0 blur-xl transition group-hover:opacity-100" />
             <BarChart3 size={20} />
-            Riot Account Viewer
+            League Account Viewer
             <ArrowRight size={17} className="transition group-hover:translate-x-1" />
           </Link>
         </header>

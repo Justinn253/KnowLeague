@@ -236,7 +236,7 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
 
                 <section className="grid content-start gap-3">
                   <PublicConnectionRow label="Discord" value={getLinkedValue(profile.discord_username)} />
-                  <PublicConnectionRow label="Riot Account" value={getLinkedValue(profile.riot_account_name)} />
+                  <PublicConnectionRow label="League Account" value={getLinkedValue(profile.riot_account_name)} />
                 </section>
               </div>
             </>

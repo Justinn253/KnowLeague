@@ -2,7 +2,7 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 const DATA_DRAGON_VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json';
 const RIOT_API_KEY_HEADER = 'X-Riot-Token';
-const MATCH_COUNT = process.env.NODE_ENV === 'production' ? 20 : 4;
+const MATCH_COUNT = process.env.NODE_ENV === 'production' ? 20 : 8;
 const MATCH_DETAIL_BATCH_SIZE = 4;
 const MATCH_DETAIL_BATCH_DELAY_MS = 350;
 
@@ -106,6 +106,26 @@ type RiotMatchDto = {
     mapId: number;
     queueId: number;
     participants: RiotParticipantDto[];
+    teams: RiotTeamDto[];
+  };
+};
+
+type RiotObjectiveDto = {
+  first: boolean;
+  kills: number;
+};
+
+type RiotTeamDto = {
+  teamId: number;
+  win: boolean;
+  objectives: {
+    baron?: RiotObjectiveDto;
+    champion?: RiotObjectiveDto;
+    dragon?: RiotObjectiveDto;
+    horde?: RiotObjectiveDto;
+    inhibitor?: RiotObjectiveDto;
+    riftHerald?: RiotObjectiveDto;
+    tower?: RiotObjectiveDto;
   };
 };
 
@@ -119,14 +139,23 @@ type RiotParticipantDto = {
   teamPosition: string;
   individualPosition: string;
   win: boolean;
+  champLevel: number;
   kills: number;
   deaths: number;
   assists: number;
   goldEarned: number;
+  goldSpent: number;
   totalMinionsKilled: number;
   neutralMinionsKilled: number;
+  totalDamageDealt: number;
   totalDamageDealtToChampions: number;
+  totalDamageTaken: number;
+  damageDealtToObjectives: number;
+  damageDealtToTurrets: number;
   visionScore: number;
+  wardsPlaced: number;
+  wardsKilled: number;
+  detectorWardsPlaced: number;
   item0: number;
   item1: number;
   item2: number;
@@ -136,6 +165,18 @@ type RiotParticipantDto = {
   item6: number;
   summoner1Id: number;
   summoner2Id: number;
+  doubleKills: number;
+  tripleKills: number;
+  quadraKills: number;
+  pentaKills: number;
+  perks?: {
+    styles?: Array<{
+      style: number;
+      selections?: Array<{
+        perk: number;
+      }>;
+    }>;
+  };
 };
 
 type RiotCurrentGameDto = {
@@ -170,6 +211,44 @@ type DataDragonChampion = {
 
 type DataDragonChampionResponse = {
   data: Record<string, DataDragonChampion>;
+};
+
+type DataDragonSummonerSpell = {
+  key: string;
+  name: string;
+  image: {
+    full: string;
+  };
+};
+
+type DataDragonSummonerSpellResponse = {
+  data: Record<string, DataDragonSummonerSpell>;
+};
+
+type DataDragonRune = {
+  id: number;
+  key: string;
+  icon: string;
+  name: string;
+  slots: Array<{
+    runes: Array<{
+      id: number;
+      key: string;
+      icon: string;
+      name: string;
+    }>;
+  }>;
+};
+
+type DataDragonItem = {
+  name: string;
+  image: {
+    full: string;
+  };
+};
+
+type DataDragonItemResponse = {
+  data: Record<string, DataDragonItem>;
 };
 
 export type RiotChampionSummary = {
@@ -216,6 +295,80 @@ export type RiotAccountViewerMatch = {
   visionScore: number;
   items: number[];
   summonerSpells: number[];
+  teams: RiotAccountViewerMatchTeam[];
+};
+
+export type RiotAccountViewerMatchParticipant = {
+  puuid: string;
+  riotId: string;
+  champion: RiotChampionSummary;
+  teamId: number;
+  position: string;
+  win: boolean;
+  championLevel: number;
+  rank: {
+    tier: string;
+    rank: string;
+    queueType: string;
+  } | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  goldEarned: number;
+  goldSpent: number;
+  creepScore: number;
+  damageDealt: number;
+  damageToChampions: number;
+  damageTaken: number;
+  damageToObjectives: number;
+  damageToTurrets: number;
+  visionScore: number;
+  wardsPlaced: number;
+  wardsKilled: number;
+  controlWardsPlaced: number;
+  items: Array<{
+    id: number;
+    slot: number;
+    name: string;
+    imageUrl: string;
+  }>;
+  summonerSpells: Array<{
+    id: number;
+    name: string;
+    imageUrl: string;
+  }>;
+  runes: Array<{
+    id: number;
+    name: string;
+    imageUrl: string;
+  }>;
+  multikills: {
+    double: number;
+    triple: number;
+    quadra: number;
+    penta: number;
+  };
+  isSearchedPlayer: boolean;
+};
+
+export type RiotAccountViewerMatchTeam = {
+  teamId: number;
+  win: boolean;
+  kills: number;
+  goldEarned: number;
+  damageToChampions: number;
+  creepScore: number;
+  visionScore: number;
+  objectives: {
+    baron: number;
+    champion: number;
+    dragon: number;
+    horde: number;
+    inhibitor: number;
+    riftHerald: number;
+    tower: number;
+  };
+  participants: RiotAccountViewerMatchParticipant[];
 };
 
 export type RiotAccountViewerResponse = {
@@ -302,6 +455,9 @@ export type RiotAccountSearchSuggestion = {
 
 let cachedChampionLookup: Promise<Map<number, RiotChampionSummary>> | null = null;
 let cachedDataDragonVersion: Promise<string> | null = null;
+let cachedSummonerSpellLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
+let cachedRuneLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
+let cachedItemLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
 
 export function isRiotPlatformRoute(value: string): value is RiotPlatformRoute {
   return RIOT_PLATFORM_ROUTES.includes(value.toUpperCase() as RiotPlatformRoute);
@@ -558,6 +714,70 @@ async function getChampionLookup() {
   return cachedChampionLookup;
 }
 
+async function getSummonerSpellLookup() {
+  cachedSummonerSpellLookup ??= (async () => {
+    const version = await getDataDragonVersion();
+    const json = await fetchDataDragonJson<DataDragonSummonerSpellResponse>(
+      `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/summoner.json`,
+    );
+    return new Map(
+      Object.values(json.data).map((spell) => [
+        Number(spell.key),
+        {
+          name: spell.name,
+          imageUrl: `https://ddragon.leagueoflegends.com/cdn/${version}/img/spell/${spell.image.full}`,
+        },
+      ]),
+    );
+  })();
+  return cachedSummonerSpellLookup;
+}
+
+async function getRuneLookup() {
+  cachedRuneLookup ??= (async () => {
+    const version = await getDataDragonVersion();
+    const json = await fetchDataDragonJson<DataDragonRune[]>(
+      `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/runesReforged.json`,
+    );
+    const runes = new Map<number, { name: string; imageUrl: string }>();
+    json.forEach((style) => {
+      runes.set(style.id, {
+        name: style.name,
+        imageUrl: `https://ddragon.leagueoflegends.com/cdn/img/${style.icon}`,
+      });
+      style.slots.forEach((slot) => {
+        slot.runes.forEach((rune) => {
+          runes.set(rune.id, {
+            name: rune.name,
+            imageUrl: `https://ddragon.leagueoflegends.com/cdn/img/${rune.icon}`,
+          });
+        });
+      });
+    });
+    return runes;
+  })();
+  return cachedRuneLookup;
+}
+
+async function getItemLookup() {
+  cachedItemLookup ??= (async () => {
+    const version = await getDataDragonVersion();
+    const json = await fetchDataDragonJson<DataDragonItemResponse>(
+      `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/item.json`,
+    );
+    return new Map(
+      Object.entries(json.data).map(([itemId, item]) => [
+        Number(itemId),
+        {
+          name: item.name,
+          imageUrl: `https://ddragon.leagueoflegends.com/cdn/${version}/img/item/${item.image.full}`,
+        },
+      ]),
+    );
+  })();
+  return cachedItemLookup;
+}
+
 function getChampion(champions: Map<number, RiotChampionSummary>, championId: number): RiotChampionSummary {
   return champions.get(championId) ?? {
     id: championId,
@@ -571,6 +791,10 @@ function getChampion(champions: Map<number, RiotChampionSummary>, championId: nu
 
 function profileIconUrl(profileIconId: number, version: string) {
   return `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/${profileIconId}.png`;
+}
+
+function itemIconUrl(itemId: number, version: string) {
+  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/item/${itemId}.png`;
 }
 
 function withWinRate(entry: RiotLeagueEntryDto) {
@@ -625,9 +849,162 @@ function normalizeMastery(mastery: RiotChampionMasteryDto, champions: Map<number
   };
 }
 
-function normalizeMatch(match: RiotMatchDto, puuid: string, champions: Map<number, RiotChampionSummary>) {
+function normalizeParticipant(
+  participant: RiotParticipantDto,
+  puuid: string,
+  champions: Map<number, RiotChampionSummary>,
+  summonerSpells: Map<number, { name: string; imageUrl: string }>,
+  runes: Map<number, { name: string; imageUrl: string }>,
+  items: Map<number, { name: string; imageUrl: string }>,
+  ranks: Map<string, { tier: string; rank: string; queueType: string }>,
+  version: string,
+): RiotAccountViewerMatchParticipant {
+  const spellIds = [participant.summoner1Id, participant.summoner2Id];
+  const runeIds = [
+    participant.perks?.styles?.[0]?.selections?.[0]?.perk,
+    participant.perks?.styles?.[1]?.style,
+  ].filter((runeId): runeId is number => typeof runeId === 'number');
+  const position = normalizeParticipantPosition(participant.teamPosition || participant.individualPosition);
+
+  return {
+    puuid: participant.puuid,
+    riotId: participant.riotIdGameName && participant.riotIdTagline
+      ? `${participant.riotIdGameName}#${participant.riotIdTagline}`
+      : participant.riotIdGameName ?? 'Unknown player',
+    champion: getChampion(champions, participant.championId),
+    teamId: participant.teamId,
+    position,
+    win: participant.win,
+    championLevel: participant.champLevel,
+    rank: ranks.get(participant.puuid) ?? null,
+    kills: participant.kills,
+    deaths: participant.deaths,
+    assists: participant.assists,
+    goldEarned: participant.goldEarned,
+    goldSpent: participant.goldSpent,
+    creepScore: participant.totalMinionsKilled + participant.neutralMinionsKilled,
+    damageDealt: participant.totalDamageDealt,
+    damageToChampions: participant.totalDamageDealtToChampions,
+    damageTaken: participant.totalDamageTaken,
+    damageToObjectives: participant.damageDealtToObjectives,
+    damageToTurrets: participant.damageDealtToTurrets,
+    visionScore: participant.visionScore,
+    wardsPlaced: participant.wardsPlaced,
+    wardsKilled: participant.wardsKilled,
+    controlWardsPlaced: participant.detectorWardsPlaced,
+    items: [
+      participant.item0,
+      participant.item1,
+      participant.item2,
+      participant.item3,
+      participant.item4,
+      participant.item5,
+      participant.item6,
+    ].map((itemId, slot) => ({ itemId, slot })).filter(({ itemId }) => itemId > 0).map(({ itemId, slot }) => {
+      const item = items.get(itemId);
+      return {
+        id: itemId,
+        slot,
+        name: item?.name ?? `Item ${itemId}`,
+        imageUrl: item?.imageUrl ?? itemIconUrl(itemId, version),
+      };
+    }),
+    summonerSpells: spellIds.map((spellId) => {
+      const spell = summonerSpells.get(spellId);
+      return {
+        id: spellId,
+        name: spell?.name ?? `Spell ${spellId}`,
+        imageUrl: spell?.imageUrl ?? '',
+      };
+    }),
+    runes: runeIds.map((runeId) => {
+      const rune = runes.get(runeId);
+      return {
+        id: runeId,
+        name: rune?.name ?? `Rune ${runeId}`,
+        imageUrl: rune?.imageUrl ?? '',
+      };
+    }),
+    multikills: {
+      double: participant.doubleKills,
+      triple: participant.tripleKills,
+      quadra: participant.quadraKills,
+      penta: participant.pentaKills,
+    },
+    isSearchedPlayer: participant.puuid === puuid,
+  };
+}
+
+function normalizeTeam(team: RiotTeamDto, participants: RiotAccountViewerMatchParticipant[]): RiotAccountViewerMatchTeam {
+  const teamParticipants = participants.filter((participant) => participant.teamId === team.teamId);
+  return {
+    teamId: team.teamId,
+    win: team.win,
+    kills: teamParticipants.reduce((sum, participant) => sum + participant.kills, 0),
+    goldEarned: teamParticipants.reduce((sum, participant) => sum + participant.goldEarned, 0),
+    damageToChampions: teamParticipants.reduce((sum, participant) => sum + participant.damageToChampions, 0),
+    creepScore: teamParticipants.reduce((sum, participant) => sum + participant.creepScore, 0),
+    visionScore: teamParticipants.reduce((sum, participant) => sum + participant.visionScore, 0),
+    objectives: {
+      baron: team.objectives.baron?.kills ?? 0,
+      champion: team.objectives.champion?.kills ?? 0,
+      dragon: team.objectives.dragon?.kills ?? 0,
+      horde: team.objectives.horde?.kills ?? 0,
+      inhibitor: team.objectives.inhibitor?.kills ?? 0,
+      riftHerald: team.objectives.riftHerald?.kills ?? 0,
+      tower: team.objectives.tower?.kills ?? 0,
+    },
+    participants: teamParticipants,
+  };
+}
+
+function normalizeParticipantPosition(position: string | null | undefined) {
+  const normalized = (position ?? '').trim().toUpperCase();
+  if (!normalized || normalized === 'INVALID' || normalized === 'UNKNOWN' || normalized === 'NONE') return '';
+  return normalized === 'UTILITY' ? 'SUPPORT' : normalized;
+}
+
+function normalizeFallbackTeam(teamId: number, participants: RiotAccountViewerMatchParticipant[]): RiotAccountViewerMatchTeam {
+  const teamParticipants = participants.filter((participant) => participant.teamId === teamId);
+  return {
+    teamId,
+    win: teamParticipants.some((participant) => participant.win),
+    kills: teamParticipants.reduce((sum, participant) => sum + participant.kills, 0),
+    goldEarned: teamParticipants.reduce((sum, participant) => sum + participant.goldEarned, 0),
+    damageToChampions: teamParticipants.reduce((sum, participant) => sum + participant.damageToChampions, 0),
+    creepScore: teamParticipants.reduce((sum, participant) => sum + participant.creepScore, 0),
+    visionScore: teamParticipants.reduce((sum, participant) => sum + participant.visionScore, 0),
+    objectives: {
+      baron: 0,
+      champion: 0,
+      dragon: 0,
+      horde: 0,
+      inhibitor: 0,
+      riftHerald: 0,
+      tower: 0,
+    },
+    participants: teamParticipants,
+  };
+}
+
+function normalizeMatch(
+  match: RiotMatchDto,
+  puuid: string,
+  champions: Map<number, RiotChampionSummary>,
+  summonerSpells: Map<number, { name: string; imageUrl: string }>,
+  runes: Map<number, { name: string; imageUrl: string }>,
+  items: Map<number, { name: string; imageUrl: string }>,
+  ranks: Map<string, { tier: string; rank: string; queueType: string }>,
+  version: string,
+) {
   const participant = match.info.participants.find((candidate) => candidate.puuid === puuid);
   if (!participant) return null;
+  const participants = match.info.participants.map((candidate) => normalizeParticipant(candidate, puuid, champions, summonerSpells, runes, items, ranks, version));
+  const teams = match.info.teams.map((team) => normalizeTeam(team, participants));
+  const representedTeamIds = new Set(teams.map((team) => team.teamId));
+  const fallbackTeams = Array.from(new Set(participants.map((candidate) => candidate.teamId)))
+    .filter((teamId) => !representedTeamIds.has(teamId))
+    .map((teamId) => normalizeFallbackTeam(teamId, participants));
 
   return {
     matchId: match.metadata.matchId,
@@ -641,7 +1018,7 @@ function normalizeMatch(match: RiotMatchDto, puuid: string, champions: Map<numbe
     mapId: match.info.mapId,
     queueId: match.info.queueId,
     champion: getChampion(champions, participant.championId),
-    position: participant.teamPosition || participant.individualPosition || 'UNKNOWN',
+    position: normalizeParticipantPosition(participant.teamPosition || participant.individualPosition),
     win: participant.win,
     kills: participant.kills,
     deaths: participant.deaths,
@@ -660,6 +1037,7 @@ function normalizeMatch(match: RiotMatchDto, puuid: string, champions: Map<numbe
       participant.item6,
     ].filter((itemId) => itemId > 0),
     summonerSpells: [participant.summoner1Id, participant.summoner2Id],
+    teams: [...teams, ...fallbackTeams],
   };
 }
 
@@ -738,6 +1116,41 @@ async function getMatchDetails(matchIds: string[], regionalRoute: RiotRegionalRo
   return matches;
 }
 
+async function getParticipantRankLookup(matches: RiotMatchDto[], platform: RiotPlatformRoute) {
+  const puuids = Array.from(new Set(matches.flatMap((match) => match.info.participants.map((participant) => participant.puuid))));
+  const ranks = new Map<string, { tier: string; rank: string; queueType: string }>();
+
+  for (let index = 0; index < puuids.length; index += MATCH_DETAIL_BATCH_SIZE) {
+    const batch = puuids.slice(index, index + MATCH_DETAIL_BATCH_SIZE);
+    const results = await Promise.all(batch.map(async (puuid) => {
+      const entries = await riotFetch<RiotLeagueEntryDto[]>(
+        `https://${platform.toLowerCase()}.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`,
+        { optional404: true },
+      ).catch(() => null);
+      return { puuid, entries };
+    }));
+
+    results.forEach(({ puuid, entries }) => {
+      const soloQueue = entries?.find((entry) => entry.queueType === 'RANKED_SOLO_5x5');
+      const flexQueue = entries?.find((entry) => entry.queueType === 'RANKED_FLEX_SR');
+      const entry = soloQueue ?? flexQueue;
+      if (entry) {
+        ranks.set(puuid, {
+          tier: entry.tier,
+          rank: entry.rank,
+          queueType: entry.queueType,
+        });
+      }
+    });
+
+    if (index + MATCH_DETAIL_BATCH_SIZE < puuids.length) {
+      await delay(MATCH_DETAIL_BATCH_DELAY_MS);
+    }
+  }
+
+  return ranks;
+}
+
 export async function getRiotAccountViewerData(riotId: string, platform: RiotPlatformRoute): Promise<RiotAccountViewerResponse> {
   const parsed = parseRiotId(riotId);
   const regionalRoute = getRegionalRoute(platform);
@@ -752,9 +1165,12 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
     `https://${platform.toLowerCase()}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(account.puuid)}`,
   );
 
-  const [version, champions, masteries, ranked, challengeData, currentGame, matchIds] = await Promise.all([
+  const [version, champions, summonerSpells, runes, items, masteries, ranked, challengeData, currentGame, matchIds] = await Promise.all([
     getDataDragonVersion(),
     getChampionLookup(),
+    getSummonerSpellLookup(),
+    getRuneLookup(),
+    getItemLookup(),
     riotFetch<RiotChampionMasteryDto[]>(
       `https://${platform.toLowerCase()}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(account.puuid)}`,
     ),
@@ -775,9 +1191,10 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
   ]);
 
   const matches = await getMatchDetails(matchIds, regionalRoute);
+  const participantRanks = await getParticipantRankLookup(matches, platform);
 
   const normalizedMatches = matches
-    .map((match) => normalizeMatch(match, account.puuid, champions))
+    .map((match) => normalizeMatch(match, account.puuid, champions, summonerSpells, runes, items, participantRanks, version))
     .filter((match): match is RiotAccountViewerMatch => Boolean(match));
   const normalizedMasteries = masteries.map((mastery) => normalizeMastery(mastery, champions));
   const normalizedRanked = ranked.map(withWinRate);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, ChevronDown, Crown, Loader2, Medal, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
@@ -18,6 +18,7 @@ type SharedRiotIdSuggestion = {
 
 const lastSearchStorageKey = 'knowleague:riot-account-viewer:last-search';
 const recentSearchesStorageKey = 'knowleague:riot-account-viewer:recent-searches';
+const sessionProfileCachePrefix = 'knowleague:riot-account-viewer:profile-cache:';
 const maxRecentSearches = 5;
 const globalRankingSampleThreshold = 1000;
 const globalRankingTooltip = 'Global ranking is based on our own data from searched accounts and does not reflect the true League of Legends data.';
@@ -159,6 +160,170 @@ function getChampionKda(stats: { kills: number; deaths: number; assists: number 
   return Math.round(((stats.kills + stats.assists) / Math.max(1, stats.deaths)) * 100) / 100;
 }
 
+type AverageRankSummary = {
+  label: string;
+  tier: LeagueRankTier | null;
+};
+
+const rankAbbreviations: Record<string, string> = {
+  Iron: 'I',
+  Bronze: 'B',
+  Silver: 'S',
+  Gold: 'G',
+  Platinum: 'P',
+  Emerald: 'E',
+  Diamond: 'D',
+  Master: 'M',
+  Grandmaster: 'G',
+  Challenger: 'C',
+};
+
+function rankValue(rank: MatchParticipant['rank'] | null) {
+  if (!rank) return null;
+  const tier = rank.tier.toUpperCase();
+  const tierOffset: Record<string, number> = {
+    IRON: 0,
+    BRONZE: 4,
+    SILVER: 8,
+    GOLD: 12,
+    PLATINUM: 16,
+    EMERALD: 20,
+    DIAMOND: 24,
+    MASTER: 29,
+    GRANDMASTER: 30,
+    CHALLENGER: 31,
+  };
+  if (tier === 'MASTER' || tier === 'GRANDMASTER' || tier === 'CHALLENGER') return tierOffset[tier] ?? null;
+  const divisionValue: Record<string, number> = {
+    IV: 1,
+    III: 2,
+    II: 3,
+    I: 4,
+  };
+  const offset = tierOffset[tier];
+  const division = divisionValue[rank.rank.toUpperCase()];
+  if (offset === undefined || division === undefined) return null;
+  return offset + division;
+}
+
+function formatRankValue(value: number): AverageRankSummary {
+  const rounded = Math.round(value);
+  if (rounded <= 0) return { label: 'Unranked', tier: null };
+  const highTierLabels: Record<number, AverageRankSummary> = {
+    29: { label: 'Master', tier: 'master' },
+    30: { label: 'Grandmaster', tier: 'grandmaster' },
+    31: { label: 'Challenger', tier: 'challenger' },
+  };
+  if (highTierLabels[rounded]) return highTierLabels[rounded];
+
+  const tiers: Array<{ label: string; tier: LeagueRankTier }> = [
+    { label: 'Iron', tier: 'iron' },
+    { label: 'Bronze', tier: 'bronze' },
+    { label: 'Silver', tier: 'silver' },
+    { label: 'Gold', tier: 'gold' },
+    { label: 'Platinum', tier: 'platinum' },
+    { label: 'Emerald', tier: 'emerald' },
+    { label: 'Diamond', tier: 'diamond' },
+  ];
+  const divisions = ['IV', 'III', 'II', 'I'];
+  const tierIndex = Math.floor((rounded - 1) / 4);
+  const divisionIndex = (rounded - 1) % 4;
+  const tier = tiers[tierIndex];
+  if (!tier) return { label: 'Unranked', tier: null };
+  return { label: `${tier.label} ${divisions[divisionIndex] ?? ''}`.trim(), tier: tier.tier };
+}
+
+function averageRankFromValues(values: number[]): AverageRankSummary {
+  if (values.length === 0) return { label: 'Unavailable', tier: null };
+  return formatRankValue(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function getAverageEnemyRank(match: RiotAccountViewerResponse['matches'][number]) {
+  const searchedPlayer = match.teams.flatMap((team) => team.participants).find((participant) => participant.isSearchedPlayer);
+  if (!searchedPlayer) return { label: 'Unavailable', tier: null };
+  const enemyRankValues = match.teams
+    .flatMap((team) => team.participants)
+    .filter((participant) => participant.teamId !== searchedPlayer.teamId)
+    .map((participant) => rankValue(participant.rank))
+    .filter((value): value is number => value !== null);
+  return averageRankFromValues(enemyRankValues);
+}
+
+function getAverageEnemyRankForMatches(matches: RiotAccountViewerResponse['matches']) {
+  return averageRankFromValues(
+    matches.flatMap((match) => {
+      const searchedPlayer = match.teams.flatMap((team) => team.participants).find((participant) => participant.isSearchedPlayer);
+      if (!searchedPlayer) return [];
+      return match.teams
+        .flatMap((team) => team.participants)
+        .filter((participant) => participant.teamId !== searchedPlayer.teamId)
+        .map((participant) => rankValue(participant.rank))
+        .filter((value): value is number => value !== null);
+    }),
+  );
+}
+
+function AverageEnemyRankBadge({ averageRank }: { averageRank: AverageRankSummary }) {
+  const rankParts = averageRank.label.split(' ');
+  const abbreviatedRank = rankParts[0] && rankAbbreviations[rankParts[0]]
+    ? [rankAbbreviations[rankParts[0]], ...rankParts.slice(1)].join('')
+    : averageRank.label;
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-xs font-bold text-slate-300"
+      title={`Average Enemy Rank: ${averageRank.label}`}
+    >
+      <span>AER: {abbreviatedRank}</span>
+      {averageRank.tier ? <Image src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={18} height={18} className="h-4 w-4 object-contain" /> : null}
+    </span>
+  );
+}
+
+function AverageEnemyRankSummary({ averageRank }: { averageRank: AverageRankSummary }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-300" title={`Average Enemy Rank: ${averageRank.label}`}>
+      <span>Average Enemy Rank: {averageRank.label}</span>
+      {averageRank.tier ? <Image src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={20} height={20} className="h-5 w-5 object-contain" /> : null}
+    </span>
+  );
+}
+
+function isRemakeMatch(gameDuration: number) {
+  return gameDuration > 0 && gameDuration < 240;
+}
+
+function formatRole(position: string) {
+  const normalized = position.trim().toLowerCase();
+  if (!normalized) return '';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function roleIconPath(position: string) {
+  const normalized = position.trim().toLowerCase();
+  if (!normalized) return null;
+  const iconRole = normalized === 'support' ? 'utility' : normalized;
+  return `/role-icons/roleicon_${iconRole}.png`;
+}
+
+function MatchRole({ position }: { position: string }) {
+  const label = formatRole(position);
+  const icon = roleIconPath(position);
+  if (!label) return null;
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>{label}</span>
+      {icon ? <Image src={icon} alt="" width={16} height={16} className="h-4 w-4 object-contain" /> : null}
+    </span>
+  );
+}
+
+function getTeamStatus(team: MatchTeam, gameDuration: number) {
+  if (isRemakeMatch(gameDuration)) return 'Remake';
+  return team.win ? 'Victory' : 'Defeat';
+}
+
 function rankedLabel(queueType: string) {
   return queueType
     .replace('RANKED_', '')
@@ -166,6 +331,81 @@ function rankedLabel(queueType: string) {
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+const queueLabels: Record<number, { label: string; map: string }> = {
+  400: { label: 'Draft Pick', map: "Summoner's Rift" },
+  420: { label: 'Ranked Solo/Duo', map: "Summoner's Rift" },
+  430: { label: 'Blind Pick', map: "Summoner's Rift" },
+  440: { label: 'Ranked Flex', map: "Summoner's Rift" },
+  450: { label: 'ARAM', map: 'Howling Abyss' },
+  480: { label: 'Swiftplay', map: "Summoner's Rift" },
+  490: { label: 'Quickplay', map: "Summoner's Rift" },
+  700: { label: 'Clash', map: "Summoner's Rift" },
+  720: { label: 'ARAM Clash', map: 'Howling Abyss' },
+  830: { label: 'Intro Bots', map: "Summoner's Rift" },
+  840: { label: 'Beginner Bots', map: "Summoner's Rift" },
+  850: { label: 'Intermediate Bots', map: "Summoner's Rift" },
+  870: { label: 'Intro Bots', map: "Summoner's Rift" },
+  880: { label: 'Beginner Bots', map: "Summoner's Rift" },
+  890: { label: 'Intermediate Bots', map: "Summoner's Rift" },
+  900: { label: 'ARURF', map: "Summoner's Rift" },
+  1020: { label: 'One For All', map: "Summoner's Rift" },
+  1300: { label: 'Nexus Blitz', map: 'Nexus Blitz' },
+  1400: { label: 'Ultimate Spellbook', map: "Summoner's Rift" },
+  1700: { label: 'Arena', map: 'Rings of Wrath' },
+  1710: { label: 'Arena', map: 'Rings of Wrath' },
+  1810: { label: 'Swarm', map: 'Swarm' },
+  1820: { label: 'Swarm', map: 'Swarm' },
+  1830: { label: 'Swarm', map: 'Swarm' },
+  1840: { label: 'Swarm', map: 'Swarm' },
+  1900: { label: 'Pick URF', map: "Summoner's Rift" },
+  2300: { label: 'Brawl', map: 'The Bandlewood' },
+  2400: { label: 'ARAM: Mayhem', map: 'Howling Abyss' },
+};
+
+function formatQueueLabel(queueId: number) {
+  const queue = queueLabels[queueId];
+  return queue ? queue.label : 'Unknown';
+}
+
+function formatQueueTitle(queueId: number) {
+  const queue = queueLabels[queueId];
+  return queue ? `${queue.label} - ${queue.map}` : 'Unknown';
+}
+
+function isKnownQueue(queueId: number) {
+  return Boolean(queueLabels[queueId]);
+}
+
+function isViewerTab(value: string | null): value is ViewerTab {
+  return Boolean(value && tabs.some((tab) => tab.id === value));
+}
+
+function buildRiotViewerUrl(input: { riotId: string; platform: PlatformRoute; tab?: ViewerTab; matchId?: string | null }) {
+  const url = new URL('/riot-account-viewer', window.location.origin);
+  url.searchParams.set('riotId', input.riotId);
+  url.searchParams.set('platform', input.platform);
+  if (input.tab) url.searchParams.set('tab', input.tab);
+  if (input.matchId) url.searchParams.set('matchId', input.matchId);
+  return url.toString();
+}
+
+async function copyTextToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
 }
 
 function isPlatformRoute(value: string | null): value is PlatformRoute {
@@ -211,6 +451,28 @@ function writeStoredSearch(riotId: string, platform: PlatformRoute) {
   window.localStorage.setItem(recentSearchesStorageKey, JSON.stringify(recentSearches));
 }
 
+function profileCacheKey(riotId: string, platform: PlatformRoute) {
+  return `${sessionProfileCachePrefix}${platform}:${riotId.trim().toLowerCase()}`;
+}
+
+function readSessionProfileCache(riotId: string, platform: PlatformRoute) {
+  try {
+    const raw = window.sessionStorage.getItem(profileCacheKey(riotId, platform));
+    if (!raw) return null;
+    return JSON.parse(raw) as RiotAccountViewerResponse;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionProfileCache(riotId: string, platform: PlatformRoute, data: RiotAccountViewerResponse) {
+  try {
+    window.sessionStorage.setItem(profileCacheKey(riotId, platform), JSON.stringify(data));
+  } catch {
+    // Cache is optional. Browsers can reject sessionStorage in private or restricted contexts.
+  }
+}
+
 function StatTile({
   label,
   value,
@@ -251,7 +513,7 @@ function StatTile({
       <button
         type="button"
         onClick={onClick}
-        className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-amber-300/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300/60"
+        className="flex h-full min-h-28 flex-col items-start rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-amber-300/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300/60"
       >
         {content}
       </button>
@@ -259,7 +521,7 @@ function StatTile({
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+    <div className="flex h-full min-h-28 flex-col items-start rounded-2xl border border-white/10 bg-slate-950/70 p-4">
       {content}
     </div>
   );
@@ -411,12 +673,6 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
                 )}
               </div>
             ))}
-          </div>
-          <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Ranked history</p>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              Riot exposes current ranked entries and ladder lists, but not previous-season final rank history through the public account APIs. KnowLeague can show seasonal history after we begin storing snapshots.
-            </p>
           </div>
         </section>
 
@@ -665,18 +921,18 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
                     ? 'right-0'
                     : 'left-1/2 -translate-x-1/2';
                 return (
-                  <div key={mastery.champion.id} className="flex w-16 shrink-0 flex-col items-center gap-3">
+                  <div key={mastery.champion.id} className="relative flex w-16 shrink-0 flex-col items-center gap-3 hover:z-[140]">
                     <div className="flex h-16 items-end justify-center">
                       <MasteryCrest championLevel={mastery.championLevel} />
                     </div>
                     <div className="flex h-[300px] items-end justify-center">
                       <div
-                        className={`animate-mastery-bar-rise group relative w-10 rounded-t-xl border shadow-lg shadow-amber-950/30 ${masteryBarClass(mastery.championLevel)}`}
+                        className={`animate-mastery-bar-rise group relative z-30 w-10 rounded-t-xl border shadow-lg shadow-amber-950/30 hover:z-[140] ${masteryBarClass(mastery.championLevel)}`}
                         style={{ height }}
                         aria-label={`${mastery.champion.name}: ${mastery.championPoints} mastery points`}
                       >
                         <div className={`h-full rounded-t-xl ${masteryBarFillClass(mastery.championLevel)}`} />
-                        <div className={`absolute top-4 z-[90] hidden w-52 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-center text-xs text-slate-200 shadow-xl group-hover:block ${hoverPositionClass}`}>
+                        <div className={`absolute top-4 z-[150] hidden w-52 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-center text-xs text-slate-200 shadow-xl group-hover:block ${hoverPositionClass}`}>
                           <span className="font-bold text-white">{mastery.champion.name}</span>
                           <br />
                           Level {mastery.championLevel} - {formatNumber(mastery.championPoints)} points
@@ -710,6 +966,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
 
 function CurrentGameSection({ data }: { data: RiotAccountViewerResponse }) {
   if (!data.currentGame) return null;
+  const knownQueue = isKnownQueue(data.currentGame.queueId);
 
   return (
     <section className="rounded-2xl border border-emerald-300/30 bg-emerald-950/20 p-5">
@@ -719,7 +976,7 @@ function CurrentGameSection({ data }: { data: RiotAccountViewerResponse }) {
           <h2 className="mt-2 text-2xl font-bold text-white">
             {data.currentGame.playerChampion ? `Currently playing ${data.currentGame.playerChampion.name}` : 'Active game detected'}
           </h2>
-          <p className="mt-1 text-sm text-slate-400">Queue {data.currentGame.queueId} - {data.currentGame.gameMode} - Started {formatDateTime(data.currentGame.gameStartTime)}</p>
+          <p className="mt-1 text-sm text-slate-400">{formatQueueTitle(data.currentGame.queueId)} - Started {formatDateTime(data.currentGame.gameStartTime)}</p>
         </div>
         {data.currentGame.playerChampion ? <ChampionIcon src={data.currentGame.playerChampion.imageUrl} name={data.currentGame.playerChampion.name} size="lg" /> : null}
       </div>
@@ -729,7 +986,9 @@ function CurrentGameSection({ data }: { data: RiotAccountViewerResponse }) {
             <ChampionIcon src={participant.champion.imageUrl} name={participant.champion.name} size="sm" />
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-white">{participant.champion.name}</p>
-              <p className="text-xs text-slate-400">Team {participant.teamId}</p>
+              <p className="text-xs text-slate-400">
+                {knownQueue && participant.teamId === 100 ? 'Blue Team' : knownQueue && participant.teamId === 200 ? 'Red Team' : `Team ${participant.teamId}`}
+              </p>
             </div>
           </div>
         ))}
@@ -738,17 +997,262 @@ function CurrentGameSection({ data }: { data: RiotAccountViewerResponse }) {
   );
 }
 
-function MatchHistoryTab({ data }: { data: RiotAccountViewerResponse }) {
+function SmallGameIcon({ src, label, size = 'sm' }: { src: string; label: string; size?: 'xs' | 'sm' }) {
+  const className = size === 'xs' ? 'h-5 w-5 rounded' : 'h-6 w-6 rounded-md';
+  const pixels = size === 'xs' ? 20 : 24;
+
+  if (!src) {
+    return <span className={`${className} border border-white/10 bg-slate-800`} aria-label={label} title={label} />;
+  }
+
+  return <Image src={src} alt={label} title={label} width={pixels} height={pixels} className={`${className} object-cover ring-1 ring-white/10`} />;
+}
+
+function MatchMetricLabel({ icon: Icon, label }: { icon: typeof Swords; label: string }) {
+  return (
+    <p className="flex items-center gap-1 text-xs uppercase tracking-[0.14em] text-slate-500">
+      <Icon size={12} aria-hidden="true" />
+      <span>{label}</span>
+    </p>
+  );
+}
+
+function MatchHeaderMetric({ icon: Icon, label, value }: { icon: typeof Swords; label: string; value: string }) {
+  return (
+    <div title={label}>
+      <MatchMetricLabel icon={Icon} label={label} />
+      <p className="font-bold text-white">{value}</p>
+    </div>
+  );
+}
+
+type MatchTeam = RiotAccountViewerResponse['matches'][number]['teams'][number];
+type MatchParticipant = MatchTeam['participants'][number];
+type MatchParticipantItem = MatchParticipant['items'][number];
+
+const trinketItemIds = new Set([3340, 3363, 3364, 3330]);
+const laneQuestItemIds = new Set([
+  3850, 3851, 3853, 3854, 3855, 3857, 3858, 3859, 3860, 3862, 3863, 3864,
+  3865, 3866, 3867, 3869, 3870, 3871, 3876, 3877,
+]);
+
+function arrangeMatchItems(items: MatchParticipantItem[]) {
+  const slots: Array<MatchParticipantItem | null> = Array.from({ length: 8 }, () => null);
+  const trinket = items.find((item) => item.slot === 6 || trinketItemIds.has(item.id)) ?? null;
+  const questItem = items.find((item) => laneQuestItemIds.has(item.id)) ?? null;
+
+  if (questItem) slots[3] = questItem;
+  if (trinket) slots[4] = trinket;
+
+  const pinnedItems = new Set([questItem, trinket].filter((item): item is MatchParticipantItem => Boolean(item)));
+  const fillOrder = [0, 1, 2, 3, 5, 6, 7, 4];
+  const regularItems = items.filter((item) => !pinnedItems.has(item));
+  let regularIndex = 0;
+
+  fillOrder.forEach((slotIndex) => {
+    if (slots[slotIndex] || regularIndex >= regularItems.length) return;
+    slots[slotIndex] = regularItems[regularIndex];
+    regularIndex += 1;
+  });
+
+  return slots;
+}
+
+function TeamObjectiveSummary({ team }: { team: MatchTeam }) {
+  const objectives = [
+    { label: 'Kills', value: team.kills, icon: Swords },
+    { label: 'Gold', value: `${Math.round(team.goldEarned / 100) / 10}k`, icon: Coins },
+    { label: 'Damage', value: `${Math.round(team.damageToChampions / 100) / 10}k`, icon: Swords },
+    { label: 'CS', value: team.creepScore, icon: CircleDot },
+    { label: 'Vision', value: team.visionScore, icon: Eye },
+    { label: 'Towers', value: team.objectives.tower, icon: Shield },
+    { label: 'Dragons', value: team.objectives.dragon, icon: Crown },
+    { label: 'Barons', value: team.objectives.baron, icon: Medal },
+    { label: 'Heralds', value: team.objectives.riftHerald, icon: Trophy },
+    { label: 'Inhibs', value: team.objectives.inhibitor, icon: Package },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+      {objectives.map(({ label, value, icon: Icon }) => (
+        <span key={label} className="inline-flex items-center gap-1.5 font-bold text-white" title={label}>
+          <Icon size={14} className="text-slate-400" aria-hidden="true" />
+          <span>{value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MatchParticipantRow({ participant, maxDamage, gameDuration, platform }: { participant: MatchParticipant; maxDamage: number; gameDuration: number; platform: PlatformRoute }) {
+  const damageWidth = maxDamage > 0 ? Math.max(8, Math.round((participant.damageToChampions / maxDamage) * 100)) : 0;
+  const adjustedSeconds = Math.max(1, gameDuration - 60);
+  const goldPerSecond = Math.round((participant.goldEarned / adjustedSeconds) * 10) / 10;
+  const csPerMinute = Math.round((participant.creepScore / (adjustedSeconds / 60)) * 10) / 10;
+  const rankTier = participant.rank ? rankTierKey(participant.rank.tier) : null;
+  const viewerHref = `/riot-account-viewer?riotId=${encodeURIComponent(participant.riotId)}&platform=${platform}`;
+  const arrangedItems = arrangeMatchItems(participant.items);
+  const multikills = [
+    ['D', 'Double kills', participant.multikills.double, 'iron'],
+    ['T', 'Triple kills', participant.multikills.triple, 'gold'],
+    ['Q', 'Quadra kills', participant.multikills.quadra, 'master'],
+    ['P', 'Penta kills', participant.multikills.penta, 'challenger'],
+  ].filter(([, , count]) => Number(count) > 0);
+
+  return (
+    <div className={`grid gap-3 rounded-xl border p-2.5 text-sm lg:grid-cols-[minmax(15rem,1.45fr)_0.55fr_0.8fr_0.8fr_0.7fr_0.9fr_7rem_2.75rem] lg:items-center ${
+      participant.isSearchedPlayer ? 'border-amber-300/50 bg-amber-300/10' : 'border-white/10 bg-slate-900/70'
+    }`}
+    >
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="relative shrink-0" title={participant.champion.name}>
+          <ChampionIcon src={participant.champion.imageUrl} name={participant.champion.name} />
+          <span className="absolute -bottom-1 -right-1 min-w-5 rounded-full border border-white/20 bg-black px-1 text-center text-[0.65rem] font-black leading-4 text-white" title="Champion level at game end">
+            {participant.championLevel}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          {[...participant.summonerSpells.map((spell) => ({ id: `spell-${spell.id}`, src: spell.imageUrl, label: `Summoner spell: ${spell.name}` })),
+            ...participant.runes.map((rune) => ({ id: `rune-${rune.id}`, src: rune.imageUrl, label: `Rune: ${rune.name}` }))].map((icon) => (
+            <SmallGameIcon key={icon.id} src={icon.src} label={icon.label} size="xs" />
+          ))}
+        </div>
+        <div className="min-w-0">
+          <a
+            href={viewerHref}
+            target="_blank"
+            rel="noreferrer"
+            className="block truncate font-bold text-white transition hover:text-amber-200"
+            title={`Open ${participant.riotId} in League Account Viewer`}
+          >
+            {participant.riotId}
+          </a>
+          <div className="mt-1 flex items-center gap-2">
+            {participant.rank && rankTier ? (
+              <>
+                <Image src={getLeagueRankIconUrl(rankTier)} alt="" title={`${participant.rank.tier} ${participant.rank.rank}`} width={22} height={22} className="h-5 w-5 object-contain" />
+                <span className={`truncate text-xs font-bold ${getLeagueRankStyle(rankTier).text}`}>
+                  {formatRankedDivision(participant.rank.tier, participant.rank.rank)}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs font-semibold text-slate-500">Unranked</span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div title="Kills / Deaths / Assists">
+        <MatchMetricLabel icon={Swords} label="KDA" />
+        <p className="font-bold text-white">{participant.kills}/{participant.deaths}/{participant.assists}</p>
+      </div>
+      <div title="Gold earned">
+        <MatchMetricLabel icon={Coins} label="Gold" />
+        <p className="font-bold text-white">{formatNumber(participant.goldEarned)} <span className="text-xs font-semibold text-slate-500">{goldPerSecond}/s</span></p>
+      </div>
+      <div title="Creep score: lane minions plus neutral monsters killed">
+        <MatchMetricLabel icon={CircleDot} label="CS" />
+        <p className="font-bold text-white">{formatNumber(participant.creepScore)} <span className="text-xs font-semibold text-slate-500">{csPerMinute}/min</span></p>
+      </div>
+      <div title="Vision score, wards placed, and wards killed">
+        <MatchMetricLabel icon={Eye} label="Vision" />
+        <p className="font-bold text-white">{participant.visionScore} - {participant.wardsPlaced} - {participant.wardsKilled}</p>
+      </div>
+      <div title="Damage dealt to enemy champions">
+        <MatchMetricLabel icon={Swords} label="Damage" />
+        <div className="relative mt-1 h-5 overflow-hidden rounded-full bg-slate-800">
+          <div className="absolute inset-y-0 left-0 rounded-full bg-rose-400" style={{ width: `${damageWidth}%` }} />
+          <span className="absolute inset-0 flex items-center px-2 text-xs font-bold text-white">{formatNumber(participant.damageToChampions)}</span>
+        </div>
+      </div>
+      <div>
+        <div className="grid grid-cols-4 gap-1">
+          {arrangedItems.map((item, index) => (
+            item
+              ? <SmallGameIcon key={`${participant.puuid}-${item.slot}-${item.id}-${index}`} src={item.imageUrl} label={item.name} />
+              : <span key={`${participant.puuid}-empty-item-${index}`} title="Empty item slot" className="h-6 w-6 rounded-md border border-white/10 bg-slate-800/70" />
+          ))}
+        </div>
+      </div>
+      <div title="Double, triple, quadra, and penta kills">
+        {multikills.length > 0 ? (
+          <div className="grid w-10 grid-cols-1 gap-1">
+            {multikills.map(([label, title, count, tier]) => (
+              <span key={label} className={`whitespace-nowrap rounded-md border px-1 py-0.5 text-center text-[0.56rem] font-black leading-none ${getLeagueRankStyle(String(tier)).selected} ${getLeagueRankStyle(String(tier)).text}`} title={`${title} in this match`}>
+                {label} x{count}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="block h-1 w-1" aria-hidden="true" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MatchTeamSection({ team, maxDamage, gameDuration, platform }: { team: MatchTeam; maxDamage: number; gameDuration: number; platform: PlatformRoute }) {
+  const teamName = team.teamId === 100 ? 'Blue' : team.teamId === 200 ? 'Red' : `Team ${team.teamId}`;
+  const status = getTeamStatus(team, gameDuration);
+  const sectionClass = status === 'Remake'
+    ? 'border-slate-300/20 bg-slate-800/30'
+    : team.win
+      ? 'border-blue-300/30 bg-blue-950/30'
+      : 'border-rose-300/20 bg-rose-950/20';
+  const titleClass = status === 'Remake'
+    ? 'text-slate-300'
+    : team.win
+      ? 'text-blue-200'
+      : 'text-rose-200';
+
+  return (
+    <section className={`rounded-2xl border p-3 ${sectionClass}`}>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <p className={`text-lg font-black ${titleClass}`}>
+          {status} - {teamName} Team
+        </p>
+        <TeamObjectiveSummary team={team} />
+      </div>
+      <div className="mt-3 grid gap-2">
+        {team.participants.map((participant) => (
+          <MatchParticipantRow key={`${participant.puuid}-${participant.teamId}`} participant={participant} maxDamage={maxDamage} gameDuration={gameDuration} platform={platform} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MatchUnknownQueuePlayers({ participants, maxDamage, gameDuration, platform }: { participants: MatchParticipant[]; maxDamage: number; gameDuration: number; platform: PlatformRoute }) {
+  return (
+    <section className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/40 p-3">
+      {participants.map((participant) => (
+        <MatchParticipantRow key={`${participant.puuid}-${participant.teamId}`} participant={participant} maxDamage={maxDamage} gameDuration={gameDuration} platform={platform} />
+      ))}
+    </section>
+  );
+}
+
+function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { data: RiotAccountViewerResponse; focusedMatchId: string | null; onFocusedMatchConsumed: () => void }) {
   const [resultFilter, setResultFilter] = useState('all');
   const [queueFilter, setQueueFilter] = useState('all');
+  const [expandedMatchIds, setExpandedMatchIds] = useState<Set<string>>(new Set());
+  const [copiedMatchId, setCopiedMatchId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusedMatchId) return;
+    setExpandedMatchIds((current) => new Set([...current, focusedMatchId]));
+    onFocusedMatchConsumed();
+  }, [focusedMatchId, onFocusedMatchConsumed]);
 
   const queues = useMemo(() => ['all', ...Array.from(new Set(data.matches.map((match) => String(match.queueId))))], [data.matches]);
   const matches = data.matches.filter((match) => {
+    const remake = isRemakeMatch(match.gameDuration);
+    if (remake && resultFilter !== 'all') return false;
     if (resultFilter === 'wins' && !match.win) return false;
     if (resultFilter === 'losses' && match.win) return false;
     if (queueFilter !== 'all' && String(match.queueId) !== queueFilter) return false;
     return true;
   });
+  const pulledAverageEnemyRank = getAverageEnemyRankForMatches(matches);
 
   return (
     <div className="grid gap-5">
@@ -758,10 +1262,9 @@ function MatchHistoryTab({ data }: { data: RiotAccountViewerResponse }) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Recent matches</p>
-            <h2 className="mt-2 text-2xl font-bold text-white">Match history</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              Average enemy rank is not included in Match-V5 responses. We can add it with a cached opponent League-V4 expansion so searches do not make dozens of rank calls every time.
-            </p>
+            <div className="mt-2">
+              <AverageEnemyRankSummary averageRank={pulledAverageEnemyRank} />
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <select value={resultFilter} onChange={(event) => setResultFilter(event.target.value)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">
@@ -770,52 +1273,120 @@ function MatchHistoryTab({ data }: { data: RiotAccountViewerResponse }) {
               <option value="losses">Defeat</option>
             </select>
             <select value={queueFilter} onChange={(event) => setQueueFilter(event.target.value)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">
-              {queues.map((queueId) => <option key={queueId} value={queueId}>{queueId === 'all' ? 'All game modes' : `Queue ${queueId}`}</option>)}
+              {queues.map((queueId) => <option key={queueId} value={queueId}>{queueId === 'all' ? 'All game modes' : formatQueueLabel(Number(queueId))}</option>)}
             </select>
           </div>
         </div>
 
         <div className="mt-6 grid gap-3">
-          {matches.map((match) => (
-            <article key={match.matchId} className="grid gap-4 rounded-2xl border border-white/10 bg-slate-900/70 p-4 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div className="flex min-w-0 items-center gap-4">
-                <ChampionIcon src={match.champion.imageUrl} name={match.champion.name} size="lg" />
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-bold text-white">{match.champion.name}</p>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] ${match.win ? 'bg-emerald-400 text-emerald-950' : 'bg-rose-400 text-rose-950'}`}>
-                      {match.win ? 'Victory' : 'Defeat'}
-                    </span>
-                    <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300">Queue {match.queueId}</span>
+          {matches.map((match) => {
+            const expanded = expandedMatchIds.has(match.matchId);
+            const allParticipants = Array.from(
+              new Map(match.teams.flatMap((team) => team.participants).map((participant) => [`${participant.puuid}-${participant.teamId}`, participant])).values(),
+            );
+            const maxDamage = Math.max(...allParticipants.map((participant) => participant.damageToChampions), 1);
+            const knownQueue = isKnownQueue(match.queueId);
+            const matchMeta = [formatDateTime(match.gameStartTimestamp ?? match.gameCreation), formatDuration(match.gameDuration)].join(' - ');
+            const averageEnemyRank = getAverageEnemyRank(match);
+            const remake = isRemakeMatch(match.gameDuration);
+            const resultCardClass = remake
+              ? 'border-slate-400/20 bg-slate-800/50'
+              : match.win
+                ? 'border-emerald-300/30 bg-emerald-950/20'
+                : 'border-rose-300/30 bg-rose-950/20';
+            const matchLink = buildRiotViewerUrl({
+              riotId: `${data.account.gameName}#${data.account.tagLine}`,
+              platform: data.platform,
+              tab: 'matches',
+              matchId: match.matchId,
+            });
+            return (
+              <article key={match.matchId} className={`overflow-hidden rounded-2xl border ${resultCardClass}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpandedMatchIds((current) => {
+                      const next = new Set(current);
+                      if (next.has(match.matchId)) next.delete(match.matchId);
+                      else next.add(match.matchId);
+                      return next;
+                    });
+                  }}
+                  className="grid w-full gap-4 p-4 text-left transition hover:bg-white/[0.03] lg:grid-cols-[1fr_auto_auto] lg:items-center"
+                  aria-expanded={expanded}
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <ChampionIcon src={match.champion.imageUrl} name={match.champion.name} size="lg" />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-white">{match.champion.name}</p>
+                        <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300" title={`Queue ${match.queueId}`}>
+                          {formatQueueLabel(match.queueId)}
+                        </span>
+                        <AverageEnemyRankBadge averageRank={averageEnemyRank} />
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                        <span>{matchMeta}</span>
+                        {match.position ? (
+                          <>
+                            <span aria-hidden="true">-</span>
+                            <MatchRole position={match.position} />
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-1 text-sm text-slate-400">{formatDateTime(match.gameStartTimestamp ?? match.gameCreation)} - {formatDuration(match.gameDuration)} - {match.position}</p>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5 lg:min-w-[34rem]">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500">KDA</p>
-                  <p className="font-bold text-white">{match.kills}/{match.deaths}/{match.assists}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Gold</p>
-                  <p className="font-bold text-white">{formatNumber(match.goldEarned)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500">CS</p>
-                  <p className="font-bold text-white">{formatNumber(match.creepScore)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Damage</p>
-                  <p className="font-bold text-white">{formatNumber(match.damageToChampions)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Vision</p>
-                  <p className="font-bold text-white">{formatNumber(match.visionScore)}</p>
-                </div>
-              </div>
-            </article>
-          ))}
+                  <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:min-w-[34rem] lg:grid-cols-5">
+                    <MatchHeaderMetric icon={Swords} label="KDA" value={`${match.kills}/${match.deaths}/${match.assists}`} />
+                    <MatchHeaderMetric icon={Coins} label="Gold" value={formatNumber(match.goldEarned)} />
+                    <MatchHeaderMetric icon={CircleDot} label="CS" value={formatNumber(match.creepScore)} />
+                    <MatchHeaderMetric icon={Swords} label="Damage" value={formatNumber(match.damageToChampions)} />
+                    <MatchHeaderMetric icon={Eye} label="Vision" value={formatNumber(match.visionScore)} />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 text-slate-300">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void copyTextToClipboard(matchLink).then(() => {
+                          setCopiedMatchId(match.matchId);
+                          window.setTimeout(() => setCopiedMatchId((current) => current === match.matchId ? null : current), 1400);
+                        });
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void copyTextToClipboard(matchLink).then(() => {
+                          setCopiedMatchId(match.matchId);
+                          window.setTimeout(() => setCopiedMatchId((current) => current === match.matchId ? null : current), 1400);
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-xs font-bold text-slate-300 transition hover:border-amber-300/50 hover:text-amber-200"
+                      title="Copy link to this game"
+                    >
+                      <Copy size={14} />
+                      {copiedMatchId === match.matchId ? 'Copied' : 'Copy'}
+                    </span>
+                    {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </div>
+                </button>
+
+                {expanded ? (
+                  <div className="grid gap-4 border-t border-white/10 p-4">
+                    {knownQueue ? (
+                      match.teams.map((team) => <MatchTeamSection key={team.teamId} team={team} maxDamage={maxDamage} gameDuration={match.gameDuration} platform={data.platform} />)
+                    ) : (
+                      <MatchUnknownQueuePlayers participants={allParticipants} maxDamage={maxDamage} gameDuration={match.gameDuration} platform={data.platform} />
+                    )}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
           {matches.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-400">No matches match the current filters.</p> : null}
         </div>
       </section>
@@ -882,9 +1453,9 @@ function EmptyState() {
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-300/30 bg-amber-300/10 text-amber-300">
         <Search size={28} />
       </div>
-      <h2 className="mt-5 text-2xl font-bold text-white">Search a Riot account</h2>
+      <h2 className="mt-5 text-2xl font-bold text-white">Search a League account</h2>
       <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-        Check your Riot account stats by searching your Riot ID and region above. If you have a KnowLeague account with a saved Riot account, your data will be automatically populated here.
+        Check your League account stats by searching your League ID and region above. If you have a KnowLeague account with a saved League account, your data will be automatically populated here.
       </p>
     </section>
   );
@@ -894,15 +1465,27 @@ export function RiotAccountViewer() {
   const [riotId, setRiotId] = useState('');
   const [platform, setPlatform] = useState<PlatformRoute>('NA1');
   const [activeTab, setActiveTab] = useState<ViewerTab>('overview');
+  const [focusedMatchId, setFocusedMatchId] = useState<string | null>(null);
   const [data, setData] = useState<RiotAccountViewerResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedAccountLink, setCopiedAccountLink] = useState(false);
   const [autoLoadMessage, setAutoLoadMessage] = useState<string | null>(null);
   const [riotIdSuggestions, setRiotIdSuggestions] = useState<string[]>([]);
   const [sharedSuggestions, setSharedSuggestions] = useState<SharedRiotIdSuggestion[]>([]);
   const autoLoadedRef = useRef(false);
 
-  const loadAccount = useCallback(async (nextRiotId = riotId, nextPlatform = platform) => {
+  const updateViewerUrl = useCallback((nextData: RiotAccountViewerResponse, nextTab: ViewerTab, nextMatchId: string | null = null) => {
+    const nextUrl = buildRiotViewerUrl({
+      riotId: `${nextData.account.gameName}#${nextData.account.tagLine}`,
+      platform: nextData.platform,
+      tab: nextTab,
+      matchId: nextMatchId,
+    });
+    window.history.replaceState(null, '', nextUrl);
+  }, []);
+
+  const loadAccount = useCallback(async (nextRiotId = riotId, nextPlatform = platform, options: { tab?: ViewerTab; matchId?: string | null } = {}) => {
     const trimmedRiotId = nextRiotId.trim();
     if (!trimmedRiotId) {
       setError('Enter a Riot ID in the format GameName#TagLine.');
@@ -913,22 +1496,43 @@ export function RiotAccountViewer() {
     setError(null);
     setAutoLoadMessage(null);
     try {
+      const applyLoadedData = (nextData: RiotAccountViewerResponse) => {
+        const nextTab = options.tab ?? 'overview';
+        const nextMatchId = options.matchId ?? null;
+        setData(nextData);
+        writeStoredSearch(trimmedRiotId, nextPlatform);
+        setRiotIdSuggestions(readStoredRecentSearches());
+        setActiveTab(nextTab);
+        setFocusedMatchId(nextMatchId);
+        updateViewerUrl(nextData, nextTab, nextMatchId);
+      };
+      const cachedData = readSessionProfileCache(trimmedRiotId, nextPlatform);
+      if (cachedData) {
+        applyLoadedData(cachedData);
+        return;
+      }
+
       const response = await fetch(`/api/riot-account/viewer?riotId=${encodeURIComponent(trimmedRiotId)}&platform=${encodeURIComponent(nextPlatform)}`);
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(typeof result.error === 'string' ? result.error : 'Unable to load Riot account data.');
+        throw new Error(typeof result.error === 'string' ? result.error : 'Unable to load League account data.');
       }
-      setData(result as RiotAccountViewerResponse);
-      writeStoredSearch(trimmedRiotId, nextPlatform);
-      setRiotIdSuggestions(readStoredRecentSearches());
-      setActiveTab('overview');
+      const nextData = result as RiotAccountViewerResponse;
+      writeSessionProfileCache(trimmedRiotId, nextPlatform, nextData);
+      applyLoadedData(nextData);
     } catch (nextError) {
       setData(null);
-      setError(nextError instanceof Error ? nextError.message : 'Unable to load Riot account data.');
+      setError(nextError instanceof Error ? nextError.message : 'Unable to load League account data.');
     } finally {
       setLoading(false);
     }
-  }, [platform, riotId]);
+  }, [platform, riotId, updateViewerUrl]);
+
+  const handleTabChange = useCallback((nextTab: ViewerTab) => {
+    setActiveTab(nextTab);
+    setFocusedMatchId(null);
+    if (data) updateViewerUrl(data, nextTab);
+  }, [data, updateViewerUrl]);
 
   useEffect(() => {
     const query = riotId.trim();
@@ -966,6 +1570,8 @@ export function RiotAccountViewer() {
     const params = new URLSearchParams(window.location.search);
     const queryRiotId = params.get('riotId');
     const queryPlatform = params.get('platform')?.toUpperCase() ?? null;
+    const queryTab = params.get('tab');
+    const queryMatchId = params.get('matchId');
     const storedLastSearch = readStoredLastSearch();
     setRiotIdSuggestions(readStoredRecentSearches());
     if (queryRiotId) {
@@ -974,7 +1580,10 @@ export function RiotAccountViewer() {
         : 'NA1';
       setRiotId(queryRiotId);
       setPlatform(safePlatform);
-      void loadAccount(queryRiotId, safePlatform);
+      void loadAccount(queryRiotId, safePlatform, {
+        tab: isViewerTab(queryTab) ? queryTab : queryMatchId ? 'matches' : 'overview',
+        matchId: queryMatchId,
+      });
       return;
     }
 
@@ -999,7 +1608,7 @@ export function RiotAccountViewer() {
       const savedRiotId = profile?.riot_account_name?.trim();
       if (savedRiotId) {
         setRiotIdSuggestions(Array.from(new Set([savedRiotId, ...readStoredRecentSearches()])));
-        setAutoLoadMessage('Loading the Riot account saved to your KnowLeague profile.');
+        setAutoLoadMessage('Loading the League account saved to your KnowLeague profile.');
         setRiotId(savedRiotId);
         void loadAccount(savedRiotId, storedLastSearch?.platform ?? 'NA1');
       }
@@ -1014,7 +1623,7 @@ export function RiotAccountViewer() {
     return Array.from(suggestions.values()).slice(0, maxRecentSearches + 8);
   }, [riotIdSuggestions, sharedSuggestions]);
 
-  const title = data ? `${data.account.gameName}#${data.account.tagLine}` : 'KnowLeague - Riot Account Viewer';
+  const title = data ? `${data.account.gameName}#${data.account.tagLine}` : 'KnowLeague - League Account Viewer';
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -1022,17 +1631,45 @@ export function RiotAccountViewer() {
         <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 shadow-glow sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">League account intelligence</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href="/"
+                  className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200"
+                >
+                  <Home size={14} />
+                  Home
+                </a>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">League Account Viewer</p>
+              </div>
               <h1 className="mt-3 text-3xl font-black text-white sm:text-5xl">{title}</h1>
             </div>
 
             {data ? (
-              <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+              <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                 <Image src={data.summoner.profileIconUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10" />
                 <div>
                   <p className="font-bold text-white">Level {formatNumber(data.summoner.summonerLevel)}</p>
                   <p className="text-sm text-slate-400">{data.platform} - {data.regionalRoute.toUpperCase()}</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const accountLink = buildRiotViewerUrl({
+                      riotId: `${data.account.gameName}#${data.account.tagLine}`,
+                      platform: data.platform,
+                      tab: activeTab,
+                    });
+                    void copyTextToClipboard(accountLink).then(() => {
+                      setCopiedAccountLink(true);
+                      window.setTimeout(() => setCopiedAccountLink(false), 1400);
+                    });
+                  }}
+                  className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200"
+                  title="Copy link to this account"
+                >
+                  <Copy size={14} />
+                  {copiedAccountLink ? 'Copied' : 'Copy'}
+                </button>
               </div>
             ) : null}
           </div>
@@ -1086,7 +1723,7 @@ export function RiotAccountViewer() {
 
         {data ? (
           <>
-            <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/70 p-2" aria-label="Riot account viewer tabs">
+            <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/70 p-2" aria-label="League account viewer tabs">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.id;
@@ -1094,7 +1731,7 @@ export function RiotAccountViewer() {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabChange(tab.id)}
                     className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition ${
                       active ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-white/10 hover:text-white'
                     }`}
@@ -1106,9 +1743,15 @@ export function RiotAccountViewer() {
               })}
             </nav>
 
-            {activeTab === 'overview' ? <OverviewTab data={data} onTabChange={setActiveTab} /> : null}
+            {activeTab === 'overview' ? <OverviewTab data={data} onTabChange={handleTabChange} /> : null}
             {activeTab === 'mastery' ? <MasteryTab data={data} /> : null}
-            {activeTab === 'matches' ? <MatchHistoryTab data={data} /> : null}
+            {activeTab === 'matches' ? (
+              <MatchHistoryTab
+                data={data}
+                focusedMatchId={focusedMatchId}
+                onFocusedMatchConsumed={() => setFocusedMatchId(null)}
+              />
+            ) : null}
             {activeTab === 'challenges' ? <ChallengesTab data={data} /> : null}
           </>
         ) : (

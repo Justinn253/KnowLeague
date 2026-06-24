@@ -28,9 +28,13 @@ type FriendshipRow = {
   id: string;
   user_one_id: string;
   user_two_id: string;
+  ended_at?: string | null;
 };
 
 const ONLINE_WINDOW_MS = 20 * 1000;
+const FRIEND_MESSAGE_RETENTION_DAYS = 30;
+type FriendRequestResult = 'requested' | 'accepted';
+let endedAtColumnAvailable: boolean | null = null;
 
 function isOnline(lastSeenAt?: string | null) {
   return Boolean(lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < ONLINE_WINDOW_MS);
@@ -53,6 +57,186 @@ function orderedPair(userId: string, friendId: string) {
     : { userOneId: friendId, userTwoId: userId };
 }
 
+function isMissingEndedAtError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return (maybeError.code === '42703' || maybeError.code === 'PGRST204' || maybeError.code === 'PGRST200') && text.includes('ended_at');
+}
+
+async function getActiveFriendshipsForUser(supabase: ReturnType<typeof getSupabaseServiceClient>, userId: string) {
+  if (endedAtColumnAvailable === false) {
+    const { data, error } = await supabase
+      .from('friendships')
+      .select('id, user_one_id, user_two_id')
+      .or(`user_one_id.eq.${userId},user_two_id.eq.${userId}`)
+      .returns<FriendshipRow[]>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data ?? [];
+  }
+
+  const { data, error } = await supabase
+    .from('friendships')
+    .select('id, user_one_id, user_two_id, ended_at')
+    .or(`user_one_id.eq.${userId},user_two_id.eq.${userId}`)
+    .is('ended_at', null)
+    .returns<FriendshipRow[]>();
+
+  if (isMissingEndedAtError(error)) {
+    endedAtColumnAvailable = false;
+    return getActiveFriendshipsForUser(supabase, userId);
+  }
+
+  if (error) {
+    throw error;
+  }
+
+  endedAtColumnAvailable = true;
+  return data ?? [];
+}
+
+async function getFriendshipBetween(supabase: ReturnType<typeof getSupabaseServiceClient>, userOneId: string, userTwoId: string) {
+  if (endedAtColumnAvailable === false) {
+    const { data, error } = await supabase
+      .from('friendships')
+      .select('id')
+      .eq('user_one_id', userOneId)
+      .eq('user_two_id', userTwoId)
+      .maybeSingle<{ id: string }>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data ? { ...data, ended_at: null } : null;
+  }
+
+  const { data, error } = await supabase
+    .from('friendships')
+    .select('id, ended_at')
+    .eq('user_one_id', userOneId)
+    .eq('user_two_id', userTwoId)
+    .maybeSingle<{ id: string; ended_at: string | null }>();
+
+  if (isMissingEndedAtError(error)) {
+    endedAtColumnAvailable = false;
+    return getFriendshipBetween(supabase, userOneId, userTwoId);
+  }
+
+  if (error) {
+    throw error;
+  }
+
+  endedAtColumnAvailable = true;
+  return data;
+}
+
+async function getActiveFriendshipBetween(supabase: ReturnType<typeof getSupabaseServiceClient>, userOneId: string, userTwoId: string) {
+  const friendship = await getFriendshipBetween(supabase, userOneId, userTwoId);
+  return friendship && !friendship.ended_at ? friendship : null;
+}
+
+async function refreshFriendCounts(supabase: ReturnType<typeof getSupabaseServiceClient>, profileIds: string[]) {
+  await Promise.all([...new Set(profileIds)].map(async (profileId) => {
+    const baseQuery = supabase
+      .from('friendships')
+      .select('id', { count: 'exact', head: true })
+      .or(`user_one_id.eq.${profileId},user_two_id.eq.${profileId}`);
+    const { count, error } = endedAtColumnAvailable === false
+      ? await baseQuery
+      : await baseQuery.is('ended_at', null);
+
+    if (isMissingEndedAtError(error)) {
+      endedAtColumnAvailable = false;
+      const { count: fallbackCount, error: fallbackError } = await supabase
+        .from('friendships')
+        .select('id', { count: 'exact', head: true })
+        .or(`user_one_id.eq.${profileId},user_two_id.eq.${profileId}`);
+
+      if (!fallbackError) {
+        await supabase.from('profiles').update({ friends_count: fallbackCount ?? 0 }).eq('id', profileId);
+      }
+
+      return;
+    }
+
+    if (!error) {
+      await supabase.from('profiles').update({ friends_count: count ?? 0 }).eq('id', profileId);
+    }
+  }));
+}
+
+async function acceptFriendPair(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  firstUserId: string,
+  secondUserId: string,
+) {
+  const { userOneId, userTwoId } = orderedPair(firstUserId, secondUserId);
+  const upsertFriendship = async (includeEndedAt: boolean) => supabase
+    .from('friendships')
+    .upsert(
+      includeEndedAt
+        ? { user_one_id: userOneId, user_two_id: userTwoId, ended_at: null }
+        : { user_one_id: userOneId, user_two_id: userTwoId },
+      { onConflict: 'user_one_id,user_two_id' },
+    );
+  const { error: friendshipError } = endedAtColumnAvailable === false
+    ? await upsertFriendship(false)
+    : await upsertFriendship(true);
+
+  if (isMissingEndedAtError(friendshipError)) {
+    endedAtColumnAvailable = false;
+    const { error } = await upsertFriendship(false);
+    if (error) {
+      throw error;
+    }
+  } else if (friendshipError) {
+    throw friendshipError;
+  } else {
+    endedAtColumnAvailable = true;
+  }
+
+  const acceptedAt = new Date().toISOString();
+  const updates = [
+    { requesterId: firstUserId, addresseeId: secondUserId },
+    { requesterId: secondUserId, addresseeId: firstUserId },
+  ];
+
+  await Promise.all(updates.map(async ({ requesterId, addresseeId }) => {
+    const { error } = await supabase
+      .from('friend_requests')
+      .update({ status: 'accepted', updated_at: acceptedAt })
+      .eq('requester_id', requesterId)
+      .eq('addressee_id', addresseeId)
+      .eq('status', 'pending');
+
+    if (error) {
+      throw error;
+    }
+  }));
+
+  await refreshFriendCounts(supabase, [firstUserId, secondUserId]);
+}
+
+async function deleteExpiredFriendMessages(supabase: ReturnType<typeof getSupabaseServiceClient>) {
+  const cutoff = new Date(Date.now() - FRIEND_MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from('friend_messages')
+    .delete()
+    .lt('created_at', cutoff);
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function touchUserPresence(userId: string) {
   await getSupabaseServiceClient()
     .from('profiles')
@@ -62,15 +246,8 @@ export async function touchUserPresence(userId: string) {
 
 export async function getFriendDashboard(userId: string) {
   const supabase = getSupabaseServiceClient();
-  const { data: friendships, error: friendshipError } = await supabase
-    .from('friendships')
-    .select('id, user_one_id, user_two_id')
-    .or(`user_one_id.eq.${userId},user_two_id.eq.${userId}`)
-    .returns<FriendshipRow[]>();
-
-  if (friendshipError) {
-    throw friendshipError;
-  }
+  await deleteExpiredFriendMessages(supabase);
+  const friendships = await getActiveFriendshipsForUser(supabase, userId);
 
   const friendIds = (friendships ?? []).map((friendship) => (
     friendship.user_one_id === userId ? friendship.user_two_id : friendship.user_one_id
@@ -160,7 +337,6 @@ export async function searchFriendCandidates(userId: string, query: string) {
     .ilike('username', `${cleanQuery}%`)
     .neq('id', userId)
     .eq('is_banned', false)
-    .gte('last_seen_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
     .limit(10)
     .returns<ProfileRow[]>();
 
@@ -182,14 +358,15 @@ export async function searchFriendCandidates(userId: string, query: string) {
     throw pendingError;
   }
 
-  const pendingIds = new Set((pendingRequests ?? []).map((request) => (
-    request.requester_id === userId ? request.addressee_id : request.requester_id
-  )));
+  const pendingByUserId = new Map((pendingRequests ?? []).map((request) => [
+    request.requester_id === userId ? request.addressee_id : request.requester_id,
+    request.requester_id === userId ? 'outgoing' : 'incoming',
+  ]));
 
   return (profiles ?? []).map((profile) => ({
     ...toSummary(profile),
     friendRequestsOpen: profile.friend_requests_open,
-    relationship: friendIds.has(profile.id) ? 'friend' : pendingIds.has(profile.id) ? 'pending' : 'none',
+    relationship: friendIds.has(profile.id) ? 'friend' : pendingByUserId.get(profile.id) ?? 'none',
   }));
 }
 
@@ -206,7 +383,7 @@ export async function searchExistingFriends(userId: string, query: string) {
   ));
 }
 
-export async function createFriendRequest(userId: string, targetUserId: string) {
+export async function createFriendRequest(userId: string, targetUserId: string): Promise<FriendRequestResult> {
   if (userId === targetUserId) {
     throw new Error('You cannot add yourself as a friend.');
   }
@@ -226,24 +403,31 @@ export async function createFriendRequest(userId: string, targetUserId: string) 
     throw new Error('Profile not found.');
   }
 
-  if (!target.friend_requests_open) {
-    throw new Error('This user is not accepting friend requests.');
+  const { userOneId, userTwoId } = orderedPair(userId, targetUserId);
+  const existingFriendship = await getFriendshipBetween(supabase, userOneId, userTwoId);
+  if (existingFriendship && !existingFriendship.ended_at) {
+    throw new Error('You are already friends.');
   }
 
-  const { userOneId, userTwoId } = orderedPair(userId, targetUserId);
-  const { data: existingFriendship, error: friendshipError } = await supabase
-    .from('friendships')
+  const { data: reciprocalRequest, error: reciprocalError } = await supabase
+    .from('friend_requests')
     .select('id')
-    .eq('user_one_id', userOneId)
-    .eq('user_two_id', userTwoId)
+    .eq('requester_id', targetUserId)
+    .eq('addressee_id', userId)
+    .eq('status', 'pending')
     .maybeSingle<{ id: string }>();
 
-  if (friendshipError) {
-    throw friendshipError;
+  if (reciprocalError) {
+    throw reciprocalError;
   }
 
-  if (existingFriendship) {
-    throw new Error('You are already friends.');
+  if (reciprocalRequest) {
+    await acceptFriendPair(supabase, userId, targetUserId);
+    return 'accepted';
+  }
+
+  if (!target.friend_requests_open) {
+    throw new Error('This user is not accepting friend requests.');
   }
 
   const { error } = await supabase
@@ -260,9 +444,11 @@ export async function createFriendRequest(userId: string, targetUserId: string) 
 
     throw error;
   }
+
+  return 'requested';
 }
 
-export async function createFriendRequestByUsername(userId: string, targetUsername: string) {
+export async function createFriendRequestByUsername(userId: string, targetUsername: string): Promise<FriendRequestResult> {
   const cleanUsername = targetUsername.trim().toLowerCase();
   if (cleanUsername.length < 3) {
     throw new Error('Username must be at least 3 characters.');
@@ -282,7 +468,7 @@ export async function createFriendRequestByUsername(userId: string, targetUserna
     throw new Error('Profile not found.');
   }
 
-  await createFriendRequest(userId, target.id);
+  return createFriendRequest(userId, target.id);
 }
 
 export async function respondToFriendRequest(userId: string, requestId: string, action: 'accept' | 'decline') {
@@ -316,53 +502,19 @@ export async function respondToFriendRequest(userId: string, requestId: string, 
     return;
   }
 
-  const { userOneId, userTwoId } = orderedPair(request.requester_id, request.addressee_id);
-  const { error: friendshipError } = await supabase
-    .from('friendships')
-    .upsert({ user_one_id: userOneId, user_two_id: userTwoId }, { onConflict: 'user_one_id,user_two_id' });
-
-  if (friendshipError) {
-    throw friendshipError;
-  }
-
-  const { error: updateError } = await supabase
-    .from('friend_requests')
-    .update({ status: 'accepted', updated_at: new Date().toISOString() })
-    .eq('id', request.id);
-
-  if (updateError) {
-    throw updateError;
-  }
-
-  await Promise.all([request.requester_id, request.addressee_id].map(async (profileId) => {
-    const { count, error } = await supabase
-      .from('friendships')
-      .select('id', { count: 'exact', head: true })
-      .or(`user_one_id.eq.${profileId},user_two_id.eq.${profileId}`);
-
-    if (!error) {
-      await supabase.from('profiles').update({ friends_count: count ?? 0 }).eq('id', profileId);
-    }
-  }));
+  await acceptFriendPair(supabase, request.requester_id, request.addressee_id);
 }
 
 export async function getFriendMessages(userId: string, friendId: string) {
   const { userOneId, userTwoId } = orderedPair(userId, friendId);
   const supabase = getSupabaseServiceClient();
-  const { data: friendship, error: friendshipError } = await supabase
-    .from('friendships')
-    .select('id')
-    .eq('user_one_id', userOneId)
-    .eq('user_two_id', userTwoId)
-    .maybeSingle<{ id: string }>();
-
-  if (friendshipError) {
-    throw friendshipError;
-  }
+  const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
 
   if (!friendship) {
     throw new Error('You are not friends with this user.');
   }
+
+  await deleteExpiredFriendMessages(supabase);
 
   const { data: messages, error } = await supabase
     .from('friend_messages')
@@ -385,16 +537,7 @@ export async function getFriendMessages(userId: string, friendId: string) {
 export async function markFriendMessagesRead(userId: string, friendId: string) {
   const { userOneId, userTwoId } = orderedPair(userId, friendId);
   const supabase = getSupabaseServiceClient();
-  const { data: friendship, error } = await supabase
-    .from('friendships')
-    .select('id')
-    .eq('user_one_id', userOneId)
-    .eq('user_two_id', userTwoId)
-    .maybeSingle<{ id: string }>();
-
-  if (error) {
-    throw error;
-  }
+  const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
 
   if (!friendship) {
     throw new Error('You are not friends with this user.');
@@ -436,21 +579,35 @@ export async function sendFriendMessage(userId: string, friendId: string, messag
 export async function removeFriend(userId: string, friendId: string) {
   const { userOneId, userTwoId } = orderedPair(userId, friendId);
   const supabase = getSupabaseServiceClient();
-  const { error } = await supabase
+  const endFriendship = async () => supabase
     .from('friendships')
-    .delete()
+    .update({ ended_at: new Date().toISOString() })
     .eq('user_one_id', userOneId)
-    .eq('user_two_id', userTwoId);
+    .eq('user_two_id', userTwoId)
+    .is('ended_at', null);
+  const { error } = endedAtColumnAvailable === false
+    ? await supabase.from('friendships').delete().eq('user_one_id', userOneId).eq('user_two_id', userTwoId)
+    : await endFriendship();
+
+  if (isMissingEndedAtError(error)) {
+    endedAtColumnAvailable = false;
+    const { error: fallbackError } = await supabase
+      .from('friendships')
+      .delete()
+      .eq('user_one_id', userOneId)
+      .eq('user_two_id', userTwoId);
+
+    if (fallbackError) {
+      throw fallbackError;
+    }
+
+    await refreshFriendCounts(supabase, [userId, friendId]);
+    return;
+  }
 
   if (error) {
     throw error;
   }
 
-  await Promise.all([userId, friendId].map(async (profileId) => {
-    const { count } = await supabase
-      .from('friendships')
-      .select('id', { count: 'exact', head: true })
-      .or(`user_one_id.eq.${profileId},user_two_id.eq.${profileId}`);
-    await supabase.from('profiles').update({ friends_count: count ?? 0 }).eq('id', profileId);
-  }));
+  await refreshFriendCounts(supabase, [userId, friendId]);
 }

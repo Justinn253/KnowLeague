@@ -41,6 +41,15 @@ const multiplayerGames: GameLink[] = [
 
 const singlePlayerGames: GameLink[] = [
   {
+    title: 'Skindle',
+    href: '/skindle',
+    description: 'Guess the daily skin by comparing category clues after each attempt.',
+    status: 'Play',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
+    icon: Search,
+    mostPlayed: true,
+  },
+  {
     title: 'Ability Blitz',
     href: '/ability-blitz',
     description: 'Race the clock through a randomized set of League ability icons.',
@@ -55,15 +64,6 @@ const singlePlayerGames: GameLink[] = [
     status: 'Play',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/Ezreal.png',
     icon: Sparkles,
-  },
-  {
-    title: 'Skindle',
-    href: '/skindle',
-    description: 'Guess the daily skin by comparing category clues after each attempt.',
-    status: 'Play',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
-    icon: Search,
-    mostPlayed: true,
   },
 ];
 
@@ -83,7 +83,7 @@ function GameCard({ game }: { game: GameLink }) {
       ) : null}
       <div className="relative h-28 rounded-t-2xl border-b border-white/10 bg-slate-950">
         <Image src={game.imageUrl} alt="" width={96} height={96} className="absolute right-5 top-4 h-24 w-24 rounded-2xl object-cover ring-1 ring-white/10" />
-        <div className="absolute left-5 top-5 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-amber-300">
+        <div className="absolute left-5 top-4 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-amber-300">
           <Icon size={20} />
         </div>
       </div>
@@ -108,7 +108,6 @@ function GameSection({ title, description, games }: { title: string; description
     <section aria-labelledby={`${title.toLowerCase().replace(' ', '-')}-heading`}>
       <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Game modes</p>
           <h2 id={`${title.toLowerCase().replace(' ', '-')}-heading`} className="mt-2 text-2xl font-bold text-white">{title}</h2>
         </div>
         <p className="max-w-xl text-sm leading-6 text-slate-400">{description}</p>
@@ -126,11 +125,7 @@ export default function Home() {
       <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 px-6 py-12 lg:px-12">
         <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">League quiz hub</p>
-            <h1 className="mt-4 text-5xl font-bold text-white sm:text-6xl">KnowLeague</h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">
-              Choose a solo challenge or create a lobby to test your League knowledge with other players.
-            </p>
+            <h1 className="text-5xl font-bold text-white sm:text-6xl">KnowLeague</h1>
           </div>
           <Link
             href="/riot-account-viewer"
@@ -144,13 +139,13 @@ export default function Home() {
         </header>
 
         <GameSection
-          title="Multiplayer"
+          title="Multiplayer Games"
           description="Create or join a lobby and configure a shared competitive challenge."
           games={multiplayerGames}
         />
         <div className="h-px bg-white/10" />
         <GameSection
-          title="Single Player"
+          title="Solo Games"
           description="Play daily and self-paced modes with personal progress and statistics."
           games={singlePlayerGames}
         />

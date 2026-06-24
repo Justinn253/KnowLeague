@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Search, Send, Users, X } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -51,6 +51,7 @@ const multiplayerInviteGames: Record<string, MultiplayerInvite['gameName']> = {
   '/multiplayer/ability-blitz': 'Ability Blitz',
   '/multiplayer/skin-champion': 'Skin Champion',
 };
+const CHAT_PREFETCH_LIMIT = 30;
 
 function getCurrentMultiplayerInvite(): MultiplayerInvite | null {
   if (typeof window === 'undefined') {
@@ -157,10 +158,25 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   const [contextFriend, setContextFriend] = useState<{ friend: FriendSummary; x: number; y: number } | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const dashboardRef = useRef<FriendDashboard | null>(null);
   const activeFriendRef = useRef<FriendSummary | null>(null);
+  const messageCacheRef = useRef<Map<string, FriendMessage[]>>(new Map());
+  const prefetchedFriendIdsRef = useRef<Set<string>>(new Set());
+  const shouldStickToBottomRef = useRef(true);
   const refreshTimeoutRef = useRef<number | null>(null);
   const lastDashboardRefreshAtRef = useRef(0);
+
+  const updateMessageScrollIntent = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) {
+      shouldStickToBottomRef.current = true;
+      return;
+    }
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 48;
+  }, []);
 
   const refreshDashboard = useCallback(async () => {
     try {
@@ -187,15 +203,37 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     }, 150);
   }, [refreshDashboard]);
 
-  const loadActiveFriendMessages = useCallback(async (friend: FriendSummary) => {
+  const loadFriendMessages = useCallback(async (
+    friend: FriendSummary,
+    options: { markRead?: boolean; syncActive?: boolean } = {},
+  ) => {
+    const markRead = options.markRead ?? true;
+    const syncActive = options.syncActive ?? true;
+
     try {
-      const data = await fetchAuthedJson(`/api/friends/messages?friendId=${friend.id}`);
-      setMessages(data.messages ?? []);
-      scheduleDashboardRefresh();
+      const data = await fetchAuthedJson(`/api/friends/messages?friendId=${friend.id}${markRead ? '' : '&markRead=false'}`);
+      const nextMessages = data.messages ?? [];
+      messageCacheRef.current.set(friend.id, nextMessages);
+      if (syncActive && activeFriendRef.current?.id === friend.id) {
+        setMessages(nextMessages);
+      }
+      if (markRead) {
+        scheduleDashboardRefresh();
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load messages.');
     }
   }, [scheduleDashboardRefresh]);
+
+  const prefetchFriendMessages = useCallback((friendList: FriendSummary[]) => {
+    friendList
+      .filter((friend) => !prefetchedFriendIdsRef.current.has(friend.id))
+      .slice(0, CHAT_PREFETCH_LIMIT)
+      .forEach((friend) => {
+        prefetchedFriendIdsRef.current.add(friend.id);
+        void loadFriendMessages(friend, { markRead: false, syncActive: false });
+      });
+  }, [loadFriendMessages]);
 
   useEffect(() => {
     activeFriendRef.current = activeFriend;
@@ -272,8 +310,14 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
           const friendshipId = (payload.new as { friendship_id?: string }).friendship_id;
           const active = activeFriendRef.current;
           if (active && friendshipId === active.friendshipId) {
-            void loadActiveFriendMessages(active);
+            void loadFriendMessages(active);
             return;
+          }
+
+          const cachedFriend = dashboardRef.current?.friends.find((friend) => friend.friendshipId === friendshipId);
+          if (cachedFriend) {
+            messageCacheRef.current.delete(cachedFriend.id);
+            prefetchedFriendIdsRef.current.delete(cachedFriend.id);
           }
 
           const friendshipIds = new Set(dashboardRef.current?.friends.map((friend) => friend.friendshipId) ?? []);
@@ -300,7 +344,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
         void supabase?.removeChannel(presenceChannel);
       }
     };
-  }, [loadActiveFriendMessages, refreshDashboard, scheduleDashboardRefresh]);
+  }, [loadFriendMessages, refreshDashboard, scheduleDashboardRefresh]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -327,25 +371,53 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       return;
     }
 
-    void loadActiveFriendMessages(activeFriend);
-  }, [activeFriend, loadActiveFriendMessages]);
+    const cachedMessages = messageCacheRef.current.get(activeFriend.id);
+    shouldStickToBottomRef.current = true;
+    setMessages(cachedMessages ?? []);
+    void loadFriendMessages(activeFriend);
+  }, [activeFriend, loadFriendMessages]);
 
-  const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!activeFriend || !messageDraft.trim()) {
+  useLayoutEffect(() => {
+    if (!activeFriend || !shouldStickToBottomRef.current) {
       return;
     }
 
+    const container = messagesContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollTop = container.scrollHeight;
+  }, [activeFriend, messages]);
+
+  useEffect(() => {
+    if (!isOpen || !dashboard?.friends.length) {
+      return;
+    }
+
+    prefetchFriendMessages(dashboard.friends);
+  }, [dashboard, isOpen, prefetchFriendMessages]);
+
+  const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const cleanMessage = messageDraft.trim();
+    if (!activeFriend || !cleanMessage) {
+      return;
+    }
+
+    setMessageDraft('');
     try {
       const data = await fetchAuthedJson('/api/friends/messages', {
         method: 'POST',
-        body: JSON.stringify({ friendId: activeFriend.id, message: messageDraft }),
+        body: JSON.stringify({ friendId: activeFriend.id, message: cleanMessage }),
       });
       await broadcastFriendMessageNotification(activeFriend.id);
-      setMessages(data.messages ?? []);
-      setMessageDraft('');
+      const nextMessages = data.messages ?? [];
+      messageCacheRef.current.set(activeFriend.id, nextMessages);
+      setMessages(nextMessages);
       await refreshDashboard();
     } catch (error) {
+      setMessageDraft(cleanMessage);
       setStatus(error instanceof Error ? error.message : 'Unable to send message.');
     }
   };
@@ -359,11 +431,11 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     }
 
     try {
-      await fetchAuthedJson('/api/friends/requests', {
+      const data = await fetchAuthedJson('/api/friends/requests', {
         method: 'POST',
         body: JSON.stringify({ targetUsername: cleanUsername }),
       });
-      setStatus('Friend request sent.');
+      setStatus(data.status === 'accepted' ? 'Friend added.' : 'Friend request sent.');
       setAddFriendUsername('');
       setAddFriendOpen(false);
       scheduleDashboardRefresh();
@@ -435,7 +507,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       {isOpen ? (
         <div
           ref={panelRef}
-          className="absolute bottom-full right-0 mb-3 w-[min(calc(100vw-2.5rem),42rem)] rounded-3xl border border-white/10 bg-slate-950 p-4"
+          className="absolute bottom-full right-0 mb-3 flex max-h-[min(42rem,calc(100vh-6rem))] w-[min(calc(100vw-2.5rem),42rem)] flex-col rounded-3xl border border-white/10 bg-slate-950 p-4"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -511,8 +583,8 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_13rem]">
-            <section className="flex min-h-72 flex-col rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+          <div className="mt-4 grid min-h-0 flex-1 gap-4 md:grid-cols-[minmax(0,1fr)_13rem]">
+            <section className="flex min-h-72 min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 p-3">
               {activeFriendView ? (
                 <>
                   <div className="border-b border-white/10 pb-2">
@@ -521,7 +593,11 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                       {activeFriendView.online ? 'Online' : 'Offline'}
                     </p>
                   </div>
-                  <div className="mt-3 grid flex-1 content-start gap-2 overflow-y-auto">
+                  <div
+                    ref={messagesContainerRef}
+                    onScroll={updateMessageScrollIntent}
+                    className="mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1"
+                  >
                     {messages.map((chatMessage) => {
                       const isOwnMessage = chatMessage.sender_id === currentUserId;
                       const invite = getMultiplayerInvite(chatMessage.message);
@@ -581,7 +657,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                 </div>
               )}
             </section>
-            <section className="max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-2">
+            <section className="min-h-0 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-2">
               {friends.length === 0 ? (
                 <p className="px-3 py-6 text-center text-sm text-slate-500">
                   {cleanSearchQuery ? 'None found' : 'No friends yet.'}
@@ -592,6 +668,8 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                   key={friend.id}
                   type="button"
                   onClick={() => setActiveFriend((current) => (current?.id === friend.id ? null : friend))}
+                  onMouseEnter={() => prefetchFriendMessages([friend])}
+                  onFocus={() => prefetchFriendMessages([friend])}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     setContextFriend({ friend, x: event.clientX, y: event.clientY });

@@ -14,12 +14,10 @@ export async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<FriendRequestBody>(request);
-    if (body.targetUsername) {
-      await createFriendRequestByUsername(userId, requireString(body.targetUsername, 'targetUsername'));
-    } else {
-      await createFriendRequest(userId, requireString(body.targetUserId, 'targetUserId'));
-    }
-    return NextResponse.json({ ok: true });
+    const status = body.targetUsername
+      ? await createFriendRequestByUsername(userId, requireString(body.targetUsername, 'targetUsername'))
+      : await createFriendRequest(userId, requireString(body.targetUserId, 'targetUserId'));
+    return NextResponse.json({ ok: true, status });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

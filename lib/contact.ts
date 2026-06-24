@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
-export type ContactSubmissionCategory = 'feedback' | 'bug_report' | 'suggestion';
+export type ContactSubmissionCategory = 'feedback' | 'bug_report' | 'suggestion' | 'player_report';
 
 type CreateContactSubmissionInput = {
   category: ContactSubmissionCategory;
@@ -13,9 +13,11 @@ type CreateContactSubmissionInput = {
   username?: string | null;
   userUid?: string | null;
   email?: string | null;
+  reportedUserId?: string | null;
+  reportedUsername?: string | null;
 };
 
-const contactCategories = new Set<ContactSubmissionCategory>(['feedback', 'bug_report', 'suggestion']);
+const contactCategories = new Set<ContactSubmissionCategory>(['feedback', 'bug_report', 'suggestion', 'player_report']);
 const MAX_CONTACT_MESSAGE_LENGTH = 2000;
 
 export function isContactSubmissionCategory(value: string): value is ContactSubmissionCategory {
@@ -37,6 +39,10 @@ export async function createContactSubmission(input: CreateContactSubmissionInpu
     throw new Error(`Message must be ${MAX_CONTACT_MESSAGE_LENGTH} characters or fewer.`);
   }
 
+  if (input.category === 'player_report' && !input.reportedUsername?.trim()) {
+    throw new Error('Enter the player username you are reporting.');
+  }
+
   const { data, error } = await getSupabaseServiceClient()
     .from('contact_submissions')
     .insert({
@@ -50,6 +56,8 @@ export async function createContactSubmission(input: CreateContactSubmissionInpu
       user_agent: input.userAgent?.trim().slice(0, 500) || null,
       viewport: input.viewport?.trim().slice(0, 100) || null,
       timezone: input.timezone?.trim().slice(0, 100) || null,
+      reported_user_id: input.reportedUserId?.trim() || null,
+      reported_username: input.reportedUsername?.trim().slice(0, 100) || null,
     })
     .select('id, created_at')
     .single<{ id: string; created_at: string }>();

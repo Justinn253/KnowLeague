@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Check,
@@ -40,15 +40,25 @@ type IncomingRequest = {
     online: boolean;
   };
 };
+type CachedProfileScreenState = {
+  userId: string;
+  email: string;
+  profile: ProfileRecord | null;
+  usernameDraft: string;
+  aboutDraft: string;
+  friendRequestsOpen: boolean;
+  incomingRequests: IncomingRequest[];
+};
 type FriendCandidate = {
   id: string;
   username: string;
   displayName: string;
   friendRequestsOpen: boolean;
-  relationship: 'friend' | 'pending' | 'none';
+  relationship: 'friend' | 'incoming' | 'outgoing' | 'none';
 };
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,16}$/;
+let cachedProfileScreenState: CachedProfileScreenState | null = null;
 
 type ProfileScreenProps = {
   presentation?: 'page' | 'overlay';
@@ -135,6 +145,63 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
+  const cleanUsernameDraft = usernameDraft.trim().toLowerCase();
+  const cleanAboutDraft = aboutDraft.trim();
+  const hasProfileChanges = profile ? (
+    cleanUsernameDraft !== profile.username ||
+    cleanAboutDraft !== profile.about_me
+  ) : false;
+  const hasPreferenceChanges = profile ? friendRequestsOpen !== profile.friend_requests_open : false;
+  const hasAnySaveChanges = hasProfileChanges || hasPreferenceChanges;
+
+  const hydrateFromCache = useCallback((cachedState: CachedProfileScreenState) => {
+    setUserId(cachedState.userId);
+    setEmail(cachedState.email);
+    setProfile(cachedState.profile);
+    setUsernameDraft(cachedState.usernameDraft);
+    setAboutDraft(cachedState.aboutDraft);
+    setFriendRequestsOpen(cachedState.friendRequestsOpen);
+    setIncomingRequests(cachedState.incomingRequests);
+    setBusy(false);
+  }, []);
+
+  const refreshFriendDashboard = useCallback(async () => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/friends', {
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+      const friendData = await response.json();
+      if (!response.ok) {
+        return;
+      }
+
+      const nextIncomingRequests = friendData.incomingRequests ?? [];
+      setIncomingRequests(nextIncomingRequests);
+      const sessionUserId = data.session.user.id;
+      setProfile((current) => {
+        const nextProfile = current ? { ...current, friends_count: friendData.friends?.length ?? current.friends_count } : current;
+        if (cachedProfileScreenState?.userId === sessionUserId) {
+          cachedProfileScreenState = {
+            ...cachedProfileScreenState,
+            profile: nextProfile,
+            incomingRequests: nextIncomingRequests,
+          };
+        }
+        return nextProfile;
+      });
+      if ((friendData.incomingRequests ?? []).length === 0) {
+        setRequestsOpen(false);
+      }
+    } catch {
+      // The profile can still render if the social summary is temporarily unavailable.
+    }
+  }, []);
 
   useEffect(() => {
     const supabase = getOptionalSupabaseClient();
@@ -154,6 +221,10 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
         return;
       }
 
+      if (cachedProfileScreenState?.userId === data.user.id) {
+        hydrateFromCache(cachedProfileScreenState);
+      }
+
       setUserId(data.user.id);
       setEmail(data.user.email ?? '');
       const { data: profileData, error: profileError } = await supabase
@@ -170,29 +241,62 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       if (profileError) {
         setMessage(profileError.message);
       } else {
-        setProfile(profileData ? {
+        const nextProfile = profileData ? {
           ...profileData,
           discord_username: privateData?.discord_username ?? null,
           riot_account_name: privateData?.riot_account_name ?? null,
-        } : null);
+        } : null;
+        setProfile(nextProfile);
         setUsernameDraft(profileData?.username ?? '');
         setAboutDraft(profileData?.about_me ?? '');
         setFriendRequestsOpen(profileData?.friend_requests_open ?? true);
+        cachedProfileScreenState = {
+          userId: data.user.id,
+          email: data.user.email ?? '',
+          profile: nextProfile,
+          usernameDraft: profileData?.username ?? '',
+          aboutDraft: profileData?.about_me ?? '',
+          friendRequestsOpen: profileData?.friend_requests_open ?? true,
+          incomingRequests: cachedProfileScreenState?.userId === data.user.id ? cachedProfileScreenState.incomingRequests : [],
+        };
       }
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData.session) {
-        fetch('/api/friends', {
-          headers: { Authorization: `Bearer ${sessionData.session.access_token}` },
-        })
-          .then((response) => response.json())
-          .then((friendData) => setIncomingRequests(friendData.incomingRequests ?? []))
-          .catch(() => undefined);
-      }
+      await refreshFriendDashboard();
 
       setBusy(false);
     });
-  }, [onClose, presentation, router]);
+  }, [hydrateFromCache, onClose, presentation, refreshFriendDashboard, router]);
+
+  useEffect(() => {
+    if (!userId) {
+      return undefined;
+    }
+
+    const supabase = getOptionalSupabaseClient();
+    if (!supabase) {
+      return undefined;
+    }
+
+    const channel = supabase.channel(`profile-friends:${userId}`);
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests' }, (payload) => {
+        const row = { ...(payload.old as Record<string, unknown>), ...(payload.new as Record<string, unknown>) };
+        if (row.requester_id === userId || row.addressee_id === userId) {
+          void refreshFriendDashboard();
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, (payload) => {
+        const row = { ...(payload.old as Record<string, unknown>), ...(payload.new as Record<string, unknown>) };
+        if (row.user_one_id === userId || row.user_two_id === userId) {
+          void refreshFriendDashboard();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [refreshFriendDashboard, userId]);
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -200,6 +304,11 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     const cleanUsername = usernameDraft.trim().toLowerCase();
 
     if (!supabase || !userId) {
+      return;
+    }
+
+    if (!hasAnySaveChanges) {
+      setMessage('');
       return;
     }
 
@@ -231,13 +340,24 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       return;
     }
 
-    setProfile({
+    const nextProfile = {
       ...data,
       discord_username: profile?.discord_username ?? null,
       riot_account_name: profile?.riot_account_name ?? null,
-    });
+    };
+    setProfile(nextProfile);
     setUsernameDraft(data.username);
     setAboutDraft(data.about_me);
+    setFriendRequestsOpen(data.friend_requests_open);
+    cachedProfileScreenState = {
+      userId,
+      email,
+      profile: nextProfile,
+      usernameDraft: data.username,
+      aboutDraft: data.about_me,
+      friendRequestsOpen: data.friend_requests_open,
+      incomingRequests,
+    };
     setMessage('Profile updated.');
   };
 
@@ -263,7 +383,13 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       return;
     }
 
-    setIncomingRequests((requests) => requests.filter((request) => request.id !== requestId));
+    setIncomingRequests((requests) => {
+      const nextRequests = requests.filter((request) => request.id !== requestId);
+      if (cachedProfileScreenState?.userId === userId) {
+        cachedProfileScreenState = { ...cachedProfileScreenState, incomingRequests: nextRequests };
+      }
+      return nextRequests;
+    });
     setMessage('');
     if (incomingRequests.length <= 1) {
       setRequestsOpen(false);
@@ -318,7 +444,15 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       body: JSON.stringify({ targetUserId }),
     });
     const body = await response.json();
-    setMessage(response.ok ? 'Friend request sent.' : body.error ?? 'Unable to send friend request.');
+    setMessage(response.ok ? (body.status === 'accepted' ? 'Friend added.' : 'Friend request sent.') : body.error ?? 'Unable to send friend request.');
+    if (response.ok) {
+      setFriendSearchResults((results) => results.map((candidate) => (
+        candidate.id === targetUserId
+          ? { ...candidate, relationship: body.status === 'accepted' ? 'friend' : 'outgoing' }
+          : candidate
+      )));
+      void refreshFriendDashboard();
+    }
   };
 
   const sendPasswordReset = async () => {
@@ -448,16 +582,26 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                           });
                         }}
                         onClick={() => {
-                          if (candidate.friendRequestsOpen && candidate.relationship === 'none') {
+                          if (candidate.relationship === 'incoming' || (candidate.friendRequestsOpen && candidate.relationship === 'none')) {
                             void sendFriendRequest(candidate.id);
                           }
                         }}
                         className={`flex min-h-11 items-center justify-between rounded-xl bg-slate-900 px-3 text-left text-sm transition hover:bg-slate-800 ${
-                          !candidate.friendRequestsOpen || candidate.relationship !== 'none' ? 'cursor-default opacity-70' : ''
+                          candidate.relationship === 'friend' || candidate.relationship === 'outgoing' || (candidate.relationship === 'none' && !candidate.friendRequestsOpen) ? 'cursor-default opacity-70' : ''
                         }`}
                       >
                         <span className="font-semibold text-white">{candidate.displayName}</span>
-                        <span className="text-xs text-slate-400">{!candidate.friendRequestsOpen ? 'Requests closed' : candidate.relationship === 'pending' ? 'Pending' : candidate.relationship === 'friend' ? 'Friend' : 'Add'}</span>
+                        <span className="text-xs text-slate-400">
+                          {!candidate.friendRequestsOpen && candidate.relationship === 'none'
+                            ? 'Requests closed'
+                            : candidate.relationship === 'outgoing'
+                              ? 'Pending'
+                              : candidate.relationship === 'incoming'
+                                ? 'Accept'
+                                : candidate.relationship === 'friend'
+                                  ? 'Friend'
+                                  : 'Add'}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -477,7 +621,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                       >
                         View Profile
                       </button>
-                      {friendSearchContext.candidate.relationship === 'none' && friendSearchContext.candidate.friendRequestsOpen ? (
+                      {friendSearchContext.candidate.relationship === 'incoming' || (friendSearchContext.candidate.relationship === 'none' && friendSearchContext.candidate.friendRequestsOpen) ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -486,7 +630,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                           }}
                           className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10"
                         >
-                          Add Friend
+                          {friendSearchContext.candidate.relationship === 'incoming' ? 'Accept Friend' : 'Add Friend'}
                         </button>
                       ) : null}
                     </div>
@@ -581,7 +725,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
 
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || !hasProfileChanges}
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save size={17} />
@@ -627,19 +771,12 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                       </label>
                       <button
                         type="submit"
-                        disabled={saving}
+                        disabled={saving || !hasPreferenceChanges}
                         className="inline-flex min-h-10 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {saving ? 'Saving' : 'Save Preference'}
                       </button>
                     </form>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Messaging Preferences</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      Messaging preferences will be available when direct messaging is implemented.
-                    </p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">

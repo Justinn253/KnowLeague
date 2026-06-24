@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, Link as LinkIcon, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -12,8 +12,6 @@ type PublicProfileRecord = {
   about_me: string;
   friends_count: number;
   friend_requests_open: boolean;
-  discord_username: string | null;
-  riot_account_name: string | null;
   created_at: string;
 };
 
@@ -37,10 +35,6 @@ async function getAuthHeaders() {
   return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : null;
 }
 
-function getLinkedValue(value?: string | null) {
-  return value?.trim() || 'Not linked';
-}
-
 function formatProfileDate(value?: string | null) {
   if (!value) {
     return 'Unknown';
@@ -51,26 +45,6 @@ function formatProfileDate(value?: string | null) {
     day: 'numeric',
     year: 'numeric',
   }).format(new Date(value));
-}
-
-function PublicConnectionRow({ label, value }: { label: string; value: string }) {
-  const isLinked = value !== 'Not linked';
-
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-        <p className="mt-1 text-sm font-bold text-white">{value}</p>
-      </div>
-      <span
-        className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
-          isLinked ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-500'
-        }`}
-      >
-        {isLinked ? <Check size={17} /> : <LinkIcon size={17} />}
-      </span>
-    </div>
-  );
 }
 
 export function PublicProfileScreen({ username, presentation = 'page' }: PublicProfileScreenProps) {
@@ -94,7 +68,7 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
 
     supabase
       .from('profiles')
-      .select('id, username, display_name, about_me, friends_count, friend_requests_open, discord_username, riot_account_name, created_at')
+      .select('id, username, display_name, about_me, friends_count, friend_requests_open, created_at')
       .eq('username', username.toLowerCase())
       .maybeSingle<PublicProfileRecord>()
       .then(({ data, error }) => {
@@ -226,17 +200,12 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+              <div className="mt-6 grid gap-4">
                 <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">About Me</p>
                   <p className="mt-3 min-h-24 whitespace-pre-wrap text-sm leading-6 text-slate-300">
                     {profile.about_me || 'This player has not added an about me section yet.'}
                   </p>
-                </section>
-
-                <section className="grid content-start gap-3">
-                  <PublicConnectionRow label="Discord" value={getLinkedValue(profile.discord_username)} />
-                  <PublicConnectionRow label="League Account" value={getLinkedValue(profile.riot_account_name)} />
                 </section>
               </div>
             </>

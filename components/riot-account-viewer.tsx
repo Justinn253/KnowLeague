@@ -1600,9 +1600,9 @@ export function RiotAccountViewer() {
       if (!userId) return;
 
       const { data: profile } = await supabase
-        .from('profiles')
+        .from('profile_private_details')
         .select('riot_account_name')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .maybeSingle<{ riot_account_name: string | null }>();
 
       const savedRiotId = profile?.riot_account_name?.trim();

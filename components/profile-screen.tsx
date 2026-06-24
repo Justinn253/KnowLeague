@@ -158,14 +158,23 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       setEmail(data.user.email ?? '');
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('username, display_name, about_me, friends_count, friend_requests_open, discord_username, riot_account_name, created_at')
+        .select('username, display_name, about_me, friends_count, friend_requests_open, created_at')
         .eq('id', data.user.id)
-        .maybeSingle<ProfileRecord>();
+        .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
+      const { data: privateData } = await supabase
+        .from('profile_private_details')
+        .select('discord_username, riot_account_name')
+        .eq('user_id', data.user.id)
+        .maybeSingle<{ discord_username: string | null; riot_account_name: string | null }>();
 
       if (profileError) {
         setMessage(profileError.message);
       } else {
-        setProfile(profileData);
+        setProfile(profileData ? {
+          ...profileData,
+          discord_username: privateData?.discord_username ?? null,
+          riot_account_name: privateData?.riot_account_name ?? null,
+        } : null);
         setUsernameDraft(profileData?.username ?? '');
         setAboutDraft(profileData?.about_me ?? '');
         setFriendRequestsOpen(profileData?.friend_requests_open ?? true);
@@ -212,8 +221,8 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId)
-      .select('username, display_name, about_me, friends_count, friend_requests_open, discord_username, riot_account_name, created_at')
-      .single<ProfileRecord>();
+      .select('username, display_name, about_me, friends_count, friend_requests_open, created_at')
+      .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
 
     setSaving(false);
 
@@ -222,7 +231,11 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       return;
     }
 
-    setProfile(data);
+    setProfile({
+      ...data,
+      discord_username: profile?.discord_username ?? null,
+      riot_account_name: profile?.riot_account_name ?? null,
+    });
     setUsernameDraft(data.username);
     setAboutDraft(data.about_me);
     setMessage('Profile updated.');

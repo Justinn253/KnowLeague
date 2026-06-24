@@ -14,6 +14,7 @@ const FANDOM_API_URL = 'https://leagueoflegends.fandom.com/api.php';
 const OUTPUT_DIR = path.join(process.cwd(), 'data', 'catalogs');
 const RELEASE_DATE_PATH = path.join(OUTPUT_DIR, 'skin-release-dates.json');
 const CHAMPION_METADATA_PATH = path.join(OUTPUT_DIR, 'champion-metadata.json');
+const CHAMPION_SPECIES_OVERRIDES_PATH = path.join(process.cwd(), 'champion-species.txt');
 const CHAMPION_METADATA_OVERRIDES = {
   Ambessa: { gender: 'Female', species: 'Human' },
   Aurora: { gender: 'Female', species: 'Vastayan' },
@@ -59,6 +60,32 @@ async function readJsonFile(filePath, fallback) {
   } catch (error) {
     if (error.code === 'ENOENT') {
       return fallback;
+    }
+
+    throw error;
+  }
+}
+
+async function readChampionSpeciesOverrides() {
+  try {
+    const text = await readFile(CHAMPION_SPECIES_OVERRIDES_PATH, 'utf8');
+    return new Map(
+      text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const separatorIndex = line.indexOf(' - ');
+          if (separatorIndex === -1) return null;
+          const championName = line.slice(0, separatorIndex).trim();
+          const species = line.slice(separatorIndex + 3).trim();
+          return championName && species ? [championName, normalizeSpecies(species)] : null;
+        })
+        .filter(Boolean),
+    );
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return new Map();
     }
 
     throw error;
@@ -297,6 +324,20 @@ async function refreshStoredMetadata() {
       return existingChampionMetadata;
     }),
   ]);
+  const speciesOverrides = await readChampionSpeciesOverrides();
+  if (speciesOverrides.size > 0) {
+    Object.keys(championMetadata).forEach((championName) => {
+      if (!speciesOverrides.has(championName)) {
+        delete championMetadata[championName];
+      }
+    });
+    speciesOverrides.forEach((species, championName) => {
+      championMetadata[championName] = {
+        ...(championMetadata[championName] ?? { gender: 'Unknown' }),
+        species,
+      };
+    });
+  }
 
   await Promise.all([
     writeJson('skin-release-dates.json', releaseDates),

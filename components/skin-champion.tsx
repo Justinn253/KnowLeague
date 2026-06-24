@@ -5,6 +5,7 @@ import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp
 import Image from 'next/image';
 import Link from 'next/link';
 import {
+  clearDailyGameState,
   loadDailyGameState,
   loadPlayerGameStats,
   recordPlayerGameCompletion,
@@ -13,7 +14,6 @@ import {
 } from '@/lib/game-storage';
 import {
   formatSeconds,
-  getNextUtcResetLabel,
   normalizeAnswer,
   OPTION_DELAY_SECONDS,
   PENALTY_TIMES_SECONDS,
@@ -21,6 +21,9 @@ import {
   type CompletedTime,
   type QuizItem,
 } from '@/lib/quiz';
+import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
+import { GameInfoMenu } from '@/components/game-info-menu';
+import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 
 const modifiers = [
   { id: 'greyscale', name: 'Greyscale', description: 'Splash art appears in greyscale.' },
@@ -62,6 +65,7 @@ type SkinChampionDailyState = {
   items: QuizItem[];
   selectedDifficulty: DifficultyId;
   activeModifiers: ModifierState;
+  entryCount: number;
   started: boolean;
   activeIndex: number;
   currentTime: number;
@@ -110,6 +114,15 @@ const defaultModifiers = modifiers.reduce(
   {} as ModifierState,
 );
 
+const entryCountOptions = [10, 25, 50, 75, 100] as const;
+
+function createModifierState(activeIds: readonly string[] = []) {
+  return modifiers.reduce(
+    (state, modifier) => ({ ...state, [modifier.id]: activeIds.includes(modifier.id) }),
+    {} as ModifierState,
+  );
+}
+
 const CROPPED_INITIAL_ZOOM = 2;
 const CROPPED_ZOOM_STEP = 0.25;
 const CROPPED_MIN_ZOOM = 1;
@@ -125,14 +138,6 @@ function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boole
       <span className={`h-4 w-4 rounded-full bg-white shadow transition ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
     </span>
   );
-}
-
-function getSkinMeta(item?: QuizItem | null) {
-  if (!item) {
-    return null;
-  }
-
-  return [item.champion, item.releaseDate ? `Released ${item.releaseDate}` : null].filter(Boolean);
 }
 
 function getCropOrigin(item?: QuizItem | null) {
@@ -152,20 +157,25 @@ function getCropOrigin(item?: QuizItem | null) {
   return `${x}% ${y}%`;
 }
 
-export function SkinChampion() {
-  const [items, setItems] = useState<QuizItem[]>([]);
+export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRuntime }) {
+  const multiplayerItems = multiplayer?.items.map((item, index) => ({
+    ...item,
+    guessed: index < multiplayer.initialProgress,
+  }));
+  const [items, setItems] = useState<QuizItem[]>(multiplayerItems ?? []);
   const [answers, setAnswers] = useState<string[]>([]);
-  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('gold');
-  const [activeModifiers, setActiveModifiers] = useState<ModifierState>(defaultModifiers);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
+  const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
+  const [entryCount, setEntryCount] = useState(50);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isSliding, setIsSliding] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(multiplayer ? Math.min(multiplayer.initialProgress, Math.max(0, multiplayer.items.length - 1)) : 0);
   const [inputValue, setInputValue] = useState('');
   const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle');
   const [currentTime, setCurrentTime] = useState(0);
-  const [totalTime, setTotalTime] = useState(0);
+  const [totalTime, setTotalTime] = useState(multiplayer?.initialElapsedSeconds ?? 0);
   const [showOptions, setShowOptions] = useState(false);
   const [timeUntilOptions, setTimeUntilOptions] = useState(OPTION_DELAY_SECONDS);
   const [options, setOptions] = useState<string[]>([]);
@@ -174,13 +184,12 @@ export function SkinChampion() {
   const [penaltyMessage, setPenaltyMessage] = useState('');
   const [croppedZoom, setCroppedZoom] = useState(CROPPED_INITIAL_ZOOM);
   const [completedTimes, setCompletedTimes] = useState<Record<string, CompletedTime>>({});
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(Boolean(multiplayer));
+  const [finished, setFinished] = useState(Boolean(multiplayer && (multiplayer.gameEnded || multiplayer.initialProgress >= multiplayer.items.length)));
   const [failed, setFailed] = useState(false);
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
-  const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
-  const [storageReady, setStorageReady] = useState(false);
+  const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
   const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('skin-champion'));
   const difficultyMenuRef = useRef<HTMLDivElement>(null);
   const modifiersMenuRef = useRef<HTMLDivElement>(null);
@@ -192,15 +201,28 @@ export function SkinChampion() {
   const nextItem = started ? items[activeIndex + 1] ?? null : null;
   const afterNextItem = started ? items[activeIndex + 2] ?? null : null;
   const previousItem = activeIndex > 0 ? items[activeIndex - 1] : null;
-  const selectedDifficultyName = difficulties.find((difficulty) => difficulty.id === selectedDifficulty)?.name;
+  const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
+  const multiplayerGameEnded = multiplayer?.gameEnded ?? false;
+  const multiplayerInitialProgress = multiplayer?.initialProgress;
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
   const configurationLocked = started || countdown !== null;
   const difficultyRule = difficultyRules[selectedDifficulty];
   const hintsDisabled = difficultyRule.hintDelaySeconds === null;
   const autocompleteEnabled = difficultyRule.autocomplete;
   const shouldHideTimers = activeModifiers.hiddenTimer;
-  const shouldRevealChampion = selectedDifficulty === 'iron';
   const completedProgressCount = items.filter((item) => item.guessed).length;
+  const showSinglePlayerEndState = !multiplayer && finished;
+
+  useEffect(() => {
+    if (multiplayerInitialProgress === undefined) return;
+    setItems((current) => current.map((item, index) => (
+      index < multiplayerInitialProgress ? { ...item, guessed: true } : item
+    )));
+    if (multiplayerGameEnded) {
+      setStarted(false);
+      setFinished(true);
+    }
+  }, [multiplayerGameEnded, multiplayerInitialProgress]);
 
   const getSkinImageClassName = (cardLabel: string) => {
     const classes = ['h-full w-full object-contain transition duration-300'];
@@ -262,6 +284,9 @@ export function SkinChampion() {
     }
 
     hasRestoredStateRef.current = true;
+    if (multiplayer) {
+      return;
+    }
     const savedState = loadDailyGameState<SkinChampionDailyState>('skin-champion');
     if (!savedState) {
       setStorageReady(true);
@@ -271,6 +296,7 @@ export function SkinChampion() {
     setItems(savedState.items);
     setSelectedDifficulty(savedState.selectedDifficulty);
     setActiveModifiers(savedState.activeModifiers);
+    setEntryCount(savedState.entryCount ?? 50);
     setStarted(savedState.started);
     setActiveIndex(savedState.activeIndex);
     setCurrentTime(savedState.currentTime);
@@ -282,10 +308,10 @@ export function SkinChampion() {
     setCountdown(null);
     setIsSliding(false);
     setStorageReady(true);
-  }, []);
+  }, [multiplayer]);
 
   useEffect(() => {
-    if (!storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
+    if (multiplayer || !storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
       return;
     }
 
@@ -293,6 +319,7 @@ export function SkinChampion() {
       items,
       selectedDifficulty,
       activeModifiers,
+      entryCount,
       started,
       activeIndex,
       currentTime,
@@ -301,13 +328,13 @@ export function SkinChampion() {
       finished,
       failed,
     });
-  }, [activeIndex, activeModifiers, completedTimes, currentTime, failed, finished, hasLoadedOnce, items, selectedDifficulty, started, storageReady, totalTime]);
+  }, [activeIndex, activeModifiers, completedTimes, currentTime, entryCount, failed, finished, hasLoadedOnce, items, multiplayer, selectedDifficulty, started, storageReady, totalTime]);
 
   useEffect(() => {
-    if (finished) {
+    if (finished && !multiplayer) {
       setPlayerStats(recordPlayerGameCompletion('skin-champion'));
     }
-  }, [finished]);
+  }, [finished, multiplayer]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -369,7 +396,7 @@ export function SkinChampion() {
   }, [countdown, currentItem, difficultyRule.hintDelaySeconds, finished, hintsDisabled, showOptions, started]);
 
   useEffect(() => {
-    if (!started || hasLoadedOnce) {
+    if (multiplayer || !started || hasLoadedOnce) {
       return;
     }
 
@@ -378,17 +405,17 @@ export function SkinChampion() {
         const response = await fetch('/api/skin-champion/quiz-items');
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          setItems(shuffle(data));
+          setItems(shuffle(data).slice(0, entryCount));
         }
       } catch (error) {
-        console.error('Failed to fetch daily skin set', error);
+        console.error('Failed to fetch randomized skin set', error);
       } finally {
         setHasLoadedOnce(true);
       }
     };
 
     loadItems();
-  }, [hasLoadedOnce, started]);
+  }, [entryCount, hasLoadedOnce, multiplayer, started]);
 
   useEffect(() => {
     if (countdown === null) {
@@ -418,14 +445,6 @@ export function SkinChampion() {
   }, [countdown, finished, started]);
 
   useEffect(() => {
-    const getNextReset = () => setTimeToNextSet(getNextUtcResetLabel());
-
-    getNextReset();
-    const interval = window.setInterval(getNextReset, 1000);
-    return () => window.clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     if (!started || activeIndex === 0) {
       return;
     }
@@ -436,18 +455,60 @@ export function SkinChampion() {
     });
   }, [activeIndex, started]);
 
-  const handleTogglePlay = () => {
-    if (countdown !== null || (started && !finished)) {
+  const resetSinglePlayerRound = () => {
+    setStarted(false);
+    setFinished(false);
+    setFailed(false);
+    setCountdown(null);
+    setIsSliding(false);
+    setActiveIndex(0);
+    setCurrentTime(0);
+    setTotalTime(0);
+    setCompletedTimes({});
+    setInputValue('');
+    setStatus('idle');
+    setShowOptions(false);
+    setOptions([]);
+    setSuggestions([]);
+    setPenaltyCount(0);
+    setPenaltyMessage('');
+    setCroppedZoom(CROPPED_INITIAL_ZOOM);
+    setPendingConfirmedGuess('');
+    setSuccessFlash(false);
+    setHasLoadedOnce(false);
+    setItems([]);
+    clearDailyGameState('skin-champion');
+  };
+
+  const handleGameControl = () => {
+    if (multiplayer) {
+      return;
+    }
+    if (countdown !== null) {
+      return;
+    }
+
+    if (started || finished || failed) {
+      resetSinglePlayerRound();
       return;
     }
 
     setCurrentTime(0);
     setTotalTime(0);
     setActiveIndex(0);
+    setCompletedTimes({});
+    setInputValue('');
+    setStatus('idle');
+    setShowOptions(false);
+    setOptions([]);
+    setSuggestions([]);
+    setPenaltyCount(0);
     setFinished(false);
     setFailed(false);
     setPenaltyMessage('');
+    setCroppedZoom(CROPPED_INITIAL_ZOOM);
     setPendingConfirmedGuess('');
+    setSuccessFlash(false);
     setHasLoadedOnce(false);
     setItems([]);
     setCountdown(3);
@@ -472,6 +533,14 @@ export function SkinChampion() {
     }));
   };
 
+  const handleEntryCountChange = (count: number) => {
+    if (configurationLocked) {
+      return;
+    }
+
+    setEntryCount(count);
+  };
+
   const advance = () => {
     const item = items[activeIndex];
     setCompletedTimes((current) => ({
@@ -491,8 +560,11 @@ export function SkinChampion() {
       setPendingConfirmedGuess('');
       setFinished(true);
       setStarted(false);
+      multiplayer?.onProgress(activeIndex + 1, totalTime, 'completed');
       return;
     }
+
+    multiplayer?.onProgress(activeIndex + 1, totalTime, 'active');
 
     setSuccessFlash(true);
     window.setTimeout(() => setSuccessFlash(false), 260);
@@ -520,6 +592,7 @@ export function SkinChampion() {
       setStarted(false);
       setStatus('incorrect');
       setPenaltyMessage('Game Over');
+      multiplayer?.onProgress(activeIndex, totalTime, 'failed');
       return;
     }
 
@@ -605,29 +678,40 @@ export function SkinChampion() {
       <section className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 lg:px-12">
         <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              aria-label="Back to game hub"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
-            >
-              <ArrowLeft size={20} />
-            </Link>
+            {multiplayer ? (
+              <button type="button" onClick={multiplayer.onExit} aria-label="Leave multiplayer game" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+                <ArrowLeft size={20} />
+              </button>
+            ) : (
+              <Link href="/" aria-label="Back to game hub" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+                <ArrowLeft size={20} />
+              </Link>
+            )}
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{multiplayer ? 'Multiplayer Game' : 'Single Player Game'}</p>
               <h1 className="text-xl font-semibold text-white">Skin Champion</h1>
               <p className="mt-1 text-xs text-slate-400">
                 {failed
                   ? 'Game over'
+                  : multiplayerRaceEndedEarly
+                  ? ''
                   : finished
                   ? shouldHideTimers
                     ? 'Completed'
                     : `Completed in ${formatSeconds(totalTime)}`
-                  : `Daily set resets in ${timeToNextSet}`}
+                  : multiplayer
+                    ? 'Multiplayer race in progress'
+                    : ''}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <GameInfoMenu title="Skin Champion" steps={[
+              'Identify the skin splash art and submit its exact skin name.',
+              'Use hints and autocomplete when the selected difficulty allows them.',
+              multiplayer ? 'Finish the shared randomized set before your opponents.' : 'Complete the randomized set as quickly as possible.',
+            ]} />
             <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
               <Flame size={16} className="text-amber-300" />
               {playerStats.currentStreak} day streak
@@ -643,9 +727,7 @@ export function SkinChampion() {
                 >
                   <Trophy size={16} className="text-amber-300" />
                   Difficulty
-                  <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">
-                    {selectedDifficultyName}
-                  </span>
+                  <span className="rounded-full bg-slate-800 px-2 py-1 text-xs"><DifficultyLabel difficulty={selectedDifficulty} /></span>
                   <ChevronDown size={16} className={openMenu === 'difficulty' ? 'rotate-180 transition' : 'transition'} />
                 </button>
 
@@ -669,13 +751,13 @@ export function SkinChampion() {
                             disabled={configurationLocked}
                             className={`rounded-xl border p-3 text-left transition ${
                               isSelected
-                                ? 'border-amber-300/60 bg-amber-300/10'
+                                ? getDifficultyStyle(difficulty.id).selected
                                 : 'border-white/10 bg-slate-900/80 hover:border-white/25'
                             } ${configurationLocked ? 'cursor-not-allowed opacity-70' : ''}`}
                           >
                             <span className="flex items-center justify-between gap-3">
-                              <span className="font-semibold text-white">{difficulty.name}</span>
-                              <span className={`h-3 w-3 rounded-full border ${isSelected ? 'border-amber-300 bg-amber-300' : 'border-slate-500'}`} />
+                              <DifficultyLabel difficulty={difficulty.id} />
+                              <span className={`h-3 w-3 rounded-full border ${isSelected ? getDifficultyStyle(difficulty.id).dot : 'border-slate-500'}`} />
                             </span>
                             <span className="mt-2 block text-xs leading-5 text-slate-400">{difficulty.description}</span>
                           </button>
@@ -735,6 +817,22 @@ export function SkinChampion() {
                         );
                       })}
                     </div>
+                    <div className="mt-4 border-t border-white/10 pt-4">
+                      <label className="flex items-center justify-between gap-3">
+                        <span>
+                          <span className="block text-sm font-semibold text-white">Entries</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-400">Select how many skins appear this round.</span>
+                        </span>
+                        <select
+                          value={entryCount}
+                          disabled={configurationLocked}
+                          onChange={(event) => handleEntryCountChange(Number(event.target.value))}
+                          className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {entryCountOptions.map((count) => <option key={count} value={count}>{count}</option>)}
+                        </select>
+                      </label>
+                    </div>
                     {configurationLocked ? (
                       <p className="mt-3 text-xs text-slate-500">Modifiers are locked while a round is active.</p>
                     ) : null}
@@ -743,17 +841,23 @@ export function SkinChampion() {
               </div>
             </div>
 
-            <button
+            {!multiplayer ? <button
               type="button"
-              onClick={handleTogglePlay}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/90 px-4 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/10 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={countdown !== null || (started && !finished)}
+              onClick={handleGameControl}
+              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                started || finished || failed
+                  ? 'bg-red-500 text-white hover:bg-red-400'
+                  : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+              }`}
+              disabled={countdown !== null || Boolean(multiplayer)}
             >
-              <Play size={16} />
-              {countdown !== null ? `Starting in ${countdown}` : started && !finished ? 'In Progress' : 'Play'}
-            </button>
+              {started || finished || failed ? null : <Play size={16} />}
+              {countdown !== null ? `Starting in ${countdown}` : started || finished || failed ? 'End Game' : 'Play'}
+            </button> : null}
           </div>
         </header>
+
+        {multiplayer?.progressPanel}
 
         <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
           {afterNextItem?.imageUrl ? (
@@ -767,7 +871,7 @@ export function SkinChampion() {
               className="pointer-events-none absolute h-px w-px opacity-0"
             />
           ) : null}
-          <div className="overflow-hidden">
+          {!showSinglePlayerEndState ? <div className="overflow-hidden">
             <div className={`grid gap-4 lg:grid-cols-3 lg:items-start transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
               {[
                 { label: 'Next item', item: nextItem, fallback: 'Next skin will appear here' },
@@ -784,17 +888,8 @@ export function SkinChampion() {
                     <div>
                       <p className="text-xs uppercase tracking-[0.22em]">{card.label}</p>
                       <p className="mt-1 text-sm text-slate-300">
-                        {card.label === 'Completed' ? card.item?.answer ?? 'Waiting...' : card.item?.title ?? 'Skin Splash'}
+                        {card.label === 'Completed' ? card.item?.answer ?? '' : 'Skin Splash'}
                       </p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400 sm:text-[0.75rem]">
-                        {card.label === 'Completed' && getSkinMeta(card.item) ? (
-                          getSkinMeta(card.item)?.map((meta, index) => (
-                            <span key={meta}>{index === 0 ? meta : `- ${meta}`}</span>
-                          ))
-                        ) : (
-                          <span>{shouldRevealChampion && card.item?.champion ? card.item.champion : 'Champion unknown'}</span>
-                        )}
-                      </div>
                     </div>
                     <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
                       {card.label === 'Completed' ? <Check size={14} className="inline text-emerald-300" /> : 'Skin'}
@@ -835,9 +930,9 @@ export function SkinChampion() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> : null}
 
-          <form
+          {!showSinglePlayerEndState ? <form
             onSubmit={handleSubmit}
             className={`relative z-30 mt-8 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-5 shadow-inner shadow-slate-950/40 transition ${
               successFlash ? 'border-emerald-400/40 ring-1 ring-emerald-400/20' : 'border-white/10'
@@ -933,14 +1028,17 @@ export function SkinChampion() {
                 <span className="font-semibold text-amber-300">Submit again to confirm</span>
               ) : null}
             </div>
-          </form>
+          </form> : null}
 
-          <section className="relative z-0 mt-8 rounded-3xl border border-white/10 bg-slate-950/70 p-6">
+          <section className={`relative z-0 mt-8 rounded-3xl bg-slate-950/70 p-5 ${showSinglePlayerEndState ? 'app-gradient-border' : 'border border-white/10'}`}>
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
-              <span className="text-xs text-slate-500">{completedProgressCount}/{items.length}</span>
+              <div className="flex items-center gap-3">
+                {multiplayerGameEnded ? <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">Race Ended</span> : null}
+                <span className="text-xs text-slate-500">{completedProgressCount}/{items.length}</span>
+              </div>
             </div>
-            <div ref={progressContainerRef} className="grid max-h-72 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div ref={progressContainerRef} className="grid max-h-72 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-4">
               {items.map((item, index) => {
                 const completed = item.guessed || index < activeIndex;
                 const active = started && index === activeIndex && !finished;
@@ -949,7 +1047,7 @@ export function SkinChampion() {
                 return (
                   <div
                     key={item.id}
-                    className={`min-h-20 rounded-2xl border p-4 text-sm ${
+                    className={`relative min-h-20 overflow-hidden rounded-3xl border px-4 py-3 pr-16 text-sm transition ${
                       active
                         ? 'border-violet-500/60 bg-violet-500/10'
                         : completed
@@ -957,30 +1055,19 @@ export function SkinChampion() {
                         : 'border-white/10 bg-slate-950/70'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span
-                          className={`h-11 w-11 shrink-0 overflow-hidden border ${
-                            completed ? 'border-slate-400/70' : 'border-white/10'
-                          }`}
-                        >
-                          <Image
-                            src={item.imageUrl}
-                            alt=""
-                            width={44}
-                            height={44}
-                            className={`h-full w-full object-cover ${completed ? '' : 'blur-sm brightness-75 scale-105'}`}
-                          />
-                        </span>
-                        <span className="truncate font-semibold text-white">{completed ? item.answer : '???'}</span>
-                      </div>
-                      <span className="rounded-full bg-slate-800 px-2 py-1 text-[0.65rem] uppercase text-slate-300">
-                        {active ? 'Now' : completed ? 'Done' : 'Next'}
-                      </span>
+                    <div className="text-sm font-semibold text-white">
+                      <span>{completed ? item.answer : '???'}</span>
                     </div>
-                    <p className="mt-3 text-xs text-slate-400">
+                    <p className="mt-2 text-sm leading-5 text-slate-400">
                       {time ? `${formatSeconds(time.total)} - ${formatSeconds(time.duration)}` : 'TBD - TBD'}
                     </p>
+                    <Image
+                      src={item.imageUrl}
+                      alt=""
+                      width={40}
+                      height={40}
+                      className={`absolute right-3 top-3 h-10 w-10 rounded-xl border border-white/10 object-cover ${completed ? '' : 'blur-sm brightness-75 scale-105'}`}
+                    />
                   </div>
                 );
               })}

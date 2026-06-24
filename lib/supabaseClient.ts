@@ -1,13 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-type LeaderboardEntry = {
-  id: string;
-  player_name: string;
-  score: number;
-  created_at: string;
-};
-
-let client: SupabaseClient | null = null;
+let browserClient: SupabaseClient | null = null;
+let serviceClient: SupabaseClient | null = null;
 
 function getRequiredEnv(name: string) {
   const value = process.env[name];
@@ -19,28 +13,37 @@ function getRequiredEnv(name: string) {
   return value;
 }
 
-export function getSupabaseClient() {
-  if (!client) {
-    client = createClient(
+export function getOptionalSupabaseClient() {
+  if (browserClient) {
+    return browserClient;
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  browserClient = createClient(supabaseUrl, supabaseAnonKey);
+  return browserClient;
+}
+
+export function getSupabaseServiceClient() {
+  if (!serviceClient) {
+    serviceClient = createClient(
       getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL'),
-      getRequiredEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+      getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY'),
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+        global: {
+          fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+        },
+      },
     );
   }
 
-  return client;
-}
-
-export async function getLeaderboard() {
-  const { data, error } = await getSupabaseClient()
-    .from('leaderboard')
-    .select('*')
-    .order('score', { ascending: false })
-    .limit(20)
-    .returns<LeaderboardEntry[]>();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
+  return serviceClient;
 }

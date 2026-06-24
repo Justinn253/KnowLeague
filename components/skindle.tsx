@@ -13,6 +13,7 @@ import {
   type PlayerGameStats,
 } from '@/lib/game-storage';
 import { getNextUtcResetLabel, normalizeAnswer, type QuizItem } from '@/lib/quiz';
+import { GameInfoMenu } from '@/components/game-info-menu';
 
 const categories = [
   { id: 'champion', label: 'Champion' },
@@ -24,7 +25,8 @@ const categories = [
   { id: 'race', label: 'Species' },
 ] as const;
 
-const SKINDLE_REVEAL_DURATION_MS = 1170;
+const SKINDLE_REVEAL_DURATION_MS = 336;
+const SKINDLE_REVEAL_TOTAL_MS = SKINDLE_REVEAL_DURATION_MS * (categories.length + 1);
 
 type CategoryId = (typeof categories)[number]['id'];
 
@@ -133,6 +135,17 @@ function compareGuess(item: QuizItem, target: QuizItem): GuessResult {
   return { item, values, matches, partialMatches, releaseYearDirection };
 }
 
+function QuestionPingMark() {
+  return (
+    <span className="relative inline-flex h-14 w-14 items-center justify-center" aria-hidden="true">
+      <span className="absolute -top-1 text-6xl font-black leading-none text-amber-300 drop-shadow-[0_2px_0_rgba(0,0,0,0.7)] [-webkit-text-stroke:1px_#7c5a13]">
+        ?
+      </span>
+      <span className="absolute bottom-0 h-4 w-4 rotate-45 border border-amber-900/80 bg-gradient-to-br from-amber-300 to-yellow-700 shadow-lg shadow-black/50" />
+    </span>
+  );
+}
+
 export function Skindle() {
   const [skins, setSkins] = useState<QuizItem[]>([]);
   const [target, setTarget] = useState<QuizItem | null>(null);
@@ -171,6 +184,19 @@ export function Skindle() {
       null,
     [playerStats.guessStats],
   );
+  const mostGuessedSkinLine = useMemo(
+    () => Object.values(playerStats.skinLineStats).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))[0] ?? null,
+    [playerStats.skinLineStats],
+  );
+  const mostGuessedYear = useMemo(
+    () => Object.values(playerStats.releaseYearStats).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))[0] ?? null,
+    [playerStats.releaseYearStats],
+  );
+  const mostGuessedRarity = useMemo(
+    () => Object.values(playerStats.rarityStats).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))[0] ?? null,
+    [playerStats.rarityStats],
+  );
+  const displayedGuesses = useMemo(() => [...guesses].reverse(), [guesses]);
   const averagePlayerGuesses = playerStats.gamesCompleted > 0
     ? (playerStats.totalGuesses / playerStats.gamesCompleted).toFixed(1)
     : '0.0';
@@ -295,7 +321,7 @@ export function Skindle() {
 
     window.requestAnimationFrame(() => {
       guessesPanelRef.current?.scrollTo({
-        top: guessesPanelRef.current.scrollHeight,
+        top: 0,
         behavior: 'smooth',
       });
     });
@@ -321,12 +347,15 @@ export function Skindle() {
             itemId: guess.item.id,
             answer: guess.item.answer,
             imageUrl: guess.item.imageUrl,
+            skinLine: formatCategoryValue(guess.item.skinLine || 'None'),
+            releaseYear: getReleaseYear(guess.item),
+            rarity: formatCategoryValue(guess.item.rarity || 'Unknown'),
           })),
         ),
       );
       refreshDailyStats(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, SKINDLE_REVEAL_DURATION_MS);
+    }, SKINDLE_REVEAL_TOTAL_MS);
 
     return () => window.clearTimeout(timeout);
   }, [guesses, revealedSolvedGuessId, target]);
@@ -402,15 +431,20 @@ export function Skindle() {
               <ArrowLeft size={20} />
             </Link>
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Game mode</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Single Player Game</p>
               <h1 className="text-xl font-semibold text-white">Skindle</h1>
               <p className="mt-1 text-xs text-slate-400">
-                {solved ? `Solved in ${guesses.length}` : `Daily skin resets in ${timeToNextSet}`}
+                {`Daily skin resets in ${timeToNextSet}`}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <GameInfoMenu title="Skindle" steps={[
+              'Guess the daily mystery League of Legends skin.',
+              'Each guess compares champion, skin line, release year, rarity, gender, role, and species against the target.',
+              'Green means a match, orange means a partial match, and release year arrows point toward the target.',
+            ]} />
             <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200">
               <Flame size={16} className="text-amber-300" />
               {playerStats.currentStreak} day streak
@@ -432,7 +466,7 @@ export function Skindle() {
               </button>
 
               {playerStatsMenuOpen ? (
-                <div className="absolute right-0 top-14 z-50 w-[min(24rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/50">
+                <div className="absolute right-0 top-14 z-50 w-[min(30rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/50">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
                       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Completed</p>
@@ -442,13 +476,39 @@ export function Skindle() {
                       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Avg Guesses</p>
                       <p className="mt-2 text-xl font-semibold text-white">{averagePlayerGuesses}</p>
                     </div>
+                    <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Current</p>
+                      <p className="mt-2 text-xl font-semibold text-white">{playerStats.currentStreak}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Highest</p>
+                      <p className="mt-2 text-xl font-semibold text-white">{playerStats.highestStreak}</p>
+                    </div>
                   </div>
 
                   <div className="mt-3 grid gap-3">
                     <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Most Guessed Skin</p>
-                      {mostGuessedSkin ? (
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Skin Highlights</p>
+                      {playerStats.lastCorrectGuess ? (
                         <div className="mt-3 flex items-center gap-3">
+                          {playerStats.lastCorrectGuess.imageUrl ? (
+                            <Image
+                              src={playerStats.lastCorrectGuess.imageUrl}
+                              alt=""
+                              width={96}
+                              height={57}
+                              className="aspect-[1215/717] w-20 shrink-0 object-cover ring-1 ring-white/10"
+                            />
+                          ) : null}
+                          <div className="min-w-0">
+                            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Last correct skin</p>
+                            <p className="mt-1 truncate text-sm font-semibold text-white">{playerStats.lastCorrectGuess.answer}</p>
+                            <p className="mt-1 text-xs text-slate-400">{playerStats.lastCorrectGuess.dateKey}</p>
+                          </div>
+                        </div>
+                      ) : null}
+                      {mostGuessedSkin ? (
+                        <div className={`${playerStats.lastCorrectGuess ? 'mt-4 border-t border-white/10 pt-3' : 'mt-3'} flex items-center gap-3`}>
                           {mostGuessedSkin.imageUrl ? (
                             <Image
                               src={mostGuessedSkin.imageUrl}
@@ -459,19 +519,16 @@ export function Skindle() {
                             />
                           ) : null}
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">{mostGuessedSkin.answer}</p>
+                            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Most guessed skin</p>
+                            <p className="mt-1 truncate text-sm font-semibold text-white">{mostGuessedSkin.answer}</p>
                             <p className="mt-1 text-xs text-slate-400">{mostGuessedSkin.count} guesses</p>
                           </div>
                         </div>
                       ) : (
                         <p className="mt-2 text-sm text-slate-500">No guesses yet.</p>
                       )}
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">First Guessed Skin</p>
                       {playerStats.firstGuess ? (
-                        <div className="mt-3 flex items-center gap-3">
+                        <div className="mt-4 flex items-center gap-3 border-t border-white/10 pt-3">
                           {playerStats.firstGuess.imageUrl ? (
                             <Image
                               src={playerStats.firstGuess.imageUrl}
@@ -482,14 +539,32 @@ export function Skindle() {
                             />
                           ) : null}
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">{playerStats.firstGuess.answer}</p>
+                            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">First guessed skin</p>
+                            <p className="mt-1 truncate text-sm font-semibold text-white">{playerStats.firstGuess.answer}</p>
                             <p className="mt-1 text-xs text-slate-400">{playerStats.firstGuess.dateKey}</p>
                           </div>
                         </div>
-                      ) : (
-                        <p className="mt-2 text-sm text-slate-500">No guesses yet.</p>
-                      )}
+                      ) : null}
                     </div>
+
+                    <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Guess Tendencies</p>
+                      <div className="mt-3 grid gap-2 text-sm">
+                        <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-950/60 px-3 py-2">
+                          <span className="text-slate-400">Skin line</span>
+                          <span className="min-w-0 truncate font-semibold text-white">{mostGuessedSkinLine ? `${mostGuessedSkinLine.value} (${mostGuessedSkinLine.count})` : 'No guesses'}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-950/60 px-3 py-2">
+                          <span className="text-slate-400">Year</span>
+                          <span className="font-semibold text-white">{mostGuessedYear ? `${mostGuessedYear.value} (${mostGuessedYear.count})` : 'No guesses'}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-950/60 px-3 py-2">
+                          <span className="text-slate-400">Rarity</span>
+                          <span className="font-semibold text-white">{mostGuessedRarity ? `${mostGuessedRarity.value} (${mostGuessedRarity.count})` : 'No guesses'}</span>
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               ) : null}
@@ -586,7 +661,7 @@ export function Skindle() {
                   {solved && target ? 'The skin was: ' + target.answer : 'Mystery Skin'}
                 </h2>
               </div>
-              {solved ? (
+              {target && revealedSolvedGuessId === target.id ? (
                 <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-right shadow-lg shadow-emerald-950/30">
                   <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">Congratulations</p>
                   <p className="mt-1 text-sm font-semibold text-white">Solved in {guesses.length} guesses</p>
@@ -616,23 +691,34 @@ export function Skindle() {
 
             <div className="overflow-x-auto">
               <div className="w-full min-w-[58rem]">
-                <div className="grid grid-cols-[minmax(8.5rem,1.35fr)_repeat(7,minmax(5.5rem,1fr))] gap-2 pl-1 pr-3 pb-3 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
-                  <div className="text-left">Guess</div>
+                <div className="grid grid-cols-[minmax(8.5rem,1.35fr)_repeat(7,minmax(5.5rem,1fr))] gap-2 pb-3 pl-1 pr-5 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <div>Guess</div>
                   {categories.map((category) => (
                     <div key={category.id}>{category.label}</div>
                   ))}
                 </div>
 
-                <div ref={guessesPanelRef} className="max-h-[34rem] overflow-y-auto pr-2">
+                <div ref={guessesPanelRef} className="max-h-[34rem] overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
                   {guesses.length === 0 ? (
                     <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-8 text-center text-sm text-slate-500">
                       Your guesses will appear here.
                     </div>
                   ) : (
                     <div className="flex flex-col gap-3">
-                      {guesses.map((guess, index) => {
-                        const isLatestGuess = index === guesses.length - 1;
+                      {displayedGuesses.map((guess) => {
+                        const isLatestGuess = guess.item.id === guesses[guesses.length - 1]?.item.id;
                         const isCorrectGuess = target?.id === guess.item.id;
+                        const getRevealOverlay = (cellIndex: number) => isLatestGuess ? (
+                          <div
+                            className="skindle-cell-reveal pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-800"
+                            style={{
+                              animationDelay: `${cellIndex * SKINDLE_REVEAL_DURATION_MS}ms`,
+                              animationDuration: `${SKINDLE_REVEAL_DURATION_MS}ms`,
+                            }}
+                          >
+                            <QuestionPingMark />
+                          </div>
+                        ) : null;
 
                         return (
                           <div
@@ -651,7 +737,7 @@ export function Skindle() {
                               }`}
                             >
                               <div
-                                className={`flex min-h-28 flex-col items-center justify-between rounded-lg border px-2 py-3 text-center shadow-inner ${
+                                className={`relative flex min-h-28 flex-col items-center justify-between overflow-hidden rounded-lg border px-2 py-3 text-center shadow-inner ${
                                   isCorrectGuess
                                     ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
                                     : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
@@ -683,11 +769,12 @@ export function Skindle() {
                                     className="aspect-[1215/717] w-full shrink-0 object-contain"
                                   />
                                 </button>
+                                {getRevealOverlay(0)}
                               </div>
-                              {categories.map((category) => (
+                              {categories.map((category, categoryIndex) => (
                                 <div
                                   key={category.id}
-                                  className={`flex min-h-28 items-center justify-center rounded-lg border px-2 py-3 text-center shadow-inner ${
+                                  className={`relative flex min-h-28 items-center justify-center overflow-hidden rounded-lg border px-2 py-3 text-center shadow-inner ${
                                     guess.matches[category.id]
                                       ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
                                       : guess.partialMatches[category.id]
@@ -704,12 +791,10 @@ export function Skindle() {
                                       <ArrowDown size={18} strokeWidth={2.5} aria-label="Target year is lower" />
                                     ) : null}
                                   </span>
+                                  {getRevealOverlay(categoryIndex + 1)}
                                 </div>
                               ))}
                             </div>
-                            {isLatestGuess ? (
-                              <div className="pointer-events-none absolute inset-0 z-10 animate-skindle-reveal rounded-xl bg-slate-900" />
-                            ) : null}
                           </div>
                         );
                       })}
@@ -720,9 +805,11 @@ export function Skindle() {
             </div>
           </div>
 
-          <form
+          {!solved ? <form
             onSubmit={handleSubmit}
-            className="mt-6 rounded-3xl border border-white/10 bg-slate-950/80 p-5 shadow-inner shadow-slate-950/40"
+            className={`mt-6 rounded-3xl border bg-slate-950/80 p-5 shadow-inner shadow-slate-950/40 transition ${
+              guesses.length === 0 ? 'border-amber-300 bg-amber-300/5 ring-2 ring-amber-300/25 shadow-amber-950/30' : 'border-white/10'
+            }`}
           >
             <div ref={inputAreaRef} className="relative flex flex-col gap-3 sm:flex-row">
               <input
@@ -737,10 +824,10 @@ export function Skindle() {
                     setSuggestions(answerPool.filter((skin) => normalizeAnswer(skin.answer).includes(query)));
                   }
                 }}
-                disabled={!target || solved}
+                disabled={!target}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder={solved ? 'You have already guessed correctly' : 'Type a skin name'}
+                placeholder="Type a skin name"
                 className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/10 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               />
               {suggestions.length > 0 ? (
@@ -760,14 +847,14 @@ export function Skindle() {
               ) : null}
               <button
                 type="submit"
-                disabled={!target || solved}
+                disabled={!target}
                 className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-5 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Search size={16} />
                 Guess
               </button>
             </div>
-          </form>
+          </form> : null}
         </section>
       </section>
       {previewSkin ? (

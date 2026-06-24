@@ -1,74 +1,46 @@
-# AGENTS.md
+# KnowLeague Agent Guide
 
 ## Project
-- League of Legends quiz app built with Next.js 14 App Router, React 18, TypeScript, Tailwind CSS, lucide-react, and Supabase.
-- Use npm; this repo has `package-lock.json`.
+- Next.js 14 App Router, React 18, TypeScript, Tailwind CSS, lucide-react, and Supabase.
+- Use npm and preserve `package-lock.json`.
+- Write clean, readable, maintainable code to enterprise application standards, even for small changes.
 
 ## Commands
 - Install: `npm install`
-- Refresh generated Riot/CommunityDragon catalogues: `npm run data:generate`
-- Dev server: `npm run dev`
-- Production build: `npm run build`
-- Start built app: `npm run start`
-- Type check: `npx tsc --noEmit --incremental false`
+- Develop: `npm run dev`
 - Lint: `npm run lint`
+- Type-check: `npm run typecheck`
+- Standard verification: `npm run check`
+- Generate Riot/CommunityDragon catalogues: `npm run data:generate`
+- Production build: `npm run build`
 
-## Structure
-- `app/page.tsx` renders the KnowLeague landing page and game-mode navigation.
-- `app/ability-blitz/page.tsx` renders the playable Ability Blitz game.
-- `app/speed-blitz/page.tsx` redirects legacy links to Ability Blitz.
-- `app/mastery-master/page.tsx` is a placeholder route for a future game.
-- `app/skin-champion/page.tsx` renders the playable Skin Champion game.
-- `app/skindle/page.tsx` renders the playable Skindle category-comparison skin guessing game.
-- `app/layout.tsx` defines root metadata and global CSS import.
-- `app/globals.css` contains Tailwind layers, global dark styling, and local animations.
-- `components/ability-blitz.tsx` contains the Ability Blitz client-side quiz flow and UI state.
-- `components/skin-champion.tsx` contains the Skin Champion client-side skin quiz flow and UI state.
-- `components/skindle.tsx` contains the Skindle client-side category comparison UI.
-- `components/coming-soon-game.tsx` contains shared placeholder page UI for future game modes.
-- `components/feature-card.tsx` is a small reusable card component.
-- `app/api/ability-blitz/*` serves local generated ability quiz data.
-- `app/api/skin-champion/*` serves local generated skin quiz data.
-- `app/api/skindle/*` serves local generated skin metadata for Skindle.
-- `app/api/ddragon/*` is a legacy compatibility wrapper for Ability Blitz data.
-- `lib/catalogs.ts` reads generated local quiz catalogues.
-- `lib/riot.ts` contains older dynamic Data Dragon helpers and should not be used for new runtime quiz fetches.
-- `scripts/generate-catalogs.mjs` refreshes generated ability and skin catalogues.
-- `data/catalogs/ability-items.json` and `data/catalogs/skin-items.json` are generated runtime catalogues.
-- `data/catalogs/skin-release-dates.json` is an app-owned release-date override map merged into generated skin data.
-- Skin catalogue records include available Skindle metadata from CommunityDragon: skin line, rarity, and champion role; gender and race are app-owned fields currently defaulting to `Unknown`.
-- `lib/supabaseClient.ts` creates the Supabase client and leaderboard helper.
-- `data/daily-sets/` contains static daily set JSON samples.
+## Verification Safety
+- Do not run `npm run build` while the user's dev server is running. Both use `.next`, and concurrent use can invalidate dev chunks.
+- Never run more than one `next dev` process from this workspace, even on different ports. All instances share `.next` and will corrupt each other's generated routes and assets.
+- Before starting the dev server, check for an existing KnowLeague `next dev` process and reuse it instead of starting another port.
+- For normal edits, use `npm run check`.
+- Run a production build only when explicitly requested or after confirming the dev server is stopped.
+- Do not regenerate catalogues or push Supabase migrations unless the task requires it.
 
-## Conventions
-- Treat the codebase as a small project with enterprise-level standards: keep code clean, readable, maintainable, typed, and easy to extend.
-- Keep changes small and aligned with the existing App Router layout.
-- Prefer TypeScript types over `any` when touching Data Dragon parsing code.
-- Use the `@/components/*` and `@/lib/*` path aliases from `tsconfig.json`.
-- Match the existing Tailwind-heavy styling unless explicitly redesigning the UI.
-- Preserve the dark League quiz interface and existing game flow unless the task asks otherwise.
-- Prefer generated local catalogue reads for quiz runtime data; do not fetch full Riot/CommunityDragon catalogues during gameplay.
+## Global Conventions
+- Keep changes scoped and follow existing App Router and Tailwind patterns.
+- Use TypeScript types and existing `@/components/*` and `@/lib/*` aliases.
+- Preserve established game behavior and visual consistency unless the request changes it.
+- Use generated local catalogues during gameplay; do not fetch full Riot or CommunityDragon datasets at runtime.
+- Prefer existing shared helpers before adding another implementation.
+- Treat multiplayer session behavior as a cross-game contract. Apply relevant lobby, presence, reconnect, moderation, discovery, and lifecycle changes to every multiplayer game unless a game-specific rule makes the behavior inappropriate.
+- Do not expose service-role keys or other server secrets to client components.
 
-## Fragile Areas
-- Data Dragon version is hardcoded in `scripts/generate-catalogs.mjs` and `lib/riot.ts`.
-- Generated catalogue data can become stale after patches; run `npm run data:generate` when updating Riot data.
-- Skin release dates are not exposed by Data Dragon or the CommunityDragon skin catalogue used here; populate `data/catalogs/skin-release-dates.json` from a trusted source before regenerating if release dates are needed.
-- `getSampleQuizItems()` in the legacy dynamic Riot helper may fetch every champion individually, which can be slow and noisy.
-- `lib/riot.ts` contains debug logging and broad `any` casts.
-- Supabase env vars default to empty strings; code using Supabase should validate configuration before relying on it.
-- The README lists planned features beyond what is fully implemented in the current UI.
-- Keep game-mode names, route names, and navigation labels consistent when adding or renaming games.
-- Current playable mode naming is `Ability Blitz`; keep legacy `/speed-blitz` links redirected rather than duplicated.
+## Context Routing
+- UI and game components: read `components/AGENTS.md`.
+- API routes: read `app/api/AGENTS.md`.
+- Domain, storage, catalogue, and Supabase helpers: read `lib/AGENTS.md`.
+- Database migrations: read `supabase/AGENTS.md`.
+- For cross-feature work, consult `docs/architecture.md` first.
+- Do not load generated JSON catalogues unless the task directly concerns their data.
 
-## Verification
-- Run `npx tsc --noEmit --incremental false` after TypeScript changes.
-- Run `npm run lint` after frontend or TypeScript changes.
-- Run `npm run build` for route, data-fetching, or production behavior changes.
-
-## App Direction and Structure
-- Description: KnowLeague is primarily a Quiz/Guessing Game website that will focus on solo quizzes and Player-vs-Player
-- Main landing page: Focal spot where users land and can choose which game to play
-- General game page: One of many game screens the user will land on. Keep the design consistent but relevant to the game
-- Leaderboards page: Tracks the highest scores for the daily quizzes
-- Potential ad integration?
-- Login and accounts
+## Fragile Contracts
+- Current game name is Ability Blitz; `/speed-blitz` is a compatibility redirect.
+- Skincognito spans client UI, API routes, `lib/skincognito.ts`, Realtime, and migrations. Trace the full flow before changing lobby lifecycle behavior.
+- Profiles, friends, and contact submissions depend on Supabase RLS and authenticated/server-client boundaries.
+- Data Dragon versions and generated catalogue freshness are explicit maintenance concerns, not runtime fetch decisions.

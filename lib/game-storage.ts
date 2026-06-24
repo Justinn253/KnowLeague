@@ -1,4 +1,4 @@
-export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle';
+export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle' | 'skincognito';
 
 const STORAGE_PREFIX = 'knowleague:v1';
 const CLIENT_ID_KEY = `${STORAGE_PREFIX}:client-id`;
@@ -7,6 +7,11 @@ export type PlayerGuessStat = {
   itemId: string;
   answer: string;
   imageUrl?: string;
+  count: number;
+};
+
+export type PlayerValueStat = {
+  value: string;
   count: number;
 };
 
@@ -21,16 +26,24 @@ export type PlayerGameStats = {
   gameId: GameId;
   completedDates: string[];
   currentStreak: number;
+  highestStreak: number;
   gamesCompleted: number;
   totalGuesses: number;
   guessStats: Record<string, PlayerGuessStat>;
+  skinLineStats: Record<string, PlayerValueStat>;
+  releaseYearStats: Record<string, PlayerValueStat>;
+  rarityStats: Record<string, PlayerValueStat>;
   firstGuess: FirstGuessStat | null;
+  lastCorrectGuess: FirstGuessStat | null;
 };
 
 export type PlayerCompletionGuess = {
   itemId: string;
   answer: string;
   imageUrl?: string;
+  skinLine?: string | null;
+  releaseYear?: string | null;
+  rarity?: string | null;
 };
 
 export type DailyGameState<TState> = {
@@ -84,10 +97,15 @@ function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {
     gameId,
     completedDates: [],
     currentStreak: 0,
+    highestStreak: 0,
     gamesCompleted: 0,
     totalGuesses: 0,
     guessStats: {},
+    skinLineStats: {},
+    releaseYearStats: {},
+    rarityStats: {},
     firstGuess: null,
+    lastCorrectGuess: null,
   };
 }
 
@@ -110,6 +128,21 @@ function calculateCurrentStreak(completedDates: readonly string[], todayKey = ge
   return streak;
 }
 
+function calculateHighestStreak(completedDates: readonly string[]) {
+  const sortedDates = [...new Set(completedDates)].sort();
+  let highest = 0;
+  let current = 0;
+  let previous: string | null = null;
+
+  sortedDates.forEach((dateKey) => {
+    current = previous && getPreviousDateKey(dateKey) === previous ? current + 1 : 1;
+    highest = Math.max(highest, current);
+    previous = dateKey;
+  });
+
+  return highest;
+}
+
 export function loadPlayerGameStats(gameId: GameId) {
   if (!isStorageAvailable()) {
     return createEmptyPlayerStats(gameId);
@@ -127,6 +160,7 @@ export function loadPlayerGameStats(gameId: GameId) {
       ...stats,
       gameId,
       currentStreak: calculateCurrentStreak(stats.completedDates ?? []),
+      highestStreak: Math.max(stats.highestStreak ?? 0, calculateHighestStreak(stats.completedDates ?? [])),
     };
   } catch (error) {
     console.warn(`Unable to load saved ${gameId} player stats.`, error);
@@ -158,6 +192,18 @@ export function recordPlayerGameCompletion(
 
   const completedDates = [...currentStats.completedDates, dateKey].sort();
   const guessStats = { ...currentStats.guessStats };
+  const skinLineStats = { ...currentStats.skinLineStats };
+  const releaseYearStats = { ...currentStats.releaseYearStats };
+  const rarityStats = { ...currentStats.rarityStats };
+
+  const recordValueStat = (stats: Record<string, PlayerValueStat>, rawValue?: string | null) => {
+    const value = rawValue?.trim();
+    if (!value) return;
+    stats[value] = {
+      value,
+      count: (stats[value]?.count ?? 0) + 1,
+    };
+  };
 
   guesses.forEach((guess) => {
     guessStats[guess.itemId] = {
@@ -166,15 +212,24 @@ export function recordPlayerGameCompletion(
       imageUrl: guess.imageUrl,
       count: (guessStats[guess.itemId]?.count ?? 0) + 1,
     };
+    recordValueStat(skinLineStats, guess.skinLine);
+    recordValueStat(releaseYearStats, guess.releaseYear);
+    recordValueStat(rarityStats, guess.rarity);
   });
+  const currentStreak = calculateCurrentStreak(completedDates, dateKey);
+  const lastGuess = guesses[guesses.length - 1];
 
   const updatedStats: PlayerGameStats = {
     ...currentStats,
     completedDates,
-    currentStreak: calculateCurrentStreak(completedDates, dateKey),
+    currentStreak,
+    highestStreak: Math.max(currentStats.highestStreak, currentStreak),
     gamesCompleted: currentStats.gamesCompleted + 1,
     totalGuesses: currentStats.totalGuesses + guesses.length,
     guessStats,
+    skinLineStats,
+    releaseYearStats,
+    rarityStats,
     firstGuess: currentStats.firstGuess ?? (
       guesses[0]
         ? {
@@ -182,9 +237,17 @@ export function recordPlayerGameCompletion(
             answer: guesses[0].answer,
             imageUrl: guesses[0].imageUrl,
             dateKey,
-          }
+        }
         : null
     ),
+    lastCorrectGuess: lastGuess
+      ? {
+          itemId: lastGuess.itemId,
+          answer: lastGuess.answer,
+          imageUrl: lastGuess.imageUrl,
+          dateKey,
+        }
+      : currentStats.lastCorrectGuess,
   };
 
   savePlayerGameStats(updatedStats);

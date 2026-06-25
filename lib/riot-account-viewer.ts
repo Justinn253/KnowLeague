@@ -387,6 +387,7 @@ export type RiotAccountViewerMatchTeam = {
 };
 
 export type RiotAccountViewerResponse = {
+  updatedAt: string;
   searchedRiotId: string;
   platform: RiotPlatformRoute;
   regionalRoute: RiotRegionalRoute;
@@ -1298,6 +1299,7 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
   ]);
 
   return {
+    updatedAt: new Date().toISOString(),
     searchedRiotId: parsed.normalized,
     platform,
     regionalRoute,

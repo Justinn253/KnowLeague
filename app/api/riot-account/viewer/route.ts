@@ -25,6 +25,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const riotId = url.searchParams.get('riotId')?.trim() ?? '';
     const platform = (url.searchParams.get('platform') ?? 'NA1').trim().toUpperCase();
+    const shouldRefresh = url.searchParams.get('refresh') === 'true';
 
     if (!riotId) {
       return NextResponse.json({ error: 'riotId is required.' }, { status: 400 });
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
     }
 
     const cacheKey = `riot-account-viewer:${platform}:${riotId.toLowerCase()}`;
-    const cachedData = getServerCache<Awaited<ReturnType<typeof getRiotAccountViewerData>>>(cacheKey);
+    const cachedData = shouldRefresh ? null : getServerCache<Awaited<ReturnType<typeof getRiotAccountViewerData>>>(cacheKey);
     if (cachedData) {
       return NextResponse.json(cachedData, {
         headers: {
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
     return NextResponse.json(data, {
       headers: {
         'Cache-Control': 'private, no-store',
-        'X-KnowLeague-Cache': 'MISS',
+        'X-KnowLeague-Cache': shouldRefresh ? 'REFRESH' : 'MISS',
         'X-RateLimit-Limit': String(rateLimitRequests),
         'X-RateLimit-Remaining': String(rateLimit.remaining),
       },

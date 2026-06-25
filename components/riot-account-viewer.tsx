@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
@@ -60,6 +60,17 @@ function formatDateTime(timestamp: number | null | undefined) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
 }
 
+function formatProfileUpdatedAt(value?: string | null) {
+  if (!value) return 'Unknown';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
 function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
@@ -79,6 +90,25 @@ function formatRankedDivision(tier: string, rank: string) {
   return tier === 'MASTER' || tier === 'GRANDMASTER' || tier === 'CHALLENGER'
     ? tier
     : `${tier} ${rank}`;
+}
+
+function formatChallengeLevel(level: string | null | undefined) {
+  return level?.trim().toUpperCase() || 'UNKNOWN';
+}
+
+function challengeLevelStyle(level: string | null | undefined) {
+  return getLeagueRankStyle(formatChallengeLevel(level));
+}
+
+function ChallengeLevelText({ level }: { level: string | null | undefined }) {
+  const label = formatChallengeLevel(level);
+  const style = challengeLevelStyle(level);
+
+  return (
+    <span>
+      Level <span className={`font-black ${style.text}`}>{label}</span>
+    </span>
+  );
 }
 
 function rankTierKey(tier: string): LeagueRankTier {
@@ -1403,26 +1433,33 @@ function ChallengesTab({ data }: { data: RiotAccountViewerResponse }) {
     );
   }
 
+  const totalPointsStyle = challengeLevelStyle(data.challenges.totalPoints?.level);
+
   return (
     <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
       <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Challenges</p>
         <h2 className="mt-2 text-2xl font-bold text-white">Progress summary</h2>
-        <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+        <div className={`mt-5 rounded-2xl border p-4 ${totalPointsStyle.selected}`}>
           <p className="text-sm text-slate-400">Total points</p>
           <p className="mt-2 text-3xl font-black text-white">{formatNumber(data.challenges.totalPoints?.current)}</p>
-          <p className="mt-1 text-sm text-slate-400">Level {data.challenges.totalPoints?.level ?? 'Unknown'}</p>
+          <p className="mt-1 text-sm text-slate-300"><ChallengeLevelText level={data.challenges.totalPoints?.level} /></p>
         </div>
         <div className="mt-4 grid gap-3">
-          {data.challenges.categoryPoints.map((category) => (
-            <div key={category.category} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-bold capitalize text-white">{category.category.toLowerCase()}</p>
-                <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300">{category.level ?? 'Unknown'}</span>
+          {data.challenges.categoryPoints.map((category) => {
+            const style = challengeLevelStyle(category.level);
+            return (
+              <div key={category.category} className={`rounded-2xl border p-4 ${style.selected}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-bold capitalize text-white">{category.category.toLowerCase()}</p>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${style.border} ${style.bg} ${style.text}`}>
+                    {formatChallengeLevel(category.level)}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-slate-300">{formatNumber(category.current)} points</p>
               </div>
-              <p className="mt-2 text-sm text-slate-400">{formatNumber(category.current)} points</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -1430,17 +1467,29 @@ function ChallengesTab({ data }: { data: RiotAccountViewerResponse }) {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Top challenge values</p>
         <h2 className="mt-2 text-2xl font-bold text-white">Current rankings</h2>
         <div className="mt-5 grid gap-3">
-          {data.challenges.topChallenges.map((challenge) => (
-            <div key={challenge.challengeId} className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div>
-                <p className="font-bold text-white">Challenge #{challenge.challengeId}</p>
-                <p className="mt-1 text-sm text-slate-400">Level {challenge.level ?? 'Unknown'} - Value {formatNumber(challenge.value)}</p>
+          {data.challenges.topChallenges.map((challenge) => {
+            const style = challengeLevelStyle(challenge.level);
+            const challengeTitle = challenge.description
+              ? `${challenge.name ?? `Challenge #${challenge.challengeId}`}: ${challenge.description}`
+              : challenge.name ?? `Challenge #${challenge.challengeId}`;
+            return (
+              <div
+                key={challenge.challengeId}
+                title={challengeTitle}
+                className={`grid gap-3 rounded-2xl border p-4 sm:grid-cols-[1fr_auto] sm:items-center ${style.selected} ${challenge.description ? 'cursor-help' : ''}`}
+              >
+                <div>
+                  <p className="font-bold text-white">{challenge.name ?? `Challenge #${challenge.challengeId}`}</p>
+                  <p className="mt-1 text-sm text-slate-300">
+                    <ChallengeLevelText level={challenge.level} /> <span className="text-slate-500">-</span> Value {formatNumber(challenge.value)}
+                  </p>
+                </div>
+                <p className={`text-sm font-black ${style.text}`}>
+                  {challenge.percentile === null ? 'No percentile' : `${Math.round(challenge.percentile * 1000) / 10} percentile`}
+                </p>
               </div>
-              <p className="text-sm font-semibold text-amber-300">
-                {challenge.percentile === null ? 'No percentile' : `${Math.round(challenge.percentile * 1000) / 10} percentile`}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>
@@ -1485,7 +1534,7 @@ export function RiotAccountViewer() {
     window.history.replaceState(null, '', nextUrl);
   }, []);
 
-  const loadAccount = useCallback(async (nextRiotId = riotId, nextPlatform = platform, options: { tab?: ViewerTab; matchId?: string | null } = {}) => {
+  const loadAccount = useCallback(async (nextRiotId = riotId, nextPlatform = platform, options: { tab?: ViewerTab; matchId?: string | null; refresh?: boolean } = {}) => {
     const trimmedRiotId = nextRiotId.trim();
     if (!trimmedRiotId) {
       setError('Enter a Riot ID in the format GameName#TagLine.');
@@ -1506,13 +1555,19 @@ export function RiotAccountViewer() {
         setFocusedMatchId(nextMatchId);
         updateViewerUrl(nextData, nextTab, nextMatchId);
       };
-      const cachedData = readSessionProfileCache(trimmedRiotId, nextPlatform);
+      const cachedData = options.refresh ? null : readSessionProfileCache(trimmedRiotId, nextPlatform);
       if (cachedData) {
         applyLoadedData(cachedData);
         return;
       }
 
-      const response = await fetch(`/api/riot-account/viewer?riotId=${encodeURIComponent(trimmedRiotId)}&platform=${encodeURIComponent(nextPlatform)}`);
+      const requestUrl = new URL('/api/riot-account/viewer', window.location.origin);
+      requestUrl.searchParams.set('riotId', trimmedRiotId);
+      requestUrl.searchParams.set('platform', nextPlatform);
+      if (options.refresh) {
+        requestUrl.searchParams.set('refresh', 'true');
+      }
+      const response = await fetch(requestUrl.toString());
       const result = await response.json();
       if (!response.ok) {
         throw new Error(typeof result.error === 'string' ? result.error : 'Unable to load League account data.');
@@ -1690,8 +1745,22 @@ export function RiotAccountViewer() {
                 list="riot-account-viewer-suggestions"
                 autoComplete="username"
                 placeholder="Riot ID"
-                className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 pr-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40"
+                className={`min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40 ${
+                  data ? 'pr-28' : 'pr-4'
+                }`}
               />
+              {data ? (
+                <button
+                  type="button"
+                  onClick={() => void loadAccount(riotId, platform, { tab: activeTab, matchId: focusedMatchId, refresh: true })}
+                  disabled={loading}
+                  title="Refresh this account from the live Riot API"
+                  className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black uppercase tracking-[0.08em] text-slate-300 transition hover:border-amber-300/50 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                  Update
+                </button>
+              ) : null}
               <datalist id="riot-account-viewer-suggestions">
                 {mergedRiotIdSuggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
               </datalist>
@@ -1717,6 +1786,11 @@ export function RiotAccountViewer() {
             </button>
           </form>
 
+          {data ? (
+            <p className="mt-3 text-xs font-semibold text-slate-500">
+              Profile last updated: <span className="text-slate-300">{formatProfileUpdatedAt(data.updatedAt)}</span>
+            </p>
+          ) : null}
           {autoLoadMessage ? <p className="mt-3 text-sm text-amber-200">{autoLoadMessage}</p> : null}
           {error ? <p className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-950/30 px-4 py-3 text-sm font-semibold text-rose-100">{error}</p> : null}
         </header>

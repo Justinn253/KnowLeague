@@ -91,7 +91,7 @@ const multiplayerGames: GameLink[] = [
   {
     title: 'Skincognito',
     href: '/skincognito',
-    description: 'Try to guess your opponents skin before they can decipher yours.',
+    description: 'Try to guess your opponents League of Legends skin before they can decipher yours.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shaco_0.jpg',
     gameIcon: ShieldQuestion,
     modeIcon: Users,
@@ -102,7 +102,7 @@ const multiplayerGames: GameLink[] = [
   {
     title: 'Ability Blitz',
     href: '/multiplayer/ability-blitz',
-    description: 'Race through ability icons in a shared lobby with configurable modifiers.',
+    description: 'Race through League of Legends ability icons in a shared lobby with configurable modifiers.',
     imageUrl: '/game-snapshots/ability_blitz_snapshot.png',
     imageFit: 'contain',
     gameIcon: Clock3,
@@ -113,7 +113,7 @@ const multiplayerGames: GameLink[] = [
   {
     title: 'Skin Champion',
     href: '/multiplayer/skin-champion',
-    description: 'Compete to identify champion skins from image-focused clues.',
+    description: 'Compete to identify League of Legends champion skins from image-focused clues.',
     imageUrl: '/game-snapshots/skin_champion_snapshot.png',
     imageFit: 'contain',
     gameIcon: Sparkles,
@@ -127,7 +127,7 @@ const singlePlayerGames: GameLink[] = [
   {
     title: 'Skindle',
     href: '/skindle',
-    description: 'Solve the daily skin with category clues that sharpen after every guess.',
+    description: 'Solve the daily League of Legends skin with category clues that sharpen after every guess.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
     gameIcon: Search,
     modeIcon: User,
@@ -139,7 +139,7 @@ const singlePlayerGames: GameLink[] = [
   {
     title: 'Ability Blitz',
     href: '/ability-blitz',
-    description: 'Push your recall speed through randomized League ability icons.',
+    description: 'Push your recall speed through randomized League of Legends ability icons.',
     imageUrl: '/game-snapshots/ability_blitz_snapshot.png',
     imageFit: 'contain',
     gameIcon: Clock3,
@@ -150,7 +150,7 @@ const singlePlayerGames: GameLink[] = [
   {
     title: 'Skin Champion',
     href: '/skin-champion',
-    description: 'Practice champion and cosmetic recognition at your own pace.',
+    description: 'Practice League of Legends champion skin recognition at your own pace.',
     imageUrl: '/game-snapshots/skin_champion_snapshot.png',
     imageFit: 'contain',
     gameIcon: Sparkles,
@@ -289,7 +289,7 @@ export default function Home() {
         <header className="relative grid gap-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-6 shadow-[0_30px_90px_rgba(0,0,0,0.35)] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(250,204,21,0.14),transparent_32%),radial-gradient(circle_at_88%_0%,rgba(34,211,238,0.12),transparent_28%)]" />
           <div className="relative min-w-0">
-            <h1 className="text-5xl font-black tracking-tight text-white sm:text-6xl">KnowLeague</h1>
+            <h1 className="text-5xl font-black tracking-tight text-white sm:text-6xl">KnowLeague Trivia</h1>
           </div>
           <Link
             href="/riot-account-viewer"

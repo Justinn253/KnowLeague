@@ -91,6 +91,21 @@ type RiotChallengesDto = {
   }>;
 };
 
+type RiotChallengeConfigDto = {
+  id?: number;
+  challengeId?: number;
+  localizedNames?: Record<string, string | {
+    name?: string;
+    description?: string;
+    shortDescription?: string;
+  }>;
+  localizedDescriptions?: Record<string, string | {
+    name?: string;
+    description?: string;
+    shortDescription?: string;
+  }>;
+};
+
 type RiotMatchDto = {
   metadata: {
     matchId: string;
@@ -372,6 +387,7 @@ export type RiotAccountViewerMatchTeam = {
 };
 
 export type RiotAccountViewerResponse = {
+  updatedAt: string;
   searchedRiotId: string;
   platform: RiotPlatformRoute;
   regionalRoute: RiotRegionalRoute;
@@ -416,6 +432,8 @@ export type RiotAccountViewerResponse = {
     }>;
     topChallenges: Array<{
       challengeId: number;
+      name: string | null;
+      description: string | null;
       level: string | null;
       value: number | null;
       percentile: number | null;
@@ -1041,7 +1059,52 @@ function normalizeMatch(
   };
 }
 
-function normalizeChallenges(challenges: RiotChallengesDto | null): RiotAccountViewerResponse['challenges'] {
+function getLocalizedChallengeField(
+  values: RiotChallengeConfigDto['localizedNames'],
+  field: 'name' | 'description' | 'shortDescription',
+) {
+  if (!values) {
+    return null;
+  }
+
+  const localizedValue = values.en_US ?? values['en-US'] ?? Object.values(values)[0];
+  if (!localizedValue) {
+    return null;
+  }
+  if (typeof localizedValue === 'string') {
+    return localizedValue;
+  }
+
+  return localizedValue[field] ?? null;
+}
+
+async function getChallengeConfigLookup(platform: RiotPlatformRoute) {
+  try {
+    const configs = await riotFetch<RiotChallengeConfigDto[]>(
+      `https://${platform.toLowerCase()}.api.riotgames.com/lol/challenges/v1/challenges/config`,
+    );
+    return new Map(configs.flatMap((config) => {
+      const id = config.id ?? config.challengeId;
+      if (!id) {
+        return [];
+      }
+
+      return [[id, {
+        name: getLocalizedChallengeField(config.localizedNames, 'name'),
+        description: getLocalizedChallengeField(config.localizedDescriptions, 'description')
+          ?? getLocalizedChallengeField(config.localizedNames, 'description')
+          ?? getLocalizedChallengeField(config.localizedNames, 'shortDescription'),
+      }]];
+    }));
+  } catch {
+    return new Map<number, { name: string | null; description: string | null }>();
+  }
+}
+
+function normalizeChallenges(
+  challenges: RiotChallengesDto | null,
+  challengeConfigLookup: Map<number, { name: string | null; description: string | null }>,
+): RiotAccountViewerResponse['challenges'] {
   if (!challenges) return null;
 
   const categoryPoints = Object.entries(challenges.categoryPoints ?? {}).map(([category, points]) => ({
@@ -1053,15 +1116,24 @@ function normalizeChallenges(challenges: RiotChallengesDto | null): RiotAccountV
   }));
 
   const topChallenges = [...(challenges.challenges ?? [])]
-    .sort((left, right) => (right.value ?? 0) - (left.value ?? 0))
+    .sort((left, right) => {
+      const leftPercentile = left.percentile ?? Number.POSITIVE_INFINITY;
+      const rightPercentile = right.percentile ?? Number.POSITIVE_INFINITY;
+      return leftPercentile - rightPercentile;
+    })
     .slice(0, 20)
-    .map((challenge) => ({
-      challengeId: challenge.challengeId,
-      level: challenge.level ?? null,
-      value: challenge.value ?? null,
-      percentile: challenge.percentile ?? null,
-      achievedTime: challenge.achievedTime ?? null,
-    }));
+    .map((challenge) => {
+      const config = challengeConfigLookup.get(challenge.challengeId);
+      return {
+        challengeId: challenge.challengeId,
+        name: config?.name ?? null,
+        description: config?.description ?? null,
+        level: challenge.level ?? null,
+        value: challenge.value ?? null,
+        percentile: challenge.percentile ?? null,
+        achievedTime: challenge.achievedTime ?? null,
+      };
+    });
 
   return {
     totalPoints: challenges.totalPoints ?? null,
@@ -1165,7 +1237,7 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
     `https://${platform.toLowerCase()}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(account.puuid)}`,
   );
 
-  const [version, champions, summonerSpells, runes, items, masteries, ranked, challengeData, currentGame, matchIds] = await Promise.all([
+  const [version, champions, summonerSpells, runes, items, masteries, ranked, challengeData, challengeConfigLookup, currentGame, matchIds] = await Promise.all([
     getDataDragonVersion(),
     getChampionLookup(),
     getSummonerSpellLookup(),
@@ -1181,6 +1253,7 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
       `https://${platform.toLowerCase()}.api.riotgames.com/lol/challenges/v1/player-data/${encodeURIComponent(account.puuid)}`,
       { optional404: true },
     ),
+    getChallengeConfigLookup(platform),
     riotFetch<RiotCurrentGameDto>(
       `https://${platform.toLowerCase()}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${encodeURIComponent(account.puuid)}`,
       { optional404: true },
@@ -1226,6 +1299,7 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
   ]);
 
   return {
+    updatedAt: new Date().toISOString(),
     searchedRiotId: parsed.normalized,
     platform,
     regionalRoute,
@@ -1245,7 +1319,7 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
     masteries: normalizedMasteries,
     matches: normalizedMatches,
     currentGame: normalizeCurrentGame(currentGame, account.puuid, champions),
-    challenges: normalizeChallenges(challengeData),
+    challenges: normalizeChallenges(challengeData, challengeConfigLookup),
     summary: {
       totalMasteryPoints,
       topChampion: normalizedMasteries[0]?.champion ?? null,

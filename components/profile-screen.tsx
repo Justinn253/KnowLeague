@@ -42,6 +42,8 @@ type ProfileRecord = {
   chat_color: string;
   chat_border: string;
   discord_username: string | null;
+  discord_avatar_url: string | null;
+  discord_banner_url: string | null;
   riot_account_name: string | null;
   created_at: string;
 };
@@ -132,41 +134,108 @@ function formatAverage(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
-function ConnectionCard({
-  title,
-  value,
-  description,
-  actionLabel,
+function DiscordMark({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        fill="currentColor"
+        d="M19.5 5.2A16.3 16.3 0 0 0 15.5 4l-.2.4c1.4.4 2.1 1 2.1 1s-1.8-1-5.4-1-5.4 1-5.4 1 .8-.6 2.1-1L8.5 4a16.3 16.3 0 0 0-4 1.2C2 8.9 1.5 12.5 1.8 16.1A16 16 0 0 0 6.7 18.6l.9-1.5c-.5-.2-1-.5-1.5-.8l.4-.3c2.9 1.3 6.1 1.3 9 0l.4.3c-.5.3-1 .6-1.5.8l.9 1.5a16 16 0 0 0 4.9-2.5c.4-4.2-.6-7.8-2.7-10.9ZM8.7 14.1c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"
+      />
+    </svg>
+  );
+}
+
+function DiscordConnectionCard({
+  profile,
+  onConnect,
+  onUnlink,
 }: {
-  title: string;
-  value: string;
-  description: string;
-  actionLabel: string;
+  profile: ProfileRecord | null;
+  onConnect: () => void;
+  onUnlink: () => void;
 }) {
+  const isLinked = Boolean(profile?.discord_username);
+  const discordName = getLinkedValue(profile?.discord_username);
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-[#5865F2]/40 bg-[#111a3a]/80 shadow-[0_0_28px_rgba(88,101,242,0.14)]">
+      <div
+        className="h-20 bg-gradient-to-r from-[#5865F2] via-[#4752C4] to-[#2b2d63] bg-cover bg-center"
+        style={profile?.discord_banner_url ? { backgroundImage: `url(${profile.discord_banner_url})` } : undefined}
+      />
+      <div className="relative p-4 pt-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 pt-3">
+              <DiscordMark className="h-4 w-4 text-[#5865F2]" />
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8EA1E1]">Discord</p>
+            </div>
+            <div className="mt-3 flex min-w-0 items-center gap-3">
+              <span
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-4 border-[#111a3a] bg-[#232946] bg-cover bg-center text-lg font-black text-white"
+                style={profile?.discord_avatar_url ? { backgroundImage: `url(${profile.discord_avatar_url})` } : undefined}
+                aria-hidden="true"
+              >
+                {profile?.discord_avatar_url ? null : discordName.slice(0, 1).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold text-white">{discordName}</p>
+                <p className="mt-1 text-xs font-semibold text-[#b8c1ff]">
+                  {isLinked ? 'Discord account linked' : 'Link Discord to show your account here.'}
+                </p>
+              </div>
+            </div>
+          </div>
+          <span
+            className={`mt-4 inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
+              isLinked ? 'border-emerald-300/30 bg-emerald-400/15 text-emerald-200' : 'border-[#5865F2]/35 bg-[#5865F2]/15 text-[#b8c1ff]'
+            }`}
+          >
+            {isLinked ? <Check size={17} /> : <LinkIcon size={17} />}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={isLinked ? onUnlink : onConnect}
+          className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-[#5865F2]/40 bg-[#5865F2] px-4 text-sm font-bold text-white transition hover:bg-[#4752C4]"
+        >
+          {isLinked ? 'Unlink Discord' : 'Connect Discord'}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function RiotConnectionCard({ value }: { value: string }) {
   const isLinked = value !== 'Not linked';
 
   return (
-    <article className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+    <article className="rounded-2xl border border-[#d13639]/35 bg-gradient-to-br from-[#180b10] via-[#111827] to-[#05070b] p-4 shadow-[0_0_28px_rgba(209,54,57,0.12)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{title}</p>
+          <div className="flex items-center gap-2">
+            <span className="rounded-md border border-[#d13639]/40 bg-[#d13639]/15 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.16em] text-[#f87171]">
+              Riot
+            </span>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#c89b3c]">Riot Account</p>
+          </div>
           <p className="mt-2 text-lg font-bold text-white">{value}</p>
         </div>
         <span
           className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
-            isLinked ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-500'
+            isLinked ? 'border-[#c89b3c]/40 bg-[#c89b3c]/15 text-[#f0d178]' : 'border-[#d13639]/30 bg-black/30 text-[#c89b3c]'
           }`}
         >
           {isLinked ? <Check size={17} /> : <LinkIcon size={17} />}
         </span>
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-400">{description}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-300">Riot linking will connect to the future masteries page and account-specific League data.</p>
       <button
         type="button"
         disabled
-        className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-slate-400 disabled:cursor-not-allowed disabled:opacity-70"
+        className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-[#d13639]/35 bg-[#d13639]/10 px-4 text-sm font-bold text-[#fca5a5] disabled:cursor-not-allowed disabled:opacity-70"
       >
-        {actionLabel}
+        Link Riot Soon
       </button>
     </article>
   );
@@ -334,11 +403,40 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
         profileData = fallback.data ? { ...fallback.data, chat_color: normalizeChatColor(fallback.data.chat_color), chat_border: DEFAULT_CHAT_BORDER } : null;
         profileError = fallback.error;
       }
-      const { data: privateData } = await supabase
+      let { data: privateData, error: privateError } = await supabase
         .from('profile_private_details')
-        .select('discord_username, riot_account_name')
+        .select('discord_username, discord_avatar_url, discord_banner_url, riot_account_name')
         .eq('user_id', data.user.id)
-        .maybeSingle<{ discord_username: string | null; riot_account_name: string | null }>();
+        .maybeSingle<{
+          discord_username: string | null;
+          discord_avatar_url: string | null;
+          discord_banner_url: string | null;
+          riot_account_name: string | null;
+        }>();
+      if (privateError && isMissingProfileColumnError(privateError, 'discord_banner_url')) {
+        const fallback = await supabase
+          .from('profile_private_details')
+          .select('discord_username, discord_avatar_url, riot_account_name')
+          .eq('user_id', data.user.id)
+          .maybeSingle<{
+            discord_username: string | null;
+            discord_avatar_url: string | null;
+            riot_account_name: string | null;
+          }>();
+        privateData = fallback.data ? { ...fallback.data, discord_banner_url: null } : null;
+        privateError = fallback.error;
+      }
+      if (privateError && isMissingProfileColumnError(privateError, 'discord_avatar_url')) {
+        const fallback = await supabase
+          .from('profile_private_details')
+          .select('discord_username, riot_account_name')
+          .eq('user_id', data.user.id)
+          .maybeSingle<{
+            discord_username: string | null;
+            riot_account_name: string | null;
+          }>();
+        privateData = fallback.data ? { ...fallback.data, discord_avatar_url: null, discord_banner_url: null } : null;
+      }
 
       if (profileError) {
         setMessage(profileError.message);
@@ -348,6 +446,8 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
           chat_color: normalizeChatColor(profileData.chat_color),
           chat_border: normalizeChatBorder(profileData.chat_border),
           discord_username: privateData?.discord_username ?? null,
+          discord_avatar_url: privateData?.discord_avatar_url ?? null,
+          discord_banner_url: privateData?.discord_banner_url ?? null,
           riot_account_name: privateData?.riot_account_name ?? null,
         } : null;
         setProfile(nextProfile);
@@ -537,6 +637,8 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       chat_color: normalizeChatColor(data.chat_color),
       chat_border: normalizeChatBorder(data.chat_border),
       discord_username: profile?.discord_username ?? null,
+      discord_avatar_url: profile?.discord_avatar_url ?? null,
+      discord_banner_url: profile?.discord_banner_url ?? null,
       riot_account_name: profile?.riot_account_name ?? null,
     };
     setProfile(nextProfile);
@@ -853,7 +955,12 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     }
 
     setProfile((current) => {
-      const nextProfile = current ? { ...current, discord_username: null } : current;
+      const nextProfile = current ? {
+        ...current,
+        discord_username: null,
+        discord_avatar_url: null,
+        discord_banner_url: null,
+      } : current;
       if (cachedProfileScreenState?.userId === userId) {
         cachedProfileScreenState = { ...cachedProfileScreenState, profile: nextProfile };
       }
@@ -1263,40 +1370,12 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                   </label>
 
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Discord</p>
-                          <p className="mt-2 text-lg font-bold text-white">{getLinkedValue(profile?.discord_username)}</p>
-                        </div>
-                        <span
-                          className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
-                            profile?.discord_username ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-500'
-                          }`}
-                        >
-                          {profile?.discord_username ? <Check size={17} /> : <LinkIcon size={17} />}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (profile?.discord_username) {
-                            void unlinkDiscord();
-                          } else {
-                            void connectDiscord();
-                          }
-                        }}
-                        className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-800"
-                      >
-                        {profile?.discord_username ? 'Unlink Discord' : 'Connect Discord'}
-                      </button>
-                    </div>
-                    <ConnectionCard
-                      title="League Account"
-                      value={getLinkedValue(profile?.riot_account_name)}
-                      description="Riot linking will connect to the future masteries page and account-specific League data."
-                      actionLabel="Link Riot Soon"
+                    <DiscordConnectionCard
+                      profile={profile}
+                      onConnect={() => void connectDiscord()}
+                      onUnlink={() => void unlinkDiscord()}
                     />
+                    <RiotConnectionCard value={getLinkedValue(profile?.riot_account_name)} />
                   </div>
 
                   <button

@@ -16,6 +16,7 @@ type DiscordUserResponse = {
   global_name?: string | null;
   discriminator?: string | null;
   avatar?: string | null;
+  banner?: string | null;
 };
 
 function getDiscordConfig(request: Request) {
@@ -64,6 +65,15 @@ function getDiscordAvatarUrl(user: DiscordUserResponse) {
 
   const extension = user.avatar.startsWith('a_') ? 'gif' : 'png';
   return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${extension}`;
+}
+
+function getDiscordBannerUrl(user: DiscordUserResponse) {
+  if (!user.banner) {
+    return null;
+  }
+
+  const extension = user.banner.startsWith('a_') ? 'gif' : 'png';
+  return `https://cdn.discordapp.com/banners/${user.id}/${user.banner}.${extension}?size=1024`;
 }
 
 export async function GET(request: Request) {
@@ -119,11 +129,26 @@ export async function GET(request: Request) {
         discord_username: discordUsername,
         discord_user_id: discordUser.id,
         discord_avatar_url: getDiscordAvatarUrl(discordUser),
+        discord_banner_url: getDiscordBannerUrl(discordUser),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
     if (error) {
-      if (error.code === 'PGRST204' || error.message.toLowerCase().includes('discord_user_id')) {
+      const errorText = error.message.toLowerCase();
+      if (errorText.includes('discord_banner_url')) {
+        const { error: fallbackError } = await supabase
+          .from('profile_private_details')
+          .upsert({
+            user_id: userId,
+            discord_username: discordUsername,
+            discord_user_id: discordUser.id,
+            discord_avatar_url: getDiscordAvatarUrl(discordUser),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
+        if (fallbackError) {
+          throw fallbackError;
+        }
+      } else if (error.code === 'PGRST204' || errorText.includes('discord_user_id') || errorText.includes('discord_avatar_url')) {
         const { error: fallbackError } = await supabase
           .from('profile_private_details')
           .upsert({

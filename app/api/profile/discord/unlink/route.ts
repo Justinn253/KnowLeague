@@ -14,12 +14,27 @@ export async function POST(request: Request) {
         discord_username: null,
         discord_user_id: null,
         discord_avatar_url: null,
+        discord_banner_url: null,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId);
 
     if (error) {
-      if (error.code === 'PGRST204' || error.message.toLowerCase().includes('discord_user_id')) {
+      const errorText = error.message.toLowerCase();
+      if (errorText.includes('discord_banner_url')) {
+        const { error: fallbackError } = await getSupabaseServiceClient()
+          .from('profile_private_details')
+          .update({
+            discord_username: null,
+            discord_user_id: null,
+            discord_avatar_url: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId);
+        if (fallbackError) {
+          throw fallbackError;
+        }
+      } else if (error.code === 'PGRST204' || errorText.includes('discord_user_id') || errorText.includes('discord_avatar_url')) {
         const { error: fallbackError } = await getSupabaseServiceClient()
           .from('profile_private_details')
           .update({

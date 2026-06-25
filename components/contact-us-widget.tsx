@@ -12,12 +12,14 @@ const contactOptions: { value: ContactSubmissionCategory; label: string }[] = [
   { value: 'feedback', label: 'Feedback' },
   { value: 'bug_report', label: 'Report a bug' },
   { value: 'suggestion', label: 'Suggestion' },
+  { value: 'player_report', label: 'Report a player' },
 ];
 
 export function ContactUsWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<ContactSubmissionCategory>('feedback');
   const [message, setMessage] = useState('');
+  const [reportedUsername, setReportedUsername] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -50,8 +52,15 @@ export function ContactUsWidget() {
   const submitContactForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const cleanMessage = message.trim();
+    const cleanReportedUsername = reportedUsername.trim();
 
     if (!cleanMessage || status === 'submitting') {
+      return;
+    }
+
+    if (category === 'player_report' && cleanReportedUsername.length < 3) {
+      setStatus('error');
+      setErrorMessage('Enter the player username you are reporting.');
       return;
     }
 
@@ -74,6 +83,7 @@ export function ContactUsWidget() {
           pagePath: window.location.pathname,
           viewport: `${window.innerWidth}x${window.innerHeight}`,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          reportedUsername: category === 'player_report' ? cleanReportedUsername : null,
         }),
       });
 
@@ -83,6 +93,7 @@ export function ContactUsWidget() {
       }
 
       setMessage('');
+      setReportedUsername('');
       setStatus('success');
       window.setTimeout(() => {
         setStatus('idle');
@@ -117,11 +128,20 @@ export function ContactUsWidget() {
           </div>
 
           <form onSubmit={submitContactForm} className="mt-4 grid gap-3">
+            <p className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-300">
+              Or email us directly: <a href="mailto:knowleague-support@gmail.com" className="font-semibold text-amber-200 hover:text-amber-100">knowleague-support@gmail.com</a>
+            </p>
+
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Type</span>
               <select
                 value={category}
-                onChange={(event) => setCategory(event.target.value as ContactSubmissionCategory)}
+                onChange={(event) => {
+                  setCategory(event.target.value as ContactSubmissionCategory);
+                  setReportedUsername('');
+                  setStatus('idle');
+                  setErrorMessage('');
+                }}
                 className="min-h-11 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition focus:border-white/20 focus:ring-1 focus:ring-white/15"
               >
                 {contactOptions.map((option) => (
@@ -131,6 +151,19 @@ export function ContactUsWidget() {
                 ))}
               </select>
             </label>
+
+            {category === 'player_report' ? (
+              <label className="grid gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Player Username</span>
+                <input
+                  value={reportedUsername}
+                  onChange={(event) => setReportedUsername(event.target.value.slice(0, 100))}
+                  placeholder="Enter username"
+                  autoComplete="off"
+                  className="min-h-11 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15"
+                />
+              </label>
+            ) : null}
 
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Message</span>
@@ -150,7 +183,7 @@ export function ContactUsWidget() {
               </p>
               <button
                 type="submit"
-                disabled={status === 'submitting' || !message.trim()}
+                disabled={status === 'submitting' || !message.trim() || (category === 'player_report' && reportedUsername.trim().length < 3)}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Send size={16} />

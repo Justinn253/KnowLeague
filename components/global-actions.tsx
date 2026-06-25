@@ -15,6 +15,7 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 export function GlobalActions() {
   const [profileHref, setProfileHref] = useState('/login');
   const [profileLabel, setProfileLabel] = useState('Profile');
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
@@ -31,6 +32,7 @@ export function GlobalActions() {
       if (!session) {
         setProfileHref('/login');
         setProfileLabel('Profile');
+        setProfileAvatarUrl(null);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
         return;
@@ -41,9 +43,9 @@ export function GlobalActions() {
       setProfileHref('/profile');
       const { data } = await supabase
         .from('profiles')
-        .select('username, display_name, active_session_id')
+        .select('username, display_name, active_session_id, avatar_url')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null }>();
+        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null; avatar_url: string | null }>();
 
       const sessionId = getAuthSessionId(session.access_token);
       if (data?.active_session_id && sessionId && data.active_session_id !== sessionId) {
@@ -58,6 +60,7 @@ export function GlobalActions() {
         await supabase.auth.signOut({ scope: 'local' });
         setProfileHref('/login');
         setProfileLabel('Profile');
+        setProfileAvatarUrl(null);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
         setProfileOpen(false);
@@ -69,6 +72,7 @@ export function GlobalActions() {
         signInCheckTimeout = null;
       }
       setProfileLabel(data?.display_name || data?.username || 'Profile');
+      setProfileAvatarUrl(data?.avatar_url ?? null);
     };
 
     supabase.auth.getSession().then(({ data }) => {
@@ -129,7 +133,14 @@ export function GlobalActions() {
           onClick={() => setProfileOpen(true)}
           className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900"
         >
-          <UserCircle size={18} />
+          {profileAvatarUrl ? (
+            <span
+              className="h-5 w-5 rounded-full border border-white/10 bg-slate-900 bg-cover bg-center"
+              style={{ backgroundImage: `url(${profileAvatarUrl})` }}
+            />
+          ) : (
+            <UserCircle size={18} />
+          )}
           <span className="max-w-32 truncate">{profileLabel}</span>
           {pendingFriendRequests > 0 ? (
             <span className="absolute -right-2 -top-2 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">

@@ -631,6 +631,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                     id: player.id,
                     authUserId: player.auth_user_id,
                     displayName: player.display_name,
+                    avatarUrl: player.avatar_url,
                     role: player.role,
                     isCurrentUser: player.is_requesting_player,
                     isHost: player.id === view.lobby.host_player_id,

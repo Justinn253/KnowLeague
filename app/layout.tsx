@@ -5,7 +5,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'KnowLeague',
-  description: 'League of Legends quiz games and daily knowledge challenges',
+  description: 'League of Legends trivia and account statistics viewing',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

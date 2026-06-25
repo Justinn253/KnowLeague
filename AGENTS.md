@@ -28,6 +28,7 @@
 - Preserve established game behavior and visual consistency unless the request changes it.
 - Use generated local catalogues during gameplay; do not fetch full Riot or CommunityDragon datasets at runtime.
 - Prefer existing shared helpers before adding another implementation.
+- All chat surfaces must use the shared cosmetic helpers in `lib/chat-colors.ts`. Store the sender's chat color and border on each message at send time, and render from the message snapshot so both sender and receiver see identical styling and older messages keep their original cosmetics. Apply chat color and border through the inline style helpers from that file, not Tailwind color classes.
 - Treat multiplayer session behavior as a cross-game contract. Apply relevant lobby, presence, reconnect, moderation, discovery, and lifecycle changes to every multiplayer game unless a game-specific rule makes the behavior inappropriate.
 - Do not expose service-role keys or other server secrets to client components.
 

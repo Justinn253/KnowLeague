@@ -81,6 +81,25 @@ function formatRankedDivision(tier: string, rank: string) {
     : `${tier} ${rank}`;
 }
 
+function formatChallengeLevel(level: string | null | undefined) {
+  return level?.trim().toUpperCase() || 'UNKNOWN';
+}
+
+function challengeLevelStyle(level: string | null | undefined) {
+  return getLeagueRankStyle(formatChallengeLevel(level));
+}
+
+function ChallengeLevelText({ level }: { level: string | null | undefined }) {
+  const label = formatChallengeLevel(level);
+  const style = challengeLevelStyle(level);
+
+  return (
+    <span>
+      Level <span className={`font-black ${style.text}`}>{label}</span>
+    </span>
+  );
+}
+
 function rankTierKey(tier: string): LeagueRankTier {
   const normalized = tier.toLowerCase();
   if (
@@ -1403,26 +1422,33 @@ function ChallengesTab({ data }: { data: RiotAccountViewerResponse }) {
     );
   }
 
+  const totalPointsStyle = challengeLevelStyle(data.challenges.totalPoints?.level);
+
   return (
     <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
       <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Challenges</p>
         <h2 className="mt-2 text-2xl font-bold text-white">Progress summary</h2>
-        <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+        <div className={`mt-5 rounded-2xl border p-4 ${totalPointsStyle.selected}`}>
           <p className="text-sm text-slate-400">Total points</p>
           <p className="mt-2 text-3xl font-black text-white">{formatNumber(data.challenges.totalPoints?.current)}</p>
-          <p className="mt-1 text-sm text-slate-400">Level {data.challenges.totalPoints?.level ?? 'Unknown'}</p>
+          <p className="mt-1 text-sm text-slate-300"><ChallengeLevelText level={data.challenges.totalPoints?.level} /></p>
         </div>
         <div className="mt-4 grid gap-3">
-          {data.challenges.categoryPoints.map((category) => (
-            <div key={category.category} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-bold capitalize text-white">{category.category.toLowerCase()}</p>
-                <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300">{category.level ?? 'Unknown'}</span>
+          {data.challenges.categoryPoints.map((category) => {
+            const style = challengeLevelStyle(category.level);
+            return (
+              <div key={category.category} className={`rounded-2xl border p-4 ${style.selected}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-bold capitalize text-white">{category.category.toLowerCase()}</p>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${style.border} ${style.bg} ${style.text}`}>
+                    {formatChallengeLevel(category.level)}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-slate-300">{formatNumber(category.current)} points</p>
               </div>
-              <p className="mt-2 text-sm text-slate-400">{formatNumber(category.current)} points</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -1430,17 +1456,29 @@ function ChallengesTab({ data }: { data: RiotAccountViewerResponse }) {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Top challenge values</p>
         <h2 className="mt-2 text-2xl font-bold text-white">Current rankings</h2>
         <div className="mt-5 grid gap-3">
-          {data.challenges.topChallenges.map((challenge) => (
-            <div key={challenge.challengeId} className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div>
-                <p className="font-bold text-white">Challenge #{challenge.challengeId}</p>
-                <p className="mt-1 text-sm text-slate-400">Level {challenge.level ?? 'Unknown'} - Value {formatNumber(challenge.value)}</p>
+          {data.challenges.topChallenges.map((challenge) => {
+            const style = challengeLevelStyle(challenge.level);
+            const challengeTitle = challenge.description
+              ? `${challenge.name ?? `Challenge #${challenge.challengeId}`}: ${challenge.description}`
+              : challenge.name ?? `Challenge #${challenge.challengeId}`;
+            return (
+              <div
+                key={challenge.challengeId}
+                title={challengeTitle}
+                className={`grid gap-3 rounded-2xl border p-4 sm:grid-cols-[1fr_auto] sm:items-center ${style.selected} ${challenge.description ? 'cursor-help' : ''}`}
+              >
+                <div>
+                  <p className="font-bold text-white">{challenge.name ?? `Challenge #${challenge.challengeId}`}</p>
+                  <p className="mt-1 text-sm text-slate-300">
+                    <ChallengeLevelText level={challenge.level} /> <span className="text-slate-500">-</span> Value {formatNumber(challenge.value)}
+                  </p>
+                </div>
+                <p className={`text-sm font-black ${style.text}`}>
+                  {challenge.percentile === null ? 'No percentile' : `${Math.round(challenge.percentile * 1000) / 10} percentile`}
+                </p>
               </div>
-              <p className="text-sm font-semibold text-amber-300">
-                {challenge.percentile === null ? 'No percentile' : `${Math.round(challenge.percentile * 1000) / 10} percentile`}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>

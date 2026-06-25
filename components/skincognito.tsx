@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Search, Users } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
+import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 
 type SkinAnswer = {
   id: string;
@@ -37,7 +38,10 @@ type ChatGroup = {
   playerId: string | null;
   label: string;
   alignRight: boolean;
-  colorClassName: string;
+  nameStyle: CSSProperties;
+  avatarUrl: string | null;
+  chatColor: string;
+  chatBorder: string;
   messages: string[];
 };
 
@@ -128,24 +132,29 @@ function isScrolledToBottom(element: HTMLElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 12;
 }
 
-function getChatColorClassName(view: SkincognitoLobbyView, playerId?: string | null) {
+function getChatNameStyleForPlayer(view: SkincognitoLobbyView, playerId?: string | null) {
   if (!playerId) {
-    return 'text-amber-300';
+    return getChatNameStyle('amber');
+  }
+
+  const player = getPlayerById(view, playerId);
+  if (player?.chat_color) {
+    return getChatNameStyle(player.chat_color);
   }
 
   if (playerId === view.lobby.player_one_id) {
-    return 'text-sky-300';
+    return { color: '#7dd3fc' };
   }
 
   if (playerId === view.lobby.player_two_id) {
-    return 'text-red-300';
+    return { color: '#fca5a5' };
   }
 
   const spectatorIndex = view.players
     .filter((player) => player.role === 'spectator')
     .findIndex((player) => player.id === playerId);
-  const spectatorColors = ['text-emerald-300', 'text-violet-300', 'text-amber-300', 'text-cyan-300', 'text-pink-300'];
-  return spectatorColors[Math.max(0, spectatorIndex) % spectatorColors.length];
+  const spectatorColors = ['#6ee7b7', '#c4b5fd', '#fcd34d', '#67e8f9', '#f9a8d4'];
+  return { color: spectatorColors[Math.max(0, spectatorIndex) % spectatorColors.length] };
 }
 
 function getNextAvailableCategory(correctCategories: Set<SkincognitoCategoryId>) {
@@ -164,7 +173,16 @@ function createChatGroups(
     const alignRight = Boolean(chat.player_id && chat.player_id === requestingPlayerId);
     const previousGroup = groups[groups.length - 1];
 
-    if (previousGroup && previousGroup.playerId === chat.player_id && previousGroup.label === label) {
+    const chatColor = normalizeChatColor(chat.chat_color);
+    const chatBorder = normalizeChatBorder(chat.chat_border);
+
+    if (
+      previousGroup &&
+      previousGroup.playerId === chat.player_id &&
+      previousGroup.label === label &&
+      previousGroup.chatColor === chatColor &&
+      previousGroup.chatBorder === chatBorder
+    ) {
       previousGroup.messages.push(chat.message);
       return groups;
     }
@@ -176,7 +194,10 @@ function createChatGroups(
         playerId: chat.player_id,
         label,
         alignRight,
-        colorClassName: getChatColorClassName(view, chat.player_id),
+        nameStyle: getChatNameStyleForPlayer(view, chat.player_id),
+        avatarUrl: actor?.avatar_url ?? null,
+        chatColor,
+        chatBorder,
         messages: [chat.message],
       },
     ];
@@ -321,6 +342,13 @@ export function Skincognito() {
   const bottomCorrectCategories = getCategoryCorrectSet(lobbyView, bottomPlayer?.id);
   const isTurn = Boolean(requestingPlayer && lobbyView?.lobby.current_turn_player_id === requestingPlayer.id);
   const canSubmitAction = Boolean(lobbyView?.lobby.status === 'active' && requestingPlayer?.role !== 'spectator' && isTurn);
+  const lobbyProfileSubscriptionKey = useMemo(() => (
+    (lobbyView?.players ?? [])
+      .map((player) => player.auth_user_id)
+      .filter(Boolean)
+      .sort()
+      .join('|')
+  ), [lobbyView?.players]);
   const guessedValues = useMemo(() => new Set(
     (lobbyView?.actions ?? [])
       .filter((action) => action.player_id === requestingPlayer?.id && action.category_id === selectedCategory)
@@ -712,6 +740,7 @@ export function Skincognito() {
 
     const code = lobbyView.lobby.code;
     const nextClientId = clientId;
+    const lobbyAuthUserIds = new Set(lobbyProfileSubscriptionKey ? lobbyProfileSubscriptionKey.split('|') : []);
     const supabase = getOptionalSupabaseClient();
     if (!supabase) {
       console.warn('Supabase realtime is not available because public Supabase environment variables are not loaded.');
@@ -739,6 +768,29 @@ export function Skincognito() {
           }, 100);
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+        },
+        (payload) => {
+          const profileId = (payload.new as { id?: string }).id;
+          if (!profileId || !lobbyAuthUserIds.has(profileId)) {
+            return;
+          }
+
+          if (realtimeRefreshTimeoutRef.current) {
+            window.clearTimeout(realtimeRefreshTimeoutRef.current);
+          }
+
+          realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+            realtimeRefreshTimeoutRef.current = null;
+            void refreshLobbyView(code, nextClientId);
+          }, 100);
+        },
+      )
       .subscribe();
 
     return () => {
@@ -749,7 +801,7 @@ export function Skincognito() {
 
       void supabase.removeChannel(channel);
     };
-  }, [clientId, lobbyView?.lobby.code, lobbyView?.lobby.id, lobbyView?.lobby.status, refreshLobbyView]);
+  }, [clientId, lobbyProfileSubscriptionKey, lobbyView?.lobby.code, lobbyView?.lobby.id, lobbyView?.lobby.status, refreshLobbyView]);
 
   const loadPublicLobbies = useCallback(async () => {
     try {
@@ -1148,6 +1200,7 @@ export function Skincognito() {
                     id: player.id,
                     authUserId: player.auth_user_id,
                     displayName: player.display_name,
+                    avatarUrl: player.avatar_url,
                     role: player.role,
                     isCurrentUser: player.is_requesting_player,
                     isHost: player.id === lobbyView.lobby.host_player_id,
@@ -1402,34 +1455,63 @@ export function Skincognito() {
                     className="mt-3 grid flex-1 content-start gap-3 overflow-y-auto pr-5"
                   >
                     {chatGroups.map((group) => {
+                      const bubbleStyle = getChatBubbleStyle(group.chatColor, group.chatBorder);
+                      const inviteButtonStyle = getChatInviteButtonStyle(group.chatColor, group.alignRight);
                       return (
                         <div
                           key={group.key}
-                          className={`max-w-[78%] ${group.alignRight ? 'ml-auto mr-3 text-right' : 'mr-auto text-left'}`}
+                          className={`min-w-0 max-w-[78%] ${group.alignRight ? 'ml-auto mr-3 text-right' : 'mr-auto text-left'}`}
                         >
-                          <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${group.colorClassName}`}>
-                            {group.label}
-                          </p>
-                          <div className="mt-1 grid gap-1 text-sm text-slate-200">
-                            {group.messages.map((chatMessage, index) => {
-                              const inviteUrl = getSkincognitoInviteUrl(chatMessage);
-                              return inviteUrl ? (
-                                <div key={`${group.key}-${index}`} className={`flex flex-wrap items-center gap-2 ${group.alignRight ? 'justify-end' : 'justify-start'}`}>
-                                  <span>Skincognito invite</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      window.location.href = inviteUrl;
-                                    }}
-                                    className="inline-flex min-h-8 items-center justify-center rounded-xl bg-amber-300 px-3 text-xs font-bold text-slate-950 transition hover:bg-amber-200"
-                                  >
-                                    Join Game
-                                  </button>
-                                </div>
-                              ) : (
-                                <p key={`${group.key}-${index}`}>{chatMessage}</p>
-                              );
-                            })}
+                          <div className={`flex items-end gap-2 ${group.alignRight ? 'flex-row-reverse' : ''}`}>
+                            <span
+                              className="mb-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-900 bg-cover bg-center text-xs font-black text-amber-200"
+                              style={group.avatarUrl ? { backgroundImage: `url(${group.avatarUrl})` } : undefined}
+                            >
+                              {group.avatarUrl ? null : group.label.slice(0, 1).toUpperCase()}
+                            </span>
+                            <div className={`min-w-0 ${group.alignRight ? 'text-right' : 'text-left'}`}>
+                              <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em]" style={group.nameStyle}>
+                                {group.label}
+                              </p>
+                              <div className={`grid gap-1 text-sm ${group.alignRight ? 'justify-items-end' : 'justify-items-start'}`}>
+                                {group.messages.map((chatMessage, index) => {
+                                  const inviteUrl = getSkincognitoInviteUrl(chatMessage);
+                                  return inviteUrl ? (
+                                    <div
+                                      key={`${group.key}-${index}`}
+                                      className={`max-w-full break-words rounded-xl px-3 py-2 font-medium [overflow-wrap:anywhere] ${group.alignRight ? 'text-right' : 'text-left'}`}
+                                      style={bubbleStyle}
+                                    >
+                                      <div className={`flex flex-wrap items-center gap-2 ${group.alignRight ? 'justify-end' : 'justify-start'}`}>
+                                      <span>Skincognito invite</span>
+                                      <button
+                                        type="button"
+                                        disabled={group.alignRight}
+                                        onClick={() => {
+                                          if (group.alignRight) return;
+                                          window.location.href = inviteUrl;
+                                        }}
+                                        className={`inline-flex min-h-8 items-center justify-center rounded-xl px-3 text-xs font-bold transition ${
+                                          group.alignRight ? 'cursor-not-allowed' : ''
+                                        }`}
+                                        style={inviteButtonStyle}
+                                      >
+                                        {group.alignRight ? 'Sent' : 'Join Game'}
+                                      </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p
+                                      key={`${group.key}-${index}`}
+                                      className={`max-w-full break-words rounded-xl px-3 py-2 font-medium [overflow-wrap:anywhere] ${group.alignRight ? 'text-right' : 'text-left'}`}
+                                      style={bubbleStyle}
+                                    >
+                                      {chatMessage}
+                                    </p>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       );

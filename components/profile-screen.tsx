@@ -4,7 +4,8 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Check,
-  Gamepad2,
+  Eye,
+  EyeOff,
   KeyRound,
   Link as LinkIcon,
   LogOut,
@@ -12,12 +13,24 @@ import {
   UserPlus,
   Users,
   Search,
+  Upload,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
+import { loadPlayerGameStats, type GameId, type PlayerGameStats } from '@/lib/game-storage';
+import {
+  type ChatBorder,
+  CHAT_COLOR_VALUES,
+  DEFAULT_CHAT_BORDER,
+  getChatBorderSwatchStyle,
+  getChatBubbleStyle,
+  getChatSwatchStyle,
+  normalizeChatBorder,
+  normalizeChatColor,
+} from '@/lib/chat-colors';
 
 type ProfileRecord = {
   username: string;
@@ -25,6 +38,9 @@ type ProfileRecord = {
   about_me: string;
   friends_count: number;
   friend_requests_open: boolean;
+  avatar_url: string | null;
+  chat_color: string;
+  chat_border: string;
   discord_username: string | null;
   riot_account_name: string | null;
   created_at: string;
@@ -46,6 +62,8 @@ type CachedProfileScreenState = {
   profile: ProfileRecord | null;
   usernameDraft: string;
   aboutDraft: string;
+  chatColorDraft: string;
+  chatBorderDraft: string;
   friendRequestsOpen: boolean;
   incomingRequests: IncomingRequest[];
 };
@@ -58,6 +76,17 @@ type FriendCandidate = {
 };
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,16}$/;
+const AVATAR_BUCKET = 'profile-avatars';
+const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
+const CHAT_COLOR_OPTIONS = CHAT_COLOR_VALUES.map((value) => ({ value }));
+const CHAT_BORDER_OPTIONS = CHAT_COLOR_VALUES.map((value) => ({ value }));
+const PROFILE_COSMETICS_DATABASE_MESSAGE = 'Profile cosmetics cannot be saved because the database is missing the latest profile cosmetics columns. Apply the latest profile migrations, then save again.';
+const PROFILE_STATS_GAMES: Array<{ id: GameId; title: string; note: string }> = [
+  { id: 'ability-blitz', title: 'Ability Blitz', note: 'Solo completions' },
+  { id: 'skin-champion', title: 'Skin Champion', note: 'Solo completions' },
+  { id: 'skindle', title: 'Skindle', note: 'Daily solves' },
+  { id: 'skincognito', title: 'Skincognito', note: 'Stats are not tracked yet' },
+];
 let cachedProfileScreenState: CachedProfileScreenState | null = null;
 
 type ProfileScreenProps = {
@@ -83,6 +112,24 @@ function formatProfileDate(value?: string | null) {
 
 function openPublicProfileOverlay(username: string) {
   window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
+}
+
+function isMissingProfileColumnError(error: unknown, column: string) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return (maybeError.code === '42703' || maybeError.code === 'PGRST204') && text.includes(column);
+}
+
+function getTopValue<TValue extends { count: number }>(values: Record<string, TValue>) {
+  return Object.values(values).sort((left, right) => right.count - left.count)[0] ?? null;
+}
+
+function formatAverage(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function ConnectionCard({
@@ -133,26 +180,59 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [usernameDraft, setUsernameDraft] = useState('');
   const [aboutDraft, setAboutDraft] = useState('');
+  const [chatColorDraft, setChatColorDraft] = useState('amber');
+  const [chatBorderDraft, setChatBorderDraft] = useState(DEFAULT_CHAT_BORDER);
+  const [cosmeticsMenuOpen, setCosmeticsMenuOpen] = useState(false);
+  const [pendingChatColor, setPendingChatColor] = useState('amber');
+  const [pendingChatBorder, setPendingChatBorder] = useState<ChatBorder>(DEFAULT_CHAT_BORDER);
+  const [cosmeticsPreviewColor, setCosmeticsPreviewColor] = useState<string | null>(null);
+  const [cosmeticsPreviewBorder, setCosmeticsPreviewBorder] = useState<string | null>(null);
   const [friendRequestsOpen, setFriendRequestsOpen] = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
+  const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
+  const [accountInfoVisible, setAccountInfoVisible] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarCropSource, setAvatarCropSource] = useState<string | null>(null);
+  const [avatarDraftBlob, setAvatarDraftBlob] = useState<Blob | null>(null);
+  const [avatarDraftUrl, setAvatarDraftUrl] = useState<string | null>(null);
+  const [avatarAction, setAvatarAction] = useState<'unchanged' | 'replace' | 'remove'>('unchanged');
+  const [avatarCropScale, setAvatarCropScale] = useState(1);
+  const [avatarCropOffset, setAvatarCropOffset] = useState({ x: 0, y: 0 });
+  const [avatarCropNaturalSize, setAvatarCropNaturalSize] = useState({ width: 0, height: 0 });
+  const [avatarDragStart, setAvatarDragStart] = useState<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null);
   const [requestsOpen, setRequestsOpen] = useState(false);
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [friendSearchResults, setFriendSearchResults] = useState<FriendCandidate[]>([]);
   const [friendSearchContext, setFriendSearchContext] = useState<{ candidate: FriendCandidate; x: number; y: number } | null>(null);
   const addFriendPanelRef = useRef<HTMLDivElement | null>(null);
+  const cosmeticsMenuRef = useRef<HTMLDivElement | null>(null);
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const avatarCropImageRef = useRef<HTMLImageElement | null>(null);
+  const avatarDraftUrlRef = useRef<string | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const cleanUsernameDraft = usernameDraft.trim().toLowerCase();
   const cleanAboutDraft = aboutDraft.trim();
+  const hasAvatarChanges = avatarAction !== 'unchanged';
+  const avatarPreviewUrl = avatarAction === 'replace'
+    ? avatarDraftUrl
+    : avatarAction === 'remove'
+      ? null
+      : profile?.avatar_url ?? null;
   const hasProfileChanges = profile ? (
     cleanUsernameDraft !== profile.username ||
-    cleanAboutDraft !== profile.about_me
+    cleanAboutDraft !== profile.about_me ||
+    chatColorDraft !== profile.chat_color ||
+    chatBorderDraft !== profile.chat_border
   ) : false;
   const hasPreferenceChanges = profile ? friendRequestsOpen !== profile.friend_requests_open : false;
-  const hasAnySaveChanges = hasProfileChanges || hasPreferenceChanges;
+  const hasAnySaveChanges = hasProfileChanges || hasPreferenceChanges || hasAvatarChanges;
+  const previewChatColor = normalizeChatColor(cosmeticsPreviewColor ?? pendingChatColor);
+  const previewChatBorder = normalizeChatBorder(cosmeticsPreviewBorder ?? pendingChatBorder);
+  const previewBubbleStyle = getChatBubbleStyle(previewChatColor, previewChatBorder);
 
   const hydrateFromCache = useCallback((cachedState: CachedProfileScreenState) => {
     setUserId(cachedState.userId);
@@ -160,6 +240,8 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     setProfile(cachedState.profile);
     setUsernameDraft(cachedState.usernameDraft);
     setAboutDraft(cachedState.aboutDraft);
+    setChatColorDraft(cachedState.chatColorDraft);
+    setChatBorderDraft(normalizeChatBorder(cachedState.chatBorderDraft));
     setFriendRequestsOpen(cachedState.friendRequestsOpen);
     setIncomingRequests(cachedState.incomingRequests);
     setBusy(false);
@@ -227,11 +309,31 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
 
       setUserId(data.user.id);
       setEmail(data.user.email ?? '');
-      const { data: profileData, error: profileError } = await supabase
+      let { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('username, display_name, about_me, friends_count, friend_requests_open, created_at')
+        .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
         .eq('id', data.user.id)
         .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
+      if (profileError && isMissingProfileColumnError(profileError, 'chat_color')) {
+        const fallback = await supabase
+          .from('profiles')
+          .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, created_at')
+          .eq('id', data.user.id)
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_color' | 'chat_border'>>();
+
+        profileData = fallback.data ? { ...fallback.data, chat_color: 'amber', chat_border: DEFAULT_CHAT_BORDER } : null;
+        profileError = fallback.error;
+      }
+      if (profileError && isMissingProfileColumnError(profileError, 'chat_border')) {
+        const fallback = await supabase
+          .from('profiles')
+          .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, created_at')
+          .eq('id', data.user.id)
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_border'>>();
+
+        profileData = fallback.data ? { ...fallback.data, chat_color: normalizeChatColor(fallback.data.chat_color), chat_border: DEFAULT_CHAT_BORDER } : null;
+        profileError = fallback.error;
+      }
       const { data: privateData } = await supabase
         .from('profile_private_details')
         .select('discord_username, riot_account_name')
@@ -243,12 +345,16 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       } else {
         const nextProfile = profileData ? {
           ...profileData,
+          chat_color: normalizeChatColor(profileData.chat_color),
+          chat_border: normalizeChatBorder(profileData.chat_border),
           discord_username: privateData?.discord_username ?? null,
           riot_account_name: privateData?.riot_account_name ?? null,
         } : null;
         setProfile(nextProfile);
         setUsernameDraft(profileData?.username ?? '');
         setAboutDraft(profileData?.about_me ?? '');
+        setChatColorDraft(normalizeChatColor(profileData?.chat_color));
+        setChatBorderDraft(normalizeChatBorder(profileData?.chat_border));
         setFriendRequestsOpen(profileData?.friend_requests_open ?? true);
         cachedProfileScreenState = {
           userId: data.user.id,
@@ -256,6 +362,8 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
           profile: nextProfile,
           usernameDraft: profileData?.username ?? '',
           aboutDraft: profileData?.about_me ?? '',
+          chatColorDraft: normalizeChatColor(profileData?.chat_color),
+          chatBorderDraft: normalizeChatBorder(profileData?.chat_border),
           friendRequestsOpen: profileData?.friend_requests_open ?? true,
           incomingRequests: cachedProfileScreenState?.userId === data.user.id ? cachedProfileScreenState.incomingRequests : [],
         };
@@ -298,6 +406,26 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     };
   }, [refreshFriendDashboard, userId]);
 
+  const replaceAvatarDraft = (blob: Blob, objectUrl: string) => {
+    if (avatarDraftUrlRef.current) {
+      URL.revokeObjectURL(avatarDraftUrlRef.current);
+    }
+    avatarDraftUrlRef.current = objectUrl;
+    setAvatarDraftBlob(blob);
+    setAvatarDraftUrl(objectUrl);
+    setAvatarAction('replace');
+  };
+
+  const resetAvatarDraft = () => {
+    if (avatarDraftUrlRef.current) {
+      URL.revokeObjectURL(avatarDraftUrlRef.current);
+    }
+    avatarDraftUrlRef.current = null;
+    setAvatarDraftBlob(null);
+    setAvatarDraftUrl(null);
+    setAvatarAction('unchanged');
+  };
+
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const supabase = getOptionalSupabaseClient();
@@ -320,18 +448,77 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     setSaving(true);
     setMessage('');
 
-    const { data, error } = await supabase
+    let nextAvatarUrl = profile?.avatar_url ?? null;
+    if (avatarAction === 'replace') {
+      if (!avatarDraftBlob) {
+        setSaving(false);
+        setMessage('Choose a profile picture before saving.');
+        return;
+      }
+
+      setAvatarUploading(true);
+      const path = `${userId}/${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(path, avatarDraftBlob, { cacheControl: '3600', contentType: 'image/png', upsert: true });
+      setAvatarUploading(false);
+
+      if (uploadError) {
+        setSaving(false);
+        setMessage(uploadError.message);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+      nextAvatarUrl = publicUrlData.publicUrl;
+    } else if (avatarAction === 'remove') {
+      nextAvatarUrl = null;
+    }
+
+    const profileUpdate = {
+      username: cleanUsername,
+      display_name: cleanUsername,
+      about_me: aboutDraft.trim().slice(0, 500),
+      friend_requests_open: friendRequestsOpen,
+      avatar_url: nextAvatarUrl,
+      chat_color: normalizeChatColor(chatColorDraft),
+      chat_border: normalizeChatBorder(chatBorderDraft),
+      updated_at: new Date().toISOString(),
+    };
+    let { data, error } = await supabase
       .from('profiles')
-      .update({
-        username: cleanUsername,
-        display_name: cleanUsername,
-        about_me: aboutDraft.trim().slice(0, 500),
-        friend_requests_open: friendRequestsOpen,
-        updated_at: new Date().toISOString(),
-      })
+      .update(profileUpdate)
       .eq('id', userId)
-      .select('username, display_name, about_me, friends_count, friend_requests_open, created_at')
+      .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
       .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
+    if (
+      error &&
+      (isMissingProfileColumnError(error, 'chat_color') || isMissingProfileColumnError(error, 'chat_border'))
+    ) {
+      if (
+        profileUpdate.chat_color !== normalizeChatColor(profile?.chat_color) ||
+        profileUpdate.chat_border !== normalizeChatBorder(profile?.chat_border)
+      ) {
+        setSaving(false);
+        setMessage(PROFILE_COSMETICS_DATABASE_MESSAGE);
+        return;
+      }
+
+      const { chat_color: _chatColor, chat_border: _chatBorder, ...fallbackUpdate } = profileUpdate;
+      const fallback = await supabase
+        .from('profiles')
+        .update(fallbackUpdate)
+        .eq('id', userId)
+        .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, created_at')
+        .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_color' | 'chat_border'>>();
+
+      data = fallback.data ? {
+        ...fallback.data,
+        chat_color: profile?.chat_color ?? 'amber',
+        chat_border: profile?.chat_border ?? DEFAULT_CHAT_BORDER,
+      } : null;
+      error = fallback.error;
+    }
 
     setSaving(false);
 
@@ -340,25 +527,130 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       return;
     }
 
+    if (!data) {
+      setMessage('Unable to update profile.');
+      return;
+    }
+
     const nextProfile = {
       ...data,
+      chat_color: normalizeChatColor(data.chat_color),
+      chat_border: normalizeChatBorder(data.chat_border),
       discord_username: profile?.discord_username ?? null,
       riot_account_name: profile?.riot_account_name ?? null,
     };
     setProfile(nextProfile);
     setUsernameDraft(data.username);
     setAboutDraft(data.about_me);
+    setChatColorDraft(normalizeChatColor(data.chat_color));
+    setChatBorderDraft(normalizeChatBorder(data.chat_border));
     setFriendRequestsOpen(data.friend_requests_open);
+    resetAvatarDraft();
     cachedProfileScreenState = {
       userId,
       email,
       profile: nextProfile,
       usernameDraft: data.username,
       aboutDraft: data.about_me,
+      chatColorDraft: normalizeChatColor(data.chat_color),
+      chatBorderDraft: normalizeChatBorder(data.chat_border),
       friendRequestsOpen: data.friend_requests_open,
       incomingRequests,
     };
     setMessage('Profile updated.');
+  };
+
+  const closeAvatarCropper = () => {
+    if (avatarCropSource) {
+      URL.revokeObjectURL(avatarCropSource);
+    }
+    setAvatarCropSource(null);
+    setAvatarCropScale(1);
+    setAvatarCropOffset({ x: 0, y: 0 });
+    setAvatarCropNaturalSize({ width: 0, height: 0 });
+    setAvatarDragStart(null);
+  };
+
+  const openAvatarCropper = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setMessage('Profile picture must be an image file.');
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_SIZE_BYTES) {
+      setMessage('Profile picture must be 2 MB or smaller.');
+      return;
+    }
+
+    if (avatarCropSource) {
+      URL.revokeObjectURL(avatarCropSource);
+    }
+
+    setMessage('');
+    setAvatarCropSource(URL.createObjectURL(file));
+    setAvatarCropScale(1);
+    setAvatarCropOffset({ x: 0, y: 0 });
+    setAvatarCropNaturalSize({ width: 0, height: 0 });
+  };
+
+  const clearAvatar = () => {
+    if (!avatarPreviewUrl) {
+      return;
+    }
+
+    const confirmed = window.confirm('Remove your profile picture? This change will not be saved until you click Save Profile.');
+    if (!confirmed) {
+      return;
+    }
+
+    if (avatarDraftUrlRef.current) {
+      URL.revokeObjectURL(avatarDraftUrlRef.current);
+    }
+    avatarDraftUrlRef.current = null;
+    setAvatarDraftBlob(null);
+    setAvatarDraftUrl(null);
+    setAvatarAction('remove');
+    setMessage('Profile picture will be removed when you save.');
+  };
+
+  const saveCroppedAvatar = () => {
+    const image = avatarCropImageRef.current;
+    if (!image || avatarCropNaturalSize.width <= 0 || avatarCropNaturalSize.height <= 0) {
+      setMessage('Unable to read the selected image.');
+      return;
+    }
+
+    const previewSize = 288;
+    const outputSize = 512;
+    const coverScale = Math.max(previewSize / avatarCropNaturalSize.width, previewSize / avatarCropNaturalSize.height) * avatarCropScale;
+    const displayWidth = avatarCropNaturalSize.width * coverScale;
+    const displayHeight = avatarCropNaturalSize.height * coverScale;
+    const outputScale = outputSize / previewSize;
+    const drawX = (previewSize / 2 + avatarCropOffset.x - displayWidth / 2) * outputScale;
+    const drawY = (previewSize / 2 + avatarCropOffset.y - displayHeight / 2) * outputScale;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = outputSize;
+    canvas.height = outputSize;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      setMessage('Unable to prepare the cropped image.');
+      return;
+    }
+
+    context.fillStyle = '#020617';
+    context.fillRect(0, 0, outputSize, outputSize);
+    context.drawImage(image, drawX, drawY, displayWidth * outputScale, displayHeight * outputScale);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setMessage('Unable to prepare the cropped image.');
+        return;
+      }
+
+      replaceAvatarDraft(blob, URL.createObjectURL(blob));
+      closeAvatarCropper();
+      setMessage('Profile picture ready. Save Profile to apply it.');
+    }, 'image/png');
   };
 
   const respondToRequest = async (requestId: string, action: 'accept' | 'decline') => {
@@ -427,6 +719,56 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     return () => document.removeEventListener('click', closeContext);
   }, []);
 
+  useEffect(() => {
+    setCosmeticsPreviewColor(null);
+    setCosmeticsPreviewBorder(null);
+
+    if (!cosmeticsMenuOpen) {
+      return undefined;
+    }
+
+    const closeCosmeticsMenu = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && cosmeticsMenuRef.current?.contains(target)) {
+        return;
+      }
+
+      setCosmeticsMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCosmeticsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeCosmeticsMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeCosmeticsMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [cosmeticsMenuOpen]);
+
+  useEffect(() => {
+    if (activeTab !== 'stats') {
+      return;
+    }
+
+    setPlayerStats(PROFILE_STATS_GAMES.map((game) => loadPlayerGameStats(game.id)));
+  }, [activeTab]);
+
+  useEffect(() => () => {
+    if (avatarCropSource) {
+      URL.revokeObjectURL(avatarCropSource);
+    }
+  }, [avatarCropSource]);
+
+  useEffect(() => () => {
+    if (avatarDraftUrlRef.current) {
+      URL.revokeObjectURL(avatarDraftUrlRef.current);
+    }
+  }, []);
+
   const sendFriendRequest = async (targetUserId: string) => {
     const supabase = getOptionalSupabaseClient();
     const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
@@ -469,12 +811,70 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     setMessage(error ? error.message : 'Password reset email sent.');
   };
 
+  const connectDiscord = async () => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      setMessage('Login required.');
+      return;
+    }
+
+    setMessage('');
+    const response = await fetch('/api/profile/discord/start', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    });
+    const body = await response.json();
+    if (!response.ok || typeof body.url !== 'string') {
+      setMessage(body.error ?? 'Unable to start Discord linking.');
+      return;
+    }
+
+    window.location.href = body.url;
+  };
+
+  const unlinkDiscord = async () => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      setMessage('Login required.');
+      return;
+    }
+
+    setMessage('');
+    const response = await fetch('/api/profile/discord/unlink', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      setMessage(body.error ?? 'Unable to unlink Discord.');
+      return;
+    }
+
+    setProfile((current) => {
+      const nextProfile = current ? { ...current, discord_username: null } : current;
+      if (cachedProfileScreenState?.userId === userId) {
+        cachedProfileScreenState = { ...cachedProfileScreenState, profile: nextProfile };
+      }
+      return nextProfile;
+    });
+    setMessage('Discord unlinked.');
+  };
+
   const signOut = async () => {
     const supabase = getOptionalSupabaseClient();
     await forfeitStoredMultiplayerSessions();
     await supabase?.auth.signOut();
     router.push('/login');
   };
+
+  const avatarPreviewSize = 288;
+  const avatarCoverScale = avatarCropNaturalSize.width > 0 && avatarCropNaturalSize.height > 0
+    ? Math.max(avatarPreviewSize / avatarCropNaturalSize.width, avatarPreviewSize / avatarCropNaturalSize.height) * avatarCropScale
+    : 1;
+  const avatarDisplayWidth = avatarCropNaturalSize.width * avatarCoverScale;
+  const avatarDisplayHeight = avatarCropNaturalSize.height * avatarCoverScale;
 
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
@@ -671,6 +1071,160 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
 
               {activeTab === 'profile' ? (
                 <form onSubmit={saveProfile} className="mt-6 grid gap-4">
+                  <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-slate-950/80 p-4">
+                    <div className="relative shrink-0">
+                      {avatarPreviewUrl ? (
+                        <button
+                          type="button"
+                          onClick={clearAvatar}
+                          disabled={avatarUploading || saving}
+                          aria-label="Remove profile picture"
+                          title="Remove your profile picture when you click Save Profile."
+                          className="absolute -right-1 -top-1 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-slate-950 text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <X size={14} />
+                        </button>
+                      ) : null}
+                      <div
+                        className="group relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-slate-900 bg-cover bg-center text-3xl font-black text-amber-200"
+                        style={avatarPreviewUrl ? { backgroundImage: `url(${avatarPreviewUrl})` } : undefined}
+                      >
+                        {avatarPreviewUrl ? null : (profile?.display_name || profile?.username || '?').slice(0, 1).toUpperCase()}
+                        <button
+                          type="button"
+                          onClick={() => avatarInputRef.current?.click()}
+                          disabled={avatarUploading || saving}
+                          aria-label="Upload profile picture"
+                          className="absolute inset-0 flex items-center justify-center bg-slate-950/70 text-white opacity-0 transition group-hover:opacity-100 disabled:cursor-not-allowed"
+                        >
+                          <Upload size={24} />
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) {
+                          openAvatarCropper(file);
+                        }
+                        event.target.value = '';
+                      }}
+                    />
+                    <div className="h-28 w-px shrink-0 bg-white/10" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Profile Cosmetics</p>
+                      <div ref={cosmeticsMenuRef} className="mt-3 flex flex-wrap gap-3">
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPendingChatColor(chatColorDraft);
+                              setPendingChatBorder(chatBorderDraft);
+                              setCosmeticsMenuOpen((current) => !current);
+                            }}
+                            className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-full border border-white/10 bg-slate-900 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-slate-800"
+                            aria-label="Choose chat cosmetics"
+                            aria-expanded={cosmeticsMenuOpen}
+                          >
+                            Chat Cosmetics
+                            <span
+                              className="h-5 w-5 rounded-full"
+                              style={getChatSwatchStyle(chatColorDraft)}
+                            />
+                            <span
+                              className={`h-5 w-5 rounded-full border ${
+                                chatBorderDraft === DEFAULT_CHAT_BORDER ? 'border-slate-950' : 'border-white/20'
+                              }`}
+                              style={{
+                                backgroundColor: '#0f172a',
+                                borderColor: getChatBorderSwatchStyle(chatBorderDraft).backgroundColor,
+                                borderWidth: '2px',
+                              }}
+                            />
+                          </button>
+                          {cosmeticsMenuOpen ? (
+                            <div className="absolute left-0 top-11 z-30 grid w-[42rem] grid-cols-[12rem_1px_12rem_minmax(12rem,1fr)] gap-3 rounded-2xl border border-white/10 bg-slate-950 p-3">
+                              <div>
+                                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Chat color</p>
+                                <div className="grid grid-cols-5 gap-2">
+                                  {CHAT_COLOR_OPTIONS.map((option) => (
+                                    <button
+                                      key={option.value}
+                                      type="button"
+                                      onPointerEnter={() => setCosmeticsPreviewColor(option.value)}
+                                      onFocus={() => setCosmeticsPreviewColor(option.value)}
+                                      onClick={() => {
+                                        setPendingChatColor(option.value);
+                                        setCosmeticsPreviewColor(option.value);
+                                      }}
+                                      aria-label={`Select ${option.value} chat color`}
+                                      className={`h-7 w-7 rounded-full border transition hover:scale-110 ${
+                                        pendingChatColor === option.value ? 'border-white ring-2 ring-amber-300' : 'border-white/20'
+                                      }`}
+                                      style={getChatSwatchStyle(option.value)}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="bg-white/10" />
+
+                              <div>
+                                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Chat Border</p>
+                                <div className="grid grid-cols-5 gap-2">
+                                  {CHAT_BORDER_OPTIONS.map((option) => (
+                                    <button
+                                      key={option.value}
+                                      type="button"
+                                      onPointerEnter={() => setCosmeticsPreviewBorder(option.value)}
+                                      onFocus={() => setCosmeticsPreviewBorder(option.value)}
+                                      onClick={() => {
+                                        const nextBorder = pendingChatBorder === option.value ? DEFAULT_CHAT_BORDER : option.value;
+                                        setPendingChatBorder(nextBorder);
+                                        setCosmeticsPreviewBorder(nextBorder);
+                                      }}
+                                      aria-label={`Select ${option.value} chat border`}
+                                      className={`h-7 w-7 rounded-full border transition hover:scale-110 ${
+                                        pendingChatBorder === option.value ? 'border-white ring-2 ring-amber-300' : 'border-white/20'
+                                      }`}
+                                      style={getChatBorderSwatchStyle(option.value)}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="grid min-w-0 gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setChatColorDraft(pendingChatColor);
+                                    setChatBorderDraft(pendingChatBorder);
+                                    setCosmeticsMenuOpen(false);
+                                  }}
+                                  className="min-h-9 rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200"
+                                >
+                                  Apply
+                                </button>
+                                <div className="flex min-w-0 items-center justify-center rounded-xl border border-white/10 bg-slate-900/70 p-3">
+                                  <div
+                                    className="w-full rounded-xl px-3 py-2 text-center text-sm font-medium"
+                                    style={previewBubbleStyle}
+                                  >
+                                    Sample message
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
                       <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Username</span>
@@ -709,12 +1263,34 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                   </label>
 
                   <div className="grid gap-4 md:grid-cols-2">
-                    <ConnectionCard
-                      title="Discord"
-                      value={getLinkedValue(profile?.discord_username)}
-                      description="Discord linking will support friend discovery, messaging, and social identity later."
-                      actionLabel="Link Discord Soon"
-                    />
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Discord</p>
+                          <p className="mt-2 text-lg font-bold text-white">{getLinkedValue(profile?.discord_username)}</p>
+                        </div>
+                        <span
+                          className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
+                            profile?.discord_username ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-500'
+                          }`}
+                        >
+                          {profile?.discord_username ? <Check size={17} /> : <LinkIcon size={17} />}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (profile?.discord_username) {
+                            void unlinkDiscord();
+                          } else {
+                            void connectDiscord();
+                          }
+                        }}
+                        className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-800"
+                      >
+                        {profile?.discord_username ? 'Unlink Discord' : 'Connect Discord'}
+                      </button>
+                    </div>
                     <ConnectionCard
                       title="League Account"
                       value={getLinkedValue(profile?.riot_account_name)}
@@ -725,7 +1301,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
 
                   <button
                     type="submit"
-                    disabled={saving || !hasProfileChanges}
+                    disabled={saving || !hasAnySaveChanges}
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save size={17} />
@@ -735,24 +1311,86 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
               ) : null}
 
               {activeTab === 'stats' ? (
-                <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/80 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Stats</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Player stats will appear here as profile history is expanded.
-                  </p>
+                <div className="mt-6 grid gap-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {PROFILE_STATS_GAMES.map((game) => {
+                      const stats = playerStats.find((entry) => entry.gameId === game.id) ?? loadPlayerGameStats(game.id);
+                      const topGuess = getTopValue(stats.guessStats);
+                      const topSkinLine = getTopValue(stats.skinLineStats);
+                      const topRarity = getTopValue(stats.rarityStats);
+                      const averageGuesses = stats.gamesCompleted > 0 ? stats.totalGuesses / stats.gamesCompleted : 0;
+
+                      return (
+                        <article key={game.id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">{game.note}</p>
+                              <h3 className="mt-1 text-lg font-bold text-white">{game.title}</h3>
+                            </div>
+                            <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-slate-300">
+                              {stats.gamesCompleted} played
+                            </span>
+                          </div>
+                          {stats.gamesCompleted > 0 ? (
+                            <div className="mt-4 grid gap-3">
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="rounded-xl bg-slate-900 p-3">
+                                  <p className="text-xs text-slate-500">Current streak</p>
+                                  <p className="mt-1 text-lg font-bold text-white">{stats.currentStreak}</p>
+                                </div>
+                                <div className="rounded-xl bg-slate-900 p-3">
+                                  <p className="text-xs text-slate-500">Best streak</p>
+                                  <p className="mt-1 text-lg font-bold text-white">{stats.highestStreak}</p>
+                                </div>
+                                <div className="rounded-xl bg-slate-900 p-3">
+                                  <p className="text-xs text-slate-500">Avg guesses</p>
+                                  <p className="mt-1 text-lg font-bold text-white">{averageGuesses > 0 ? formatAverage(averageGuesses) : '-'}</p>
+                                </div>
+                              </div>
+                              <div className="grid gap-2 text-sm text-slate-300">
+                                <p><span className="text-slate-500">Total guesses:</span> {stats.totalGuesses || '-'}</p>
+                                <p><span className="text-slate-500">Most common answer:</span> {topGuess?.answer ?? '-'}</p>
+                                <p><span className="text-slate-500">Last correct:</span> {stats.lastCorrectGuess?.answer ?? '-'}</p>
+                                {game.id === 'skindle' ? (
+                                  <>
+                                    <p><span className="text-slate-500">Top skin line:</span> {topSkinLine?.value ?? '-'}</p>
+                                    <p><span className="text-slate-500">Top rarity:</span> {topRarity?.value ?? '-'}</p>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="mt-4 text-sm leading-6 text-slate-400">
+                              {game.id === 'skincognito' ? 'Personal Skincognito stats are not tracked yet.' : 'Complete a solo run to start tracking this game.'}
+                            </p>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : null}
 
               {activeTab === 'account' ? (
                 <div className="mt-6 grid gap-4">
                   <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Email</p>
-                    <p className="mt-2 break-all text-sm font-semibold text-slate-200">{email}</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Email</p>
+                      <button
+                        type="button"
+                        onClick={() => setAccountInfoVisible((value) => !value)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-900 hover:text-white"
+                        aria-label={accountInfoVisible ? 'Hide account details' : 'Show account details'}
+                      >
+                        {accountInfoVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    <p className="mt-2 break-all text-sm font-semibold text-slate-200">{accountInfoVisible ? email : 'Hidden'}</p>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">User ID</p>
-                    <p className="mt-2 break-all font-mono text-sm text-slate-200">{userId}</p>
+                    <p className="mt-2 break-all font-mono text-sm text-slate-200">{accountInfoVisible ? userId : 'Hidden'}</p>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
@@ -809,6 +1447,102 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
           ) : null}
         </section>
       </section>
+      {avatarCropSource ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Profile Picture</p>
+                <h2 className="mt-1 text-lg font-bold text-white">Crop image</h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeAvatarCropper}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+                aria-label="Close crop menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-5 flex justify-center">
+              <div
+                className="relative h-72 w-72 touch-none overflow-hidden rounded-full border border-white/10 bg-slate-900"
+                onPointerDown={(event) => {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  setAvatarDragStart({
+                    pointerX: event.clientX,
+                    pointerY: event.clientY,
+                    x: avatarCropOffset.x,
+                    y: avatarCropOffset.y,
+                  });
+                }}
+                onPointerMove={(event) => {
+                  if (!avatarDragStart) return;
+                  setAvatarCropOffset({
+                    x: avatarDragStart.x + event.clientX - avatarDragStart.pointerX,
+                    y: avatarDragStart.y + event.clientY - avatarDragStart.pointerY,
+                  });
+                }}
+                onPointerUp={() => setAvatarDragStart(null)}
+                onPointerCancel={() => setAvatarDragStart(null)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  ref={avatarCropImageRef}
+                  src={avatarCropSource}
+                  alt=""
+                  draggable={false}
+                  onLoad={(event) => {
+                    setAvatarCropNaturalSize({
+                      width: event.currentTarget.naturalWidth,
+                      height: event.currentTarget.naturalHeight,
+                    });
+                  }}
+                  className="absolute max-w-none select-none"
+                  style={{
+                    width: avatarDisplayWidth || avatarPreviewSize,
+                    height: avatarDisplayHeight || avatarPreviewSize,
+                    left: avatarPreviewSize / 2 + avatarCropOffset.x - (avatarDisplayWidth || avatarPreviewSize) / 2,
+                    top: avatarPreviewSize / 2 + avatarCropOffset.y - (avatarDisplayHeight || avatarPreviewSize) / 2,
+                  }}
+                />
+              </div>
+            </div>
+
+            <label className="mt-5 grid gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Zoom</span>
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.01"
+                value={avatarCropScale}
+                onChange={(event) => setAvatarCropScale(Number(event.target.value))}
+                className="w-full accent-amber-300"
+              />
+            </label>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeAvatarCropper}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveCroppedAvatar}
+                disabled={avatarUploading}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {avatarUploading ? 'Saving' : 'Use Picture'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

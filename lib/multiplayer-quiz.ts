@@ -56,6 +56,7 @@ type MultiplayerQuizPlayerRecord = {
 
 export type MultiplayerQuizPublicPlayer = Omit<MultiplayerQuizPlayerRecord, 'client_id'> & {
   is_requesting_player: boolean;
+  avatar_url: string | null;
 };
 
 export type MultiplayerQuizLobbyView = {
@@ -156,6 +157,24 @@ async function fetchPlayers(lobbyId: string) {
     throw error;
   }
   return data;
+}
+
+async function fetchProfileAvatars(authUserIds: Array<string | null>) {
+  const userIds = [...new Set(authUserIds.filter((userId): userId is string => Boolean(userId)))];
+  if (userIds.length === 0) {
+    return new Map<string, string | null>();
+  }
+
+  const { data, error } = await getSupabaseServiceClient()
+    .from('profiles')
+    .select('id, avatar_url')
+    .in('id', userIds)
+    .returns<Array<{ id: string; avatar_url: string | null }>>();
+  if (error) {
+    throw error;
+  }
+
+  return new Map(data.map((profile) => [profile.id, profile.avatar_url ?? null]));
 }
 
 async function fetchBannedClientIds(lobbyId: string) {
@@ -312,6 +331,7 @@ async function getLobbyView(lobby: MultiplayerQuizLobby, clientId?: string | nul
   const reconciledLobby = await reconcileMultiplayerQuizLobby(lobby);
   const players = await fetchPlayers(reconciledLobby.id);
   const requestingPlayer = players.find((player) => player.client_id === clientId) ?? null;
+  const avatarByUserId = await fetchProfileAvatars(players.map((player) => player.auth_user_id));
   const toPublicPlayer = (player: MultiplayerQuizPlayerRecord): MultiplayerQuizPublicPlayer => ({
     id: player.id,
     lobby_id: player.lobby_id,
@@ -328,6 +348,7 @@ async function getLobbyView(lobby: MultiplayerQuizLobby, clientId?: string | nul
     disconnected_at: player.disconnected_at,
     result: player.result,
     is_requesting_player: player.id === requestingPlayer?.id,
+    avatar_url: player.auth_user_id ? avatarByUserId.get(player.auth_user_id) ?? null : null,
   });
 
   return {

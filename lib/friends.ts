@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 
 export type FriendProfileSummary = {
   id: string;
@@ -7,6 +8,9 @@ export type FriendProfileSummary = {
   displayName: string;
   online: boolean;
   unreadCount: number;
+  chatColor: string;
+  chatBorder: string;
+  avatarUrl: string | null;
 };
 
 export type IncomingFriendRequest = {
@@ -22,6 +26,9 @@ type ProfileRow = {
   friend_requests_open: boolean;
   last_seen_at: string | null;
   is_banned?: boolean;
+  chat_color?: string | null;
+  chat_border?: string | null;
+  avatar_url?: string | null;
 };
 
 type FriendshipRow = {
@@ -29,6 +36,15 @@ type FriendshipRow = {
   user_one_id: string;
   user_two_id: string;
   ended_at?: string | null;
+};
+
+type FriendMessageRow = {
+  id: string;
+  sender_id: string;
+  message: string;
+  created_at: string;
+  chat_color?: string | null;
+  chat_border?: string | null;
 };
 
 const ONLINE_WINDOW_MS = 20 * 1000;
@@ -48,6 +64,9 @@ function toSummary(profile: ProfileRow, unreadCount = 0, friendshipId = ''): Fri
     displayName: profile.display_name || profile.username,
     online: isOnline(profile.last_seen_at),
     unreadCount,
+    chatColor: normalizeChatColor(profile.chat_color),
+    chatBorder: normalizeChatBorder(profile.chat_border),
+    avatarUrl: profile.avatar_url ?? null,
   };
 }
 
@@ -65,6 +84,49 @@ function isMissingEndedAtError(error: unknown) {
   const maybeError = error as { code?: string; message?: string; details?: string };
   const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
   return (maybeError.code === '42703' || maybeError.code === 'PGRST204' || maybeError.code === 'PGRST200') && text.includes('ended_at');
+}
+
+function isMissingChatCosmeticsError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return (
+    maybeError.code === '42703' ||
+    maybeError.code === 'PGRST204'
+  ) && (text.includes('chat_color') || text.includes('chat_border'));
+}
+
+function isMissingMessageCosmeticsError(error: unknown) {
+  return isMissingChatCosmeticsError(error);
+}
+
+async function selectProfilesByIds(supabase: ReturnType<typeof getSupabaseServiceClient>, ids: string[]) {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, friend_requests_open, last_seen_at, is_banned, chat_color, chat_border, avatar_url')
+    .in('id', ids)
+    .returns<ProfileRow[]>();
+
+  if (isMissingChatCosmeticsError(error)) {
+    const fallback = await supabase
+      .from('profiles')
+      .select('id, username, display_name, friend_requests_open, last_seen_at, is_banned, avatar_url')
+      .in('id', ids)
+      .returns<ProfileRow[]>();
+
+    if (fallback.error) throw fallback.error;
+    return fallback.data ?? [];
+  }
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 async function getActiveFriendshipsForUser(supabase: ReturnType<typeof getSupabaseServiceClient>, userId: string) {
@@ -253,17 +315,10 @@ export async function getFriendDashboard(userId: string) {
     friendship.user_one_id === userId ? friendship.user_two_id : friendship.user_one_id
   ));
 
-  const { data: friendProfiles, error: friendProfilesError } = friendIds.length > 0
-    ? await supabase
-      .from('profiles')
-      .select('id, username, display_name, friend_requests_open, last_seen_at, is_banned')
-      .in('id', friendIds)
-      .returns<ProfileRow[]>()
-    : { data: [], error: null };
-
-  if (friendProfilesError) {
-    throw friendProfilesError;
-  }
+  const [currentProfile, friendProfiles] = await Promise.all([
+    selectProfilesByIds(supabase, [userId]).then((profiles) => profiles[0] ?? null),
+    selectProfilesByIds(supabase, friendIds),
+  ]);
 
   const { data: incoming, error: incomingError } = await supabase
     .from('friend_requests')
@@ -317,6 +372,7 @@ export async function getFriendDashboard(userId: string) {
   }));
 
   return {
+    currentUser: currentProfile ? toSummary(currentProfile) : null,
     friends,
     incomingRequests,
     pendingRequestCount: incomingRequests.length,
@@ -518,19 +574,47 @@ export async function getFriendMessages(userId: string, friendId: string) {
 
   const { data: messages, error } = await supabase
     .from('friend_messages')
-    .select('id, sender_id, message, created_at')
+    .select('id, sender_id, message, created_at, chat_color, chat_border')
     .eq('friendship_id', friendship.id)
     .order('created_at', { ascending: true })
     .limit(100)
-    .returns<Array<{ id: string; sender_id: string; message: string; created_at: string }>>();
+    .returns<FriendMessageRow[]>();
 
-  if (error) {
-    throw error;
+  let messageRows = messages ?? [];
+  let messageError = error;
+  if (isMissingMessageCosmeticsError(error)) {
+    const fallback = await supabase
+      .from('friend_messages')
+      .select('id, sender_id, message, created_at')
+      .eq('friendship_id', friendship.id)
+      .order('created_at', { ascending: true })
+      .limit(100)
+      .returns<FriendMessageRow[]>();
+    messageRows = fallback.data ?? [];
+    messageError = fallback.error;
   }
+
+  if (messageError) {
+    throw messageError;
+  }
+
+  const profiles = await selectProfilesByIds(supabase, [userId, friendId]);
 
   return {
     friendshipId: friendship.id,
-    messages: messages ?? [],
+    messages: messageRows.map((message) => ({
+      ...message,
+      chat_color: normalizeChatColor(message.chat_color),
+      chat_border: normalizeChatBorder(message.chat_border),
+    })),
+    profiles: Object.fromEntries(profiles.map((profile) => [
+      profile.id,
+      {
+        chatColor: normalizeChatColor(profile.chat_color),
+        chatBorder: normalizeChatBorder(profile.chat_border),
+        avatarUrl: profile.avatar_url ?? null,
+      },
+    ])),
   };
 }
 
@@ -562,13 +646,17 @@ export async function sendFriendMessage(userId: string, friendId: string, messag
     throw new Error('Message is required.');
   }
 
+  const supabase = getSupabaseServiceClient();
   const { friendshipId } = await getFriendMessages(userId, friendId);
-  const { error } = await getSupabaseServiceClient()
+  const [profile] = await selectProfilesByIds(supabase, [userId]);
+  const { error } = await supabase
     .from('friend_messages')
     .insert({
       friendship_id: friendshipId,
       sender_id: userId,
       message: cleanMessage,
+      chat_color: normalizeChatColor(profile?.chat_color),
+      chat_border: normalizeChatBorder(profile?.chat_border),
     });
 
   if (error) {

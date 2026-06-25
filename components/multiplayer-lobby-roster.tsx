@@ -9,6 +9,7 @@ export type MultiplayerLobbyRosterPlayer = {
   id: string;
   authUserId: string | null;
   displayName: string;
+  avatarUrl?: string | null;
   role: string;
   isCurrentUser: boolean;
   isHost: boolean;
@@ -221,21 +222,31 @@ export function MultiplayerLobbyRoster({
       <div className="mt-5 grid gap-2">
         {players.map((player) => {
           const isFriend = Boolean(player.authUserId && friendIds.has(player.authUserId));
+          const playerInitial = player.displayName.trim().slice(0, 1).toUpperCase() || '?';
           return (
             <div
               key={player.id}
               className="flex min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3"
             >
-              <div className="min-w-0 flex-1 overflow-hidden">
-                <p className="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm font-semibold text-white">
-                  <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {player.displayName}{player.authUserId ? '' : ' (Guest)'}{player.isCurrentUser ? ' (you)' : ''}
-                  </span>
-                </p>
-                <p className="mt-1 flex items-center gap-1 text-xs capitalize text-slate-500">
-                  {isFriend ? <><Users size={12} className="shrink-0 text-amber-300" aria-label="Friend" /> <span aria-hidden="true">-</span></> : null}
-                  <span>{player.role}</span>
-                </p>
+              <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 bg-cover bg-center text-sm font-black text-amber-200"
+                  style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}
+                  aria-hidden="true"
+                >
+                  {player.avatarUrl ? null : playerInitial}
+                </span>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm font-semibold text-white">
+                    <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                      {player.displayName}{player.authUserId ? '' : ' (Guest)'}{player.isCurrentUser ? ' (you)' : ''}
+                    </span>
+                  </p>
+                  <p className="mt-1 flex items-center gap-1 text-xs capitalize text-slate-500">
+                    {isFriend ? <><Users size={12} className="shrink-0 text-amber-300" aria-label="Friend" /> <span aria-hidden="true">-</span></> : null}
+                    <span>{player.role}</span>
+                  </p>
+                </div>
               </div>
 
               <div className="flex shrink-0 items-center gap-2">

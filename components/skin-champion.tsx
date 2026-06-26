@@ -116,7 +116,7 @@ const defaultModifiers = modifiers.reduce(
   {} as ModifierState,
 );
 
-const entryCountOptions = [10, 25, 50, 75, 100] as const;
+const entryCountOptions = [3, 10, 25, 50, 75, 100] as const;
 
 function createModifierState(activeIds: readonly string[] = []) {
   return modifiers.reduce(

@@ -915,7 +915,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                       <label className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                         Entries
                         <select value={visibleSettings?.totalItems ?? view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => updateDraftSettings((current) => ({ ...current, totalItems: Number(event.target.value) }))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
-                          {[10, 25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
+                          {[3, 10, 25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
                         </select>
                       </label>
                       <SlidersHorizontal size={20} className="text-amber-300" />

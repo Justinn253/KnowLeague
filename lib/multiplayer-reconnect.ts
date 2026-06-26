@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { addMultiplayerLobbyEvents } from '@/lib/multiplayer-session';
 
 type ReconnectForfeitExclusions = {
   skincognitoLobbyId?: string;
@@ -65,11 +66,11 @@ export async function forfeitOutstandingReconnects(
       .update({ disconnected_at: '1970-01-01T00:00:00.000Z' })
       .in('id', forfeitedSkincognitoPlayers.map((player) => player.id));
     if (error) throw error;
-    const { error: eventError } = await supabase.from('skincognito_lobby_events').insert(
-      [...new Set(forfeitedSkincognitoPlayers.map((player) => player.lobby_id))]
-        .map((lobbyId) => ({ lobby_id: lobbyId, event_type: 'reconnect_forfeited' })),
+    await addMultiplayerLobbyEvents(
+      'skincognito_lobby_events',
+      forfeitedSkincognitoPlayers.map((player) => player.lobby_id),
+      'reconnect_forfeited',
     );
-    if (eventError) throw eventError;
   }
 
   if (forfeitedQuizPlayers.length > 0) {
@@ -78,10 +79,10 @@ export async function forfeitOutstandingReconnects(
       .update({ disconnected_at: '1970-01-01T00:00:00.000Z', updated_at: now })
       .in('id', forfeitedQuizPlayers.map((player) => player.id));
     if (error) throw error;
-    const { error: eventError } = await supabase.from('multiplayer_quiz_lobby_events').insert(
-      [...new Set(forfeitedQuizPlayers.map((player) => player.lobby_id))]
-        .map((lobbyId) => ({ lobby_id: lobbyId, event_type: 'reconnect_forfeited' })),
+    await addMultiplayerLobbyEvents(
+      'multiplayer_quiz_lobby_events',
+      forfeitedQuizPlayers.map((player) => player.lobby_id),
+      'reconnect_forfeited',
     );
-    if (eventError) throw eventError;
   }
 }

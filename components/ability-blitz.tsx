@@ -168,7 +168,7 @@ const defaultAbilitySlots = abilitySlots.reduce(
   {} as AbilitySlotState,
 );
 
-const entryCountOptions = [10, 25, 50, 75, 100] as const;
+const entryCountOptions = [3, 10, 25, 50, 75, 100] as const;
 
 function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boolean }) {
   return (

@@ -47,6 +47,28 @@ export function normalizeAnswer(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/gi, '');
 }
 
+export function getNormalizedAnswerVariants(value: string) {
+  return [
+    normalizeAnswer(value),
+    ...value
+    .split('/')
+    .map((part) => normalizeAnswer(part))
+    .filter(Boolean),
+  ].filter((part, index, variants) => part && variants.indexOf(part) === index);
+}
+
+export function answerMatches(guess: string, answer: string) {
+  const normalizedGuess = normalizeAnswer(guess);
+  if (!normalizedGuess) {
+    return false;
+  }
+
+  const variants = getNormalizedAnswerVariants(answer);
+  return variants.length > 0
+    ? variants.includes(normalizedGuess)
+    : normalizedGuess === normalizeAnswer(answer);
+}
+
 export function shuffle<T>(items: readonly T[]) {
   const result = [...items];
   for (let i = result.length - 1; i > 0; i -= 1) {

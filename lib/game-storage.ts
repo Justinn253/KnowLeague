@@ -5,6 +5,7 @@ export type StatsMode = 'solo' | 'multiplayer';
 const STORAGE_PREFIX = 'knowleague:v1';
 const CLIENT_ID_KEY = `${STORAGE_PREFIX}:client-id`;
 const DETAILED_STATS_KEY = `${STORAGE_PREFIX}:detailed-game-stats`;
+const PENDING_QUIZ_STATS_KEY = `${STORAGE_PREFIX}:pending-quiz-stats`;
 const MAX_RECORDED_MATCH_IDS = 250;
 const MAX_SKIN_GUESS_STATS = 50;
 
@@ -100,6 +101,10 @@ export type QuizStatsInput = {
   won?: boolean;
   lost?: boolean;
   matchId?: string;
+};
+
+type PendingQuizStatsInput = QuizStatsInput & {
+  recordAfter: number;
 };
 
 export type SkincognitoStatsInput = {
@@ -251,6 +256,94 @@ function normalizeDetailedStats(stats?: Partial<DetailedGameStats>): DetailedGam
   };
 }
 
+function applyQuizGameStats(allStats: DetailedGameStats, input: QuizStatsInput) {
+  const gameKey = input.gameId === 'ability-blitz' ? 'abilityBlitz' : 'skinChampion';
+  const current = allStats[gameKey][input.mode];
+  if (hasRecordedMatch(current, input.matchId)) {
+    return allStats;
+  }
+
+  const correctGuesses = Math.max(0, Math.floor(input.completedItems));
+  const wrongGuesses = Math.max(0, Math.floor(input.wrongGuesses));
+  const totalGuesses = correctGuesses + wrongGuesses;
+  const won = input.won ?? correctGuesses >= input.totalItems;
+  const lost = input.lost ?? !won;
+  const currentStreak = nextStreak(current.currentStreak, won);
+  const nextStats: QuizModeStats = {
+    ...current,
+    totalPlayed: current.totalPlayed + 1,
+    matchesPlayed: input.mode === 'multiplayer' ? current.matchesPlayed + 1 : current.matchesPlayed,
+    matchesWon: input.mode === 'multiplayer' && won ? current.matchesWon + 1 : current.matchesWon,
+    matchesLost: input.mode === 'multiplayer' && lost ? current.matchesLost + 1 : current.matchesLost,
+    currentStreak,
+    bestStreak: Math.max(current.bestStreak, currentStreak),
+    totalGuesses: current.totalGuesses + totalGuesses,
+    correctGuesses: current.correctGuesses + correctGuesses,
+    totalElapsedSeconds: current.totalElapsedSeconds + Math.max(0, Math.floor(input.elapsedSeconds)),
+    completedItems: current.completedItems + correctGuesses,
+    recordedMatchIds: appendRecordedMatchId(current.recordedMatchIds, input.matchId),
+  };
+
+  allStats[gameKey][input.mode] = nextStats;
+  return allStats;
+}
+
+function loadPendingQuizStats() {
+  if (!isStorageAvailable()) {
+    return [];
+  }
+
+  try {
+    const rawStats = window.localStorage.getItem(PENDING_QUIZ_STATS_KEY);
+    return rawStats ? JSON.parse(rawStats) as PendingQuizStatsInput[] : [];
+  } catch (error) {
+    console.warn('Unable to load pending quiz stats.', error);
+    return [];
+  }
+}
+
+function savePendingQuizStats(stats: PendingQuizStatsInput[]) {
+  if (!isStorageAvailable()) {
+    return;
+  }
+
+  try {
+    if (stats.length === 0) {
+      window.localStorage.removeItem(PENDING_QUIZ_STATS_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(PENDING_QUIZ_STATS_KEY, JSON.stringify(stats));
+  } catch (error) {
+    console.warn('Unable to save pending quiz stats.', error);
+  }
+}
+
+function applyExpiredPendingQuizStats(stats: DetailedGameStats) {
+  const pendingStats = loadPendingQuizStats();
+  if (pendingStats.length === 0) {
+    return stats;
+  }
+
+  const now = Date.now();
+  const remainingStats: PendingQuizStatsInput[] = [];
+  let nextStats = stats;
+
+  pendingStats.forEach((pending) => {
+    if (pending.recordAfter <= now) {
+      nextStats = applyQuizGameStats(nextStats, pending);
+    } else {
+      remainingStats.push(pending);
+    }
+  });
+
+  savePendingQuizStats(remainingStats);
+  if (remainingStats.length !== pendingStats.length) {
+    saveDetailedGameStats(nextStats);
+  }
+  return nextStats;
+}
+
 export function loadDetailedGameStats() {
   if (!isStorageAvailable()) {
     return createEmptyDetailedStats();
@@ -258,7 +351,7 @@ export function loadDetailedGameStats() {
 
   try {
     const rawStats = window.localStorage.getItem(DETAILED_STATS_KEY);
-    return normalizeDetailedStats(rawStats ? JSON.parse(rawStats) as Partial<DetailedGameStats> : undefined);
+    return applyExpiredPendingQuizStats(normalizeDetailedStats(rawStats ? JSON.parse(rawStats) as Partial<DetailedGameStats> : undefined));
   } catch (error) {
     console.warn('Unable to load detailed game stats.', error);
     return createEmptyDetailedStats();
@@ -291,36 +384,18 @@ function appendRecordedMatchId(ids: string[], matchId?: string) {
 
 export function recordQuizGameStats(input: QuizStatsInput) {
   const allStats = loadDetailedGameStats();
-  const gameKey = input.gameId === 'ability-blitz' ? 'abilityBlitz' : 'skinChampion';
-  const current = allStats[gameKey][input.mode];
-  if (hasRecordedMatch(current, input.matchId)) {
-    return allStats;
+  const nextStats = applyQuizGameStats(allStats, input);
+  saveDetailedGameStats(nextStats);
+  return nextStats;
+}
+
+export function queuePendingQuizGameStats(input: QuizStatsInput, recordAfter: number) {
+  if (!isStorageAvailable() || !input.matchId) {
+    return;
   }
 
-  const correctGuesses = Math.max(0, Math.floor(input.completedItems));
-  const wrongGuesses = Math.max(0, Math.floor(input.wrongGuesses));
-  const totalGuesses = correctGuesses + wrongGuesses;
-  const won = input.won ?? correctGuesses >= input.totalItems;
-  const lost = input.lost ?? !won;
-  const currentStreak = nextStreak(current.currentStreak, won);
-  const nextStats: QuizModeStats = {
-    ...current,
-    totalPlayed: current.totalPlayed + 1,
-    matchesPlayed: input.mode === 'multiplayer' ? current.matchesPlayed + 1 : current.matchesPlayed,
-    matchesWon: input.mode === 'multiplayer' && won ? current.matchesWon + 1 : current.matchesWon,
-    matchesLost: input.mode === 'multiplayer' && lost ? current.matchesLost + 1 : current.matchesLost,
-    currentStreak,
-    bestStreak: Math.max(current.bestStreak, currentStreak),
-    totalGuesses: current.totalGuesses + totalGuesses,
-    correctGuesses: current.correctGuesses + correctGuesses,
-    totalElapsedSeconds: current.totalElapsedSeconds + Math.max(0, Math.floor(input.elapsedSeconds)),
-    completedItems: current.completedItems + correctGuesses,
-    recordedMatchIds: appendRecordedMatchId(current.recordedMatchIds, input.matchId),
-  };
-
-  allStats[gameKey][input.mode] = nextStats;
-  saveDetailedGameStats(allStats);
-  return allStats;
+  const pendingStats = loadPendingQuizStats().filter((pending) => pending.matchId !== input.matchId);
+  savePendingQuizStats([...pendingStats, { ...input, recordAfter }]);
 }
 
 function trimValueStats(stats: Record<string, PlayerValueStat>) {

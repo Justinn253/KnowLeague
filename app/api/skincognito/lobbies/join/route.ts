@@ -7,6 +7,7 @@ type JoinLobbyBody = {
   code: string;
   clientId: string;
   selectedSkinId?: string | null;
+  requirePublic?: boolean;
 };
 
 export const runtime = 'nodejs';
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
       clientId: requireString(body.clientId, 'clientId'),
       authUserId,
       selectedSkinId: typeof body.selectedSkinId === 'string' ? body.selectedSkinId : null,
+      requirePublic: body.requirePublic === true,
     });
 
     return NextResponse.json(view);

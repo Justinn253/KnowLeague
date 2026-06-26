@@ -8,13 +8,14 @@ import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
-import { getOrCreateClientId, recordSkincognitoStats } from '@/lib/game-storage';
+import { getOrCreateClientId, loadDetailedGameStats, recordSkincognitoStats, type DetailedGameStats } from '@/lib/game-storage';
 import { disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
+import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
 
 type SkinAnswer = {
   id: string;
@@ -285,6 +286,7 @@ export function Skincognito() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<SkincognitoPublicLobby[]>([]);
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
+  const [detailedStats, setDetailedStats] = useState<DetailedGameStats>(() => loadDetailedGameStats());
   const skinSearchRef = useRef<HTMLDivElement>(null);
   const guessSearchRef = useRef<HTMLDivElement>(null);
   const guessesScrollRef = useRef<HTMLDivElement>(null);
@@ -419,6 +421,13 @@ export function Skincognito() {
   const finishedWrongGuesses = lobbyView?.actions.filter((action) => !action.is_correct).length ?? 0;
   const isFinishedWinner = Boolean(requestingPlayer && winnerPlayer && requestingPlayer.id === winnerPlayer.id);
   const isFinishedLoser = Boolean(requestingPlayer && finishedTargetPlayer && requestingPlayer.id === finishedTargetPlayer.id);
+  const skincognitoRecordResult = lobbyView?.lobby.status === 'finished' && requestingPlayer?.role !== 'spectator'
+    ? isFinishedWinner ? 'win' as const : 'loss' as const
+    : null;
+  const skincognitoStats = detailedStats.skincognito;
+  const skincognitoMatchRecorded = Boolean(lobbyView?.lobby.id && skincognitoStats.recordedMatchIds.includes(lobbyView.lobby.id));
+  const displayedSkincognitoWins = Math.max(0, skincognitoStats.totalWins - (skincognitoMatchRecorded && skincognitoRecordResult === 'win' ? 1 : 0));
+  const displayedSkincognitoLosses = Math.max(0, skincognitoStats.totalLosses - (skincognitoMatchRecorded && skincognitoRecordResult === 'loss' ? 1 : 0));
 
   useEffect(() => {
     if (!lobbyView || lobbyView.lobby.status !== 'finished' || !requestingPlayer || requestingPlayer.role === 'spectator') {
@@ -433,7 +442,7 @@ export function Skincognito() {
     const playerActions = lobbyView.actions.filter((action) => action.player_id === requestingPlayer.id);
     const skinGuesses = playerActions.filter((action) => action.action_type === 'skin_guess');
     const won = lobbyView.lobby.winner_player_id === requestingPlayer.id;
-    recordSkincognitoStats({
+    const updatedStats = recordSkincognitoStats({
       matchId: lobbyView.lobby.id,
       won,
       totalGuesses: playerActions.length,
@@ -441,6 +450,7 @@ export function Skincognito() {
       turnsUntilVictory: won ? playerActions.length : null,
       mostRecentSkinGuess: skinGuesses[skinGuesses.length - 1]?.guess_value ?? null,
     });
+    setDetailedStats(updatedStats);
   }, [lobbyView, requestingPlayer]);
 
   const selectedSkinPreview = selectedSkin ?? (
@@ -873,7 +883,7 @@ export function Skincognito() {
     });
   };
 
-  const joinLobbyByCode = (code: string) => {
+  const joinLobbyByCode = (code: string, requirePublic = false) => {
     if (!clientId) {
       return;
     }
@@ -883,6 +893,7 @@ export function Skincognito() {
       code: code.trim().toUpperCase(),
       clientId,
       selectedSkinId: selectedSkin?.id ?? null,
+      requirePublic,
     });
   };
 
@@ -1090,7 +1101,19 @@ export function Skincognito() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {lobbyView?.lobby.status === 'finished' && isHost ? (
+              <button
+                type="button"
+                onClick={scheduleReturnToLobby}
+                disabled={busy || Boolean(lobbyView.lobby.return_to_lobby_at)}
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {lobbyView.lobby.return_to_lobby_at
+                  ? `Returning in ${returnToLobbyCountdown ?? 5}s`
+                  : 'Return to Lobby'}
+              </button>
+            ) : null}
             <GameInfoMenu title="Skincognito" steps={[
               'Choose a skin for your opponent to identify before the match starts.',
               'Take turns asking category questions and use the answers to narrow down the skin.',
@@ -1195,7 +1218,7 @@ export function Skincognito() {
               </div>
               <div className="mt-4 grid gap-2">
                 {publicLobbies.length ? publicLobbies.map((lobby) => (
-                  <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
+                  <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code, true)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
                     <span className="truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span>
                     <span className="shrink-0 text-xs font-semibold text-slate-300">{lobby.playerCount}/{lobby.maxPlayers}</span>
                   </button>
@@ -1213,7 +1236,7 @@ export function Skincognito() {
           {lobbyView && lobbyView.lobby.status === 'waiting' ? (
             <div className="mt-8 border-t border-white/10 pt-8">
               <button type="button" disabled={!isHost || busy} onClick={updateLobbyVisibility} className={`mb-5 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${lobbyView.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-950/70'} disabled:opacity-60`}>
-                <span><span className="block text-sm font-semibold text-white">Public lobby</span><span className="mt-1 block text-xs text-slate-400">Allow players to discover and join this lobby.</span></span>
+                <span><span className="block text-sm font-semibold text-white">Public lobby</span></span>
                 <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${lobbyView.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${lobbyView.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
               </button>
               <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
@@ -1410,7 +1433,7 @@ export function Skincognito() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`${getPlayerLabel(topPlayer)}'s correct category guesses`}
+                  {`${getPlayerLabel(topPlayer)}'s correct guesses`}
                 </p>
               </section>
 
@@ -1583,7 +1606,7 @@ export function Skincognito() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`${getPlayerLabel(bottomPlayer)}'s correct category guesses`}
+                  {`${getPlayerLabel(bottomPlayer)}'s correct guesses`}
                 </p>
               </section>
 
@@ -1620,23 +1643,19 @@ export function Skincognito() {
                             <h3 className="mt-2 text-3xl font-bold text-white">
                               {winnerPlayer ? `${winnerPlayer.display_name} won` : 'Game finished'}
                             </h3>
+                            {requestingPlayer?.role !== 'spectator' ? (
+                              <MultiplayerRecordDelta
+                                wins={displayedSkincognitoWins}
+                                losses={displayedSkincognitoLosses}
+                                result={skincognitoRecordResult}
+                                className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-xs font-semibold text-slate-100"
+                              />
+                            ) : null}
                             <p className="mt-3 text-lg font-semibold text-slate-100">
                               The skin was {finishedTargetSkin?.answer ?? 'unknown'}.
                             </p>
                           </div>
 
-                          {isHost ? (
-                            <button
-                              type="button"
-                              onClick={scheduleReturnToLobby}
-                              disabled={busy || Boolean(lobbyView.lobby.return_to_lobby_at)}
-                              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {lobbyView.lobby.return_to_lobby_at
-                                ? `Returning in ${returnToLobbyCountdown ?? 5}s`
-                                : 'Return to Lobby'}
-                            </button>
-                          ) : null}
                         </div>
 
                         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">

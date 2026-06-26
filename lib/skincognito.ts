@@ -111,6 +111,7 @@ type CreateOrJoinInput = {
   clientId: string;
   authUserId?: string | null;
   selectedSkinId?: string | null;
+  requirePublic?: boolean;
 };
 
 type SubmitActionInput = {
@@ -769,6 +770,9 @@ export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInpu
   const reconciledLobby = await reconcileLobby(lobby);
   if (reconciledLobby.status === 'finished' || reconciledLobby.status === 'terminated') {
     throw new Error('Lobby is not available.');
+  }
+  if (input.requirePublic && !reconciledLobby.is_public) {
+    throw new Error('This lobby is no longer public.');
   }
 
   const players = await fetchPlayers(reconciledLobby.id);

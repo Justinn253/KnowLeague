@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, SlidersHorizontal, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getOrCreateClientId } from '@/lib/game-storage';
+import { getOrCreateClientId, loadDetailedGameStats, queuePendingQuizGameStats, recordQuizGameStats, type DetailedGameStats } from '@/lib/game-storage';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { AbilityBlitz } from '@/components/ability-blitz';
 import { SkinChampion } from '@/components/skin-champion';
@@ -32,6 +32,22 @@ type MultiplayerQuizConfig = {
   route: string;
   difficulties: SettingOption[];
   modifiers: SettingOption[];
+};
+type DraftQuizSettings = {
+  difficulty: MultiplayerQuizDifficulty;
+  modifiers: string[];
+  totalItems: number;
+  abilitySlots: AbilitySlotId[];
+};
+type LatestLobbySnapshot = {
+  code: string;
+  clientId: string;
+  status: MultiplayerQuizLobbyView['lobby']['status'];
+  lobbyId: string;
+  progress: number;
+  elapsedSeconds: number;
+  totalItems: number;
+  result: MultiplayerQuizPlayerResult;
 };
 
 const difficulties: SettingOption[] = [
@@ -79,6 +95,116 @@ async function readResponse(response: Response) {
   return data as MultiplayerQuizLobbyView;
 }
 
+function compareRacePlayers(
+  first: MultiplayerQuizLobbyView['players'][number],
+  second: MultiplayerQuizLobbyView['players'][number],
+) {
+  if (first.result === 'failed' && second.result !== 'failed') return 1;
+  if (first.result !== 'failed' && second.result === 'failed') return -1;
+  if (first.result === 'completed' && second.result !== 'completed') return -1;
+  if (first.result !== 'completed' && second.result === 'completed') return 1;
+
+  if (first.result === 'completed' && second.result === 'completed') {
+    return new Date(first.finished_at as string).getTime() - new Date(second.finished_at as string).getTime();
+  }
+
+  if (first.progress !== second.progress) {
+    return second.progress - first.progress;
+  }
+
+  if (first.elapsed_seconds !== second.elapsed_seconds) {
+    return first.elapsed_seconds - second.elapsed_seconds;
+  }
+
+  return new Date(first.joined_at).getTime() - new Date(second.joined_at).getTime();
+}
+
+function getMultiplayerQuizResult(
+  players: MultiplayerQuizLobbyView['players'],
+  playerId: string,
+  matchFinished: boolean,
+): 'win' | 'loss' | null {
+  const player = players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return null;
+  }
+  if (player.result === 'failed') return 'loss';
+  if (player.result === 'active' && !matchFinished) return null;
+
+  const standings = [...players].sort(compareRacePlayers);
+  const placementIndex = standings.findIndex((player) => player.id === playerId);
+  if (placementIndex < 0) {
+    return 'loss';
+  }
+
+  const playersBeaten = players.length - placementIndex - 1;
+  return playersBeaten >= Math.ceil(players.length / 2) ? 'win' : 'loss';
+}
+
+function createDraftSettings(view: MultiplayerQuizLobbyView): DraftQuizSettings {
+  return {
+    difficulty: view.lobby.difficulty,
+    modifiers: view.lobby.modifiers,
+    totalItems: view.lobby.total_items,
+    abilitySlots: view.lobby.ability_slots,
+  };
+}
+
+function getQuizMultiplayerRecord(stats: DetailedGameStats, gameMode: MultiplayerQuizGameMode) {
+  return gameMode === 'ability_blitz'
+    ? stats.abilityBlitz.multiplayer
+    : stats.skinChampion.multiplayer;
+}
+
+function getLocalRecordSnapshot(gameMode: MultiplayerQuizGameMode) {
+  const stats = getQuizMultiplayerRecord(loadDetailedGameStats(), gameMode);
+  return {
+    wins: stats.matchesWon,
+    losses: stats.matchesLost,
+  };
+}
+
+function recordFinishedMultiplayerQuizStats(gameMode: MultiplayerQuizGameMode, view: MultiplayerQuizLobbyView) {
+  if (view.lobby.status !== 'finished' || !view.requestingPlayer) {
+    return;
+  }
+
+  const result = getMultiplayerQuizResult(view.players, view.requestingPlayer.id, true);
+  if (!result) {
+    return;
+  }
+
+  recordQuizGameStats({
+    gameId: gameMode === 'ability_blitz' ? 'ability-blitz' : 'skin-champion',
+    mode: 'multiplayer',
+    completedItems: Math.min(view.lobby.total_items, view.requestingPlayer.progress),
+    totalItems: view.lobby.total_items,
+    wrongGuesses: 0,
+    elapsedSeconds: view.requestingPlayer.elapsed_seconds,
+    won: result === 'win',
+    lost: result === 'loss',
+    matchId: view.lobby.id,
+  });
+}
+
+function queuePendingMultiplayerQuizLoss(gameMode: MultiplayerQuizGameMode, snapshot: LatestLobbySnapshot | null) {
+  if (!snapshot || snapshot.status !== 'active' || snapshot.result !== 'active') {
+    return;
+  }
+
+  queuePendingQuizGameStats({
+    gameId: gameMode === 'ability_blitz' ? 'ability-blitz' : 'skin-champion',
+    mode: 'multiplayer',
+    completedItems: Math.min(snapshot.totalItems, snapshot.progress),
+    totalItems: snapshot.totalItems,
+    wrongGuesses: 0,
+    elapsedSeconds: snapshot.elapsedSeconds,
+    won: false,
+    lost: true,
+    matchId: snapshot.lobbyId,
+  }, Date.now() + 61_000);
+}
+
 export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGameMode }) {
   const router = useRouter();
   const config = configs[gameMode];
@@ -91,7 +217,9 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<MultiplayerQuizPublicLobby[]>([]);
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
-  const latestLobbyRef = useRef<{ code: string; clientId: string; status: MultiplayerQuizLobbyView['lobby']['status'] } | null>(null);
+  const [draftSettings, setDraftSettings] = useState<DraftQuizSettings | null>(null);
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const latestLobbyRef = useRef<LatestLobbySnapshot | null>(null);
   const isLeavingLobbyRef = useRef(false);
 
   useMultiplayerAuthTransition(async () => {
@@ -113,21 +241,40 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   });
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
-  const selectedModifiers = useMemo(() => new Set(view?.lobby.modifiers ?? []), [view?.lobby.modifiers]);
+  const visibleSettings = draftSettings ?? (view ? createDraftSettings(view) : null);
+  const selectedModifiers = useMemo(() => new Set(visibleSettings?.modifiers ?? []), [visibleSettings?.modifiers]);
   const connectedLobbyCode = view && (view.lobby.status === 'waiting' || view.lobby.status === 'active')
     ? view.lobby.code
     : null;
 
   useEffect(() => {
-    latestLobbyRef.current = view && clientId
-      ? { code: view.lobby.code, clientId, status: view.lobby.status }
+    latestLobbyRef.current = view && clientId && view.requestingPlayer
+      ? {
+          code: view.lobby.code,
+          clientId,
+          status: view.lobby.status,
+          lobbyId: view.lobby.id,
+          progress: view.requestingPlayer.progress,
+          elapsedSeconds: view.requestingPlayer.elapsed_seconds,
+          totalItems: view.lobby.total_items,
+          result: view.requestingPlayer.result,
+        }
       : null;
   }, [clientId, view]);
+
+  useEffect(() => {
+    if (!view || settingsDirty) {
+      return;
+    }
+
+    setDraftSettings(createDraftSettings(view));
+  }, [settingsDirty, view?.lobby.ability_slots, view?.lobby.difficulty, view?.lobby.modifiers, view?.lobby.total_items, view]);
 
   useEffect(() => {
     const disconnectOnPageExit = () => {
       const activeLobby = latestLobbyRef.current;
       if (!activeLobby) return;
+      queuePendingMultiplayerQuizLoss(gameMode, activeLobby);
       disconnectMultiplayerSession({
         ...activeLobby,
         storageKey: getMultiplayerQuizLobbyStorageKey(gameMode),
@@ -223,6 +370,15 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
             if (eligibility.eligible && !cancelled) {
               setRejoinCandidate({ code: eligibility.code, expiresAt: eligibility.expiresAt });
             } else {
+              try {
+                const finishedResponse = await fetch(`/api/multiplayer/lobbies/${storedCode}?clientId=${encodeURIComponent(nextClientId)}`);
+                if (finishedResponse.ok) {
+                  const finishedView = await readResponse(finishedResponse);
+                  recordFinishedMultiplayerQuizStats(gameMode, finishedView);
+                }
+              } catch {
+                // If the lobby no longer exists, there is no final result to recover.
+              }
               window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
             }
           } catch {
@@ -244,6 +400,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
             code: inviteCode,
             gameMode,
             clientId: nextClientId,
+            record: getLocalRecordSnapshot(gameMode),
           }),
         });
         applyView(await readResponse(response));
@@ -293,7 +450,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         const response = await fetch(`/api/multiplayer/lobbies/${code}/heartbeat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId }),
+          body: JSON.stringify({ clientId, record: getLocalRecordSnapshot(gameMode) }),
         });
         applyView(await readResponse(response));
       } catch {
@@ -303,7 +460,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     void sendHeartbeat();
     const interval = window.setInterval(sendHeartbeat, MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [connectedLobbyCode, applyView, clientId]);
+  }, [connectedLobbyCode, applyView, clientId, gameMode]);
 
   useEffect(() => {
     if (!view || !clientId || view.lobby.status !== 'active') return undefined;
@@ -331,7 +488,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
           'Content-Type': 'application/json',
           ...(data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {}),
         },
-        body: JSON.stringify({ gameMode, clientId }),
+        body: JSON.stringify({ gameMode, clientId, record: getLocalRecordSnapshot(gameMode) }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -341,7 +498,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
   };
 
-  const joinLobbyByCode = async (code: string) => {
+  const joinLobbyByCode = async (code: string, requirePublic = false) => {
     if (!clientId) {
       return;
     }
@@ -356,7 +513,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
           'Content-Type': 'application/json',
           ...(data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {}),
         },
-        body: JSON.stringify({ code, gameMode, clientId }),
+        body: JSON.stringify({ code, gameMode, clientId, requirePublic, record: getLocalRecordSnapshot(gameMode) }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -378,6 +535,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
     const code = view.lobby.code;
     const wasWaiting = view.lobby.status === 'waiting';
+    queuePendingMultiplayerQuizLoss(gameMode, latestLobbyRef.current);
     isLeavingLobbyRef.current = true;
     latestLobbyRef.current = null;
     setView(null);
@@ -423,6 +581,46 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
   };
 
+  const updateDraftSettings = (updater: (current: DraftQuizSettings) => DraftQuizSettings) => {
+    if (!view || !isHost) {
+      return;
+    }
+
+    setDraftSettings((current) => updater(current ?? createDraftSettings(view)));
+    setSettingsDirty(true);
+  };
+
+  const applyDraftSettings = async () => {
+    if (!view || !clientId || !isHost || !draftSettings || !settingsDirty) {
+      return;
+    }
+
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId,
+          difficulty: draftSettings.difficulty,
+          modifiers: draftSettings.modifiers,
+          totalItems: draftSettings.totalItems,
+          isPublic: view.lobby.is_public,
+          abilitySlots: draftSettings.abilitySlots,
+        }),
+      });
+      const nextView = await readResponse(response);
+      setSettingsDirty(false);
+      setDraftSettings(createDraftSettings(nextView));
+      applyView(nextView);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to apply lobby settings.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const managePlayer = async (action: 'kick' | 'make-host', targetPlayerId: string) => {
     if (!view || !clientId || !isHost) {
       return;
@@ -453,7 +651,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({ clientId, record: getLocalRecordSnapshot(gameMode) }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -471,13 +669,34 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/progress`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, progress, elapsedSeconds, result }),
+        body: JSON.stringify({ clientId, progress, elapsedSeconds, result, record: getLocalRecordSnapshot(gameMode) }),
       });
       applyView(await readResponse(response));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to update multiplayer progress.');
     }
-  }, [applyView, clientId, view]);
+  }, [applyView, clientId, gameMode, view]);
+
+  const returnToLobby = async () => {
+    if (!view || !clientId || !isHost) {
+      return;
+    }
+
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/return`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      });
+      applyView(await readResponse(response));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to return to lobby.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const copyInvite = () => {
     if (!view) {
@@ -489,6 +708,29 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   };
 
   if (view && view.lobby.status !== 'waiting' && view.requestingPlayer && view.quizItems.length > 0) {
+    const matchFinished = view.lobby.status === 'finished';
+    const recordResult = getMultiplayerQuizResult(view.players, view.requestingPlayer.id, matchFinished);
+    const multiplayerStats = getQuizMultiplayerRecord(loadDetailedGameStats(), gameMode);
+    const multiplayerMatchRecorded = multiplayerStats.recordedMatchIds.includes(view.lobby.id);
+    const displayedMultiplayerWins = Math.max(0, multiplayerStats.matchesWon - (multiplayerMatchRecorded && recordResult === 'win' ? 1 : 0));
+    const displayedMultiplayerLosses = Math.max(0, multiplayerStats.matchesLost - (multiplayerMatchRecorded && recordResult === 'loss' ? 1 : 0));
+    const playerResults = Object.fromEntries(
+      view.players
+        .map((player) => {
+          const result = getMultiplayerQuizResult(view.players, player.id, matchFinished);
+          if (!result) return null;
+          const isRequestingPlayer = player.id === view.requestingPlayer?.id;
+          return [
+            player.id,
+            {
+              result,
+              wins: isRequestingPlayer ? displayedMultiplayerWins : player.record_wins,
+              losses: isRequestingPlayer ? displayedMultiplayerLosses : player.record_losses,
+            },
+          ] as const;
+        })
+        .filter((entry): entry is readonly [string, { result: 'win' | 'loss'; wins: number; losses: number }] => Boolean(entry)),
+    );
     const runtime = {
       items: view.quizItems,
       difficulty: view.lobby.difficulty,
@@ -496,9 +738,27 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       initialProgress: view.requestingPlayer.progress,
       initialElapsedSeconds: view.requestingPlayer.elapsed_seconds,
       gameEnded: view.lobby.status === 'finished',
-      progressPanel: <MultiplayerGameProgress players={view.players} totalItems={view.lobby.total_items} />,
+      matchId: view.lobby.id,
+      won: recordResult === 'win',
+      lost: recordResult === 'loss',
+      recordResult,
+      canReturnToLobby: view.lobby.status === 'finished' && isHost,
+      returnToLobbyLabel: busy ? 'Returning...' : 'Return to Lobby',
+      progressPanel: (
+        <MultiplayerGameProgress
+          players={view.players}
+          totalItems={view.lobby.total_items}
+          playerResults={playerResults}
+          recordSummary={{
+            wins: displayedMultiplayerWins,
+            losses: displayedMultiplayerLosses,
+            result: recordResult,
+          }}
+        />
+      ),
       onProgress: reportProgress,
       onExit: leaveLobby,
+      onReturnToLobby: returnToLobby,
     };
     return gameMode === 'ability_blitz'
       ? <AbilityBlitz multiplayer={runtime} />
@@ -585,7 +845,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                 </div>
                 <div className="mt-4 grid gap-2">
                   {publicLobbies.length ? publicLobbies.map((lobby) => (
-                    <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
+                    <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code, true)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span>
                         <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
@@ -643,42 +903,46 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
                 <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
+                    <div className="flex flex-wrap items-center gap-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Game Settings</p>
-                      <h3 className="mt-2 text-lg font-semibold text-white">Difficulty and modifiers</h3>
+                      {settingsDirty ? (
+                        <button type="button" onClick={applyDraftSettings} disabled={!isHost || busy} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-300 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+                          Apply Changes
+                        </button>
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-2">
                       <label className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                         Entries
-                        <select value={view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => updateSettings(view.lobby.difficulty, view.lobby.modifiers, Number(event.target.value))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
-                          {[10, 25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
+                        <select value={visibleSettings?.totalItems ?? view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => updateDraftSettings((current) => ({ ...current, totalItems: Number(event.target.value) }))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
+                          {[3, 10, 25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
                         </select>
                       </label>
                       <SlidersHorizontal size={20} className="text-amber-300" />
                     </div>
                   </div>
-                  <button type="button" disabled={!isHost || busy} onClick={() => updateSettings(view.lobby.difficulty, view.lobby.modifiers, view.lobby.total_items, !view.lobby.is_public)} className={`mt-4 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${view.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-900/70'} disabled:opacity-60`}>
-                    <span><span className="block text-sm font-semibold text-white">Public lobby</span><span className="mt-1 block text-xs text-slate-400">Allow players to discover and join this lobby.</span></span>
+                  <button type="button" disabled={!isHost || busy} onClick={() => updateSettings(view.lobby.difficulty, view.lobby.modifiers, view.lobby.total_items, !view.lobby.is_public, view.lobby.ability_slots)} className={`mt-4 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${view.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-900/70'} disabled:opacity-60`}>
+                    <span><span className="block text-sm font-semibold text-white">Public lobby</span></span>
                     <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${view.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${view.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
                   </button>
                   <fieldset className="mt-5 grid gap-5">
                     <legend className="sr-only">Game settings</legend>
-                    <GameSettingsSection title="Difficulty" defaultOpen summary={<DifficultyLabel difficulty={view.lobby.difficulty} />}>
+                    <GameSettingsSection title="Difficulty" defaultOpen summary={<DifficultyLabel difficulty={visibleSettings?.difficulty ?? view.lobby.difficulty} />}>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {config.difficulties.map((difficulty) => (
-                          <button key={difficulty.id} type="button" disabled={!isHost || busy} onClick={() => updateSettings(difficulty.id as MultiplayerQuizDifficulty, view.lobby.modifiers)} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${view.lobby.difficulty === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                          <button key={difficulty.id} type="button" disabled={!isHost || busy} onClick={() => updateDraftSettings((current) => ({ ...current, difficulty: difficulty.id as MultiplayerQuizDifficulty }))} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${(visibleSettings?.difficulty ?? view.lobby.difficulty) === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
                             <DifficultyLabel difficulty={difficulty.id} className="text-sm" />
                             <span className="mt-1 block text-xs leading-5 text-slate-400">{difficulty.description}</span>
                           </button>
                         ))}
                       </div>
                     </GameSettingsSection>
-                    <GameSettingsSection title="Modifiers" summary={`${view.lobby.modifiers.length} active`}>
+                    <GameSettingsSection title="Modifiers" summary={`${visibleSettings?.modifiers.length ?? view.lobby.modifiers.length} active`}>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {config.modifiers.map((modifier) => {
                           const checked = selectedModifiers.has(modifier.id);
                           return (
-                            <button key={modifier.id} type="button" disabled={!isHost || busy} onClick={() => updateSettings(view.lobby.difficulty, checked ? view.lobby.modifiers.filter((id) => id !== modifier.id) : [...view.lobby.modifiers, modifier.id])} className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                            <button key={modifier.id} type="button" disabled={!isHost || busy} onClick={() => updateDraftSettings((current) => ({ ...current, modifiers: checked ? current.modifiers.filter((id) => id !== modifier.id) : [...current.modifiers, modifier.id] }))} className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
                               <span><span className="block text-sm font-bold text-white">{modifier.name}</span><span className="mt-1 block text-xs leading-5 text-slate-400">{modifier.description}</span></span>
                               <span className={`mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ${checked ? 'bg-violet-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${checked ? 'translate-x-4' : ''}`} /></span>
                             </button>
@@ -687,11 +951,11 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                       </div>
                     </GameSettingsSection>
                     {gameMode === 'ability_blitz' ? (
-                      <GameSettingsSection title="Ability Set" summary={`${view.lobby.ability_slots.length}/5`}>
+                      <GameSettingsSection title="Ability Set" summary={`${visibleSettings?.abilitySlots.length ?? view.lobby.ability_slots.length}/5`}>
                         <p className="mb-3 text-xs leading-5 text-slate-400">Select which abilities can appear in the shared round.</p>
                         <div className="grid grid-cols-5 gap-2">
                           {ABILITY_SLOTS.map((slot) => {
-                            const selected = view.lobby.ability_slots.includes(slot.id);
+                            const selected = (visibleSettings?.abilitySlots ?? view.lobby.ability_slots).includes(slot.id);
                             return (
                               <button
                                 key={slot.id}
@@ -699,11 +963,14 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                                 title={slot.name}
                                 disabled={!isHost || busy}
                                 onClick={() => {
-                                  if (selected && view.lobby.ability_slots.length === 1) return;
-                                  const nextSlots = selected
-                                    ? view.lobby.ability_slots.filter((id) => id !== slot.id)
-                                    : [...view.lobby.ability_slots, slot.id];
-                                  void updateSettings(view.lobby.difficulty, view.lobby.modifiers, view.lobby.total_items, view.lobby.is_public, nextSlots);
+                                  const currentSlots = visibleSettings?.abilitySlots ?? view.lobby.ability_slots;
+                                  if (selected && currentSlots.length === 1) return;
+                                  updateDraftSettings((current) => ({
+                                    ...current,
+                                    abilitySlots: selected
+                                      ? current.abilitySlots.filter((id) => id !== slot.id)
+                                      : [...current.abilitySlots, slot.id],
+                                  }));
                                 }}
                                 className={`flex h-12 items-center justify-center rounded-xl border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-65 ${selected ? 'border-amber-300/60 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900/80 text-slate-400 hover:border-white/25'}`}
                               >
@@ -720,10 +987,10 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
               </div>
 
               <div className="flex flex-col items-center gap-3 py-1">
-                <button type="button" disabled={!isHost || view.players.length < 2 || busy} onClick={startGame} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">
+                <button type="button" disabled={!isHost || view.players.length < 2 || busy || settingsDirty} onClick={startGame} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">
                   <Play size={17} /> Start Game
                 </button>
-                <p className="text-xs text-slate-500">The host can start once at least two players have joined.</p>
+                <p className="text-xs text-slate-500">{settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}</p>
               </div>
             </div>
           )}

@@ -171,7 +171,7 @@ export function GlobalActions() {
               type="button"
               onClick={() => setProfileOpen(false)}
               aria-label="Close profile"
-              className="absolute right-4 top-8 z-10 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+              className="absolute right-4 top-[2.125rem] z-10 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
             >
               <X size={18} />
             </button>
@@ -185,17 +185,9 @@ export function GlobalActions() {
           onMouseDown={() => setPublicProfileUsername(null)}
         >
           <div
-            className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950"
+            className="relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => setPublicProfileUsername(null)}
-              aria-label="Close public profile"
-              className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
-            >
-              <X size={18} />
-            </button>
             <PublicProfileScreen
               username={publicProfileUsername}
               presentation="overlay"

@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, Link as LinkIcon, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, Check, Link as LinkIcon, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-import type { GameId } from '@/lib/game-storage';
 
 type PublicProfileRecord = {
   id: string;
@@ -37,13 +36,6 @@ type PublicProfileScreenProps = {
   onClose?: () => void;
 };
 
-const PUBLIC_PROFILE_GAMES: Array<{ id: GameId; title: string; note: string }> = [
-  { id: 'ability-blitz', title: 'Ability Blitz', note: 'Solo completions' },
-  { id: 'skin-champion', title: 'Skin Champion', note: 'Solo completions' },
-  { id: 'skindle', title: 'Skindle', note: 'Daily solves' },
-  { id: 'skincognito', title: 'Skincognito', note: 'Multiplayer stats' },
-];
-
 async function getAuthHeaders() {
   const supabase = getOptionalSupabaseClient();
   const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
@@ -64,6 +56,80 @@ function formatProfileDate(value?: string | null) {
 
 function getLinkedValue(value?: string | null) {
   return value?.trim() || 'Not linked';
+}
+
+function PublicCompactStat({ label, value, title }: { label: string; value: string | number; title?: string }) {
+  return (
+    <div title={title} className="rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</p>
+      <p className="mt-0.5 text-base font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function PublicQuizStatsSection({ title }: { title: string }) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3 px-1">
+        <h3 className="text-base font-black text-amber-300">{title}</h3>
+        <span className="text-xs font-semibold text-slate-300">Current / Best streak</span>
+      </div>
+      <div className="grid gap-2">
+        {['Solo', 'Multiplayer'].map((mode) => (
+          <div key={mode} className="grid gap-2 rounded-xl border border-white/10 bg-slate-900/55 p-3 lg:grid-cols-[7rem_repeat(6,minmax(0,1fr))] lg:items-center">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-white">{mode}</p>
+              {mode === 'Multiplayer' ? <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">Not public</p> : null}
+            </div>
+            <PublicCompactStat label="Played" value="-" />
+            <PublicCompactStat label="Streak" value="- / -" title="Current streak / best streak" />
+            <PublicCompactStat label="Guesses" value="-" />
+            <PublicCompactStat label="Correct" value="-" />
+            <PublicCompactStat label="Avg/item" value="-" />
+            <PublicCompactStat label={mode === 'Multiplayer' ? 'Win %' : 'Record'} value="-" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PublicSmallStatsPanels() {
+  return (
+    <div className="grid gap-3 xl:grid-cols-2">
+      <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-base font-black text-amber-300">Skindle</h3>
+          <span title="Current streak / best streak" className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">- / -</span>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <PublicCompactStat label="Played" value="-" />
+          <PublicCompactStat label="Avg guesses" value="-" />
+          <PublicCompactStat label="Total guesses" value="-" />
+        </div>
+        <p className="mt-3 text-xs text-slate-500">Public Skindle stats are not synced yet.</p>
+      </article>
+
+      <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-base font-black text-amber-300">Skincognito</h3>
+          <span title="Current streak / best streak" className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">- / -</span>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-4">
+          <PublicCompactStat label="Played" value="-" />
+          <PublicCompactStat label="Record" value="-" />
+          <PublicCompactStat label="Win %" value="-" />
+          <PublicCompactStat label="Guesses" value="-" />
+          <PublicCompactStat label="Correct" value="-" />
+          <PublicCompactStat label="Avg turns" value="-" />
+          <div className="rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 sm:col-span-2">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-500">Most guessed skin</p>
+            <p className="mt-0.5 truncate text-base font-black text-white">-</p>
+          </div>
+        </div>
+      </article>
+    </div>
+  );
 }
 
 function DiscordMark({ className = '' }: { className?: string }) {
@@ -170,7 +236,7 @@ function RiotPublicCard({ profile }: { profile: PublicProfileRecord }) {
   );
 }
 
-export function PublicProfileScreen({ username, presentation = 'page' }: PublicProfileScreenProps) {
+export function PublicProfileScreen({ username, presentation = 'page', onClose }: PublicProfileScreenProps) {
   const [activeTab, setActiveTab] = useState<PublicProfileTab>('profile');
   const [profile, setProfile] = useState<PublicProfileRecord | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -274,52 +340,50 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
       <section className={presentation === 'overlay'
-        ? 'mx-auto flex w-full max-w-5xl flex-col px-6 py-8'
+        ? 'mx-auto flex w-full max-w-5xl flex-col px-6 py-4'
         : 'mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 py-10'}
       >
-        <header className={`mb-5 flex min-h-12 items-center gap-3 ${presentation === 'overlay' ? 'pr-14' : ''}`}>
-          <Link
-            href="/"
-            aria-label="Back to game hub"
-            className={`${presentation === 'overlay' ? 'hidden' : 'inline-flex'} h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900`}
-          >
-            <ArrowLeft size={20} />
-          </Link>
-          <div>
-            <h1 className="text-xl font-semibold text-white">Profile</h1>
-          </div>
-        </header>
+        {presentation === 'overlay' ? null : (
+          <header className="mb-4 flex min-h-12 items-center gap-3">
+            <Link
+              href="/"
+              aria-label="Back to game hub"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
+            >
+              <ArrowLeft size={20} />
+            </Link>
+          </header>
+        )}
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
+        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
           {busy ? <p className="text-sm font-semibold text-slate-300">Loading profile...</p> : null}
 
           {!busy && profile ? (
             <>
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
                   <span
-                    className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 bg-cover bg-center text-3xl font-black text-amber-200"
+                    className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 bg-cover bg-center text-2xl font-black text-amber-200"
                     style={profile.avatar_url ? { backgroundImage: `url(${profile.avatar_url})` } : undefined}
                     aria-hidden="true"
                   >
                     {profile.avatar_url ? null : profileInitial}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Username</p>
-                    <h2 className="mt-2 truncate text-4xl font-bold text-white">{profile.display_name || profile.username}</h2>
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-sm font-semibold text-slate-300">
-                        <Users size={16} className="text-amber-300" />
-                        {profile.friends_count} friends
-                      </div>
-                      <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-sm font-semibold text-slate-300">
-                        <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Created</span>
-                        {formatProfileDate(profile.created_at)}
-                      </div>
-                    </div>
+                    <h2 className="truncate text-3xl font-bold text-white">{profile.display_name || profile.username}</h2>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                  <div className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-300">
+                    <Users size={16} className="text-amber-300" />
+                    {profile.friends_count} friends
+                  </div>
+                  <div
+                    title="Created On"
+                    className="inline-flex min-h-11 items-center rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-300"
+                  >
+                    {formatProfileDate(profile.created_at)}
+                  </div>
                   {!currentUserId || currentUserId === profile.id ? null : relationship === 'friend' ? (
                     <span className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 text-sm font-bold text-emerald-100">
                       <Users size={17} />
@@ -340,10 +404,20 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
                       {profile.friend_requests_open ? 'Add Friend' : 'Requests Closed'}
                     </button>
                   )}
+                  {presentation === 'overlay' && onClose ? (
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      aria-label="Close public profile"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+                    >
+                      <X size={18} />
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1">
+              <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1">
                 {[
                   ['profile', 'Profile'],
                   ['stats', 'Stats'],
@@ -377,33 +451,10 @@ export function PublicProfileScreen({ username, presentation = 'page' }: PublicP
               ) : null}
 
               {activeTab === 'stats' ? (
-                <div className="mt-6 grid gap-4">
-                  <p className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-300">
-                    Public game stats are not synced to accounts yet. These cards are ready for account-backed stats once we start storing completions server-side.
-                  </p>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {PUBLIC_PROFILE_GAMES.map((game) => (
-                      <article key={game.id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">{game.note}</p>
-                            <h3 className="mt-1 text-lg font-bold text-white">{game.title}</h3>
-                          </div>
-                          <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-slate-400">
-                            Not public
-                          </span>
-                        </div>
-                        <div className="mt-4 grid grid-cols-3 gap-2">
-                          {['Current streak', 'Best streak', 'Avg guesses'].map((label) => (
-                            <div key={label} className="rounded-xl bg-slate-900 p-3">
-                              <p className="text-xs text-slate-500">{label}</p>
-                              <p className="mt-1 text-lg font-bold text-white">-</p>
-                            </div>
-                          ))}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
+                <div className="mt-5 grid gap-3">
+                  <PublicQuizStatsSection title="Ability Blitz" />
+                  <PublicQuizStatsSection title="Skin Champion" />
+                  <PublicSmallStatsPanels />
                 </div>
               ) : null}
             </>

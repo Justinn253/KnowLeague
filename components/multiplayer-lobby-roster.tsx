@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Crown, MoreHorizontal, UserCheck, UserX, Users } from 'lucide-react';
+import { Crown, MoreHorizontal, UserCheck, UserMinus, UserX, Users } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 export type MultiplayerLobbyRosterPlayer = {
@@ -14,6 +14,7 @@ export type MultiplayerLobbyRosterPlayer = {
   isCurrentUser: boolean;
   isHost: boolean;
   canPromote?: boolean;
+  canDemote?: boolean;
   status?: ReactNode;
 };
 
@@ -23,6 +24,7 @@ type MultiplayerLobbyRosterProps = {
   canManage: boolean;
   onKick?: (playerId: string) => void | Promise<void>;
   onPromote?: (playerId: string) => void | Promise<void>;
+  onDemote?: (playerId: string) => void | Promise<void>;
   onMakeHost?: (playerId: string) => void | Promise<void>;
 };
 
@@ -42,6 +44,7 @@ export function MultiplayerLobbyRoster({
   canManage,
   onKick,
   onPromote,
+  onDemote,
   onMakeHost,
 }: MultiplayerLobbyRosterProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -177,7 +180,7 @@ export function MultiplayerLobbyRoster({
   };
 
   const openActionsMenu = (event: React.MouseEvent<HTMLButtonElement>, player: MultiplayerLobbyRosterPlayer) => {
-    if (player.isCurrentUser) {
+    if (player.isCurrentUser && !hasMenuActions(player)) {
       return;
     }
     event.stopPropagation();
@@ -206,7 +209,8 @@ export function MultiplayerLobbyRoster({
     || (player.authUserId && currentAuthUserId && player.authUserId !== currentAuthUserId)
     || (canManage && onMakeHost && !player.isHost)
     || (canManage && player.canPromote && onPromote)
-    || (canManage && onKick),
+    || (canManage && player.canDemote && onDemote)
+    || (canManage && !player.isCurrentUser && onKick),
   );
 
   return (
@@ -223,6 +227,7 @@ export function MultiplayerLobbyRoster({
         {players.map((player) => {
           const isFriend = Boolean(player.authUserId && friendIds.has(player.authUserId));
           const playerInitial = player.displayName.trim().slice(0, 1).toUpperCase() || '?';
+          const showActionsButton = !player.isCurrentUser || hasMenuActions(player);
           return (
             <div
               key={player.id}
@@ -251,7 +256,7 @@ export function MultiplayerLobbyRoster({
 
               <div className="flex shrink-0 items-center gap-2">
                 {player.status}
-                {!player.isCurrentUser ? (
+                {showActionsButton ? (
                   <button type="button" data-roster-menu-trigger onClick={(event) => openActionsMenu(event, player)} aria-label={`More actions for ${player.displayName}`} aria-expanded={contextMenu?.player.id === player.id} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-950 text-slate-400 transition hover:bg-slate-800 hover:text-white">
                     <MoreHorizontal size={14} />
                   </button>
@@ -282,7 +287,10 @@ export function MultiplayerLobbyRoster({
           {canManage && contextMenu.player.canPromote && onPromote ? (
             <button type="button" onClick={() => runManagementAction(onPromote)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/10"><UserCheck size={14} />Make Player</button>
           ) : null}
-          {canManage && onKick ? (
+          {canManage && contextMenu.player.canDemote && onDemote ? (
+            <button type="button" onClick={() => runManagementAction(onDemote)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-800"><UserMinus size={14} />Make Spectator</button>
+          ) : null}
+          {canManage && !contextMenu.player.isCurrentUser && onKick ? (
             <button type="button" onClick={() => runManagementAction(onKick)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/10"><UserX size={14} />Kick</button>
           ) : null}
           {!hasMenuActions(contextMenu.player) ? (

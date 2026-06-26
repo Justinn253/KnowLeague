@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 
 export function getRouteErrorResponse(error: unknown) {
-  const message = error instanceof Error ? error.message : 'Unexpected API error.';
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+      ? error.message
+      : 'Unexpected API error.';
   const status = message.includes('not found') ? 404 : message.includes('Supabase is not configured') ? 503 : 400;
 
   return NextResponse.json({ error: message }, { status });

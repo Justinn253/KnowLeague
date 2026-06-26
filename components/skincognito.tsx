@@ -8,13 +8,14 @@ import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
-import { getOrCreateClientId } from '@/lib/game-storage';
+import { getOrCreateClientId, loadDetailedGameStats, recordSkincognitoStats, type DetailedGameStats } from '@/lib/game-storage';
 import { disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
+import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
 
 type SkinAnswer = {
   id: string;
@@ -204,16 +205,6 @@ function createChatGroups(
   }, []);
 }
 
-function isRoutineSystemMessage(message: string) {
-  return (
-    message.includes(' created the lobby.') ||
-    message.includes(' joined the lobby.') ||
-    message.includes(' selected a skin.') ||
-    message.includes('The game started.') ||
-    message.includes(' guessed ')
-  );
-}
-
 function getLobbyStatusLabel(view: SkincognitoLobbyView | null) {
   if (!view) {
     return 'Create or join a lobby';
@@ -285,6 +276,7 @@ export function Skincognito() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<SkincognitoPublicLobby[]>([]);
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
+  const [detailedStats, setDetailedStats] = useState<DetailedGameStats>(() => loadDetailedGameStats());
   const skinSearchRef = useRef<HTMLDivElement>(null);
   const guessSearchRef = useRef<HTMLDivElement>(null);
   const guessesScrollRef = useRef<HTMLDivElement>(null);
@@ -294,6 +286,7 @@ export function Skincognito() {
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
+  const statsRecordedRef = useRef<string | null>(null);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: SkincognitoLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
 
@@ -394,7 +387,7 @@ export function Skincognito() {
     [...(lobbyView?.actions ?? [])].slice(-8)
   ), [lobbyView?.actions]);
   const visibleChatMessages = useMemo(() => (
-    (lobbyView?.chatMessages ?? []).filter((chat) => chat.message_type !== 'system' || !isRoutineSystemMessage(chat.message))
+    (lobbyView?.chatMessages ?? []).filter((chat) => chat.message_type !== 'system')
   ), [lobbyView?.chatMessages]);
   const chatGroups = useMemo(() => (
     lobbyView ? createChatGroups(visibleChatMessages, lobbyView, requestingPlayer?.id) : []
@@ -414,10 +407,51 @@ export function Skincognito() {
     return value ? { id: value, label: value, imageUrl: null } : null;
   }, [answers, guessedValues, guessQuery, selectedCategory]);
   const canSubmitExactGuess = Boolean(canSubmitAction && exactGuessSuggestion);
-  const finishedCorrectGuesses = lobbyView?.actions.filter((action) => action.is_correct).length ?? 0;
-  const finishedWrongGuesses = lobbyView?.actions.filter((action) => !action.is_correct).length ?? 0;
+  const finishedPlayerStats = [playerOne, playerTwo]
+    .filter((player): player is SkincognitoPublicPlayer => Boolean(player))
+    .map((player) => {
+      const playerActions = lobbyView?.actions.filter((action) => action.player_id === player.id) ?? [];
+      return {
+        player,
+        turns: playerActions.length,
+        correct: playerActions.filter((action) => action.is_correct).length,
+        wrong: playerActions.filter((action) => !action.is_correct).length,
+        skinGuesses: playerActions.filter((action) => action.action_type === 'skin_guess').length,
+      };
+    });
   const isFinishedWinner = Boolean(requestingPlayer && winnerPlayer && requestingPlayer.id === winnerPlayer.id);
   const isFinishedLoser = Boolean(requestingPlayer && finishedTargetPlayer && requestingPlayer.id === finishedTargetPlayer.id);
+  const skincognitoRecordResult = lobbyView?.lobby.status === 'finished' && requestingPlayer?.role !== 'spectator'
+    ? isFinishedWinner ? 'win' as const : 'loss' as const
+    : null;
+  const skincognitoStats = detailedStats.skincognito;
+  const skincognitoMatchRecorded = Boolean(lobbyView?.lobby.id && skincognitoStats.recordedMatchIds.includes(lobbyView.lobby.id));
+  const displayedSkincognitoWins = Math.max(0, skincognitoStats.totalWins - (skincognitoMatchRecorded && skincognitoRecordResult === 'win' ? 1 : 0));
+  const displayedSkincognitoLosses = Math.max(0, skincognitoStats.totalLosses - (skincognitoMatchRecorded && skincognitoRecordResult === 'loss' ? 1 : 0));
+
+  useEffect(() => {
+    if (!lobbyView || lobbyView.lobby.status !== 'finished' || !requestingPlayer || requestingPlayer.role === 'spectator') {
+      return;
+    }
+
+    if (statsRecordedRef.current === lobbyView.lobby.id) {
+      return;
+    }
+
+    statsRecordedRef.current = lobbyView.lobby.id;
+    const playerActions = lobbyView.actions.filter((action) => action.player_id === requestingPlayer.id);
+    const skinGuesses = playerActions.filter((action) => action.action_type === 'skin_guess');
+    const won = lobbyView.lobby.winner_player_id === requestingPlayer.id;
+    const updatedStats = recordSkincognitoStats({
+      matchId: lobbyView.lobby.id,
+      won,
+      totalGuesses: playerActions.length,
+      correctGuesses: playerActions.filter((action) => action.is_correct).length,
+      turnsUntilVictory: won ? playerActions.length : null,
+      mostRecentSkinGuess: skinGuesses[skinGuesses.length - 1]?.guess_value ?? null,
+    });
+    setDetailedStats(updatedStats);
+  }, [lobbyView, requestingPlayer]);
 
   const selectedSkinPreview = selectedSkin ?? (
     requestingPlayer?.selected_skin
@@ -693,7 +727,7 @@ export function Skincognito() {
 
   useEffect(() => {
     const guessesElement = guessesScrollRef.current;
-    if (!guessesElement || !wasGuessesAtBottomRef.current) {
+    if (!guessesElement) {
       return;
     }
 
@@ -849,7 +883,7 @@ export function Skincognito() {
     });
   };
 
-  const joinLobbyByCode = (code: string) => {
+  const joinLobbyByCode = (code: string, requirePublic = false) => {
     if (!clientId) {
       return;
     }
@@ -859,6 +893,7 @@ export function Skincognito() {
       code: code.trim().toUpperCase(),
       clientId,
       selectedSkinId: selectedSkin?.id ?? null,
+      requirePublic,
     });
   };
 
@@ -969,6 +1004,17 @@ export function Skincognito() {
     });
   };
 
+  const makeSpectator = (targetPlayerId: string) => {
+    if (!clientId || !lobbyView) {
+      return;
+    }
+
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/spectator`, {
+      clientId,
+      targetPlayerId,
+    });
+  };
+
   const makeHost = (targetPlayerId: string) => {
     if (!clientId || !lobbyView) {
       return;
@@ -1066,7 +1112,19 @@ export function Skincognito() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {lobbyView?.lobby.status === 'finished' && isHost ? (
+              <button
+                type="button"
+                onClick={scheduleReturnToLobby}
+                disabled={busy || Boolean(lobbyView.lobby.return_to_lobby_at)}
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {lobbyView.lobby.return_to_lobby_at
+                  ? `Returning in ${returnToLobbyCountdown ?? 5}s`
+                  : 'Return to Lobby'}
+              </button>
+            ) : null}
             <GameInfoMenu title="Skincognito" steps={[
               'Choose a skin for your opponent to identify before the match starts.',
               'Take turns asking category questions and use the answers to narrow down the skin.',
@@ -1171,7 +1229,7 @@ export function Skincognito() {
               </div>
               <div className="mt-4 grid gap-2">
                 {publicLobbies.length ? publicLobbies.map((lobby) => (
-                  <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
+                  <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code, true)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
                     <span className="truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span>
                     <span className="shrink-0 text-xs font-semibold text-slate-300">{lobby.playerCount}/{lobby.maxPlayers}</span>
                   </button>
@@ -1189,7 +1247,7 @@ export function Skincognito() {
           {lobbyView && lobbyView.lobby.status === 'waiting' ? (
             <div className="mt-8 border-t border-white/10 pt-8">
               <button type="button" disabled={!isHost || busy} onClick={updateLobbyVisibility} className={`mb-5 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${lobbyView.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-950/70'} disabled:opacity-60`}>
-                <span><span className="block text-sm font-semibold text-white">Public lobby</span><span className="mt-1 block text-xs text-slate-400">Allow players to discover and join this lobby.</span></span>
+                <span><span className="block text-sm font-semibold text-white">Public lobby</span></span>
                 <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${lobbyView.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${lobbyView.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
               </button>
               <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
@@ -1205,6 +1263,7 @@ export function Skincognito() {
                     isCurrentUser: player.is_requesting_player,
                     isHost: player.id === lobbyView.lobby.host_player_id,
                     canPromote: player.role === 'spectator',
+                    canDemote: player.role !== 'spectator',
                     status: (
                       <span
                         className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
@@ -1220,6 +1279,7 @@ export function Skincognito() {
                   }))}
                   onKick={kickPlayer}
                   onPromote={promoteSpectator}
+                  onDemote={makeSpectator}
                   onMakeHost={makeHost}
                 />
 
@@ -1386,7 +1446,7 @@ export function Skincognito() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`${getPlayerLabel(topPlayer)}'s correct category guesses`}
+                  {`${getPlayerLabel(topPlayer)}'s correct guesses`}
                 </p>
               </section>
 
@@ -1559,7 +1619,7 @@ export function Skincognito() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`${getPlayerLabel(bottomPlayer)}'s correct category guesses`}
+                  {`${getPlayerLabel(bottomPlayer)}'s correct guesses`}
                 </p>
               </section>
 
@@ -1589,49 +1649,57 @@ export function Skincognito() {
                         )}
                       </div>
 
-                      <div>
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Game Complete</p>
-                            <h3 className="mt-2 text-3xl font-bold text-white">
-                              {winnerPlayer ? `${winnerPlayer.display_name} won` : 'Game finished'}
-                            </h3>
-                            <p className="mt-3 text-lg font-semibold text-slate-100">
-                              The skin was {finishedTargetSkin?.answer ?? 'unknown'}.
-                            </p>
-                          </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Game Complete</p>
+                          <h3 className="text-2xl font-bold text-white sm:text-right">
+                            {winnerPlayer ? `${winnerPlayer.display_name} won` : 'Game finished'}
+                          </h3>
+                        </div>
 
-                          {isHost ? (
-                            <button
-                              type="button"
-                              onClick={scheduleReturnToLobby}
-                              disabled={busy || Boolean(lobbyView.lobby.return_to_lobby_at)}
-                              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {lobbyView.lobby.return_to_lobby_at
-                                ? `Returning in ${returnToLobbyCountdown ?? 5}s`
-                                : 'Return to Lobby'}
-                            </button>
+                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-lg font-semibold text-slate-100">
+                            The skin was {finishedTargetSkin?.answer ?? 'unknown'}.
+                          </p>
+                          {requestingPlayer?.role !== 'spectator' ? (
+                            <MultiplayerRecordDelta
+                              wins={displayedSkincognitoWins}
+                              losses={displayedSkincognitoLosses}
+                              result={skincognitoRecordResult}
+                              className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-xs font-semibold text-slate-100 sm:justify-self-end"
+                            />
                           ) : null}
                         </div>
 
-                        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                          <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3">
-                            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Turns</p>
-                            <p className="mt-2 text-xl font-bold text-white">{lobbyView.actions.length}</p>
-                          </div>
-                          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-                            <p className="text-xs uppercase tracking-[0.18em] text-emerald-200">Correct</p>
-                            <p className="mt-2 text-xl font-bold text-white">{finishedCorrectGuesses}</p>
-                          </div>
-                          <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-3">
-                            <p className="text-xs uppercase tracking-[0.18em] text-red-200">Wrong</p>
-                            <p className="mt-2 text-xl font-bold text-white">{finishedWrongGuesses}</p>
-                          </div>
-                          <div className="rounded-2xl border border-violet-300/30 bg-violet-400/10 p-3">
-                            <p className="text-xs uppercase tracking-[0.18em] text-violet-200">Skin Uses</p>
-                            <p className="mt-2 text-xl font-bold text-white">{lobbyView.finishedSkinUseCount ?? 0}</p>
-                          </div>
+                        <div className="mt-5 grid gap-4 md:grid-cols-2">
+                          {finishedPlayerStats.map((stats) => (
+                            <div key={stats.player.id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                <p className="truncate text-sm font-bold text-white">{stats.player.display_name}</p>
+                                <span className="rounded-full border border-white/10 bg-slate-900 px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                  {stats.player.id === lobbyView.lobby.winner_player_id ? 'Winner' : 'Player'}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-xl border border-white/10 bg-slate-900/80 p-3">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.16em] text-slate-500">Turns</p>
+                                  <p className="mt-2 text-xl font-bold text-white">{stats.turns}</p>
+                                </div>
+                                <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.16em] text-emerald-200">Correct</p>
+                                  <p className="mt-2 text-xl font-bold text-white">{stats.correct}</p>
+                                </div>
+                                <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.16em] text-red-200">Wrong</p>
+                                  <p className="mt-2 text-xl font-bold text-white">{stats.wrong}</p>
+                                </div>
+                                <div className="rounded-xl border border-violet-300/30 bg-violet-400/10 p-3">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.16em] text-violet-200">Skin Guesses</p>
+                                  <p className="mt-2 text-xl font-bold text-white">{stats.skinGuesses}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>

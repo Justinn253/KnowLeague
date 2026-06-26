@@ -205,16 +205,6 @@ function createChatGroups(
   }, []);
 }
 
-function isRoutineSystemMessage(message: string) {
-  return (
-    message.includes(' created the lobby.') ||
-    message.includes(' joined the lobby.') ||
-    message.includes(' selected a skin.') ||
-    message.includes('The game started.') ||
-    message.includes(' guessed ')
-  );
-}
-
 function getLobbyStatusLabel(view: SkincognitoLobbyView | null) {
   if (!view) {
     return 'Create or join a lobby';
@@ -397,7 +387,7 @@ export function Skincognito() {
     [...(lobbyView?.actions ?? [])].slice(-8)
   ), [lobbyView?.actions]);
   const visibleChatMessages = useMemo(() => (
-    (lobbyView?.chatMessages ?? []).filter((chat) => chat.message_type !== 'system' || !isRoutineSystemMessage(chat.message))
+    (lobbyView?.chatMessages ?? []).filter((chat) => chat.message_type !== 'system')
   ), [lobbyView?.chatMessages]);
   const chatGroups = useMemo(() => (
     lobbyView ? createChatGroups(visibleChatMessages, lobbyView, requestingPlayer?.id) : []
@@ -417,8 +407,18 @@ export function Skincognito() {
     return value ? { id: value, label: value, imageUrl: null } : null;
   }, [answers, guessedValues, guessQuery, selectedCategory]);
   const canSubmitExactGuess = Boolean(canSubmitAction && exactGuessSuggestion);
-  const finishedCorrectGuesses = lobbyView?.actions.filter((action) => action.is_correct).length ?? 0;
-  const finishedWrongGuesses = lobbyView?.actions.filter((action) => !action.is_correct).length ?? 0;
+  const finishedPlayerStats = [playerOne, playerTwo]
+    .filter((player): player is SkincognitoPublicPlayer => Boolean(player))
+    .map((player) => {
+      const playerActions = lobbyView?.actions.filter((action) => action.player_id === player.id) ?? [];
+      return {
+        player,
+        turns: playerActions.length,
+        correct: playerActions.filter((action) => action.is_correct).length,
+        wrong: playerActions.filter((action) => !action.is_correct).length,
+        skinGuesses: playerActions.filter((action) => action.action_type === 'skin_guess').length,
+      };
+    });
   const isFinishedWinner = Boolean(requestingPlayer && winnerPlayer && requestingPlayer.id === winnerPlayer.id);
   const isFinishedLoser = Boolean(requestingPlayer && finishedTargetPlayer && requestingPlayer.id === finishedTargetPlayer.id);
   const skincognitoRecordResult = lobbyView?.lobby.status === 'finished' && requestingPlayer?.role !== 'spectator'
@@ -727,7 +727,7 @@ export function Skincognito() {
 
   useEffect(() => {
     const guessesElement = guessesScrollRef.current;
-    if (!guessesElement || !wasGuessesAtBottomRef.current) {
+    if (!guessesElement) {
       return;
     }
 
@@ -1004,6 +1004,17 @@ export function Skincognito() {
     });
   };
 
+  const makeSpectator = (targetPlayerId: string) => {
+    if (!clientId || !lobbyView) {
+      return;
+    }
+
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/spectator`, {
+      clientId,
+      targetPlayerId,
+    });
+  };
+
   const makeHost = (targetPlayerId: string) => {
     if (!clientId || !lobbyView) {
       return;
@@ -1252,6 +1263,7 @@ export function Skincognito() {
                     isCurrentUser: player.is_requesting_player,
                     isHost: player.id === lobbyView.lobby.host_player_id,
                     canPromote: player.role === 'spectator',
+                    canDemote: player.role !== 'spectator',
                     status: (
                       <span
                         className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
@@ -1267,6 +1279,7 @@ export function Skincognito() {
                   }))}
                   onKick={kickPlayer}
                   onPromote={promoteSpectator}
+                  onDemote={makeSpectator}
                   onMakeHost={makeHost}
                 />
 
@@ -1636,45 +1649,57 @@ export function Skincognito() {
                         )}
                       </div>
 
-                      <div>
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Game Complete</p>
-                            <h3 className="mt-2 text-3xl font-bold text-white">
-                              {winnerPlayer ? `${winnerPlayer.display_name} won` : 'Game finished'}
-                            </h3>
-                            {requestingPlayer?.role !== 'spectator' ? (
-                              <MultiplayerRecordDelta
-                                wins={displayedSkincognitoWins}
-                                losses={displayedSkincognitoLosses}
-                                result={skincognitoRecordResult}
-                                className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-xs font-semibold text-slate-100"
-                              />
-                            ) : null}
-                            <p className="mt-3 text-lg font-semibold text-slate-100">
-                              The skin was {finishedTargetSkin?.answer ?? 'unknown'}.
-                            </p>
-                          </div>
-
+                      <div className="min-w-0">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Game Complete</p>
+                          <h3 className="text-2xl font-bold text-white sm:text-right">
+                            {winnerPlayer ? `${winnerPlayer.display_name} won` : 'Game finished'}
+                          </h3>
                         </div>
 
-                        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                          <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3">
-                            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Turns</p>
-                            <p className="mt-2 text-xl font-bold text-white">{lobbyView.actions.length}</p>
-                          </div>
-                          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-                            <p className="text-xs uppercase tracking-[0.18em] text-emerald-200">Correct</p>
-                            <p className="mt-2 text-xl font-bold text-white">{finishedCorrectGuesses}</p>
-                          </div>
-                          <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-3">
-                            <p className="text-xs uppercase tracking-[0.18em] text-red-200">Wrong</p>
-                            <p className="mt-2 text-xl font-bold text-white">{finishedWrongGuesses}</p>
-                          </div>
-                          <div className="rounded-2xl border border-violet-300/30 bg-violet-400/10 p-3">
-                            <p className="text-xs uppercase tracking-[0.18em] text-violet-200">Skin Uses</p>
-                            <p className="mt-2 text-xl font-bold text-white">{lobbyView.finishedSkinUseCount ?? 0}</p>
-                          </div>
+                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-lg font-semibold text-slate-100">
+                            The skin was {finishedTargetSkin?.answer ?? 'unknown'}.
+                          </p>
+                          {requestingPlayer?.role !== 'spectator' ? (
+                            <MultiplayerRecordDelta
+                              wins={displayedSkincognitoWins}
+                              losses={displayedSkincognitoLosses}
+                              result={skincognitoRecordResult}
+                              className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-xs font-semibold text-slate-100 sm:justify-self-end"
+                            />
+                          ) : null}
+                        </div>
+
+                        <div className="mt-5 grid gap-4 md:grid-cols-2">
+                          {finishedPlayerStats.map((stats) => (
+                            <div key={stats.player.id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                <p className="truncate text-sm font-bold text-white">{stats.player.display_name}</p>
+                                <span className="rounded-full border border-white/10 bg-slate-900 px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                  {stats.player.id === lobbyView.lobby.winner_player_id ? 'Winner' : 'Player'}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-xl border border-white/10 bg-slate-900/80 p-3">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.16em] text-slate-500">Turns</p>
+                                  <p className="mt-2 text-xl font-bold text-white">{stats.turns}</p>
+                                </div>
+                                <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.16em] text-emerald-200">Correct</p>
+                                  <p className="mt-2 text-xl font-bold text-white">{stats.correct}</p>
+                                </div>
+                                <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.16em] text-red-200">Wrong</p>
+                                  <p className="mt-2 text-xl font-bold text-white">{stats.wrong}</p>
+                                </div>
+                                <div className="rounded-xl border border-violet-300/30 bg-violet-400/10 p-3">
+                                  <p className="text-[0.65rem] uppercase tracking-[0.16em] text-violet-200">Skin Guesses</p>
+                                  <p className="mt-2 text-xl font-bold text-white">{stats.skinGuesses}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>

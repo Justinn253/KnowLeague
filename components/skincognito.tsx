@@ -8,7 +8,7 @@ import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
-import { getOrCreateClientId } from '@/lib/game-storage';
+import { getOrCreateClientId, recordSkincognitoStats } from '@/lib/game-storage';
 import { disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -294,6 +294,7 @@ export function Skincognito() {
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
+  const statsRecordedRef = useRef<string | null>(null);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: SkincognitoLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
 
@@ -418,6 +419,29 @@ export function Skincognito() {
   const finishedWrongGuesses = lobbyView?.actions.filter((action) => !action.is_correct).length ?? 0;
   const isFinishedWinner = Boolean(requestingPlayer && winnerPlayer && requestingPlayer.id === winnerPlayer.id);
   const isFinishedLoser = Boolean(requestingPlayer && finishedTargetPlayer && requestingPlayer.id === finishedTargetPlayer.id);
+
+  useEffect(() => {
+    if (!lobbyView || lobbyView.lobby.status !== 'finished' || !requestingPlayer || requestingPlayer.role === 'spectator') {
+      return;
+    }
+
+    if (statsRecordedRef.current === lobbyView.lobby.id) {
+      return;
+    }
+
+    statsRecordedRef.current = lobbyView.lobby.id;
+    const playerActions = lobbyView.actions.filter((action) => action.player_id === requestingPlayer.id);
+    const skinGuesses = playerActions.filter((action) => action.action_type === 'skin_guess');
+    const won = lobbyView.lobby.winner_player_id === requestingPlayer.id;
+    recordSkincognitoStats({
+      matchId: lobbyView.lobby.id,
+      won,
+      totalGuesses: playerActions.length,
+      correctGuesses: playerActions.filter((action) => action.is_correct).length,
+      turnsUntilVictory: won ? playerActions.length : null,
+      mostRecentSkinGuess: skinGuesses[skinGuesses.length - 1]?.guess_value ?? null,
+    });
+  }, [lobbyView, requestingPlayer]);
 
   const selectedSkinPreview = selectedSkin ?? (
     requestingPlayer?.selected_skin

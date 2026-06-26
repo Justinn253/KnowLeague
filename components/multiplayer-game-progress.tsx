@@ -13,6 +13,9 @@ export type MultiplayerGameRuntime = {
   initialProgress: number;
   initialElapsedSeconds: number;
   gameEnded: boolean;
+  matchId?: string;
+  won?: boolean;
+  lost?: boolean;
   progressPanel: ReactNode;
   onProgress: (progress: number, elapsedSeconds: number, result: MultiplayerQuizPlayerResult) => void;
   onExit: () => void;

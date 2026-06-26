@@ -1,7 +1,12 @@
 export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle' | 'skincognito';
+export type QuizStatsGameId = 'ability-blitz' | 'skin-champion';
+export type StatsMode = 'solo' | 'multiplayer';
 
 const STORAGE_PREFIX = 'knowleague:v1';
 const CLIENT_ID_KEY = `${STORAGE_PREFIX}:client-id`;
+const DETAILED_STATS_KEY = `${STORAGE_PREFIX}:detailed-game-stats`;
+const MAX_RECORDED_MATCH_IDS = 250;
+const MAX_SKIN_GUESS_STATS = 50;
 
 export type PlayerGuessStat = {
   itemId: string;
@@ -44,6 +49,66 @@ export type PlayerCompletionGuess = {
   skinLine?: string | null;
   releaseYear?: string | null;
   rarity?: string | null;
+};
+
+export type QuizModeStats = {
+  totalPlayed: number;
+  matchesPlayed: number;
+  matchesWon: number;
+  matchesLost: number;
+  currentStreak: number;
+  bestStreak: number;
+  totalGuesses: number;
+  correctGuesses: number;
+  totalElapsedSeconds: number;
+  completedItems: number;
+  recordedMatchIds: string[];
+};
+
+export type QuizGameDetailedStats = {
+  solo: QuizModeStats;
+  multiplayer: QuizModeStats;
+};
+
+export type SkincognitoDetailedStats = {
+  totalPlayed: number;
+  totalWins: number;
+  totalLosses: number;
+  currentStreak: number;
+  bestStreak: number;
+  totalGuesses: number;
+  correctGuesses: number;
+  totalVictoryTurns: number;
+  victoriesWithTurnCount: number;
+  guessedSkinStats: Record<string, PlayerValueStat>;
+  recordedMatchIds: string[];
+};
+
+export type DetailedGameStats = {
+  abilityBlitz: QuizGameDetailedStats;
+  skinChampion: QuizGameDetailedStats;
+  skincognito: SkincognitoDetailedStats;
+};
+
+export type QuizStatsInput = {
+  gameId: QuizStatsGameId;
+  mode: StatsMode;
+  completedItems: number;
+  totalItems: number;
+  wrongGuesses: number;
+  elapsedSeconds: number;
+  won?: boolean;
+  lost?: boolean;
+  matchId?: string;
+};
+
+export type SkincognitoStatsInput = {
+  matchId: string;
+  won: boolean;
+  totalGuesses: number;
+  correctGuesses: number;
+  turnsUntilVictory?: number | null;
+  mostRecentSkinGuess?: string | null;
 };
 
 export type DailyGameState<TState> = {
@@ -107,6 +172,198 @@ function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {
     firstGuess: null,
     lastCorrectGuess: null,
   };
+}
+
+function createEmptyQuizModeStats(): QuizModeStats {
+  return {
+    totalPlayed: 0,
+    matchesPlayed: 0,
+    matchesWon: 0,
+    matchesLost: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+    totalGuesses: 0,
+    correctGuesses: 0,
+    totalElapsedSeconds: 0,
+    completedItems: 0,
+    recordedMatchIds: [],
+  };
+}
+
+function createEmptySkincognitoStats(): SkincognitoDetailedStats {
+  return {
+    totalPlayed: 0,
+    totalWins: 0,
+    totalLosses: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+    totalGuesses: 0,
+    correctGuesses: 0,
+    totalVictoryTurns: 0,
+    victoriesWithTurnCount: 0,
+    guessedSkinStats: {},
+    recordedMatchIds: [],
+  };
+}
+
+function createEmptyDetailedStats(): DetailedGameStats {
+  return {
+    abilityBlitz: {
+      solo: createEmptyQuizModeStats(),
+      multiplayer: createEmptyQuizModeStats(),
+    },
+    skinChampion: {
+      solo: createEmptyQuizModeStats(),
+      multiplayer: createEmptyQuizModeStats(),
+    },
+    skincognito: createEmptySkincognitoStats(),
+  };
+}
+
+function normalizeQuizModeStats(stats?: Partial<QuizModeStats>): QuizModeStats {
+  return {
+    ...createEmptyQuizModeStats(),
+    ...stats,
+    recordedMatchIds: Array.isArray(stats?.recordedMatchIds) ? stats.recordedMatchIds.slice(-MAX_RECORDED_MATCH_IDS) : [],
+  };
+}
+
+function normalizeSkincognitoStats(stats?: Partial<SkincognitoDetailedStats>): SkincognitoDetailedStats {
+  return {
+    ...createEmptySkincognitoStats(),
+    ...stats,
+    guessedSkinStats: stats?.guessedSkinStats ?? {},
+    recordedMatchIds: Array.isArray(stats?.recordedMatchIds) ? stats.recordedMatchIds.slice(-MAX_RECORDED_MATCH_IDS) : [],
+  };
+}
+
+function normalizeDetailedStats(stats?: Partial<DetailedGameStats>): DetailedGameStats {
+  return {
+    abilityBlitz: {
+      solo: normalizeQuizModeStats(stats?.abilityBlitz?.solo),
+      multiplayer: normalizeQuizModeStats(stats?.abilityBlitz?.multiplayer),
+    },
+    skinChampion: {
+      solo: normalizeQuizModeStats(stats?.skinChampion?.solo),
+      multiplayer: normalizeQuizModeStats(stats?.skinChampion?.multiplayer),
+    },
+    skincognito: normalizeSkincognitoStats(stats?.skincognito),
+  };
+}
+
+export function loadDetailedGameStats() {
+  if (!isStorageAvailable()) {
+    return createEmptyDetailedStats();
+  }
+
+  try {
+    const rawStats = window.localStorage.getItem(DETAILED_STATS_KEY);
+    return normalizeDetailedStats(rawStats ? JSON.parse(rawStats) as Partial<DetailedGameStats> : undefined);
+  } catch (error) {
+    console.warn('Unable to load detailed game stats.', error);
+    return createEmptyDetailedStats();
+  }
+}
+
+function saveDetailedGameStats(stats: DetailedGameStats) {
+  if (!isStorageAvailable()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(DETAILED_STATS_KEY, JSON.stringify(stats));
+  } catch (error) {
+    console.warn('Unable to save detailed game stats.', error);
+  }
+}
+
+function nextStreak(current: number, won: boolean) {
+  return won ? current + 1 : 0;
+}
+
+function hasRecordedMatch(stats: { recordedMatchIds: string[] }, matchId?: string) {
+  return Boolean(matchId && stats.recordedMatchIds.includes(matchId));
+}
+
+function appendRecordedMatchId(ids: string[], matchId?: string) {
+  return matchId ? [...ids, matchId].slice(-MAX_RECORDED_MATCH_IDS) : ids;
+}
+
+export function recordQuizGameStats(input: QuizStatsInput) {
+  const allStats = loadDetailedGameStats();
+  const gameKey = input.gameId === 'ability-blitz' ? 'abilityBlitz' : 'skinChampion';
+  const current = allStats[gameKey][input.mode];
+  if (hasRecordedMatch(current, input.matchId)) {
+    return allStats;
+  }
+
+  const correctGuesses = Math.max(0, Math.floor(input.completedItems));
+  const wrongGuesses = Math.max(0, Math.floor(input.wrongGuesses));
+  const totalGuesses = correctGuesses + wrongGuesses;
+  const won = input.won ?? correctGuesses >= input.totalItems;
+  const lost = input.lost ?? !won;
+  const currentStreak = nextStreak(current.currentStreak, won);
+  const nextStats: QuizModeStats = {
+    ...current,
+    totalPlayed: current.totalPlayed + 1,
+    matchesPlayed: input.mode === 'multiplayer' ? current.matchesPlayed + 1 : current.matchesPlayed,
+    matchesWon: input.mode === 'multiplayer' && won ? current.matchesWon + 1 : current.matchesWon,
+    matchesLost: input.mode === 'multiplayer' && lost ? current.matchesLost + 1 : current.matchesLost,
+    currentStreak,
+    bestStreak: Math.max(current.bestStreak, currentStreak),
+    totalGuesses: current.totalGuesses + totalGuesses,
+    correctGuesses: current.correctGuesses + correctGuesses,
+    totalElapsedSeconds: current.totalElapsedSeconds + Math.max(0, Math.floor(input.elapsedSeconds)),
+    completedItems: current.completedItems + correctGuesses,
+    recordedMatchIds: appendRecordedMatchId(current.recordedMatchIds, input.matchId),
+  };
+
+  allStats[gameKey][input.mode] = nextStats;
+  saveDetailedGameStats(allStats);
+  return allStats;
+}
+
+function trimValueStats(stats: Record<string, PlayerValueStat>) {
+  return Object.fromEntries(
+    Object.entries(stats)
+      .sort(([, left], [, right]) => right.count - left.count)
+      .slice(0, MAX_SKIN_GUESS_STATS),
+  );
+}
+
+export function recordSkincognitoStats(input: SkincognitoStatsInput) {
+  const allStats = loadDetailedGameStats();
+  const current = allStats.skincognito;
+  if (hasRecordedMatch(current, input.matchId)) {
+    return allStats;
+  }
+
+  const currentStreak = nextStreak(current.currentStreak, input.won);
+  const guessedSkinStats = { ...current.guessedSkinStats };
+  const skinGuess = input.mostRecentSkinGuess?.trim();
+  if (skinGuess) {
+    guessedSkinStats[skinGuess] = {
+      value: skinGuess,
+      count: (guessedSkinStats[skinGuess]?.count ?? 0) + 1,
+    };
+  }
+
+  allStats.skincognito = {
+    ...current,
+    totalPlayed: current.totalPlayed + 1,
+    totalWins: input.won ? current.totalWins + 1 : current.totalWins,
+    totalLosses: input.won ? current.totalLosses : current.totalLosses + 1,
+    currentStreak,
+    bestStreak: Math.max(current.bestStreak, currentStreak),
+    totalGuesses: current.totalGuesses + Math.max(0, Math.floor(input.totalGuesses)),
+    correctGuesses: current.correctGuesses + Math.max(0, Math.floor(input.correctGuesses)),
+    totalVictoryTurns: input.won && input.turnsUntilVictory ? current.totalVictoryTurns + Math.max(0, input.turnsUntilVictory) : current.totalVictoryTurns,
+    victoriesWithTurnCount: input.won && input.turnsUntilVictory ? current.victoriesWithTurnCount + 1 : current.victoriesWithTurnCount,
+    guessedSkinStats: trimValueStats(guessedSkinStats),
+    recordedMatchIds: appendRecordedMatchId(current.recordedMatchIds, input.matchId),
+  };
+  saveDetailedGameStats(allStats);
+  return allStats;
 }
 
 function getPreviousDateKey(dateKey: string) {

@@ -20,7 +20,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
-import { loadPlayerGameStats, type GameId, type PlayerGameStats } from '@/lib/game-storage';
+import { loadDetailedGameStats, loadPlayerGameStats, type DetailedGameStats, type PlayerGameStats, type QuizGameDetailedStats, type QuizModeStats, type SkincognitoDetailedStats } from '@/lib/game-storage';
 import {
   type ChatBorder,
   CHAT_COLOR_VALUES,
@@ -83,12 +83,6 @@ const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 const CHAT_COLOR_OPTIONS = CHAT_COLOR_VALUES.map((value) => ({ value }));
 const CHAT_BORDER_OPTIONS = CHAT_COLOR_VALUES.map((value) => ({ value }));
 const PROFILE_COSMETICS_DATABASE_MESSAGE = 'Profile cosmetics cannot be saved because the database is missing the latest profile cosmetics columns. Apply the latest profile migrations, then save again.';
-const PROFILE_STATS_GAMES: Array<{ id: GameId; title: string; note: string }> = [
-  { id: 'ability-blitz', title: 'Ability Blitz', note: 'Solo completions' },
-  { id: 'skin-champion', title: 'Skin Champion', note: 'Solo completions' },
-  { id: 'skindle', title: 'Skindle', note: 'Daily solves' },
-  { id: 'skincognito', title: 'Skincognito', note: 'Stats are not tracked yet' },
-];
 let cachedProfileScreenState: CachedProfileScreenState | null = null;
 
 type ProfileScreenProps = {
@@ -132,6 +126,127 @@ function getTopValue<TValue extends { count: number }>(values: Record<string, TV
 
 function formatAverage(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatPercent(numerator: number, denominator: number) {
+  if (denominator <= 0) {
+    return '-';
+  }
+
+  return `${Math.round((numerator / denominator) * 1000) / 10}%`;
+}
+
+function formatSecondsValue(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '-';
+  }
+
+  return `${formatAverage(value)}s`;
+}
+
+function getTopValueStat(values: Record<string, { value: string; count: number }>) {
+  return Object.values(values).sort((left, right) => right.count - left.count)[0] ?? null;
+}
+
+function CompactStat({ label, value, title }: { label: string; value: string | number; title?: string }) {
+  return (
+    <div title={title} className="rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</p>
+      <p className="mt-0.5 text-base font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function QuizStatsRow({ label, stats, multiplayer = false }: { label: string; stats: QuizModeStats; multiplayer?: boolean }) {
+  const averageTimePerItem = stats.completedItems > 0 ? stats.totalElapsedSeconds / stats.completedItems : 0;
+  const winPercent = formatPercent(stats.matchesWon, stats.matchesPlayed);
+
+  return (
+    <div className="grid gap-2 rounded-xl border border-white/10 bg-slate-900/55 p-3 lg:grid-cols-[7rem_repeat(6,minmax(0,1fr))] lg:items-center">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-white">{label}</p>
+        {multiplayer ? <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">{stats.matchesWon}W / {stats.matchesLost}L</p> : null}
+      </div>
+      <CompactStat label="Played" value={stats.totalPlayed} />
+      <CompactStat label="Streak" value={`${stats.currentStreak} / ${stats.bestStreak}`} title="Current streak / best streak" />
+      <CompactStat label="Guesses" value={stats.totalGuesses} />
+      <CompactStat label="Correct" value={formatPercent(stats.correctGuesses, stats.totalGuesses)} />
+      <CompactStat label="Avg/item" value={formatSecondsValue(averageTimePerItem)} />
+      <CompactStat label={multiplayer ? 'Win %' : 'Record'} value={multiplayer ? winPercent : '-'} />
+    </div>
+  );
+}
+
+function QuizGameStatsSection({ title, stats }: { title: string; stats: QuizGameDetailedStats }) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3 px-1">
+        <h3 className="text-base font-black text-amber-300">{title}</h3>
+        <span className="text-xs font-semibold text-slate-300">Current / Best streak</span>
+      </div>
+      <div className="grid gap-2">
+        <QuizStatsRow label="Solo" stats={stats.solo} />
+        <QuizStatsRow label="Multiplayer" stats={stats.multiplayer} multiplayer />
+      </div>
+    </section>
+  );
+}
+
+function SkindleStatsPanel({ stats }: { stats: PlayerGameStats }) {
+  const averageGuesses = stats.gamesCompleted > 0 ? stats.totalGuesses / stats.gamesCompleted : 0;
+  const topGuess = getTopValue(stats.guessStats);
+  const topSkinLine = getTopValue(stats.skinLineStats);
+  const topRarity = getTopValue(stats.rarityStats);
+
+  return (
+    <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-black text-amber-300">Skindle</h3>
+        </div>
+        <span title="Current streak / best streak" className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">{stats.currentStreak} / {stats.highestStreak}</span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <CompactStat label="Played" value={stats.gamesCompleted} />
+        <CompactStat label="Avg guesses" value={averageGuesses > 0 ? formatAverage(averageGuesses) : '-'} />
+        <CompactStat label="Total guesses" value={stats.totalGuesses || '-'} />
+      </div>
+      <div className="mt-3 grid gap-x-4 gap-y-1 text-xs text-slate-300 sm:grid-cols-2">
+        <p className="truncate"><span className="text-slate-500">Common:</span> {topGuess?.answer ?? '-'}</p>
+        <p className="truncate"><span className="text-slate-500">Last:</span> {stats.lastCorrectGuess?.answer ?? '-'}</p>
+        <p className="truncate"><span className="text-slate-500">Skin line:</span> {topSkinLine?.value ?? '-'}</p>
+        <p className="truncate"><span className="text-slate-500">Rarity:</span> {topRarity?.value ?? '-'}</p>
+      </div>
+    </article>
+  );
+}
+
+function SkincognitoStatsPanel({ stats }: { stats: SkincognitoDetailedStats }) {
+  const averageVictoryTurns = stats.victoriesWithTurnCount > 0 ? stats.totalVictoryTurns / stats.victoriesWithTurnCount : 0;
+  const topSkinGuess = getTopValueStat(stats.guessedSkinStats);
+
+  return (
+    <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-black text-amber-300">Skincognito</h3>
+        </div>
+        <span title="Current streak / best streak" className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">{stats.currentStreak} / {stats.bestStreak}</span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+        <CompactStat label="Played" value={stats.totalPlayed} />
+        <CompactStat label="Record" value={`${stats.totalWins}W / ${stats.totalLosses}L`} />
+        <CompactStat label="Win %" value={formatPercent(stats.totalWins, stats.totalPlayed)} />
+        <CompactStat label="Guesses" value={stats.totalGuesses} />
+        <CompactStat label="Correct" value={formatPercent(stats.correctGuesses, stats.totalGuesses)} />
+        <CompactStat label="Avg turns" value={averageVictoryTurns > 0 ? formatAverage(averageVictoryTurns) : '-'} />
+        <div className="rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 sm:col-span-2">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-500">Most guessed skin</p>
+          <p className="mt-0.5 truncate text-base font-black text-white">{topSkinGuess?.value ?? '-'}</p>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function DiscordMark({ className = '' }: { className?: string }) {
@@ -259,6 +374,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
   const [friendRequestsOpen, setFriendRequestsOpen] = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
+  const [detailedStats, setDetailedStats] = useState<DetailedGameStats>(() => loadDetailedGameStats());
   const [accountInfoVisible, setAccountInfoVisible] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarCropSource, setAvatarCropSource] = useState<string | null>(null);
@@ -856,7 +972,8 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       return;
     }
 
-    setPlayerStats(PROFILE_STATS_GAMES.map((game) => loadPlayerGameStats(game.id)));
+    setPlayerStats([loadPlayerGameStats('skindle')]);
+    setDetailedStats(loadDetailedGameStats());
   }, [activeTab]);
 
   useEffect(() => () => {
@@ -989,7 +1106,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
         ? 'mx-auto flex w-full max-w-5xl flex-col px-6 py-8'
         : 'mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 py-10'}
       >
-        <header className={`mb-5 flex min-h-12 items-center justify-between gap-3 ${presentation === 'overlay' ? 'pr-14' : ''}`}>
+        <header className={`mb-5 flex min-h-12 items-center justify-between gap-3 ${presentation === 'overlay' ? 'pr-16' : ''}`}>
           <div className="flex items-center gap-3">
             <Link
               href="/"
@@ -1003,7 +1120,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
             </div>
           </div>
           {!busy ? (
-            <div className="relative flex flex-wrap items-center justify-end gap-2">
+            <div className="relative flex min-h-11 flex-wrap items-center justify-end gap-2">
               <div className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-300">
                 <Users size={16} className="text-amber-300" />
                 {profile?.friends_count ?? 0} friends
@@ -1390,62 +1507,12 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
               ) : null}
 
               {activeTab === 'stats' ? (
-                <div className="mt-6 grid gap-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {PROFILE_STATS_GAMES.map((game) => {
-                      const stats = playerStats.find((entry) => entry.gameId === game.id) ?? loadPlayerGameStats(game.id);
-                      const topGuess = getTopValue(stats.guessStats);
-                      const topSkinLine = getTopValue(stats.skinLineStats);
-                      const topRarity = getTopValue(stats.rarityStats);
-                      const averageGuesses = stats.gamesCompleted > 0 ? stats.totalGuesses / stats.gamesCompleted : 0;
-
-                      return (
-                        <article key={game.id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">{game.note}</p>
-                              <h3 className="mt-1 text-lg font-bold text-white">{game.title}</h3>
-                            </div>
-                            <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-slate-300">
-                              {stats.gamesCompleted} played
-                            </span>
-                          </div>
-                          {stats.gamesCompleted > 0 ? (
-                            <div className="mt-4 grid gap-3">
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="rounded-xl bg-slate-900 p-3">
-                                  <p className="text-xs text-slate-500">Current streak</p>
-                                  <p className="mt-1 text-lg font-bold text-white">{stats.currentStreak}</p>
-                                </div>
-                                <div className="rounded-xl bg-slate-900 p-3">
-                                  <p className="text-xs text-slate-500">Best streak</p>
-                                  <p className="mt-1 text-lg font-bold text-white">{stats.highestStreak}</p>
-                                </div>
-                                <div className="rounded-xl bg-slate-900 p-3">
-                                  <p className="text-xs text-slate-500">Avg guesses</p>
-                                  <p className="mt-1 text-lg font-bold text-white">{averageGuesses > 0 ? formatAverage(averageGuesses) : '-'}</p>
-                                </div>
-                              </div>
-                              <div className="grid gap-2 text-sm text-slate-300">
-                                <p><span className="text-slate-500">Total guesses:</span> {stats.totalGuesses || '-'}</p>
-                                <p><span className="text-slate-500">Most common answer:</span> {topGuess?.answer ?? '-'}</p>
-                                <p><span className="text-slate-500">Last correct:</span> {stats.lastCorrectGuess?.answer ?? '-'}</p>
-                                {game.id === 'skindle' ? (
-                                  <>
-                                    <p><span className="text-slate-500">Top skin line:</span> {topSkinLine?.value ?? '-'}</p>
-                                    <p><span className="text-slate-500">Top rarity:</span> {topRarity?.value ?? '-'}</p>
-                                  </>
-                                ) : null}
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="mt-4 text-sm leading-6 text-slate-400">
-                              {game.id === 'skincognito' ? 'Personal Skincognito stats are not tracked yet.' : 'Complete a solo run to start tracking this game.'}
-                            </p>
-                          )}
-                        </article>
-                      );
-                    })}
+                <div className="mt-5 grid gap-3">
+                  <QuizGameStatsSection title="Ability Blitz" stats={detailedStats.abilityBlitz} />
+                  <QuizGameStatsSection title="Skin Champion" stats={detailedStats.skinChampion} />
+                  <div className="grid gap-3 xl:grid-cols-2">
+                    <SkindleStatsPanel stats={playerStats.find((entry) => entry.gameId === 'skindle') ?? loadPlayerGameStats('skindle')} />
+                    <SkincognitoStatsPanel stats={detailedStats.skincognito} />
                   </div>
                 </div>
               ) : null}

@@ -9,6 +9,7 @@ import {
   loadDailyGameState,
   loadPlayerGameStats,
   recordPlayerGameCompletion,
+  recordQuizGameStats,
   saveDailyGameState,
   type PlayerGameStats,
 } from '@/lib/game-storage';
@@ -306,6 +307,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [hasLoadedOnce, setHasLoadedOnce] = useState(Boolean(multiplayer));
   const [finished, setFinished] = useState(Boolean(multiplayer && (multiplayer.gameEnded || multiplayer.initialProgress >= multiplayer.items.length)));
   const [failed, setFailed] = useState(false);
+  const [wrongGuessCount, setWrongGuessCount] = useState(0);
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
@@ -316,6 +318,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const modifiersMenuRef = useRef<HTMLDivElement | null>(null);
   const answerInputAreaRef = useRef<HTMLDivElement | null>(null);
   const hasRestoredStateRef = useRef(false);
+  const statsRecordedRef = useRef<string | null>(null);
 
   const currentItem = items[activeIndex];
   const nextItem = items[activeIndex + 1];
@@ -549,10 +552,34 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   ]);
 
   useEffect(() => {
+    const shouldRecord = finished || failed || multiplayerGameEnded;
+    if (!shouldRecord || items.length === 0) {
+      return;
+    }
+
+    const statsKey = multiplayer?.matchId ?? `solo:${items.map((item) => item.id).join('|')}:${finished}:${failed}`;
+    if (statsRecordedRef.current === statsKey) {
+      return;
+    }
+
+    statsRecordedRef.current = statsKey;
+    const completedItems = finished ? items.length : completedProgressCount;
+    recordQuizGameStats({
+      gameId: 'ability-blitz',
+      mode: multiplayer ? 'multiplayer' : 'solo',
+      completedItems,
+      totalItems: items.length,
+      wrongGuesses: wrongGuessCount,
+      elapsedSeconds: multiplayer && multiplayerGameEnded ? multiplayer.initialElapsedSeconds : totalTime,
+      won: multiplayer ? Boolean(multiplayer.won) : finished,
+      lost: multiplayer ? Boolean(multiplayer.lost) : failed,
+      matchId: multiplayer?.matchId,
+    });
+
     if (finished && !multiplayer) {
       setPlayerStats(recordPlayerGameCompletion('ability-blitz'));
     }
-  }, [finished, multiplayer]);
+  }, [completedProgressCount, failed, finished, items, multiplayer, multiplayerGameEnded, totalTime, wrongGuessCount]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -704,6 +731,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   };
 
   const applyWrongGuess = (wrongOption?: string) => {
+    setWrongGuessCount((count) => count + 1);
     if (difficultyRule.wrongGuess === 'game-over') {
       setFailed(true);
       setStarted(false);
@@ -804,10 +832,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setOptions([]);
     setSuggestions([]);
     setPenaltyCount(0);
+    setWrongGuessCount(0);
     setPenaltyMessage('');
     setPendingConfirmedGuess('');
     setSuccessFlash(false);
     setHasLoadedOnce(false);
+    statsRecordedRef.current = null;
     setItems(placeholderItems);
     clearDailyGameState('ability-blitz');
   };
@@ -829,6 +859,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setTotalTime(0);
     setActiveIndex(0);
     setCompletedTimes({});
+    setWrongGuessCount(0);
+    statsRecordedRef.current = null;
     setInputValue('');
     setStatus('idle');
     setShowOptions(false);

@@ -9,6 +9,7 @@ import {
   loadDailyGameState,
   loadPlayerGameStats,
   recordPlayerGameCompletion,
+  recordQuizGameStats,
   saveDailyGameState,
   type PlayerGameStats,
 } from '@/lib/game-storage';
@@ -187,6 +188,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [hasLoadedOnce, setHasLoadedOnce] = useState(Boolean(multiplayer));
   const [finished, setFinished] = useState(Boolean(multiplayer && (multiplayer.gameEnded || multiplayer.initialProgress >= multiplayer.items.length)));
   const [failed, setFailed] = useState(false);
+  const [wrongGuessCount, setWrongGuessCount] = useState(0);
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
@@ -196,6 +198,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const answerInputAreaRef = useRef<HTMLDivElement>(null);
   const progressContainerRef = useRef<HTMLDivElement>(null);
   const hasRestoredStateRef = useRef(false);
+  const statsRecordedRef = useRef<string | null>(null);
 
   const currentItem = started ? items[activeIndex] ?? null : null;
   const nextItem = started ? items[activeIndex + 1] ?? null : null;
@@ -331,10 +334,34 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   }, [activeIndex, activeModifiers, completedTimes, currentTime, entryCount, failed, finished, hasLoadedOnce, items, multiplayer, selectedDifficulty, started, storageReady, totalTime]);
 
   useEffect(() => {
+    const shouldRecord = finished || failed || multiplayerGameEnded;
+    if (!shouldRecord || items.length === 0) {
+      return;
+    }
+
+    const statsKey = multiplayer?.matchId ?? `solo:${items.map((item) => item.id).join('|')}:${finished}:${failed}`;
+    if (statsRecordedRef.current === statsKey) {
+      return;
+    }
+
+    statsRecordedRef.current = statsKey;
+    const completedItems = finished ? items.length : completedProgressCount;
+    recordQuizGameStats({
+      gameId: 'skin-champion',
+      mode: multiplayer ? 'multiplayer' : 'solo',
+      completedItems,
+      totalItems: items.length,
+      wrongGuesses: wrongGuessCount,
+      elapsedSeconds: multiplayer && multiplayerGameEnded ? multiplayer.initialElapsedSeconds : totalTime,
+      won: multiplayer ? Boolean(multiplayer.won) : finished,
+      lost: multiplayer ? Boolean(multiplayer.lost) : failed,
+      matchId: multiplayer?.matchId,
+    });
+
     if (finished && !multiplayer) {
       setPlayerStats(recordPlayerGameCompletion('skin-champion'));
     }
-  }, [finished, multiplayer]);
+  }, [completedProgressCount, failed, finished, items, multiplayer, multiplayerGameEnded, totalTime, wrongGuessCount]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -471,11 +498,13 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setOptions([]);
     setSuggestions([]);
     setPenaltyCount(0);
+    setWrongGuessCount(0);
     setPenaltyMessage('');
     setCroppedZoom(CROPPED_INITIAL_ZOOM);
     setPendingConfirmedGuess('');
     setSuccessFlash(false);
     setHasLoadedOnce(false);
+    statsRecordedRef.current = null;
     setItems([]);
     clearDailyGameState('skin-champion');
   };
@@ -497,6 +526,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setTotalTime(0);
     setActiveIndex(0);
     setCompletedTimes({});
+    setWrongGuessCount(0);
+    statsRecordedRef.current = null;
     setInputValue('');
     setStatus('idle');
     setShowOptions(false);
@@ -583,6 +614,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   };
 
   const applyWrongGuess = (wrongOption?: string) => {
+    setWrongGuessCount((count) => count + 1);
     if (activeModifiers.cropped) {
       setCroppedZoom((value) => Math.max(CROPPED_MIN_ZOOM, value - CROPPED_ZOOM_STEP));
     }

@@ -489,6 +489,10 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   };
 
   if (view && view.lobby.status !== 'waiting' && view.requestingPlayer && view.quizItems.length > 0) {
+    const completedPlayers = view.players
+      .filter((player) => player.result === 'completed' && player.finished_at)
+      .sort((first, second) => new Date(first.finished_at as string).getTime() - new Date(second.finished_at as string).getTime());
+    const winnerId = completedPlayers[0]?.id ?? null;
     const runtime = {
       items: view.quizItems,
       difficulty: view.lobby.difficulty,
@@ -496,6 +500,9 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       initialProgress: view.requestingPlayer.progress,
       initialElapsedSeconds: view.requestingPlayer.elapsed_seconds,
       gameEnded: view.lobby.status === 'finished',
+      matchId: view.lobby.id,
+      won: view.lobby.status === 'finished' && view.requestingPlayer.id === winnerId,
+      lost: view.lobby.status === 'finished' && view.requestingPlayer.id !== winnerId,
       progressPanel: <MultiplayerGameProgress players={view.players} totalItems={view.lobby.total_items} />,
       onProgress: reportProgress,
       onExit: leaveLobby,

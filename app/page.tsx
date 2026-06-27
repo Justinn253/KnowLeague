@@ -2,6 +2,7 @@ import {
   ArrowRight,
   BarChart3,
   Clock3,
+  Eye,
   Search,
   ShieldQuestion,
   Sparkles,
@@ -120,6 +121,16 @@ const multiplayerGames: GameLink[] = [
     modeIcon: Users,
     accent: 'sky',
     kicker: 'Skin Sprint',
+  },
+  {
+    title: 'Carving Revelation',
+    href: '/carving-revelation',
+    description: 'Take turns carving reveal lines into one shared hidden skin canvas before someone names it.',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jhin_5.jpg',
+    gameIcon: Eye,
+    modeIcon: Users,
+    accent: 'gold',
+    kicker: 'Shared Canvas',
   },
 ];
 

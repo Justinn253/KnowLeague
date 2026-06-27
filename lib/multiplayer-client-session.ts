@@ -57,6 +57,7 @@ export async function forfeitStoredMultiplayerSessions() {
     { storageKey: SKINCOGNITO_LOBBY_STORAGE_KEY, baseUrl: '/api/skincognito/lobbies' },
     { storageKey: getMultiplayerQuizLobbyStorageKey('ability_blitz'), baseUrl: '/api/multiplayer/lobbies' },
     { storageKey: getMultiplayerQuizLobbyStorageKey('skin_champion'), baseUrl: '/api/multiplayer/lobbies' },
+    { storageKey: 'knowleague:v1:carving-revelation:lobby-code', baseUrl: '/api/carving-revelation/lobbies' },
   ];
 
   await Promise.all(sessions.map(async (session) => {

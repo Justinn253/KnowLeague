@@ -213,7 +213,10 @@ async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {
 
   const lifecycle = resolveMultiplayerLifecycle(players, nextLobby.host_player_id);
   const connectedPlayers = players.filter((player) => lifecycle.connectedMemberIds.includes(player.id));
-  if (lifecycle.shouldTerminate) {
+  const hasReconnectableActivePlayers = nextLobby.status === 'active' && players.some((player) => (
+    player.result === 'active' && !player.connected && canReconnect(player.disconnected_at, nowMs)
+  ));
+  if (lifecycle.shouldTerminate && !hasReconnectableActivePlayers) {
     const { data, error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_lobbies')
       .update({ status: 'terminated', host_player_id: null, is_public: false, terminated_at: now, updated_at: now })
@@ -256,7 +259,7 @@ async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {
     return nextLobby;
   }
 
-  if (connectedPlayers.length === 0) {
+  if (connectedPlayers.length === 0 && !hasReconnectableActivePlayers) {
     const { data, error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_lobbies')
       .update({ status: 'terminated', host_player_id: null, is_public: false, terminated_at: now, updated_at: now })
@@ -285,6 +288,17 @@ async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {
     player.result === 'active' && !player.connected && canReconnect(player.disconnected_at)
   ));
   const connectedPlayersAfterReconnectResolution = players.filter((player) => player.connected);
+  if (!pendingReconnect && connectedPlayersAfterReconnectResolution.length === 0) {
+    const { data, error } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_lobbies')
+      .update({ status: 'terminated', host_player_id: null, is_public: false, terminated_at: now, updated_at: now })
+      .eq('id', nextLobby.id)
+      .select('*')
+      .single<MultiplayerQuizLobby>();
+    if (error) throw error;
+    await addLobbyEvent(lobby.id, 'lobby_terminated');
+    return data;
+  }
   const connectedPlayersResolved = connectedPlayersAfterReconnectResolution.every((player) => player.result !== 'active');
   const onlyOnePlayerLeftInGame = connectedPlayersAfterReconnectResolution.length <= 1;
   const shouldFinish = !pendingReconnect && (
@@ -671,16 +685,18 @@ export async function heartbeatMultiplayerQuizPlayer(
   const player = players.find((candidate) => candidate.client_id === clientId);
   if (!player) throw new Error('Player not found.');
   if (connected && lobby.status === 'active' && !player.connected && !canReconnect(player.disconnected_at)) {
+    await reconcileMultiplayerQuizLobby(lobby);
     throw new Error('The reconnect window has expired.');
   }
   const now = new Date().toISOString();
   const sanitizedRecord = recordSnapshot ? sanitizeRecordSnapshot(recordSnapshot) : null;
+  const disconnectedAt = connected ? null : player.disconnected_at ?? now;
   const { error } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
     .update({
       connected,
       last_seen_at: now,
-      disconnected_at: connected ? null : now,
+      disconnected_at: disconnectedAt,
       ...(sanitizedRecord ? { record_wins: sanitizedRecord.wins, record_losses: sanitizedRecord.losses } : {}),
       updated_at: now,
     })

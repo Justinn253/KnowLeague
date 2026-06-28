@@ -666,7 +666,10 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
   const connectedPlayers = players.filter((player) => lifecycle.connectedMemberIds.includes(player.id));
   const activePlayerIds = [nextLobby.player_one_id, nextLobby.player_two_id].filter((id): id is string => Boolean(id));
   const connectedActivePlayers = players.filter((player) => activePlayerIds.includes(player.id) && player.connected);
-  if (nextLobby.status === 'active' && connectedActivePlayers.length === 0) {
+  const reconnectableActivePlayers = players.filter((player) => (
+    activePlayerIds.includes(player.id) && !player.connected && canReconnect(player.disconnected_at, nowMs)
+  ));
+  if (nextLobby.status === 'active' && connectedActivePlayers.length === 0 && reconnectableActivePlayers.length === 0) {
     const terminatedLobby = await updateLobby(lobby.id, {
       status: 'terminated',
       host_player_id: null,
@@ -679,7 +682,7 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
     await addLobbyEvent(lobby.id, 'lobby_terminated');
     return terminatedLobby;
   }
-  if (lifecycle.shouldTerminate) {
+  if (lifecycle.shouldTerminate && reconnectableActivePlayers.length === 0) {
     const terminatedLobby = await updateLobby(lobby.id, {
       status: 'terminated',
       host_player_id: null,
@@ -764,6 +767,19 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord) {
 
     if (expiredPlayer) {
       const winnerId = connectedActivePlayers[0]?.id ?? null;
+      if (!winnerId) {
+        const terminatedLobby = await updateLobby(nextLobby.id, {
+          status: 'terminated',
+          host_player_id: null,
+          player_one_id: null,
+          player_two_id: null,
+          current_turn_player_id: null,
+          is_public: false,
+          terminated_at: new Date().toISOString(),
+        });
+        await addLobbyEvent(nextLobby.id, 'lobby_terminated');
+        return terminatedLobby;
+      }
       nextLobby = await updateLobby(nextLobby.id, {
         status: 'finished',
         winner_player_id: winnerId,
@@ -1376,17 +1392,19 @@ export async function heartbeatSkincognitoPlayer(code: string, clientId: string,
   if (connected && lobby.status === 'active' && !player.connected) {
     const isActivePlayer = player.id === lobby.player_one_id || player.id === lobby.player_two_id;
     if (!isActivePlayer || player.role === 'spectator' || !canReconnect(player.disconnected_at)) {
+      await reconcileLobby(lobby);
       throw new Error('The reconnect window has expired.');
     }
   }
 
   const now = new Date().toISOString();
+  const disconnectedAt = connected ? null : player.disconnected_at ?? now;
   const { error } = await getSupabaseServiceClient()
     .from('skincognito_players')
     .update({
       connected,
       last_seen_at: now,
-      disconnected_at: connected ? null : now,
+      disconnected_at: disconnectedAt,
     })
     .eq('lobby_id', lobby.id)
     .eq('client_id', clientId);

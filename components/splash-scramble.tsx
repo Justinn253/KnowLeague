@@ -1273,14 +1273,26 @@ export function SplashScramble() {
       <div className="grid gap-4">
         {showReference && targetSkin ? (
           <div className="mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
-            <div className={`relative overflow-hidden ${boardUsesRotatedMobileView ? 'aspect-[9/16] sm:aspect-video' : 'aspect-[16/7] sm:aspect-video'}`}>
-              <Image
-                src={targetSkin.imageUrl}
-                alt={`${targetSkin.answer} splash art reference`}
-                fill
-                sizes="(min-width: 1024px) 640px, 100vw"
-                className={`object-cover ${boardUsesRotatedMobileView ? 'rotate-90 scale-[1.78] sm:rotate-0 sm:scale-100' : ''}`}
-              />
+            <div className={`relative overflow-hidden bg-slate-950 ${boardUsesRotatedMobileView ? 'aspect-[9/16] sm:aspect-video' : 'aspect-video'}`}>
+              {boardUsesRotatedMobileView ? (
+                <div className="absolute left-1/2 top-1/2 aspect-video w-[177.777%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:static sm:h-full sm:w-full sm:translate-x-0 sm:translate-y-0 sm:rotate-0">
+                  <Image
+                    src={targetSkin.imageUrl}
+                    alt={`${targetSkin.answer} splash art reference`}
+                    fill
+                    sizes="(min-width: 1024px) 640px, 100vw"
+                    className="object-contain"
+                  />
+                </div>
+              ) : (
+                <Image
+                  src={targetSkin.imageUrl}
+                  alt={`${targetSkin.answer} splash art reference`}
+                  fill
+                  sizes="(min-width: 1024px) 640px, 100vw"
+                  className="object-contain"
+                />
+              )}
             </div>
             <div className="border-t border-white/10 p-3 sm:p-4">
               <p className="text-[0.62rem] uppercase tracking-[0.18em] text-slate-500 sm:text-xs">Reference</p>

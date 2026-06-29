@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
+import { sanitizeChatMessage } from '@/lib/chat-filter';
 
 export type FriendProfileSummary = {
   id: string;
@@ -645,6 +646,7 @@ export async function sendFriendMessage(userId: string, friendId: string, messag
   if (!cleanMessage) {
     throw new Error('Message is required.');
   }
+  const filteredMessage = sanitizeChatMessage(cleanMessage);
 
   const supabase = getSupabaseServiceClient();
   const { friendshipId } = await getFriendMessages(userId, friendId);
@@ -654,7 +656,7 @@ export async function sendFriendMessage(userId: string, friendId: string, messag
     .insert({
       friendship_id: friendshipId,
       sender_id: userId,
-      message: cleanMessage,
+      message: filteredMessage,
       chat_color: normalizeChatColor(profile?.chat_color),
       chat_border: normalizeChatBorder(profile?.chat_border),
     });

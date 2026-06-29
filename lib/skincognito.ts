@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { canReconnect, getReconnectDeadline, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 import { DEFAULT_CHAT_BORDER, normalizeChatBorder, normalizeChatColor, type ChatBorder, type ChatColor } from '@/lib/chat-colors';
+import { sanitizeChatMessage } from '@/lib/chat-filter';
 import {
   addMultiplayerLobbyEvent,
   assertMultiplayerAccountAvailable,
@@ -1356,6 +1357,7 @@ export async function postSkincognitoChatMessage(code: string, clientId: string,
   if (!cleanMessage) {
     throw new Error('Message cannot be empty.');
   }
+  const filteredMessage = sanitizeChatMessage(cleanMessage);
 
   const playerCosmetics = player.auth_user_id
     ? (await fetchProfileChatCosmetics([player.auth_user_id])).get(player.auth_user_id)
@@ -1366,7 +1368,7 @@ export async function postSkincognitoChatMessage(code: string, clientId: string,
     .insert({
       lobby_id: lobby.id,
       player_id: player.id,
-      message: cleanMessage,
+      message: filteredMessage,
       message_type: 'player',
       chat_color: playerCosmetics?.color ?? 'amber',
       chat_border: playerCosmetics?.border ?? DEFAULT_CHAT_BORDER,

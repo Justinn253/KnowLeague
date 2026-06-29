@@ -169,6 +169,16 @@ const singlePlayerGames: GameLink[] = [
     accent: 'emerald',
     kicker: 'Cosmetic Clues',
   },
+  {
+    title: 'Splash Scramble',
+    href: '/splash-scramble',
+    description: 'Rebuild a scrambled League of Legends splash art by swapping tiles before time runs out.',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ashe_0.jpg',
+    gameIcon: Eye,
+    modeIcon: User,
+    accent: 'sky',
+    kicker: 'Tile Puzzle',
+  },
 ];
 
 function GameCard({ game }: { game: GameLink }) {

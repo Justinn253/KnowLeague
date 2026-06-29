@@ -2,6 +2,7 @@ import {
   ArrowRight,
   BarChart3,
   Clock3,
+  Eye,
   Search,
   ShieldQuestion,
   Sparkles,
@@ -121,6 +122,16 @@ const multiplayerGames: GameLink[] = [
     accent: 'sky',
     kicker: 'Skin Sprint',
   },
+  {
+    title: 'Carving Revelation',
+    href: '/carving-revelation',
+    description: 'Take turns carving reveal lines into one shared hidden skin canvas before someone names it.',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jhin_5.jpg',
+    gameIcon: Eye,
+    modeIcon: Users,
+    accent: 'gold',
+    kicker: 'Shared Canvas',
+  },
 ];
 
 const singlePlayerGames: GameLink[] = [
@@ -157,6 +168,16 @@ const singlePlayerGames: GameLink[] = [
     modeIcon: User,
     accent: 'emerald',
     kicker: 'Cosmetic Clues',
+  },
+  {
+    title: 'Splash Scramble',
+    href: '/splash-scramble',
+    description: 'Rebuild a scrambled League of Legends splash art by swapping tiles before time runs out.',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ashe_0.jpg',
+    gameIcon: Eye,
+    modeIcon: User,
+    accent: 'sky',
+    kicker: 'Tile Puzzle',
   },
 ];
 

@@ -3,16 +3,18 @@
 import { useEffect, useState } from 'react';
 import { UserCircle, X } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { FriendsWidget } from '@/components/friends-widget';
 import { ProfileScreen } from '@/components/profile-screen';
 import { PublicProfileScreen } from '@/components/public-profile-screen';
 import { getAuthSessionId } from '@/lib/auth-session';
-import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
+import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 export function GlobalActions() {
+  const pathname = usePathname();
   const [profileHref, setProfileHref] = useState('/login');
   const [profileLabel, setProfileLabel] = useState('Profile');
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
@@ -20,6 +22,10 @@ export function GlobalActions() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
   const [publicProfileUsername, setPublicProfileUsername] = useState<string | null>(null);
+
+  useEffect(() => {
+    void reconcileStoredMultiplayerSessionsAwayFromGame(pathname);
+  }, [pathname]);
 
   useEffect(() => {
     const supabase = getOptionalSupabaseClient();

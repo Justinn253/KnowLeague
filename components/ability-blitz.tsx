@@ -1,17 +1,22 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
   clearDailyGameState,
-  loadDailyGameState,
+  clearSoloQuizGameState,
+  getPlayerGameStreakForScope,
+  hasCompletedSoloQuizMode,
+  loadSoloQuizGameState,
   loadPlayerGameStats,
+  recordCompletedSoloQuizMode,
   recordPlayerGameCompletion,
   recordQuizGameStats,
-  saveDailyGameState,
+  saveSoloQuizGameState,
   type PlayerGameStats,
+  type SoloQuizStreakScope,
 } from '@/lib/game-storage';
 import {
   answerMatches,
@@ -27,6 +32,9 @@ import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progr
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { ABILITY_SLOTS as abilitySlots, filterItemsByAbilitySlots, type AbilitySlotId, type AbilitySlotState } from '@/lib/ability-slots';
+import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
+import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
 
 const placeholderItems: QuizItem[] = [
   {
@@ -100,10 +108,12 @@ type DifficultyId = (typeof difficulties)[number]['id'];
 type ModifierId = (typeof modifiers)[number]['id'];
 type OpenMenu = 'difficulty' | 'modifiers' | null;
 type ModifierState = Record<ModifierId, boolean>;
+type ModeStatus = 'not-started' | 'in-progress' | 'completed';
 type UpcomingVisibility = 'clear' | 'blurred' | 'blocked';
 
 type AbilityBlitzDailyState = {
   items: QuizItem[];
+  soloMode?: SoloQuizMode;
   selectedDifficulty: DifficultyId;
   activeModifiers: ModifierState;
   selectedAbilitySlots: AbilitySlotState;
@@ -286,8 +296,9 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [items, setItems] = useState<QuizItem[]>(multiplayerItems?.length ? multiplayerItems : placeholderItems);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
+  const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
   const [selectedAbilitySlots, setSelectedAbilitySlots] = useState<AbilitySlotState>(defaultAbilitySlots);
-  const [entryCount, setEntryCount] = useState(50);
+  const [entryCount, setEntryCount] = useState(3);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [isSliding, setIsSliding] = useState(false);
@@ -309,11 +320,26 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [finished, setFinished] = useState(Boolean(multiplayer && (multiplayer.gameEnded || multiplayer.initialProgress >= multiplayer.items.length)));
   const [failed, setFailed] = useState(false);
   const [wrongGuessCount, setWrongGuessCount] = useState(0);
+  const [failureReason, setFailureReason] = useState<'wrong' | 'timeout' | null>(null);
   const [successFlash, setSuccessFlash] = useState(false);
   const [suppressHints, setSuppressHints] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
   const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('ability-blitz'));
+  const [leaderboardNotice, setLeaderboardNotice] = useState('');
+  const [completedDailyMode, setCompletedDailyMode] = useState(false);
+  const [resumeAvailable, setResumeAvailable] = useState(false);
+  const [modeStatuses, setModeStatuses] = useState<Record<SoloQuizMode, ModeStatus>>({
+    casual: 'not-started',
+    daily: 'not-started',
+    chaos: 'not-started',
+  });
+  const [dailyDifficultyStatuses, setDailyDifficultyStatuses] = useState<Record<DifficultyId, ModeStatus>>({
+    iron: 'not-started',
+    gold: 'not-started',
+    diamond: 'not-started',
+    challenger: 'not-started',
+  });
   const progressSectionRef = useRef<HTMLDivElement | null>(null);
   const currentProgressItemRef = useRef<HTMLDivElement | null>(null);
   const difficultyMenuRef = useRef<HTMLDivElement | null>(null);
@@ -330,13 +356,17 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const multiplayerGameEnded = multiplayer?.gameEnded ?? false;
   const showSinglePlayerEndState = !multiplayer && finished;
   const showEndState = showSinglePlayerEndState || Boolean(multiplayer && multiplayerGameEnded);
+  const showSoloPrematch = !multiplayer && !started && !finished && !failed;
+  const leaderboardMode = isLeaderboardMode(soloMode);
+  const casualSettingsAvailable = soloMode === 'casual';
+  const chaosMode = soloMode === 'chaos';
   const multiplayerInitialProgress = multiplayer?.initialProgress;
   const activeModifierCount = Object.values(activeModifiers).filter(Boolean).length;
   const selectedAbilitySlotCount = Object.values(selectedAbilitySlots).filter(Boolean).length;
   const difficultyRule = difficultyRules[selectedDifficulty];
   const hintsDisabled = difficultyRule.hintDelaySeconds === null;
   const autocompleteEnabled = difficultyRule.autocomplete;
-  const shouldHideTimers = activeModifiers.hiddenTimer;
+  const shouldHideTimers = activeModifiers.hiddenTimer && !chaosMode;
   const currentIconHidden = activeModifiers.disappearing && started && currentTime >= 5;
   const filteredItems = useMemo(
     () => filterItemsByAbilitySlots(items, selectedAbilitySlots),
@@ -346,6 +376,21 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     () => Array.from(new Set(filteredItems.map((item) => item.answer))).sort(),
     [filteredItems],
   );
+
+  useEffect(() => {
+    if (multiplayer || !storageReady) {
+      return;
+    }
+
+    setCompletedDailyMode(hasCompletedSoloQuizMode('ability-blitz', soloMode, selectedDifficulty));
+  }, [multiplayer, selectedDifficulty, soloMode, storageReady]);
+
+  useEffect(() => {
+    if (soloMode === 'chaos' && !multiplayer && !configurationLocked) {
+      setActiveModifiers(forceAllModifiers(defaultModifiers));
+      setSelectedDifficulty(CHAOS_DIFFICULTY);
+    }
+  }, [configurationLocked, multiplayer, soloMode]);
 
   const getIconClassName = (visibility: 'current' | 'next' | 'previous') => {
     const classes = ['h-24 w-24 rounded-3xl object-cover transition duration-300'];
@@ -493,37 +538,28 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     if (multiplayer) {
       return;
     }
-    const savedState = loadDailyGameState<AbilityBlitzDailyState>('ability-blitz');
-    if (!savedState) {
-      setStorageReady(true);
-      return;
-    }
-
-    setItems(savedState.items.length ? savedState.items : placeholderItems);
-    setSelectedDifficulty(savedState.selectedDifficulty);
-    setActiveModifiers(savedState.activeModifiers);
-    setSelectedAbilitySlots(savedState.selectedAbilitySlots);
-    setEntryCount(savedState.entryCount ?? 50);
-    setStarted(savedState.started);
-    setActiveIndex(savedState.activeIndex);
-    setCurrentTime(savedState.currentTime);
-    setTotalTime(savedState.totalTime);
-    setCompletedTimes(savedState.completedTimes);
-    setFinished(savedState.finished);
-    setFailed(savedState.failed);
-    setHasLoadedOnce(savedState.items.length > 0);
     setCountdown(null);
     setIsSliding(false);
     setStorageReady(true);
-  }, [multiplayer]);
+  }, [multiplayer, selectedDifficulty, soloMode]);
+
+  useEffect(() => {
+    if (multiplayer || !storageReady || !showSoloPrematch) {
+      return;
+    }
+
+    const savedState = loadSoloQuizGameState<AbilityBlitzDailyState>('ability-blitz', soloMode, selectedDifficulty);
+    setResumeAvailable(Boolean(savedState?.started && !savedState.finished && !savedState.failed));
+  }, [multiplayer, selectedDifficulty, showSoloPrematch, soloMode, storageReady]);
 
   useEffect(() => {
     if (multiplayer || !storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
       return;
     }
 
-    saveDailyGameState<AbilityBlitzDailyState>('ability-blitz', {
+    saveSoloQuizGameState<AbilityBlitzDailyState>('ability-blitz', soloMode, selectedDifficulty, {
       items,
+      soloMode,
       selectedDifficulty,
       activeModifiers,
       selectedAbilitySlots,
@@ -552,6 +588,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     storageReady,
     totalTime,
     multiplayer,
+    soloMode,
   ]);
 
   useEffect(() => {
@@ -580,9 +617,97 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     });
 
     if (finished && !multiplayer) {
-      setPlayerStats(recordPlayerGameCompletion('ability-blitz'));
+      if (leaderboardMode) {
+        recordCompletedSoloQuizMode('ability-blitz', soloMode, selectedDifficulty);
+        setCompletedDailyMode(true);
+        const submitLeaderboard = async () => {
+          const supabase = getOptionalSupabaseClient();
+          const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+          const token = data.session?.access_token;
+          if (!token) {
+            setLeaderboardNotice('Create an account or sign in before finishing to place this score on the global leaderboard.');
+            return;
+          }
+
+          await fetch('/api/solo-quiz/attempt', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              action: 'finish',
+              gameId: 'ability-blitz',
+              mode: soloMode,
+              difficulty: selectedDifficulty,
+              itemIds: items.map((item) => item.id),
+              completedItems,
+              elapsedSeconds: totalTime,
+              wrongGuesses: wrongGuessCount,
+              result: 'completed',
+            }),
+          });
+
+          const response = await fetch('/api/solo-quiz/leaderboard', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              gameId: 'ability-blitz',
+              mode: soloMode,
+              difficulty: selectedDifficulty,
+              itemIds: items.map((item) => item.id),
+              completionTimeSeconds: totalTime,
+              wrongGuesses: wrongGuessCount,
+            }),
+          });
+          const result = await response.json();
+          setLeaderboardNotice(result.recorded ? 'Score recorded on the global leaderboard.' : 'You already have a leaderboard entry for this mode today.');
+        };
+
+        void submitLeaderboard();
+      }
+      const streakScope: SoloQuizStreakScope = soloMode === 'casual' ? 'casual:all' : `${soloMode}:${selectedDifficulty}`;
+      setPlayerStats(recordPlayerGameCompletion('ability-blitz', [], undefined, streakScope));
+    } else if (failed && !multiplayer && leaderboardMode) {
+      recordCompletedSoloQuizMode('ability-blitz', soloMode, selectedDifficulty);
+      setCompletedDailyMode(true);
+      if (soloMode !== 'chaos' && selectedDifficulty !== CHAOS_DIFFICULTY) {
+        return;
+      }
+      const submitFailure = async () => {
+        const supabase = getOptionalSupabaseClient();
+        const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+        const token = data.session?.access_token;
+        if (!token) {
+          return;
+        }
+
+        await fetch('/api/solo-quiz/attempt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            action: 'finish',
+            gameId: 'ability-blitz',
+            mode: soloMode,
+            difficulty: selectedDifficulty,
+            itemIds: items.map((item) => item.id),
+            completedItems,
+            elapsedSeconds: totalTime,
+            wrongGuesses: wrongGuessCount,
+            result: 'failed',
+          }),
+        });
+      };
+
+      void submitFailure();
     }
-  }, [completedProgressCount, failed, finished, items, multiplayer, multiplayerGameEnded, totalTime, wrongGuessCount]);
+  }, [completedProgressCount, failed, finished, items, leaderboardMode, multiplayer, multiplayerGameEnded, selectedDifficulty, soloMode, totalTime, wrongGuessCount]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -607,11 +732,20 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
     const loadItems = async () => {
       try {
-        const res = await fetch('/api/ability-blitz/quiz-items');
+        const params = new URLSearchParams({
+          mode: soloMode,
+          difficulty: selectedDifficulty,
+          entries: String(entryCount),
+        });
+        const res = await fetch(`/api/ability-blitz/quiz-items?${params}`);
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const filteredData = filterItemsByAbilitySlots(data, selectedAbilitySlots);
-          setItems(shuffle(filteredData.length ? filteredData : data).slice(0, entryCount));
+          if (soloMode === 'casual') {
+            const filteredData = filterItemsByAbilitySlots(data, selectedAbilitySlots);
+            setItems(shuffle(filteredData.length ? filteredData : data).slice(0, entryCount));
+          } else {
+            setItems(data.slice(0, entryCount));
+          }
         }
       } catch (err) {
         console.error('Failed to fetch randomized ability set', err);
@@ -621,7 +755,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     };
 
     loadItems();
-  }, [started, hasLoadedOnce, selectedAbilitySlots, entryCount, multiplayer]);
+  }, [started, hasLoadedOnce, selectedAbilitySlots, entryCount, multiplayer, selectedDifficulty, soloMode]);
 
   useEffect(() => {
     if (countdown === null) {
@@ -739,6 +873,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setWrongGuessCount((count) => count + 1);
     if (difficultyRule.wrongGuess === 'game-over') {
       setFailed(true);
+      setFailureReason('wrong');
       setStarted(false);
       setStatus('incorrect');
       setPenaltyMessage('Game Over');
@@ -826,6 +961,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setStarted(false);
     setFinished(false);
     setFailed(false);
+    setFailureReason(null);
     setCountdown(null);
     setIsSliding(false);
     setActiveIndex(0);
@@ -846,10 +982,77 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setHasLoadedOnce(false);
     statsRecordedRef.current = null;
     setItems(placeholderItems);
+    clearSoloQuizGameState('ability-blitz', soloMode, selectedDifficulty);
     clearDailyGameState('ability-blitz');
+    setResumeAvailable(false);
   };
 
-  const handleGameControl = () => {
+  const markOfficialAttemptStarted = async () => {
+    if (!leaderboardMode) {
+      return true;
+    }
+
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    const token = data.session?.access_token;
+    if (!token) {
+      return true;
+    }
+
+    const response = await fetch('/api/solo-quiz/attempt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: 'start',
+        gameId: 'ability-blitz',
+        mode: soloMode,
+        difficulty: selectedDifficulty,
+      }),
+    });
+    const result = await response.json();
+    if (result.alreadyPlayed) {
+      setCompletedDailyMode(true);
+      return false;
+    }
+    return true;
+  };
+
+  const submitOfficialAttemptState = useCallback(async (result: 'completed' | 'failed' | 'abandoned', completedItems = completedProgressCount) => {
+    if (!leaderboardMode || items.length === 0) {
+      return;
+    }
+
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    const token = data.session?.access_token;
+    if (!token) {
+      return;
+    }
+
+    await fetch('/api/solo-quiz/attempt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: 'finish',
+        gameId: 'ability-blitz',
+        mode: soloMode,
+        difficulty: selectedDifficulty,
+        itemIds: items.map((item) => item.id),
+        completedItems,
+        elapsedSeconds: totalTime,
+        wrongGuesses: wrongGuessCount,
+        result,
+      }),
+    });
+  }, [completedProgressCount, items, leaderboardMode, selectedDifficulty, soloMode, totalTime, wrongGuessCount]);
+
+  const handleGameControl = async () => {
     if (multiplayer) {
       return;
     }
@@ -858,7 +1061,38 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     if (started || finished || failed) {
+      if (started && leaderboardMode) {
+        await submitOfficialAttemptState('abandoned');
+        recordCompletedSoloQuizMode('ability-blitz', soloMode, selectedDifficulty);
+        setCompletedDailyMode(true);
+      }
       resetSinglePlayerRound();
+      return;
+    }
+
+    const savedState = loadSoloQuizGameState<AbilityBlitzDailyState>('ability-blitz', soloMode, selectedDifficulty);
+    if (savedState?.started && !savedState.finished && !savedState.failed) {
+      setItems(savedState.items.length ? savedState.items : placeholderItems);
+      setSelectedDifficulty(savedState.selectedDifficulty);
+      setActiveModifiers(savedState.activeModifiers);
+      setSelectedAbilitySlots(savedState.selectedAbilitySlots);
+      setEntryCount(savedState.entryCount ?? 50);
+      setStarted(true);
+      setActiveIndex(savedState.activeIndex);
+      setCurrentTime(savedState.currentTime);
+      setTotalTime(savedState.totalTime);
+      setCompletedTimes(savedState.completedTimes);
+      setFinished(false);
+      setFailed(false);
+      setHasLoadedOnce(savedState.items.length > 0);
+      setCountdown(null);
+      setIsSliding(false);
+      setResumeAvailable(false);
+      return;
+    }
+
+    const canStart = await markOfficialAttemptStarted();
+    if (!canStart) {
       return;
     }
 
@@ -876,12 +1110,18 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setPenaltyCount(0);
     setFinished(false);
     setFailed(false);
+    setFailureReason(null);
     setPenaltyMessage('');
     setPendingConfirmedGuess('');
     setSuccessFlash(false);
     setSuppressHints(false);
     setHasLoadedOnce(false);
     setItems(placeholderItems);
+    setLeaderboardNotice('');
+    if (soloMode === 'chaos') {
+      setSelectedDifficulty(CHAOS_DIFFICULTY);
+      setActiveModifiers(forceAllModifiers(defaultModifiers));
+    }
     setCountdown(3);
   };
 
@@ -889,12 +1129,39 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     if (configurationLocked) {
       return;
     }
+    if (soloMode === 'chaos') {
+      return;
+    }
 
     setSelectedDifficulty(difficultyId);
   };
 
+  const handleSoloModeSelect = (mode: SoloQuizMode) => {
+    if (configurationLocked) {
+      return;
+    }
+
+    setSoloMode(mode);
+    setLeaderboardNotice('');
+    if (mode === 'daily') {
+      setSelectedDifficulty('gold');
+      setEntryCount(3);
+      setActiveModifiers(defaultModifiers);
+      setSelectedAbilitySlots(defaultAbilitySlots);
+    }
+    if (mode === 'chaos') {
+      setSelectedDifficulty(CHAOS_DIFFICULTY);
+      setEntryCount(50);
+      setSelectedAbilitySlots(defaultAbilitySlots);
+      setActiveModifiers(forceAllModifiers(defaultModifiers));
+    }
+  };
+
   const handleModifierToggle = (modifierId: ModifierId) => {
     if (configurationLocked) {
+      return;
+    }
+    if (!casualSettingsAvailable) {
       return;
     }
 
@@ -908,12 +1175,18 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     if (configurationLocked) {
       return;
     }
+    if (!casualSettingsAvailable) {
+      return;
+    }
 
     setEntryCount(count);
   };
 
   const handleAbilitySlotToggle = (slotId: AbilitySlotId) => {
     if (configurationLocked) {
+      return;
+    }
+    if (!casualSettingsAvailable) {
       return;
     }
 
@@ -930,6 +1203,57 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       };
     });
   };
+
+  useEffect(() => {
+    if (!started || countdown !== null || finished || failed || !chaosMode || isSliding || status === 'correct') {
+      return;
+    }
+
+    if (currentTime >= CHAOS_ROUND_TIME_LIMIT_SECONDS) {
+      setFailed(true);
+      setFailureReason('timeout');
+      setStarted(false);
+      setStatus('incorrect');
+      setPenaltyMessage('Time Up');
+      setSuppressHints(false);
+      void submitOfficialAttemptState('failed');
+      multiplayer?.onProgress(activeIndex, totalTime, 'failed');
+    }
+  }, [activeIndex, chaosMode, countdown, currentTime, failed, finished, isSliding, multiplayer, started, status, submitOfficialAttemptState, totalTime]);
+
+  const getModeStatus = useCallback((mode: SoloQuizMode, difficulty: DifficultyId): ModeStatus => {
+    if (hasCompletedSoloQuizMode('ability-blitz', mode, difficulty)) {
+      const savedState = loadSoloQuizGameState<AbilityBlitzDailyState>('ability-blitz', mode, difficulty);
+      if (mode !== 'chaos' && savedState?.started && !savedState.finished && !savedState.failed) {
+        return 'in-progress';
+      }
+      return 'completed';
+    }
+
+    const savedState = loadSoloQuizGameState<AbilityBlitzDailyState>('ability-blitz', mode, difficulty);
+    if (mode !== 'chaos' && savedState?.started && !savedState.finished && !savedState.failed) {
+      return 'in-progress';
+    }
+    return 'not-started';
+  }, []);
+
+  useEffect(() => {
+    if (multiplayer || !storageReady || !showSoloPrematch) {
+      return;
+    }
+
+    setModeStatuses({
+      casual: getModeStatus('casual', selectedDifficulty),
+      daily: getModeStatus('daily', soloMode === 'chaos' ? 'gold' : selectedDifficulty),
+      chaos: getModeStatus('chaos', CHAOS_DIFFICULTY),
+    });
+    setDailyDifficultyStatuses({
+      iron: getModeStatus('daily', 'iron'),
+      gold: getModeStatus('daily', 'gold'),
+      diamond: getModeStatus('daily', 'diamond'),
+      challenger: getModeStatus('daily', 'challenger'),
+    });
+  }, [completedDailyMode, getModeStatus, multiplayer, resumeAvailable, selectedDifficulty, showSoloPrematch, soloMode, storageReady]);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -970,10 +1294,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               'Correct answers advance through the randomized set; difficulty controls hints and penalties.',
               multiplayer ? 'Finish the shared set before your opponents.' : 'Complete the set as quickly as possible.',
             ]} />
-            <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
+            {multiplayer ? <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
               <Flame size={16} className="text-amber-300" />
               {playerStats.currentStreak} day streak
-            </div>
+            </div> : null}
             {multiplayer?.gameEnded && multiplayer.canReturnToLobby ? (
               <button
                 type="button"
@@ -989,10 +1313,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <button
                   type="button"
                   onClick={() => {
-                    if (configurationLocked) return;
+                    if (configurationLocked || soloMode === 'chaos') return;
                     setOpenMenu((current) => (current === 'difficulty' ? null : 'difficulty'));
                   }}
-                  disabled={configurationLocked}
+                  disabled={configurationLocked || soloMode === 'chaos'}
                   className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
                   aria-expanded={openMenu === 'difficulty'}
                 >
@@ -1046,10 +1370,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <button
                   type="button"
                   onClick={() => {
-                    if (configurationLocked) return;
+                    if (configurationLocked || !casualSettingsAvailable) return;
                     setOpenMenu((current) => (current === 'modifiers' ? null : 'modifiers'));
                   }}
-                  disabled={configurationLocked}
+                  disabled={configurationLocked || !casualSettingsAvailable}
                   className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
                   aria-expanded={openMenu === 'modifiers'}
                 >
@@ -1078,12 +1402,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                             key={modifier.id}
                             type="button"
                             onClick={() => handleModifierToggle(modifier.id)}
-                            disabled={configurationLocked}
+                            disabled={configurationLocked || !casualSettingsAvailable}
                             className={`flex items-center justify-between gap-4 rounded-xl border p-3 text-left transition ${
                               isActive
                                 ? 'border-amber-300/60 bg-amber-300/10'
                                 : 'border-white/10 bg-slate-900/80 hover:border-white/25'
-                            } ${configurationLocked ? 'cursor-not-allowed opacity-70' : ''}`}
+                            } ${configurationLocked || !casualSettingsAvailable ? 'cursor-not-allowed opacity-70' : ''}`}
                           >
                             <span>
                               <span className="block font-semibold text-white">{modifier.name}</span>
@@ -1102,7 +1426,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                         </span>
                         <select
                           value={entryCount}
-                          disabled={configurationLocked}
+                          disabled={configurationLocked || !casualSettingsAvailable}
                           onChange={(event) => handleEntryCountChange(Number(event.target.value))}
                           className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -1131,13 +1455,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                               key={slot.id}
                               type="button"
                               onClick={() => handleAbilitySlotToggle(slot.id)}
-                              disabled={configurationLocked}
+                              disabled={configurationLocked || !casualSettingsAvailable}
                               title={slot.name}
                               className={`flex h-12 items-center justify-center rounded-xl border text-sm font-semibold transition ${
                                 isSelected
                                   ? 'border-amber-300/60 bg-amber-300 text-slate-950'
                                   : 'border-white/10 bg-slate-900/80 text-slate-400 hover:border-white/25'
-                              } ${configurationLocked ? 'cursor-not-allowed opacity-70' : ''}`}
+                              } ${configurationLocked || !casualSettingsAvailable ? 'cursor-not-allowed opacity-70' : ''}`}
                             >
                               {slot.label}
                             </button>
@@ -1153,9 +1477,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               </div>
             </div>
 
-            {!multiplayer ? <button
+            {!multiplayer && !showSoloPrematch ? <button
               type="button"
               onClick={handleGameControl}
+              hidden={leaderboardMode}
               className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                 started || finished || failed
                   ? 'bg-red-500 text-white hover:bg-red-400'
@@ -1171,7 +1496,28 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
         {multiplayer?.progressPanel}
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl overflow-hidden">
+        {showSoloPrematch ? (
+          <SoloQuizPrematch
+            gameId="ability-blitz"
+            selectedMode={soloMode}
+            selectedDifficulty={selectedDifficulty}
+            countdown={countdown}
+            playerStats={playerStats}
+            streaks={{
+              casual: getPlayerGameStreakForScope(playerStats, 'casual:all').currentStreak,
+              daily: getPlayerGameStreakForScope(playerStats, `daily:${selectedDifficulty}`).currentStreak,
+              chaos: getPlayerGameStreakForScope(playerStats, 'chaos:challenger').currentStreak,
+            }}
+            completedToday={completedDailyMode}
+            modeStatuses={modeStatuses}
+            dailyDifficultyStatuses={dailyDifficultyStatuses}
+            authRequiredNote={leaderboardNotice}
+            onModeSelect={handleSoloModeSelect}
+            onPlay={handleGameControl}
+          />
+        ) : null}
+
+        {!showSoloPrematch ? <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl overflow-hidden">
           {!showEndState ? <div className={`grid gap-4 lg:grid-cols-3 lg:items-center transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
             {/* Next Item Card */}
             <div className="rounded-[2.5rem] border border-slate-700/50 bg-slate-950/80 p-8 shadow-lg">
@@ -1296,7 +1642,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
           >
             {failed ? (
               <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-semibold text-red-200">
-                Challenger rules: a wrong guess ended the round.
+                {failureReason === 'timeout' ? 'Time is up.' : 'Challenger rules: a wrong guess ended the round.'}
               </div>
             ) : started && showOptions && options.length > 0 ? (
               <div className="grid gap-3 sm:grid-cols-5">
@@ -1392,6 +1738,14 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
                 {!shouldHideTimers ? (
                   <>
+                    {chaosMode ? (
+                      <>
+                        <span className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm font-black uppercase tracking-[0.14em] text-red-100">
+                          Round limit {formatSeconds(Math.max(0, CHAOS_ROUND_TIME_LIMIT_SECONDS - currentTime))}
+                        </span>
+                        <span className="hidden h-3 w-3 rounded-full bg-slate-500 sm:inline-block" />
+                      </>
+                    ) : null}
                     <span>Total time: <span className="text-white">{formatSeconds(totalTime)}</span></span>
                     <span className="hidden h-3 w-3 rounded-full bg-slate-500 sm:inline-block" />
                     <span>Current item: <span className="text-white">{formatSeconds(currentTime)}</span></span>
@@ -1457,7 +1811,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               </div>
             </div>
           </div>
-        </section>
+        </section> : null}
       </section>
     </main>
   );

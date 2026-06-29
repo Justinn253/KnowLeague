@@ -1,6 +1,8 @@
 export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle' | 'skincognito';
 export type QuizStatsGameId = 'ability-blitz' | 'skin-champion';
 export type StatsMode = 'solo' | 'multiplayer';
+export type SoloQuizStorageMode = 'casual' | 'daily' | 'chaos';
+export type SoloQuizStreakScope = `${SoloQuizStorageMode}:${string}`;
 
 const STORAGE_PREFIX = 'knowleague:v1';
 const CLIENT_ID_KEY = `${STORAGE_PREFIX}:client-id`;
@@ -41,6 +43,11 @@ export type PlayerGameStats = {
   rarityStats: Record<string, PlayerValueStat>;
   firstGuess: FirstGuessStat | null;
   lastCorrectGuess: FirstGuessStat | null;
+  streaksByScope?: Record<string, {
+    completedDates: string[];
+    currentStreak: number;
+    highestStreak: number;
+  }>;
 };
 
 export type PlayerCompletionGuess = {
@@ -131,6 +138,14 @@ function getDailyStateKey(gameId: GameId, dateKey = getDailyDateKey()) {
   return `${STORAGE_PREFIX}:${gameId}:daily:${dateKey}`;
 }
 
+function getSoloQuizStateKey(gameId: QuizStatsGameId, mode: SoloQuizStorageMode, difficulty: string, dateKey = getDailyDateKey()) {
+  return `${STORAGE_PREFIX}:${gameId}:solo:${mode}:${difficulty}:${dateKey}`;
+}
+
+function getSoloQuizCompletionKey(gameId: QuizStatsGameId, mode: SoloQuizStorageMode, difficulty: string, dateKey = getDailyDateKey()) {
+  return `${STORAGE_PREFIX}:${gameId}:solo:${mode}:${difficulty}:${dateKey}:completed`;
+}
+
 function getPlayerStatsKey(gameId: GameId) {
   return `${STORAGE_PREFIX}:${gameId}:player-stats`;
 }
@@ -176,6 +191,7 @@ function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {
     rarityStats: {},
     firstGuess: null,
     lastCorrectGuess: null,
+    streaksByScope: {},
   };
 }
 
@@ -493,6 +509,7 @@ export function loadPlayerGameStats(gameId: GameId) {
       gameId,
       currentStreak: calculateCurrentStreak(stats.completedDates ?? []),
       highestStreak: Math.max(stats.highestStreak ?? 0, calculateHighestStreak(stats.completedDates ?? [])),
+      streaksByScope: stats.streaksByScope ?? {},
     };
   } catch (error) {
     console.warn(`Unable to load saved ${gameId} player stats.`, error);
@@ -516,6 +533,7 @@ export function recordPlayerGameCompletion(
   gameId: GameId,
   guesses: readonly PlayerCompletionGuess[] = [],
   dateKey = getDailyDateKey(),
+  streakScope?: SoloQuizStreakScope,
 ) {
   const currentStats = loadPlayerGameStats(gameId);
   if (currentStats.completedDates.includes(dateKey)) {
@@ -582,8 +600,40 @@ export function recordPlayerGameCompletion(
       : currentStats.lastCorrectGuess,
   };
 
+  if (streakScope) {
+    const currentScope = currentStats.streaksByScope?.[streakScope] ?? {
+      completedDates: [],
+      currentStreak: 0,
+      highestStreak: 0,
+    };
+    const scopeDates = currentScope.completedDates.includes(dateKey)
+      ? currentScope.completedDates
+      : [...currentScope.completedDates, dateKey].sort();
+    const scopeStreak = calculateCurrentStreak(scopeDates, dateKey);
+    updatedStats.streaksByScope = {
+      ...(currentStats.streaksByScope ?? {}),
+      [streakScope]: {
+        completedDates: scopeDates,
+        currentStreak: scopeStreak,
+        highestStreak: Math.max(currentScope.highestStreak, scopeStreak),
+      },
+    };
+  }
+
   savePlayerGameStats(updatedStats);
   return updatedStats;
+}
+
+export function getPlayerGameStreakForScope(stats: PlayerGameStats, scope: SoloQuizStreakScope) {
+  const current = stats.streaksByScope?.[scope];
+  if (!current) {
+    return { currentStreak: 0, highestStreak: 0 };
+  }
+
+  return {
+    currentStreak: calculateCurrentStreak(current.completedDates ?? []),
+    highestStreak: Math.max(current.highestStreak ?? 0, calculateHighestStreak(current.completedDates ?? [])),
+  };
 }
 
 export function loadDailyGameState<TState>(gameId: GameId, dateKey = getDailyDateKey()) {
@@ -637,5 +687,102 @@ export function clearDailyGameState(gameId: GameId, dateKey = getDailyDateKey())
     window.localStorage.removeItem(getDailyStateKey(gameId, dateKey));
   } catch (error) {
     console.warn(`Unable to clear saved ${gameId} state.`, error);
+  }
+}
+
+export function loadSoloQuizGameState<TState>(
+  gameId: QuizStatsGameId,
+  mode: SoloQuizStorageMode,
+  difficulty: string,
+  dateKey = getDailyDateKey(),
+) {
+  if (!isStorageAvailable()) {
+    return null;
+  }
+
+  try {
+    const rawState = window.localStorage.getItem(getSoloQuizStateKey(gameId, mode, difficulty, dateKey));
+    return rawState ? JSON.parse(rawState) as TState : null;
+  } catch (error) {
+    console.warn(`Unable to load saved ${gameId} ${mode} state.`, error);
+    return null;
+  }
+}
+
+export function hasSoloQuizGameState(
+  gameId: QuizStatsGameId,
+  mode: SoloQuizStorageMode,
+  difficulty: string,
+  dateKey = getDailyDateKey(),
+) {
+  if (!isStorageAvailable()) {
+    return false;
+  }
+
+  return window.localStorage.getItem(getSoloQuizStateKey(gameId, mode, difficulty, dateKey)) !== null;
+}
+
+export function saveSoloQuizGameState<TState>(
+  gameId: QuizStatsGameId,
+  mode: SoloQuizStorageMode,
+  difficulty: string,
+  state: TState,
+  dateKey = getDailyDateKey(),
+) {
+  if (!isStorageAvailable()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(getSoloQuizStateKey(gameId, mode, difficulty, dateKey), JSON.stringify(state));
+  } catch (error) {
+    console.warn(`Unable to save ${gameId} ${mode} state.`, error);
+  }
+}
+
+export function clearSoloQuizGameState(
+  gameId: QuizStatsGameId,
+  mode: SoloQuizStorageMode,
+  difficulty: string,
+  dateKey = getDailyDateKey(),
+) {
+  if (!isStorageAvailable()) {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(getSoloQuizStateKey(gameId, mode, difficulty, dateKey));
+  } catch (error) {
+    console.warn(`Unable to clear saved ${gameId} ${mode} state.`, error);
+  }
+}
+
+export function hasCompletedSoloQuizMode(
+  gameId: QuizStatsGameId,
+  mode: SoloQuizStorageMode,
+  difficulty: string,
+  dateKey = getDailyDateKey(),
+) {
+  if (!isStorageAvailable()) {
+    return false;
+  }
+
+  return window.localStorage.getItem(getSoloQuizCompletionKey(gameId, mode, difficulty, dateKey)) === 'true';
+}
+
+export function recordCompletedSoloQuizMode(
+  gameId: QuizStatsGameId,
+  mode: SoloQuizStorageMode,
+  difficulty: string,
+  dateKey = getDailyDateKey(),
+) {
+  if (!isStorageAvailable()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(getSoloQuizCompletionKey(gameId, mode, difficulty, dateKey), 'true');
+  } catch (error) {
+    console.warn(`Unable to record ${gameId} ${mode} completion.`, error);
   }
 }

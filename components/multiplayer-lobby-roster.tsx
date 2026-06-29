@@ -10,18 +10,22 @@ export type MultiplayerLobbyRosterPlayer = {
   authUserId: string | null;
   displayName: string;
   avatarUrl?: string | null;
+  nameColor?: string;
   role: string;
   isCurrentUser: boolean;
   isHost: boolean;
   canPromote?: boolean;
   canDemote?: boolean;
   status?: ReactNode;
+  cardTone?: 'default' | 'success' | 'danger' | 'victory';
 };
 
 type MultiplayerLobbyRosterProps = {
   players: MultiplayerLobbyRosterPlayer[];
-  countLabel: string;
+  countLabel?: string;
   canManage: boolean;
+  showHeader?: boolean;
+  compactColumns?: boolean;
   onKick?: (playerId: string) => void | Promise<void>;
   onPromote?: (playerId: string) => void | Promise<void>;
   onDemote?: (playerId: string) => void | Promise<void>;
@@ -42,6 +46,8 @@ export function MultiplayerLobbyRoster({
   players,
   countLabel,
   canManage,
+  showHeader = true,
+  compactColumns = false,
   onKick,
   onPromote,
   onDemote,
@@ -215,23 +221,31 @@ export function MultiplayerLobbyRoster({
 
   return (
     <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Lobby</p>
-          <h3 className="mt-2 text-lg font-semibold text-white">{countLabel}</h3>
+      {showHeader ? (
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Lobby</p>
+            {countLabel ? <h3 className="mt-2 text-lg font-semibold text-white">{countLabel}</h3> : null}
+          </div>
+          <Users size={20} className="text-amber-300" />
         </div>
-        <Users size={20} className="text-amber-300" />
-      </div>
+      ) : null}
 
-      <div className="mt-5 grid gap-2">
+      <div className={`${showHeader ? 'mt-5' : ''} grid gap-2 ${compactColumns ? 'sm:grid-cols-2' : ''}`}>
         {players.map((player) => {
           const isFriend = Boolean(player.authUserId && friendIds.has(player.authUserId));
           const playerInitial = player.displayName.trim().slice(0, 1).toUpperCase() || '?';
           const showActionsButton = !player.isCurrentUser || hasMenuActions(player);
-          return (
+          const cardClassName = player.cardTone === 'victory'
+            ? 'border-transparent bg-slate-950'
+            : player.cardTone === 'success'
+            ? 'border-emerald-400/60 bg-emerald-500/15'
+            : player.cardTone === 'danger'
+              ? 'border-red-500/70 bg-red-500/15'
+              : 'border-white/10 bg-slate-900/80';
+          const card = (
             <div
-              key={player.id}
-              className="flex min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3"
+              className={`flex min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border px-4 py-3 ${cardClassName}`}
             >
               <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
                 <span
@@ -243,7 +257,10 @@ export function MultiplayerLobbyRoster({
                 </span>
                 <div className="min-w-0 flex-1 overflow-hidden">
                   <p className="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm font-semibold text-white">
-                    <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                    <span
+                      className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
+                      style={player.nameColor ? { color: player.nameColor } : undefined}
+                    >
                       {player.displayName}{player.authUserId ? '' : ' (Guest)'}{player.isCurrentUser ? ' (you)' : ''}
                     </span>
                   </p>
@@ -263,6 +280,11 @@ export function MultiplayerLobbyRoster({
                 ) : null}
               </div>
             </div>
+          );
+          return player.cardTone === 'victory' ? (
+            <div key={player.id} className="multiplayer-victory-border rounded-2xl">{card}</div>
+          ) : (
+            <div key={player.id}>{card}</div>
           );
         })}
       </div>

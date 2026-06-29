@@ -14,6 +14,7 @@ type ActiveMultiplayerSession = {
 type StoredMultiplayerSession = {
   storageKey: string;
   baseUrl: string;
+  route: string;
 };
 
 export const SKINCOGNITO_LOBBY_STORAGE_KEY = 'knowleague:v1:skincognito:lobby-code';
@@ -54,9 +55,10 @@ export async function forfeitStoredMultiplayerSessions() {
   if (!clientId) return;
 
   const sessions: StoredMultiplayerSession[] = [
-    { storageKey: SKINCOGNITO_LOBBY_STORAGE_KEY, baseUrl: '/api/skincognito/lobbies' },
-    { storageKey: getMultiplayerQuizLobbyStorageKey('ability_blitz'), baseUrl: '/api/multiplayer/lobbies' },
-    { storageKey: getMultiplayerQuizLobbyStorageKey('skin_champion'), baseUrl: '/api/multiplayer/lobbies' },
+    { storageKey: SKINCOGNITO_LOBBY_STORAGE_KEY, baseUrl: '/api/skincognito/lobbies', route: '/skincognito' },
+    { storageKey: getMultiplayerQuizLobbyStorageKey('ability_blitz'), baseUrl: '/api/multiplayer/lobbies', route: '/multiplayer/ability-blitz' },
+    { storageKey: getMultiplayerQuizLobbyStorageKey('skin_champion'), baseUrl: '/api/multiplayer/lobbies', route: '/multiplayer/skin-champion' },
+    { storageKey: 'knowleague:v1:carving-revelation:lobby-code', baseUrl: '/api/carving-revelation/lobbies', route: '/carving-revelation' },
   ];
 
   await Promise.all(sessions.map(async (session) => {
@@ -70,5 +72,78 @@ export async function forfeitStoredMultiplayerSessions() {
       body: JSON.stringify({ clientId, forfeit: true }),
       keepalive: true,
     }).catch(() => undefined);
+  }));
+}
+
+function getStoredMultiplayerSessions(): StoredMultiplayerSession[] {
+  return [
+    { storageKey: SKINCOGNITO_LOBBY_STORAGE_KEY, baseUrl: '/api/skincognito/lobbies', route: '/skincognito' },
+    { storageKey: getMultiplayerQuizLobbyStorageKey('ability_blitz'), baseUrl: '/api/multiplayer/lobbies', route: '/multiplayer/ability-blitz' },
+    { storageKey: getMultiplayerQuizLobbyStorageKey('skin_champion'), baseUrl: '/api/multiplayer/lobbies', route: '/multiplayer/skin-champion' },
+    { storageKey: 'knowleague:v1:carving-revelation:lobby-code', baseUrl: '/api/carving-revelation/lobbies', route: '/carving-revelation' },
+  ];
+}
+
+function isOnSessionRoute(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+async function readOptionalJson(response: Response) {
+  try {
+    return await response.json() as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+export async function reconcileStoredMultiplayerSessionsAwayFromGame(pathname: string) {
+  if (typeof window === 'undefined') return;
+
+  const clientId = getOrCreateClientId();
+  if (!clientId) return;
+
+  await Promise.all(getStoredMultiplayerSessions().map(async (session) => {
+    if (isOnSessionRoute(pathname, session.route)) return;
+
+    const code = window.localStorage.getItem(session.storageKey);
+    if (!code) return;
+
+    try {
+      const rejoinResponse = await fetch(`${session.baseUrl}/${code}/rejoin?clientId=${encodeURIComponent(clientId)}`, {
+        cache: 'no-store',
+      });
+      const eligibility = await readOptionalJson(rejoinResponse);
+      if (eligibility.eligible === true) {
+        return;
+      }
+
+      const lobbyResponse = await fetch(`${session.baseUrl}/${code}?clientId=${encodeURIComponent(clientId)}`, {
+        cache: 'no-store',
+      });
+      if (!lobbyResponse.ok) {
+        window.localStorage.removeItem(session.storageKey);
+        return;
+      }
+
+      const view = await readOptionalJson(lobbyResponse);
+      const lobby = view.lobby as { status?: string } | undefined;
+      const requestingPlayer = view.requestingPlayer as { connected?: boolean } | null | undefined;
+      if (lobby?.status === 'active' && requestingPlayer) {
+        window.localStorage.removeItem(session.storageKey);
+        await fetch(`${session.baseUrl}/${code}/leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId, forfeit: true }),
+          keepalive: true,
+        }).catch(() => undefined);
+        return;
+      }
+
+      if (lobby?.status !== 'waiting') {
+        window.localStorage.removeItem(session.storageKey);
+      }
+    } catch {
+      // Keep the pointer if the network is unavailable; the game page will ask the server again.
+    }
   }));
 }

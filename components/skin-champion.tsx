@@ -1,17 +1,22 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
   clearDailyGameState,
-  loadDailyGameState,
+  clearSoloQuizGameState,
+  getPlayerGameStreakForScope,
+  hasCompletedSoloQuizMode,
+  loadSoloQuizGameState,
   loadPlayerGameStats,
+  recordCompletedSoloQuizMode,
   recordPlayerGameCompletion,
   recordQuizGameStats,
-  saveDailyGameState,
+  saveSoloQuizGameState,
   type PlayerGameStats,
+  type SoloQuizStreakScope,
 } from '@/lib/game-storage';
 import {
   answerMatches,
@@ -26,6 +31,9 @@ import {
 import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
+import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
+import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
 
 const modifiers = [
   { id: 'greyscale', name: 'Greyscale', description: 'Splash art appears in greyscale.' },
@@ -62,9 +70,11 @@ type DifficultyId = (typeof difficulties)[number]['id'];
 type ModifierId = (typeof modifiers)[number]['id'];
 type OpenMenu = 'difficulty' | 'modifiers' | null;
 type ModifierState = Record<ModifierId, boolean>;
+type ModeStatus = 'not-started' | 'in-progress' | 'completed';
 
 type SkinChampionDailyState = {
   items: QuizItem[];
+  soloMode?: SoloQuizMode;
   selectedDifficulty: DifficultyId;
   activeModifiers: ModifierState;
   entryCount: number;
@@ -168,7 +178,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [answers, setAnswers] = useState<string[]>([]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
-  const [entryCount, setEntryCount] = useState(50);
+  const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
+  const [entryCount, setEntryCount] = useState(3);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -189,11 +200,26 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [hasLoadedOnce, setHasLoadedOnce] = useState(Boolean(multiplayer));
   const [finished, setFinished] = useState(Boolean(multiplayer && (multiplayer.gameEnded || multiplayer.initialProgress >= multiplayer.items.length)));
   const [failed, setFailed] = useState(false);
+  const [failureReason, setFailureReason] = useState<'wrong' | 'timeout' | null>(null);
   const [wrongGuessCount, setWrongGuessCount] = useState(0);
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
   const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('skin-champion'));
+  const [leaderboardNotice, setLeaderboardNotice] = useState('');
+  const [completedDailyMode, setCompletedDailyMode] = useState(false);
+  const [resumeAvailable, setResumeAvailable] = useState(false);
+  const [modeStatuses, setModeStatuses] = useState<Record<SoloQuizMode, ModeStatus>>({
+    casual: 'not-started',
+    daily: 'not-started',
+    chaos: 'not-started',
+  });
+  const [dailyDifficultyStatuses, setDailyDifficultyStatuses] = useState<Record<DifficultyId, ModeStatus>>({
+    iron: 'not-started',
+    gold: 'not-started',
+    diamond: 'not-started',
+    challenger: 'not-started',
+  });
   const difficultyMenuRef = useRef<HTMLDivElement>(null);
   const modifiersMenuRef = useRef<HTMLDivElement>(null);
   const answerInputAreaRef = useRef<HTMLDivElement>(null);
@@ -213,10 +239,14 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const difficultyRule = difficultyRules[selectedDifficulty];
   const hintsDisabled = difficultyRule.hintDelaySeconds === null;
   const autocompleteEnabled = difficultyRule.autocomplete;
-  const shouldHideTimers = activeModifiers.hiddenTimer;
+  const chaosMode = soloMode === 'chaos';
+  const shouldHideTimers = activeModifiers.hiddenTimer && !chaosMode;
   const completedProgressCount = items.filter((item) => item.guessed).length;
   const showSinglePlayerEndState = !multiplayer && finished;
   const showEndState = showSinglePlayerEndState || Boolean(multiplayer && multiplayerGameEnded);
+  const showSoloPrematch = !multiplayer && !started && !finished && !failed;
+  const leaderboardMode = isLeaderboardMode(soloMode);
+  const casualSettingsAvailable = soloMode === 'casual';
 
   useEffect(() => {
     if (multiplayerInitialProgress === undefined) return;
@@ -252,6 +282,21 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     () => (answers.length ? answers : filteredAnswers),
     [answers, filteredAnswers],
   );
+
+  useEffect(() => {
+    if (multiplayer || !storageReady) {
+      return;
+    }
+
+    setCompletedDailyMode(hasCompletedSoloQuizMode('skin-champion', soloMode, selectedDifficulty));
+  }, [multiplayer, selectedDifficulty, soloMode, storageReady]);
+
+  useEffect(() => {
+    if (soloMode === 'chaos' && !multiplayer && !configurationLocked) {
+      setActiveModifiers(forceAllModifiers(defaultModifiers));
+      setSelectedDifficulty(CHAOS_DIFFICULTY);
+    }
+  }, [configurationLocked, multiplayer, soloMode]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -292,36 +337,28 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     if (multiplayer) {
       return;
     }
-    const savedState = loadDailyGameState<SkinChampionDailyState>('skin-champion');
-    if (!savedState) {
-      setStorageReady(true);
-      return;
-    }
-
-    setItems(savedState.items);
-    setSelectedDifficulty(savedState.selectedDifficulty);
-    setActiveModifiers(savedState.activeModifiers);
-    setEntryCount(savedState.entryCount ?? 50);
-    setStarted(savedState.started);
-    setActiveIndex(savedState.activeIndex);
-    setCurrentTime(savedState.currentTime);
-    setTotalTime(savedState.totalTime);
-    setCompletedTimes(savedState.completedTimes);
-    setFinished(savedState.finished);
-    setFailed(savedState.failed);
-    setHasLoadedOnce(savedState.items.length > 0);
     setCountdown(null);
     setIsSliding(false);
     setStorageReady(true);
-  }, [multiplayer]);
+  }, [multiplayer, selectedDifficulty, soloMode]);
+
+  useEffect(() => {
+    if (multiplayer || !storageReady || !showSoloPrematch) {
+      return;
+    }
+
+    const savedState = loadSoloQuizGameState<SkinChampionDailyState>('skin-champion', soloMode, selectedDifficulty);
+    setResumeAvailable(Boolean(savedState?.started && !savedState.finished && !savedState.failed));
+  }, [multiplayer, selectedDifficulty, showSoloPrematch, soloMode, storageReady]);
 
   useEffect(() => {
     if (multiplayer || !storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
       return;
     }
 
-    saveDailyGameState<SkinChampionDailyState>('skin-champion', {
+    saveSoloQuizGameState<SkinChampionDailyState>('skin-champion', soloMode, selectedDifficulty, {
       items,
+      soloMode,
       selectedDifficulty,
       activeModifiers,
       entryCount,
@@ -333,7 +370,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       finished,
       failed,
     });
-  }, [activeIndex, activeModifiers, completedTimes, currentTime, entryCount, failed, finished, hasLoadedOnce, items, multiplayer, selectedDifficulty, started, storageReady, totalTime]);
+  }, [activeIndex, activeModifiers, completedTimes, currentTime, entryCount, failed, finished, hasLoadedOnce, items, multiplayer, selectedDifficulty, soloMode, started, storageReady, totalTime]);
 
   useEffect(() => {
     const shouldRecord = multiplayer ? multiplayerGameEnded : finished || failed;
@@ -361,9 +398,97 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     });
 
     if (finished && !multiplayer) {
-      setPlayerStats(recordPlayerGameCompletion('skin-champion'));
+      if (leaderboardMode) {
+        recordCompletedSoloQuizMode('skin-champion', soloMode, selectedDifficulty);
+        setCompletedDailyMode(true);
+        const submitLeaderboard = async () => {
+          const supabase = getOptionalSupabaseClient();
+          const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+          const token = data.session?.access_token;
+          if (!token) {
+            setLeaderboardNotice('Create an account or sign in before finishing to place this score on the global leaderboard.');
+            return;
+          }
+
+          await fetch('/api/solo-quiz/attempt', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              action: 'finish',
+              gameId: 'skin-champion',
+              mode: soloMode,
+              difficulty: selectedDifficulty,
+              itemIds: items.map((item) => item.id),
+              completedItems,
+              elapsedSeconds: totalTime,
+              wrongGuesses: wrongGuessCount,
+              result: 'completed',
+            }),
+          });
+
+          const response = await fetch('/api/solo-quiz/leaderboard', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              gameId: 'skin-champion',
+              mode: soloMode,
+              difficulty: selectedDifficulty,
+              itemIds: items.map((item) => item.id),
+              completionTimeSeconds: totalTime,
+              wrongGuesses: wrongGuessCount,
+            }),
+          });
+          const result = await response.json();
+          setLeaderboardNotice(result.recorded ? 'Score recorded on the global leaderboard.' : 'You already have a leaderboard entry for this mode today.');
+        };
+
+        void submitLeaderboard();
+      }
+      const streakScope: SoloQuizStreakScope = soloMode === 'casual' ? 'casual:all' : `${soloMode}:${selectedDifficulty}`;
+      setPlayerStats(recordPlayerGameCompletion('skin-champion', [], undefined, streakScope));
+    } else if (failed && !multiplayer && leaderboardMode) {
+      recordCompletedSoloQuizMode('skin-champion', soloMode, selectedDifficulty);
+      setCompletedDailyMode(true);
+      if (soloMode !== 'chaos' && selectedDifficulty !== CHAOS_DIFFICULTY) {
+        return;
+      }
+      const submitFailure = async () => {
+        const supabase = getOptionalSupabaseClient();
+        const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+        const token = data.session?.access_token;
+        if (!token) {
+          return;
+        }
+
+        await fetch('/api/solo-quiz/attempt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            action: 'finish',
+            gameId: 'skin-champion',
+            mode: soloMode,
+            difficulty: selectedDifficulty,
+            itemIds: items.map((item) => item.id),
+            completedItems,
+            elapsedSeconds: totalTime,
+            wrongGuesses: wrongGuessCount,
+            result: 'failed',
+          }),
+        });
+      };
+
+      void submitFailure();
     }
-  }, [completedProgressCount, failed, finished, items, multiplayer, multiplayerGameEnded, totalTime, wrongGuessCount]);
+  }, [completedProgressCount, failed, finished, items, leaderboardMode, multiplayer, multiplayerGameEnded, selectedDifficulty, soloMode, totalTime, wrongGuessCount]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -431,10 +556,15 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
     const loadItems = async () => {
       try {
-        const response = await fetch('/api/skin-champion/quiz-items');
+        const params = new URLSearchParams({
+          mode: soloMode,
+          difficulty: selectedDifficulty,
+          entries: String(entryCount),
+        });
+        const response = await fetch(`/api/skin-champion/quiz-items?${params}`);
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          setItems(shuffle(data).slice(0, entryCount));
+          setItems(soloMode === 'casual' ? shuffle(data).slice(0, entryCount) : data.slice(0, entryCount));
         }
       } catch (error) {
         console.error('Failed to fetch randomized skin set', error);
@@ -444,7 +574,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     };
 
     loadItems();
-  }, [entryCount, hasLoadedOnce, multiplayer, started]);
+  }, [entryCount, hasLoadedOnce, multiplayer, selectedDifficulty, soloMode, started]);
 
   useEffect(() => {
     if (countdown === null) {
@@ -488,6 +618,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setStarted(false);
     setFinished(false);
     setFailed(false);
+    setFailureReason(null);
     setCountdown(null);
     setIsSliding(false);
     setActiveIndex(0);
@@ -508,10 +639,77 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setHasLoadedOnce(false);
     statsRecordedRef.current = null;
     setItems([]);
+    clearSoloQuizGameState('skin-champion', soloMode, selectedDifficulty);
     clearDailyGameState('skin-champion');
+    setResumeAvailable(false);
   };
 
-  const handleGameControl = () => {
+  const markOfficialAttemptStarted = async () => {
+    if (!leaderboardMode) {
+      return true;
+    }
+
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    const token = data.session?.access_token;
+    if (!token) {
+      return true;
+    }
+
+    const response = await fetch('/api/solo-quiz/attempt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: 'start',
+        gameId: 'skin-champion',
+        mode: soloMode,
+        difficulty: selectedDifficulty,
+      }),
+    });
+    const result = await response.json();
+    if (result.alreadyPlayed) {
+      setCompletedDailyMode(true);
+      return false;
+    }
+    return true;
+  };
+
+  const submitOfficialAttemptState = useCallback(async (result: 'completed' | 'failed' | 'abandoned', completedItems = completedProgressCount) => {
+    if (!leaderboardMode || items.length === 0) {
+      return;
+    }
+
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    const token = data.session?.access_token;
+    if (!token) {
+      return;
+    }
+
+    await fetch('/api/solo-quiz/attempt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: 'finish',
+        gameId: 'skin-champion',
+        mode: soloMode,
+        difficulty: selectedDifficulty,
+        itemIds: items.map((item) => item.id),
+        completedItems,
+        elapsedSeconds: totalTime,
+        wrongGuesses: wrongGuessCount,
+        result,
+      }),
+    });
+  }, [completedProgressCount, items, leaderboardMode, selectedDifficulty, soloMode, totalTime, wrongGuessCount]);
+
+  const handleGameControl = async () => {
     if (multiplayer) {
       return;
     }
@@ -520,7 +718,37 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     if (started || finished || failed) {
+      if (started && leaderboardMode) {
+        await submitOfficialAttemptState('abandoned');
+        recordCompletedSoloQuizMode('skin-champion', soloMode, selectedDifficulty);
+        setCompletedDailyMode(true);
+      }
       resetSinglePlayerRound();
+      return;
+    }
+
+    const savedState = loadSoloQuizGameState<SkinChampionDailyState>('skin-champion', soloMode, selectedDifficulty);
+    if (savedState?.started && !savedState.finished && !savedState.failed) {
+      setItems(savedState.items);
+      setSelectedDifficulty(savedState.selectedDifficulty);
+      setActiveModifiers(savedState.activeModifiers);
+      setEntryCount(savedState.entryCount ?? 50);
+      setStarted(true);
+      setActiveIndex(savedState.activeIndex);
+      setCurrentTime(savedState.currentTime);
+      setTotalTime(savedState.totalTime);
+      setCompletedTimes(savedState.completedTimes);
+      setFinished(false);
+      setFailed(false);
+      setHasLoadedOnce(savedState.items.length > 0);
+      setCountdown(null);
+      setIsSliding(false);
+      setResumeAvailable(false);
+      return;
+    }
+
+    const canStart = await markOfficialAttemptStarted();
+    if (!canStart) {
       return;
     }
 
@@ -538,12 +766,18 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setPenaltyCount(0);
     setFinished(false);
     setFailed(false);
+    setFailureReason(null);
     setPenaltyMessage('');
     setCroppedZoom(CROPPED_INITIAL_ZOOM);
     setPendingConfirmedGuess('');
     setSuccessFlash(false);
     setHasLoadedOnce(false);
     setItems([]);
+    setLeaderboardNotice('');
+    if (soloMode === 'chaos') {
+      setSelectedDifficulty(CHAOS_DIFFICULTY);
+      setActiveModifiers(forceAllModifiers(defaultModifiers));
+    }
     setCountdown(3);
   };
 
@@ -551,12 +785,37 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     if (configurationLocked) {
       return;
     }
+    if (soloMode === 'chaos') {
+      return;
+    }
 
     setSelectedDifficulty(difficultyId);
   };
 
+  const handleSoloModeSelect = (mode: SoloQuizMode) => {
+    if (configurationLocked) {
+      return;
+    }
+
+    setSoloMode(mode);
+    setLeaderboardNotice('');
+    if (mode === 'daily') {
+      setSelectedDifficulty('gold');
+      setEntryCount(3);
+      setActiveModifiers(defaultModifiers);
+    }
+    if (mode === 'chaos') {
+      setSelectedDifficulty(CHAOS_DIFFICULTY);
+      setEntryCount(50);
+      setActiveModifiers(forceAllModifiers(defaultModifiers));
+    }
+  };
+
   const handleModifierToggle = (modifierId: ModifierId) => {
     if (configurationLocked) {
+      return;
+    }
+    if (!casualSettingsAvailable) {
       return;
     }
 
@@ -570,9 +829,62 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     if (configurationLocked) {
       return;
     }
+    if (!casualSettingsAvailable) {
+      return;
+    }
 
     setEntryCount(count);
   };
+
+  useEffect(() => {
+    if (!started || countdown !== null || finished || failed || !chaosMode || isSliding || status === 'correct') {
+      return;
+    }
+
+    if (currentTime >= CHAOS_ROUND_TIME_LIMIT_SECONDS) {
+      setFailed(true);
+      setFailureReason('timeout');
+      setStarted(false);
+      setStatus('incorrect');
+      setPenaltyMessage('Time Up');
+      void submitOfficialAttemptState('failed');
+      multiplayer?.onProgress(activeIndex, totalTime, 'failed');
+    }
+  }, [activeIndex, chaosMode, countdown, currentTime, failed, finished, isSliding, multiplayer, started, status, submitOfficialAttemptState, totalTime]);
+
+  const getModeStatus = useCallback((mode: SoloQuizMode, difficulty: DifficultyId): ModeStatus => {
+    if (hasCompletedSoloQuizMode('skin-champion', mode, difficulty)) {
+      const savedState = loadSoloQuizGameState<SkinChampionDailyState>('skin-champion', mode, difficulty);
+      if (mode !== 'chaos' && savedState?.started && !savedState.finished && !savedState.failed) {
+        return 'in-progress';
+      }
+      return 'completed';
+    }
+
+    const savedState = loadSoloQuizGameState<SkinChampionDailyState>('skin-champion', mode, difficulty);
+    if (mode !== 'chaos' && savedState?.started && !savedState.finished && !savedState.failed) {
+      return 'in-progress';
+    }
+    return 'not-started';
+  }, []);
+
+  useEffect(() => {
+    if (multiplayer || !storageReady || !showSoloPrematch) {
+      return;
+    }
+
+    setModeStatuses({
+      casual: getModeStatus('casual', selectedDifficulty),
+      daily: getModeStatus('daily', soloMode === 'chaos' ? 'gold' : selectedDifficulty),
+      chaos: getModeStatus('chaos', CHAOS_DIFFICULTY),
+    });
+    setDailyDifficultyStatuses({
+      iron: getModeStatus('daily', 'iron'),
+      gold: getModeStatus('daily', 'gold'),
+      diamond: getModeStatus('daily', 'diamond'),
+      challenger: getModeStatus('daily', 'challenger'),
+    });
+  }, [completedDailyMode, getModeStatus, multiplayer, resumeAvailable, selectedDifficulty, showSoloPrematch, soloMode, storageReady]);
 
   const advance = () => {
     const item = items[activeIndex];
@@ -623,6 +935,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
     if (difficultyRule.wrongGuess === 'game-over') {
       setFailed(true);
+      setFailureReason('wrong');
       setStarted(false);
       setStatus('incorrect');
       setPenaltyMessage('Game Over');
@@ -746,10 +1059,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
               'Use hints and autocomplete when the selected difficulty allows them.',
               multiplayer ? 'Finish the shared randomized set before your opponents.' : 'Complete the randomized set as quickly as possible.',
             ]} />
-            <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
+            {multiplayer ? <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
               <Flame size={16} className="text-amber-300" />
               {playerStats.currentStreak} day streak
-            </div>
+            </div> : null}
             {multiplayer?.gameEnded && multiplayer.canReturnToLobby ? (
               <button
                 type="button"
@@ -765,10 +1078,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <button
                   type="button"
                   onClick={() => {
-                    if (configurationLocked) return;
+                    if (configurationLocked || soloMode === 'chaos') return;
                     setOpenMenu((current) => (current === 'difficulty' ? null : 'difficulty'));
                   }}
-                  disabled={configurationLocked}
+                  disabled={configurationLocked || soloMode === 'chaos'}
                   className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
                   aria-expanded={openMenu === 'difficulty'}
                 >
@@ -822,10 +1135,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <button
                   type="button"
                   onClick={() => {
-                    if (configurationLocked) return;
+                    if (configurationLocked || !casualSettingsAvailable) return;
                     setOpenMenu((current) => (current === 'modifiers' ? null : 'modifiers'));
                   }}
-                  disabled={configurationLocked}
+                  disabled={configurationLocked || !casualSettingsAvailable}
                   className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
                   aria-expanded={openMenu === 'modifiers'}
                 >
@@ -852,12 +1165,12 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                             key={modifier.id}
                             type="button"
                             onClick={() => handleModifierToggle(modifier.id)}
-                            disabled={configurationLocked}
+                            disabled={configurationLocked || !casualSettingsAvailable}
                             className={`flex items-center justify-between gap-4 rounded-xl border p-3 text-left transition ${
                               isActive
                                 ? 'border-amber-300/60 bg-amber-300/10'
                                 : 'border-white/10 bg-slate-900/80 hover:border-white/25'
-                            } ${configurationLocked ? 'cursor-not-allowed opacity-70' : ''}`}
+                            } ${configurationLocked || !casualSettingsAvailable ? 'cursor-not-allowed opacity-70' : ''}`}
                           >
                             <span>
                               <span className="block font-semibold text-white">{modifier.name}</span>
@@ -876,7 +1189,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                         </span>
                         <select
                           value={entryCount}
-                          disabled={configurationLocked}
+                          disabled={configurationLocked || !casualSettingsAvailable}
                           onChange={(event) => handleEntryCountChange(Number(event.target.value))}
                           className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -892,9 +1205,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
               </div>
             </div>
 
-            {!multiplayer ? <button
+            {!multiplayer && !showSoloPrematch ? <button
               type="button"
               onClick={handleGameControl}
+              hidden={leaderboardMode}
               className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                 started || finished || failed
                   ? 'bg-red-500 text-white hover:bg-red-400'
@@ -910,7 +1224,28 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
         {multiplayer?.progressPanel}
 
-        <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+        {showSoloPrematch ? (
+          <SoloQuizPrematch
+            gameId="skin-champion"
+            selectedMode={soloMode}
+            selectedDifficulty={selectedDifficulty}
+            countdown={countdown}
+            playerStats={playerStats}
+            streaks={{
+              casual: getPlayerGameStreakForScope(playerStats, 'casual:all').currentStreak,
+              daily: getPlayerGameStreakForScope(playerStats, `daily:${selectedDifficulty}`).currentStreak,
+              chaos: getPlayerGameStreakForScope(playerStats, 'chaos:challenger').currentStreak,
+            }}
+            completedToday={completedDailyMode}
+            modeStatuses={modeStatuses}
+            dailyDifficultyStatuses={dailyDifficultyStatuses}
+            authRequiredNote={leaderboardNotice}
+            onModeSelect={handleSoloModeSelect}
+            onPlay={handleGameControl}
+          />
+        ) : null}
+
+        {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
           {afterNextItem?.imageUrl ? (
             <Image
               key={`preload-${afterNextItem.id}`}
@@ -991,7 +1326,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
           >
             {failed ? (
               <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-semibold text-red-200">
-                Challenger rules: a wrong guess ended the round.
+                {failureReason === 'timeout' ? 'Time is up.' : 'Challenger rules: a wrong guess ended the round.'}
               </div>
             ) : started && showOptions && options.length > 0 ? (
               <div className="grid gap-3 sm:grid-cols-5">
@@ -1066,6 +1401,14 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
               {!shouldHideTimers ? (
                 <>
+                  {chaosMode ? (
+                    <>
+                      <span className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm font-black uppercase tracking-[0.14em] text-red-100">
+                        Round limit {formatSeconds(Math.max(0, CHAOS_ROUND_TIME_LIMIT_SECONDS - currentTime))}
+                      </span>
+                      <span className="hidden h-3 w-3 rounded-full bg-slate-500 sm:inline-block" />
+                    </>
+                  ) : null}
                   <span>Total time: <span className="text-white">{formatSeconds(totalTime)}</span></span>
                   <span className="hidden h-3 w-3 rounded-full bg-slate-500 sm:inline-block" />
                   <span>Current item: <span className="text-white">{formatSeconds(currentTime)}</span></span>
@@ -1124,7 +1467,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
               })}
             </div>
           </section>
-        </section>
+        </section> : null}
       </section>
     </main>
   );

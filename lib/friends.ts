@@ -599,10 +599,26 @@ export async function getFriendMessages(userId: string, friendId: string) {
     throw messageError;
   }
 
+  const { data: readRow, error: readError } = await supabase
+    .from('friend_message_reads')
+    .select('last_read_at')
+    .eq('user_id', userId)
+    .eq('friendship_id', friendship.id)
+    .maybeSingle<{ last_read_at: string }>();
+
+  if (readError) {
+    throw readError;
+  }
+
   const profiles = await selectProfilesByIds(supabase, [userId, friendId]);
+  const lastReadAt = readRow?.last_read_at ?? '1970-01-01T00:00:00.000Z';
+  const firstUnreadMessageId = messageRows.find((message) => (
+    message.sender_id !== userId && message.created_at > lastReadAt
+  ))?.id ?? null;
 
   return {
     friendshipId: friendship.id,
+    firstUnreadMessageId,
     messages: messageRows.map((message) => ({
       ...message,
       chat_color: normalizeChatColor(message.chat_color),

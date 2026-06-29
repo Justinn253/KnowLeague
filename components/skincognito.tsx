@@ -16,6 +16,7 @@ import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 type SkinAnswer = {
   id: string;
@@ -1466,7 +1467,7 @@ export function Skincognito() {
                     onScroll={(event) => {
                       wasGuessesAtBottomRef.current = isScrolledToBottom(event.currentTarget);
                     }}
-                    className="mt-3 grid flex-1 content-start gap-2 overflow-y-auto pr-3"
+                    className={`mt-3 grid flex-1 content-start gap-2 overflow-y-auto pr-3 ${THEMED_SCROLLBAR_CLASS}`}
                   >
                     {recentActions.map((action) => {
                       const actor = getPlayerById(lobbyView, action.player_id);
@@ -1512,7 +1513,7 @@ export function Skincognito() {
                     onScroll={(event) => {
                       wasChatAtBottomRef.current = isScrolledToBottom(event.currentTarget);
                     }}
-                    className="mt-3 grid flex-1 content-start gap-3 overflow-y-auto pr-5"
+                    className={`mt-3 grid flex-1 content-start gap-3 overflow-y-auto pr-5 ${THEMED_SCROLLBAR_CLASS}`}
                   >
                     {chatGroups.map((group) => {
                       const bubbleStyle = getChatBubbleStyle(group.chatColor, group.chatBorder);

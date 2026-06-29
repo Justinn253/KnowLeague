@@ -178,7 +178,7 @@ const defaultAbilitySlots = abilitySlots.reduce(
   {} as AbilitySlotState,
 );
 
-const entryCountOptions = [3, 10, 25, 50, 75, 100] as const;
+const entryCountOptions = [10, 25, 50, 75, 100] as const;
 
 function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boolean }) {
   return (
@@ -298,7 +298,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
   const [selectedAbilitySlots, setSelectedAbilitySlots] = useState<AbilitySlotState>(defaultAbilitySlots);
-  const [entryCount, setEntryCount] = useState(3);
+  const [entryCount, setEntryCount] = useState(10);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [isSliding, setIsSliding] = useState(false);

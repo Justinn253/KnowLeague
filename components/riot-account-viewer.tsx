@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const platformRoutes = ['NA1', 'BR1', 'LA1', 'LA2', 'EUW1', 'EUN1', 'KR', 'JP1', 'OC1', 'TR1', 'RU', 'PH2', 'SG2', 'TH2', 'TW2', 'VN2'] as const;
 type ViewerTab = 'overview' | 'mastery' | 'matches' | 'challenges';
@@ -937,7 +938,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
             ))}
           </div>
 
-          <div ref={scrollContainerRef} onScroll={updateVisibleWindow} className="overflow-x-auto overflow-y-visible pb-3">
+          <div ref={scrollContainerRef} onScroll={updateVisibleWindow} className={`overflow-x-auto overflow-y-visible pb-3 ${THEMED_SCROLLBAR_CLASS}`}>
             <div className="flex w-max items-start gap-2 pr-4">
               {masteries.map((mastery, index) => {
                 const stats = championStats.get(mastery.champion.id);

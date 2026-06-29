@@ -1,9 +1,10 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Search, Send, Users, X } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { getChatBubbleStyle, getChatInviteButtonStyle } from '@/lib/chat-colors';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 type FriendSummary = {
   id: string;
@@ -164,6 +165,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   const [activeFriend, setActiveFriend] = useState<FriendSummary | null>(null);
   const [messages, setMessages] = useState<FriendMessage[]>([]);
   const [messageProfiles, setMessageProfiles] = useState<Record<string, MessageProfile>>({});
+  const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
   const [messageDraft, setMessageDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [addFriendOpen, setAddFriendOpen] = useState(false);
@@ -178,6 +180,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   const activeFriendRef = useRef<FriendSummary | null>(null);
   const messageCacheRef = useRef<Map<string, FriendMessage[]>>(new Map());
   const messageProfileCacheRef = useRef<Map<string, Record<string, MessageProfile>>>(new Map());
+  const firstUnreadMessageCacheRef = useRef<Map<string, string | null>>(new Map());
   const prefetchedFriendIdsRef = useRef<Set<string>>(new Set());
   const shouldStickToBottomRef = useRef(true);
   const refreshTimeoutRef = useRef<number | null>(null);
@@ -214,6 +217,34 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     }, 80);
   }, []);
 
+  const scrollMessagesToNewIndicator = useCallback(() => {
+    const scrollToMarker = () => {
+      const container = messagesContainerRef.current;
+      const marker = container?.querySelector<HTMLElement>('[data-new-message-indicator="true"]');
+      if (!container || !marker) {
+        return false;
+      }
+
+      container.scrollTop = Math.max(marker.offsetTop - container.offsetTop - 8, 0);
+      return true;
+    };
+
+    window.requestAnimationFrame(() => {
+      if (scrollToMarker()) return;
+      window.requestAnimationFrame(() => {
+        if (!scrollToMarker()) {
+          scrollMessagesToBottom();
+        }
+      });
+    });
+
+    window.setTimeout(() => {
+      if (!scrollToMarker()) {
+        scrollMessagesToBottom();
+      }
+    }, 80);
+  }, [scrollMessagesToBottom]);
+
   const refreshDashboard = useCallback(async () => {
     try {
       const data = await fetchAuthedJson('/api/friends') as FriendDashboard;
@@ -241,21 +272,27 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
 
   const loadFriendMessages = useCallback(async (
     friend: FriendSummary,
-    options: { markRead?: boolean; syncActive?: boolean } = {},
+    options: { markRead?: boolean; syncActive?: boolean; preferUnreadScroll?: boolean } = {},
   ) => {
     const markRead = options.markRead ?? true;
     const syncActive = options.syncActive ?? true;
+    const preferUnreadScroll = options.preferUnreadScroll ?? false;
 
     try {
       const data = await fetchAuthedJson(`/api/friends/messages?friendId=${friend.id}${markRead ? '' : '&markRead=false'}`);
       const nextMessages = data.messages ?? [];
       const nextProfiles = data.profiles ?? {};
+      const nextFirstUnreadMessageId = data.firstUnreadMessageId ?? null;
       messageCacheRef.current.set(friend.id, nextMessages);
       messageProfileCacheRef.current.set(friend.id, nextProfiles);
+      firstUnreadMessageCacheRef.current.set(friend.id, markRead ? null : nextFirstUnreadMessageId);
       if (syncActive && activeFriendRef.current?.id === friend.id) {
         setMessages(nextMessages);
         setMessageProfiles(nextProfiles);
-        if (shouldStickToBottomRef.current) {
+        setFirstUnreadMessageId(nextFirstUnreadMessageId);
+        if (preferUnreadScroll && nextFirstUnreadMessageId) {
+          scrollMessagesToNewIndicator();
+        } else if (shouldStickToBottomRef.current) {
           scrollMessagesToBottom();
         }
       }
@@ -265,7 +302,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load messages.');
     }
-  }, [scheduleDashboardRefresh, scrollMessagesToBottom]);
+  }, [scheduleDashboardRefresh, scrollMessagesToBottom, scrollMessagesToNewIndicator]);
 
   const prefetchFriendMessages = useCallback((friendList: FriendSummary[]) => {
     friendList
@@ -416,20 +453,27 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     if (!activeFriend) {
       setMessages([]);
       setMessageProfiles({});
+      setFirstUnreadMessageId(null);
       return;
     }
 
     const cachedMessages = messageCacheRef.current.get(activeFriend.id);
     const cachedProfiles = messageProfileCacheRef.current.get(activeFriend.id);
+    const cachedFirstUnreadMessageId = firstUnreadMessageCacheRef.current.get(activeFriend.id) ?? null;
     shouldStickToBottomRef.current = true;
     setMessages(cachedMessages ?? []);
     setMessageProfiles(cachedProfiles ?? {});
-    scrollMessagesToBottom();
-    void loadFriendMessages(activeFriend);
-  }, [activeFriend, loadFriendMessages, scrollMessagesToBottom]);
+    setFirstUnreadMessageId(cachedFirstUnreadMessageId);
+    if (cachedFirstUnreadMessageId) {
+      scrollMessagesToNewIndicator();
+    } else {
+      scrollMessagesToBottom();
+    }
+    void loadFriendMessages(activeFriend, { preferUnreadScroll: true });
+  }, [activeFriend, loadFriendMessages, scrollMessagesToBottom, scrollMessagesToNewIndicator]);
 
   useLayoutEffect(() => {
-    if (!activeFriend || !shouldStickToBottomRef.current) {
+    if (!activeFriend || !shouldStickToBottomRef.current || firstUnreadMessageId) {
       return;
     }
 
@@ -440,7 +484,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
 
     container.scrollTop = container.scrollHeight;
     scrollMessagesToBottom();
-  }, [activeFriend, messages, scrollMessagesToBottom]);
+  }, [activeFriend, firstUnreadMessageId, messages, scrollMessagesToBottom]);
 
   useEffect(() => {
     if (!isOpen || !dashboard?.friends.length) {
@@ -466,10 +510,13 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       await broadcastFriendMessageNotification(activeFriend.id);
       const nextMessages = data.messages ?? [];
       const nextProfiles = data.profiles ?? {};
+      const nextFirstUnreadMessageId = data.firstUnreadMessageId ?? null;
       messageCacheRef.current.set(activeFriend.id, nextMessages);
       messageProfileCacheRef.current.set(activeFriend.id, nextProfiles);
+      firstUnreadMessageCacheRef.current.set(activeFriend.id, nextFirstUnreadMessageId);
       setMessages(nextMessages);
       setMessageProfiles(nextProfiles);
+      setFirstUnreadMessageId(nextFirstUnreadMessageId);
       scrollMessagesToBottom();
       await refreshDashboard();
     } catch (error) {
@@ -521,8 +568,9 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       return;
     }
 
-    setActiveFriend(null);
-    setMessages([]);
+      setActiveFriend(null);
+      setMessages([]);
+      setFirstUnreadMessageId(null);
   }, [activeFriend, allFriends]);
 
   const unfriend = async (friend: FriendSummary) => {
@@ -653,7 +701,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                   <div
                     ref={messagesContainerRef}
                     onScroll={updateMessageScrollIntent}
-                    className="mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1"
+                    className={`mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}
                   >
                     {messages.map((chatMessage) => {
                       const isOwnMessage = chatMessage.sender_id === currentUserId;
@@ -669,35 +717,46 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                       );
 
                       return (
-                        <div
-                          key={chatMessage.id}
-                          className={`max-w-[82%] break-words rounded-xl px-3 py-2 text-sm [overflow-wrap:anywhere] ${
-                            isOwnMessage
-                              ? 'ml-auto text-right font-medium'
-                              : 'mr-auto font-medium'
-                          }`}
-                          style={bubbleStyle}
-                        >
-                          {invite ? (
-                            <div className={`flex flex-wrap items-center gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                              <span>{invite.gameName} invite</span>
-                              <button
-                                type="button"
-                                disabled={isOwnMessage}
-                                onClick={() => {
-                                  if (isOwnMessage) return;
-                                  window.location.href = invite.url;
-                                }}
-                                className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${isOwnMessage ? 'cursor-not-allowed' : ''}`}
-                                style={inviteButtonStyle}
-                              >
-                                {isOwnMessage ? 'Sent' : 'Join Game'}
-                              </button>
+                        <Fragment key={chatMessage.id}>
+                          {chatMessage.id === firstUnreadMessageId ? (
+                            <div
+                              data-new-message-indicator="true"
+                              className="my-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[0.68rem] font-black uppercase tracking-[0.18em] text-red-200"
+                            >
+                              <span className="h-px bg-red-500/80" />
+                              <span className="rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5">New</span>
+                              <span className="h-px bg-red-500/80" />
                             </div>
-                          ) : (
-                            chatMessage.message
-                          )}
-                        </div>
+                          ) : null}
+                          <div
+                            className={`max-w-[82%] break-words rounded-xl px-3 py-2 text-sm [overflow-wrap:anywhere] ${
+                              isOwnMessage
+                                ? 'ml-auto text-right font-medium'
+                                : 'mr-auto font-medium'
+                            }`}
+                            style={bubbleStyle}
+                          >
+                            {invite ? (
+                              <div className={`flex flex-wrap items-center gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                                <span>{invite.gameName} invite</span>
+                                <button
+                                  type="button"
+                                  disabled={isOwnMessage}
+                                  onClick={() => {
+                                    if (isOwnMessage) return;
+                                    window.location.href = invite.url;
+                                  }}
+                                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${isOwnMessage ? 'cursor-not-allowed' : ''}`}
+                                  style={inviteButtonStyle}
+                                >
+                                  {isOwnMessage ? 'Sent' : 'Join Game'}
+                                </button>
+                              </div>
+                            ) : (
+                              chatMessage.message
+                            )}
+                          </div>
+                        </Fragment>
                       );
                     })}
                   </div>
@@ -723,7 +782,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                 </div>
               )}
             </section>
-            <section className="min-h-0 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-2">
+            <section className={`min-h-0 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-2 ${THEMED_SCROLLBAR_CLASS}`}>
               {friends.length === 0 ? (
                 <p className="px-3 py-6 text-center text-sm text-slate-500">
                   {cleanSearchQuery ? 'None found' : 'No friends yet.'}
@@ -736,7 +795,6 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                   onClick={() => {
                     shouldStickToBottomRef.current = true;
                     setActiveFriend((current) => (current?.id === friend.id ? null : friend));
-                    scrollMessagesToBottom();
                   }}
                   onMouseEnter={() => prefetchFriendMessages([friend])}
                   onFocus={() => prefetchFriendMessages([friend])}

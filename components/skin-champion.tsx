@@ -126,7 +126,7 @@ const defaultModifiers = modifiers.reduce(
   {} as ModifierState,
 );
 
-const entryCountOptions = [3, 10, 25, 50, 75, 100] as const;
+const entryCountOptions = [10, 25, 50, 75, 100] as const;
 
 function createModifierState(activeIds: readonly string[] = []) {
   return modifiers.reduce(
@@ -179,7 +179,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
-  const [entryCount, setEntryCount] = useState(3);
+  const [entryCount, setEntryCount] = useState(10);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [countdown, setCountdown] = useState<number | null>(null);

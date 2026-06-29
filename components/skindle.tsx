@@ -14,6 +14,7 @@ import {
 } from '@/lib/game-storage';
 import { getNextUtcResetLabel, normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const categories = [
   { id: 'champion', label: 'Champion' },
@@ -689,7 +690,7 @@ export function Skindle() {
               </button>
             ) : null}
 
-            <div className="overflow-x-auto">
+            <div className={`overflow-x-auto ${THEMED_SCROLLBAR_CLASS}`}>
               <div className="w-full min-w-[58rem]">
                 <div className="grid grid-cols-[minmax(8.5rem,1.35fr)_repeat(7,minmax(5.5rem,1fr))] gap-2 pb-3 pl-1 pr-5 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
                   <div>Guess</div>
@@ -698,7 +699,7 @@ export function Skindle() {
                   ))}
                 </div>
 
-                <div ref={guessesPanelRef} className="max-h-[34rem] overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
+                <div ref={guessesPanelRef} className={`max-h-[34rem] overflow-y-scroll pr-2 [scrollbar-gutter:stable] ${THEMED_SCROLLBAR_CLASS}`}>
                   {guesses.length === 0 ? (
                     <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-8 text-center text-sm text-slate-500">
                       Your guesses will appear here.

@@ -13,6 +13,7 @@ import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import { normalizeAnswer } from '@/lib/quiz';
 import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevelationModifier, CarvingRevelationPublicLobby, CarvingRevelationWinCondition } from '@/lib/carving-revelation';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const STORAGE_KEY = 'knowleague:v1:carving-revelation:lobby-code';
 const API_BASE = '/api/carving-revelation/lobbies';
@@ -1443,7 +1444,7 @@ export function CarvingRevelation() {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">Recent Guesses</p>
               </div>
-              <div className={`${guessActions.length >= 8 ? 'max-h-[32rem] overflow-y-auto pr-2' : ''} space-y-4`}>
+              <div className={`${guessActions.length >= 8 ? `max-h-[32rem] overflow-y-auto pr-2 ${THEMED_SCROLLBAR_CLASS}` : ''} space-y-4`}>
                 {guessActionsByRound.length > 0 ? guessActionsByRound.map((group, groupIndex) => (
                   <div key={group.roundNumber} className={groupIndex > 0 ? 'border-t border-white/10 pt-4' : ''}>
                     <div className="mb-3 flex items-center gap-3">

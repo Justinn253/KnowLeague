@@ -1,14 +1,33 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, Check, Clock3, Eye, EyeOff, Grid3X3, Play, RefreshCw, RotateCcw, Shuffle, Trophy } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  Clock3,
+  Eye,
+  EyeOff,
+  Grid3X3,
+  Lock,
+  LockOpen,
+  Play,
+  RefreshCw,
+  RotateCw,
+  RotateCcw,
+  Search,
+  Shuffle,
+  Trophy,
+  X,
+} from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import type { QuizItem } from '@/lib/quiz';
+import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type PuzzlePhase = 'prematch' | 'loading' | 'playing' | 'won' | 'lost';
+type RotationDegrees = 0 | 90 | 180 | 270;
 
 type GridOption = {
   size: number;
@@ -17,17 +36,60 @@ type GridOption = {
 };
 
 type TimeOption = {
-  seconds: number;
+  seconds: number | null;
   label: string;
   description: string;
 };
 
+type SplashScrambleSettings = {
+  gridSize: number;
+  timeLimit: number | null;
+  showReference: boolean;
+  lockCorrectTiles: boolean;
+  rotateTiles: boolean;
+};
+
+type SavedRoundState = SplashScrambleSettings & {
+  version: 1;
+  targetSkin: QuizItem;
+  selectedSkin: QuizItem | null;
+  tiles: number[];
+  rotations: RotationDegrees[];
+  lockedPositions: number[];
+  moves: number;
+  startedAt: number;
+  endsAt: number | null;
+  savedAt: number;
+};
+
+type SplashScrambleStats = {
+  solvesByPieceCount: Record<string, number>;
+  solvesWithReference: number;
+  solvesWithoutReference: number;
+  solvesWithLocking: number;
+};
+
+type AccountPayload = {
+  state: SavedRoundState | null;
+  stats: SplashScrambleStats | null;
+};
+
+const ACTIVE_ROUND_STORAGE_KEY = 'knowleague:v1:splash-scramble:active-round';
+const STATS_STORAGE_KEY = 'knowleague:v1:splash-scramble:stats';
+const DEFAULT_SETTINGS: SplashScrambleSettings = {
+  gridSize: 6,
+  timeLimit: null,
+  showReference: true,
+  lockCorrectTiles: true,
+  rotateTiles: false,
+};
+
 const gridOptions: GridOption[] = [
-  { size: 4, label: '4 x 4', description: '16 pieces' },
   { size: 5, label: '5 x 5', description: '25 pieces' },
   { size: 6, label: '6 x 6', description: '36 pieces' },
   { size: 8, label: '8 x 8', description: '64 pieces' },
   { size: 10, label: '10 x 10', description: '100 pieces' },
+  { size: 12, label: '12 x 12', description: '144 pieces' },
 ];
 
 const timeOptions: TimeOption[] = [
@@ -35,7 +97,17 @@ const timeOptions: TimeOption[] = [
   { seconds: 300, label: '5:00', description: 'Standard' },
   { seconds: 480, label: '8:00', description: 'Measured' },
   { seconds: 720, label: '12:00', description: 'Practice' },
+  { seconds: null, label: 'No Timer', description: 'Tracks current time' },
 ];
+
+function createEmptyStats(): SplashScrambleStats {
+  return {
+    solvesByPieceCount: {},
+    solvesWithReference: 0,
+    solvesWithoutReference: 0,
+    solvesWithLocking: 0,
+  };
+}
 
 function shuffleTiles(tileCount: number) {
   const tiles = Array.from({ length: tileCount }, (_, index) => index);
@@ -52,14 +124,27 @@ function shuffleTiles(tileCount: number) {
   return tiles;
 }
 
+function createInitialRotations(tileCount: number, rotateTiles: boolean): RotationDegrees[] {
+  if (!rotateTiles) {
+    return Array.from({ length: tileCount }, () => 0);
+  }
+
+  const rotationOptions: RotationDegrees[] = [90, 180, 270];
+  return Array.from({ length: tileCount }, () => rotationOptions[Math.floor(Math.random() * rotationOptions.length)]);
+}
+
 function formatTimer(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-function isSolved(tiles: readonly number[]) {
-  return tiles.every((tile, index) => tile === index);
+function countCorrectPositions(tiles: readonly number[], rotations: readonly RotationDegrees[]) {
+  return tiles.reduce((count, tile, index) => count + (tile === index && (rotations[index] ?? 0) === 0 ? 1 : 0), 0);
+}
+
+function isSolved(tiles: readonly number[], rotations: readonly RotationDegrees[]) {
+  return countCorrectPositions(tiles, rotations) === tiles.length;
 }
 
 function preloadImage(src: string) {
@@ -71,14 +156,17 @@ function preloadImage(src: string) {
   });
 }
 
-async function loadRandomSkin() {
-  const response = await fetch('/api/skin-champion/quiz-items', { cache: 'no-store' });
+async function fetchSkins() {
+  const response = await fetch('/api/skindle/skins', { cache: 'no-store' });
   if (!response.ok) {
-    throw new Error('Unable to load a skin splash.');
+    throw new Error('Unable to load skin list.');
   }
 
-  const skins = await response.json() as QuizItem[];
-  const eligibleSkins = skins.filter((skin) => skin.imageUrl);
+  return (await response.json() as QuizItem[]).filter((skin) => skin.imageUrl);
+}
+
+async function loadRandomSkin(cachedSkins: readonly QuizItem[]) {
+  const eligibleSkins = cachedSkins.length > 0 ? cachedSkins : await fetchSkins();
   const skin = eligibleSkins[Math.floor(Math.random() * eligibleSkins.length)];
 
   if (!skin) {
@@ -86,6 +174,169 @@ async function loadRandomSkin() {
   }
 
   return skin;
+}
+
+function getInitialLockedPositions(tiles: readonly number[], rotations: readonly RotationDegrees[], lockCorrectTiles: boolean) {
+  if (!lockCorrectTiles) {
+    return new Set<number>();
+  }
+
+  return new Set(tiles.flatMap((tile, position) => (tile === position && (rotations[position] ?? 0) === 0 ? [position] : [])));
+}
+
+function getSavedElapsedSeconds(round: SavedRoundState, now = Date.now()) {
+  return Math.max(0, Math.floor((now - round.startedAt) / 1000));
+}
+
+function getSavedRemainingSeconds(round: SavedRoundState, now = Date.now()) {
+  return round.endsAt === null ? 0 : Math.max(0, Math.ceil((round.endsAt - now) / 1000));
+}
+
+function isRoundResumeable(round: SavedRoundState, now = Date.now()) {
+  return round.timeLimit === null || round.endsAt === null || round.endsAt > now;
+}
+
+function getStatsKey(columns: number, rows: number) {
+  return `${columns}x${rows}`;
+}
+
+function readLocalSavedRound() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const rawRound = window.localStorage.getItem(ACTIVE_ROUND_STORAGE_KEY);
+    if (!rawRound) {
+      return null;
+    }
+
+    const round = JSON.parse(rawRound) as SavedRoundState;
+    if (round.version !== 1 || !round.targetSkin?.imageUrl || !Array.isArray(round.tiles)) {
+      return null;
+    }
+
+    if (!isRoundResumeable(round)) {
+      window.localStorage.removeItem(ACTIVE_ROUND_STORAGE_KEY);
+      return null;
+    }
+
+    return round;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalRound(round: SavedRoundState) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(ACTIVE_ROUND_STORAGE_KEY, JSON.stringify(round));
+}
+
+function clearLocalRound() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(ACTIVE_ROUND_STORAGE_KEY);
+}
+
+function readLocalStats() {
+  if (typeof window === 'undefined') {
+    return createEmptyStats();
+  }
+
+  try {
+    const rawStats = window.localStorage.getItem(STATS_STORAGE_KEY);
+    return rawStats ? { ...createEmptyStats(), ...JSON.parse(rawStats) as Partial<SplashScrambleStats> } : createEmptyStats();
+  } catch {
+    return createEmptyStats();
+  }
+}
+
+function normalizeStats(stats?: Partial<SplashScrambleStats> | null) {
+  return {
+    ...createEmptyStats(),
+    ...stats,
+    solvesByPieceCount: stats?.solvesByPieceCount ?? {},
+  };
+}
+
+function saveLocalStats(stats: SplashScrambleStats) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(stats));
+}
+
+async function getAccountToken() {
+  const supabase = getOptionalSupabaseClient();
+  const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+  return data.session?.access_token ?? null;
+}
+
+async function syncAccountRound(round: SavedRoundState | null) {
+  const token = await getAccountToken();
+  if (!token) {
+    return;
+  }
+
+  if (round) {
+    await fetch('/api/splash-scramble/state', {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ state: round }),
+    });
+    return;
+  }
+
+  await fetch('/api/splash-scramble/state', {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+async function syncAccountStats(stats: SplashScrambleStats) {
+  const token = await getAccountToken();
+  if (!token) {
+    return;
+  }
+
+  await fetch('/api/splash-scramble/state', {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ stats }),
+  });
+}
+
+async function loadAccountPayload(): Promise<AccountPayload | null> {
+  const token = await getAccountToken();
+  if (!token) {
+    return null;
+  }
+
+  const response = await fetch('/api/splash-scramble/state', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    return null;
+  }
+
+  const result = await response.json() as { state?: SavedRoundState | null; stats?: SplashScrambleStats | null };
+  const round = result.state ?? null;
+  return {
+    state: round && isRoundResumeable(round) ? round : null,
+    stats: result.stats ? normalizeStats(result.stats) : null,
+  };
 }
 
 function SettingButton({
@@ -108,23 +359,23 @@ function SettingButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`group flex min-h-24 items-start gap-3 rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`group flex min-h-20 items-start gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
         selected
           ? 'border-amber-300/70 bg-amber-300/10 shadow-lg shadow-amber-500/10'
           : 'border-white/10 bg-slate-950/70 hover:border-white/25 hover:bg-slate-950'
       }`}
     >
-      <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${
+      <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
         selected ? 'border-amber-300/50 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900 text-slate-300'
       }`}>
         {icon}
       </span>
       <span className="min-w-0">
-        <span className="flex items-center gap-2 text-base font-bold text-white">
+        <span className="flex items-center gap-2 text-sm font-bold text-white">
           {title}
-          {selected ? <Check size={16} className="text-amber-300" /> : null}
+          {selected ? <Check size={15} className="text-amber-300" /> : null}
         </span>
-        <span className="mt-1 block text-sm leading-6 text-slate-400">{description}</span>
+        <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span>
       </span>
     </button>
   );
@@ -132,42 +383,239 @@ function SettingButton({
 
 function StatPill({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3">
-      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-black text-white">{value}</p>
+    <div className="rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 sm:px-4 sm:py-3">
+      <p className="text-[0.62rem] uppercase tracking-[0.18em] text-slate-500 sm:text-xs">{label}</p>
+      <p className="mt-1 text-base font-black text-white sm:text-lg">{value}</p>
     </div>
   );
 }
 
 export function SplashScramble() {
   const [phase, setPhase] = useState<PuzzlePhase>('prematch');
-  const [gridSize, setGridSize] = useState(5);
-  const [timeLimit, setTimeLimit] = useState(300);
-  const [showReference, setShowReference] = useState(true);
+  const [gridSize, setGridSize] = useState(DEFAULT_SETTINGS.gridSize);
+  const [timeLimit, setTimeLimit] = useState<number | null>(DEFAULT_SETTINGS.timeLimit);
+  const [showReference, setShowReference] = useState(DEFAULT_SETTINGS.showReference);
+  const [lockCorrectTiles, setLockCorrectTiles] = useState(DEFAULT_SETTINGS.lockCorrectTiles);
+  const [rotateTiles, setRotateTiles] = useState(DEFAULT_SETTINGS.rotateTiles);
+  const [mobileViewRotated, setMobileViewRotated] = useState(false);
+  const [skinCatalog, setSkinCatalog] = useState<QuizItem[]>([]);
+  const [skinSearch, setSkinSearch] = useState('');
+  const [selectedSkin, setSelectedSkin] = useState<QuizItem | null>(null);
+  const [skinListError, setSkinListError] = useState('');
   const [targetSkin, setTargetSkin] = useState<QuizItem | null>(null);
   const [tiles, setTiles] = useState<number[]>([]);
+  const [rotations, setRotations] = useState<RotationDegrees[]>([]);
   const [selectedTile, setSelectedTile] = useState<number | null>(null);
+  const [lockedPositions, setLockedPositions] = useState<Set<number>>(new Set());
+  const [flashingPositions, setFlashingPositions] = useState<Set<number>>(new Set());
   const [moves, setMoves] = useState(0);
-  const [remainingSeconds, setRemainingSeconds] = useState(timeLimit);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
   const [endsAt, setEndsAt] = useState<number | null>(null);
+  const [resumeRound, setResumeRound] = useState<SavedRoundState | null>(null);
+  const [stats, setStats] = useState<SplashScrambleStats>(() => createEmptyStats());
+  const [profileStatsLoaded, setProfileStatsLoaded] = useState(false);
   const [error, setError] = useState('');
+  const flashTimeoutRef = useRef<number | null>(null);
+  const lastAccountSyncMoveRef = useRef<number | null>(null);
+  const solveRecordedRef = useRef(false);
+  const rotateSelectedTileRef = useRef<(direction?: 1 | -1) => void>(() => undefined);
 
-  const tileCount = gridSize * gridSize;
+  const configuredColumns = rotateTiles ? 16 : gridSize;
+  const configuredRows = rotateTiles ? 9 : gridSize;
+  const configuredTileCount = configuredColumns * configuredRows;
   const started = phase === 'playing';
   const roundEnded = phase === 'won' || phase === 'lost';
-  const boardColumns = useMemo(() => ({ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }), [gridSize]);
+  const activeSquareRoot = Math.sqrt(tiles.length);
+  const activeColumns = tiles.length > 0
+    ? rotateTiles && tiles.length === 144
+      ? 16
+      : Number.isInteger(activeSquareRoot)
+        ? activeSquareRoot
+        : configuredColumns
+    : configuredColumns;
+  const activeRows = tiles.length > 0 ? Math.ceil(tiles.length / activeColumns) : configuredRows;
+  const tileCount = started || roundEnded ? tiles.length : configuredTileCount;
+  const puzzleLabel = `${configuredColumns} x ${configuredRows}`;
+  const correctPositions = useMemo(() => countCorrectPositions(tiles, rotations), [rotations, tiles]);
+  const timerLabel = timeLimit === null ? 'No Timer' : formatTimer(timeLimit);
+  const activeTimeValue = timeLimit === null ? formatTimer(elapsedSeconds) : formatTimer(remainingSeconds);
+  const boardColumns = useMemo(() => ({
+    gridTemplateColumns: `repeat(${activeColumns}, minmax(0, 1fr))`,
+    gridTemplateRows: `repeat(${activeRows}, minmax(0, 1fr))`,
+  }), [activeColumns, activeRows]);
+  const boardUsesRotatedMobileView = mobileViewRotated && !rotateTiles;
+  const selectedRotation = selectedTile === null ? 0 : rotations[selectedTile] ?? 0;
+  const filteredSkins = useMemo(() => {
+    const query = skinSearch.trim().toLowerCase();
+    if (!query) {
+      return [];
+    }
+
+    return skinCatalog
+      .filter((skin) => `${skin.answer} ${skin.champion}`.toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [skinCatalog, skinSearch]);
+  const pieceStats = useMemo(
+    () => [
+      ...gridOptions.map((option) => ({
+        label: option.label,
+        count: stats.solvesByPieceCount[getStatsKey(option.size, option.size)] ?? stats.solvesByPieceCount[String(option.size)] ?? 0,
+      })),
+      {
+        label: '16 x 9',
+        count: stats.solvesByPieceCount[getStatsKey(16, 9)] ?? 0,
+      },
+    ],
+    [stats.solvesByPieceCount],
+  );
+
+  const buildSavedRound = useCallback((savedAt = Date.now()): SavedRoundState | null => {
+    if (!targetSkin || phase !== 'playing' || startedAt === null) {
+      return null;
+    }
+
+    return {
+      version: 1,
+      gridSize,
+      timeLimit,
+      showReference,
+      lockCorrectTiles,
+      rotateTiles,
+      selectedSkin,
+      targetSkin,
+      tiles,
+      rotations,
+      lockedPositions: Array.from(lockedPositions),
+      moves,
+      startedAt,
+      endsAt,
+      savedAt,
+    };
+  }, [endsAt, gridSize, lockCorrectTiles, lockedPositions, moves, phase, rotateTiles, rotations, selectedSkin, showReference, startedAt, targetSkin, tiles, timeLimit]);
+
+  const applyRound = async (round: SavedRoundState) => {
+    await preloadImage(round.targetSkin.imageUrl);
+    setGridSize(round.gridSize);
+    setTimeLimit(round.timeLimit);
+    setShowReference(round.showReference);
+    setLockCorrectTiles(round.lockCorrectTiles);
+    setRotateTiles(round.rotateTiles);
+    setSelectedSkin(round.selectedSkin);
+    setTargetSkin(round.targetSkin);
+    setTiles(round.tiles);
+    setRotations(round.rotations.length === round.tiles.length ? round.rotations : Array.from({ length: round.tiles.length }, () => 0));
+    setLockedPositions(new Set(round.lockedPositions));
+    setFlashingPositions(new Set());
+    setSelectedTile(null);
+    setMoves(round.moves);
+    setStartedAt(round.startedAt);
+    setEndsAt(round.endsAt);
+    setElapsedSeconds(getSavedElapsedSeconds(round));
+    setRemainingSeconds(getSavedRemainingSeconds(round));
+    setPhase('playing');
+  };
 
   useEffect(() => {
-    if (phase !== 'playing' || endsAt === null) {
+    const localStats = readLocalStats();
+    setStats(localStats);
+    const localRound = readLocalSavedRound();
+    if (localRound) {
+      setResumeRound(localRound);
+    }
+
+    const loadProfileData = () => {
+      loadAccountPayload()
+        .then((payload) => {
+          if (!payload) {
+            setProfileStatsLoaded(false);
+            return;
+          }
+
+          const nextStats = payload.stats ?? createEmptyStats();
+          setStats(nextStats);
+          saveLocalStats(nextStats);
+          setProfileStatsLoaded(true);
+
+          if (payload.state) {
+            setResumeRound(payload.state);
+            saveLocalRound(payload.state);
+          } else if (localRound) {
+            syncAccountRound(localRound).catch(() => undefined);
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    loadProfileData();
+    const supabase = getOptionalSupabaseClient();
+    const subscription = supabase?.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        loadProfileData();
+      }
+
+      if (event === 'SIGNED_OUT') {
+        setStats(readLocalStats());
+        setProfileStatsLoaded(false);
+        const savedRound = readLocalSavedRound();
+        if (savedRound) {
+          setResumeRound(savedRound);
+        }
+      }
+    });
+
+    return () => subscription?.data.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchSkins()
+      .then((skins) => {
+        if (!cancelled) {
+          setSkinCatalog(skins);
+          setSkinListError('');
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setSkinListError(loadError instanceof Error ? loadError.message : 'Unable to load skin search.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => () => {
+    if (flashTimeoutRef.current !== null) {
+      window.clearTimeout(flashTimeoutRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'playing' || startedAt === null) {
       return undefined;
     }
 
     const updateTimer = () => {
+      const nextElapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      setElapsedSeconds(nextElapsed);
+
+      if (timeLimit === null || endsAt === null) {
+        return;
+      }
+
       const nextRemaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
       setRemainingSeconds(nextRemaining);
 
       if (nextRemaining <= 0) {
         setSelectedTile(null);
+        clearLocalRound();
+        setResumeRound(null);
+        syncAccountRound(null).catch(() => undefined);
         setPhase('lost');
       }
     };
@@ -175,40 +623,197 @@ export function SplashScramble() {
     updateTimer();
     const interval = window.setInterval(updateTimer, 250);
     return () => window.clearInterval(interval);
-  }, [endsAt, phase]);
+  }, [endsAt, phase, startedAt, timeLimit]);
+
+  useEffect(() => {
+    const round = buildSavedRound();
+    if (!round) {
+      return;
+    }
+
+    saveLocalRound(round);
+    setResumeRound(round);
+  }, [buildSavedRound, elapsedSeconds]);
+
+  useEffect(() => {
+    if (phase !== 'playing' || moves === 0 || moves % 5 !== 0 || lastAccountSyncMoveRef.current === moves) {
+      return;
+    }
+
+    const round = buildSavedRound();
+    if (!round) {
+      return;
+    }
+
+    lastAccountSyncMoveRef.current = moves;
+    syncAccountRound(round).catch(() => undefined);
+  }, [buildSavedRound, moves, phase]);
+
+  const recordSolveStats = () => {
+    if (solveRecordedRef.current) {
+      return;
+    }
+
+    solveRecordedRef.current = true;
+    setStats((current) => {
+      const nextStats: SplashScrambleStats = {
+        solvesByPieceCount: {
+          ...current.solvesByPieceCount,
+          [getStatsKey(configuredColumns, configuredRows)]: (current.solvesByPieceCount[getStatsKey(configuredColumns, configuredRows)] ?? 0) + 1,
+        },
+        solvesWithReference: current.solvesWithReference + (showReference ? 1 : 0),
+        solvesWithoutReference: current.solvesWithoutReference + (showReference ? 0 : 1),
+        solvesWithLocking: current.solvesWithLocking + (lockCorrectTiles ? 1 : 0),
+      };
+      saveLocalStats(nextStats);
+      syncAccountStats(nextStats).catch(() => undefined);
+      return nextStats;
+    });
+  };
+
+  const completeRound = () => {
+    recordSolveStats();
+    clearLocalRound();
+    setResumeRound(null);
+    syncAccountRound(null).catch(() => undefined);
+    setPhase('won');
+  };
 
   const startRound = async () => {
     setPhase('loading');
     setError('');
     setSelectedTile(null);
+    setLockedPositions(new Set());
+    setFlashingPositions(new Set());
     setMoves(0);
+    setElapsedSeconds(0);
+    lastAccountSyncMoveRef.current = null;
+    solveRecordedRef.current = false;
 
     try {
-      const skin = await loadRandomSkin();
+      const skin = selectedSkin ?? await loadRandomSkin(skinCatalog);
       await preloadImage(skin.imageUrl);
-      const nextTiles = shuffleTiles(tileCount);
+      const nextTiles = shuffleTiles(configuredTileCount);
+      const nextRotations = createInitialRotations(configuredTileCount, rotateTiles);
+      const now = Date.now();
+      const initialLockedPositions = getInitialLockedPositions(nextTiles, nextRotations, lockCorrectTiles);
+      const startedRound: SavedRoundState = {
+        version: 1,
+        gridSize,
+        timeLimit,
+        showReference,
+        lockCorrectTiles,
+        rotateTiles,
+        selectedSkin,
+        targetSkin: skin,
+        tiles: nextTiles,
+        rotations: nextRotations,
+        lockedPositions: Array.from(initialLockedPositions),
+        moves: 0,
+        startedAt: now,
+        endsAt: timeLimit === null ? null : now + timeLimit * 1000,
+        savedAt: now,
+      };
 
       setTargetSkin(skin);
       setTiles(nextTiles);
-      setRemainingSeconds(timeLimit);
-      setEndsAt(Date.now() + timeLimit * 1000);
+      setRotations(nextRotations);
+      setLockedPositions(initialLockedPositions);
+      setRemainingSeconds(timeLimit ?? 0);
+      setStartedAt(now);
+      setEndsAt(startedRound.endsAt);
+      saveLocalRound(startedRound);
+      setResumeRound(startedRound);
+      syncAccountRound(startedRound).catch(() => undefined);
       setPhase('playing');
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to start the round.');
+      setStartedAt(null);
       setEndsAt(null);
       setPhase('prematch');
     }
   };
 
+  const resumeSavedRound = async () => {
+    if (!resumeRound) {
+      return;
+    }
+
+    setPhase('loading');
+    setError('');
+
+    try {
+      await applyRound(resumeRound);
+    } catch {
+      clearLocalRound();
+      setResumeRound(null);
+      setPhase('prematch');
+      setError('Unable to resume that saved round.');
+    }
+  };
+
   const returnToPrematch = () => {
+    const round = buildSavedRound();
+    if (round) {
+      saveLocalRound(round);
+      setResumeRound(round);
+      syncAccountRound(round).catch(() => undefined);
+    }
+
     setPhase('prematch');
     setSelectedTile(null);
+    setFlashingPositions(new Set());
+  };
+
+  const clearCompletedRound = () => {
+    clearLocalRound();
+    setResumeRound(null);
+    syncAccountRound(null).catch(() => undefined);
+    setPhase('prematch');
+    setSelectedTile(null);
+    setStartedAt(null);
     setEndsAt(null);
-    setRemainingSeconds(timeLimit);
+    setRemainingSeconds(timeLimit ?? 0);
+    setElapsedSeconds(0);
+    setLockedPositions(new Set());
+    setFlashingPositions(new Set());
+  };
+
+  const flashPositions = (positions: number[]) => {
+    if (positions.length === 0) {
+      return;
+    }
+
+    if (flashTimeoutRef.current !== null) {
+      window.clearTimeout(flashTimeoutRef.current);
+    }
+
+    setFlashingPositions(new Set(positions));
+    flashTimeoutRef.current = window.setTimeout(() => {
+      setFlashingPositions(new Set());
+      flashTimeoutRef.current = null;
+    }, 650);
+  };
+
+  const updateLocksAfterMove = (nextTiles: readonly number[], nextRotations: readonly RotationDegrees[], candidatePositions: readonly number[]) => {
+    if (!lockCorrectTiles) {
+      return;
+    }
+
+    const newlyCorrectPositions = candidatePositions.filter((candidate) => (
+      nextTiles[candidate] === candidate &&
+      (nextRotations[candidate] ?? 0) === 0 &&
+      !lockedPositions.has(candidate)
+    ));
+
+    if (newlyCorrectPositions.length > 0) {
+      setLockedPositions((current) => new Set([...current, ...newlyCorrectPositions]));
+      flashPositions(newlyCorrectPositions);
+    }
   };
 
   const handleTileClick = (position: number) => {
-    if (phase !== 'playing') {
+    if (phase !== 'playing' || lockedPositions.has(position)) {
       return;
     }
 
@@ -223,23 +828,193 @@ export function SplashScramble() {
     }
 
     const nextTiles = [...tiles];
+    const nextRotations = [...rotations];
     [nextTiles[selectedTile], nextTiles[position]] = [nextTiles[position], nextTiles[selectedTile]];
+    [nextRotations[selectedTile], nextRotations[position]] = [nextRotations[position], nextRotations[selectedTile]];
+
     setTiles(nextTiles);
+    setRotations(nextRotations);
     setSelectedTile(null);
     setMoves((current) => current + 1);
+    updateLocksAfterMove(nextTiles, nextRotations, [selectedTile, position]);
 
-    if (isSolved(nextTiles)) {
-      setPhase('won');
+    if (isSolved(nextTiles, nextRotations)) {
+      completeRound();
     }
   };
 
+  const rotateSelectedTile = (direction: 1 | -1 = 1) => {
+    if (phase !== 'playing' || selectedTile === null || lockedPositions.has(selectedTile) || !rotateTiles) {
+      return;
+    }
+
+    const nextRotations = [...rotations];
+    nextRotations[selectedTile] = ((nextRotations[selectedTile] + (direction === 1 ? 90 : 270)) % 360) as RotationDegrees;
+
+    setRotations(nextRotations);
+    updateLocksAfterMove(tiles, nextRotations, [selectedTile]);
+
+    if (isSolved(tiles, nextRotations)) {
+      completeRound();
+    }
+  };
+  rotateSelectedTileRef.current = rotateSelectedTile;
+
+  useEffect(() => {
+    if (phase !== 'playing' || !rotateTiles || selectedTile === null || lockedPositions.has(selectedTile)) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const clockwiseKeys = new Set(['arrowup', 'arrowleft', 'w', 'a']);
+      const counterClockwiseKeys = new Set(['arrowdown', 'arrowright', 's', 'd']);
+      if (!clockwiseKeys.has(key) && !counterClockwiseKeys.has(key)) {
+        return;
+      }
+
+      event.preventDefault();
+      rotateSelectedTileRef.current(clockwiseKeys.has(key) ? 1 : -1);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lockedPositions, phase, rotateTiles, selectedTile]);
+
+  const renderSkinSearch = () => (
+    <div>
+      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Skin</p>
+      <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative min-w-0 flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="search"
+              value={skinSearch}
+              onChange={(event) => setSkinSearch(event.target.value)}
+              placeholder="Search skins or leave blank for random"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-slate-900 py-2 pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300/60"
+            />
+            {filteredSkins.length > 0 ? (
+              <div className="absolute left-0 right-0 top-12 z-40 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/40">
+                {filteredSkins.map((skin) => (
+                  <button
+                    key={skin.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSkin(skin);
+                      setSkinSearch('');
+                    }}
+                    className="grid w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 border-b border-white/5 p-2 text-left transition last:border-b-0 hover:bg-white/5"
+                  >
+                    <span className="relative h-10 overflow-hidden rounded-xl bg-slate-900">
+                      <Image src={skin.imageUrl} alt="" fill sizes="48px" className="object-cover" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-white">{skin.answer}</span>
+                      <span className="block truncate text-xs text-slate-500">{skin.champion}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedSkin(null);
+              setSkinSearch('');
+            }}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-200 transition hover:bg-slate-800"
+          >
+            <Shuffle size={15} />
+            Random
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs leading-5 text-slate-500">
+          {selectedSkin ? `${selectedSkin.answer} selected.` : skinListError || 'A random splash will be selected when the round starts.'}
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderSetupCard = () => (
+    <aside className="grid gap-4">
+      <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Round Setup</p>
+            <h3 className="mt-2 text-xl font-black text-white">{puzzleLabel} Puzzle</h3>
+          </div>
+          <Shuffle size={22} className="text-amber-300" />
+        </div>
+
+        {selectedSkin ? (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+            <div className="relative aspect-[16/4] max-h-28">
+              <Image src={selectedSkin.imageUrl} alt={`${selectedSkin.answer} selected splash art`} fill sizes="(min-width: 1024px) 420px, 100vw" className="object-cover" />
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-white/10 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-white">{selectedSkin.answer}</p>
+                <p className="text-xs text-slate-500">Selected skin</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSkin(null)}
+                aria-label="Clear selected skin"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-950/70 text-slate-300 transition hover:text-white"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+          <StatPill label="Pieces" value={`${puzzleLabel} = ${configuredTileCount}`} />
+          <StatPill label="Time" value={timerLabel} />
+          <StatPill label="Reference" value={showReference ? 'On' : 'Off'} />
+          <StatPill label="Locking" value={lockCorrectTiles ? 'On' : 'Off'} />
+          <StatPill label="Rotation" value={rotateTiles ? 'On' : 'Off'} />
+          <StatPill label="Skin" value={selectedSkin ? 'Selected' : 'Random'} />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Stats</p>
+            <h3 className="mt-2 text-lg font-black text-white">{profileStatsLoaded ? 'Profile Solves' : 'Local Solves'}</h3>
+          </div>
+          <Trophy size={20} className="text-amber-300" />
+        </div>
+        <div className="mt-4 grid gap-2">
+          <div className="grid grid-cols-4 gap-2">
+            {pieceStats.map((entry) => (
+              <StatPill key={entry.label} label={entry.label} value={entry.count} />
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            <StatPill label="Reference On" value={stats.solvesWithReference} />
+            <StatPill label="Reference Off" value={stats.solvesWithoutReference} />
+            <StatPill label="Locking Solves" value={stats.solvesWithLocking} />
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+
   const renderPrematch = () => (
-    <section className="grid gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:grid-cols-[1fr_0.9fr]">
-      <div className="grid gap-6">
+    <section className="grid gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl sm:p-6 lg:grid-cols-[1fr_0.82fr]">
+      <div className="grid gap-5">
         <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Pre-Game Lobby</p>
           <h2 className="mt-2 text-3xl font-black text-white">Splash Scramble</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-            Choose the puzzle size, timer, and reference visibility. If no skin is selected, one will be chosen at random.
+            Choose the puzzle size, timer, reference, locking behavior, rotation, and a skin.
           </p>
         </div>
 
@@ -248,86 +1023,132 @@ export function SplashScramble() {
         ) : null}
 
         <div className="grid gap-5">
+          {renderSkinSearch()}
+
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pieces</p>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
               {gridOptions.map((option) => (
                 <SettingButton
                   key={option.size}
                   selected={gridSize === option.size}
-                  icon={<Grid3X3 size={18} />}
+                  icon={<Grid3X3 size={17} />}
                   title={option.label}
                   description={option.description}
                   onClick={() => setGridSize(option.size)}
                 />
               ))}
             </div>
+            {rotateTiles ? (
+              <p className="mt-2 text-xs leading-5 text-amber-100/80">Rotation mode uses a fixed 16 x 9 grid so rotated pieces stay square.</p>
+            ) : null}
           </div>
 
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Timer</p>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
               {timeOptions.map((option) => (
                 <SettingButton
-                  key={option.seconds}
+                  key={option.label}
                   selected={timeLimit === option.seconds}
-                  icon={<Clock3 size={18} />}
+                  icon={<Clock3 size={17} />}
                   title={option.label}
                   description={option.description}
                   onClick={() => {
                     setTimeLimit(option.seconds);
-                    setRemainingSeconds(option.seconds);
+                    setRemainingSeconds(option.seconds ?? 0);
                   }}
                 />
               ))}
             </div>
           </div>
 
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Reference</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <SettingButton
-                selected={showReference}
-                icon={<Eye size={18} />}
-                title="Visible"
-                description="Show a small splash art reference while solving."
-                onClick={() => setShowReference(true)}
-              />
-              <SettingButton
-                selected={!showReference}
-                icon={<EyeOff size={18} />}
-                title="Hidden"
-                description="Solve from the scrambled image alone."
-                onClick={() => setShowReference(false)}
-              />
+          <div className="grid gap-5 xl:grid-cols-3">
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Reference</p>
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+                <SettingButton
+                  selected={showReference}
+                  icon={<Eye size={17} />}
+                  title="Visible"
+                  description="A reference image is shown."
+                  onClick={() => setShowReference(true)}
+                />
+                <SettingButton
+                  selected={!showReference}
+                  icon={<EyeOff size={17} />}
+                  title="Hidden"
+                  description="No reference image is shown."
+                  onClick={() => setShowReference(false)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tile Locking</p>
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+                <SettingButton
+                  selected={lockCorrectTiles}
+                  icon={<Lock size={17} />}
+                  title="Lock Correct"
+                  description="Correct tiles lock and flash green."
+                  onClick={() => setLockCorrectTiles(true)}
+                />
+                <SettingButton
+                  selected={!lockCorrectTiles}
+                  icon={<LockOpen size={17} />}
+                  title="Unlocked"
+                  description="Every tile remains swappable."
+                  onClick={() => setLockCorrectTiles(false)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Rotation</p>
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+                <SettingButton
+                  selected={rotateTiles}
+                  icon={<RotateCw size={17} />}
+                  title="Rotated"
+                  description="Pieces start rotated and must be turned."
+                  onClick={() => setRotateTiles(true)}
+                />
+                <SettingButton
+                  selected={!rotateTiles}
+                  icon={<RotateCcw size={17} />}
+                  title="No Rotation"
+                  description="Pieces keep their normal orientation."
+                  onClick={() => setRotateTiles(false)}
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={startRound}
-          className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200 sm:w-auto"
-        >
-          <Play size={16} />
-          Play
-        </button>
+        <div className={`grid gap-3 ${resumeRound ? 'sm:grid-cols-2' : ''}`}>
+          <button
+            type="button"
+            onClick={startRound}
+            className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+          >
+            <Play size={16} />
+            Play
+          </button>
+          {resumeRound ? (
+            <button
+              type="button"
+              onClick={resumeSavedRound}
+              className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-300/10 px-5 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            >
+              <RefreshCw size={16} />
+              Resume
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      <aside className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Round Setup</p>
-            <h3 className="mt-2 text-xl font-black text-white">{gridSize} x {gridSize} Puzzle</h3>
-          </div>
-          <Shuffle size={22} className="text-amber-300" />
-        </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-          <StatPill label="Pieces" value={tileCount} />
-          <StatPill label="Time" value={formatTimer(timeLimit)} />
-          <StatPill label="Reference" value={showReference ? 'On' : 'Off'} />
-        </div>
-      </aside>
+      {renderSetupCard()}
     </section>
   );
 
@@ -342,72 +1163,132 @@ export function SplashScramble() {
   );
 
   const renderBoard = () => (
-    <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
-      <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl sm:p-5">
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
-          <StatPill label="Time" value={formatTimer(remainingSeconds)} />
+    <section className="grid gap-4">
+      <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 shadow-glow backdrop-blur-xl sm:p-5">
+        <div className="mb-3 grid grid-cols-3 gap-2 sm:mb-4 sm:gap-3">
+          <StatPill label={timeLimit === null ? 'Elapsed' : 'Time'} value={activeTimeValue} />
           <StatPill label="Moves" value={moves} />
-          <StatPill label="Pieces" value={tileCount} />
+          <StatPill label="Correct" value={`${correctPositions}/${tileCount}`} />
+        </div>
+
+        {rotateTiles ? (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+            <p className="text-sm font-semibold text-slate-300">
+              {selectedTile === null ? 'Select a tile to rotate it.' : `Rotate with WASD or Arrow Keys`}
+            </p>
+            <button
+              type="button"
+              onClick={() => rotateSelectedTile(1)}
+              disabled={selectedTile === null || (selectedTile !== null && lockedPositions.has(selectedTile))}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RotateCw size={15} />
+              Rotate Selected
+            </button>
+          </div>
+        ) : null}
+
+        <div className="mb-3 flex justify-end sm:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileViewRotated((value) => !value)}
+            disabled={rotateTiles}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm font-bold text-slate-200 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RotateCw size={15} />
+            {mobileViewRotated ? 'Normal View' : 'Rotate View'}
+          </button>
         </div>
 
         <div
-          className="grid aspect-video overflow-hidden rounded-2xl border border-white/10 bg-slate-950"
-          style={boardColumns}
-          aria-label="Scrambled splash art puzzle"
+          className={`relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950 ${
+            rotateTiles
+              ? activeColumns === 16 && activeRows === 9 ? 'aspect-video' : 'aspect-square'
+              : mobileViewRotated ? 'aspect-[9/16] sm:aspect-video' : 'aspect-video'
+          }`}
         >
-          {tiles.map((tile, position) => {
-            const tileRow = Math.floor(tile / gridSize);
-            const tileColumn = tile % gridSize;
-            const x = gridSize === 1 ? 0 : (tileColumn / (gridSize - 1)) * 100;
-            const y = gridSize === 1 ? 0 : (tileRow / (gridSize - 1)) * 100;
-            const selected = selectedTile === position;
+          <div
+            className={`grid overflow-hidden ${
+              boardUsesRotatedMobileView
+                ? 'absolute left-1/2 top-1/2 aspect-video w-[177.777%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:static sm:h-full sm:w-full sm:translate-x-0 sm:translate-y-0 sm:rotate-0'
+                : 'h-full w-full'
+            }`}
+            style={boardColumns}
+            aria-label="Scrambled splash art puzzle"
+          >
+            {tiles.map((tile, position) => {
+              const tileRow = Math.floor(tile / activeColumns);
+              const tileColumn = tile % activeColumns;
+              const x = activeColumns === 1 ? 0 : (tileColumn / (activeColumns - 1)) * 100;
+              const y = activeRows === 1 ? 0 : (tileRow / (activeRows - 1)) * 100;
+              const selected = selectedTile === position;
+              const locked = lockedPositions.has(position);
+              const flashing = flashingPositions.has(position);
+              const rotation = rotations[position] ?? 0;
 
-            return (
-              <button
-                key={position}
-                type="button"
-                onClick={() => handleTileClick(position)}
-                className={`relative min-h-0 border border-slate-950/50 bg-cover bg-no-repeat transition focus:z-10 focus:outline-none focus:ring-2 focus:ring-amber-200 ${
-                  selected ? 'z-10 scale-[0.98] shadow-[inset_0_0_0_3px_rgba(251,191,36,0.95)]' : 'hover:brightness-110'
-                }`}
-                style={{
-                  backgroundImage: targetSkin ? `url(${targetSkin.imageUrl})` : undefined,
-                  backgroundPosition: `${x}% ${y}%`,
-                  backgroundSize: `${gridSize * 100}% ${gridSize * 100}%`,
-                }}
-                aria-label={`Tile ${position + 1}`}
-                aria-pressed={selected}
-              />
-            );
-          })}
+              return (
+                <button
+                  key={position}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleTileClick(position)}
+                  disabled={locked}
+                  className={`relative min-h-0 overflow-hidden border bg-slate-950 transition focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-default ${
+                    flashing
+                      ? 'z-20 border-emerald-300 ring-2 ring-inset ring-emerald-300 shadow-[0_0_22px_rgba(52,211,153,0.55)] brightness-125'
+                      : selected
+                        ? 'z-20 scale-[0.98] border-amber-300 ring-2 ring-inset ring-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.4)]'
+                        : locked
+                          ? 'border-emerald-400/40 brightness-105'
+                          : 'border-slate-950/60 hover:brightness-110'
+                  }`}
+                  aria-label={`Tile ${position + 1}${locked ? ', locked' : ''}`}
+                  aria-pressed={selected}
+                >
+                  <span
+                    className="absolute inset-0 bg-cover bg-no-repeat"
+                  style={{
+                      backgroundImage: targetSkin ? `url(${targetSkin.imageUrl})` : undefined,
+                      backgroundPosition: `${x}% ${y}%`,
+                      backgroundSize: `${activeColumns * 100}% ${activeRows * 100}%`,
+                      transform: `rotate(${rotation}deg)`,
+                    }}
+                  />
+                  {selected || flashing ? (
+                    <span
+                      className={`pointer-events-none absolute inset-0 z-10 ${
+                        flashing
+                          ? 'ring-4 ring-inset ring-emerald-300 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.95),0_0_20px_rgba(52,211,153,0.75)]'
+                          : 'ring-4 ring-inset ring-amber-300 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.95),0_0_18px_rgba(251,191,36,0.55)]'
+                      }`}
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      <aside className="grid content-start gap-4">
-        <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Target</p>
-          <h2 className="mt-2 text-2xl font-black text-white">Mystery Splash</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-400">Select two tiles to swap them. The round ends as soon as every tile is back in its original position.</p>
-        </div>
-
+      <div className="grid gap-4">
         {showReference && targetSkin ? (
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
-            <div className="relative aspect-video">
+          <div className="mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+            <div className={`relative overflow-hidden ${boardUsesRotatedMobileView ? 'aspect-[9/16] sm:aspect-video' : 'aspect-[16/7] sm:aspect-video'}`}>
               <Image
                 src={targetSkin.imageUrl}
                 alt={`${targetSkin.answer} splash art reference`}
                 fill
-                sizes="288px"
-                className="object-cover"
+                sizes="(min-width: 1024px) 640px, 100vw"
+                className={`object-cover ${boardUsesRotatedMobileView ? 'rotate-90 scale-[1.78] sm:rotate-0 sm:scale-100' : ''}`}
               />
             </div>
-            <div className="border-t border-white/10 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Reference</p>
-              <p className="mt-1 text-sm font-bold text-white">{targetSkin.answer}</p>
+            <div className="border-t border-white/10 p-3 sm:p-4">
+              <p className="text-[0.62rem] uppercase tracking-[0.18em] text-slate-500 sm:text-xs">Reference</p>
+              <p className="mt-1 truncate text-sm font-bold text-white">{targetSkin.answer}</p>
             </div>
           </div>
         ) : null}
-      </aside>
+      </div>
     </section>
   );
 
@@ -417,6 +1298,11 @@ export function SplashScramble() {
     }
 
     const won = phase === 'won';
+    const timeSummary = timeLimit === null
+      ? `Current time: ${formatTimer(elapsedSeconds)}.`
+      : won
+        ? `Solved in ${formatTimer(elapsedSeconds)} with ${formatTimer(remainingSeconds)} left.`
+        : `You placed ${correctPositions} of ${tileCount} pieces correctly before time expired.`;
 
     return (
       <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 shadow-glow backdrop-blur-xl">
@@ -440,7 +1326,7 @@ export function SplashScramble() {
               </p>
               <h2 className="mt-4 text-4xl font-black tracking-tight text-white">{targetSkin.answer}</h2>
               <p className="mt-3 text-sm leading-6 text-slate-200">
-                {won ? `Solved in ${moves} swaps with ${formatTimer(remainingSeconds)} left.` : `The puzzle was not solved in time. You made ${moves} swaps in ${formatTimer(timeLimit)}.`}
+                {timeSummary} You made {moves} moves.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <button
@@ -453,7 +1339,7 @@ export function SplashScramble() {
                 </button>
                 <button
                   type="button"
-                  onClick={returnToPrematch}
+                  onClick={clearCompletedRound}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/75 px-5 text-sm font-bold text-white transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
                 >
                   Change Settings
@@ -466,18 +1352,37 @@ export function SplashScramble() {
     );
   };
 
+  const renderBackControl = () => {
+    if (phase === 'prematch') {
+      return (
+        <Link
+          href="/"
+          aria-label="Back to games"
+          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
+        >
+          <ArrowLeft size={18} />
+        </Link>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={returnToPrematch}
+        aria-label="Back to lobby"
+        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
+      >
+        <ArrowLeft size={18} />
+      </button>
+    );
+  };
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#030712] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
-      <div className="mx-auto grid w-full max-w-7xl gap-6">
-        <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.35)] sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto grid w-full max-w-7xl gap-5 sm:gap-6">
+        <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.35)] sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="flex min-w-0 items-center gap-4">
-            <Link
-              href="/"
-              aria-label="Back to games"
-              className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
-            >
-              <ArrowLeft size={18} />
-            </Link>
+            {renderBackControl()}
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Single Player Game</p>
               <h1 className="mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">Splash Scramble</h1>
@@ -486,10 +1391,10 @@ export function SplashScramble() {
           <GameInfoMenu
             title="Splash Scramble"
             steps={[
-              'Choose a grid size, timer, and whether the reference image is visible.',
-              'Press Play to load a random skin splash and start from a shuffled board.',
-              'Click two tiles to swap their positions.',
-              'Restore every tile to the original splash art before the timer expires.',
+              'Choose a grid size, timer, reference visibility, locking behavior, rotation, and optional skin.',
+              'Press Play to load the splash art and start from a shuffled board, or Resume a saved round.',
+              'Click two unlocked tiles to swap their positions.',
+              'If rotation is enabled, select a tile and use Rotate Selected until it is upright.',
             ]}
           />
         </header>

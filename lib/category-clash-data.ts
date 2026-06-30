@@ -26,6 +26,7 @@ type CategoryClashData = {
 const data = categoryData as CategoryClashData;
 const categories = data.categories.filter((category) => category.answers.length > 0);
 const categoryById = new Map(categories.map((category) => [category.id, category]));
+const DEFAULT_EXCLUDED_GROUPS = new Set(['Skin Lines']);
 
 const LEETSPEAK_MAP: Record<string, string> = {
   '&': 'and',
@@ -117,10 +118,16 @@ export function matchCategoryClashAnswer(
   )) ?? null;
 }
 
-export function normalizeEnabledCategoryIds(value: unknown) {
+export function getDefaultCategoryClashCategoryIds() {
+  return categories
+    .filter((category) => !DEFAULT_EXCLUDED_GROUPS.has(category.group))
+    .map((category) => category.id);
+}
+
+export function normalizeEnabledCategoryIds(value: unknown, fallbackToDefault = true) {
   const ids = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
   const uniqueIds = [...new Set(ids)].filter((id) => categoryById.has(id));
-  return uniqueIds.length > 0 ? uniqueIds : categories.slice(0, 12).map((category) => category.id);
+  return uniqueIds.length > 0 || !fallbackToDefault ? uniqueIds : getDefaultCategoryClashCategoryIds();
 }
 
 export function getAvailableCategoryIds(

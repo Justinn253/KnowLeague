@@ -1,0 +1,2 @@
+drop index if exists public.category_clash_submissions_player_turn_idx;
+drop index if exists public.category_clash_submissions_player_round_turn_idx;

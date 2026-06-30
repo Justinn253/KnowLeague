@@ -19,9 +19,8 @@ You can add or remove categories directly in `data/category-clash-categories.jso
 
 The current document was seeded from:
 
-- `data/catalogs/skin-items.json` for champion class and skin-line categories.
 - `data/catalogs/ability-items.json` for ultimate ability names.
-- Manual lists in `scripts/generate-category-clash-categories.mjs` for runes, summoner spells, jungle monsters, item stat buckets, and ARAM Mayhem augments.
+- Manual lists in `scripts/generate-category-clash-categories.mjs` for champion classes, champion regions, runes, summoner spells, jungle monsters, item stat buckets, and ARAM Mayhem augments.
 
 The local generated catalogues are currently the project source of truth. Regenerate the JSON with:
 

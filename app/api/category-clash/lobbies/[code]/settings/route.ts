@@ -7,6 +7,9 @@ type SettingsBody = {
   isPublic?: boolean;
   gameMode?: unknown;
   enabledCategoryIds?: unknown;
+  roundSeconds?: unknown;
+  intermissionSeconds?: unknown;
+  timerDecrementInterval?: unknown;
 };
 export const runtime = 'nodejs';
 
@@ -20,6 +23,9 @@ export async function POST(request: Request, { params }: { params: { code: strin
         isPublic: body.isPublic === true,
         gameMode: body.gameMode,
         enabledCategoryIds: body.enabledCategoryIds,
+        roundSeconds: body.roundSeconds,
+        intermissionSeconds: body.intermissionSeconds,
+        timerDecrementInterval: body.timerDecrementInterval,
       },
     ));
   } catch (error) {

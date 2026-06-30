@@ -20,6 +20,8 @@
 
 ## Conventions
 - Keep shared game design consistent, but preserve mode-specific image and gameplay requirements.
+- Multiplayer create/join and waiting-lobby chrome should match `components/multiplayer-quiz-lobby.tsx`: shared header sizing, `GameInfoMenu` before the status pill, no lobby code in the header, and a separate centered lobby-code strip with hidden code, reveal/hide, and copy controls.
+- Public lobby visibility toggles should persist immediately on click; keep them separate from draft settings that require Apply Changes.
 - Use lucide icons for controls and include accessible labels on icon-only buttons.
 - Keep dropdown and overlay stacking behavior explicit; inspect parent overflow before changing z-index.
 - Do not duplicate profile, friends, invite, or autocomplete behavior when a shared helper/component can own it.

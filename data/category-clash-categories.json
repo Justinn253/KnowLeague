@@ -1,10 +1,9 @@
 {
   "version": 1,
   "name": "Category Clash Categories",
-  "generatedAt": "2026-06-29T22:49:45.152Z",
+  "generatedAt": "2026-06-30T20:09:18.374Z",
   "dataSnapshot": {
     "localCatalogues": [
-      "data/catalogs/skin-items.json",
       "data/catalogs/ability-items.json"
     ],
     "note": "Gameplay imports this JSON document only. Regenerate or manually edit it when League data changes."
@@ -896,8 +895,8 @@
       "id": "champion-class-assassin",
       "group": "Champion Classes",
       "label": "Assassin Champions",
-      "prompt": "Name a assassin champion.",
-      "source": "generated from data/catalogs/skin-items.json role fields",
+      "prompt": "Name an assassin champion.",
+      "source": "manual from League Wiki champion classes: Slayer#Assassins",
       "answers": [
         {
           "id": "akali",
@@ -906,10 +905,6 @@
         {
           "id": "ekko",
           "label": "Ekko"
-        },
-        {
-          "id": "elise",
-          "label": "Elise"
         },
         {
           "id": "evelynn",
@@ -944,6 +939,14 @@
           "label": "Nidalee"
         },
         {
+          "id": "nocturne",
+          "label": "Nocturne"
+        },
+        {
+          "id": "pyke",
+          "label": "Pyke"
+        },
+        {
           "id": "qiyana",
           "label": "Qiyana"
         },
@@ -970,7 +973,7 @@
       "group": "Champion Classes",
       "label": "Fighter Champions",
       "prompt": "Name a fighter champion.",
-      "source": "generated from data/catalogs/skin-items.json role fields",
+      "source": "manual from League Wiki champion classes: Fighter divers and juggernauts, with specialists assigned by gameplay fit",
       "answers": [
         {
           "id": "aatrox",
@@ -979,10 +982,6 @@
         {
           "id": "ambessa",
           "label": "Ambessa"
-        },
-        {
-          "id": "bel-veth",
-          "label": "Bel'Veth"
         },
         {
           "id": "briar",
@@ -1001,6 +1000,14 @@
           "label": "Diana"
         },
         {
+          "id": "dr-mundo",
+          "label": "Dr. Mundo"
+        },
+        {
+          "id": "elise",
+          "label": "Elise"
+        },
+        {
           "id": "fiora",
           "label": "Fiora"
         },
@@ -1015,10 +1022,6 @@
         {
           "id": "gnar",
           "label": "Gnar"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
         },
         {
           "id": "gwen",
@@ -1045,12 +1048,8 @@
           "label": "Jax"
         },
         {
-          "id": "jayce",
-          "label": "Jayce"
-        },
-        {
-          "id": "kayn",
-          "label": "Kayn"
+          "id": "kayle",
+          "label": "Kayle"
         },
         {
           "id": "kled",
@@ -1059,10 +1058,6 @@
         {
           "id": "lee-sin",
           "label": "Lee Sin"
-        },
-        {
-          "id": "lillia",
-          "label": "Lillia"
         },
         {
           "id": "master-yi",
@@ -1075,14 +1070,6 @@
         {
           "id": "nasus",
           "label": "Nasus"
-        },
-        {
-          "id": "nilah",
-          "label": "Nilah"
-        },
-        {
-          "id": "nocturne",
-          "label": "Nocturne"
         },
         {
           "id": "olaf",
@@ -1105,16 +1092,16 @@
           "label": "Riven"
         },
         {
-          "id": "rumble",
-          "label": "Rumble"
-        },
-        {
           "id": "sett",
           "label": "Sett"
         },
         {
           "id": "shyvana",
           "label": "Shyvana"
+        },
+        {
+          "id": "singed",
+          "label": "Singed"
         },
         {
           "id": "trundle",
@@ -1167,10 +1154,6 @@
         {
           "id": "yorick",
           "label": "Yorick"
-        },
-        {
-          "id": "zaahen",
-          "label": "Zaahen"
         }
       ]
     },
@@ -1179,7 +1162,7 @@
       "group": "Champion Classes",
       "label": "Mage Champions",
       "prompt": "Name a mage champion.",
-      "source": "generated from data/catalogs/skin-items.json role fields",
+      "source": "manual from League Wiki champion classes: Mage, with specialists assigned by gameplay fit",
       "answers": [
         {
           "id": "ahri",
@@ -1254,8 +1237,8 @@
           "label": "Malzahar"
         },
         {
-          "id": "mel",
-          "label": "Mel"
+          "id": "morgana",
+          "label": "Morgana"
         },
         {
           "id": "neeko",
@@ -1266,8 +1249,16 @@
           "label": "Orianna"
         },
         {
+          "id": "rumble",
+          "label": "Rumble"
+        },
+        {
           "id": "ryze",
           "label": "Ryze"
+        },
+        {
+          "id": "seraphine",
+          "label": "Seraphine"
         },
         {
           "id": "swain",
@@ -1284,6 +1275,10 @@
         {
           "id": "taliyah",
           "label": "Taliyah"
+        },
+        {
+          "id": "teemo",
+          "label": "Teemo"
         },
         {
           "id": "twisted-fate",
@@ -1318,6 +1313,10 @@
           "label": "Ziggs"
         },
         {
+          "id": "zilean",
+          "label": "Zilean"
+        },
+        {
           "id": "zoe",
           "label": "Zoe"
         },
@@ -1332,7 +1331,7 @@
       "group": "Champion Classes",
       "label": "Marksman Champions",
       "prompt": "Name a marksman champion.",
-      "source": "generated from data/catalogs/skin-items.json role fields",
+      "source": "manual from League Wiki champion classes: Marksman, with specialists assigned by gameplay fit",
       "answers": [
         {
           "id": "akshan",
@@ -1383,6 +1382,10 @@
           "label": "Kalista"
         },
         {
+          "id": "kayle",
+          "label": "Kayle"
+        },
+        {
           "id": "kindred",
           "label": "Kindred"
         },
@@ -1399,12 +1402,20 @@
           "label": "Miss Fortune"
         },
         {
+          "id": "nilah",
+          "label": "Nilah"
+        },
+        {
           "id": "quinn",
           "label": "Quinn"
         },
         {
           "id": "samira",
           "label": "Samira"
+        },
+        {
+          "id": "senna",
+          "label": "Senna"
         },
         {
           "id": "sivir",
@@ -1439,10 +1450,6 @@
           "label": "Xayah"
         },
         {
-          "id": "yunara",
-          "label": "Yunara"
-        },
-        {
           "id": "zeri",
           "label": "Zeri"
         }
@@ -1453,11 +1460,31 @@
       "group": "Champion Classes",
       "label": "Support Champions",
       "prompt": "Name a support champion.",
-      "source": "generated from data/catalogs/skin-items.json role fields",
+      "source": "manual from League Wiki champion classes: Controller#Catchers, with requested support tank additions and Jhin excluded",
       "answers": [
+        {
+          "id": "alistar",
+          "label": "Alistar"
+        },
+        {
+          "id": "amumu",
+          "label": "Amumu"
+        },
         {
           "id": "bard",
           "label": "Bard"
+        },
+        {
+          "id": "blitzcrank",
+          "label": "Blitzcrank"
+        },
+        {
+          "id": "braum",
+          "label": "Braum"
+        },
+        {
+          "id": "galio",
+          "label": "Galio"
         },
         {
           "id": "ivern",
@@ -1468,8 +1495,24 @@
           "label": "Janna"
         },
         {
+          "id": "karma",
+          "label": "Karma"
+        },
+        {
+          "id": "leona",
+          "label": "Leona"
+        },
+        {
           "id": "lulu",
           "label": "Lulu"
+        },
+        {
+          "id": "malphite",
+          "label": "Malphite"
+        },
+        {
+          "id": "maokai",
+          "label": "Maokai"
         },
         {
           "id": "milio",
@@ -1484,6 +1527,18 @@
           "label": "Nami"
         },
         {
+          "id": "nautilus",
+          "label": "Nautilus"
+        },
+        {
+          "id": "ornn",
+          "label": "Ornn"
+        },
+        {
+          "id": "poppy",
+          "label": "Poppy"
+        },
+        {
           "id": "pyke",
           "label": "Pyke"
         },
@@ -1492,8 +1547,16 @@
           "label": "Rakan"
         },
         {
+          "id": "rell",
+          "label": "Rell"
+        },
+        {
           "id": "renata-glasc",
           "label": "Renata Glasc"
+        },
+        {
+          "id": "sejuani",
+          "label": "Sejuani"
         },
         {
           "id": "senna",
@@ -1504,12 +1567,24 @@
           "label": "Seraphine"
         },
         {
+          "id": "shen",
+          "label": "Shen"
+        },
+        {
+          "id": "skarner",
+          "label": "Skarner"
+        },
+        {
           "id": "sona",
           "label": "Sona"
         },
         {
           "id": "soraka",
           "label": "Soraka"
+        },
+        {
+          "id": "tahm-kench",
+          "label": "Tahm Kench"
         },
         {
           "id": "taric",
@@ -1524,8 +1599,16 @@
           "label": "Yuumi"
         },
         {
+          "id": "zac",
+          "label": "Zac"
+        },
+        {
           "id": "zilean",
           "label": "Zilean"
+        },
+        {
+          "id": "zyra",
+          "label": "Zyra"
         }
       ]
     },
@@ -1534,7 +1617,7 @@
       "group": "Champion Classes",
       "label": "Tank Champions",
       "prompt": "Name a tank champion.",
-      "source": "generated from data/catalogs/skin-items.json role fields",
+      "source": "manual from League Wiki champion classes: Tank, with specialists assigned by gameplay fit",
       "answers": [
         {
           "id": "alistar",
@@ -1557,12 +1640,16 @@
           "label": "Cho'Gath"
         },
         {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
           "id": "galio",
           "label": "Galio"
+        },
+        {
+          "id": "gnar",
+          "label": "Gnar"
+        },
+        {
+          "id": "gragas",
+          "label": "Gragas"
         },
         {
           "id": "k-sante",
@@ -1627,6 +1714,10 @@
         {
           "id": "tahm-kench",
           "label": "Tahm Kench"
+        },
+        {
+          "id": "taric",
+          "label": "Taric"
         },
         {
           "id": "zac",
@@ -1947,6 +2038,110 @@
       ]
     },
     {
+      "id": "items-armor",
+      "group": "Items",
+      "label": "Items With Armor",
+      "prompt": "Name an item that grants armor.",
+      "source": "manual",
+      "answers": [
+        {
+          "id": "chain-vest",
+          "label": "Chain Vest"
+        },
+        {
+          "id": "cloth-armor",
+          "label": "Cloth Armor"
+        },
+        {
+          "id": "dead-man-plate",
+          "label": "Dead Man Plate",
+          "aliases": [
+            "Dead Man's Plate",
+            "DMP"
+          ]
+        },
+        {
+          "id": "death-dance",
+          "label": "Death Dance",
+          "aliases": [
+            "Death's Dance"
+          ]
+        },
+        {
+          "id": "frozen-heart",
+          "label": "Frozen Heart"
+        },
+        {
+          "id": "guardian-angel",
+          "label": "Guardian Angel"
+        },
+        {
+          "id": "iceborn-gauntlet",
+          "label": "Iceborn Gauntlet"
+        },
+        {
+          "id": "jak-sho-the-protean",
+          "label": "Jak Sho, The Protean",
+          "aliases": [
+            "Jak'Sho, The Protean",
+            "Jaksho"
+          ]
+        },
+        {
+          "id": "plated-steelcaps",
+          "label": "Plated Steelcaps",
+          "aliases": [
+            "Tabis",
+            "Ninja Tabi"
+          ]
+        },
+        {
+          "id": "randuin-omen",
+          "label": "Randuin Omen",
+          "aliases": [
+            "Randuin's Omen",
+            "Randuins"
+          ]
+        },
+        {
+          "id": "seeker-armguard",
+          "label": "Seeker Armguard",
+          "aliases": [
+            "Seeker's Armguard",
+            "Seekers"
+          ]
+        },
+        {
+          "id": "sunfire-aegis",
+          "label": "Sunfire Aegis"
+        },
+        {
+          "id": "thornmail",
+          "label": "Thornmail"
+        },
+        {
+          "id": "unending-despair",
+          "label": "Unending Despair"
+        },
+        {
+          "id": "warden-mail",
+          "label": "Warden Mail",
+          "aliases": [
+            "Warden's Mail",
+            "Wardens Mail"
+          ]
+        },
+        {
+          "id": "zhonya-hourglass",
+          "label": "Zhonya Hourglass",
+          "aliases": [
+            "Zhonya's Hourglass",
+            "Zhonyas"
+          ]
+        }
+      ]
+    },
+    {
       "id": "items-attack-damage",
       "group": "Items",
       "label": "Items With Attack Damage",
@@ -2117,6 +2312,215 @@
           "label": "Trinity Force",
           "aliases": [
             "Triforce"
+          ]
+        },
+        {
+          "id": "yun-tal-wildarrows",
+          "label": "Yun Tal Wildarrows",
+          "aliases": [
+            "Yun Tal"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "items-attack-speed",
+      "group": "Items",
+      "label": "Items With Attack Speed",
+      "prompt": "Name an item that grants attack speed.",
+      "source": "manual",
+      "answers": [
+        {
+          "id": "berserker-s-greaves",
+          "label": "Berserker's Greaves",
+          "aliases": [
+            "Berserker Greaves",
+            "Zerker Greaves",
+            "Zerkers"
+          ]
+        },
+        {
+          "id": "blade-of-the-ruined-king",
+          "label": "Blade of the Ruined King",
+          "aliases": [
+            "BORK",
+            "BotRK"
+          ]
+        },
+        {
+          "id": "dagger",
+          "label": "Dagger"
+        },
+        {
+          "id": "experimental-hexplate",
+          "label": "Experimental Hexplate"
+        },
+        {
+          "id": "guinsoo-rageblade",
+          "label": "Guinsoo Rageblade",
+          "aliases": [
+            "Guinsoo's Rageblade",
+            "Guinsoos"
+          ]
+        },
+        {
+          "id": "kraken-slayer",
+          "label": "Kraken Slayer"
+        },
+        {
+          "id": "nashor-tooth",
+          "label": "Nashor Tooth",
+          "aliases": [
+            "Nashor's Tooth",
+            "Nashors"
+          ]
+        },
+        {
+          "id": "phantom-dancer",
+          "label": "Phantom Dancer"
+        },
+        {
+          "id": "rapid-firecannon",
+          "label": "Rapid Firecannon",
+          "aliases": [
+            "RFC"
+          ]
+        },
+        {
+          "id": "recurve-bow",
+          "label": "Recurve Bow"
+        },
+        {
+          "id": "runaan-hurricane",
+          "label": "Runaan Hurricane",
+          "aliases": [
+            "Runaan's Hurricane",
+            "Runaans"
+          ]
+        },
+        {
+          "id": "statikk-shiv",
+          "label": "Statikk Shiv",
+          "aliases": [
+            "Shiv"
+          ]
+        },
+        {
+          "id": "stridebreaker",
+          "label": "Stridebreaker"
+        },
+        {
+          "id": "terminus",
+          "label": "Terminus"
+        },
+        {
+          "id": "trinity-force",
+          "label": "Trinity Force",
+          "aliases": [
+            "Triforce"
+          ]
+        },
+        {
+          "id": "wit-s-end",
+          "label": "Wit's End",
+          "aliases": [
+            "Wit End",
+            "Wits End"
+          ]
+        },
+        {
+          "id": "yun-tal-wildarrows",
+          "label": "Yun Tal Wildarrows",
+          "aliases": [
+            "Yun Tal"
+          ]
+        },
+        {
+          "id": "zephyr",
+          "label": "Zephyr"
+        }
+      ]
+    },
+    {
+      "id": "items-crit-chance",
+      "group": "Items",
+      "label": "Items With Crit Chance",
+      "prompt": "Name an item that grants critical strike chance.",
+      "source": "manual",
+      "answers": [
+        {
+          "id": "cloak-of-agility",
+          "label": "Cloak of Agility"
+        },
+        {
+          "id": "essence-reaver",
+          "label": "Essence Reaver"
+        },
+        {
+          "id": "immortal-shieldbow",
+          "label": "Immortal Shieldbow",
+          "aliases": [
+            "Shieldbow"
+          ]
+        },
+        {
+          "id": "infinity-edge",
+          "label": "Infinity Edge"
+        },
+        {
+          "id": "lord-dominik-regards",
+          "label": "Lord Dominik Regards",
+          "aliases": [
+            "Lord Dominik's Regards",
+            "LDR"
+          ]
+        },
+        {
+          "id": "mortal-reminder",
+          "label": "Mortal Reminder"
+        },
+        {
+          "id": "navori-flickerblade",
+          "label": "Navori Flickerblade",
+          "aliases": [
+            "Navori"
+          ]
+        },
+        {
+          "id": "noonquiver",
+          "label": "Noonquiver"
+        },
+        {
+          "id": "phantom-dancer",
+          "label": "Phantom Dancer"
+        },
+        {
+          "id": "rapid-firecannon",
+          "label": "Rapid Firecannon",
+          "aliases": [
+            "RFC"
+          ]
+        },
+        {
+          "id": "runaan-hurricane",
+          "label": "Runaan Hurricane",
+          "aliases": [
+            "Runaan's Hurricane",
+            "Runaans"
+          ]
+        },
+        {
+          "id": "statikk-shiv",
+          "label": "Statikk Shiv",
+          "aliases": [
+            "Shiv"
+          ]
+        },
+        {
+          "id": "the-collector",
+          "label": "The Collector",
+          "aliases": [
+            "Collector"
           ]
         },
         {
@@ -2339,6 +2743,168 @@
       ]
     },
     {
+      "id": "items-lethality",
+      "group": "Items",
+      "label": "Items With Lethality",
+      "prompt": "Name an item that grants lethality.",
+      "source": "manual",
+      "answers": [
+        {
+          "id": "axiom-arc",
+          "label": "Axiom Arc"
+        },
+        {
+          "id": "edge-of-night",
+          "label": "Edge of Night"
+        },
+        {
+          "id": "hubris",
+          "label": "Hubris"
+        },
+        {
+          "id": "opportunity",
+          "label": "Opportunity"
+        },
+        {
+          "id": "profane-hydra",
+          "label": "Profane Hydra"
+        },
+        {
+          "id": "serpent-fang",
+          "label": "Serpent Fang",
+          "aliases": [
+            "Serpent's Fang"
+          ]
+        },
+        {
+          "id": "serrated-dirk",
+          "label": "Serrated Dirk",
+          "aliases": [
+            "Dirk"
+          ]
+        },
+        {
+          "id": "the-collector",
+          "label": "The Collector",
+          "aliases": [
+            "Collector"
+          ]
+        },
+        {
+          "id": "umbral-glaive",
+          "label": "Umbral Glaive"
+        },
+        {
+          "id": "voltaic-cyclosword",
+          "label": "Voltaic Cyclosword",
+          "aliases": [
+            "Cyclosword"
+          ]
+        },
+        {
+          "id": "youmuu-ghostblade",
+          "label": "Youmuu Ghostblade",
+          "aliases": [
+            "Youmuu's Ghostblade",
+            "Youmuus"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "items-magic-resist",
+      "group": "Items",
+      "label": "Items With Magic Resist",
+      "prompt": "Name an item that grants magic resist.",
+      "source": "manual",
+      "answers": [
+        {
+          "id": "abyssal-mask",
+          "label": "Abyssal Mask"
+        },
+        {
+          "id": "banshee-veil",
+          "label": "Banshee Veil",
+          "aliases": [
+            "Banshee's Veil"
+          ]
+        },
+        {
+          "id": "force-of-nature",
+          "label": "Force of Nature"
+        },
+        {
+          "id": "hexdrinker",
+          "label": "Hexdrinker"
+        },
+        {
+          "id": "hollow-radiance",
+          "label": "Hollow Radiance"
+        },
+        {
+          "id": "jak-sho-the-protean",
+          "label": "Jak Sho, The Protean",
+          "aliases": [
+            "Jak'Sho, The Protean",
+            "Jaksho"
+          ]
+        },
+        {
+          "id": "kaenic-rookern",
+          "label": "Kaenic Rookern"
+        },
+        {
+          "id": "maw-of-malmortius",
+          "label": "Maw of Malmortius",
+          "aliases": [
+            "Maw"
+          ]
+        },
+        {
+          "id": "mercurial-scimitar",
+          "label": "Mercurial Scimitar"
+        },
+        {
+          "id": "mercury-treads",
+          "label": "Mercury Treads",
+          "aliases": [
+            "Mercury's Treads",
+            "Merc Treads"
+          ]
+        },
+        {
+          "id": "negatron-cloak",
+          "label": "Negatron Cloak"
+        },
+        {
+          "id": "null-magic-mantle",
+          "label": "Null-Magic Mantle",
+          "aliases": [
+            "Null Magic Mantle"
+          ]
+        },
+        {
+          "id": "quicksilver-sash",
+          "label": "Quicksilver Sash",
+          "aliases": [
+            "QSS"
+          ]
+        },
+        {
+          "id": "spirit-visage",
+          "label": "Spirit Visage"
+        },
+        {
+          "id": "wit-s-end",
+          "label": "Wit's End",
+          "aliases": [
+            "Wit End",
+            "Wits End"
+          ]
+        }
+      ]
+    },
+    {
       "id": "items-mana-regen",
       "group": "Items",
       "label": "Items With Mana Regen",
@@ -2399,6 +2965,129 @@
             "Zaz'Zak's Realmspike",
             "ZazZak"
           ]
+        }
+      ]
+    },
+    {
+      "id": "items-move-speed",
+      "group": "Items",
+      "label": "Items With Move Speed",
+      "prompt": "Name an item that grants move speed.",
+      "source": "manual",
+      "answers": [
+        {
+          "id": "berserker-s-greaves",
+          "label": "Berserker's Greaves",
+          "aliases": [
+            "Berserker Greaves",
+            "Zerker Greaves",
+            "Zerkers"
+          ]
+        },
+        {
+          "id": "boots",
+          "label": "Boots"
+        },
+        {
+          "id": "boots-of-swiftness",
+          "label": "Boots of Swiftness",
+          "aliases": [
+            "Swifties"
+          ]
+        },
+        {
+          "id": "cosmic-drive",
+          "label": "Cosmic Drive"
+        },
+        {
+          "id": "dead-man-plate",
+          "label": "Dead Man Plate",
+          "aliases": [
+            "Dead Man's Plate",
+            "DMP"
+          ]
+        },
+        {
+          "id": "force-of-nature",
+          "label": "Force of Nature"
+        },
+        {
+          "id": "mercury-treads",
+          "label": "Mercury Treads",
+          "aliases": [
+            "Mercury's Treads",
+            "Merc Treads"
+          ]
+        },
+        {
+          "id": "mobility-boots",
+          "label": "Mobility Boots",
+          "aliases": [
+            "Mobis"
+          ]
+        },
+        {
+          "id": "phantom-dancer",
+          "label": "Phantom Dancer"
+        },
+        {
+          "id": "plated-steelcaps",
+          "label": "Plated Steelcaps",
+          "aliases": [
+            "Tabis",
+            "Ninja Tabi"
+          ]
+        },
+        {
+          "id": "rapid-firecannon",
+          "label": "Rapid Firecannon",
+          "aliases": [
+            "RFC"
+          ]
+        },
+        {
+          "id": "shurelya-battlesong",
+          "label": "Shurelya Battlesong",
+          "aliases": [
+            "Shurelya's Battlesong",
+            "Shurelyas"
+          ]
+        },
+        {
+          "id": "sorcerer-shoes",
+          "label": "Sorcerer Shoes",
+          "aliases": [
+            "Sorcerer's Shoes",
+            "Sorc Shoes"
+          ]
+        },
+        {
+          "id": "stormsurge",
+          "label": "Stormsurge"
+        },
+        {
+          "id": "stridebreaker",
+          "label": "Stridebreaker"
+        },
+        {
+          "id": "synchronized-souls",
+          "label": "Synchronized Souls"
+        },
+        {
+          "id": "trailblazer",
+          "label": "Trailblazer"
+        },
+        {
+          "id": "youmuu-ghostblade",
+          "label": "Youmuu Ghostblade",
+          "aliases": [
+            "Youmuu's Ghostblade",
+            "Youmuus"
+          ]
+        },
+        {
+          "id": "zephyr",
+          "label": "Zephyr"
         }
       ]
     },
@@ -2541,6 +3230,743 @@
             "Void Grub",
             "Grubs"
           ]
+        }
+      ]
+    },
+    {
+      "id": "champion-region-bandle-city",
+      "group": "Regions",
+      "label": "Bandle City Champions",
+      "prompt": "Name a champion from Bandle City.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "corki",
+          "label": "Corki"
+        },
+        {
+          "id": "lulu",
+          "label": "Lulu"
+        },
+        {
+          "id": "rumble",
+          "label": "Rumble"
+        },
+        {
+          "id": "teemo",
+          "label": "Teemo"
+        },
+        {
+          "id": "tristana",
+          "label": "Tristana"
+        },
+        {
+          "id": "veigar",
+          "label": "Veigar"
+        },
+        {
+          "id": "yuumi",
+          "label": "Yuumi"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-bilgewater",
+      "group": "Regions",
+      "label": "Bilgewater Champions",
+      "prompt": "Name a champion from Bilgewater.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "fizz",
+          "label": "Fizz"
+        },
+        {
+          "id": "gangplank",
+          "label": "Gangplank"
+        },
+        {
+          "id": "graves",
+          "label": "Graves"
+        },
+        {
+          "id": "illaoi",
+          "label": "Illaoi"
+        },
+        {
+          "id": "miss-fortune",
+          "label": "Miss Fortune"
+        },
+        {
+          "id": "nautilus",
+          "label": "Nautilus"
+        },
+        {
+          "id": "nilah",
+          "label": "Nilah"
+        },
+        {
+          "id": "pyke",
+          "label": "Pyke"
+        },
+        {
+          "id": "tahm-kench",
+          "label": "Tahm Kench"
+        },
+        {
+          "id": "twisted-fate",
+          "label": "Twisted Fate"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-demacia",
+      "group": "Regions",
+      "label": "Demacia Champions",
+      "prompt": "Name a champion from Demacia.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "fiora",
+          "label": "Fiora"
+        },
+        {
+          "id": "galio",
+          "label": "Galio"
+        },
+        {
+          "id": "garen",
+          "label": "Garen"
+        },
+        {
+          "id": "jarvan-iv",
+          "label": "Jarvan IV"
+        },
+        {
+          "id": "kayle",
+          "label": "Kayle"
+        },
+        {
+          "id": "lucian",
+          "label": "Lucian"
+        },
+        {
+          "id": "lux",
+          "label": "Lux"
+        },
+        {
+          "id": "morgana",
+          "label": "Morgana"
+        },
+        {
+          "id": "poppy",
+          "label": "Poppy"
+        },
+        {
+          "id": "quinn",
+          "label": "Quinn"
+        },
+        {
+          "id": "shyvana",
+          "label": "Shyvana"
+        },
+        {
+          "id": "sona",
+          "label": "Sona"
+        },
+        {
+          "id": "sylas",
+          "label": "Sylas"
+        },
+        {
+          "id": "vayne",
+          "label": "Vayne"
+        },
+        {
+          "id": "xin-zhao",
+          "label": "Xin Zhao"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-freljord",
+      "group": "Regions",
+      "label": "Freljord Champions",
+      "prompt": "Name a champion from Freljord.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "anivia",
+          "label": "Anivia"
+        },
+        {
+          "id": "ashe",
+          "label": "Ashe"
+        },
+        {
+          "id": "braum",
+          "label": "Braum"
+        },
+        {
+          "id": "gnar",
+          "label": "Gnar"
+        },
+        {
+          "id": "gragas",
+          "label": "Gragas"
+        },
+        {
+          "id": "lissandra",
+          "label": "Lissandra"
+        },
+        {
+          "id": "nunu-and-willump",
+          "label": "Nunu & Willump"
+        },
+        {
+          "id": "olaf",
+          "label": "Olaf"
+        },
+        {
+          "id": "ornn",
+          "label": "Ornn"
+        },
+        {
+          "id": "sejuani",
+          "label": "Sejuani"
+        },
+        {
+          "id": "trundle",
+          "label": "Trundle"
+        },
+        {
+          "id": "tryndamere",
+          "label": "Tryndamere"
+        },
+        {
+          "id": "udyr",
+          "label": "Udyr"
+        },
+        {
+          "id": "volibear",
+          "label": "Volibear"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-ionia",
+      "group": "Regions",
+      "label": "Ionia Champions",
+      "prompt": "Name a champion from Ionia.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "ahri",
+          "label": "Ahri"
+        },
+        {
+          "id": "akali",
+          "label": "Akali"
+        },
+        {
+          "id": "hwei",
+          "label": "Hwei"
+        },
+        {
+          "id": "irelia",
+          "label": "Irelia"
+        },
+        {
+          "id": "ivern",
+          "label": "Ivern"
+        },
+        {
+          "id": "jhin",
+          "label": "Jhin"
+        },
+        {
+          "id": "karma",
+          "label": "Karma"
+        },
+        {
+          "id": "kayn",
+          "label": "Kayn"
+        },
+        {
+          "id": "kennen",
+          "label": "Kennen"
+        },
+        {
+          "id": "lee-sin",
+          "label": "Lee Sin"
+        },
+        {
+          "id": "lillia",
+          "label": "Lillia"
+        },
+        {
+          "id": "master-yi",
+          "label": "Master Yi"
+        },
+        {
+          "id": "rakan",
+          "label": "Rakan"
+        },
+        {
+          "id": "sett",
+          "label": "Sett"
+        },
+        {
+          "id": "shen",
+          "label": "Shen"
+        },
+        {
+          "id": "syndra",
+          "label": "Syndra"
+        },
+        {
+          "id": "varus",
+          "label": "Varus"
+        },
+        {
+          "id": "wukong",
+          "label": "Wukong"
+        },
+        {
+          "id": "xayah",
+          "label": "Xayah"
+        },
+        {
+          "id": "yasuo",
+          "label": "Yasuo"
+        },
+        {
+          "id": "yone",
+          "label": "Yone"
+        },
+        {
+          "id": "zed",
+          "label": "Zed"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-ixtal",
+      "group": "Regions",
+      "label": "Ixtal Champions",
+      "prompt": "Name a champion from Ixtal.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "malphite",
+          "label": "Malphite"
+        },
+        {
+          "id": "milio",
+          "label": "Milio"
+        },
+        {
+          "id": "neeko",
+          "label": "Neeko"
+        },
+        {
+          "id": "nidalee",
+          "label": "Nidalee"
+        },
+        {
+          "id": "qiyana",
+          "label": "Qiyana"
+        },
+        {
+          "id": "rengar",
+          "label": "Rengar"
+        },
+        {
+          "id": "zyra",
+          "label": "Zyra"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-noxus",
+      "group": "Regions",
+      "label": "Noxus Champions",
+      "prompt": "Name a champion from Noxus.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "ambessa",
+          "label": "Ambessa"
+        },
+        {
+          "id": "annie",
+          "label": "Annie"
+        },
+        {
+          "id": "briar",
+          "label": "Briar"
+        },
+        {
+          "id": "cassiopeia",
+          "label": "Cassiopeia"
+        },
+        {
+          "id": "darius",
+          "label": "Darius"
+        },
+        {
+          "id": "draven",
+          "label": "Draven"
+        },
+        {
+          "id": "katarina",
+          "label": "Katarina"
+        },
+        {
+          "id": "kled",
+          "label": "Kled"
+        },
+        {
+          "id": "leblanc",
+          "label": "LeBlanc"
+        },
+        {
+          "id": "mordekaiser",
+          "label": "Mordekaiser"
+        },
+        {
+          "id": "rell",
+          "label": "Rell"
+        },
+        {
+          "id": "riven",
+          "label": "Riven"
+        },
+        {
+          "id": "samira",
+          "label": "Samira"
+        },
+        {
+          "id": "sion",
+          "label": "Sion"
+        },
+        {
+          "id": "swain",
+          "label": "Swain"
+        },
+        {
+          "id": "talon",
+          "label": "Talon"
+        },
+        {
+          "id": "vladimir",
+          "label": "Vladimir"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-piltover",
+      "group": "Regions",
+      "label": "Piltover Champions",
+      "prompt": "Name a champion from Piltover.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "caitlyn",
+          "label": "Caitlyn"
+        },
+        {
+          "id": "camille",
+          "label": "Camille"
+        },
+        {
+          "id": "ezreal",
+          "label": "Ezreal"
+        },
+        {
+          "id": "heimerdinger",
+          "label": "Heimerdinger"
+        },
+        {
+          "id": "jayce",
+          "label": "Jayce"
+        },
+        {
+          "id": "orianna",
+          "label": "Orianna"
+        },
+        {
+          "id": "seraphine",
+          "label": "Seraphine"
+        },
+        {
+          "id": "vi",
+          "label": "Vi"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-shadow-isles",
+      "group": "Regions",
+      "label": "Shadow Isles Champions",
+      "prompt": "Name a champion from Shadow Isles.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "elise",
+          "label": "Elise"
+        },
+        {
+          "id": "gwen",
+          "label": "Gwen"
+        },
+        {
+          "id": "hecarim",
+          "label": "Hecarim"
+        },
+        {
+          "id": "kalista",
+          "label": "Kalista"
+        },
+        {
+          "id": "karthus",
+          "label": "Karthus"
+        },
+        {
+          "id": "maokai",
+          "label": "Maokai"
+        },
+        {
+          "id": "thresh",
+          "label": "Thresh"
+        },
+        {
+          "id": "vex",
+          "label": "Vex"
+        },
+        {
+          "id": "viego",
+          "label": "Viego"
+        },
+        {
+          "id": "yorick",
+          "label": "Yorick"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-shurima",
+      "group": "Regions",
+      "label": "Shurima Champions",
+      "prompt": "Name a champion from Shurima.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "akshan",
+          "label": "Akshan"
+        },
+        {
+          "id": "amumu",
+          "label": "Amumu"
+        },
+        {
+          "id": "azir",
+          "label": "Azir"
+        },
+        {
+          "id": "k-sante",
+          "label": "K'Sante"
+        },
+        {
+          "id": "kai-sa",
+          "label": "Kai'Sa"
+        },
+        {
+          "id": "naafiri",
+          "label": "Naafiri"
+        },
+        {
+          "id": "nasus",
+          "label": "Nasus"
+        },
+        {
+          "id": "rammus",
+          "label": "Rammus"
+        },
+        {
+          "id": "rek-sai",
+          "label": "Rek'Sai"
+        },
+        {
+          "id": "renekton",
+          "label": "Renekton"
+        },
+        {
+          "id": "sivir",
+          "label": "Sivir"
+        },
+        {
+          "id": "skarner",
+          "label": "Skarner"
+        },
+        {
+          "id": "taliyah",
+          "label": "Taliyah"
+        },
+        {
+          "id": "xerath",
+          "label": "Xerath"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-targon",
+      "group": "Regions",
+      "label": "Targon Champions",
+      "prompt": "Name a champion from Targon.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "aphelios",
+          "label": "Aphelios"
+        },
+        {
+          "id": "aurelion-sol",
+          "label": "Aurelion Sol"
+        },
+        {
+          "id": "diana",
+          "label": "Diana"
+        },
+        {
+          "id": "leona",
+          "label": "Leona"
+        },
+        {
+          "id": "pantheon",
+          "label": "Pantheon"
+        },
+        {
+          "id": "soraka",
+          "label": "Soraka"
+        },
+        {
+          "id": "taric",
+          "label": "Taric"
+        },
+        {
+          "id": "zoe",
+          "label": "Zoe"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-the-void",
+      "group": "Regions",
+      "label": "The Void Champions",
+      "prompt": "Name a champion from The Void.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "bel-veth",
+          "label": "Bel'Veth"
+        },
+        {
+          "id": "cho-gath",
+          "label": "Cho'Gath"
+        },
+        {
+          "id": "kai-sa",
+          "label": "Kai'Sa"
+        },
+        {
+          "id": "kassadin",
+          "label": "Kassadin"
+        },
+        {
+          "id": "kha-zix",
+          "label": "Kha'Zix"
+        },
+        {
+          "id": "kog-maw",
+          "label": "Kog'Maw"
+        },
+        {
+          "id": "malzahar",
+          "label": "Malzahar"
+        },
+        {
+          "id": "rek-sai",
+          "label": "Rek'Sai"
+        },
+        {
+          "id": "vel-koz",
+          "label": "Vel'Koz"
+        }
+      ]
+    },
+    {
+      "id": "champion-region-zaun",
+      "group": "Regions",
+      "label": "Zaun Champions",
+      "prompt": "Name a champion from Zaun.",
+      "source": "manual from League champion region biographies",
+      "answers": [
+        {
+          "id": "blitzcrank",
+          "label": "Blitzcrank"
+        },
+        {
+          "id": "dr-mundo",
+          "label": "Dr. Mundo"
+        },
+        {
+          "id": "ekko",
+          "label": "Ekko"
+        },
+        {
+          "id": "janna",
+          "label": "Janna"
+        },
+        {
+          "id": "jinx",
+          "label": "Jinx"
+        },
+        {
+          "id": "renata-glasc",
+          "label": "Renata Glasc"
+        },
+        {
+          "id": "singed",
+          "label": "Singed"
+        },
+        {
+          "id": "twitch",
+          "label": "Twitch"
+        },
+        {
+          "id": "urgot",
+          "label": "Urgot"
+        },
+        {
+          "id": "viktor",
+          "label": "Viktor"
+        },
+        {
+          "id": "warwick",
+          "label": "Warwick"
+        },
+        {
+          "id": "zac",
+          "label": "Zac"
+        },
+        {
+          "id": "zeri",
+          "label": "Zeri"
+        },
+        {
+          "id": "ziggs",
+          "label": "Ziggs"
         }
       ]
     },
@@ -2821,5611 +4247,6 @@
         {
           "id": "waterwalking",
           "label": "Waterwalking"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-anima-squad",
-      "group": "Skin Lines",
-      "label": "Anima Squad Champions",
-      "prompt": "Name a champion with a Anima Squad skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "aurora",
-          "label": "Aurora"
-        },
-        {
-          "id": "briar",
-          "label": "Briar"
-        },
-        {
-          "id": "illaoi",
-          "label": "Illaoi"
-        },
-        {
-          "id": "jinx",
-          "label": "Jinx"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "seraphine",
-          "label": "Seraphine"
-        },
-        {
-          "id": "sylas",
-          "label": "Sylas"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "xayah",
-          "label": "Xayah"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "yuumi",
-          "label": "Yuumi"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-arcade-battle-bosses",
-      "group": "Skin Lines",
-      "label": "Arcade: Battle Bosses Champions",
-      "prompt": "Name a champion with a Arcade: Battle Bosses skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "bel-veth",
-          "label": "Bel'Veth"
-        },
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "brand",
-          "label": "Brand"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "qiyana",
-          "label": "Qiyana"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "ziggs",
-          "label": "Ziggs"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-arcade-heroes",
-      "group": "Skin Lines",
-      "label": "Arcade: Heroes Champions",
-      "prompt": "Name a champion with a Arcade: Heroes skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "corki",
-          "label": "Corki"
-        },
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "kai-sa",
-          "label": "Kai'Sa"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-arcana",
-      "group": "Skin Lines",
-      "label": "Arcana Champions",
-      "prompt": "Name a champion with a Arcana skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "aurora",
-          "label": "Aurora"
-        },
-        {
-          "id": "camille",
-          "label": "Camille"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "karthus",
-          "label": "Karthus"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "rakan",
-          "label": "Rakan"
-        },
-        {
-          "id": "ryze",
-          "label": "Ryze"
-        },
-        {
-          "id": "tahm-kench",
-          "label": "Tahm Kench"
-        },
-        {
-          "id": "xayah",
-          "label": "Xayah"
-        },
-        {
-          "id": "xerath",
-          "label": "Xerath"
-        },
-        {
-          "id": "zilean",
-          "label": "Zilean"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-arcane",
-      "group": "Skin Lines",
-      "label": "Arcane Champions",
-      "prompt": "Name a champion with a Arcane skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "ekko",
-          "label": "Ekko"
-        },
-        {
-          "id": "heimerdinger",
-          "label": "Heimerdinger"
-        },
-        {
-          "id": "jayce",
-          "label": "Jayce"
-        },
-        {
-          "id": "jinx",
-          "label": "Jinx"
-        },
-        {
-          "id": "mel",
-          "label": "Mel"
-        },
-        {
-          "id": "singed",
-          "label": "Singed"
-        },
-        {
-          "id": "vi",
-          "label": "Vi"
-        },
-        {
-          "id": "viktor",
-          "label": "Viktor"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-astronauts",
-      "group": "Skin Lines",
-      "label": "Astronauts Champions",
-      "prompt": "Name a champion with a Astronauts skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "bard",
-          "label": "Bard"
-        },
-        {
-          "id": "corki",
-          "label": "Corki"
-        },
-        {
-          "id": "fizz",
-          "label": "Fizz"
-        },
-        {
-          "id": "gnar",
-          "label": "Gnar"
-        },
-        {
-          "id": "ivern",
-          "label": "Ivern"
-        },
-        {
-          "id": "kennen",
-          "label": "Kennen"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "nautilus",
-          "label": "Nautilus"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "rammus",
-          "label": "Rammus"
-        },
-        {
-          "id": "singed",
-          "label": "Singed"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "xerath",
-          "label": "Xerath"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-battle-academia",
-      "group": "Skin Lines",
-      "label": "Battle Academia Champions",
-      "prompt": "Name a champion with a Battle Academia skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "briar",
-          "label": "Briar"
-        },
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "garen",
-          "label": "Garen"
-        },
-        {
-          "id": "graves",
-          "label": "Graves"
-        },
-        {
-          "id": "jayce",
-          "label": "Jayce"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "kayn",
-          "label": "Kayn"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "qiyana",
-          "label": "Qiyana"
-        },
-        {
-          "id": "rakan",
-          "label": "Rakan"
-        },
-        {
-          "id": "samira",
-          "label": "Samira"
-        },
-        {
-          "id": "wukong",
-          "label": "Wukong"
-        },
-        {
-          "id": "xayah",
-          "label": "Xayah"
-        },
-        {
-          "id": "yone",
-          "label": "Yone"
-        },
-        {
-          "id": "yuumi",
-          "label": "Yuumi"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-battle-queens",
-      "group": "Skin Lines",
-      "label": "Battle Queens Champions",
-      "prompt": "Name a champion with a Battle Queens skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "gwen",
-          "label": "Gwen"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "qiyana",
-          "label": "Qiyana"
-        },
-        {
-          "id": "rell",
-          "label": "Rell"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-battlecast",
-      "group": "Skin Lines",
-      "label": "Battlecast Champions",
-      "prompt": "Name a champion with a Battlecast skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "illaoi",
-          "label": "Illaoi"
-        },
-        {
-          "id": "jayce",
-          "label": "Jayce"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "nasus",
-          "label": "Nasus"
-        },
-        {
-          "id": "singed",
-          "label": "Singed"
-        },
-        {
-          "id": "skarner",
-          "label": "Skarner"
-        },
-        {
-          "id": "urgot",
-          "label": "Urgot"
-        },
-        {
-          "id": "vel-koz",
-          "label": "Vel'Koz"
-        },
-        {
-          "id": "viktor",
-          "label": "Viktor"
-        },
-        {
-          "id": "xerath",
-          "label": "Xerath"
-        },
-        {
-          "id": "yorick",
-          "label": "Yorick"
-        },
-        {
-          "id": "zac",
-          "label": "Zac"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-bees",
-      "group": "Skin Lines",
-      "label": "Bees! Champions",
-      "prompt": "Name a champion with a Bees! skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "heimerdinger",
-          "label": "Heimerdinger"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "neeko",
-          "label": "Neeko"
-        },
-        {
-          "id": "nunu-and-willump",
-          "label": "Nunu & Willump"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "singed",
-          "label": "Singed"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "vel-koz",
-          "label": "Vel'Koz"
-        },
-        {
-          "id": "yuumi",
-          "label": "Yuumi"
-        },
-        {
-          "id": "ziggs",
-          "label": "Ziggs"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-bewitching",
-      "group": "Skin Lines",
-      "label": "Bewitching Champions",
-      "prompt": "Name a champion with a Bewitching skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "anivia",
-          "label": "Anivia"
-        },
-        {
-          "id": "cassiopeia",
-          "label": "Cassiopeia"
-        },
-        {
-          "id": "elise",
-          "label": "Elise"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "neeko",
-          "label": "Neeko"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "senna",
-          "label": "Senna"
-        },
-        {
-          "id": "syndra",
-          "label": "Syndra"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "yuumi",
-          "label": "Yuumi"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-bilgewater-burning-tides",
-      "group": "Skin Lines",
-      "label": "Bilgewater: Burning Tides Champions",
-      "prompt": "Name a champion with a Bilgewater: Burning Tides skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "aatrox",
-          "label": "Aatrox"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "garen",
-          "label": "Garen"
-        },
-        {
-          "id": "graves",
-          "label": "Graves"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "quinn",
-          "label": "Quinn"
-        },
-        {
-          "id": "rumble",
-          "label": "Rumble"
-        },
-        {
-          "id": "ryze",
-          "label": "Ryze"
-        },
-        {
-          "id": "swain",
-          "label": "Swain"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-blood-moon",
-      "group": "Skin Lines",
-      "label": "Blood Moon Champions",
-      "prompt": "Name a champion with a Blood Moon skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "aatrox",
-          "label": "Aatrox"
-        },
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "elise",
-          "label": "Elise"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "kalista",
-          "label": "Kalista"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "kennen",
-          "label": "Kennen"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "pyke",
-          "label": "Pyke"
-        },
-        {
-          "id": "ryze",
-          "label": "Ryze"
-        },
-        {
-          "id": "shen",
-          "label": "Shen"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "talon",
-          "label": "Talon"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        },
-        {
-          "id": "zilean",
-          "label": "Zilean"
-        },
-        {
-          "id": "zyra",
-          "label": "Zyra"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-broken-covenant",
-      "group": "Skin Lines",
-      "label": "Broken Covenant Champions",
-      "prompt": "Name a champion with a Broken Covenant skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "nocturne",
-          "label": "Nocturne"
-        },
-        {
-          "id": "rakan",
-          "label": "Rakan"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "vladimir",
-          "label": "Vladimir"
-        },
-        {
-          "id": "xayah",
-          "label": "Xayah"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-cafe-cuties",
-      "group": "Skin Lines",
-      "label": "Cafe Cuties Champions",
-      "prompt": "Name a champion with a Cafe Cuties skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "bard",
-          "label": "Bard"
-        },
-        {
-          "id": "gwen",
-          "label": "Gwen"
-        },
-        {
-          "id": "jinx",
-          "label": "Jinx"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "rumble",
-          "label": "Rumble"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "vladimir",
-          "label": "Vladimir"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-cats-versus-dogs",
-      "group": "Skin Lines",
-      "label": "Cats Versus Dogs Champions",
-      "prompt": "Name a champion with a Cats Versus Dogs skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "corki",
-          "label": "Corki"
-        },
-        {
-          "id": "fizz",
-          "label": "Fizz"
-        },
-        {
-          "id": "kindred",
-          "label": "Kindred"
-        },
-        {
-          "id": "kled",
-          "label": "Kled"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "rengar",
-          "label": "Rengar"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "shaco",
-          "label": "Shaco"
-        },
-        {
-          "id": "yorick",
-          "label": "Yorick"
-        },
-        {
-          "id": "yuumi",
-          "label": "Yuumi"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-cops-and-robbers",
-      "group": "Skin Lines",
-      "label": "Cops and Robbers Champions",
-      "prompt": "Name a champion with a Cops and Robbers skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "trundle",
-          "label": "Trundle"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        },
-        {
-          "id": "vi",
-          "label": "Vi"
-        },
-        {
-          "id": "volibear",
-          "label": "Volibear"
-        },
-        {
-          "id": "xin-zhao",
-          "label": "Xin Zhao"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-cosmic",
-      "group": "Skin Lines",
-      "label": "Cosmic Champions",
-      "prompt": "Name a champion with a Cosmic skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "anivia",
-          "label": "Anivia"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "bel-veth",
-          "label": "Bel'Veth"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "illaoi",
-          "label": "Illaoi"
-        },
-        {
-          "id": "kassadin",
-          "label": "Kassadin"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "nautilus",
-          "label": "Nautilus"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "nunu-and-willump",
-          "label": "Nunu & Willump"
-        },
-        {
-          "id": "rakan",
-          "label": "Rakan"
-        },
-        {
-          "id": "sion",
-          "label": "Sion"
-        },
-        {
-          "id": "skarner",
-          "label": "Skarner"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "vladimir",
-          "label": "Vladimir"
-        },
-        {
-          "id": "xayah",
-          "label": "Xayah"
-        },
-        {
-          "id": "xin-zhao",
-          "label": "Xin Zhao"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-coven",
-      "group": "Skin Lines",
-      "label": "Coven Champions",
-      "prompt": "Name a champion with a Coven skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "camille",
-          "label": "Camille"
-        },
-        {
-          "id": "cassiopeia",
-          "label": "Cassiopeia"
-        },
-        {
-          "id": "elise",
-          "label": "Elise"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "ivern",
-          "label": "Ivern"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "lissandra",
-          "label": "Lissandra"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "mordekaiser",
-          "label": "Mordekaiser"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "nilah",
-          "label": "Nilah"
-        },
-        {
-          "id": "syndra",
-          "label": "Syndra"
-        },
-        {
-          "id": "volibear",
-          "label": "Volibear"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        },
-        {
-          "id": "zyra",
-          "label": "Zyra"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-culinary-masters",
-      "group": "Skin Lines",
-      "label": "Culinary Masters Champions",
-      "prompt": "Name a champion with a Culinary Masters skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "galio",
-          "label": "Galio"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "olaf",
-          "label": "Olaf"
-        },
-        {
-          "id": "pantheon",
-          "label": "Pantheon"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "tahm-kench",
-          "label": "Tahm Kench"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-dark-star",
-      "group": "Skin Lines",
-      "label": "Dark Star Champions",
-      "prompt": "Name a champion with a Dark Star skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "kai-sa",
-          "label": "Kai'Sa"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "kha-zix",
-          "label": "Kha'Zix"
-        },
-        {
-          "id": "lissandra",
-          "label": "Lissandra"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "mordekaiser",
-          "label": "Mordekaiser"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "shaco",
-          "label": "Shaco"
-        },
-        {
-          "id": "sylas",
-          "label": "Sylas"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "xerath",
-          "label": "Xerath"
-        },
-        {
-          "id": "yorick",
-          "label": "Yorick"
-        },
-        {
-          "id": "zoe",
-          "label": "Zoe"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-day-job",
-      "group": "Skin Lines",
-      "label": "Day Job Champions",
-      "prompt": "Name a champion with a Day Job skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "amumu",
-          "label": "Amumu"
-        },
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "azir",
-          "label": "Azir"
-        },
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "braum",
-          "label": "Braum"
-        },
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "fizz",
-          "label": "Fizz"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
-        },
-        {
-          "id": "heimerdinger",
-          "label": "Heimerdinger"
-        },
-        {
-          "id": "illaoi",
-          "label": "Illaoi"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "jax",
-          "label": "Jax"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "lillia",
-          "label": "Lillia"
-        },
-        {
-          "id": "mordekaiser",
-          "label": "Mordekaiser"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "olaf",
-          "label": "Olaf"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "sion",
-          "label": "Sion"
-        },
-        {
-          "id": "swain",
-          "label": "Swain"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "trundle",
-          "label": "Trundle"
-        },
-        {
-          "id": "udyr",
-          "label": "Udyr"
-        },
-        {
-          "id": "urgot",
-          "label": "Urgot"
-        },
-        {
-          "id": "zilean",
-          "label": "Zilean"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-death-sworn",
-      "group": "Skin Lines",
-      "label": "Death Sworn Champions",
-      "prompt": "Name a champion with a Death Sworn skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "azir",
-          "label": "Azir"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "viktor",
-          "label": "Viktor"
-        },
-        {
-          "id": "wukong",
-          "label": "Wukong"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-debonair",
-      "group": "Skin Lines",
-      "label": "Debonair Champions",
-      "prompt": "Name a champion with a Debonair skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "brand",
-          "label": "Brand"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "galio",
-          "label": "Galio"
-        },
-        {
-          "id": "jayce",
-          "label": "Jayce"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "vi",
-          "label": "Vi"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-definitely-not",
-      "group": "Skin Lines",
-      "label": "Definitely Not Champions",
-      "prompt": "Name a champion with a Definitely Not skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "udyr",
-          "label": "Udyr"
-        },
-        {
-          "id": "urgot",
-          "label": "Urgot"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "vel-koz",
-          "label": "Vel'Koz"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-dragon-world",
-      "group": "Skin Lines",
-      "label": "Dragon World Champions",
-      "prompt": "Name a champion with a Dragon World skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "braum",
-          "label": "Braum"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "galio",
-          "label": "Galio"
-        },
-        {
-          "id": "heimerdinger",
-          "label": "Heimerdinger"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "mordekaiser",
-          "label": "Mordekaiser"
-        },
-        {
-          "id": "olaf",
-          "label": "Olaf"
-        },
-        {
-          "id": "pantheon",
-          "label": "Pantheon"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "swain",
-          "label": "Swain"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "trundle",
-          "label": "Trundle"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        },
-        {
-          "id": "udyr",
-          "label": "Udyr"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "xin-zhao",
-          "label": "Xin Zhao"
-        },
-        {
-          "id": "zyra",
-          "label": "Zyra"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-dragonmancers",
-      "group": "Skin Lines",
-      "label": "Dragonmancers Champions",
-      "prompt": "Name a champion with a Dragonmancers skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "aurelion-sol",
-          "label": "Aurelion Sol"
-        },
-        {
-          "id": "brand",
-          "label": "Brand"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "kai-sa",
-          "label": "Kai'Sa"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "kassadin",
-          "label": "Kassadin"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "rakan",
-          "label": "Rakan"
-        },
-        {
-          "id": "sett",
-          "label": "Sett"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "volibear",
-          "label": "Volibear"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-eclipse",
-      "group": "Skin Lines",
-      "label": "Eclipse Champions",
-      "prompt": "Name a champion with a Eclipse skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "aatrox",
-          "label": "Aatrox"
-        },
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "senna",
-          "label": "Senna"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-elderwood",
-      "group": "Skin Lines",
-      "label": "Elderwood Champions",
-      "prompt": "Name a champion with a Elderwood skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "azir",
-          "label": "Azir"
-        },
-        {
-          "id": "bard",
-          "label": "Bard"
-        },
-        {
-          "id": "gnar",
-          "label": "Gnar"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "karthus",
-          "label": "Karthus"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "ornn",
-          "label": "Ornn"
-        },
-        {
-          "id": "rakan",
-          "label": "Rakan"
-        },
-        {
-          "id": "rek-sai",
-          "label": "Rek'Sai"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "taric",
-          "label": "Taric"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "wukong",
-          "label": "Wukong"
-        },
-        {
-          "id": "xayah",
-          "label": "Xayah"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-empyrean",
-      "group": "Skin Lines",
-      "label": "Empyrean Champions",
-      "prompt": "Name a champion with a Empyrean skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "brand",
-          "label": "Brand"
-        },
-        {
-          "id": "jax",
-          "label": "Jax"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "k-sante",
-          "label": "K'Sante"
-        },
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "nocturne",
-          "label": "Nocturne"
-        },
-        {
-          "id": "pyke",
-          "label": "Pyke"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "vex",
-          "label": "Vex"
-        },
-        {
-          "id": "zac",
-          "label": "Zac"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-fables",
-      "group": "Skin Lines",
-      "label": "Fables Champions",
-      "prompt": "Name a champion with a Fables skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "cassiopeia",
-          "label": "Cassiopeia"
-        },
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "nunu-and-willump",
-          "label": "Nunu & Willump"
-        },
-        {
-          "id": "pantheon",
-          "label": "Pantheon"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-faerie-court",
-      "group": "Skin Lines",
-      "label": "Faerie Court Champions",
-      "prompt": "Name a champion with a Faerie Court skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "kalista",
-          "label": "Kalista"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "lillia",
-          "label": "Lillia"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "milio",
-          "label": "Milio"
-        },
-        {
-          "id": "seraphine",
-          "label": "Seraphine"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-forgotten-depths",
-      "group": "Skin Lines",
-      "label": "Forgotten Depths Champions",
-      "prompt": "Name a champion with a Forgotten Depths skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "fizz",
-          "label": "Fizz"
-        },
-        {
-          "id": "kassadin",
-          "label": "Kassadin"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "nautilus",
-          "label": "Nautilus"
-        },
-        {
-          "id": "syndra",
-          "label": "Syndra"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-fright-night",
-      "group": "Skin Lines",
-      "label": "Fright Night Champions",
-      "prompt": "Name a champion with a Fright Night skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "nautilus",
-          "label": "Nautilus"
-        },
-        {
-          "id": "nunu-and-willump",
-          "label": "Nunu & Willump"
-        },
-        {
-          "id": "pyke",
-          "label": "Pyke"
-        },
-        {
-          "id": "renata-glasc",
-          "label": "Renata Glasc"
-        },
-        {
-          "id": "shaco",
-          "label": "Shaco"
-        },
-        {
-          "id": "trundle",
-          "label": "Trundle"
-        },
-        {
-          "id": "urgot",
-          "label": "Urgot"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "zeri",
-          "label": "Zeri"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-guardian-of-the-sands",
-      "group": "Skin Lines",
-      "label": "Guardian of the Sands Champions",
-      "prompt": "Name a champion with a Guardian of the Sands skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ekko",
-          "label": "Ekko"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "kha-zix",
-          "label": "Kha'Zix"
-        },
-        {
-          "id": "pyke",
-          "label": "Pyke"
-        },
-        {
-          "id": "rammus",
-          "label": "Rammus"
-        },
-        {
-          "id": "rengar",
-          "label": "Rengar"
-        },
-        {
-          "id": "ryze",
-          "label": "Ryze"
-        },
-        {
-          "id": "skarner",
-          "label": "Skarner"
-        },
-        {
-          "id": "xerath",
-          "label": "Xerath"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-heartbreakers",
-      "group": "Skin Lines",
-      "label": "Heartbreakers Champions",
-      "prompt": "Name a champion with a Heartbreakers skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "jinx",
-          "label": "Jinx"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "quinn",
-          "label": "Quinn"
-        },
-        {
-          "id": "rakan",
-          "label": "Rakan"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "vi",
-          "label": "Vi"
-        },
-        {
-          "id": "xayah",
-          "label": "Xayah"
-        },
-        {
-          "id": "yuumi",
-          "label": "Yuumi"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-heavenscale",
-      "group": "Skin Lines",
-      "label": "Heavenscale Champions",
-      "prompt": "Name a champion with a Heavenscale skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "kai-sa",
-          "label": "Kai'Sa"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "smolder",
-          "label": "Smolder"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-hextech",
-      "group": "Skin Lines",
-      "label": "Hextech Champions",
-      "prompt": "Name a champion with a Hextech skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "amumu",
-          "label": "Amumu"
-        },
-        {
-          "id": "anivia",
-          "label": "Anivia"
-        },
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "galio",
-          "label": "Galio"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "kassadin",
-          "label": "Kassadin"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "nocturne",
-          "label": "Nocturne"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "rammus",
-          "label": "Rammus"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "singed",
-          "label": "Singed"
-        },
-        {
-          "id": "sion",
-          "label": "Sion"
-        },
-        {
-          "id": "swain",
-          "label": "Swain"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "ziggs",
-          "label": "Ziggs"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-high-noon",
-      "group": "Skin Lines",
-      "label": "High Noon Champions",
-      "prompt": "Name a champion with a High Noon skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "cassiopeia",
-          "label": "Cassiopeia"
-        },
-        {
-          "id": "darius",
-          "label": "Darius"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "mordekaiser",
-          "label": "Mordekaiser"
-        },
-        {
-          "id": "rell",
-          "label": "Rell"
-        },
-        {
-          "id": "samira",
-          "label": "Samira"
-        },
-        {
-          "id": "senna",
-          "label": "Senna"
-        },
-        {
-          "id": "sion",
-          "label": "Sion"
-        },
-        {
-          "id": "skarner",
-          "label": "Skarner"
-        },
-        {
-          "id": "tahm-kench",
-          "label": "Tahm Kench"
-        },
-        {
-          "id": "talon",
-          "label": "Talon"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        },
-        {
-          "id": "urgot",
-          "label": "Urgot"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "viktor",
-          "label": "Viktor"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "yone",
-          "label": "Yone"
-        },
-        {
-          "id": "yorick",
-          "label": "Yorick"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-high-society",
-      "group": "Skin Lines",
-      "label": "High Society Champions",
-      "prompt": "Name a champion with a High Society skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "gnar",
-          "label": "Gnar"
-        },
-        {
-          "id": "nasus",
-          "label": "Nasus"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "vladimir",
-          "label": "Vladimir"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-immortal-journey",
-      "group": "Skin Lines",
-      "label": "Immortal Journey Champions",
-      "prompt": "Name a champion with a Immortal Journey skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "jax",
-          "label": "Jax"
-        },
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "shyvana",
-          "label": "Shyvana"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "talon",
-          "label": "Talon"
-        },
-        {
-          "id": "zaahen",
-          "label": "Zaahen"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        },
-        {
-          "id": "zeri",
-          "label": "Zeri"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-infernal",
-      "group": "Skin Lines",
-      "label": "Infernal Champions",
-      "prompt": "Name a champion with a Infernal skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "amumu",
-          "label": "Amumu"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "aurelion-sol",
-          "label": "Aurelion Sol"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "galio",
-          "label": "Galio"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "karthus",
-          "label": "Karthus"
-        },
-        {
-          "id": "kennen",
-          "label": "Kennen"
-        },
-        {
-          "id": "kindred",
-          "label": "Kindred"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "mordekaiser",
-          "label": "Mordekaiser"
-        },
-        {
-          "id": "nasus",
-          "label": "Nasus"
-        },
-        {
-          "id": "olaf",
-          "label": "Olaf"
-        },
-        {
-          "id": "rammus",
-          "label": "Rammus"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "shen",
-          "label": "Shen"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "vel-koz",
-          "label": "Vel'Koz"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        },
-        {
-          "id": "wukong",
-          "label": "Wukong"
-        },
-        {
-          "id": "xerath",
-          "label": "Xerath"
-        },
-        {
-          "id": "zyra",
-          "label": "Zyra"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-inkshadow",
-      "group": "Skin Lines",
-      "label": "Inkshadow Champions",
-      "prompt": "Name a champion with a Inkshadow skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "aurelion-sol",
-          "label": "Aurelion Sol"
-        },
-        {
-          "id": "kai-sa",
-          "label": "Kai'Sa"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "nilah",
-          "label": "Nilah"
-        },
-        {
-          "id": "pyke",
-          "label": "Pyke"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "udyr",
-          "label": "Udyr"
-        },
-        {
-          "id": "volibear",
-          "label": "Volibear"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "yone",
-          "label": "Yone"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-legacy",
-      "group": "Skin Lines",
-      "label": "Legacy Champions",
-      "prompt": "Name a champion with a Legacy skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "anivia",
-          "label": "Anivia"
-        },
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "corki",
-          "label": "Corki"
-        },
-        {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "fizz",
-          "label": "Fizz"
-        },
-        {
-          "id": "galio",
-          "label": "Galio"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "garen",
-          "label": "Garen"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
-        },
-        {
-          "id": "graves",
-          "label": "Graves"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "jax",
-          "label": "Jax"
-        },
-        {
-          "id": "jayce",
-          "label": "Jayce"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "karthus",
-          "label": "Karthus"
-        },
-        {
-          "id": "kassadin",
-          "label": "Kassadin"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "kennen",
-          "label": "Kennen"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "nautilus",
-          "label": "Nautilus"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "olaf",
-          "label": "Olaf"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "rammus",
-          "label": "Rammus"
-        },
-        {
-          "id": "rengar",
-          "label": "Rengar"
-        },
-        {
-          "id": "rumble",
-          "label": "Rumble"
-        },
-        {
-          "id": "shaco",
-          "label": "Shaco"
-        },
-        {
-          "id": "shen",
-          "label": "Shen"
-        },
-        {
-          "id": "shyvana",
-          "label": "Shyvana"
-        },
-        {
-          "id": "sion",
-          "label": "Sion"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "talon",
-          "label": "Talon"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "wukong",
-          "label": "Wukong"
-        },
-        {
-          "id": "xerath",
-          "label": "Xerath"
-        },
-        {
-          "id": "xin-zhao",
-          "label": "Xin Zhao"
-        },
-        {
-          "id": "zac",
-          "label": "Zac"
-        },
-        {
-          "id": "ziggs",
-          "label": "Ziggs"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-lunar-beast",
-      "group": "Skin Lines",
-      "label": "Lunar Beast Champions",
-      "prompt": "Name a champion with a Lunar Beast skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "aphelios",
-          "label": "Aphelios"
-        },
-        {
-          "id": "darius",
-          "label": "Darius"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "viego",
-          "label": "Viego"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-lunar-revel",
-      "group": "Skin Lines",
-      "label": "Lunar Revel Champions",
-      "prompt": "Name a champion with a Lunar Revel skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "cassiopeia",
-          "label": "Cassiopeia"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "kha-zix",
-          "label": "Kha'Zix"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nasus",
-          "label": "Nasus"
-        },
-        {
-          "id": "qiyana",
-          "label": "Qiyana"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "sylas",
-          "label": "Sylas"
-        },
-        {
-          "id": "tahm-kench",
-          "label": "Tahm Kench"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        },
-        {
-          "id": "wukong",
-          "label": "Wukong"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-lunar-revel-firecracker",
-      "group": "Skin Lines",
-      "label": "Lunar Revel: Firecracker Champions",
-      "prompt": "Name a champion with a Lunar Revel: Firecracker skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "corki",
-          "label": "Corki"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "jinx",
-          "label": "Jinx"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "seraphine",
-          "label": "Seraphine"
-        },
-        {
-          "id": "sett",
-          "label": "Sett"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "xin-zhao",
-          "label": "Xin Zhao"
-        },
-        {
-          "id": "yuumi",
-          "label": "Yuumi"
-        },
-        {
-          "id": "ziggs",
-          "label": "Ziggs"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-lunar-revel-warring-kingdoms",
-      "group": "Skin Lines",
-      "label": "Lunar Revel: Warring Kingdoms Champions",
-      "prompt": "Name a champion with a Lunar Revel: Warring Kingdoms skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "azir",
-          "label": "Azir"
-        },
-        {
-          "id": "garen",
-          "label": "Garen"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "talon",
-          "label": "Talon"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "vi",
-          "label": "Vi"
-        },
-        {
-          "id": "xin-zhao",
-          "label": "Xin Zhao"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-mecha-kingdoms",
-      "group": "Skin Lines",
-      "label": "Mecha Kingdoms Champions",
-      "prompt": "Name a champion with a Mecha Kingdoms skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "darius",
-          "label": "Darius"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "garen",
-          "label": "Garen"
-        },
-        {
-          "id": "jax",
-          "label": "Jax"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "sett",
-          "label": "Sett"
-        },
-        {
-          "id": "skarner",
-          "label": "Skarner"
-        },
-        {
-          "id": "wukong",
-          "label": "Wukong"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-medieval",
-      "group": "Skin Lines",
-      "label": "Medieval Champions",
-      "prompt": "Name a champion with a Medieval skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "amumu",
-          "label": "Amumu"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "kled",
-          "label": "Kled"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-mythmaker",
-      "group": "Skin Lines",
-      "label": "Mythmaker Champions",
-      "prompt": "Name a champion with a Mythmaker skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "cassiopeia",
-          "label": "Cassiopeia"
-        },
-        {
-          "id": "galio",
-          "label": "Galio"
-        },
-        {
-          "id": "garen",
-          "label": "Garen"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "zyra",
-          "label": "Zyra"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-nightbringer-and-dawnbringer",
-      "group": "Skin Lines",
-      "label": "Nightbringer and Dawnbringer Champions",
-      "prompt": "Name a champion with a Nightbringer and Dawnbringer skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "aphelios",
-          "label": "Aphelios"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "kalista",
-          "label": "Kalista"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "kayn",
-          "label": "Kayn"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "lillia",
-          "label": "Lillia"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nasus",
-          "label": "Nasus"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "vex",
-          "label": "Vex"
-        },
-        {
-          "id": "vladimir",
-          "label": "Vladimir"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "yone",
-          "label": "Yone"
-        },
-        {
-          "id": "yuumi",
-          "label": "Yuumi"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-odyssey",
-      "group": "Skin Lines",
-      "label": "Odyssey Champions",
-      "prompt": "Name a champion with a Odyssey skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "aatrox",
-          "label": "Aatrox"
-        },
-        {
-          "id": "jinx",
-          "label": "Jinx"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "kayn",
-          "label": "Kayn"
-        },
-        {
-          "id": "kha-zix",
-          "label": "Kha'Zix"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        },
-        {
-          "id": "ziggs",
-          "label": "Ziggs"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-omen-of-the-dark",
-      "group": "Skin Lines",
-      "label": "Omen of the Dark Champions",
-      "prompt": "Name a champion with a Omen of the Dark skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "lissandra",
-          "label": "Lissandra"
-        },
-        {
-          "id": "nocturne",
-          "label": "Nocturne"
-        },
-        {
-          "id": "singed",
-          "label": "Singed"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        },
-        {
-          "id": "yorick",
-          "label": "Yorick"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-otherroads",
-      "group": "Skin Lines",
-      "label": "Otherroads Champions",
-      "prompt": "Name a champion with a Otherroads skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "swain",
-          "label": "Swain"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "volibear",
-          "label": "Volibear"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-pool-party",
-      "group": "Skin Lines",
-      "label": "Pool Party Champions",
-      "prompt": "Name a champion with a Pool Party skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "braum",
-          "label": "Braum"
-        },
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "graves",
-          "label": "Graves"
-        },
-        {
-          "id": "heimerdinger",
-          "label": "Heimerdinger"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "rek-sai",
-          "label": "Rek'Sai"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "sett",
-          "label": "Sett"
-        },
-        {
-          "id": "singed",
-          "label": "Singed"
-        },
-        {
-          "id": "syndra",
-          "label": "Syndra"
-        },
-        {
-          "id": "taliyah",
-          "label": "Taliyah"
-        },
-        {
-          "id": "taric",
-          "label": "Taric"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        },
-        {
-          "id": "zac",
-          "label": "Zac"
-        },
-        {
-          "id": "ziggs",
-          "label": "Ziggs"
-        },
-        {
-          "id": "zoe",
-          "label": "Zoe"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-porcelain",
-      "group": "Skin Lines",
-      "label": "Porcelain Champions",
-      "prompt": "Name a champion with a Porcelain skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "amumu",
-          "label": "Amumu"
-        },
-        {
-          "id": "aurelion-sol",
-          "label": "Aurelion Sol"
-        },
-        {
-          "id": "darius",
-          "label": "Darius"
-        },
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "graves",
-          "label": "Graves"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "kindred",
-          "label": "Kindred"
-        },
-        {
-          "id": "lissandra",
-          "label": "Lissandra"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-prehistoric-hunters",
-      "group": "Skin Lines",
-      "label": "Prehistoric Hunters Champions",
-      "prompt": "Name a champion with a Prehistoric Hunters skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "anivia",
-          "label": "Anivia"
-        },
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "ryze",
-          "label": "Ryze"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "shyvana",
-          "label": "Shyvana"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "udyr",
-          "label": "Udyr"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-project",
-      "group": "Skin Lines",
-      "label": "PROJECT Champions",
-      "prompt": "Name a champion with a PROJECT skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "ekko",
-          "label": "Ekko"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "jax",
-          "label": "Jax"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "jinx",
-          "label": "Jinx"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "leona",
-          "label": "Leona"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "mordekaiser",
-          "label": "Mordekaiser"
-        },
-        {
-          "id": "naafiri",
-          "label": "Naafiri"
-        },
-        {
-          "id": "pyke",
-          "label": "Pyke"
-        },
-        {
-          "id": "quinn",
-          "label": "Quinn"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "senna",
-          "label": "Senna"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "sylas",
-          "label": "Sylas"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "vi",
-          "label": "Vi"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-pulsefire",
-      "group": "Skin Lines",
-      "label": "Pulsefire Champions",
-      "prompt": "Name a champion with a Pulsefire skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "caitlyn",
-          "label": "Caitlyn"
-        },
-        {
-          "id": "ekko",
-          "label": "Ekko"
-        },
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "pantheon",
-          "label": "Pantheon"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "shen",
-          "label": "Shen"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-rift-quest",
-      "group": "Skin Lines",
-      "label": "Rift Quest Champions",
-      "prompt": "Name a champion with a Rift Quest skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "bard",
-          "label": "Bard"
-        },
-        {
-          "id": "braum",
-          "label": "Braum"
-        },
-        {
-          "id": "darius",
-          "label": "Darius"
-        },
-        {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
-          "id": "garen",
-          "label": "Garen"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
-        },
-        {
-          "id": "jayce",
-          "label": "Jayce"
-        },
-        {
-          "id": "karthus",
-          "label": "Karthus"
-        },
-        {
-          "id": "mordekaiser",
-          "label": "Mordekaiser"
-        },
-        {
-          "id": "nunu-and-willump",
-          "label": "Nunu & Willump"
-        },
-        {
-          "id": "ryze",
-          "label": "Ryze"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "shyvana",
-          "label": "Shyvana"
-        },
-        {
-          "id": "sion",
-          "label": "Sion"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "talon",
-          "label": "Talon"
-        },
-        {
-          "id": "taric",
-          "label": "Taric"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-road-warrior",
-      "group": "Skin Lines",
-      "label": "Road Warrior Champions",
-      "prompt": "Name a champion with a Road Warrior skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "brand",
-          "label": "Brand"
-        },
-        {
-          "id": "heimerdinger",
-          "label": "Heimerdinger"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "pantheon",
-          "label": "Pantheon"
-        },
-        {
-          "id": "rumble",
-          "label": "Rumble"
-        },
-        {
-          "id": "trundle",
-          "label": "Trundle"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-ruined",
-      "group": "Skin Lines",
-      "label": "Ruined Champions",
-      "prompt": "Name a champion with a Ruined skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "pantheon",
-          "label": "Pantheon"
-        },
-        {
-          "id": "shyvana",
-          "label": "Shyvana"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-sentinels-of-light",
-      "group": "Skin Lines",
-      "label": "Sentinels of Light Champions",
-      "prompt": "Name a champion with a Sentinels of Light skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "graves",
-          "label": "Graves"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "olaf",
-          "label": "Olaf"
-        },
-        {
-          "id": "pyke",
-          "label": "Pyke"
-        },
-        {
-          "id": "rengar",
-          "label": "Rengar"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-shan-hai-scrolls",
-      "group": "Skin Lines",
-      "label": "Shan Hai Scrolls Champions",
-      "prompt": "Name a champion with a Shan Hai Scrolls skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "bard",
-          "label": "Bard"
-        },
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "lillia",
-          "label": "Lillia"
-        },
-        {
-          "id": "nautilus",
-          "label": "Nautilus"
-        },
-        {
-          "id": "neeko",
-          "label": "Neeko"
-        },
-        {
-          "id": "tahm-kench",
-          "label": "Tahm Kench"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-silver-age",
-      "group": "Skin Lines",
-      "label": "Silver Age Champions",
-      "prompt": "Name a champion with a Silver Age skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "brand",
-          "label": "Brand"
-        },
-        {
-          "id": "darius",
-          "label": "Darius"
-        },
-        {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "kennen",
-          "label": "Kennen"
-        },
-        {
-          "id": "nocturne",
-          "label": "Nocturne"
-        },
-        {
-          "id": "quinn",
-          "label": "Quinn"
-        },
-        {
-          "id": "singed",
-          "label": "Singed"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-snowdown-showdown",
-      "group": "Skin Lines",
-      "label": "Snowdown Showdown Champions",
-      "prompt": "Name a champion with a Snowdown Showdown skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "amumu",
-          "label": "Amumu"
-        },
-        {
-          "id": "braum",
-          "label": "Braum"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
-        },
-        {
-          "id": "heimerdinger",
-          "label": "Heimerdinger"
-        },
-        {
-          "id": "jinx",
-          "label": "Jinx"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "nunu-and-willump",
-          "label": "Nunu & Willump"
-        },
-        {
-          "id": "shaco",
-          "label": "Shaco"
-        },
-        {
-          "id": "smolder",
-          "label": "Smolder"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        },
-        {
-          "id": "zilean",
-          "label": "Zilean"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-soccer-cup",
-      "group": "Skin Lines",
-      "label": "Soccer Cup Champions",
-      "prompt": "Name a champion with a Soccer Cup skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "ezreal",
-          "label": "Ezreal"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "rammus",
-          "label": "Rammus"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-soul-fighter",
-      "group": "Skin Lines",
-      "label": "Soul Fighter Champions",
-      "prompt": "Name a champion with a Soul Fighter skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "gwen",
-          "label": "Gwen"
-        },
-        {
-          "id": "jhin",
-          "label": "Jhin"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "naafiri",
-          "label": "Naafiri"
-        },
-        {
-          "id": "pyke",
-          "label": "Pyke"
-        },
-        {
-          "id": "samira",
-          "label": "Samira"
-        },
-        {
-          "id": "sett",
-          "label": "Sett"
-        },
-        {
-          "id": "shaco",
-          "label": "Shaco"
-        },
-        {
-          "id": "viego",
-          "label": "Viego"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-space-groove",
-      "group": "Skin Lines",
-      "label": "Space Groove Champions",
-      "prompt": "Name a champion with a Space Groove skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
-        },
-        {
-          "id": "gwen",
-          "label": "Gwen"
-        },
-        {
-          "id": "lissandra",
-          "label": "Lissandra"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "nami",
-          "label": "Nami"
-        },
-        {
-          "id": "nasus",
-          "label": "Nasus"
-        },
-        {
-          "id": "nunu-and-willump",
-          "label": "Nunu & Willump"
-        },
-        {
-          "id": "ornn",
-          "label": "Ornn"
-        },
-        {
-          "id": "rumble",
-          "label": "Rumble"
-        },
-        {
-          "id": "samira",
-          "label": "Samira"
-        },
-        {
-          "id": "taric",
-          "label": "Taric"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "zac",
-          "label": "Zac"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-spirit-blossom",
-      "group": "Skin Lines",
-      "label": "Spirit Blossom Champions",
-      "prompt": "Name a champion with a Spirit Blossom skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "aphelios",
-          "label": "Aphelios"
-        },
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "bard",
-          "label": "Bard"
-        },
-        {
-          "id": "cassiopeia",
-          "label": "Cassiopeia"
-        },
-        {
-          "id": "darius",
-          "label": "Darius"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "hwei",
-          "label": "Hwei"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "ivern",
-          "label": "Ivern"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "kindred",
-          "label": "Kindred"
-        },
-        {
-          "id": "lillia",
-          "label": "Lillia"
-        },
-        {
-          "id": "lux",
-          "label": "Lux"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "sett",
-          "label": "Sett"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "syndra",
-          "label": "Syndra"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "tristana",
-          "label": "Tristana"
-        },
-        {
-          "id": "varus",
-          "label": "Varus"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "yasuo",
-          "label": "Yasuo"
-        },
-        {
-          "id": "yone",
-          "label": "Yone"
-        },
-        {
-          "id": "yorick",
-          "label": "Yorick"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        },
-        {
-          "id": "zyra",
-          "label": "Zyra"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-spirit-blossom-springs",
-      "group": "Skin Lines",
-      "label": "Spirit Blossom Springs Champions",
-      "prompt": "Name a champion with a Spirit Blossom Springs skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "aphelios",
-          "label": "Aphelios"
-        },
-        {
-          "id": "sett",
-          "label": "Sett"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "volibear",
-          "label": "Volibear"
-        },
-        {
-          "id": "yunara",
-          "label": "Yunara"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-star-guardian-season-4",
-      "group": "Skin Lines",
-      "label": "Star Guardian Season 4 Champions",
-      "prompt": "Name a champion with a Star Guardian Season 4 skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "akali",
-          "label": "Akali"
-        },
-        {
-          "id": "ekko",
-          "label": "Ekko"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "kai-sa",
-          "label": "Kai'Sa"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nilah",
-          "label": "Nilah"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "quinn",
-          "label": "Quinn"
-        },
-        {
-          "id": "rakan",
-          "label": "Rakan"
-        },
-        {
-          "id": "rell",
-          "label": "Rell"
-        },
-        {
-          "id": "senna",
-          "label": "Senna"
-        },
-        {
-          "id": "seraphine",
-          "label": "Seraphine"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "syndra",
-          "label": "Syndra"
-        },
-        {
-          "id": "taliyah",
-          "label": "Taliyah"
-        },
-        {
-          "id": "xayah",
-          "label": "Xayah"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-steel-valkyries",
-      "group": "Skin Lines",
-      "label": "Steel Valkyries Champions",
-      "prompt": "Name a champion with a Steel Valkyries skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "camille",
-          "label": "Camille"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "kai-sa",
-          "label": "Kai'Sa"
-        },
-        {
-          "id": "kayle",
-          "label": "Kayle"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "miss-fortune",
-          "label": "Miss Fortune"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "nasus",
-          "label": "Nasus"
-        },
-        {
-          "id": "renata-glasc",
-          "label": "Renata Glasc"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-sugar-rush",
-      "group": "Skin Lines",
-      "label": "Sugar Rush Champions",
-      "prompt": "Name a champion with a Sugar Rush skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "braum",
-          "label": "Braum"
-        },
-        {
-          "id": "evelynn",
-          "label": "Evelynn"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "ivern",
-          "label": "Ivern"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "ziggs",
-          "label": "Ziggs"
-        },
-        {
-          "id": "zilean",
-          "label": "Zilean"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-super-galaxy",
-      "group": "Skin Lines",
-      "label": "Super Galaxy Champions",
-      "prompt": "Name a champion with a Super Galaxy skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "elise",
-          "label": "Elise"
-        },
-        {
-          "id": "fizz",
-          "label": "Fizz"
-        },
-        {
-          "id": "gnar",
-          "label": "Gnar"
-        },
-        {
-          "id": "kindred",
-          "label": "Kindred"
-        },
-        {
-          "id": "nidalee",
-          "label": "Nidalee"
-        },
-        {
-          "id": "rumble",
-          "label": "Rumble"
-        },
-        {
-          "id": "shyvana",
-          "label": "Shyvana"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-toy-box",
-      "group": "Skin Lines",
-      "label": "Toy Box Champions",
-      "prompt": "Name a champion with a Toy Box skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "alistar",
-          "label": "Alistar"
-        },
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "cho-gath",
-          "label": "Cho'Gath"
-        },
-        {
-          "id": "corki",
-          "label": "Corki"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "gnar",
-          "label": "Gnar"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "nunu-and-willump",
-          "label": "Nunu & Willump"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "ornn",
-          "label": "Ornn"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-trick-or-treat",
-      "group": "Skin Lines",
-      "label": "Trick-or-Treat Champions",
-      "prompt": "Name a champion with a Trick-or-Treat skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "amumu",
-          "label": "Amumu"
-        },
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
-          "id": "ekko",
-          "label": "Ekko"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "karthus",
-          "label": "Karthus"
-        },
-        {
-          "id": "kassadin",
-          "label": "Kassadin"
-        },
-        {
-          "id": "katarina",
-          "label": "Katarina"
-        },
-        {
-          "id": "kled",
-          "label": "Kled"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "nocturne",
-          "label": "Nocturne"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        },
-        {
-          "id": "urgot",
-          "label": "Urgot"
-        },
-        {
-          "id": "vayne",
-          "label": "Vayne"
-        },
-        {
-          "id": "vladimir",
-          "label": "Vladimir"
-        },
-        {
-          "id": "zyra",
-          "label": "Zyra"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-victorious",
-      "group": "Skin Lines",
-      "label": "Victorious Champions",
-      "prompt": "Name a champion with a Victorious skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "aatrox",
-          "label": "Aatrox"
-        },
-        {
-          "id": "anivia",
-          "label": "Anivia"
-        },
-        {
-          "id": "blitzcrank",
-          "label": "Blitzcrank"
-        },
-        {
-          "id": "braum",
-          "label": "Braum"
-        },
-        {
-          "id": "draven",
-          "label": "Draven"
-        },
-        {
-          "id": "elise",
-          "label": "Elise"
-        },
-        {
-          "id": "fiora",
-          "label": "Fiora"
-        },
-        {
-          "id": "graves",
-          "label": "Graves"
-        },
-        {
-          "id": "janna",
-          "label": "Janna"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "kog-maw",
-          "label": "Kog'Maw"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "morgana",
-          "label": "Morgana"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "sona",
-          "label": "Sona"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "twisted-fate",
-          "label": "Twisted Fate"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-winter-sports",
-      "group": "Skin Lines",
-      "label": "Winter Sports Champions",
-      "prompt": "Name a champion with a Winter Sports skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "amumu",
-          "label": "Amumu"
-        },
-        {
-          "id": "anivia",
-          "label": "Anivia"
-        },
-        {
-          "id": "corki",
-          "label": "Corki"
-        },
-        {
-          "id": "fiddlesticks",
-          "label": "Fiddlesticks"
-        },
-        {
-          "id": "jax",
-          "label": "Jax"
-        },
-        {
-          "id": "kassadin",
-          "label": "Kassadin"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        },
-        {
-          "id": "veigar",
-          "label": "Veigar"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-winter-wonder",
-      "group": "Skin Lines",
-      "label": "Winter Wonder Champions",
-      "prompt": "Name a champion with a Winter Wonder skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "dr-mundo",
-          "label": "Dr. Mundo"
-        },
-        {
-          "id": "irelia",
-          "label": "Irelia"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "lulu",
-          "label": "Lulu"
-        },
-        {
-          "id": "master-yi",
-          "label": "Master Yi"
-        },
-        {
-          "id": "milio",
-          "label": "Milio"
-        },
-        {
-          "id": "neeko",
-          "label": "Neeko"
-        },
-        {
-          "id": "orianna",
-          "label": "Orianna"
-        },
-        {
-          "id": "poppy",
-          "label": "Poppy"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "sivir",
-          "label": "Sivir"
-        },
-        {
-          "id": "soraka",
-          "label": "Soraka"
-        },
-        {
-          "id": "twitch",
-          "label": "Twitch"
-        },
-        {
-          "id": "zeri",
-          "label": "Zeri"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-winterblessed",
-      "group": "Skin Lines",
-      "label": "Winterblessed Champions",
-      "prompt": "Name a champion with a Winterblessed skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "annie",
-          "label": "Annie"
-        },
-        {
-          "id": "camille",
-          "label": "Camille"
-        },
-        {
-          "id": "diana",
-          "label": "Diana"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "hwei",
-          "label": "Hwei"
-        },
-        {
-          "id": "lucian",
-          "label": "Lucian"
-        },
-        {
-          "id": "mel",
-          "label": "Mel"
-        },
-        {
-          "id": "senna",
-          "label": "Senna"
-        },
-        {
-          "id": "shaco",
-          "label": "Shaco"
-        },
-        {
-          "id": "swain",
-          "label": "Swain"
-        },
-        {
-          "id": "sylas",
-          "label": "Sylas"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "warwick",
-          "label": "Warwick"
-        },
-        {
-          "id": "zilean",
-          "label": "Zilean"
-        },
-        {
-          "id": "zoe",
-          "label": "Zoe"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-wonders-of-the-world",
-      "group": "Skin Lines",
-      "label": "Wonders of the World Champions",
-      "prompt": "Name a champion with a Wonders of the World skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ahri",
-          "label": "Ahri"
-        },
-        {
-          "id": "anivia",
-          "label": "Anivia"
-        },
-        {
-          "id": "gangplank",
-          "label": "Gangplank"
-        },
-        {
-          "id": "gragas",
-          "label": "Gragas"
-        },
-        {
-          "id": "karthus",
-          "label": "Karthus"
-        },
-        {
-          "id": "lee-sin",
-          "label": "Lee Sin"
-        },
-        {
-          "id": "malphite",
-          "label": "Malphite"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "pantheon",
-          "label": "Pantheon"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "ryze",
-          "label": "Ryze"
-        },
-        {
-          "id": "sejuani",
-          "label": "Sejuani"
-        },
-        {
-          "id": "shaco",
-          "label": "Shaco"
-        },
-        {
-          "id": "teemo",
-          "label": "Teemo"
-        },
-        {
-          "id": "tryndamere",
-          "label": "Tryndamere"
-        },
-        {
-          "id": "xin-zhao",
-          "label": "Xin Zhao"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-world-championship",
-      "group": "Skin Lines",
-      "label": "World Championship Champions",
-      "prompt": "Name a champion with a World Championship skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "ashe",
-          "label": "Ashe"
-        },
-        {
-          "id": "azir",
-          "label": "Azir"
-        },
-        {
-          "id": "jarvan-iv",
-          "label": "Jarvan IV"
-        },
-        {
-          "id": "kalista",
-          "label": "Kalista"
-        },
-        {
-          "id": "kha-zix",
-          "label": "Kha'Zix"
-        },
-        {
-          "id": "leblanc",
-          "label": "LeBlanc"
-        },
-        {
-          "id": "renekton",
-          "label": "Renekton"
-        },
-        {
-          "id": "riven",
-          "label": "Riven"
-        },
-        {
-          "id": "ryze",
-          "label": "Ryze"
-        },
-        {
-          "id": "shyvana",
-          "label": "Shyvana"
-        },
-        {
-          "id": "thresh",
-          "label": "Thresh"
-        },
-        {
-          "id": "viego",
-          "label": "Viego"
-        },
-        {
-          "id": "zed",
-          "label": "Zed"
-        }
-      ]
-    },
-    {
-      "id": "skin-line-worldbreaker",
-      "group": "Skin Lines",
-      "label": "Worldbreaker Champions",
-      "prompt": "Name a champion with a Worldbreaker skin.",
-      "source": "generated from data/catalogs/skin-items.json skinLine fields",
-      "answers": [
-        {
-          "id": "brand",
-          "label": "Brand"
-        },
-        {
-          "id": "hecarim",
-          "label": "Hecarim"
-        },
-        {
-          "id": "karma",
-          "label": "Karma"
-        },
-        {
-          "id": "malzahar",
-          "label": "Malzahar"
-        },
-        {
-          "id": "maokai",
-          "label": "Maokai"
-        },
-        {
-          "id": "nasus",
-          "label": "Nasus"
-        },
-        {
-          "id": "nautilus",
-          "label": "Nautilus"
-        },
-        {
-          "id": "sion",
-          "label": "Sion"
-        },
-        {
-          "id": "trundle",
-          "label": "Trundle"
         }
       ]
     },

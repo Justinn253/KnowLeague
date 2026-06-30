@@ -5,10 +5,11 @@ type ReconnectForfeitExclusions = {
   skincognitoLobbyId?: string;
   multiplayerQuizLobbyId?: string;
   carvingRevelationLobbyId?: string;
+  categoryClashLobbyId?: string;
 };
 
 async function getActiveLobbyIds(
-  table: 'skincognito_lobbies' | 'multiplayer_quiz_lobbies' | 'carving_revelation_lobbies',
+  table: 'skincognito_lobbies' | 'multiplayer_quiz_lobbies' | 'carving_revelation_lobbies' | 'category_clash_lobbies',
   lobbyIds: string[],
 ) {
   if (lobbyIds.length === 0) return new Set<string>();
@@ -32,6 +33,7 @@ export async function forfeitOutstandingReconnects(
     { data: skincognitoPlayers, error: skincognitoError },
     { data: quizPlayers, error: quizError },
     { data: carvingPlayers, error: carvingError },
+    { data: categoryClashPlayers, error: categoryClashError },
   ] = await Promise.all([
     supabase
       .from('skincognito_players')
@@ -55,10 +57,18 @@ export async function forfeitOutstandingReconnects(
       .eq('result', 'active')
       .not('disconnected_at', 'is', null)
       .returns<Array<{ id: string; lobby_id: string }>>(),
+    supabase
+      .from('category_clash_players')
+      .select('id, lobby_id')
+      .eq('connected', false)
+      .eq('result', 'active')
+      .not('disconnected_at', 'is', null)
+      .returns<Array<{ id: string; lobby_id: string }>>(),
   ]);
   if (skincognitoError) throw skincognitoError;
   if (quizError) throw quizError;
   if (carvingError) throw carvingError;
+  if (categoryClashError) throw categoryClashError;
 
   const activeSkincognitoLobbyIds = await getActiveLobbyIds(
     'skincognito_lobbies',
@@ -72,6 +82,10 @@ export async function forfeitOutstandingReconnects(
     'carving_revelation_lobbies',
     [...new Set(carvingPlayers.map((player) => player.lobby_id))],
   );
+  const activeCategoryClashLobbyIds = await getActiveLobbyIds(
+    'category_clash_lobbies',
+    [...new Set(categoryClashPlayers.map((player) => player.lobby_id))],
+  );
   const forfeitedSkincognitoPlayers = skincognitoPlayers.filter((player) => (
     activeSkincognitoLobbyIds.has(player.lobby_id) && player.lobby_id !== exclusions.skincognitoLobbyId
   ));
@@ -80,6 +94,9 @@ export async function forfeitOutstandingReconnects(
   ));
   const forfeitedCarvingPlayers = carvingPlayers.filter((player) => (
     activeCarvingLobbyIds.has(player.lobby_id) && player.lobby_id !== exclusions.carvingRevelationLobbyId
+  ));
+  const forfeitedCategoryClashPlayers = categoryClashPlayers.filter((player) => (
+    activeCategoryClashLobbyIds.has(player.lobby_id) && player.lobby_id !== exclusions.categoryClashLobbyId
   ));
   const now = new Date().toISOString();
 
@@ -118,6 +135,19 @@ export async function forfeitOutstandingReconnects(
     await addMultiplayerLobbyEvents(
       'carving_revelation_lobby_events',
       forfeitedCarvingPlayers.map((player) => player.lobby_id),
+      'reconnect_forfeited',
+    );
+  }
+
+  if (forfeitedCategoryClashPlayers.length > 0) {
+    const { error } = await supabase
+      .from('category_clash_players')
+      .update({ disconnected_at: '1970-01-01T00:00:00.000Z', updated_at: now })
+      .in('id', forfeitedCategoryClashPlayers.map((player) => player.id));
+    if (error) throw error;
+    await addMultiplayerLobbyEvents(
+      'category_clash_lobby_events',
+      forfeitedCategoryClashPlayers.map((player) => player.lobby_id),
       'reconnect_forfeited',
     );
   }

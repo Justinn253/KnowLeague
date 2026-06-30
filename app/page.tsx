@@ -6,6 +6,7 @@ import {
   Search,
   ShieldQuestion,
   Sparkles,
+  Swords,
   Trophy,
   User,
   Users,
@@ -131,6 +132,16 @@ const multiplayerGames: GameLink[] = [
     modeIcon: Users,
     accent: 'gold',
     kicker: 'Shared Canvas',
+  },
+  {
+    title: 'Category Clash',
+    href: '/category-clash',
+    description: 'Name unique League answers from rotating categories before strikes knock you out.',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sylas_0.jpg',
+    gameIcon: Swords,
+    modeIcon: Users,
+    accent: 'emerald',
+    kicker: 'Last Player Standing',
   },
 ];
 

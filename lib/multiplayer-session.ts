@@ -28,7 +28,8 @@ type MultiplayerHostMember = {
 type MultiplayerLobbyEventTable =
   | 'multiplayer_quiz_lobby_events'
   | 'skincognito_lobby_events'
-  | 'carving_revelation_lobby_events';
+  | 'carving_revelation_lobby_events'
+  | 'category_clash_lobby_events';
 
 export function assertSupabaseConfigured() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

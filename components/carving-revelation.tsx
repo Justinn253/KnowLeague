@@ -1155,6 +1155,7 @@ export function CarvingRevelation() {
               <MultiplayerPublicLobbyButton
                 key={lobby.code}
                 hostName={lobby.hostName}
+                hostNameStyle={{ color: lobby.hostColor }}
                 playerCount={lobby.playerCount}
                 maxPlayers={lobby.maxPlayers}
                 disabled={busy}
@@ -1364,6 +1365,7 @@ export function CarvingRevelation() {
                   <MultiplayerDisconnectStatus
                     key={player.id}
                     playerName={player.display_name}
+                    playerNameStyle={{ color: player.carve_color }}
                     disconnectedAt={player.disconnected_at as string}
                   />
                 ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, ReactNode } from 'react';
+import { type CSSProperties, FormEvent, ReactNode } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Users } from 'lucide-react';
 import { GameInfoMenu } from '@/components/game-info-menu';
 
@@ -35,6 +35,7 @@ type MultiplayerCreateJoinPanelProps = {
 
 type MultiplayerPublicLobbyButtonProps = {
   hostName: string;
+  hostNameStyle?: CSSProperties;
   playerCount: number;
   maxPlayers: number;
   disabled?: boolean;
@@ -218,6 +219,7 @@ export function MultiplayerCreateJoinPanel({
 
 export function MultiplayerPublicLobbyButton({
   hostName,
+  hostNameStyle,
   playerCount,
   maxPlayers,
   disabled,
@@ -233,7 +235,7 @@ export function MultiplayerPublicLobbyButton({
       className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60"
     >
       <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold text-white">{hostName}&apos;s lobby</span>
+        <span className="block truncate text-sm font-semibold text-white"><span style={hostNameStyle}>{hostName}</span>&apos;s lobby</span>
         {details ? <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">{details}</span> : null}
         {badges ? <span className="mt-2 flex flex-wrap gap-1.5">{badges}</span> : null}
       </span>

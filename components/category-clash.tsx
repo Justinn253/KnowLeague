@@ -1154,7 +1154,7 @@ export function CategoryClash() {
               {activePlayers.some((player) => !player.connected && player.disconnected_at) ? (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {activePlayers.filter((player) => !player.connected && player.disconnected_at).map((player) => (
-                    <MultiplayerDisconnectStatus key={player.id} playerName={player.display_name} disconnectedAt={player.disconnected_at as string} unavailable={view.lobby.status === 'finished'} />
+                    <MultiplayerDisconnectStatus key={player.id} playerName={player.display_name} playerNameStyle={getChatNameStyle(player.chat_color)} disconnectedAt={player.disconnected_at as string} unavailable={view.lobby.status === 'finished'} />
                   ))}
                 </div>
               ) : null}

@@ -116,6 +116,7 @@ export type SkincognitoLobbyView = {
 export type SkincognitoPublicLobby = {
   code: string;
   hostName: string;
+  hostChatColor: ChatColor;
   playerCount: number;
   maxPlayers: number;
 };
@@ -920,12 +921,13 @@ export async function listPublicSkincognitoLobbies() {
   if (lobbies.length === 0) return [];
   const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
     .from('skincognito_players')
-    .select('id, lobby_id, display_name, connected, last_seen_at')
+    .select('id, lobby_id, auth_user_id, display_name, connected, last_seen_at')
     .in('lobby_id', lobbies.map((lobby) => lobby.id))
-    .returns<Array<Pick<SkincognitoPlayerRecord, 'id' | 'lobby_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
+    .returns<Array<Pick<SkincognitoPlayerRecord, 'id' | 'lobby_id' | 'auth_user_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
   if (playersError) throw playersError;
 
   const nowMs = Date.now();
+  const profileCosmeticsByUserId = await fetchProfileChatCosmetics(publicPlayers.map((player) => player.auth_user_id).filter((userId): userId is string => Boolean(userId)));
   return lobbies.map((lobby): SkincognitoPublicLobby | null => {
     const players = getFreshConnectedMembers(publicPlayers.filter((player) => player.lobby_id === lobby.id), nowMs);
     if (players.length === 0) return null;
@@ -935,6 +937,7 @@ export async function listPublicSkincognitoLobbies() {
     return {
       code: lobby.code,
       hostName: host.display_name,
+      hostChatColor: host.auth_user_id ? profileCosmeticsByUserId.get(host.auth_user_id)?.color ?? 'amber' : 'amber',
       playerCount: players.length,
       maxPlayers: MAX_LOBBY_PLAYERS,
     };

@@ -38,6 +38,7 @@ import type {
 } from '@/lib/multiplayer-quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
+import { CHAT_COLOR_NAME_HEX, getChatNameStyle } from '@/lib/chat-colors';
 
 type SettingOption = { id: string; name: string; description: string };
 type MultiplayerQuizConfig = {
@@ -832,6 +833,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
               <MultiplayerPublicLobbyButton
                 key={lobby.code}
                 hostName={lobby.hostName}
+                hostNameStyle={getChatNameStyle(lobby.hostChatColor)}
                 playerCount={lobby.playerCount}
                 maxPlayers={lobby.maxPlayers}
                 disabled={busy}
@@ -875,6 +877,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                   id: player.id,
                   authUserId: player.auth_user_id,
                   displayName: player.display_name,
+                  nameColor: CHAT_COLOR_NAME_HEX[player.chat_color],
                   avatarUrl: player.avatar_url,
                   role: player.role,
                   isCurrentUser: player.is_requesting_player,

@@ -20,6 +20,7 @@ import {
   normalizeLobbyCode,
   resolveMultiplayerDisplayName,
 } from '@/lib/multiplayer-session';
+import { normalizeChatColor, type ChatColor } from '@/lib/chat-colors';
 
 export type MultiplayerQuizGameMode = 'ability_blitz' | 'skin_champion';
 export type MultiplayerQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
@@ -68,6 +69,7 @@ type MultiplayerQuizPlayerRecord = {
 export type MultiplayerQuizPublicPlayer = Omit<MultiplayerQuizPlayerRecord, 'client_id'> & {
   is_requesting_player: boolean;
   avatar_url: string | null;
+  chat_color: ChatColor;
 };
 
 export type MultiplayerQuizLobbyView = {
@@ -87,6 +89,7 @@ export type MultiplayerQuizPublicLobby = {
   playerCount: number;
   maxPlayers: number;
   hostName: string;
+  hostChatColor: ChatColor;
 };
 
 type CreateOrJoinInput = {
@@ -151,22 +154,30 @@ async function fetchPlayers(lobbyId: string) {
   return data;
 }
 
-async function fetchProfileAvatars(authUserIds: Array<string | null>) {
+type ProfileCosmetics = {
+  avatarUrl: string | null;
+  chatColor: ChatColor;
+};
+
+async function fetchProfileCosmetics(authUserIds: Array<string | null>) {
   const userIds = [...new Set(authUserIds.filter((userId): userId is string => Boolean(userId)))];
   if (userIds.length === 0) {
-    return new Map<string, string | null>();
+    return new Map<string, ProfileCosmetics>();
   }
 
   const { data, error } = await getSupabaseServiceClient()
     .from('profiles')
-    .select('id, avatar_url')
+    .select('id, avatar_url, chat_color')
     .in('id', userIds)
-    .returns<Array<{ id: string; avatar_url: string | null }>>();
+    .returns<Array<{ id: string; avatar_url: string | null; chat_color: string | null }>>();
   if (error) {
     throw error;
   }
 
-  return new Map(data.map((profile) => [profile.id, profile.avatar_url ?? null]));
+  return new Map(data.map((profile) => [profile.id, {
+    avatarUrl: profile.avatar_url ?? null,
+    chatColor: normalizeChatColor(profile.chat_color),
+  }]));
 }
 
 async function fetchBannedClientIds(lobbyId: string) {
@@ -325,7 +336,7 @@ async function getLobbyView(lobby: MultiplayerQuizLobby, clientId?: string | nul
   const reconciledLobby = await reconcileMultiplayerQuizLobby(lobby);
   const players = await fetchPlayers(reconciledLobby.id);
   const requestingPlayer = players.find((player) => player.client_id === clientId) ?? null;
-  const avatarByUserId = await fetchProfileAvatars(players.map((player) => player.auth_user_id));
+  const profileCosmeticsByUserId = await fetchProfileCosmetics(players.map((player) => player.auth_user_id));
   const toPublicPlayer = (player: MultiplayerQuizPlayerRecord): MultiplayerQuizPublicPlayer => ({
     id: player.id,
     lobby_id: player.lobby_id,
@@ -344,7 +355,8 @@ async function getLobbyView(lobby: MultiplayerQuizLobby, clientId?: string | nul
     record_wins: player.record_wins,
     record_losses: player.record_losses,
     is_requesting_player: player.id === requestingPlayer?.id,
-    avatar_url: player.auth_user_id ? avatarByUserId.get(player.auth_user_id) ?? null : null,
+    avatar_url: player.auth_user_id ? profileCosmeticsByUserId.get(player.auth_user_id)?.avatarUrl ?? null : null,
+    chat_color: player.auth_user_id ? profileCosmeticsByUserId.get(player.auth_user_id)?.chatColor ?? 'amber' : 'amber',
   });
 
   return {
@@ -786,14 +798,15 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
   if (lobbies.length === 0) return [];
   const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
-    .select('id, lobby_id, display_name, connected, last_seen_at')
+    .select('id, lobby_id, auth_user_id, display_name, connected, last_seen_at')
     .in('lobby_id', lobbies.map((lobby) => lobby.id))
-    .returns<Array<Pick<MultiplayerQuizPlayerRecord, 'id' | 'lobby_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
+    .returns<Array<Pick<MultiplayerQuizPlayerRecord, 'id' | 'lobby_id' | 'auth_user_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
   if (playersError) {
     throw playersError;
   }
 
   const nowMs = Date.now();
+  const profileCosmeticsByUserId = await fetchProfileCosmetics(publicPlayers.map((player) => player.auth_user_id));
   return lobbies.map((lobby): MultiplayerQuizPublicLobby | null => {
     const players = getFreshConnectedMembers(publicPlayers.filter((player) => player.lobby_id === lobby.id), nowMs);
     if (players.length === 0) return null;
@@ -812,6 +825,7 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
       playerCount: players.length,
       maxPlayers: lobby.max_players,
       hostName: host.display_name,
+      hostChatColor: host.auth_user_id ? profileCosmeticsByUserId.get(host.auth_user_id)?.chatColor ?? 'amber' : 'amber',
     };
   }).filter((entry): entry is MultiplayerQuizPublicLobby => entry !== null);
 }

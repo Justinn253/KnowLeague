@@ -6,6 +6,7 @@ import type { QuizItem } from '@/lib/quiz';
 import type { MultiplayerQuizDifficulty, MultiplayerQuizPlayerResult, MultiplayerQuizPublicPlayer } from '@/lib/multiplayer-quiz';
 import { MultiplayerDisconnectStatus } from '@/components/multiplayer-reconnect';
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
+import { getChatNameStyle } from '@/lib/chat-colors';
 
 export type MultiplayerGameRuntime = {
   items: QuizItem[];
@@ -133,6 +134,7 @@ export function MultiplayerGameProgress({
               <MultiplayerDisconnectStatus
                 key={player.id}
                 playerName={player.display_name}
+                playerNameStyle={getChatNameStyle(player.chat_color)}
                 disconnectedAt={player.disconnected_at}
                 unavailable={player.result !== 'active'}
               >
@@ -156,7 +158,7 @@ export function MultiplayerGameProgress({
                     : 'border-white/5 bg-slate-950/50 opacity-55'
             }`}>
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-white">{player.display_name}</p>
+                <p className="truncate text-sm font-bold text-white" style={getChatNameStyle(player.chat_color)}>{player.display_name}</p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-semibold">
                   {placement ? <span className={playerResult?.result === 'loss' ? 'text-red-300' : 'text-emerald-300'}>{formatPlace(placement)} place</span> : null}
                   {failed ? <span className="text-red-300">Did not finish</span> : null}

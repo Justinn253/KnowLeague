@@ -27,7 +27,7 @@ import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
-import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
+import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
@@ -340,6 +340,7 @@ export function Skincognito() {
   const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
   const playerTwo = getPlayerById(lobbyView, lobbyView?.lobby.player_two_id);
   const winnerPlayer = getPlayerById(lobbyView, lobbyView?.lobby.winner_player_id);
+  const currentTurnPlayer = getPlayerById(lobbyView, lobbyView?.lobby.current_turn_player_id);
   const finishedTargetPlayer = getFinishedTargetPlayer(lobbyView);
   const finishedTargetSkin = finishedTargetPlayer?.selected_skin ?? null;
   const opponentPlayer = requestingPlayer?.id === playerOne?.id ? playerTwo : playerOne;
@@ -1162,6 +1163,7 @@ export function Skincognito() {
                 <MultiplayerPublicLobbyButton
                   key={lobby.code}
                   hostName={lobby.hostName}
+                  hostNameStyle={getChatNameStyle(lobby.hostChatColor)}
                   playerCount={lobby.playerCount}
                   maxPlayers={lobby.maxPlayers}
                   disabled={busy}
@@ -1196,6 +1198,7 @@ export function Skincognito() {
                     id: player.id,
                     authUserId: player.auth_user_id,
                     displayName: player.display_name,
+                    nameColor: CHAT_COLOR_NAME_HEX[player.chat_color],
                     avatarUrl: player.avatar_url,
                     role: player.role,
                     isCurrentUser: player.is_requesting_player,
@@ -1322,9 +1325,17 @@ export function Skincognito() {
                       {lobbyView.lobby.status === 'finished' ? 'Game finished' : 'Current turn'}
                     </p>
                     <h2 className="mt-1 text-xl font-bold text-white">
-                      {lobbyView.lobby.status === 'finished'
-                        ? `${getPlayerLabel(getPlayerById(lobbyView, lobbyView.lobby.winner_player_id))} found the skin`
-                        : `${getPlayerLabel(getPlayerById(lobbyView, lobbyView.lobby.current_turn_player_id))}'s turn`}
+                      {lobbyView.lobby.status === 'finished' ? (
+                        <>
+                          <span style={winnerPlayer ? getChatNameStyle(winnerPlayer.chat_color) : undefined}>{getPlayerLabel(winnerPlayer)}</span>
+                          {' found the skin'}
+                        </>
+                      ) : (
+                        <>
+                          <span style={currentTurnPlayer ? getChatNameStyle(currentTurnPlayer.chat_color) : undefined}>{getPlayerLabel(currentTurnPlayer)}</span>
+                          {"'s turn"}
+                        </>
+                      )}
                     </h2>
                   </div>
                   <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
@@ -1342,6 +1353,7 @@ export function Skincognito() {
                       <MultiplayerDisconnectStatus
                         key={player.id}
                         playerName={player.display_name}
+                        playerNameStyle={getChatNameStyle(player.chat_color)}
                         disconnectedAt={player.disconnected_at as string}
                         unavailable={lobbyView.lobby.status === 'finished'}
                       />
@@ -1369,7 +1381,8 @@ export function Skincognito() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`${getPlayerLabel(topPlayer)}'s correct guesses`}
+                  <span style={topPlayer ? getChatNameStyle(topPlayer.chat_color) : undefined}>{getPlayerLabel(topPlayer)}</span>
+                  {"'s correct guesses"}
                 </p>
               </section>
 
@@ -1405,7 +1418,7 @@ export function Skincognito() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-white">{getPlayerLabel(actor)}</p>
+                              <p className="text-sm font-semibold text-white" style={actor ? getChatNameStyle(actor.chat_color) : undefined}>{getPlayerLabel(actor)}</p>
                               <p className="mt-1 truncate text-xs uppercase tracking-[0.16em] text-slate-500">
                                 {categoryLabel} - <span className="normal-case tracking-normal text-slate-200">{action.guess_value}</span>
                                 {action.category_id === 'releaseYear' && action.result_hint ? (
@@ -1542,7 +1555,8 @@ export function Skincognito() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`${getPlayerLabel(bottomPlayer)}'s correct guesses`}
+                  <span style={bottomPlayer ? getChatNameStyle(bottomPlayer.chat_color) : undefined}>{getPlayerLabel(bottomPlayer)}</span>
+                  {"'s correct guesses"}
                 </p>
               </section>
 
@@ -1576,7 +1590,12 @@ export function Skincognito() {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Game Complete</p>
                           <h3 className="text-2xl font-bold text-white sm:text-right">
-                            {winnerPlayer ? `${winnerPlayer.display_name} won` : 'Game finished'}
+                            {winnerPlayer ? (
+                              <>
+                                <span style={getChatNameStyle(winnerPlayer.chat_color)}>{winnerPlayer.display_name}</span>
+                                {' won'}
+                              </>
+                            ) : 'Game finished'}
                           </h3>
                         </div>
 
@@ -1598,7 +1617,7 @@ export function Skincognito() {
                           {finishedPlayerStats.map((stats) => (
                             <div key={stats.player.id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
                               <div className="mb-3 flex items-center justify-between gap-3">
-                                <p className="truncate text-sm font-bold text-white">{stats.player.display_name}</p>
+                                <p className="truncate text-sm font-bold text-white" style={getChatNameStyle(stats.player.chat_color)}>{stats.player.display_name}</p>
                                 <span className="rounded-full border border-white/10 bg-slate-900 px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-400">
                                   {stats.player.id === lobbyView.lobby.winner_player_id ? 'Winner' : 'Player'}
                                 </span>

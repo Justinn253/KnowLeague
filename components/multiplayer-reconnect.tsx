@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useEffect, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
 import { RotateCcw, WifiOff, X } from 'lucide-react';
 import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 
@@ -49,11 +49,13 @@ export function ReconnectButton({ candidate, disabled, onReconnect, onExpire }: 
 
 export function MultiplayerDisconnectStatus({
   playerName,
+  playerNameStyle,
   disconnectedAt,
   unavailable = false,
   children,
 }: {
   playerName: string;
+  playerNameStyle?: CSSProperties;
   disconnectedAt: string;
   unavailable?: boolean;
   children?: ReactNode;
@@ -69,7 +71,7 @@ export function MultiplayerDisconnectStatus({
         : 'border-amber-300/30 bg-amber-300/10'
     }`}>
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-white">{playerName} disconnected</p>
+        <p className="truncate text-sm font-bold text-white"><span style={playerNameStyle}>{playerName}</span> disconnected</p>
         <p className={`mt-1 font-mono text-[0.7rem] font-semibold uppercase tracking-[0.08em] ${cannotRejoin ? 'text-red-300' : 'text-amber-200'}`}>
           {cannotRejoin ? 'Unable to rejoin' : `Rejoin 0:${remaining.toString().padStart(2, '0')}`}
         </p>

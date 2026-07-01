@@ -45,6 +45,7 @@ export type CategoryClashLobby = {
   round_seconds: number;
   intermission_seconds: number;
   timer_decrement_interval: number;
+  max_strikes: number;
   enabled_category_ids: string[];
   used_answers: Record<string, string[]>;
   turn_order: string[];
@@ -81,6 +82,7 @@ type CategoryClashPlayerRecord = {
 export type CategoryClashPublicPlayer = Omit<CategoryClashPlayerRecord, 'client_id'> & {
   is_requesting_player: boolean;
   avatar_url: string | null;
+  chat_color: ChatColor;
 };
 
 export type CategoryClashSubmission = {
@@ -122,6 +124,7 @@ export type CategoryClashLobbyView = {
   currentTurnPlayerId: string | null;
   phaseEndsAt: string | null;
   roundSeconds: number;
+  nextMatchVotes: string[];
 };
 
 export type CategoryClashPublicLobby = {
@@ -144,6 +147,8 @@ type ProfileChatCosmetics = {
   chat_border: ChatBorder;
 };
 
+type AnswerFailureReason = 'duplicate' | 'wrong_answer';
+
 const MAX_PLAYERS = Math.min(8, MULTIPLAYER_MAX_LOBBY_PLAYERS);
 const COUNTDOWN_SECONDS = 5;
 const BASE_ROUND_SECONDS = 10;
@@ -152,7 +157,10 @@ const GAME_MODES = new Set<CategoryClashGameMode>(['simultaneous', 'turns']);
 const ROUND_SECONDS_OPTIONS = new Set([5, 8, 10, 15, 20]);
 const INTERMISSION_SECONDS_OPTIONS = new Set([0, 3, 5, 10]);
 const TIMER_DECREMENT_INTERVAL_OPTIONS = new Set([0, 1, 2, 3]);
+const MAX_STRIKES_OPTIONS = new Set([1, 2, 3, 4, 5]);
+const GLOBAL_ITEM_ANSWERS_KEY = '__items__';
 const FORFEIT_DISCONNECTED_AT = '1970-01-01T00:00:00.000Z';
+const ANSWER_GRADING_GRACE_MS = 1000;
 
 function getDeadline(seconds: number, nowMs = Date.now()) {
   return new Date(nowMs + seconds * 1000).toISOString();
@@ -196,6 +204,7 @@ function normalizeLobby<TLobby extends CategoryClashLobby>(lobby: TLobby): TLobb
     round_seconds: normalizeNumberOption(lobby.round_seconds, ROUND_SECONDS_OPTIONS, BASE_ROUND_SECONDS),
     intermission_seconds: normalizeNumberOption(lobby.intermission_seconds, INTERMISSION_SECONDS_OPTIONS, 5),
     timer_decrement_interval: normalizeNumberOption(lobby.timer_decrement_interval, TIMER_DECREMENT_INTERVAL_OPTIONS, 2),
+    max_strikes: normalizeNumberOption(lobby.max_strikes, MAX_STRIKES_OPTIONS, 3),
     enabled_category_ids: normalizeEnabledCategoryIds(lobby.enabled_category_ids),
     used_answers: normalizeUsedAnswers(lobby.used_answers),
     turn_order: sanitizeStringArray(lobby.turn_order),
@@ -203,9 +212,10 @@ function normalizeLobby<TLobby extends CategoryClashLobby>(lobby: TLobby): TLobb
   };
 }
 
-function getRoundSeconds(lobby: CategoryClashLobby, roundNumber = lobby.round_number) {
+function getRoundSeconds(lobby: CategoryClashLobby, roundNumber = lobby.round_number, turnSequence = lobby.turn_sequence) {
+  const timerUnit = lobby.game_mode === 'turns' ? turnSequence : roundNumber;
   const decrement = lobby.timer_decrement_interval > 0
-    ? Math.floor(Math.max(0, roundNumber - 1) / lobby.timer_decrement_interval)
+    ? Math.floor(Math.max(0, timerUnit - 1) / lobby.timer_decrement_interval)
     : 0;
   return Math.max(MIN_ROUND_SECONDS, lobby.round_seconds - decrement);
 }
@@ -214,20 +224,16 @@ function isActivePlayer(player: CategoryClashPlayerRecord) {
   return player.result === 'active';
 }
 
-function isActiveConnectedPlayer(player: CategoryClashPlayerRecord) {
-  return isActivePlayer(player) && player.connected;
-}
-
 function getCurrentTurnPlayerId(lobby: CategoryClashLobby, players: CategoryClashPlayerRecord[]) {
   if (lobby.status !== 'active' || lobby.game_mode !== 'turns') return null;
   const turnOrder = sanitizeStringArray(lobby.turn_order);
-  const activeConnectedIds = new Set(players.filter(isActiveConnectedPlayer).map((player) => player.id));
-  if (turnOrder.length === 0 || activeConnectedIds.size === 0) return null;
+  const activeIds = new Set(players.filter(isActivePlayer).map((player) => player.id));
+  if (turnOrder.length === 0 || activeIds.size === 0) return null;
 
   for (let offset = 0; offset < turnOrder.length; offset += 1) {
     const index = (lobby.current_turn_index + offset) % turnOrder.length;
     const playerId = turnOrder[index];
-    if (activeConnectedIds.has(playerId)) {
+    if (activeIds.has(playerId)) {
       return { playerId, index };
     }
   }
@@ -237,8 +243,8 @@ function getCurrentTurnPlayerId(lobby: CategoryClashLobby, players: CategoryClas
 
 function getNextTurn(lobby: CategoryClashLobby, players: CategoryClashPlayerRecord[]) {
   const turnOrder = sanitizeStringArray(lobby.turn_order);
-  const activeConnectedIds = new Set(players.filter(isActiveConnectedPlayer).map((player) => player.id));
-  if (turnOrder.length === 0 || activeConnectedIds.size === 0) {
+  const activeIds = new Set(players.filter(isActivePlayer).map((player) => player.id));
+  if (turnOrder.length === 0 || activeIds.size === 0) {
     return null;
   }
 
@@ -246,7 +252,7 @@ function getNextTurn(lobby: CategoryClashLobby, players: CategoryClashPlayerReco
     const rawIndex = lobby.current_turn_index + offset;
     const index = rawIndex % turnOrder.length;
     const playerId = turnOrder[index];
-    if (activeConnectedIds.has(playerId)) {
+    if (activeIds.has(playerId)) {
       return {
         playerId,
         index,
@@ -315,6 +321,29 @@ async function fetchChatMessages(lobbyId: string) {
   }));
 }
 
+async function fetchNextMatchVotes(lobbyId: string) {
+  const { data, error } = await getSupabaseServiceClient()
+    .from('category_clash_next_match_votes')
+    .select('player_id')
+    .eq('lobby_id', lobbyId)
+    .returns<Array<{ player_id: string }>>();
+  if (error) throw error;
+  return data.map((vote) => vote.player_id);
+}
+
+async function deleteNextMatchVotes(lobbyId: string, playerIds?: string[]) {
+  let query = getSupabaseServiceClient()
+    .from('category_clash_next_match_votes')
+    .delete()
+    .eq('lobby_id', lobbyId);
+  if (playerIds) {
+    if (playerIds.length === 0) return;
+    query = query.in('player_id', playerIds);
+  }
+  const { error } = await query;
+  if (error) throw error;
+}
+
 async function fetchBannedClientIds(lobbyId: string) {
   const { data, error } = await getSupabaseServiceClient()
     .from('category_clash_lobby_bans')
@@ -379,11 +408,76 @@ function getNextUsedAnswers(
   lobby: CategoryClashLobby,
   categoryId: string,
   answerIds: readonly string[],
+  category?: CategoryClashCategory,
 ) {
   const existing = lobby.used_answers[categoryId] ?? [];
-  return {
+  const nextUsedAnswers = {
     ...lobby.used_answers,
     [categoryId]: [...new Set([...existing, ...answerIds])],
+  };
+  if (category?.group === 'Items') {
+    nextUsedAnswers[GLOBAL_ITEM_ANSWERS_KEY] = [
+      ...new Set([...(lobby.used_answers[GLOBAL_ITEM_ANSWERS_KEY] ?? []), ...answerIds]),
+    ];
+  }
+  return nextUsedAnswers;
+}
+
+function getUnavailableAnswerSet(lobby: CategoryClashLobby, category: CategoryClashCategory) {
+  return new Set([
+    ...(lobby.used_answers[category.id] ?? []),
+    ...(category.group === 'Items' ? lobby.used_answers[GLOBAL_ITEM_ANSWERS_KEY] ?? [] : []),
+  ]);
+}
+
+async function addCategoryPromptChatMessage(
+  lobby: CategoryClashLobby,
+  category: CategoryClashCategory,
+  turnPlayer?: CategoryClashPlayerRecord | null,
+) {
+  if (lobby.game_mode === 'turns') {
+    await addSystemChatMessage(
+      lobby.id,
+      `__turn_start__|${lobby.turn_sequence}|${turnPlayer?.display_name ?? 'Player'}|${category.prompt}`,
+    );
+    return;
+  }
+
+  await addSystemChatMessage(
+    lobby.id,
+    `__round_start__|${lobby.round_number}|${category.prompt}`,
+  );
+}
+
+async function addGameOverChatSeparator(lobbyId: string) {
+  await addSystemChatMessage(lobbyId, '__game_over__');
+}
+
+function getAnswerFailureLabel(reason: string | null | undefined) {
+  if (reason === 'duplicate') return 'duplicate';
+  if (reason === 'no_answer') return 'no answer';
+  return 'wrong answer';
+}
+
+function resolveCategoryClashGuess(
+  guess: string,
+  category: CategoryClashCategory,
+  unavailableAnswerIds: ReadonlySet<string>,
+) {
+  const availableMatch = matchCategoryClashAnswer(guess, category, unavailableAnswerIds);
+  if (availableMatch) {
+    return {
+      correct: true as const,
+      answer: availableMatch,
+      reason: 'correct',
+    };
+  }
+
+  const anyMatch = matchCategoryClashAnswer(guess, category);
+  return {
+    correct: false as const,
+    answer: null,
+    reason: anyMatch && unavailableAnswerIds.has(anyMatch.id) ? 'duplicate' as AnswerFailureReason : 'wrong_answer' as AnswerFailureReason,
   };
 }
 
@@ -399,10 +493,7 @@ async function finishCategoryClashMatch(
   const activePlayers = players.filter(isActivePlayer);
   const winner = activePlayers.length === 1
     ? activePlayers[0]
-    : players.find((player) => player.result === 'won')
-      ?? activePlayers.find((player) => player.connected)
-      ?? players.find((player) => player.connected)
-      ?? null;
+    : players.find((player) => player.result === 'won') ?? null;
   const now = new Date().toISOString();
 
   if (winner) {
@@ -437,7 +528,8 @@ async function finishCategoryClashMatch(
     return normalizeLobby(latestData);
   }
 
-  await addSystemChatMessage(lobby.id, winner ? `${winner.display_name} wins. ${message}` : message);
+  await addGameOverChatSeparator(lobby.id);
+  await addSystemChatMessage(lobby.id, winner ? `${winner.display_name} wins. ${message}` : message, 'neutral', winner?.id ?? null);
   await addLobbyEvent(lobby.id, 'game_finished');
   return normalizeLobby(data);
 }
@@ -452,6 +544,11 @@ async function startAnsweringPhase(lobby: CategoryClashLobby) {
     const players = await fetchPlayers(lobby.id);
     return finishCategoryClashMatch(lobby, players, 'No unused categories remain.');
   }
+  const category = getCategoryClashCategory(categoryId);
+  if (!category) {
+    const players = await fetchPlayers(lobby.id);
+    return finishCategoryClashMatch(lobby, players, 'Current category is unavailable.');
+  }
 
   const now = new Date().toISOString();
   const { data, error } = await getSupabaseServiceClient()
@@ -463,11 +560,27 @@ async function startAnsweringPhase(lobby: CategoryClashLobby) {
       updated_at: now,
     })
     .eq('id', lobby.id)
+    .eq('status', 'active')
+    .eq('phase', 'countdown')
     .select('*')
-    .single<CategoryClashLobby>();
+    .maybeSingle<CategoryClashLobby>();
   if (error) throw error;
+  if (!data) {
+    const { data: latestData, error: latestError } = await getSupabaseServiceClient()
+      .from('category_clash_lobbies')
+      .select('*')
+      .eq('id', lobby.id)
+      .single<CategoryClashLobby>();
+    if (latestError) throw latestError;
+    return normalizeLobby(latestData);
+  }
+  const nextLobby = normalizeLobby(data);
+  const players = nextLobby.game_mode === 'turns' ? await fetchPlayers(nextLobby.id) : [];
+  const currentTurn = nextLobby.game_mode === 'turns' ? getCurrentTurnPlayerId(nextLobby, players) : null;
+  const turnPlayer = currentTurn ? players.find((player) => player.id === currentTurn.playerId) : null;
+  await addCategoryPromptChatMessage(nextLobby, category, turnPlayer);
   await addLobbyEvent(lobby.id, 'answering_started');
-  return normalizeLobby(data);
+  return nextLobby;
 }
 
 async function updateSubmissionResult(
@@ -570,9 +683,44 @@ async function saveSimultaneousSubmission(
   });
 }
 
-async function applyStrikes(strikePlayerIds: string[]) {
-  if (strikePlayerIds.length === 0) return;
+async function ensureCategoryClashHostPlayer(lobby: CategoryClashLobby, players: CategoryClashPlayerRecord[]) {
+  const currentHost = players.find((player) => player.id === lobby.host_player_id);
+  if (currentHost?.connected) {
+    return lobby;
+  }
+
+  const nextHost = players.find((player) => player.connected) ?? null;
+  const now = new Date().toISOString();
+  const { error: demoteError } = await getSupabaseServiceClient()
+    .from('category_clash_players')
+    .update({ role: 'player', updated_at: now })
+    .eq('lobby_id', lobby.id)
+    .eq('role', 'host');
+  if (demoteError) throw demoteError;
+
+  if (nextHost) {
+    const { error: promoteError } = await getSupabaseServiceClient()
+      .from('category_clash_players')
+      .update({ role: 'host', updated_at: now })
+      .eq('id', nextHost.id);
+    if (promoteError) throw promoteError;
+  }
+
+  const { data, error } = await getSupabaseServiceClient()
+    .from('category_clash_lobbies')
+    .update({ host_player_id: nextHost?.id ?? null, updated_at: now })
+    .eq('id', lobby.id)
+    .select('*')
+    .single<CategoryClashLobby>();
+  if (error) throw error;
+  await addLobbyEvent(lobby.id, nextHost ? 'host_transferred' : 'host_cleared');
+  return normalizeLobby(data);
+}
+
+async function applyStrikes(lobby: CategoryClashLobby, strikePlayerIds: string[]) {
+  if (strikePlayerIds.length === 0) return new Set<string>();
   const uniqueIds = [...new Set(strikePlayerIds)];
+  const now = new Date().toISOString();
   const players = await getSupabaseServiceClient()
     .from('category_clash_players')
     .select('id, strikes')
@@ -580,18 +728,23 @@ async function applyStrikes(strikePlayerIds: string[]) {
     .returns<Array<{ id: string; strikes: number }>>();
   if (players.error) throw players.error;
 
+  const eliminatedPlayerIds = new Set<string>();
   await Promise.all((players.data ?? []).map(async (player) => {
-    const nextStrikes = Math.min(3, player.strikes + 1);
+    const nextStrikes = Math.min(lobby.max_strikes, player.strikes + 1);
+    if (nextStrikes >= lobby.max_strikes) {
+      eliminatedPlayerIds.add(player.id);
+    }
     const { error } = await getSupabaseServiceClient()
       .from('category_clash_players')
       .update({
         strikes: nextStrikes,
-        result: nextStrikes >= 3 ? 'eliminated' : 'active',
-        updated_at: new Date().toISOString(),
+        result: nextStrikes >= lobby.max_strikes ? 'eliminated' : 'active',
+        updated_at: now,
       })
       .eq('id', player.id);
     if (error) throw error;
   }));
+  return eliminatedPlayerIds;
 }
 
 async function resolveSimultaneousRound(lobby: CategoryClashLobby, players: CategoryClashPlayerRecord[]) {
@@ -632,7 +785,7 @@ async function resolveSimultaneousRound(lobby: CategoryClashLobby, players: Cate
       submissionByPlayerId.set(submission.player_id, submission);
     }
   });
-  const usedBeforeRound = getUsedAnswerSet(claimedLobby, category.id);
+  const usedBeforeRound = getUnavailableAnswerSet(claimedLobby, category);
   const correctAnswerIds: string[] = [];
   const strikePlayerIds: string[] = [];
 
@@ -644,22 +797,25 @@ async function resolveSimultaneousRound(lobby: CategoryClashLobby, players: Cate
       continue;
     }
 
-    const matchedAnswer = matchCategoryClashAnswer(submission.guess, category, usedBeforeRound);
-    if (matchedAnswer) {
-      correctAnswerIds.push(matchedAnswer.id);
-      await updateSubmissionResult(submission.id, true, matchedAnswer.id, matchedAnswer.label, 'correct');
-      await addSystemChatMessage(lobby.id, `${player.display_name}: ${submission.guess} - correct (${matchedAnswer.label})`, 'correct', player.id);
+    const result = resolveCategoryClashGuess(submission.guess, category, usedBeforeRound);
+    if (result.correct) {
+      correctAnswerIds.push(result.answer.id);
+      await updateSubmissionResult(submission.id, true, result.answer.id, result.answer.label, 'correct');
+      await addSystemChatMessage(lobby.id, `${player.display_name}: ${submission.guess} - correct (${result.answer.label})`, 'correct', player.id);
     } else {
       strikePlayerIds.push(player.id);
-      await updateSubmissionResult(submission.id, false, null, null, 'incorrect');
-      await addSystemChatMessage(lobby.id, `${player.display_name}: ${submission.guess} - incorrect`, 'incorrect', player.id);
+      await updateSubmissionResult(submission.id, false, null, null, result.reason);
+      await addSystemChatMessage(lobby.id, `${player.display_name}: ${submission.guess} - incorrect (${getAnswerFailureLabel(result.reason)})`, 'incorrect', player.id);
     }
   }
 
-  await applyStrikes(strikePlayerIds);
+  const eliminatedPlayerIds = await applyStrikes(claimedLobby, strikePlayerIds);
   const nextPlayers = await fetchPlayers(lobby.id);
+  await Promise.all(nextPlayers
+    .filter((player) => eliminatedPlayerIds.has(player.id))
+    .map((player) => addSystemChatMessage(lobby.id, `${player.display_name} was eliminated.`, 'incorrect', player.id)));
   const activeRemaining = nextPlayers.filter(isActivePlayer);
-  const usedAnswers = getNextUsedAnswers(claimedLobby, category.id, correctAnswerIds);
+  const usedAnswers = getNextUsedAnswers(claimedLobby, category.id, correctAnswerIds, category);
 
   if (activeRemaining.length <= 1) {
     const { data, error } = await getSupabaseServiceClient()
@@ -694,6 +850,10 @@ async function startNextSimultaneousRound(lobby: CategoryClashLobby) {
   if (!categoryId) {
     return finishCategoryClashMatch(lobby, players, 'No unused categories remain.');
   }
+  const category = getCategoryClashCategory(categoryId);
+  if (!category) {
+    return finishCategoryClashMatch(lobby, players, 'Current category is unavailable.');
+  }
 
   const now = new Date().toISOString();
   const nextRoundNumber = lobby.round_number + 1;
@@ -707,53 +867,74 @@ async function startNextSimultaneousRound(lobby: CategoryClashLobby) {
       updated_at: now,
     })
     .eq('id', lobby.id)
+    .eq('status', 'active')
+    .eq('phase', 'review')
+    .eq('round_number', lobby.round_number)
+    .eq('turn_sequence', lobby.turn_sequence)
     .select('*')
-    .single<CategoryClashLobby>();
+    .maybeSingle<CategoryClashLobby>();
   if (error) throw error;
+  if (!data) {
+    const { data: latestData, error: latestError } = await getSupabaseServiceClient()
+      .from('category_clash_lobbies')
+      .select('*')
+      .eq('id', lobby.id)
+      .single<CategoryClashLobby>();
+    if (latestError) throw latestError;
+    return normalizeLobby(latestData);
+  }
+  await addCategoryPromptChatMessage(normalizeLobby(data), category);
   await addLobbyEvent(lobby.id, 'round_started');
   return normalizeLobby(data);
 }
 
-async function resolveTurn(lobby: CategoryClashLobby, player: CategoryClashPlayerRecord, guess: string | null) {
+async function resolveTurn(lobby: CategoryClashLobby, player: CategoryClashPlayerRecord, submission: CategoryClashSubmission | null) {
   const category = getCategoryClashCategory(lobby.current_category_id);
   if (!category) {
     const players = await fetchPlayers(lobby.id);
     return finishCategoryClashMatch(lobby, players, 'Current category is unavailable.');
   }
 
-  const usedBeforeTurn = getUsedAnswerSet(lobby, category.id);
-  const matchedAnswer = guess ? matchCategoryClashAnswer(guess, category, usedBeforeTurn) : null;
-  const correct = Boolean(matchedAnswer);
   const now = new Date().toISOString();
-
-  if (guess !== null) {
-    const { data: submission, error } = await getSupabaseServiceClient()
-      .from('category_clash_submissions')
-      .insert({
-        lobby_id: lobby.id,
-        player_id: player.id,
-        round_number: lobby.round_number,
-        turn_sequence: lobby.turn_sequence,
-        category_id: category.id,
-        guess,
-        correct,
-        answer_id: matchedAnswer?.id ?? null,
-        answer_label: matchedAnswer?.label ?? null,
-        reason: correct ? 'correct' : 'incorrect',
-      })
+  const { data: claimedData, error: claimError } = await getSupabaseServiceClient()
+    .from('category_clash_lobbies')
+    .update({ phase: 'intermission', phase_deadline_at: getDeadline(lobby.intermission_seconds), updated_at: now })
+    .eq('id', lobby.id)
+    .eq('status', 'active')
+    .eq('phase', 'answering')
+    .eq('turn_sequence', lobby.turn_sequence)
+    .select('*')
+    .maybeSingle<CategoryClashLobby>();
+  if (claimError) throw claimError;
+  if (!claimedData) {
+    const { data: latestData, error: latestError } = await getSupabaseServiceClient()
+      .from('category_clash_lobbies')
       .select('*')
-      .single<CategoryClashSubmission>();
-    if (error) {
-      if (error.code === '23505') {
-        throw new Error('You already answered this turn.');
-      }
-      throw error;
-    }
+      .eq('id', lobby.id)
+      .single<CategoryClashLobby>();
+    if (latestError) throw latestError;
+    return normalizeLobby(latestData);
+  }
+  const claimedLobby = normalizeLobby(claimedData);
+  const usedBeforeTurn = getUnavailableAnswerSet(claimedLobby, category);
+  const guess = submission?.guess ?? null;
+  const result = guess ? resolveCategoryClashGuess(guess, category, usedBeforeTurn) : null;
+  const matchedAnswer = result?.correct ? result.answer : null;
+  const correct = Boolean(matchedAnswer);
+
+  if (submission) {
+    await updateSubmissionResult(
+      submission.id,
+      correct,
+      matchedAnswer?.id ?? null,
+      matchedAnswer?.label ?? null,
+      result?.reason ?? 'wrong_answer',
+    );
     await addSystemChatMessage(
       lobby.id,
       correct
         ? `${player.display_name}: ${submission.guess} - correct (${matchedAnswer?.label})`
-        : `${player.display_name}: ${submission.guess} - incorrect`,
+        : `${player.display_name}: ${submission.guess} - incorrect (${getAnswerFailureLabel(result?.reason)})`,
       correct ? 'correct' : 'incorrect',
       player.id,
     );
@@ -761,13 +942,13 @@ async function resolveTurn(lobby: CategoryClashLobby, player: CategoryClashPlaye
     await addSystemChatMessage(lobby.id, `${player.display_name} did not answer.`, 'incorrect', player.id);
   }
 
-  if (!correct) {
-    await applyStrikes([player.id]);
-  }
-
+  const eliminatedPlayerIds = !correct ? await applyStrikes(claimedLobby, [player.id]) : new Set<string>();
   const nextPlayers = await fetchPlayers(lobby.id);
+  await Promise.all(nextPlayers
+    .filter((candidate) => eliminatedPlayerIds.has(candidate.id))
+    .map((candidate) => addSystemChatMessage(lobby.id, `${candidate.display_name} was eliminated.`, 'incorrect', candidate.id)));
   const activeRemaining = nextPlayers.filter(isActivePlayer);
-  const usedAnswers = matchedAnswer ? getNextUsedAnswers(lobby, category.id, [matchedAnswer.id]) : lobby.used_answers;
+  const usedAnswers = matchedAnswer ? getNextUsedAnswers(claimedLobby, category.id, [matchedAnswer.id], category) : claimedLobby.used_answers;
   if (activeRemaining.length <= 1) {
     const { data, error } = await getSupabaseServiceClient()
       .from('category_clash_lobbies')
@@ -784,7 +965,7 @@ async function resolveTurn(lobby: CategoryClashLobby, player: CategoryClashPlaye
     .update({
       used_answers: usedAnswers,
       phase: 'intermission',
-      phase_deadline_at: getDeadline(lobby.intermission_seconds),
+      phase_deadline_at: claimedLobby.phase_deadline_at,
       updated_at: now,
     })
     .eq('id', lobby.id)
@@ -806,6 +987,10 @@ async function startNextTurn(lobby: CategoryClashLobby) {
   if (!categoryId) {
     return finishCategoryClashMatch(lobby, players, 'No unused categories remain.');
   }
+  const category = getCategoryClashCategory(categoryId);
+  if (!category) {
+    return finishCategoryClashMatch(lobby, players, 'Current category is unavailable.');
+  }
 
   const now = new Date().toISOString();
   const { data, error } = await getSupabaseServiceClient()
@@ -816,19 +1001,37 @@ async function startNextTurn(lobby: CategoryClashLobby) {
       current_turn_index: nextTurn.index,
       current_category_id: categoryId,
       phase: 'answering',
-      phase_deadline_at: getDeadline(getRoundSeconds(lobby, nextTurn.roundNumber)),
+      phase_deadline_at: getDeadline(getRoundSeconds(lobby, nextTurn.roundNumber, lobby.turn_sequence + 1)),
       updated_at: now,
     })
     .eq('id', lobby.id)
+    .eq('status', 'active')
+    .eq('phase', 'intermission')
+    .eq('turn_sequence', lobby.turn_sequence)
     .select('*')
-    .single<CategoryClashLobby>();
+    .maybeSingle<CategoryClashLobby>();
   if (error) throw error;
+  if (!data) {
+    const { data: latestData, error: latestError } = await getSupabaseServiceClient()
+      .from('category_clash_lobbies')
+      .select('*')
+      .eq('id', lobby.id)
+      .single<CategoryClashLobby>();
+    if (latestError) throw latestError;
+    return normalizeLobby(latestData);
+  }
+  await addCategoryPromptChatMessage(normalizeLobby(data), category, players.find((player) => player.id === nextTurn.playerId));
   await addLobbyEvent(lobby.id, 'turn_started');
   return normalizeLobby(data);
 }
 
 async function advanceExpiredPhase(lobby: CategoryClashLobby, players: CategoryClashPlayerRecord[], nowMs: number) {
-  if (lobby.status !== 'active' || !lobby.phase_deadline_at || new Date(lobby.phase_deadline_at).getTime() > nowMs) {
+  if (lobby.status !== 'active' || !lobby.phase_deadline_at) {
+    return lobby;
+  }
+
+  const deadlineMs = new Date(lobby.phase_deadline_at).getTime();
+  if (deadlineMs > nowMs || (lobby.phase === 'answering' && deadlineMs + ANSWER_GRADING_GRACE_MS > nowMs)) {
     return lobby;
   }
 
@@ -850,7 +1053,14 @@ async function advanceExpiredPhase(lobby: CategoryClashLobby, players: CategoryC
     if (!player) {
       return startNextTurn(lobby);
     }
-    return resolveTurn(lobby, player, null);
+    const submissions = await fetchSubmissions(lobby.id);
+    const submission = [...submissions].reverse().find((candidate) => (
+      candidate.player_id === player.id &&
+      candidate.round_number === lobby.round_number &&
+      candidate.turn_sequence === lobby.turn_sequence &&
+      candidate.category_id === lobby.current_category_id
+    )) ?? null;
+    return resolveTurn(lobby, player, submission);
   }
 
   return resolveSimultaneousRound(lobby, players);
@@ -932,7 +1142,7 @@ async function reconcileCategoryClashLobby(lobby: CategoryClashLobby) {
   if (expiredDisconnectedPlayers.length > 0) {
     const { error } = await getSupabaseServiceClient()
       .from('category_clash_players')
-      .update({ result: 'eliminated', strikes: 3, updated_at: now })
+      .update({ result: 'eliminated', strikes: nextLobby.max_strikes, updated_at: now })
       .in('id', expiredDisconnectedPlayers.map((player) => player.id));
     if (error) throw error;
     players = await fetchPlayers(lobby.id);
@@ -949,12 +1159,19 @@ async function reconcileCategoryClashLobby(lobby: CategoryClashLobby) {
 }
 
 async function getLobbyView(lobby: CategoryClashLobby, clientId?: string | null): Promise<CategoryClashLobbyView> {
-  const reconciledLobby = await reconcileCategoryClashLobby(lobby);
-  const [players, submissions, chatMessages] = await Promise.all([
-    fetchPlayers(reconciledLobby.id),
+  let reconciledLobby = await reconcileCategoryClashLobby(lobby);
+  let players = await fetchPlayers(reconciledLobby.id);
+  if (reconciledLobby.status === 'finished') {
+    reconciledLobby = await ensureCategoryClashHostPlayer(reconciledLobby, players);
+    players = await fetchPlayers(reconciledLobby.id);
+  }
+  const [submissions, chatMessages, rawNextMatchVotes] = await Promise.all([
     fetchSubmissions(reconciledLobby.id),
     fetchChatMessages(reconciledLobby.id),
+    fetchNextMatchVotes(reconciledLobby.id),
   ]);
+  const connectedPlayerIds = new Set(players.filter((player) => player.connected).map((player) => player.id));
+  const nextMatchVotes = rawNextMatchVotes.filter((playerId) => connectedPlayerIds.has(playerId));
   const requestingPlayer = players.find((player) => player.client_id === clientId) ?? null;
   const cosmeticsByUserId = await fetchProfileCosmetics(players.map((player) => player.auth_user_id));
   const currentTurn = getCurrentTurnPlayerId(reconciledLobby, players);
@@ -977,6 +1194,7 @@ async function getLobbyView(lobby: CategoryClashLobby, clientId?: string | null)
       disconnected_at: player.disconnected_at,
       is_requesting_player: player.id === requestingPlayer?.id,
       avatar_url: cosmetics?.avatar_url ?? null,
+      chat_color: cosmetics?.chat_color ?? 'amber',
     };
   };
 
@@ -992,6 +1210,7 @@ async function getLobbyView(lobby: CategoryClashLobby, clientId?: string | null)
     currentTurnPlayerId: currentTurn?.playerId ?? null,
     phaseEndsAt: reconciledLobby.phase_deadline_at,
     roundSeconds: getRoundSeconds(reconciledLobby),
+    nextMatchVotes,
   };
 }
 
@@ -1155,6 +1374,7 @@ export async function updateCategoryClashSettings(
     roundSeconds?: unknown;
     intermissionSeconds?: unknown;
     timerDecrementInterval?: unknown;
+    maxStrikes?: unknown;
   },
 ) {
   const fetchedLobby = await fetchLobby(code);
@@ -1180,6 +1400,7 @@ export async function updateCategoryClashSettings(
       round_seconds: normalizeNumberOption(input.roundSeconds ?? lobby.round_seconds, ROUND_SECONDS_OPTIONS, BASE_ROUND_SECONDS),
       intermission_seconds: normalizeNumberOption(input.intermissionSeconds ?? lobby.intermission_seconds, INTERMISSION_SECONDS_OPTIONS, 5),
       timer_decrement_interval: normalizeNumberOption(input.timerDecrementInterval ?? lobby.timer_decrement_interval, TIMER_DECREMENT_INTERVAL_OPTIONS, 2),
+      max_strikes: normalizeNumberOption(input.maxStrikes ?? lobby.max_strikes, MAX_STRIKES_OPTIONS, 3),
       enabled_category_ids: enabledCategoryIds,
       updated_at: new Date().toISOString(),
     })
@@ -1243,6 +1464,7 @@ export async function startCategoryClashLobby(code: string, clientId: string) {
       phase_deadline_at: getDeadline(COUNTDOWN_SECONDS),
       current_category_id: null,
       winner_player_id: null,
+      max_strikes: lobby.max_strikes,
       started_at: now,
       finished_at: null,
       terminated_at: null,
@@ -1264,19 +1486,19 @@ export async function startCategoryClashLobby(code: string, clientId: string) {
     .delete()
     .eq('lobby_id', lobby.id);
   if (chatDeleteError) throw chatDeleteError;
+
+  await deleteNextMatchVotes(lobby.id);
   await addSystemChatMessage(lobby.id, 'Match starting. Get ready.');
   await addLobbyEvent(lobby.id, 'game_started');
   return getLobbyView(normalizeLobby(data), clientId);
 }
 
-export async function startNextCategoryClashMatch(code: string, clientId: string) {
-  const fetchedLobby = await fetchLobby(code);
-  if (!fetchedLobby || fetchedLobby.status !== 'finished') {
-    throw new Error('Only finished games can start another match.');
-  }
-  const players = await fetchPlayers(fetchedLobby.id);
-  assertMultiplayerHost(players, fetchedLobby.host_player_id, clientId, 'Only the host can start the next match.');
-  const connectedPlayers = players.filter((player) => player.connected);
+async function startNextCategoryClashMatchForPlayers(
+  fetchedLobby: CategoryClashLobby,
+  players: CategoryClashPlayerRecord[],
+  connectedPlayers: CategoryClashPlayerRecord[],
+  clientId: string,
+) {
   if (connectedPlayers.length < 2) {
     throw new Error('At least two connected players are required.');
   }
@@ -1301,6 +1523,8 @@ export async function startNextCategoryClashMatch(code: string, clientId: string
     .eq('lobby_id', fetchedLobby.id);
   if (chatDeleteError) throw chatDeleteError;
 
+  await deleteNextMatchVotes(fetchedLobby.id);
+
   const { error: connectedPlayerError } = await getSupabaseServiceClient()
     .from('category_clash_players')
     .update({ result: 'active', strikes: 0, connected: true, last_seen_at: now, disconnected_at: null, updated_at: now })
@@ -1311,7 +1535,7 @@ export async function startNextCategoryClashMatch(code: string, clientId: string
   if (disconnectedPlayerIds.length > 0) {
     const { error } = await getSupabaseServiceClient()
       .from('category_clash_players')
-      .update({ result: 'eliminated', strikes: 3, updated_at: now })
+      .update({ result: 'eliminated', strikes: fetchedLobby.max_strikes, updated_at: now })
       .in('id', disconnectedPlayerIds);
     if (error) throw error;
   }
@@ -1330,19 +1554,151 @@ export async function startNextCategoryClashMatch(code: string, clientId: string
       phase_deadline_at: getDeadline(COUNTDOWN_SECONDS),
       current_category_id: null,
       winner_player_id: null,
+      max_strikes: fetchedLobby.max_strikes,
       started_at: now,
       finished_at: null,
       terminated_at: null,
       updated_at: now,
     })
     .eq('id', fetchedLobby.id)
+    .eq('status', 'finished')
     .select('*')
-    .single<CategoryClashLobby>();
+    .maybeSingle<CategoryClashLobby>();
   if (error) throw error;
+  if (!data) {
+    const { data: latestData, error: latestError } = await getSupabaseServiceClient()
+      .from('category_clash_lobbies')
+      .select('*')
+      .eq('id', fetchedLobby.id)
+      .single<CategoryClashLobby>();
+    if (latestError) throw latestError;
+    return getLobbyView(normalizeLobby(latestData), clientId);
+  }
 
   await addSystemChatMessage(fetchedLobby.id, 'New match starting. Get ready.');
   await addLobbyEvent(fetchedLobby.id, 'next_match_started');
   return getLobbyView(normalizeLobby(data), clientId);
+}
+
+export async function returnCategoryClashLobbyToWaiting(code: string, clientId: string) {
+  const fetchedLobby = await fetchLobby(code);
+  if (!fetchedLobby || fetchedLobby.status !== 'finished') {
+    throw new Error('Only finished games can return to the lobby.');
+  }
+
+  let players = await fetchPlayers(fetchedLobby.id);
+  const lobby = await ensureCategoryClashHostPlayer(fetchedLobby, players);
+  players = await fetchPlayers(lobby.id);
+  assertMultiplayerHost(players, lobby.host_player_id, clientId, 'Only the host can return everyone to the lobby.');
+
+  const disconnectedPlayerIds = players.filter((player) => !player.connected).map((player) => player.id);
+  if (disconnectedPlayerIds.length > 0) {
+    const { error } = await getSupabaseServiceClient()
+      .from('category_clash_players')
+      .delete()
+      .in('id', disconnectedPlayerIds);
+    if (error) throw error;
+  }
+
+  const now = new Date().toISOString();
+  const { error: playerError } = await getSupabaseServiceClient()
+    .from('category_clash_players')
+    .update({
+      result: 'active',
+      strikes: 0,
+      connected: true,
+      last_seen_at: now,
+      disconnected_at: null,
+      updated_at: now,
+    })
+    .eq('lobby_id', lobby.id)
+    .eq('connected', true);
+  if (playerError) throw playerError;
+
+  await deleteNextMatchVotes(lobby.id);
+
+  const { data, error } = await getSupabaseServiceClient()
+    .from('category_clash_lobbies')
+    .update({
+      status: 'waiting',
+      is_public: false,
+      used_answers: {},
+      turn_order: [],
+      current_turn_index: 0,
+      turn_sequence: 1,
+      round_number: 1,
+      phase: 'countdown',
+      phase_deadline_at: null,
+      current_category_id: null,
+      winner_player_id: null,
+      started_at: null,
+      finished_at: null,
+      terminated_at: null,
+      updated_at: now,
+    })
+    .eq('id', lobby.id)
+    .select('*')
+    .single<CategoryClashLobby>();
+  if (error) throw error;
+
+  await addLobbyEvent(lobby.id, 'returned_to_lobby');
+  return getLobbyView(normalizeLobby(data), clientId);
+}
+
+async function startNextMatchIfAllConnectedPlayersVoted(lobby: CategoryClashLobby, clientId: string) {
+  if (lobby.status !== 'finished') {
+    return null;
+  }
+  const players = await fetchPlayers(lobby.id);
+  const connectedPlayers = players.filter((candidate) => candidate.connected);
+  const connectedPlayerIds = new Set(connectedPlayers.map((candidate) => candidate.id));
+  const votes = await fetchNextMatchVotes(lobby.id);
+  const disconnectedVoteIds = votes.filter((playerId) => !connectedPlayerIds.has(playerId));
+  await deleteNextMatchVotes(lobby.id, disconnectedVoteIds);
+  const connectedVotes = votes.filter((playerId) => connectedPlayerIds.has(playerId));
+
+  if (connectedPlayers.length >= 2 && connectedPlayers.every((candidate) => connectedVotes.includes(candidate.id))) {
+    await addLobbyEvent(lobby.id, 'next_match_vote');
+    return startNextCategoryClashMatchForPlayers(lobby, players, connectedPlayers, clientId);
+  }
+
+  return null;
+}
+
+export async function startNextCategoryClashMatch(code: string, clientId: string) {
+  const fetchedLobby = await fetchLobby(code);
+  if (!fetchedLobby || fetchedLobby.status !== 'finished') {
+    throw new Error('Only finished games can start another match.');
+  }
+  let players = await fetchPlayers(fetchedLobby.id);
+  const lobby = await ensureCategoryClashHostPlayer(fetchedLobby, players);
+  players = await fetchPlayers(lobby.id);
+  assertMultiplayerHost(players, lobby.host_player_id, clientId, 'Only the host can start the next match.');
+  const connectedPlayers = players.filter((player) => player.connected);
+  return startNextCategoryClashMatchForPlayers(lobby, players, connectedPlayers, clientId);
+}
+
+export async function voteForNextCategoryClashMatch(code: string, clientId: string) {
+  const fetchedLobby = await fetchLobby(code);
+  if (!fetchedLobby || fetchedLobby.status !== 'finished') {
+    throw new Error('Only finished games can receive next-match votes.');
+  }
+  const players = await fetchPlayers(fetchedLobby.id);
+  const player = players.find((candidate) => candidate.client_id === clientId);
+  if (!player || !player.connected) {
+    throw new Error('Player not found.');
+  }
+
+  const { error } = await getSupabaseServiceClient()
+    .from('category_clash_next_match_votes')
+    .upsert({ lobby_id: fetchedLobby.id, player_id: player.id }, { onConflict: 'lobby_id,player_id' });
+  if (error) throw error;
+
+  const startedMatch = await startNextMatchIfAllConnectedPlayersVoted(fetchedLobby, clientId);
+  if (startedMatch) return startedMatch;
+
+  await addLobbyEvent(fetchedLobby.id, 'next_match_vote');
+  return getLobbyView(fetchedLobby, clientId);
 }
 
 export async function submitCategoryClashAnswer(code: string, clientId: string, guess: string) {
@@ -1373,8 +1729,9 @@ export async function submitCategoryClashAnswer(code: string, clientId: string, 
     if (!currentTurn || currentTurn.playerId !== player.id) {
       throw new Error('It is not your turn.');
     }
-    const resolvedLobby = await resolveTurn(lobby, player, cleanGuess);
-    return getLobbyView(resolvedLobby, clientId);
+    await saveSimultaneousSubmission(lobby, player, category.id, cleanGuess);
+    await addLobbyEvent(lobby.id, 'answer_submitted');
+    return getLobbyView(lobby, clientId);
   }
 
   await saveSimultaneousSubmission(lobby, player, category.id, cleanGuess);
@@ -1441,6 +1798,12 @@ export async function heartbeatCategoryClashPlayer(code: string, clientId: strin
     .eq('client_id', clientId);
   if (error) throw error;
   await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
+  if (!connected && lobby.status === 'finished') {
+    const updatedLobby = await ensureCategoryClashHostPlayer(lobby, await fetchPlayers(lobby.id));
+    const startedMatch = await startNextMatchIfAllConnectedPlayersVoted(updatedLobby, clientId);
+    if (startedMatch) return startedMatch;
+    return getLobbyView(updatedLobby, clientId);
+  }
   return getLobbyView(lobby, clientId);
 }
 
@@ -1457,23 +1820,31 @@ export async function leaveCategoryClashLobby(code: string, clientId: string, fo
   }
   const now = new Date().toISOString();
 
-  if (lobby.status === 'waiting' || lobby.status === 'finished' || forfeit) {
+  if (lobby.status === 'waiting') {
+    const { error } = await getSupabaseServiceClient()
+      .from('category_clash_players')
+      .delete()
+      .eq('id', player.id);
+    if (error) throw error;
+  } else if (lobby.status === 'finished') {
+    const { error } = await getSupabaseServiceClient()
+      .from('category_clash_players')
+      .update({ connected: false, disconnected_at: player.disconnected_at ?? now, updated_at: now })
+      .eq('id', player.id);
+    if (error) throw error;
+    const updatedLobby = await ensureCategoryClashHostPlayer(lobby, await fetchPlayers(lobby.id));
+    await startNextMatchIfAllConnectedPlayersVoted(updatedLobby, clientId);
+  } else if (forfeit) {
     if (lobby.status === 'active' && forfeit) {
       const { error } = await getSupabaseServiceClient()
         .from('category_clash_players')
         .update({
           connected: false,
           result: 'eliminated',
-          strikes: 3,
+          strikes: lobby.max_strikes,
           disconnected_at: FORFEIT_DISCONNECTED_AT,
           updated_at: now,
         })
-        .eq('id', player.id);
-      if (error) throw error;
-    } else {
-      const { error } = await getSupabaseServiceClient()
-        .from('category_clash_players')
-        .delete()
         .eq('id', player.id);
       if (error) throw error;
     }

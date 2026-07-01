@@ -1,14 +1,14 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, MessageSquare, Play, RefreshCw, Send, SlidersHorizontal, Swords, Timer, Trophy, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Eye, EyeOff, MessageSquare, Play, RefreshCw, Send, SlidersHorizontal, Trophy, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { GameSettingsSection } from '@/components/game-settings-section';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
-import { getChatBubbleStyle, getChatNameStyle } from '@/lib/chat-colors';
+import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatNameStyle } from '@/lib/chat-colors';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { getReconnectDeadline, MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -31,6 +31,7 @@ type DraftSettings = {
   roundSeconds: number;
   intermissionSeconds: number;
   timerDecrementInterval: number;
+  maxStrikes: number;
 };
 
 const ROUND_SECONDS_OPTIONS = [5, 8, 10, 15, 20] as const;
@@ -46,9 +47,18 @@ const TIMER_DECREMENT_OPTIONS = [
   { value: 2, label: 'Every 2 rounds' },
   { value: 3, label: 'Every 3 rounds' },
 ] as const;
+const MAX_STRIKES_OPTIONS = [1, 2, 3, 4, 5] as const;
+const ANSWER_GRADING_GRACE_MS = 1000;
 
 function formatSeconds(seconds: number) {
   return `0:${Math.max(0, seconds).toString().padStart(2, '0')}`;
+}
+
+function formatDuration(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 function createDraftSettings(view: CategoryClashLobbyView): DraftSettings {
@@ -59,6 +69,7 @@ function createDraftSettings(view: CategoryClashLobbyView): DraftSettings {
     roundSeconds: view.lobby.round_seconds,
     intermissionSeconds: view.lobby.intermission_seconds,
     timerDecrementInterval: view.lobby.timer_decrement_interval,
+    maxStrikes: view.lobby.max_strikes,
   };
 }
 
@@ -174,6 +185,9 @@ function formatPlacement(place: number) {
 
 function getPlayerPlacements(view: CategoryClashLobbyView) {
   const placements = new Map<string, number>();
+  if (view.lobby.status !== 'finished') {
+    return placements;
+  }
   const winnerId = view.lobby.winner_player_id ?? view.players.find((player) => player.result === 'won')?.id ?? null;
   if (winnerId) {
     placements.set(winnerId, 1);
@@ -187,11 +201,27 @@ function getPlayerPlacements(view: CategoryClashLobbyView) {
       return new Date(first.joined_at).getTime() - new Date(second.joined_at).getTime();
     });
 
+  let previousEliminatedAt: number | null = null;
+  let currentPlace = winnerId ? 2 : 1;
+  let playersAtPreviousPlaces = 0;
+
   rankedEliminatedPlayers.forEach((player, index) => {
-    placements.set(player.id, index + (winnerId ? 2 : 1));
+    const eliminatedAt = new Date(player.updated_at).getTime();
+    if (previousEliminatedAt !== null && eliminatedAt !== previousEliminatedAt) {
+      currentPlace = (winnerId ? 2 : 1) + playersAtPreviousPlaces;
+    }
+    placements.set(player.id, currentPlace);
+    previousEliminatedAt = eliminatedAt;
+    playersAtPreviousPlaces = index + 1;
   });
 
   return placements;
+}
+
+function getSubmissionFailureLabel(reason: string | null | undefined, expectedAnswer: boolean) {
+  if (reason === 'duplicate') return 'Duplicate answer.';
+  if (!expectedAnswer || reason === 'no_answer') return 'No answer submitted.';
+  return 'Wrong answer.';
 }
 
 export function CategoryClash() {
@@ -209,9 +239,13 @@ export function CategoryClash() {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const answerInputRef = useRef<HTMLInputElement | null>(null);
+  const previousRemainingSecondsRef = useRef<number | null>(null);
   const isLeavingLobbyRef = useRef(false);
   const ignoredLobbyCodeRef = useRef<string | null>(null);
   const requestInFlightRef = useRef(false);
+  const viewRef = useRef<CategoryClashLobbyView | null>(null);
+  const settingsDirtyRef = useRef(false);
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
   const visibleSettings = draftSettings ?? (view ? createDraftSettings(view) : null);
@@ -234,6 +268,7 @@ export function CategoryClash() {
     draftSettings.roundSeconds !== view.lobby.round_seconds ||
     draftSettings.intermissionSeconds !== view.lobby.intermission_seconds ||
     draftSettings.timerDecrementInterval !== view.lobby.timer_decrement_interval ||
+    draftSettings.maxStrikes !== view.lobby.max_strikes ||
     draftSettings.enabledCategoryIds.join(',') !== view.lobby.enabled_category_ids.join(',')
   ));
   const categoryOptions = useMemo(() => getCategorySelectionOptions(view?.categories ?? []), [view?.categories]);
@@ -244,11 +279,49 @@ export function CategoryClash() {
   const connectedLobbyCode = view && (view.lobby.status === 'waiting' || view.lobby.status === 'active')
     ? view.lobby.code
     : null;
+  const activeLobbyId = view?.lobby.id ?? null;
+  const connectedPlayerCount = view?.players.filter((player) => player.connected).length ?? 0;
+  const hasVotedForNextMatch = Boolean(currentPlayer && view?.nextMatchVotes.includes(currentPlayer.id));
+  const nextMatchVotePlayers = view?.players.filter((player) => view.nextMatchVotes.includes(player.id)) ?? [];
+  const currentPlayerCurrentSubmission = view && currentPlayer
+    ? [...view.submissions].reverse().find((submission) => (
+      submission.player_id === currentPlayer.id &&
+      submission.round_number === view.lobby.round_number &&
+      submission.turn_sequence === view.lobby.turn_sequence &&
+      submission.category_id === view.lobby.current_category_id
+    )) ?? null
+    : null;
+  const lastCurrentPlayerSubmission = view?.lobby.phase !== 'answering' ? currentPlayerCurrentSubmission : null;
+  const currentPlayerWasExpectedToAnswer = Boolean(
+    view &&
+    currentPlayer &&
+    view.lobby.phase !== 'answering' &&
+    view.lobby.phase !== 'countdown' &&
+    (
+      view.lobby.game_mode === 'simultaneous' ||
+      currentTurnPlayer?.id === currentPlayer.id
+    ),
+  );
+  const lastCurrentPlayerCorrect = lastCurrentPlayerSubmission?.correct ?? (currentPlayerWasExpectedToAnswer ? false : null);
+  const lastCurrentPlayerFailureText = lastCurrentPlayerCorrect === false
+    ? getSubmissionFailureLabel(lastCurrentPlayerSubmission?.reason, Boolean(lastCurrentPlayerSubmission))
+    : null;
+  const matchElapsedSeconds = view?.lobby.started_at
+    ? Math.max(0, Math.floor(((view.lobby.finished_at ? new Date(view.lobby.finished_at).getTime() : Date.now()) - new Date(view.lobby.started_at).getTime()) / 1000))
+    : 0;
 
   useEffect(() => {
     const id = getOrCreateClientId();
     setClientId(id);
   }, []);
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  useEffect(() => {
+    settingsDirtyRef.current = settingsDirty;
+  }, [settingsDirty]);
 
   const requestLobby = useCallback(async (path: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers);
@@ -263,24 +336,25 @@ export function CategoryClash() {
     }
     setView(nextView);
     setDraftSettings((current) => (
-      current && nextView.lobby.status === 'waiting' && settingsDirty ? current : createDraftSettings(nextView)
+      current && nextView.lobby.status === 'waiting' && settingsDirtyRef.current ? current : createDraftSettings(nextView)
     ));
     window.localStorage.setItem(STORAGE_KEY, nextView.lobby.code);
     setMessage('');
     return nextView;
-  }, [settingsDirty]);
+  }, []);
 
   const refreshView = useCallback(async () => {
-    if (!view || !clientId || requestInFlightRef.current || isLeavingLobbyRef.current) return;
+    const currentView = viewRef.current;
+    if (!currentView || !clientId || requestInFlightRef.current || isLeavingLobbyRef.current) return;
     requestInFlightRef.current = true;
     try {
-      await requestLobby(`${API_BASE}/${view.lobby.code}?clientId=${encodeURIComponent(clientId)}`);
+      await requestLobby(`${API_BASE}/${currentView.lobby.code}?clientId=${encodeURIComponent(clientId)}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to refresh lobby.');
     } finally {
       requestInFlightRef.current = false;
     }
-  }, [clientId, requestLobby, view]);
+  }, [clientId, requestLobby]);
 
   const loadPublicLobbies = useCallback(async () => {
     try {
@@ -322,6 +396,36 @@ export function CategoryClash() {
   }, [view?.lobby.round_number, view?.lobby.turn_sequence, view?.lobby.current_category_id]);
 
   useEffect(() => {
+    if (!canAnswer || view?.lobby.phase !== 'answering') return;
+    const focusTimer = window.setTimeout(() => answerInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(focusTimer);
+  }, [canAnswer, view?.lobby.current_category_id, view?.lobby.phase, view?.lobby.round_number, view?.lobby.turn_sequence]);
+
+  useEffect(() => {
+    const previous = previousRemainingSecondsRef.current;
+    previousRemainingSecondsRef.current = remainingSeconds;
+    if (view?.lobby.status !== 'active' || view.lobby.phase !== 'answering') return;
+    if (previous === null || remainingSeconds > previous || remainingSeconds > 3) return;
+
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const audioContext = new AudioContextClass();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = remainingSeconds === 0 ? 'triangle' : 'sine';
+    oscillator.frequency.value = remainingSeconds === 0 ? 660 : 420 + ((3 - remainingSeconds) * 80);
+    gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + (remainingSeconds === 0 ? 0.22 : 0.11));
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + (remainingSeconds === 0 ? 0.24 : 0.12));
+    window.setTimeout(() => void audioContext.close().catch(() => undefined), 320);
+  }, [remainingSeconds, view?.lobby.phase, view?.lobby.status]);
+
+  useEffect(() => {
     if (!view?.phaseEndsAt || view.lobby.status !== 'active') {
       setRemainingSeconds(0);
       return undefined;
@@ -333,14 +437,15 @@ export function CategoryClash() {
       setRemainingSeconds(nextRemainingSeconds);
       if (nextRemainingSeconds === 0 && !refreshedExpiredPhase) {
         refreshedExpiredPhase = true;
-        window.setTimeout(() => void refreshView(), 150);
+        const refreshDelay = view.lobby.phase === 'answering' ? ANSWER_GRADING_GRACE_MS + 150 : 150;
+        window.setTimeout(() => void refreshView(), refreshDelay);
       }
     };
 
     updateTimer();
     const interval = window.setInterval(updateTimer, 250);
     return () => window.clearInterval(interval);
-  }, [refreshView, view?.lobby.status, view?.phaseEndsAt]);
+  }, [refreshView, view?.lobby.phase, view?.lobby.status, view?.phaseEndsAt]);
 
   useEffect(() => {
     if (!connectedLobbyCode || !clientId) return undefined;
@@ -366,16 +471,16 @@ export function CategoryClash() {
   }, [clientId, connectedLobbyCode, requestLobby]);
 
   useEffect(() => {
-    if (!view || !clientId) return undefined;
+    if (!activeLobbyId || !clientId) return undefined;
     const supabase = getOptionalSupabaseClient();
     if (!supabase) return undefined;
-    const channel = supabase.channel(`category-clash:${view.lobby.id}`);
+    const channel = supabase.channel(`category-clash:${activeLobbyId}`);
     channel
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'category_clash_lobby_events',
-        filter: `lobby_id=eq.${view.lobby.id}`,
+        filter: `lobby_id=eq.${activeLobbyId}`,
       }, () => {
         void refreshView();
       })
@@ -383,7 +488,7 @@ export function CategoryClash() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [clientId, refreshView, view]);
+  }, [activeLobbyId, clientId, refreshView]);
 
   useEffect(() => {
     const element = chatScrollRef.current;
@@ -491,6 +596,7 @@ export function CategoryClash() {
           roundSeconds: view.lobby.round_seconds,
           intermissionSeconds: view.lobby.intermission_seconds,
           timerDecrementInterval: view.lobby.timer_decrement_interval,
+          maxStrikes: view.lobby.max_strikes,
         }),
       });
       setDraftSettings((current) => (current ? { ...current, isPublic: nextIsPublic } : current));
@@ -527,6 +633,36 @@ export function CategoryClash() {
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to start next match.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const returnToLobby = async () => {
+    if (!view || !clientId || !isHost) return;
+    setBusy(true);
+    try {
+      await requestLobby(`${API_BASE}/${view.lobby.code}/return`, {
+        method: 'POST',
+        body: JSON.stringify({ clientId }),
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to return to lobby.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const voteNextMatch = async () => {
+    if (!view || !clientId || view.lobby.status !== 'finished') return;
+    setBusy(true);
+    try {
+      await requestLobby(`${API_BASE}/${view.lobby.code}/next-match-vote`, {
+        method: 'POST',
+        body: JSON.stringify({ clientId }),
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to vote to play another match.');
     } finally {
       setBusy(false);
     }
@@ -682,6 +818,22 @@ export function CategoryClash() {
   const playerPlacements = getPlayerPlacements(view);
   const shouldShowCategory = view.lobby.phase !== 'countdown' && Boolean(view.currentCategory);
   const timerUrgent = view.lobby.status === 'active' && view.lobby.phase === 'answering' && remainingSeconds > 0 && remainingSeconds <= 3;
+  const shouldShowCategoryPanel = view.lobby.status !== 'finished';
+  const categoryIsActiveForCurrentPlayer = view.lobby.phase === 'answering' && Boolean(
+    currentPlayer?.result === 'active' &&
+    currentPlayer.connected &&
+    (
+      view.lobby.game_mode === 'simultaneous' ||
+      view.currentTurnPlayerId === currentPlayer.id
+    ),
+  );
+  const categoryPanelClassName = categoryIsActiveForCurrentPlayer
+    ? 'border-amber-300/60 bg-slate-950/80'
+    : (view.lobby.phase === 'review' || view.lobby.phase === 'intermission') && lastCurrentPlayerCorrect === true
+      ? 'border-emerald-400/50 bg-emerald-500/10'
+      : (view.lobby.phase === 'review' || view.lobby.phase === 'intermission') && lastCurrentPlayerCorrect === false
+        ? 'border-red-400/50 bg-red-500/10'
+        : 'border-white/10 bg-slate-950/80';
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -717,10 +869,22 @@ export function CategoryClash() {
                       ? 'Finished'
                       : 'Lobby'}
             </div>
-            {view.lobby.status === 'finished' && isHost ? (
-              <button type="button" onClick={startNextMatch} disabled={busy || connectedPlayers.length < 2} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                <Trophy size={16} /> Start New Match
-              </button>
+            {view.lobby.status === 'finished' ? (
+              <>
+                <button type="button" onClick={voteNextMatch} disabled={busy || hasVotedForNextMatch} title={nextMatchVotePlayers.length > 0 ? nextMatchVotePlayers.map((player) => player.display_name).join(', ') : 'No votes yet'} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60">
+                  <Check size={16} /> {hasVotedForNextMatch ? 'Voted' : 'Vote Next'} {view.nextMatchVotes.length}/{connectedPlayerCount}
+                </button>
+                {isHost ? (
+                  <>
+                    <button type="button" onClick={returnToLobby} disabled={busy} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-black text-slate-100 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60">
+                      <RefreshCw size={16} /> Return to Lobby
+                    </button>
+                    <button type="button" onClick={startNextMatch} disabled={busy || connectedPlayers.length < 2} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+                      <Trophy size={16} /> Start New Match
+                    </button>
+                  </>
+                ) : null}
+              </>
             ) : null}
           </div>
         </header>
@@ -748,6 +912,7 @@ export function CategoryClash() {
                     authUserId: player.auth_user_id,
                     displayName: player.display_name,
                     avatarUrl: player.avatar_url,
+                    nameColor: CHAT_COLOR_NAME_HEX[player.chat_color],
                     role: player.id === view.lobby.host_player_id ? 'host' : 'player',
                     isCurrentUser: player.is_requesting_player,
                     isHost: player.id === view.lobby.host_player_id,
@@ -791,11 +956,11 @@ export function CategoryClash() {
 
                     <GameSettingsSection
                       title="Timing"
-                      summary={`${visibleSettings?.roundSeconds ?? 10}s rounds`}
+                      summary={`${visibleSettings?.roundSeconds ?? 10}s ${visibleSettings?.gameMode === 'turns' ? 'turns' : 'rounds'}`}
                     >
                       <div className="grid gap-4">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Round length</p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{visibleSettings?.gameMode === 'turns' ? 'Turn length' : 'Round length'}</p>
                           <div className="mt-2 grid gap-2 sm:grid-cols-5">
                             {ROUND_SECONDS_OPTIONS.map((seconds) => (
                               <button key={seconds} type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, roundSeconds: seconds } : current)} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.roundSeconds === seconds ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
@@ -824,6 +989,16 @@ export function CategoryClash() {
                             ))}
                           </div>
                         </div>
+                      </div>
+                    </GameSettingsSection>
+
+                    <GameSettingsSection title="Strikes" defaultOpen={!isHost} summary={`${visibleSettings?.maxStrikes ?? 3} strikes`}>
+                      <div className="grid gap-2 sm:grid-cols-5">
+                        {MAX_STRIKES_OPTIONS.map((strikes) => (
+                          <button key={strikes} type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, maxStrikes: strikes } : current)} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.maxStrikes === strikes ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
+                            {strikes}
+                          </button>
+                        ))}
                       </div>
                     </GameSettingsSection>
 
@@ -884,14 +1059,14 @@ export function CategoryClash() {
         ) : (
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
             <section className="grid content-start gap-4">
-              <div className="grid gap-3 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:grid-cols-3">
+              <div className="grid gap-3 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:grid-cols-[1fr_1fr_2fr]">
                 <div className="rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3">
-                  <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">Round</p>
-                  <p className="mt-1 text-2xl font-black text-white">{view.lobby.round_number}</p>
+                  <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">{view.lobby.game_mode === 'turns' ? 'Turn' : 'Round'}</p>
+                  <p className="mt-1 text-2xl font-black text-white">{view.lobby.game_mode === 'turns' ? view.lobby.turn_sequence : view.lobby.round_number}</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3">
-                  <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">Timer</p>
-                  <p className={`mt-1 text-2xl font-black ${timerUrgent ? 'animate-pulse text-red-300' : 'text-amber-200'}`}>{view.lobby.status === 'active' ? formatSeconds(remainingSeconds) : '--'}</p>
+                  <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">{view.lobby.status === 'finished' ? 'Total Time' : 'Timer'}</p>
+                  <p className={`mt-1 text-2xl font-black ${timerUrgent ? 'animate-pulse text-red-300' : 'text-amber-200'}`}>{view.lobby.status === 'finished' ? formatDuration(matchElapsedSeconds) : view.lobby.status === 'active' ? formatSeconds(remainingSeconds) : '--'}</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3">
                   <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">{getPhaseLabel(view)}</p>
@@ -899,14 +1074,14 @@ export function CategoryClash() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-5">
+              {shouldShowCategoryPanel ? <div className={`rounded-3xl border p-5 ${categoryPanelClassName}`}>
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">{view.lobby.phase === 'countdown' ? 'Starting' : 'Category'}</p>
                 <h2 className="mt-2 text-3xl font-black text-white">{shouldShowCategory ? view.currentCategory?.prompt : view.lobby.phase === 'countdown' ? `Match starts in ${remainingSeconds}` : 'Waiting for next category.'}</h2>
                 {view.lobby.phase === 'countdown' ? (
                   <p className="mt-3 text-sm text-slate-400">Get ready. The first category opens when the countdown ends.</p>
                 ) : view.lobby.game_mode === 'turns' ? (
                   <p className="mt-3 text-sm font-semibold text-slate-300">
-                    Current player: <span className="text-amber-200">{currentTurnPlayer?.display_name ?? 'None'}</span>
+                    Current player: <span style={currentTurnPlayer ? getChatNameStyle(currentTurnPlayer.chat_color) : undefined}>{currentTurnPlayer?.display_name ?? 'None'}</span>
                   </p>
                 ) : (
                   <p className="mt-3 text-sm text-slate-400">
@@ -915,46 +1090,64 @@ export function CategoryClash() {
                 )}
                 {view.lobby.phase === 'review' ? <p className="mt-3 text-sm text-slate-400">Intermission before the next round.</p> : null}
                 {view.lobby.phase === 'intermission' ? <p className="mt-3 text-sm text-slate-400">Intermission before the next turn.</p> : null}
+                {lastCurrentPlayerFailureText ? (
+                  <p className="mt-3 inline-flex rounded-xl border border-red-300/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100">
+                    {lastCurrentPlayerFailureText}
+                  </p>
+                ) : null}
+                {shouldShowCategory && canAnswer ? (
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Your submission: <span className="normal-case tracking-normal text-slate-200">{currentPlayerCurrentSubmission?.guess ?? 'None yet'}</span>
+                  </p>
+                ) : null}
 
                 <form onSubmit={submitAnswer} className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  <input value={answerDraft} onChange={(event) => setAnswerDraft(event.target.value)} disabled={!canAnswer || busy} placeholder={canAnswer ? 'Type an answer' : 'Answers are closed'} className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-amber-300/60 disabled:opacity-60" />
+                  <input ref={answerInputRef} value={answerDraft} onChange={(event) => setAnswerDraft(event.target.value)} disabled={!canAnswer || busy} placeholder={canAnswer ? 'Type an answer' : 'Answers are closed'} className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-amber-300/60 disabled:opacity-60" />
                   <button type="submit" disabled={!canAnswer || busy || !answerDraft.trim()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
                     <Send size={16} /> Submit
                   </button>
                 </form>
-              </div>
+              </div> : null}
 
               <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-5">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Players</p>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  {view.players.map((player) => {
-                    const strikeMarks = [0, 1, 2].map((index) => index < player.strikes);
-                    const placement = playerPlacements.get(player.id);
-                    const card = (
-                      <div className={`h-full rounded-2xl border p-3 ${placement === 1 ? 'border-transparent bg-slate-950' : player.result === 'eliminated' ? 'border-red-500/40 bg-red-500/10' : 'border-white/10 bg-slate-900/70'}`}>
-                        <div className="flex h-full flex-col justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-white">
-                              {player.display_name}{player.is_requesting_player ? ' (you)' : ''}{placement ? ` - ${formatPlacement(placement)}` : ''}
-                            </p>
-                            <p className={`mt-1 text-xs capitalize ${placement === 1 ? 'text-amber-100' : player.result === 'eliminated' ? 'text-red-200' : 'text-slate-500'}`}>
-                              {placement === 1 ? 'winner' : player.result === 'active' ? (player.connected ? 'active' : 'disconnected') : player.result}
-                            </p>
-                          </div>
-                          <div className="flex gap-1">
+                <div className="mt-4">
+                  <MultiplayerLobbyRoster
+                    showHeader={false}
+                    compactColumns
+                    canManage={false}
+                    players={view.players.map((player) => {
+                      const disconnectedBeforeFinish = !player.connected && Boolean(player.disconnected_at) && (
+                        view.lobby.status === 'active' ||
+                        Boolean(view.lobby.finished_at && new Date(player.disconnected_at as string).getTime() <= new Date(view.lobby.finished_at as string).getTime())
+                      );
+                      const disconnectedAfterFinish = !player.connected && view.lobby.status === 'finished' && !disconnectedBeforeFinish;
+                      const placement = disconnectedBeforeFinish ? null : playerPlacements.get(player.id);
+                      const strikeMarks = Array.from({ length: view.lobby.max_strikes }, (_, index) => index < player.strikes);
+                      return {
+                        id: player.id,
+                        authUserId: player.auth_user_id,
+                        displayName: `${player.display_name}${placement ? ` - ${formatPlacement(placement)}` : disconnectedBeforeFinish ? ' - Disconnected' : ''}`,
+                        avatarUrl: player.avatar_url,
+                        nameColor: CHAT_COLOR_NAME_HEX[player.chat_color],
+                        role: placement === 1 ? 'Winner' : disconnectedBeforeFinish ? 'Disconnected' : player.result === 'active' ? (player.connected ? 'Active' : 'Disconnected') : player.result,
+                        isCurrentUser: player.is_requesting_player,
+                        isHost: player.id === view.lobby.host_player_id,
+                        cardTone: placement === 1 ? 'victory' : player.result === 'eliminated' || disconnectedBeforeFinish ? 'danger' : 'default',
+                        disconnected: disconnectedAfterFinish,
+                        muted: disconnectedAfterFinish,
+                        status: (
+                          <div className="flex gap-0.5">
                             {strikeMarks.map((struck, index) => (
-                              <span key={index} className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-black ${struck ? 'border-red-400/50 bg-red-500/20 text-red-200' : 'border-emerald-300/50 bg-emerald-400/15 text-emerald-200'}`}>
-                                {struck ? <X size={14} /> : <Check size={14} />}
+                              <span key={index} className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[0.6rem] font-black ${struck ? 'border-red-400/50 bg-red-500/20 text-red-200' : 'border-emerald-300/50 bg-emerald-400/15 text-emerald-200'}`}>
+                                {struck ? <X size={11} /> : <Check size={11} />}
                               </span>
                             ))}
                           </div>
-                        </div>
-                      </div>
-                    );
-                    return placement === 1
-                      ? <div key={player.id} className="multiplayer-victory-border rounded-2xl">{card}</div>
-                      : <div key={player.id}>{card}</div>;
-                  })}
+                        ),
+                      };
+                    })}
+                  />
                 </div>
               </section>
 
@@ -976,6 +1169,73 @@ export function CategoryClash() {
                 <div ref={chatScrollRef} className={`mt-4 grid flex-1 content-start gap-2 overflow-y-auto pr-2 ${THEMED_SCROLLBAR_CLASS}`}>
                   {view.chatMessages.map((chatMessage) => {
                     const player = view.players.find((candidate) => candidate.id === chatMessage.player_id);
+                    const messageText = chatMessage.message.trim();
+                    const roundStartParts = messageText.startsWith('__round_start__|')
+                      ? messageText.split('|')
+                      : null;
+                    const turnStartParts = messageText.startsWith('__turn_start__|')
+                      ? messageText.split('|')
+                      : null;
+                    const isEliminationNote = chatMessage.message_type !== 'player' && messageText.endsWith(' was eliminated.');
+                    const isWinnerMessage = chatMessage.message_type !== 'player' && /\bwins\. /.test(messageText);
+                    const styledResultMessage = player && messageText.startsWith(player.display_name) ? (
+                      <>
+                        <span style={getChatNameStyle(player.chat_color)}>{player.display_name}</span>
+                        {messageText.slice(player.display_name.length)}
+                      </>
+                    ) : messageText;
+                    if (roundStartParts) {
+                      return (
+                        <div key={chatMessage.id} className="py-2">
+                          <div className="flex items-center gap-3">
+                            <span className="h-px flex-1 bg-white/10" />
+                            <span className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-amber-300">Round {roundStartParts[1]}</span>
+                            <span className="h-px flex-1 bg-white/10" />
+                          </div>
+                          <p className="mt-2 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-sm font-semibold text-amber-50">{roundStartParts.slice(2).join('|')}</p>
+                        </div>
+                      );
+                    }
+                    if (turnStartParts) {
+                      return (
+                        <div key={chatMessage.id} className="py-2">
+                          <div className="flex items-center gap-3">
+                            <span className="h-px flex-1 bg-white/10" />
+                            <span className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-amber-300">Turn {turnStartParts[1]} - {turnStartParts[2]}</span>
+                            <span className="h-px flex-1 bg-white/10" />
+                          </div>
+                          <p className="mt-2 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-sm font-semibold text-amber-50">{turnStartParts.slice(3).join('|')}</p>
+                        </div>
+                      );
+                    }
+                    if (messageText.toLowerCase() === '__game_over__') {
+                      return (
+                        <div key={chatMessage.id} className="py-2">
+                          <div className="flex items-center gap-3">
+                            <span className="h-px flex-1 bg-white/10" />
+                            <span className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-amber-300">Game Over</span>
+                            <span className="h-px flex-1 bg-white/10" />
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (isWinnerMessage) {
+                      return (
+                        <div key={chatMessage.id} className="multiplayer-victory-border rounded-2xl">
+                          <div className="rounded-2xl bg-slate-950 px-3 py-2 text-sm font-black text-white">
+                            {styledResultMessage}
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (isEliminationNote) {
+                      return (
+                        <div key={chatMessage.id} className={`flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold ${getMessageToneClass(chatMessage)}`}>
+                          <X size={14} className="shrink-0 text-red-200" />
+                          <span>{styledResultMessage}</span>
+                        </div>
+                      );
+                    }
                     if (chatMessage.message_type === 'player') {
                       const isOwnMessage = player?.id === currentPlayer?.id;
                       return (
@@ -987,7 +1247,7 @@ export function CategoryClash() {
                     }
                     return (
                       <div key={chatMessage.id} className={`rounded-2xl border px-3 py-2 text-sm font-semibold ${getMessageToneClass(chatMessage)}`}>
-                        {chatMessage.message}
+                        {chatMessage.message_type === 'result' ? styledResultMessage : chatMessage.message}
                       </div>
                     );
                   })}

@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Crown, MoreHorizontal, UserCheck, UserMinus, UserX, Users } from 'lucide-react';
+import { Crown, MoreHorizontal, UserCheck, UserMinus, UserX, Users, WifiOff } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 export type MultiplayerLobbyRosterPlayer = {
@@ -18,6 +18,8 @@ export type MultiplayerLobbyRosterPlayer = {
   canDemote?: boolean;
   status?: ReactNode;
   cardTone?: 'default' | 'success' | 'danger' | 'victory';
+  disconnected?: boolean;
+  muted?: boolean;
 };
 
 type MultiplayerLobbyRosterProps = {
@@ -235,7 +237,7 @@ export function MultiplayerLobbyRoster({
         {players.map((player) => {
           const isFriend = Boolean(player.authUserId && friendIds.has(player.authUserId));
           const playerInitial = player.displayName.trim().slice(0, 1).toUpperCase() || '?';
-          const showActionsButton = !player.isCurrentUser || hasMenuActions(player);
+          const showActionsButton = !(player.isCurrentUser && player.isHost) && hasMenuActions(player);
           const cardClassName = player.cardTone === 'victory'
             ? 'border-transparent bg-slate-950'
             : player.cardTone === 'success'
@@ -248,18 +250,23 @@ export function MultiplayerLobbyRoster({
               className={`flex min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border px-4 py-3 ${cardClassName}`}
             >
               <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 bg-cover bg-center text-sm font-black text-amber-200"
-                  style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}
-                  aria-hidden="true"
-                >
-                  {player.avatarUrl ? null : playerInitial}
+                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 text-sm font-black text-amber-200" aria-hidden="true">
+                  <span
+                    className={`absolute inset-0 rounded-full bg-cover bg-center ${player.disconnected ? 'grayscale opacity-45' : ''}`}
+                    style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}
+                  />
+                  <span className="relative">{player.avatarUrl ? null : playerInitial}</span>
+                  {player.disconnected ? (
+                    <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-red-300/60 bg-red-500 text-white">
+                      <WifiOff size={11} />
+                    </span>
+                  ) : null}
                 </span>
                 <div className="min-w-0 flex-1 overflow-hidden">
                   <p className="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm font-semibold text-white">
                     <span
                       className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
-                      style={player.nameColor ? { color: player.nameColor } : undefined}
+                      style={player.muted ? { color: '#94a3b8' } : player.nameColor ? { color: player.nameColor } : undefined}
                     >
                       {player.displayName}{player.authUserId ? '' : ' (Guest)'}{player.isCurrentUser ? ' (you)' : ''}
                     </span>
@@ -274,7 +281,7 @@ export function MultiplayerLobbyRoster({
               <div className="flex shrink-0 items-center gap-2">
                 {player.status}
                 {showActionsButton ? (
-                  <button type="button" data-roster-menu-trigger onClick={(event) => openActionsMenu(event, player)} aria-label={`More actions for ${player.displayName}`} aria-expanded={contextMenu?.player.id === player.id} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-950 text-slate-400 transition hover:bg-slate-800 hover:text-white">
+                  <button type="button" data-roster-menu-trigger onClick={(event) => openActionsMenu(event, player)} aria-label={`More actions for ${player.displayName}`} aria-expanded={contextMenu?.player.id === player.id} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent bg-transparent text-slate-400 transition hover:bg-white/5 hover:text-white">
                     <MoreHorizontal size={14} />
                   </button>
                 ) : null}

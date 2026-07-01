@@ -27,6 +27,7 @@ const data = categoryData as CategoryClashData;
 const categories = data.categories.filter((category) => category.answers.length > 0);
 const categoryById = new Map(categories.map((category) => [category.id, category]));
 const DEFAULT_EXCLUDED_GROUPS = new Set(['Skin Lines']);
+const GLOBAL_ITEM_ANSWERS_KEY = '__items__';
 
 const LEETSPEAK_MAP: Record<string, string> = {
   '&': 'and',
@@ -137,7 +138,10 @@ export function getAvailableCategoryIds(
   return enabledCategoryIds.filter((categoryId) => {
     const category = getCategoryClashCategory(categoryId);
     if (!category) return false;
-    const usedAnswerIds = new Set(usedAnswersByCategory[categoryId] ?? []);
+    const usedAnswerIds = new Set([
+      ...(usedAnswersByCategory[categoryId] ?? []),
+      ...(category.group === 'Items' ? usedAnswersByCategory[GLOBAL_ITEM_ANSWERS_KEY] ?? [] : []),
+    ]);
     return category.answers.some((answer) => !usedAnswerIds.has(answer.id));
   });
 }

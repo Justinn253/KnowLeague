@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
+import { getFriendRelationship } from '@/lib/friends';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const runtime = 'nodejs';
@@ -67,7 +69,7 @@ async function fetchPrivateDetails(userId: string) {
   return data;
 }
 
-export async function GET(_request: Request, { params }: { params: { username: string } }) {
+export async function GET(request: Request, { params }: { params: { username: string } }) {
   try {
     const username = decodeURIComponent(params.username).trim().toLowerCase();
     if (!username) {
@@ -88,7 +90,11 @@ export async function GET(_request: Request, { params }: { params: { username: s
       throw new Error('Profile not found.');
     }
 
-    const privateDetails = await fetchPrivateDetails(profile.id);
+    const [privateDetails, viewerId] = await Promise.all([
+      fetchPrivateDetails(profile.id),
+      getOptionalAuthenticatedUserId(request),
+    ]);
+    const relationship = viewerId ? await getFriendRelationship(viewerId, profile.id) : 'none';
 
     return NextResponse.json({
       profile: {
@@ -97,6 +103,7 @@ export async function GET(_request: Request, { params }: { params: { username: s
         discord_avatar_url: privateDetails?.discord_avatar_url ?? null,
         discord_banner_url: privateDetails?.discord_banner_url ?? null,
         riot_account_name: privateDetails?.riot_account_name ?? null,
+        relationship,
       },
     });
   } catch (error) {

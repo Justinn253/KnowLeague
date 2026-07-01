@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, Link as LinkIcon, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, Link as LinkIcon, Loader2, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -18,6 +18,7 @@ type PublicProfileRecord = {
   discord_banner_url: string | null;
   riot_account_name: string | null;
   created_at: string;
+  relationship: FriendCandidate['relationship'];
 };
 
 type FriendCandidate = {
@@ -253,7 +254,10 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
     let cancelled = false;
     setBusy(true);
     setMessage('');
-    fetch(`/api/profile/public/${encodeURIComponent(username.toLowerCase())}`)
+    getAuthHeaders()
+      .then((headers) => fetch(`/api/profile/public/${encodeURIComponent(username.toLowerCase())}`, {
+        headers: headers ?? undefined,
+      }))
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) {
@@ -264,6 +268,7 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
       .then((data) => {
         if (!cancelled) {
           setProfile(data.profile);
+          setRelationship(data.profile.relationship ?? 'none');
         }
       })
       .catch((error) => {
@@ -282,37 +287,6 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
     };
   }, [username]);
 
-  useEffect(() => {
-    if (!profile) {
-      return undefined;
-    }
-
-    let cancelled = false;
-    const loadRelationship = async () => {
-      const headers = await getAuthHeaders();
-      if (!headers) {
-        return;
-      }
-
-      fetch(`/api/friends/search?q=${encodeURIComponent(profile.username)}`, { headers })
-        .then((response) => response.json())
-        .then((data) => {
-          if (cancelled) {
-            return;
-          }
-
-          const match = (data.results ?? []).find((candidate: FriendCandidate) => candidate.id === profile.id);
-          setRelationship(match?.relationship ?? 'none');
-        })
-        .catch(() => undefined);
-    };
-
-    void loadRelationship();
-    return () => {
-      cancelled = true;
-    };
-  }, [profile]);
-
   const sendFriendRequest = async (targetUserId: string) => {
     const headers = await getAuthHeaders();
     if (!headers) {
@@ -329,9 +303,11 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
       body: JSON.stringify({ targetUserId }),
     });
     const data = await response.json();
-    setMessage(response.ok ? 'Friend request sent.' : data.error ?? 'Unable to send friend request.');
     if (response.ok) {
       setRelationship('pending');
+      setMessage('');
+    } else {
+      setMessage(data.error ?? 'Unable to send friend request.');
     }
   };
 
@@ -355,8 +331,13 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
           </header>
         )}
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
-          {busy ? <p className="text-sm font-semibold text-slate-300">Loading profile...</p> : null}
+        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
+          {busy ? (
+            <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
+              <Loader2 size={18} className="animate-spin text-amber-300" />
+              Loading profile...
+            </div>
+          ) : null}
 
           {!busy && profile ? (
             <>

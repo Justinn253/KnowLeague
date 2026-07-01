@@ -8,6 +8,7 @@ import {
   EyeOff,
   KeyRound,
   Link as LinkIcon,
+  Loader2,
   LogOut,
   Save,
   UserPlus,
@@ -938,6 +939,28 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
   }, []);
 
   useEffect(() => {
+    if (!addFriendOpen) {
+      return undefined;
+    }
+
+    const closeAddFriendPanel = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      if (target.closest('[data-add-friend-toggle="true"]') || addFriendPanelRef.current?.contains(target)) {
+        return;
+      }
+
+      setAddFriendOpen(false);
+      setFriendSearchContext(null);
+    };
+
+    document.addEventListener('pointerdown', closeAddFriendPanel);
+    return () => document.removeEventListener('pointerdown', closeAddFriendPanel);
+  }, [addFriendOpen]);
+
+  useEffect(() => {
     setCosmeticsPreviewColor(null);
     setCosmeticsPreviewBorder(null);
 
@@ -1005,14 +1028,16 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       body: JSON.stringify({ targetUserId }),
     });
     const body = await response.json();
-    setMessage(response.ok ? (body.status === 'accepted' ? 'Friend added.' : 'Friend request sent.') : body.error ?? 'Unable to send friend request.');
     if (response.ok) {
+      setMessage('');
       setFriendSearchResults((results) => results.map((candidate) => (
         candidate.id === targetUserId
           ? { ...candidate, relationship: body.status === 'accepted' ? 'friend' : 'outgoing' }
           : candidate
       )));
       void refreshFriendDashboard();
+    } else {
+      setMessage(body.error ?? 'Unable to send friend request.');
     }
   };
 
@@ -1140,6 +1165,7 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
               <button
                 type="button"
                 onClick={() => setAddFriendOpen((value) => !value)}
+                data-add-friend-toggle="true"
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:bg-slate-900"
               >
                 <UserPlus size={17} />
@@ -1265,9 +1291,12 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
           ) : null}
         </header>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
+        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
           {busy ? (
-            <p className="text-sm font-semibold text-slate-300">Loading profile...</p>
+            <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
+              <Loader2 size={18} className="animate-spin text-amber-300" />
+              Loading profile...
+            </div>
           ) : (
             <>
               <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1">

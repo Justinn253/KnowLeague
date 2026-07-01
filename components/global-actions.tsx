@@ -166,6 +166,7 @@ export function GlobalActions() {
       <ContactUsWidget />
       {profileOpen ? (
         <div
+          data-profile-overlay="true"
           className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
           onMouseDown={() => setProfileOpen(false)}
         >
@@ -187,6 +188,7 @@ export function GlobalActions() {
       ) : null}
       {publicProfileUsername ? (
         <div
+          data-profile-overlay="true"
           className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
           onMouseDown={() => setPublicProfileUsername(null)}
         >

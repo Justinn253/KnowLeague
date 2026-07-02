@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -22,18 +22,40 @@ import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const categories = [
   { id: 'champion', label: 'Champion' },
-  { id: 'skinLine', label: 'Skin Line' },
-  { id: 'releaseYear', label: 'Release Year' },
-  { id: 'rarity', label: 'Rarity' },
+  { id: 'skinLine', label: 'Skin Line', note: 'The skin line the correct skin belongs to' },
+  { id: 'rarity', label: 'Rarity', note: 'The rarity level of the skin in League' },
+  { id: 'race', label: 'Species', note: 'The species of the champion - May not be 100% accurate' },
   { id: 'gender', label: 'Gender' },
   { id: 'role', label: 'Role' },
-  { id: 'race', label: 'Species' },
+  { id: 'lane', label: 'Lane', note: 'Lane data may not be 100% accurate' },
+  { id: 'releaseYear', label: 'Released', note: 'The year this skin was released. arrows indicate newer/older' },
+  { id: 'resourceType', label: 'Resource' },
 ] as const;
 
+type CategoryId = (typeof categories)[number]['id'];
+type CategoryDefinition = (typeof categories)[number];
+type ActiveCategoryNote = {
+  text: string;
+  x: number;
+  y: number;
+};
+
+const revealColumnGroups = [
+  ['champion'],
+  ['skinLine', 'rarity'],
+  ['race', 'gender'],
+  ['role', 'lane'],
+  ['releaseYear', 'resourceType'],
+] as const satisfies readonly (readonly CategoryId[])[];
+const revealCellOrder = revealColumnGroups.flat();
 const SKINDLE_REVEAL_DURATION_MS = 336;
 const SKINDLE_REVEAL_TOTAL_MS = SKINDLE_REVEAL_DURATION_MS * (categories.length + 1);
+const SKINDLE_SUGGESTION_ROW_HEIGHT = 64;
+const SKINDLE_SUGGESTION_MAX_HEIGHT = 360;
+const SKINDLE_SUGGESTION_OVERSCAN = 4;
+const CATEGORY_NOTE_TOOLTIP_HALF_WIDTH = 128;
 
-type CategoryId = (typeof categories)[number]['id'];
+const categoryById = Object.fromEntries(categories.map((category) => [category.id, category])) as Record<CategoryId, CategoryDefinition>;
 
 type GuessResult = {
   item: QuizItem;
@@ -102,6 +124,8 @@ function getCategoryValues(item: QuizItem): Record<CategoryId, string> {
     gender: formatCategoryValue(item.gender || 'Unknown'),
     role: formatCategoryValue(item.role || 'Unknown'),
     race: formatCategoryValue(item.race || 'Unknown'),
+    lane: formatCategoryValue(item.lane || 'Unknown'),
+    resourceType: formatCategoryValue(item.resourceType || 'Unknown'),
   };
 }
 
@@ -151,13 +175,69 @@ function QuestionPingMark() {
   );
 }
 
+function getCategoryNotePosition(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  const halfWidth = CATEGORY_NOTE_TOOLTIP_HALF_WIDTH;
+  const padding = 12;
+  const minX = halfWidth + padding;
+  const maxX = Math.max(minX, window.innerWidth - halfWidth - padding);
+
+  return {
+    x: Math.min(maxX, Math.max(minX, rect.left + rect.width / 2)),
+    y: rect.bottom + 8,
+  };
+}
+
+function CategoryHeaderLabel({
+  categoryId,
+  onShowNote,
+  onHideNote,
+}: {
+  categoryId: CategoryId;
+  onShowNote: (note: ActiveCategoryNote) => void;
+  onHideNote: () => void;
+}) {
+  const category = categoryById[categoryId];
+  const note = 'note' in category ? category.note : undefined;
+  const showNote = (element: HTMLElement) => {
+    if (!note) {
+      return;
+    }
+
+    onShowNote({
+      text: note,
+      ...getCategoryNotePosition(element),
+    });
+  };
+
+  if (!note) {
+    return <span>{category.label}</span>;
+  }
+
+  return (
+    <span
+      tabIndex={0}
+      aria-label={`${category.label}: ${note}`}
+      onMouseEnter={(event) => showNote(event.currentTarget)}
+      onFocus={(event) => showNote(event.currentTarget)}
+      onMouseLeave={onHideNote}
+      onBlur={onHideNote}
+      className="cursor-help underline decoration-slate-600 decoration-dotted underline-offset-4 outline-none focus-visible:text-slate-300"
+    >
+      {category.label}
+    </span>
+  );
+}
+
 export function Skindle() {
   const router = useRouter();
   const [activeDateKey, setActiveDateKey] = useState(() => getDailyDateKey());
   const [skins, setSkins] = useState<QuizItem[]>([]);
   const [target, setTarget] = useState<QuizItem | null>(null);
   const [inputValue, setInputValue] = useState('');
+  const deferredInputValue = useDeferredValue(inputValue);
   const [suggestions, setSuggestions] = useState<QuizItem[]>([]);
+  const [suggestionsScrollTop, setSuggestionsScrollTop] = useState(0);
   const [guesses, setGuesses] = useState<GuessResult[]>([]);
   const [message, setMessage] = useState('');
   const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
@@ -170,6 +250,7 @@ export function Skindle() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [firstGlobalGuessSkinIds, setFirstGlobalGuessSkinIds] = useState<Set<string>>(() => new Set());
   const [storageReady, setStorageReady] = useState(false);
+  const [activeCategoryNote, setActiveCategoryNote] = useState<ActiveCategoryNote | null>(null);
   const inputAreaRef = useRef<HTMLDivElement>(null);
   const guessesPanelRef = useRef<HTMLDivElement>(null);
   const topGuessesMenuRef = useRef<HTMLDivElement>(null);
@@ -206,6 +287,11 @@ export function Skindle() {
     [playerStats.rarityStats],
   );
   const displayedGuesses = useMemo(() => [...guesses].reverse(), [guesses]);
+  const suggestionsListHeight = Math.min(SKINDLE_SUGGESTION_MAX_HEIGHT, suggestions.length * SKINDLE_SUGGESTION_ROW_HEIGHT);
+  const suggestionsStartIndex = Math.max(0, Math.floor(suggestionsScrollTop / SKINDLE_SUGGESTION_ROW_HEIGHT) - SKINDLE_SUGGESTION_OVERSCAN);
+  const suggestionsVisibleCount = Math.ceil(SKINDLE_SUGGESTION_MAX_HEIGHT / SKINDLE_SUGGESTION_ROW_HEIGHT) + SKINDLE_SUGGESTION_OVERSCAN * 2;
+  const visibleSuggestions = suggestions.slice(suggestionsStartIndex, suggestionsStartIndex + suggestionsVisibleCount);
+  const suggestionsAreUpdating = inputValue !== deferredInputValue;
   const averagePlayerGuesses = playerStats.gamesCompleted > 0
     ? (playerStats.totalGuesses / playerStats.gamesCompleted).toFixed(1)
     : '0.0';
@@ -350,14 +436,18 @@ export function Skindle() {
   }, [clearStaleDailyRound, guesses.length, inputValue, router, solved]);
 
   useEffect(() => {
-    const query = normalizeAnswer(inputValue);
-    if (inputValue.trim().length < 2 || !query || solved) {
+    const query = normalizeAnswer(deferredInputValue);
+    if (deferredInputValue.trim().length < 2 || !query || solved) {
       setSuggestions([]);
       return;
     }
 
     setSuggestions(answerPool.filter((skin) => normalizeAnswer(skin.answer).includes(query)));
-  }, [answerPool, inputValue, solved]);
+  }, [answerPool, deferredInputValue, solved]);
+
+  useEffect(() => {
+    setSuggestionsScrollTop(0);
+  }, [deferredInputValue]);
 
   useEffect(() => {
     if (guesses.length === 0) {
@@ -497,7 +587,7 @@ export function Skindle() {
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
             <GameInfoMenu title="Skindle" steps={[
               'Guess the daily mystery League of Legends skin.',
-              'Each guess compares champion, skin line, release year, rarity, gender, role, and species against the target.',
+              'Each guess compares champion, skin line, rarity, species, gender, role, lane, release year, and resource against the target.',
               'Green means a match, orange means a partial match, and release year arrows point toward the target.',
             ]} />
             <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200">
@@ -746,10 +836,20 @@ export function Skindle() {
 
             <div className={`overflow-x-auto ${THEMED_SCROLLBAR_CLASS}`}>
               <div className="w-full min-w-[58rem]">
-                <div className="grid grid-cols-[minmax(8.5rem,1.35fr)_repeat(7,minmax(5.5rem,1fr))] gap-2 pb-3 pl-1 pr-5 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
+                <div className="grid grid-cols-[minmax(8.5rem,1.25fr)_minmax(6.5rem,0.9fr)_repeat(4,minmax(7rem,1fr))] gap-2 pb-3 pl-1 pr-5 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
                   <div>Guess</div>
-                  {categories.map((category) => (
-                    <div key={category.id}>{category.label}</div>
+                  {revealColumnGroups.map((group) => (
+                    <div key={group.join('-')} className={group.length > 1 ? 'grid grid-rows-2 gap-1' : ''}>
+                      {group.map((categoryId) => (
+                        <div key={categoryId}>
+                          <CategoryHeaderLabel
+                            categoryId={categoryId}
+                            onShowNote={setActiveCategoryNote}
+                            onHideNote={() => setActiveCategoryNote(null)}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   ))}
                 </div>
 
@@ -774,6 +874,31 @@ export function Skindle() {
                             <QuestionPingMark />
                           </div>
                         ) : null;
+                        const renderCategoryCell = (categoryId: CategoryId, cellIndex: number, compact = false) => (
+                          <div
+                            key={categoryId}
+                            className={`relative flex items-center justify-center overflow-hidden rounded-lg border text-center shadow-inner ${
+                              compact ? 'min-h-0 px-2 py-2' : 'min-h-28 px-2 py-3'
+                            } ${
+                              guess.matches[categoryId]
+                                ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
+                                : guess.partialMatches[categoryId]
+                                ? 'border-slate-300/70 bg-orange-500/90 text-white shadow-orange-950/30'
+                                : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
+                            }`}
+                          >
+                            <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold leading-5 ${compact ? 'text-sm' : 'text-base'}`}>
+                              <span className="line-clamp-2 min-w-0">{guess.values[categoryId]}</span>
+                              {categoryId === 'releaseYear' && guess.releaseYearDirection === 'higher' ? (
+                                <ArrowUp size={compact ? 15 : 18} strokeWidth={2.5} aria-label="Target year is higher" className="shrink-0" />
+                              ) : null}
+                              {categoryId === 'releaseYear' && guess.releaseYearDirection === 'lower' ? (
+                                <ArrowDown size={compact ? 15 : 18} strokeWidth={2.5} aria-label="Target year is lower" className="shrink-0" />
+                              ) : null}
+                            </span>
+                            {getRevealOverlay(cellIndex)}
+                          </div>
+                        );
 
                         return (
                           <div
@@ -787,7 +912,7 @@ export function Skindle() {
                             }`}
                           >
                             <div
-                              className={`grid grid-cols-[minmax(8.5rem,1.35fr)_repeat(7,minmax(5.5rem,1fr))] gap-2 ${
+                              className={`grid grid-cols-[minmax(8.5rem,1.25fr)_minmax(6.5rem,0.9fr)_repeat(4,minmax(7rem,1fr))] gap-2 ${
                                 isCorrectGuess && revealedSolvedGuessId === guess.item.id ? 'skindle-gradient-border-content' : ''
                               }`}
                             >
@@ -826,27 +951,10 @@ export function Skindle() {
                                 </button>
                                 {getRevealOverlay(0)}
                               </div>
-                              {categories.map((category, categoryIndex) => (
-                                <div
-                                  key={category.id}
-                                  className={`relative flex min-h-28 items-center justify-center overflow-hidden rounded-lg border px-2 py-3 text-center shadow-inner ${
-                                    guess.matches[category.id]
-                                      ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
-                                      : guess.partialMatches[category.id]
-                                      ? 'border-slate-300/70 bg-orange-500/90 text-white shadow-orange-950/30'
-                                      : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
-                                  }`}
-                                >
-                                  <span className="inline-flex items-center justify-center gap-1.5 text-base font-semibold leading-5">
-                                    {guess.values[category.id]}
-                                    {category.id === 'releaseYear' && guess.releaseYearDirection === 'higher' ? (
-                                      <ArrowUp size={18} strokeWidth={2.5} aria-label="Target year is higher" />
-                                    ) : null}
-                                    {category.id === 'releaseYear' && guess.releaseYearDirection === 'lower' ? (
-                                      <ArrowDown size={18} strokeWidth={2.5} aria-label="Target year is lower" />
-                                    ) : null}
-                                  </span>
-                                  {getRevealOverlay(categoryIndex + 1)}
+                              {renderCategoryCell('champion', 1)}
+                              {revealColumnGroups.slice(1).map((group) => (
+                                <div key={group.join('-')} className="grid min-h-28 grid-rows-2 gap-2">
+                                  {group.map((categoryId) => renderCategoryCell(categoryId, revealCellOrder.indexOf(categoryId) + 1, true))}
                                 </div>
                               ))}
                             </div>
@@ -877,6 +985,7 @@ export function Skindle() {
                   const query = normalizeAnswer(inputValue);
                   if (inputValue.trim().length >= 2 && query && !solved) {
                     setSuggestions(answerPool.filter((skin) => normalizeAnswer(skin.answer).includes(query)));
+                    setSuggestionsScrollTop(0);
                   }
                 }}
                 disabled={!target}
@@ -886,18 +995,38 @@ export function Skindle() {
                 className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/10 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               />
               {suggestions.length > 0 ? (
-                <div className="absolute left-0 top-full z-50 mt-2 grid max-h-72 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 sm:w-[calc(100%-8rem)]">
-                  {suggestions.map((skin) => (
-                    <button
-                      key={skin.id}
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => submitGuess(skin)}
-                      className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-                    >
-                      {skin.answer}
-                    </button>
-                  ))}
+                <div
+                  className={`absolute left-0 top-full z-50 mt-2 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 sm:w-[calc(100%-8rem)] ${THEMED_SCROLLBAR_CLASS}`}
+                  style={{ height: suggestionsListHeight }}
+                  onScroll={(event) => setSuggestionsScrollTop(event.currentTarget.scrollTop)}
+                >
+                  <div className="relative" style={{ height: suggestions.length * SKINDLE_SUGGESTION_ROW_HEIGHT }}>
+                    {visibleSuggestions.map((skin, index) => (
+                      <button
+                        key={skin.id}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => submitGuess(skin)}
+                        className="absolute left-0 grid w-full grid-cols-[4rem_minmax(0,1fr)] items-center gap-3 rounded-xl px-2 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                        style={{
+                          top: (suggestionsStartIndex + index) * SKINDLE_SUGGESTION_ROW_HEIGHT,
+                          height: SKINDLE_SUGGESTION_ROW_HEIGHT,
+                        }}
+                      >
+                        <span className="relative h-12 overflow-hidden rounded-xl bg-slate-900">
+                          <Image src={skin.imageUrl} alt="" fill sizes="64px" loading="lazy" className="object-cover" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-white">{skin.answer}</span>
+                          <span className="block truncate text-xs text-slate-500">{skin.champion}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : suggestionsAreUpdating && inputValue.trim().length >= 2 ? (
+                <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm font-semibold text-slate-400 sm:w-[calc(100%-8rem)]">
+                  Searching...
                 </div>
               ) : null}
               <button
@@ -944,6 +1073,18 @@ export function Skindle() {
               <p className="text-sm font-semibold text-white">{previewSkin.answer}</p>
             </div>
           </div>
+        </div>
+      ) : null}
+      {activeCategoryNote ? (
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[70] w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-left text-xs font-semibold leading-5 normal-case tracking-normal text-slate-200 shadow-2xl shadow-black/40"
+          style={{
+            left: activeCategoryNote.x,
+            top: activeCategoryNote.y,
+          }}
+        >
+          {activeCategoryNote.text}
         </div>
       ) : null}
     </main>

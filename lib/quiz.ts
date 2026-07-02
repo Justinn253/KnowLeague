@@ -14,6 +14,8 @@ export type QuizItem = {
   role?: string | null;
   gender?: string | null;
   race?: string | null;
+  resourceType?: string | null;
+  lane?: string | null;
   guessed?: boolean;
 };
 

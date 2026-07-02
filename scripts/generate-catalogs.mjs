@@ -16,16 +16,16 @@ const RELEASE_DATE_PATH = path.join(OUTPUT_DIR, 'skin-release-dates.json');
 const CHAMPION_METADATA_PATH = path.join(OUTPUT_DIR, 'champion-metadata.json');
 const CHAMPION_SPECIES_OVERRIDES_PATH = path.join(process.cwd(), 'champion-species.txt');
 const CHAMPION_METADATA_OVERRIDES = {
-  Ambessa: { gender: 'Female', species: 'Human' },
-  Aurora: { gender: 'Female', species: 'Vastayan' },
-  Briar: { gender: 'Female', species: 'Golem' },
-  Hwei: { gender: 'Male', species: 'Human' },
-  Mel: { gender: 'Female', species: 'Human' },
-  Milio: { gender: 'Male', species: 'Human' },
-  Naafiri: { gender: 'Female', species: 'Darkin' },
-  Smolder: { gender: 'Male', species: 'Dragon' },
-  Yunara: { gender: 'Female', species: 'Human' },
-  Zaahen: { gender: 'Male', species: 'Darkin' },
+  Ambessa: { gender: 'Female', species: 'Human', resourceType: 'Energy', lane: 'Top' },
+  Aurora: { gender: 'Female', species: 'Vastayan', resourceType: 'Mana', lane: 'Middle' },
+  Briar: { gender: 'Female', species: 'Golem', resourceType: 'Health', lane: 'Jungle' },
+  Hwei: { gender: 'Male', species: 'Human', resourceType: 'Mana', lane: 'Middle' },
+  Mel: { gender: 'Female', species: 'Human', resourceType: 'Mana', lane: 'Middle' },
+  Milio: { gender: 'Male', species: 'Human', resourceType: 'Mana', lane: 'Support' },
+  Naafiri: { gender: 'Female', species: 'Darkin', resourceType: 'Mana', lane: 'Middle' },
+  Smolder: { gender: 'Male', species: 'Dragon', resourceType: 'Mana', lane: 'Bottom' },
+  Yunara: { gender: 'Female', species: 'Human', resourceType: 'Mana', lane: 'Bottom' },
+  Zaahen: { gender: 'Male', species: 'Darkin', resourceType: 'No Mana', lane: 'Top' },
   Shaco: { gender: 'Male', species: 'Demon' },
 };
 
@@ -116,6 +116,22 @@ function normalizeSpecies(value) {
     .map((part) => SPECIES_LABEL_OVERRIDES[part] ?? part);
 
   return Array.from(new Set(normalizedValues)).join(', ') || 'Unknown';
+}
+
+function formatResourceType(value) {
+  if (!value) {
+    return 'Unknown';
+  }
+
+  return value === 'Manaless' ? 'No Mana' : toTitleCase(String(value));
+}
+
+function formatLane(values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return 'Unknown';
+  }
+
+  return toTitleCase(String(values[0]));
 }
 
 function decodeHtml(value) {
@@ -258,6 +274,8 @@ async function fetchChampionMetadata() {
           {
             gender: override?.gender ?? toTitleCase(champion.gender || 'Unknown'),
             species: override?.species ?? formatSpecies(champion.newSpecies?.length ? champion.newSpecies : champion.species),
+            resourceType: override?.resourceType ?? formatResourceType(champion.resource),
+            lane: override?.lane ?? formatLane(champion.positions),
           },
         ];
       }),
@@ -342,6 +360,18 @@ async function refreshStoredMetadata() {
   await Promise.all([
     writeJson('skin-release-dates.json', releaseDates),
     writeJson('champion-metadata.json', championMetadata),
+    writeJson(
+      'champion-gameplay-metadata.json',
+      Object.fromEntries(
+        Object.entries(championMetadata).map(([championName, metadata]) => [
+          championName,
+          {
+            resourceType: metadata.resourceType ?? 'Unknown',
+            lane: metadata.lane ?? 'Unknown',
+          },
+        ]),
+      ),
+    ),
   ]);
 
   return { releaseDates, championMetadata };
@@ -472,6 +502,8 @@ async function buildSkinItems(releaseDates, championMetadata) {
         role: champion?.role ?? 'Unknown',
         gender: metadata?.gender ?? 'Unknown',
         race: metadata?.species ?? 'Unknown',
+        resourceType: metadata?.resourceType ?? 'Unknown',
+        lane: metadata?.lane ?? 'Unknown',
       };
     })
     .filter((skin) => skin.champion !== 'Unknown' && skin.imageUrl)

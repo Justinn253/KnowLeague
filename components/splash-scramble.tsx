@@ -38,7 +38,6 @@ type GridOption = {
 type TimeOption = {
   seconds: number | null;
   label: string;
-  description: string;
 };
 
 type SplashScrambleSettings = {
@@ -96,11 +95,11 @@ const gridOptions: GridOption[] = [
 ];
 
 const timeOptions: TimeOption[] = [
-  { seconds: 180, label: '3:00', description: 'Fast solve' },
-  { seconds: 300, label: '5:00', description: 'Standard' },
-  { seconds: 480, label: '8:00', description: 'Measured' },
-  { seconds: 720, label: '12:00', description: 'Practice' },
-  { seconds: null, label: 'No Timer', description: 'Tracks current time' },
+  { seconds: 180, label: '3:00' },
+  { seconds: 300, label: '5:00' },
+  { seconds: 480, label: '8:00' },
+  { seconds: 720, label: '12:00' },
+  { seconds: null, label: 'No Timer' },
 ];
 
 function createEmptyStats(): SplashScrambleStats {
@@ -168,9 +167,13 @@ async function fetchSkins() {
   return (await response.json() as QuizItem[]).filter((skin) => skin.imageUrl);
 }
 
-async function loadRandomSkin(cachedSkins: readonly QuizItem[]) {
+async function loadRandomSkin(cachedSkins: readonly QuizItem[], excludedSkinId?: string) {
   const eligibleSkins = cachedSkins.length > 0 ? cachedSkins : await fetchSkins();
-  const skin = eligibleSkins[Math.floor(Math.random() * eligibleSkins.length)];
+  const availableSkins = excludedSkinId
+    ? eligibleSkins.filter((skin) => skin.id !== excludedSkinId)
+    : eligibleSkins;
+  const skinPool = availableSkins.length > 0 ? availableSkins : eligibleSkins;
+  const skin = skinPool[Math.floor(Math.random() * skinPool.length)];
 
   if (!skin) {
     throw new Error('No skin splash art is available.');
@@ -351,6 +354,7 @@ function SettingButton({
   disabled,
   icon,
   title,
+  sideLabel,
   description,
   onClick,
 }: {
@@ -358,7 +362,8 @@ function SettingButton({
   disabled?: boolean;
   icon: ReactNode;
   title: string;
-  description: string;
+  sideLabel?: string;
+  description?: string;
   onClick: () => void;
 }) {
   return (
@@ -366,23 +371,24 @@ function SettingButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`group flex min-h-20 items-start gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`group flex gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
         selected
           ? 'border-amber-300/70 bg-amber-300/10 shadow-lg shadow-amber-500/10'
           : 'border-white/10 bg-slate-950/70 hover:border-white/25 hover:bg-slate-950'
-      }`}
+      } ${description ? 'min-h-20 items-start' : 'min-h-14 items-center'}`}
     >
       <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
         selected ? 'border-amber-300/50 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900 text-slate-300'
       }`}>
         {icon}
       </span>
-      <span className="min-w-0">
-        <span className="flex items-center gap-2 text-sm font-bold text-white">
-          {title}
-          {selected ? <Check size={15} className="text-amber-300" /> : null}
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-white">
+          <span className="min-w-0 truncate">{title}</span>
+          {selected ? <Check size={15} className="shrink-0 text-amber-300" /> : null}
+          {sideLabel ? <span className="ml-auto shrink-0 text-xs font-semibold italic text-slate-500">{sideLabel}</span> : null}
         </span>
-        <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span>
+        {description ? <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span> : null}
       </span>
     </button>
   );
@@ -711,7 +717,7 @@ export function SplashScramble() {
     setPhase('won');
   };
 
-  const startRound = async () => {
+  const startRound = async (options?: { forceRandomSkin?: boolean; excludedSkinId?: string }) => {
     setPhase('loading');
     setError('');
     setSelectedTile(null);
@@ -723,7 +729,8 @@ export function SplashScramble() {
     solveRecordedRef.current = false;
 
     try {
-      const skin = selectedSkin ?? await loadRandomSkin(skinCatalog);
+      const roundSelectedSkin = options?.forceRandomSkin ? null : selectedSkin;
+      const skin = roundSelectedSkin ?? await loadRandomSkin(skinCatalog, options?.excludedSkinId);
       await preloadImage(skin.imageUrl);
       const nextTiles = shuffleTiles(configuredTileCount);
       const nextRotations = createInitialRotations(configuredTileCount, rotateTiles);
@@ -736,7 +743,7 @@ export function SplashScramble() {
         showReference,
         lockCorrectTiles,
         rotateTiles,
-        selectedSkin,
+        selectedSkin: roundSelectedSkin,
         targetSkin: skin,
         tiles: nextTiles,
         rotations: nextRotations,
@@ -747,6 +754,7 @@ export function SplashScramble() {
         savedAt: now,
       };
 
+      setSelectedSkin(roundSelectedSkin);
       setTargetSkin(skin);
       setTiles(nextTiles);
       setRotations(nextRotations);
@@ -764,6 +772,14 @@ export function SplashScramble() {
       setEndsAt(null);
       setPhase('prematch');
     }
+  };
+
+  const startNewSkinRound = () => {
+    if (moves > 0 && !window.confirm('Start a new skin? Your current swaps will be lost.')) {
+      return;
+    }
+
+    void startRound({ forceRandomSkin: true, excludedSkinId: targetSkin?.id });
   };
 
   const resumeSavedRound = async () => {
@@ -792,6 +808,10 @@ export function SplashScramble() {
       syncAccountRound(round).catch(() => undefined);
     }
 
+    if (roundEnded && targetSkin) {
+      setSelectedSkin(targetSkin);
+    }
+
     setPhase('prematch');
     setSelectedTile(null);
     setFlashingPositions(new Set());
@@ -801,6 +821,9 @@ export function SplashScramble() {
     clearLocalRound();
     setResumeRound(null);
     syncAccountRound(null).catch(() => undefined);
+    if (targetSkin) {
+      setSelectedSkin(targetSkin);
+    }
     setPhase('prematch');
     setSelectedTile(null);
     setStartedAt(null);
@@ -1073,14 +1096,14 @@ export function SplashScramble() {
 
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pieces</p>
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {gridOptions.map((option) => (
                 <SettingButton
                   key={option.size}
                   selected={gridSize === option.size}
                   icon={<Grid3X3 size={17} />}
                   title={option.label}
-                  description={option.description}
+                  sideLabel={option.description}
                   onClick={() => setGridSize(option.size)}
                 />
               ))}
@@ -1099,7 +1122,6 @@ export function SplashScramble() {
                   selected={timeLimit === option.seconds}
                   icon={<Clock3 size={17} />}
                   title={option.label}
-                  description={option.description}
                   onClick={() => {
                     setTimeLimit(option.seconds);
                     setRemainingSeconds(option.seconds ?? 0);
@@ -1156,7 +1178,7 @@ export function SplashScramble() {
                 <SettingButton
                   selected={rotateTiles}
                   icon={<RotateCw size={17} />}
-                  title="Rotated"
+                  title="Rotated - 16x9"
                   description="Pieces start rotated and must be turned."
                   onClick={() => setRotateTiles(true)}
                 />
@@ -1175,7 +1197,7 @@ export function SplashScramble() {
         <div className={`grid gap-3 ${resumeRound ? 'sm:grid-cols-2' : ''}`}>
           <button
             type="button"
-            onClick={startRound}
+            onClick={() => void startRound()}
             className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
           >
             <Play size={16} />
@@ -1211,10 +1233,20 @@ export function SplashScramble() {
   const renderBoard = () => (
     <section className="grid gap-4">
       <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 shadow-glow backdrop-blur-xl sm:p-5">
-        <div className="mb-3 grid grid-cols-3 gap-2 sm:mb-4 sm:gap-3">
-          <StatPill label={timeLimit === null ? 'Elapsed' : 'Time'} value={activeTimeValue} />
-          <StatPill label="Moves" value={moves} />
-          <StatPill label="Correct" value={`${correctPositions}/${tileCount}`} />
+        <div className="mb-3 grid gap-2 sm:mb-4 sm:gap-3 lg:grid-cols-[1fr_auto]">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <StatPill label={timeLimit === null ? 'Elapsed' : 'Time'} value={activeTimeValue} />
+            <StatPill label="Moves" value={moves} />
+            <StatPill label="Correct" value={`${correctPositions}/${tileCount}`} />
+          </div>
+          <button
+            type="button"
+            onClick={startNewSkinRound}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-amber-300/10 px-4 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-200 lg:w-auto"
+          >
+            <Shuffle size={15} />
+            New Skin
+          </button>
         </div>
 
         {rotateTiles ? (
@@ -1389,7 +1421,7 @@ export function SplashScramble() {
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
-                  onClick={startRound}
+                  onClick={() => void startRound()}
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
                 >
                   <RotateCcw size={16} />

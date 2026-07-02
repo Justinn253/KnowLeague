@@ -14,6 +14,7 @@ import {
 } from '@/lib/game-storage';
 import { getNextUtcResetLabel, normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { submitAchievementEvent } from '@/lib/achievement-client';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const categories = [
@@ -169,6 +170,7 @@ export function Skindle() {
   const topGuessesMenuRef = useRef<HTMLDivElement>(null);
   const playerStatsMenuRef = useRef<HTMLDivElement>(null);
   const hasRestoredStateRef = useRef(false);
+  const achievementRecordedRef = useRef(false);
 
   const solved = Boolean(target && guesses.some((guess) => guess.item.id === target.id));
   const answerPool = useMemo(() => skins.filter((skin) => !guesses.some((guess) => guess.item.id === skin.id)), [guesses, skins]);
@@ -273,8 +275,12 @@ export function Skindle() {
   useEffect(() => {
     if (storageReady && solved) {
       refreshDailyStats(true);
+      if (target && !achievementRecordedRef.current) {
+        achievementRecordedRef.current = true;
+        void submitAchievementEvent('daily_skindle_completed', { skinId: target.id });
+      }
     }
-  }, [solved, storageReady]);
+  }, [solved, storageReady, target]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -354,6 +360,10 @@ export function Skindle() {
           })),
         ),
       );
+      if (!achievementRecordedRef.current) {
+        achievementRecordedRef.current = true;
+        void submitAchievementEvent('daily_skindle_completed', { skinId: target.id });
+      }
       refreshDailyStats(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, SKINDLE_REVEAL_TOTAL_MS);

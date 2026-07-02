@@ -3,14 +3,18 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  Award,
   Check,
   Eye,
   EyeOff,
+  Filter,
   KeyRound,
   Link as LinkIcon,
   Loader2,
   LogOut,
+  RotateCcw,
   Save,
+  Trophy,
   UserPlus,
   Users,
   Search,
@@ -19,6 +23,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { submitAchievementEvent } from '@/lib/achievement-client';
+import type { AchievementListItem } from '@/lib/achievements';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
 import { loadDetailedGameStats, loadPlayerGameStats, type DetailedGameStats, type PlayerGameStats, type QuizGameDetailedStats, type QuizModeStats, type SkincognitoDetailedStats } from '@/lib/game-storage';
@@ -49,7 +55,9 @@ type ProfileRecord = {
   created_at: string;
 };
 
-type ProfileTab = 'profile' | 'stats' | 'account';
+type ProfileTab = 'profile' | 'stats' | 'achievements' | 'account';
+type AchievementSortKey = 'completedAt' | 'globalRanking';
+type AchievementSortDirection = 'asc' | 'desc';
 type IncomingRequest = {
   id: string;
   requester: {
@@ -88,6 +96,7 @@ let cachedProfileScreenState: CachedProfileScreenState | null = null;
 
 type ProfileScreenProps = {
   presentation?: 'page' | 'overlay';
+  initialTab?: ProfileTab;
   onClose?: () => void;
 };
 
@@ -104,6 +113,20 @@ function formatProfileDate(value?: string | null) {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+  }).format(new Date(value));
+}
+
+function formatAchievementDate(value?: string | null) {
+  if (!value) {
+    return 'Not completed';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   }).format(new Date(value));
 }
 
@@ -357,9 +380,9 @@ function RiotConnectionCard({ value }: { value: string }) {
   );
 }
 
-export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenProps) {
+export function ProfileScreen({ presentation = 'page', initialTab = 'profile', onClose }: ProfileScreenProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
+  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
@@ -391,8 +414,17 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [friendSearchResults, setFriendSearchResults] = useState<FriendCandidate[]>([]);
   const [friendSearchContext, setFriendSearchContext] = useState<{ candidate: FriendCandidate; x: number; y: number } | null>(null);
+  const [achievements, setAchievements] = useState<AchievementListItem[]>([]);
+  const [achievementsLoading, setAchievementsLoading] = useState(false);
+  const [achievementsLoadAttempted, setAchievementsLoadAttempted] = useState(false);
+  const [achievementSearchQuery, setAchievementSearchQuery] = useState('');
+  const [achievementSortKey, setAchievementSortKey] = useState<AchievementSortKey>('completedAt');
+  const [achievementSortDirection, setAchievementSortDirection] = useState<AchievementSortDirection>('desc');
+  const [achievementGameFilters, setAchievementGameFilters] = useState<Set<string>>(() => new Set(['general', 'skindle']));
+  const [achievementFiltersOpen, setAchievementFiltersOpen] = useState(false);
   const addFriendPanelRef = useRef<HTMLDivElement | null>(null);
   const cosmeticsMenuRef = useRef<HTMLDivElement | null>(null);
+  const achievementFiltersRef = useRef<HTMLDivElement | null>(null);
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const avatarCropImageRef = useRef<HTMLImageElement | null>(null);
@@ -419,6 +451,10 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
   const previewChatColor = normalizeChatColor(cosmeticsPreviewColor ?? pendingChatColor);
   const previewChatBorder = normalizeChatBorder(cosmeticsPreviewBorder ?? pendingChatBorder);
   const previewBubbleStyle = getChatBubbleStyle(previewChatColor, previewChatBorder);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const hydrateFromCache = useCallback((cachedState: CachedProfileScreenState) => {
     setUserId(cachedState.userId);
@@ -468,6 +504,33 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       }
     } catch {
       // The profile can still render if the social summary is temporarily unavailable.
+    }
+  }, []);
+
+  const refreshAchievements = useCallback(async () => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      setAchievements([]);
+      setAchievementsLoadAttempted(true);
+      return;
+    }
+
+    setAchievementsLoading(true);
+    setAchievementsLoadAttempted(true);
+    try {
+      const response = await fetch('/api/achievements', {
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error ?? 'Unable to load achievements.');
+      }
+      setAchievements(body.achievements ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to load achievements.');
+    } finally {
+      setAchievementsLoading(false);
     }
   }, []);
 
@@ -587,10 +650,33 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
       }
 
       await refreshFriendDashboard();
+      await refreshAchievements();
 
       setBusy(false);
     });
-  }, [hydrateFromCache, onClose, presentation, refreshFriendDashboard, router]);
+  }, [hydrateFromCache, onClose, presentation, refreshAchievements, refreshFriendDashboard, router]);
+
+  useEffect(() => {
+    if (
+      profile?.discord_username &&
+      achievementsLoadAttempted &&
+      !achievementsLoading &&
+      achievements.length > 0 &&
+      !achievements.some((achievement) => achievement.id === 'discord_linked' && achievement.completedAt)
+    ) {
+      void submitAchievementEvent('discord_linked').then((result) => {
+        if (result) {
+          setAchievements(result.achievements);
+        }
+      });
+    }
+  }, [achievements, achievementsLoadAttempted, achievementsLoading, profile?.discord_username]);
+
+  useEffect(() => {
+    if (activeTab === 'achievements' && !achievementsLoadAttempted && !achievementsLoading) {
+      void refreshAchievements();
+    }
+  }, [activeTab, achievementsLoadAttempted, achievementsLoading, refreshAchievements]);
 
   useEffect(() => {
     if (!userId) {
@@ -961,6 +1047,23 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
   }, [addFriendOpen]);
 
   useEffect(() => {
+    if (!achievementFiltersOpen) {
+      return undefined;
+    }
+
+    const closeAchievementFilters = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && achievementFiltersRef.current?.contains(target)) {
+        return;
+      }
+      setAchievementFiltersOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeAchievementFilters);
+    return () => document.removeEventListener('pointerdown', closeAchievementFilters);
+  }, [achievementFiltersOpen]);
+
+  useEffect(() => {
     setCosmeticsPreviewColor(null);
     setCosmeticsPreviewBorder(null);
 
@@ -1077,6 +1180,36 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     window.location.href = body.url;
   };
 
+  const resetAchievements = async () => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      setMessage('Login required.');
+      return;
+    }
+
+    setMessage('');
+    const response = await fetch('/api/achievements', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      setMessage(body.error ?? 'Unable to reset achievements.');
+      return;
+    }
+    window.localStorage.removeItem(`knowleague:v1:achievement:first-login:${data.session.user.id}`);
+    const result = await submitAchievementEvent('first_login');
+    if (result) {
+      window.localStorage.setItem(`knowleague:v1:achievement:first-login:${data.session.user.id}`, 'synced');
+      setAchievements(result.achievements);
+    } else {
+      setAchievements([]);
+      await refreshAchievements();
+    }
+    setMessage('Achievements reset.');
+  };
+
   const unlinkDiscord = async () => {
     const supabase = getOptionalSupabaseClient();
     const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
@@ -1124,6 +1257,34 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
     : 1;
   const avatarDisplayWidth = avatarCropNaturalSize.width * avatarCoverScale;
   const avatarDisplayHeight = avatarCropNaturalSize.height * avatarCoverScale;
+  const cleanAchievementSearch = achievementSearchQuery.trim().toLowerCase();
+  const visibleAchievements = achievements
+    .filter((achievement) => achievementGameFilters.has(achievement.game))
+    .filter((achievement) => {
+      if (!cleanAchievementSearch) return true;
+      return (
+        achievement.titleVisible.toLowerCase().includes(cleanAchievementSearch) ||
+        achievement.descriptionVisible.toLowerCase().includes(cleanAchievementSearch)
+      );
+    })
+    .sort((left, right) => {
+      const direction = achievementSortDirection === 'asc' ? 1 : -1;
+      if (achievementSortKey === 'completedAt') {
+        if (!left.completedAt && !right.completedAt) return left.titleVisible.localeCompare(right.titleVisible);
+        if (!left.completedAt) return 1;
+        if (!right.completedAt) return -1;
+        const leftTime = new Date(left.completedAt).getTime();
+        const rightTime = new Date(right.completedAt).getTime();
+        return (leftTime - rightTime) * direction;
+      }
+
+      if (left.topPercent === null && right.topPercent === null) return left.titleVisible.localeCompare(right.titleVisible);
+      if (left.topPercent === null) return 1;
+      if (right.topPercent === null) return -1;
+      const leftRank = left.topPercent;
+      const rightRank = right.topPercent;
+      return (leftRank - rightRank) * direction;
+    });
 
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
@@ -1299,10 +1460,11 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1">
+              <div className="grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1">
                 {[
                   ['profile', 'Profile'],
                   ['stats', 'Stats'],
+                  ['achievements', 'Achievements'],
                   ['account', 'Account Info'],
                 ].map(([tab, label]) => (
                   <button
@@ -1546,6 +1708,129 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                 </div>
               ) : null}
 
+              {activeTab === 'achievements' ? (
+                <div className="mt-5 grid gap-4">
+                  <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/80 p-4 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center">
+                    <div className="relative">
+                      <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <input
+                        value={achievementSearchQuery}
+                        onChange={(event) => setAchievementSearchQuery(event.target.value)}
+                        placeholder="Search achievements"
+                        className="min-h-11 w-full rounded-2xl border border-white/10 bg-slate-900 px-10 text-sm text-white outline-none placeholder:text-slate-500"
+                      />
+                    </div>
+                    <select
+                      value={achievementSortKey}
+                      onChange={(event) => setAchievementSortKey(event.target.value as AchievementSortKey)}
+                      className="min-h-11 rounded-2xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-white outline-none"
+                    >
+                      <option value="completedAt">Date completed</option>
+                      <option value="globalRanking">Global ranking</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setAchievementSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))}
+                      className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:bg-slate-800"
+                    >
+                      {achievementSortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                    </button>
+                    <div ref={achievementFiltersRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setAchievementFiltersOpen((open) => !open)}
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:bg-slate-800"
+                      >
+                        <Filter size={16} />
+                        Filter
+                      </button>
+                      {achievementFiltersOpen ? (
+                        <div className="absolute right-0 top-12 z-30 grid w-52 gap-2 rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+                          {[
+                            ['general', 'General App'],
+                            ['skindle', 'Skindle'],
+                          ].map(([value, label]) => (
+                            <label key={value} className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-900">
+                              <span>{label}</span>
+                              <input
+                                type="checkbox"
+                                checked={achievementGameFilters.has(value)}
+                                onChange={(event) => {
+                                  setAchievementGameFilters((current) => {
+                                    const next = new Set(current);
+                                    if (event.target.checked) {
+                                      next.add(value);
+                                    } else {
+                                      next.delete(value);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                className="h-4 w-4 accent-amber-300"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {achievementsLoading ? (
+                    <div className="flex min-h-44 items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-950/80 text-sm font-semibold text-slate-300">
+                      <Loader2 size={18} className="animate-spin text-amber-300" />
+                      Loading achievements...
+                    </div>
+                  ) : visibleAchievements.length === 0 ? (
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-6 text-center text-sm text-slate-500">
+                      No achievements match the current filters.
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {visibleAchievements.map((achievement) => {
+                        const complete = Boolean(achievement.completedAt);
+                        const progressPercent = Math.min(100, Math.round((achievement.progressCurrent / achievement.progressTarget) * 100));
+                        return (
+                          <article key={achievement.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-4 rounded-2xl border p-3 ${complete ? 'border-emerald-300/35 bg-emerald-400/10' : 'border-white/10 bg-slate-950/80'}`}>
+                            <div className="min-w-0">
+                              <div className="flex min-w-0 items-start gap-3">
+                                <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${complete ? 'border-emerald-300/40 bg-emerald-400/15 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400'}`}>
+                                  {complete ? <Trophy size={18} /> : <Award size={18} />}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                    <h3 className="truncate text-base font-black text-white">{achievement.titleVisible}</h3>
+                                    {achievement.rewards.map((reward) => (
+                                      <span key={`${achievement.id}:${reward.kind}:${reward.name}`} className={`rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold ${complete ? 'border-emerald-300/30 bg-emerald-400/10 text-emerald-100' : 'border-white/10 bg-slate-900 text-slate-300'}`}>
+                                        {reward.kind === 'title' ? 'Title' : 'Badge'}: {reward.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
+                                    <span className="uppercase tracking-[0.14em]">{achievement.game === 'general' ? 'General App' : 'Skindle'}</span>
+                                    <span>{formatAchievementDate(achievement.completedAt)}</span>
+                                    {complete && achievement.topPercent ? <span>Top {achievement.topPercent}%</span> : null}
+                                  </div>
+                                  <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-300">{achievement.descriptionVisible}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex w-12 shrink-0 self-stretch flex-col items-center justify-between gap-2">
+                              <div className="relative min-h-0 w-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                                <div
+                                  className={`absolute bottom-0 left-0 w-full rounded-full ${complete ? 'bg-emerald-300' : 'bg-amber-300'}`}
+                                  style={{ height: `${progressPercent}%` }}
+                                />
+                              </div>
+                              <span className="text-[0.68rem] font-black text-slate-400">{achievement.progressCurrent}/{achievement.progressTarget}</span>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
               {activeTab === 'account' ? (
                 <div className="mt-6 grid gap-4">
                   <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
@@ -1590,6 +1875,21 @@ export function ProfileScreen({ presentation = 'page', onClose }: ProfileScreenP
                         {saving ? 'Saving' : 'Save Preference'}
                       </button>
                     </form>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Temporary Admin Control</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      Reset all achievements for this account. Gate this behind admin permissions when admin users are implemented.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void resetAchievements()}
+                      className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-slate-950 px-4 text-sm font-bold text-amber-100 transition hover:bg-slate-900"
+                    >
+                      <RotateCcw size={16} />
+                      Reset Achievements
+                    </button>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">

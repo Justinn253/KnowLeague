@@ -1,17 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { UserCircle, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
+import { AchievementToasts } from '@/components/achievement-toasts';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { FriendsWidget } from '@/components/friends-widget';
 import { ProfileScreen } from '@/components/profile-screen';
 import { PublicProfileScreen } from '@/components/public-profile-screen';
+import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getAuthSessionId } from '@/lib/auth-session';
 import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+
+type ProfileOverlayTab = 'profile' | 'stats' | 'achievements' | 'account';
 
 export function GlobalActions() {
   const pathname = usePathname();
@@ -20,8 +24,10 @@ export function GlobalActions() {
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileInitialTab, setProfileInitialTab] = useState<ProfileOverlayTab>('profile');
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
   const [publicProfileUsername, setPublicProfileUsername] = useState<string | null>(null);
+  const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     void reconcileStoredMultiplayerSessionsAwayFromGame(pathname);
@@ -46,6 +52,17 @@ export function GlobalActions() {
       const userId = session.user.id;
 
       setIsLoggedIn(true);
+      const firstLoginStorageKey = `knowleague:v1:achievement:first-login:${userId}`;
+      if (!firstLoginSubmittedRef.current.has(userId) && window.localStorage.getItem(firstLoginStorageKey) !== 'synced') {
+        firstLoginSubmittedRef.current.add(userId);
+        void submitAchievementEvent('first_login').then((result) => {
+          if (result) {
+            window.localStorage.setItem(firstLoginStorageKey, 'synced');
+          } else {
+            firstLoginSubmittedRef.current.delete(userId);
+          }
+        });
+      }
       setProfileHref('/profile');
       const { data } = await supabase
         .from('profiles')
@@ -119,6 +136,17 @@ export function GlobalActions() {
   }, []);
 
   useEffect(() => {
+    const openProfileTab = (event: Event) => {
+      const tab = (event as CustomEvent<{ tab?: ProfileOverlayTab }>).detail?.tab ?? 'profile';
+      setProfileInitialTab(tab);
+      setProfileOpen(true);
+    };
+
+    window.addEventListener('knowleague:open-profile-tab', openProfileTab);
+    return () => window.removeEventListener('knowleague:open-profile-tab', openProfileTab);
+  }, []);
+
+  useEffect(() => {
     const openPublicProfile = (event: Event) => {
       const username = (event as CustomEvent<{ username?: string }>).detail?.username?.trim();
       if (username) {
@@ -136,7 +164,10 @@ export function GlobalActions() {
       {isLoggedIn ? (
         <button
           type="button"
-          onClick={() => setProfileOpen(true)}
+          onClick={() => {
+            setProfileInitialTab('profile');
+            setProfileOpen(true);
+          }}
           className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900"
         >
           {profileAvatarUrl ? (
@@ -164,6 +195,7 @@ export function GlobalActions() {
         </Link>
       )}
       <ContactUsWidget />
+      <AchievementToasts />
       {profileOpen ? (
         <div
           data-profile-overlay="true"
@@ -182,7 +214,7 @@ export function GlobalActions() {
             >
               <X size={18} />
             </button>
-            <ProfileScreen presentation="overlay" onClose={() => setProfileOpen(false)} />
+            <ProfileScreen presentation="overlay" initialTab={profileInitialTab} onClose={() => setProfileOpen(false)} />
           </div>
         </div>
       ) : null}

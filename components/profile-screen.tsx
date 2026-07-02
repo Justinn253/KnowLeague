@@ -4,7 +4,9 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Award,
+  BadgeCheck,
   Check,
+  ChevronDown,
   Eye,
   EyeOff,
   Filter,
@@ -12,6 +14,7 @@ import {
   Link as LinkIcon,
   Loader2,
   LogOut,
+  Pencil,
   RotateCcw,
   Save,
   Trophy,
@@ -24,7 +27,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { submitAchievementEvent } from '@/lib/achievement-client';
-import type { AchievementListItem } from '@/lib/achievements';
+import { getEarnedRewards, type AchievementListItem } from '@/lib/achievements';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
 import { loadDetailedGameStats, loadPlayerGameStats, type DetailedGameStats, type PlayerGameStats, type QuizGameDetailedStats, type QuizModeStats, type SkincognitoDetailedStats } from '@/lib/game-storage';
@@ -48,6 +51,8 @@ type ProfileRecord = {
   avatar_url: string | null;
   chat_color: string;
   chat_border: string;
+  selected_title_reward_id: string | null;
+  displayed_badge_reward_ids: string[];
   discord_username: string | null;
   discord_avatar_url: string | null;
   discord_banner_url: string | null;
@@ -92,6 +97,7 @@ const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 const CHAT_COLOR_OPTIONS = CHAT_COLOR_VALUES.map((value) => ({ value }));
 const CHAT_BORDER_OPTIONS = CHAT_COLOR_VALUES.map((value) => ({ value }));
 const PROFILE_COSMETICS_DATABASE_MESSAGE = 'Profile cosmetics cannot be saved because the database is missing the latest profile cosmetics columns. Apply the latest profile migrations, then save again.';
+const ACHIEVEMENT_COSMETICS_DATABASE_MESSAGE = 'Achievement cosmetics cannot be saved because the database is missing the latest achievement cosmetics columns. Apply the latest profile achievement cosmetics migration, then save again.';
 let cachedProfileScreenState: CachedProfileScreenState | null = null;
 
 type ProfileScreenProps = {
@@ -390,7 +396,11 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [aboutDraft, setAboutDraft] = useState('');
   const [chatColorDraft, setChatColorDraft] = useState('amber');
   const [chatBorderDraft, setChatBorderDraft] = useState(DEFAULT_CHAT_BORDER);
+  const [selectedTitleRewardId, setSelectedTitleRewardId] = useState('');
+  const [displayedBadgeRewardIds, setDisplayedBadgeRewardIds] = useState<string[]>([]);
   const [cosmeticsMenuOpen, setCosmeticsMenuOpen] = useState(false);
+  const [titleMenuOpen, setTitleMenuOpen] = useState(false);
+  const [badgeEditorOpen, setBadgeEditorOpen] = useState(false);
   const [pendingChatColor, setPendingChatColor] = useState('amber');
   const [pendingChatBorder, setPendingChatBorder] = useState<ChatBorder>(DEFAULT_CHAT_BORDER);
   const [cosmeticsPreviewColor, setCosmeticsPreviewColor] = useState<string | null>(null);
@@ -444,7 +454,9 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     cleanUsernameDraft !== profile.username ||
     cleanAboutDraft !== profile.about_me ||
     chatColorDraft !== profile.chat_color ||
-    chatBorderDraft !== profile.chat_border
+    chatBorderDraft !== profile.chat_border ||
+    selectedTitleRewardId !== (profile.selected_title_reward_id ?? '') ||
+    displayedBadgeRewardIds.join('|') !== (profile.displayed_badge_reward_ids ?? []).join('|')
   ) : false;
   const hasPreferenceChanges = profile ? friendRequestsOpen !== profile.friend_requests_open : false;
   const hasAnySaveChanges = hasProfileChanges || hasPreferenceChanges || hasAvatarChanges;
@@ -464,6 +476,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     setAboutDraft(cachedState.aboutDraft);
     setChatColorDraft(cachedState.chatColorDraft);
     setChatBorderDraft(normalizeChatBorder(cachedState.chatBorderDraft));
+    setSelectedTitleRewardId(cachedState.profile?.selected_title_reward_id ?? '');
+    setDisplayedBadgeRewardIds(cachedState.profile?.displayed_badge_reward_ids ?? []);
     setFriendRequestsOpen(cachedState.friendRequestsOpen);
     setIncomingRequests(cachedState.incomingRequests);
     setBusy(false);
@@ -560,7 +574,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       setEmail(data.user.email ?? '');
       let { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
+        .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
         .eq('id', data.user.id)
         .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
       if (profileError && isMissingProfileColumnError(profileError, 'chat_color')) {
@@ -570,7 +584,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           .eq('id', data.user.id)
           .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_color' | 'chat_border'>>();
 
-        profileData = fallback.data ? { ...fallback.data, chat_color: 'amber', chat_border: DEFAULT_CHAT_BORDER } : null;
+        profileData = fallback.data ? { ...fallback.data, chat_color: 'amber', chat_border: DEFAULT_CHAT_BORDER, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
         profileError = fallback.error;
       }
       if (profileError && isMissingProfileColumnError(profileError, 'chat_border')) {
@@ -580,7 +594,17 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           .eq('id', data.user.id)
           .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_border'>>();
 
-        profileData = fallback.data ? { ...fallback.data, chat_color: normalizeChatColor(fallback.data.chat_color), chat_border: DEFAULT_CHAT_BORDER } : null;
+        profileData = fallback.data ? { ...fallback.data, chat_color: normalizeChatColor(fallback.data.chat_color), chat_border: DEFAULT_CHAT_BORDER, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
+        profileError = fallback.error;
+      }
+      if (profileError && (isMissingProfileColumnError(profileError, 'selected_title_reward_id') || isMissingProfileColumnError(profileError, 'displayed_badge_reward_ids'))) {
+        const fallback = await supabase
+          .from('profiles')
+          .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
+          .eq('id', data.user.id)
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'selected_title_reward_id' | 'displayed_badge_reward_ids'>>();
+
+        profileData = fallback.data ? { ...fallback.data, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
         profileError = fallback.error;
       }
       let { data: privateData, error: privateError } = await supabase
@@ -635,6 +659,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
         setAboutDraft(profileData?.about_me ?? '');
         setChatColorDraft(normalizeChatColor(profileData?.chat_color));
         setChatBorderDraft(normalizeChatBorder(profileData?.chat_border));
+        setSelectedTitleRewardId(profileData?.selected_title_reward_id ?? '');
+        setDisplayedBadgeRewardIds(profileData?.displayed_badge_reward_ids ?? []);
         setFriendRequestsOpen(profileData?.friend_requests_open ?? true);
         cachedProfileScreenState = {
           userId: data.user.id,
@@ -786,13 +812,15 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       avatar_url: nextAvatarUrl,
       chat_color: normalizeChatColor(chatColorDraft),
       chat_border: normalizeChatBorder(chatBorderDraft),
+      selected_title_reward_id: selectedTitleRewardId || null,
+      displayed_badge_reward_ids: displayedBadgeRewardIds.slice(0, 8),
       updated_at: new Date().toISOString(),
     };
     let { data, error } = await supabase
       .from('profiles')
       .update(profileUpdate)
       .eq('id', userId)
-      .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
+      .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
       .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
     if (
       error &&
@@ -819,6 +847,34 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
         ...fallback.data,
         chat_color: profile?.chat_color ?? 'amber',
         chat_border: profile?.chat_border ?? DEFAULT_CHAT_BORDER,
+      } : null;
+      error = fallback.error;
+    }
+    if (
+      error &&
+      (isMissingProfileColumnError(error, 'selected_title_reward_id') || isMissingProfileColumnError(error, 'displayed_badge_reward_ids'))
+    ) {
+      if (
+        profileUpdate.selected_title_reward_id !== (profile?.selected_title_reward_id ?? null) ||
+        profileUpdate.displayed_badge_reward_ids.join('|') !== (profile?.displayed_badge_reward_ids ?? []).join('|')
+      ) {
+        setSaving(false);
+        setMessage(ACHIEVEMENT_COSMETICS_DATABASE_MESSAGE);
+        return;
+      }
+
+      const { selected_title_reward_id: _selectedTitle, displayed_badge_reward_ids: _displayedBadges, ...fallbackUpdate } = profileUpdate;
+      const fallback = await supabase
+        .from('profiles')
+        .update(fallbackUpdate)
+        .eq('id', userId)
+        .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
+        .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'selected_title_reward_id' | 'displayed_badge_reward_ids'>>();
+
+      data = fallback.data ? {
+        ...fallback.data,
+        selected_title_reward_id: profile?.selected_title_reward_id ?? null,
+        displayed_badge_reward_ids: profile?.displayed_badge_reward_ids ?? [],
       } : null;
       error = fallback.error;
     }
@@ -849,6 +905,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     setAboutDraft(data.about_me);
     setChatColorDraft(normalizeChatColor(data.chat_color));
     setChatBorderDraft(normalizeChatBorder(data.chat_border));
+    setSelectedTitleRewardId(data.selected_title_reward_id ?? '');
+    setDisplayedBadgeRewardIds(data.displayed_badge_reward_ids ?? []);
     setFriendRequestsOpen(data.friend_requests_open);
     resetAvatarDraft();
     cachedProfileScreenState = {
@@ -1067,31 +1125,33 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     setCosmeticsPreviewColor(null);
     setCosmeticsPreviewBorder(null);
 
-    if (!cosmeticsMenuOpen) {
+    if (!cosmeticsMenuOpen && !titleMenuOpen) {
       return undefined;
     }
 
-    const closeCosmeticsMenu = (event: PointerEvent) => {
+    const closeCosmeticsMenus = (event: PointerEvent) => {
       const target = event.target;
       if (target instanceof Node && cosmeticsMenuRef.current?.contains(target)) {
         return;
       }
 
       setCosmeticsMenuOpen(false);
+      setTitleMenuOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setCosmeticsMenuOpen(false);
+        setTitleMenuOpen(false);
       }
     };
 
-    document.addEventListener('pointerdown', closeCosmeticsMenu);
+    document.addEventListener('pointerdown', closeCosmeticsMenus);
     document.addEventListener('keydown', closeOnEscape);
     return () => {
-      document.removeEventListener('pointerdown', closeCosmeticsMenu);
+      document.removeEventListener('pointerdown', closeCosmeticsMenus);
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [cosmeticsMenuOpen]);
+  }, [cosmeticsMenuOpen, titleMenuOpen]);
 
   useEffect(() => {
     if (activeTab !== 'stats') {
@@ -1117,7 +1177,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const sendFriendRequest = async (targetUserId: string) => {
     const supabase = getOptionalSupabaseClient();
     const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
-    if (!data.session) {
+    if (!supabase || !data.session) {
       setMessage('Login required.');
       return;
     }
@@ -1161,7 +1221,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const connectDiscord = async () => {
     const supabase = getOptionalSupabaseClient();
     const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
-    if (!data.session) {
+    if (!supabase || !data.session) {
       setMessage('Login required.');
       return;
     }
@@ -1183,7 +1243,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const resetAchievements = async () => {
     const supabase = getOptionalSupabaseClient();
     const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
-    if (!data.session) {
+    if (!supabase || !data.session) {
       setMessage('Login required.');
       return;
     }
@@ -1198,6 +1258,16 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       setMessage(body.error ?? 'Unable to reset achievements.');
       return;
     }
+    await supabase
+      .from('profiles')
+      .update({
+        selected_title_reward_id: null,
+        displayed_badge_reward_ids: [],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', data.session.user.id);
+    setSelectedTitleRewardId('');
+    setDisplayedBadgeRewardIds([]);
     window.localStorage.removeItem(`knowleague:v1:achievement:first-login:${data.session.user.id}`);
     const result = await submitAchievementEvent('first_login');
     if (result) {
@@ -1257,6 +1327,12 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     : 1;
   const avatarDisplayWidth = avatarCropNaturalSize.width * avatarCoverScale;
   const avatarDisplayHeight = avatarCropNaturalSize.height * avatarCoverScale;
+  const earnedTitleRewards = getEarnedRewards(achievements, 'title');
+  const earnedBadgeRewards = getEarnedRewards(achievements, 'badge');
+  const selectedTitleReward = earnedTitleRewards.find((reward) => reward.id === selectedTitleRewardId) ?? null;
+  const displayedBadgeRewards = displayedBadgeRewardIds
+    .map((rewardId) => earnedBadgeRewards.find((reward) => reward.id === rewardId))
+    .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward));
   const cleanAchievementSearch = achievementSearchQuery.trim().toLowerCase();
   const visibleAchievements = achievements
     .filter((achievement) => achievementGameFilters.has(achievement.game))
@@ -1302,7 +1378,14 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
               <ArrowLeft size={20} />
             </Link>
             <div>
-              <h1 className="text-xl font-semibold text-white">Profile</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-semibold text-white">Profile</h1>
+                {selectedTitleReward ? (
+                  <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
+                    {selectedTitleReward.name}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
           {!busy ? (
@@ -1530,9 +1613,9 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       }}
                     />
                     <div className="h-28 w-px shrink-0 bg-white/10" />
-                    <div className="min-w-0 flex-1">
+                    <div ref={cosmeticsMenuRef} className="min-w-0 flex-1">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Profile Cosmetics</p>
-                      <div ref={cosmeticsMenuRef} className="mt-3 flex flex-wrap gap-3">
+                      <div className="mt-3 flex flex-wrap gap-3">
                         <div className="relative">
                           <button
                             type="button"
@@ -1636,6 +1719,72 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                             </div>
                           ) : null}
                         </div>
+                      </div>
+                      <div className="relative mt-3 w-fit">
+                        <button
+                          type="button"
+                          onClick={() => setTitleMenuOpen((open) => !open)}
+                          className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/10 bg-slate-900 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-slate-800"
+                          aria-expanded={titleMenuOpen}
+                        >
+                          Title
+                          <span className="max-w-36 truncate font-bold normal-case tracking-normal text-white">{selectedTitleReward?.name ?? 'No title'}</span>
+                          <ChevronDown size={14} className={`text-slate-400 transition ${titleMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {titleMenuOpen ? (
+                          <div className="absolute left-0 top-11 z-30 grid min-w-52 gap-1 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTitleRewardId('');
+                                setTitleMenuOpen(false);
+                              }}
+                              className={`rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${selectedTitleRewardId ? 'text-slate-300 hover:bg-slate-900' : 'bg-amber-300 text-slate-950'}`}
+                            >
+                              No title
+                            </button>
+                            {earnedTitleRewards.map((reward) => (
+                              <button
+                                key={reward.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTitleRewardId(reward.id);
+                                  setTitleMenuOpen(false);
+                                }}
+                                className={`rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${selectedTitleRewardId === reward.id ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900'}`}
+                              >
+                                {reward.name}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="hidden min-h-28 w-px shrink-0 bg-white/10 lg:block" />
+                    <div className="min-w-0 lg:w-40">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Badges</p>
+                        <button
+                          type="button"
+                          onClick={() => setBadgeEditorOpen(true)}
+                          aria-label="Edit displayed badges"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                      <div className="grid w-fit grid-cols-4 gap-1.5">
+                        {displayedBadgeRewards.slice(0, 8).map((badge) => (
+                          <div
+                            key={badge.id}
+                            className="group relative flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300/35 bg-amber-300/10 text-amber-100"
+                          >
+                            <BadgeCheck size={16} />
+                            <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200 shadow-xl group-hover:block">
+                              {badge.name}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -2015,6 +2164,63 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                 {avatarUploading ? 'Saving' : 'Use Picture'}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+      {badgeEditorOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Displayed Badges</p>
+                <h2 className="mt-1 text-lg font-bold text-white">Choose up to 8 badges</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBadgeEditorOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+                aria-label="Close badge picker"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-5 grid max-h-80 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {earnedBadgeRewards.length === 0 ? (
+                <p className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-500 sm:col-span-2">No badge rewards earned yet.</p>
+              ) : earnedBadgeRewards.map((badge) => {
+                const selected = displayedBadgeRewardIds.includes(badge.id);
+                const disabled = !selected && displayedBadgeRewardIds.length >= 8;
+                return (
+                  <button
+                    key={badge.id}
+                    type="button"
+                    title={badge.name}
+                    aria-label={badge.name}
+                    disabled={disabled}
+                    onClick={() => {
+                      setDisplayedBadgeRewardIds((current) => (
+                        current.includes(badge.id)
+                          ? current.filter((id) => id !== badge.id)
+                          : [...current, badge.id].slice(0, 8)
+                      ));
+                    }}
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      selected ? 'border-amber-300/45 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    <BadgeCheck size={18} className="shrink-0" />
+                    <span className="truncate text-sm font-semibold">{badge.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => setBadgeEditorOpen(false)}
+              className="mt-5 inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200"
+            >
+              Done
+            </button>
           </div>
         </div>
       ) : null}

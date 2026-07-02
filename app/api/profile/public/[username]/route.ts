@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
+import { getUserAchievements } from '@/lib/achievements-server';
 import { getFriendRelationship } from '@/lib/friends';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
@@ -14,6 +15,8 @@ type PublicProfileRow = {
   avatar_url: string | null;
   friends_count: number;
   friend_requests_open: boolean;
+  selected_title_reward_id?: string | null;
+  displayed_badge_reward_ids?: string[] | null;
   created_at: string;
 };
 
@@ -79,7 +82,7 @@ export async function GET(request: Request, { params }: { params: { username: st
     const supabase = getSupabaseServiceClient();
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, username, display_name, about_me, avatar_url, friends_count, friend_requests_open, created_at')
+      .select('id, username, display_name, about_me, avatar_url, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
       .eq('username', username)
       .maybeSingle<PublicProfileRow>();
 
@@ -90,9 +93,10 @@ export async function GET(request: Request, { params }: { params: { username: st
       throw new Error('Profile not found.');
     }
 
-    const [privateDetails, viewerId] = await Promise.all([
+    const [privateDetails, viewerId, achievements] = await Promise.all([
       fetchPrivateDetails(profile.id),
       getOptionalAuthenticatedUserId(request),
+      getUserAchievements(profile.id),
     ]);
     const relationship = viewerId ? await getFriendRelationship(viewerId, profile.id) : 'none';
 
@@ -103,6 +107,9 @@ export async function GET(request: Request, { params }: { params: { username: st
         discord_avatar_url: privateDetails?.discord_avatar_url ?? null,
         discord_banner_url: privateDetails?.discord_banner_url ?? null,
         riot_account_name: privateDetails?.riot_account_name ?? null,
+        selected_title_reward_id: profile.selected_title_reward_id ?? null,
+        displayed_badge_reward_ids: profile.displayed_badge_reward_ids ?? [],
+        achievements,
         relationship,
       },
     });

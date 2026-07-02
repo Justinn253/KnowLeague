@@ -2,6 +2,7 @@ export type AchievementCategory = 'general' | 'profile' | 'skindle';
 export type AchievementRewardKind = 'title' | 'badge';
 
 export type AchievementReward = {
+  id: string;
   kind: AchievementRewardKind;
   name: string;
 };
@@ -53,7 +54,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     category: 'general',
     game: 'general',
     target: 1,
-    rewards: [{ kind: 'badge', name: 'Founding Login' }],
+    rewards: [{ id: 'badge_founding_login', kind: 'badge', name: 'Founding Login' }],
   },
   {
     id: 'discord_linked',
@@ -62,7 +63,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     category: 'profile',
     game: 'general',
     target: 1,
-    rewards: [{ kind: 'title', name: 'Connected' }],
+    rewards: [{ id: 'title_connected', kind: 'title', name: 'Connected' }],
   },
   {
     id: 'daily_skindle_complete',
@@ -71,7 +72,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     category: 'skindle',
     game: 'skindle',
     target: 1,
-    rewards: [{ kind: 'badge', name: 'Skindle Solver' }],
+    rewards: [{ id: 'badge_skindle_solver', kind: 'badge', name: 'Skindle Solver' }],
   },
 ];
 
@@ -83,4 +84,11 @@ export function maskAchievement(achievement: AchievementDefinition, completedAt:
     titleVisible: shouldMask ? 'Hidden Achievement' : achievement.title,
     descriptionVisible: shouldMask ? 'Complete this hidden achievement to reveal it.' : achievement.description,
   };
+}
+
+export function getEarnedRewards(achievements: AchievementListItem[], kind: AchievementRewardKind) {
+  return achievements
+    .filter((achievement) => achievement.completedAt)
+    .flatMap((achievement) => achievement.rewards)
+    .filter((reward) => reward.kind === kind);
 }

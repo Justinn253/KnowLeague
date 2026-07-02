@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, BadgeCheck, Check, Link as LinkIcon, Loader2, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { getEarnedRewards, type AchievementListItem } from '@/lib/achievements';
+import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-ui';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type PublicProfileRecord = {
@@ -244,11 +245,13 @@ function RiotPublicCard({ profile }: { profile: PublicProfileRecord }) {
 export function PublicProfileScreen({ username, presentation = 'page', onClose }: PublicProfileScreenProps) {
   const [activeTab, setActiveTab] = useState<PublicProfileTab>('profile');
   const [profile, setProfile] = useState<PublicProfileRecord | null>(null);
+  const [liveGameStatus, setLiveGameStatus] = useState<LiveGameStatusView | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [relationship, setRelationship] = useState<FriendCandidate['relationship']>('none');
   const [allBadgesOpen, setAllBadgesOpen] = useState(false);
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState('');
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const supabase = getOptionalSupabaseClient();
@@ -274,6 +277,7 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
         if (!cancelled) {
           setProfile(data.profile);
           setRelationship(data.profile.relationship ?? 'none');
+          setLiveGameStatus(null);
         }
       })
       .catch((error) => {
@@ -291,6 +295,52 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
       cancelled = true;
     };
   }, [username]);
+
+  useEffect(() => {
+    const riotAccount = profile?.riot_account_name?.trim();
+    if (!riotAccount) {
+      setLiveGameStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLiveGameStatus(null);
+    const requestUrl = new URL('/api/riot-account/live-game', window.location.origin);
+    requestUrl.searchParams.set('riotId', riotAccount);
+
+    fetch(requestUrl)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error ?? 'Unable to load live game status.');
+        }
+        return data as LiveGameStatusView;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setLiveGameStatus(data);
+          setNow(Date.now());
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLiveGameStatus(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.riot_account_name]);
+
+  useEffect(() => {
+    if (!liveGameStatus?.inGame) {
+      return;
+    }
+
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [liveGameStatus?.inGame]);
 
   const sendFriendRequest = async (targetUserId: string) => {
     const headers = await getAuthHeaders();
@@ -323,6 +373,10 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
   const displayedBadgeRewards = (profile?.displayed_badge_reward_ids ?? [])
     .map((rewardId) => earnedBadgeRewards.find((reward) => reward.id === rewardId))
     .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward));
+  const liveGameNote = getLiveGameNote(liveGameStatus, now);
+  const riotViewerHref = profile?.riot_account_name?.trim()
+    ? `/riot-account-viewer?riotId=${encodeURIComponent(profile.riot_account_name.trim())}`
+    : null;
 
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
@@ -363,13 +417,26 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
                   </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="truncate text-3xl font-bold text-white">{profile.display_name || profile.username}</h2>
+                      {riotViewerHref ? (
+                        <Link
+                          href={riotViewerHref}
+                          className="min-w-0 truncate text-3xl font-bold text-white transition hover:text-amber-200"
+                          title="Open linked Riot account in League Account Viewer"
+                        >
+                          {profile.display_name || profile.username}
+                        </Link>
+                      ) : (
+                        <h2 className="truncate text-3xl font-bold text-white">{profile.display_name || profile.username}</h2>
+                      )}
                       {selectedTitleReward ? (
                         <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
                           {selectedTitleReward.name}
                         </span>
                       ) : null}
                     </div>
+                    {liveGameNote ? (
+                      <p className="mt-1 text-sm font-semibold text-emerald-300">{liveGameNote}</p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">

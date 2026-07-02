@@ -4,6 +4,7 @@ import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useRef, u
 import { ChevronDown, ChevronUp, ExternalLink, Loader2, Pencil, Save, Search, Send, Star, StickyNote, Users, X } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle } from '@/lib/chat-colors';
+import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-ui';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 type FriendSummary = {
@@ -215,6 +216,8 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   const [confirmUnfriendFriendId, setConfirmUnfriendFriendId] = useState<string | null>(null);
   const [snapshotExpanded, setSnapshotExpanded] = useState(false);
   const [snapshotAboutExpanded, setSnapshotAboutExpanded] = useState(false);
+  const [liveGameStatus, setLiveGameStatus] = useState<LiveGameStatusView | null>(null);
+  const [liveGameNow, setLiveGameNow] = useState(() => Date.now());
   const [favoriteLoadingFriendId, setFavoriteLoadingFriendId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -657,7 +660,57 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     ? { ...(allFriends.find((friend) => friend.id === activeFriend.id) ?? activeFriend), online: onlineUserIds.has(activeFriend.id) }
     : null;
   const snapshotAboutIsLong = Boolean(activeFriendView?.aboutMe && activeFriendView.aboutMe.length > 140);
+  const activeFriendLiveGameNote = getLiveGameNote(liveGameStatus, liveGameNow);
+  const activeFriendRiotViewerHref = activeFriendView?.riotAccountName?.trim()
+    ? `/riot-account-viewer?riotId=${encodeURIComponent(activeFriendView.riotAccountName.trim())}`
+    : null;
   const unreadTotal = dashboard?.friends.reduce((total, friend) => total + friend.unreadCount, 0) ?? 0;
+
+  useEffect(() => {
+    const riotAccount = activeFriendView?.riotAccountName?.trim();
+    if (!riotAccount) {
+      setLiveGameStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLiveGameStatus(null);
+    const requestUrl = new URL('/api/riot-account/live-game', window.location.origin);
+    requestUrl.searchParams.set('riotId', riotAccount);
+
+    fetch(requestUrl)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error ?? 'Unable to load live game status.');
+        }
+        return data as LiveGameStatusView;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setLiveGameStatus(data);
+          setLiveGameNow(Date.now());
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLiveGameStatus(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFriendView?.riotAccountName]);
+
+  useEffect(() => {
+    if (!liveGameStatus?.inGame) {
+      return;
+    }
+
+    const interval = window.setInterval(() => setLiveGameNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [liveGameStatus?.inGame]);
 
   useEffect(() => {
     if (!activeFriend || allFriends.some((friend) => friend.id === activeFriend.id)) {
@@ -781,28 +834,44 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-2">
                             {activeFriendView.favorite ? <Star size={14} className="shrink-0 fill-amber-300 text-amber-300" aria-label="Favorite" /> : null}
-                            <p className="truncate text-base font-bold text-white" style={getChatNameStyle(activeFriendView.chatColor)}>{activeFriendView.displayName}</p>
+                            {activeFriendRiotViewerHref ? (
+                              <a
+                                href={activeFriendRiotViewerHref}
+                                className="truncate text-base font-bold text-white transition hover:text-amber-200"
+                                style={getChatNameStyle(activeFriendView.chatColor)}
+                                title="Open linked Riot account in League Account Viewer"
+                              >
+                                {activeFriendView.displayName}
+                              </a>
+                            ) : (
+                              <p className="truncate text-base font-bold text-white" style={getChatNameStyle(activeFriendView.chatColor)}>{activeFriendView.displayName}</p>
+                            )}
                           </div>
-                          <div className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                            <p className="shrink-0 truncate text-xs text-slate-500">@{activeFriendView.username}</p>
-                            <span className="shrink-0 text-slate-600">-</span>
-                            <p className="min-w-0 truncate text-xs italic text-slate-500">
-                              {activeFriendView.friendNote ? `Note: ${activeFriendView.friendNote}` : 'Add note'}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                const rect = event.currentTarget.getBoundingClientRect();
-                                setFriendNoteDraft(activeFriendView.friendNote);
-                                setFriendNoteEditing(true);
-                                setConfirmUnfriendFriendId(null);
-                                setContextFriend({ friend: activeFriendView, x: rect.left, y: rect.bottom + 8 });
-                              }}
-                              aria-label="Edit friend note"
-                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-900 hover:text-white"
-                            >
-                              <Pencil size={12} />
-                            </button>
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                              <p className="shrink-0 truncate text-xs text-slate-500">@{activeFriendView.username}</p>
+                              <span className="shrink-0 text-slate-600">-</span>
+                              <p className="min-w-0 truncate text-xs italic text-slate-500">
+                                {activeFriendView.friendNote ? `Note: ${activeFriendView.friendNote}` : 'Add note'}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  const rect = event.currentTarget.getBoundingClientRect();
+                                  setFriendNoteDraft(activeFriendView.friendNote);
+                                  setFriendNoteEditing(true);
+                                  setConfirmUnfriendFriendId(null);
+                                  setContextFriend({ friend: activeFriendView, x: rect.left, y: rect.bottom + 8 });
+                                }}
+                                aria-label="Edit friend note"
+                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-900 hover:text-white"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            </div>
+                            {activeFriendLiveGameNote ? (
+                              <p className="mt-0.5 truncate text-xs font-semibold text-emerald-300">{activeFriendLiveGameNote}</p>
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -810,9 +879,12 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                         type="button"
                         onClick={() => openPublicProfileOverlay(activeFriendView.username)}
                         aria-label="View full profile"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+                        className="group relative inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
                       >
                         <ExternalLink size={15} />
+                        <span className="pointer-events-none absolute right-0 top-full z-20 mt-1 hidden whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200 shadow-xl group-hover:block">
+                          Go to profile
+                        </span>
                       </button>
                     </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-3">

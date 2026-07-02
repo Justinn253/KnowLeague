@@ -41,6 +41,7 @@ import {
   normalizeChatBorder,
   normalizeChatColor,
 } from '@/lib/chat-colors';
+import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 
 type ProfileRecord = {
   username: string;
@@ -1408,6 +1409,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                 <Users size={16} className="text-amber-300" />
                 {profile?.friends_count ?? 0} friends
               </div>
+              <SoundSettingsMenu />
               {incomingRequests.length > 0 ? (
                 <button
                   type="button"

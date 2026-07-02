@@ -6,6 +6,7 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle } from '@/lib/chat-colors';
 import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-ui';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
+import { playUiSound } from '@/lib/ui-sounds';
 
 type FriendSummary = {
   id: string;
@@ -234,6 +235,8 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   const refreshTimeoutRef = useRef<number | null>(null);
   const dashboardRefreshPromiseRef = useRef<Promise<void> | null>(null);
   const lastDashboardRefreshAtRef = useRef(0);
+  const knownIncomingRequestIdsRef = useRef<Set<string>>(new Set());
+  const knownMessageIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -302,6 +305,13 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     const refreshPromise = (async () => {
       try {
         const data = await fetchAuthedJson('/api/friends') as FriendDashboard;
+        const previousRequestIds = knownIncomingRequestIdsRef.current;
+        const nextRequestIds = new Set(data.incomingRequests.map((request) => request.id));
+        const hasNewIncomingRequest = data.incomingRequests.some((request) => !previousRequestIds.has(request.id));
+        if (previousRequestIds.size > 0 && hasNewIncomingRequest) {
+          playUiSound('friend-request-incoming');
+        }
+        knownIncomingRequestIdsRef.current = nextRequestIds;
         setDashboard(data);
         dashboardRef.current = data;
         lastDashboardRefreshAtRef.current = Date.now();
@@ -343,6 +353,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       const nextMessages = data.messages ?? [];
       const nextProfiles = data.profiles ?? {};
       const nextFirstUnreadMessageId = data.firstUnreadMessageId ?? null;
+      nextMessages.forEach((message: FriendMessage) => knownMessageIdsRef.current.add(message.id));
       messageCacheRef.current.set(friend.id, nextMessages);
       messageProfileCacheRef.current.set(friend.id, nextProfiles);
       firstUnreadMessageCacheRef.current.set(friend.id, markRead ? null : nextFirstUnreadMessageId);
@@ -432,6 +443,16 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
         .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests' }, (payload) => {
           const row = { ...(payload.old as Record<string, unknown>), ...(payload.new as Record<string, unknown>) };
           if (row.requester_id === userId || row.addressee_id === userId) {
+            if (payload.eventType === 'INSERT' && row.addressee_id === userId) {
+              const requestId = typeof row.id === 'string' ? row.id : null;
+              const alreadyKnown = requestId ? knownIncomingRequestIdsRef.current.has(requestId) : false;
+              if (requestId) {
+                knownIncomingRequestIdsRef.current.add(requestId);
+              }
+              if (!alreadyKnown) {
+                playUiSound('friend-request-incoming');
+              }
+            }
             scheduleDashboardRefresh();
           }
         })
@@ -450,7 +471,17 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
           }
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friend_messages' }, (payload) => {
-          const friendshipId = (payload.new as { friendship_id?: string }).friendship_id;
+          const row = payload.new as { id?: string; friendship_id?: string; sender_id?: string };
+          const friendshipId = row.friendship_id;
+          const messageId = row.id;
+          const isIncomingMessage = Boolean(row.sender_id && row.sender_id !== userId);
+          if (messageId) {
+            const alreadyKnown = knownMessageIdsRef.current.has(messageId);
+            knownMessageIdsRef.current.add(messageId);
+            if (isIncomingMessage && !alreadyKnown) {
+              playUiSound('message-incoming');
+            }
+          }
           const active = activeFriendRef.current;
           if (isOpenRef.current && active && friendshipId === active.friendshipId) {
             void loadFriendMessages(active);
@@ -608,6 +639,8 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       const nextMessages = data.messages ?? [];
       const nextProfiles = data.profiles ?? {};
       const nextFirstUnreadMessageId = data.firstUnreadMessageId ?? null;
+      nextMessages.forEach((message: FriendMessage) => knownMessageIdsRef.current.add(message.id));
+      playUiSound('message-sent');
       messageCacheRef.current.set(activeFriend.id, nextMessages);
       messageProfileCacheRef.current.set(activeFriend.id, nextProfiles);
       firstUnreadMessageCacheRef.current.set(activeFriend.id, nextFirstUnreadMessageId);
@@ -635,6 +668,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
         method: 'POST',
         body: JSON.stringify({ targetUsername: cleanUsername }),
       });
+      playUiSound('friend-request-sent');
       setStatus(data.status === 'accepted' ? 'Friend added.' : 'Friend request sent.');
       setAddFriendUsername('');
       setAddFriendOpen(false);
@@ -750,6 +784,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
         }),
       });
       await broadcastFriendMessageNotification(friend.id);
+      playUiSound('message-sent');
       setContextFriend(null);
       setStatus('Game invite sent.');
       scheduleDashboardRefresh();

@@ -1,18 +1,34 @@
 'use client';
 
 import { FormEvent, PointerEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, LogOut, PencilLine, Play, RefreshCw, Users, XCircle } from 'lucide-react';
+import { Check, LogOut, PencilLine, RefreshCw, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { GameInfoMenu } from '@/components/game-info-menu';
 import { GameSettingsSection } from '@/components/game-settings-section';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
+import {
+  MultiplayerCreateJoinPanel,
+  MultiplayerLobbyCard,
+  MultiplayerLobbyCodeStrip,
+  MultiplayerLobbyGrid,
+  MultiplayerLobbyHeader,
+  MultiplayerLobbyMessage,
+  MultiplayerLobbyPanel,
+  MultiplayerLobbyShell,
+  MultiplayerModifierToggle,
+  MultiplayerPublicLobbyButton,
+  MultiplayerPublicLobbyEmpty,
+  MultiplayerStartGameControl,
+  MultiplayerVisibilityToggle,
+} from '@/components/multiplayer-lobby-layout';
+import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { getOrCreateClientId } from '@/lib/game-storage';
-import { disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
-import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
+import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
+import { getReconnectDeadline, MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import { normalizeAnswer } from '@/lib/quiz';
 import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevelationModifier, CarvingRevelationPublicLobby, CarvingRevelationWinCondition } from '@/lib/carving-revelation';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const STORAGE_KEY = 'knowleague:v1:carving-revelation:lobby-code';
 const API_BASE = '/api/carving-revelation/lobbies';
@@ -326,6 +342,7 @@ export function CarvingRevelation() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [view, setView] = useState<CarvingRevelationLobbyView | null>(null);
   const [publicLobbies, setPublicLobbies] = useState<CarvingRevelationPublicLobby[]>([]);
+  const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [guess, setGuess] = useState('');
   const [skinAnswers, setSkinAnswers] = useState<string[]>([]);
@@ -433,10 +450,12 @@ export function CarvingRevelation() {
     if (isLeavingLobbyRef.current) return;
     if (nextView.lobby.status === 'terminated') {
       window.localStorage.removeItem(STORAGE_KEY);
+      setRejoinCandidate(null);
       setView(null);
       router.replace('/');
       return;
     }
+    setRejoinCandidate(null);
     setView(nextView);
     if (nextView.lobby.status === 'waiting' || nextView.lobby.status === 'active') {
       window.localStorage.setItem(STORAGE_KEY, nextView.lobby.code);
@@ -491,20 +510,38 @@ export function CarvingRevelation() {
   useMultiplayerAuthTransition(() => leaveCurrentLobby(true));
 
   useEffect(() => {
+    let cancelled = false;
     const nextClientId = getOrCreateClientId();
     if (!nextClientId) {
       setMessage('Browser storage is required for multiplayer lobbies.');
-      return;
+      return undefined;
     }
     setClientId(nextClientId);
     const storedCode = window.localStorage.getItem(STORAGE_KEY);
-    if (storedCode) {
-      void refreshLobby(storedCode, nextClientId)
-        .catch(() => {
+
+    const restoreStoredLobby = async () => {
+      if (!storedCode) return;
+      try {
+        const response = await fetch(`${API_BASE}/${storedCode}/rejoin?clientId=${encodeURIComponent(nextClientId)}`);
+        const eligibility = await response.json() as ReconnectCandidate & { eligible: boolean };
+        if (cancelled) return;
+        if (eligibility.eligible) {
+          setRejoinCandidate({ code: eligibility.code, expiresAt: eligibility.expiresAt });
+          return;
+        }
+        await refreshLobby(storedCode, nextClientId);
+      } catch {
+        if (!cancelled) {
           window.localStorage.removeItem(STORAGE_KEY);
-        });
-    }
+        }
+      }
+    };
+
+    void restoreStoredLobby();
     void loadPublicLobbies();
+    return () => {
+      cancelled = true;
+    };
   }, [loadPublicLobbies, refreshLobby]);
 
   useEffect(() => {
@@ -552,11 +589,7 @@ export function CarvingRevelation() {
       });
     };
 
-    window.addEventListener('pagehide', disconnectCurrentSession);
-    return () => {
-      window.removeEventListener('pagehide', disconnectCurrentSession);
-      disconnectCurrentSession();
-    };
+    return addMultiplayerDisconnectListeners(disconnectCurrentSession);
   }, []);
 
   useEffect(() => {
@@ -582,6 +615,17 @@ export function CarvingRevelation() {
     const interval = window.setInterval(() => void heartbeat(), MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [applyView, clientId, router, view]);
+
+  useEffect(() => {
+    if (!view || !clientId || view.lobby.status !== 'active') return undefined;
+    const deadlines = view.players
+      .filter((player) => player.result === 'active' && !player.connected && player.disconnected_at)
+      .map((player) => getReconnectDeadline(player.disconnected_at as string));
+    if (deadlines.length === 0) return undefined;
+    const delay = Math.max(0, Math.min(...deadlines) - Date.now() + 150);
+    const timeout = window.setTimeout(() => void refreshLobby(view.lobby.code, clientId).catch(() => undefined), delay);
+    return () => window.clearTimeout(timeout);
+  }, [clientId, refreshLobby, view]);
 
   useEffect(() => {
     if (!view?.lobby.phase_deadline_at || view.lobby.status !== 'active') {
@@ -969,14 +1013,14 @@ export function CarvingRevelation() {
     setIsDrawing(false);
   };
 
+  const connectedPlayerCount = view?.players.filter((player) => player.connected).length ?? 0;
   const headerStatus = view?.lobby.status === 'waiting'
-    ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : 'Waiting for players'}`
+    ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : connectedPlayerCount >= 2 ? 'Ready to start' : 'Waiting for players'}`
     : view?.lobby.status === 'active'
       ? view.lobby.phase === 'carve' ? 'Carving' : 'Guessing'
       : view?.lobby.status === 'finished'
         ? 'Finished'
         : 'Lobby';
-  const connectedPlayerCount = view?.players.filter((player) => player.connected).length ?? 0;
   const rosterPlayers = view?.players.map((player) => ({
     id: player.id,
     authUserId: player.auth_user_id,
@@ -1005,49 +1049,53 @@ export function CarvingRevelation() {
               ? <span className="text-xs font-black uppercase tracking-[0.12em] text-emerald-300">Submitted</span>
               : null,
   })) ?? [];
+  const disconnectedActivePlayers = view?.lobby.status === 'active'
+    ? view.players.filter((player) => (
+      player.result === 'active' &&
+      !player.connected &&
+      player.disconnected_at &&
+      player.disconnected_at !== FORFEIT_DISCONNECTED_AT
+    ))
+    : [];
 
   const header = (
-    <header className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
-      <div className="flex items-center gap-4">
-        <button type="button" onClick={handleBack} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label={view?.lobby.status === 'active' || view?.lobby.status === 'finished' ? 'Back to lobby' : 'Back to home'}>
-          <ArrowLeft size={22} />
-        </button>
-        <div>
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
-          <h1 className="text-2xl font-black">Carving Revelation</h1>
-          <p className="mt-1 text-sm text-slate-400">{view ? (view.lobby.status === 'waiting' ? 'Lobby' : '') : 'Create or join a lobby'}</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <GameInfoMenu title="Carving Revelation" steps={[
-          'A secret skin is selected when the host starts the game.',
-          'Players take turns carving one reveal line into the shared canvas or guessing the skin.',
-          'The reveal line limit grows each round until someone finds the answer.',
-        ]} />
-        {view?.lobby.status === 'finished' ? (
-          <>
-            <button
-              type="button"
-              onClick={voteNextRound}
-              disabled={busy || hasVotedForNextRound}
-              title={nextRoundVotePlayers.length > 0 ? nextRoundVotePlayers.map((player) => player.display_name).join(', ') : 'No votes yet'}
-              className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Check size={16} /> {hasVotedForNextRound ? 'Voted' : 'Vote Next'} {view.nextRoundVotes.length}/{connectedPlayerCount}
-            </button>
-            {isHost ? (
+    <MultiplayerLobbyHeader
+      title="Carving Revelation"
+      subtitle={view ? (view.lobby.status === 'waiting' ? 'Lobby' : '') : 'Create or join a lobby'}
+      statusLabel={headerStatus}
+      infoSteps={[
+        'A secret skin is selected when the host starts the game.',
+        'Players take turns carving one reveal line into the shared canvas or guessing the skin.',
+        'The reveal line limit grows each round until someone finds the answer.',
+      ]}
+      onBack={handleBack}
+      backLabel={view?.lobby.status === 'active' || view?.lobby.status === 'finished' ? 'Back to lobby' : 'Back to home'}
+      actions={(
+        <>
+          {view?.lobby.status === 'finished' ? (
+            <>
               <button
                 type="button"
-                onClick={startNextRound}
-                disabled={busy || connectedPlayerCount < 2}
-                className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={voteNextRound}
+                disabled={busy || hasVotedForNextRound}
+                title={nextRoundVotePlayers.length > 0 ? nextRoundVotePlayers.map((player) => player.display_name).join(', ') : 'No votes yet'}
+                className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <RefreshCw size={16} /> Start Next Round
+                <Check size={16} /> {hasVotedForNextRound ? 'Voted' : 'Vote Next'} {view.nextRoundVotes.length}/{connectedPlayerCount}
               </button>
-            ) : null}
-          </>
-        ) : null}
-        {view?.lobby.status === 'active' || view?.lobby.status === 'finished' ? (
+              {isHost ? (
+                <button
+                  type="button"
+                  onClick={startNextRound}
+                  disabled={busy || connectedPlayerCount < 2}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RefreshCw size={16} /> Start Next Round
+                </button>
+              ) : null}
+            </>
+          ) : null}
+          {view?.lobby.status === 'active' || view?.lobby.status === 'finished' ? (
           <>
             {view.lobby.status === 'active' ? (
               <button
@@ -1065,107 +1113,92 @@ export function CarvingRevelation() {
               disabled={busy}
               className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-black text-slate-200 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <LogOut size={16} /> Leave Game
-            </button>
-          </>
-        ) : null}
-        <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
-          <Users size={16} className="text-amber-300" />
-          {headerStatus}
-        </div>
-      </div>
-    </header>
+                <LogOut size={16} /> Leave Game
+              </button>
+            </>
+          ) : null}
+        </>
+      )}
+    />
   );
 
   if (!view) {
     return (
-      <main className="min-h-screen bg-slate-950 px-4 py-6 text-white">
-        <div className="mx-auto max-w-6xl">
-          {header}
-          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
-            <div className="mx-auto max-w-4xl py-1">
-              <div className="text-center">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Create or Join</p>
-                <h2 className="mt-3 text-3xl font-bold text-white">Set up a Carving Revelation lobby</h2>
-              </div>
-              <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
-                <button type="button" onClick={createLobby} disabled={busy || !clientId} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-amber-300 px-6 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                  Create Lobby
-                </button>
-                <span className="hidden pb-3 text-sm font-semibold text-slate-500 lg:block">OR</span>
-                <form onSubmit={joinLobby} className="grid gap-2">
-                  <label htmlFor="join-code" className="text-xs uppercase tracking-[0.18em] text-slate-500">Join code</label>
-                  <div className="flex gap-2">
-                    <input id="join-code" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase().slice(0, 6))} maxLength={6} autoComplete="off" placeholder="ABC123" className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm uppercase tracking-[0.16em] text-white outline-none placeholder:text-slate-600 focus:border-white/20" />
-                    <button type="submit" disabled={busy || joinCode.trim().length !== 6} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-violet-700 px-5 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60">Join</button>
-                  </div>
-                </form>
-              </div>
-
-              <div className="mt-8 border-t border-white/10 pt-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p>
-                    <p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p>
-                  </div>
-                  <button type="button" onClick={() => void loadPublicLobbies()} disabled={busy} title="Refresh public lobbies" aria-label="Refresh public lobbies" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60">
-                    <RefreshCw size={17} />
-                  </button>
-                </div>
-                <div className="mt-4 grid gap-2">
-                  {publicLobbies.length ? publicLobbies.map((lobby) => (
-                    <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code, true)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span>
-                        <span className="mt-1 block text-xs text-slate-400">Shared canvas reveal</span>
-                      </span>
-                      <span className="shrink-0 text-xs font-semibold text-slate-300">{lobby.playerCount}/{lobby.maxPlayers}</span>
-                    </button>
-                  )) : <p className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">No public lobbies are waiting.</p>}
-                </div>
-              </div>
-            </div>
-            {message ? <p className="mt-5 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-center text-sm text-slate-300">{message}</p> : null}
-          </section>
-        </div>
-      </main>
+      <MultiplayerLobbyShell>
+        {header}
+        <MultiplayerLobbyCard>
+          <MultiplayerCreateJoinPanel
+            title="Set up a Carving Revelation lobby"
+            joinCode={joinCode}
+            onJoinCodeChange={setJoinCode}
+            onJoin={joinLobby}
+            onCreate={createLobby}
+            canCreate={Boolean(clientId)}
+            busy={busy}
+            onRefreshPublicLobbies={() => void loadPublicLobbies()}
+            reconnectPrompt={rejoinCandidate ? (
+              <ReconnectButton
+                candidate={rejoinCandidate}
+                disabled={busy}
+                onReconnect={() => void joinLobbyByCode(rejoinCandidate.code)}
+                onExpire={() => {
+                  window.localStorage.removeItem(STORAGE_KEY);
+                  setRejoinCandidate(null);
+                }}
+              />
+            ) : null}
+            publicLobbyContent={publicLobbies.length ? publicLobbies.map((lobby) => (
+              <MultiplayerPublicLobbyButton
+                key={lobby.code}
+                hostName={lobby.hostName}
+                hostNameStyle={{ color: lobby.hostColor }}
+                playerCount={lobby.playerCount}
+                maxPlayers={lobby.maxPlayers}
+                disabled={busy}
+                onClick={() => joinLobbyByCode(lobby.code, true)}
+                details={<span>Shared canvas reveal</span>}
+              />
+            )) : <MultiplayerPublicLobbyEmpty />}
+          />
+          <MultiplayerLobbyMessage>{message}</MultiplayerLobbyMessage>
+        </MultiplayerLobbyCard>
+      </MultiplayerLobbyShell>
     );
   }
 
   if (view.lobby.status === 'waiting') {
     return (
-      <main className="min-h-screen bg-slate-950 px-4 py-6 text-white">
-        <div className="mx-auto max-w-6xl">
-          {header}
-          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
-            <div className="grid gap-5">
-              <div className="flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Lobby code</span>
-                <span className="font-mono text-lg font-semibold tracking-[0.24em] text-white">{codeRevealed ? view.lobby.code : '******'}</span>
-                <button type="button" onClick={() => setCodeRevealed((value) => !value)} aria-label={codeRevealed ? 'Hide lobby code' : 'Reveal lobby code'} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800">
-                  {codeRevealed ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <button type="button" onClick={copyInvite} aria-label="Copy lobby invite" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800">
-                  {codeCopied ? <Check size={16} className="text-emerald-300" /> : <Copy size={16} />}
-                </button>
-              </div>
+      <MultiplayerLobbyShell>
+        {header}
+        <MultiplayerLobbyCard>
+          <div className="grid gap-5">
+            <MultiplayerLobbyCodeStrip
+              code={view.lobby.code}
+              revealed={codeRevealed}
+              copied={codeCopied}
+              onToggleReveal={() => setCodeRevealed((value) => !value)}
+              onCopy={copyInvite}
+            />
 
-              <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)]">
-                <MultiplayerLobbyRoster
-                  countLabel={`${view.players.length}/${view.lobby.max_players} Players`}
-                  canManage={isHost}
-                  players={rosterPlayers}
-                  onKick={(playerId) => managePlayer('kick', playerId)}
-                  onMakeHost={(playerId) => managePlayer('make-host', playerId)}
+            <MultiplayerLobbyGrid>
+              <MultiplayerLobbyRoster
+                countLabel={`${view.players.length}/${view.lobby.max_players} Players`}
+                canManage={isHost}
+                players={rosterPlayers}
+                onKick={(playerId) => managePlayer('kick', playerId)}
+                onMakeHost={(playerId) => managePlayer('make-host', playerId)}
+              />
+
+              <MultiplayerLobbyPanel
+                title="Game Settings"
+                lockedHint={!isHost ? 'Only the host can change game settings.' : null}
+              >
+                <MultiplayerVisibilityToggle
+                  enabled={view.lobby.is_public}
+                  disabled={!isHost || busy}
+                  onToggle={updatePublicStatus}
                 />
-
-                <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Game Settings</p>
-                  <button type="button" disabled={!isHost || busy} onClick={updatePublicStatus} className={`mt-7 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${view.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-900/70'} disabled:opacity-60`}>
-                    <span className="block text-sm font-semibold text-white">Public lobby</span>
-                    <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${view.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${view.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
-                  </button>
-                  <fieldset className="mt-5 grid gap-5">
+                <fieldset className="mt-5 grid gap-5">
                     <legend className="sr-only">Carving Revelation settings</legend>
                     <GameSettingsSection title="Settings" defaultOpen summary={`${phaseTimeSummary} - ${winConditionSummary}`}>
                       <div className="grid gap-4">
@@ -1227,60 +1260,55 @@ export function CarvingRevelation() {
                         </div>
                       </div>
                     </GameSettingsSection>
-                    <GameSettingsSection title="Modifiers" summary={`${visibleSettings?.modifiers.length ?? view.lobby.modifiers.length} active`}>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {CARVING_MODIFIERS.map((modifier) => {
-                          const checked = selectedModifiers.has(modifier.id);
-                          return (
-                            <button
-                              key={modifier.id}
-                              type="button"
-                              disabled={!isHost || busy}
-                              onClick={() => {
-                                const nextModifiers = checked
-                                  ? (visibleSettings?.modifiers ?? view.lobby.modifiers).filter((id) => id !== modifier.id)
-                                  : [...(visibleSettings?.modifiers ?? view.lobby.modifiers), modifier.id];
-                                updateDraftSettings((current) => ({ ...current, modifiers: nextModifiers }));
-                              }}
-                              className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}
-                            >
-                              <span><span className="block text-sm font-bold text-white">{modifier.name}</span><span className="mt-1 block text-xs leading-5 text-slate-400">{modifier.description}</span></span>
-                              <span className={`mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ${checked ? 'bg-violet-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${checked ? 'translate-x-4' : ''}`} /></span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </GameSettingsSection>
-                    {settingsDirty ? (
-                      <div className="flex justify-end">
-                        <button type="button" disabled={!isHost || busy} onClick={() => void applySettings()} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                          Apply Settings
-                        </button>
-                      </div>
-                    ) : null}
-                  </fieldset>
-                  {!isHost ? <p className="mt-4 text-xs text-slate-500">Only the host can change game settings.</p> : null}
-                </section>
-              </div>
+                  <GameSettingsSection title="Modifiers" summary={`${visibleSettings?.modifiers.length ?? view.lobby.modifiers.length} active`}>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {CARVING_MODIFIERS.map((modifier) => {
+                        const checked = selectedModifiers.has(modifier.id);
+                        return (
+                          <MultiplayerModifierToggle
+                            key={modifier.id}
+                            name={modifier.name}
+                            description={modifier.description}
+                            checked={checked}
+                            disabled={!isHost || busy}
+                            onToggle={() => {
+                              const nextModifiers = checked
+                                ? (visibleSettings?.modifiers ?? view.lobby.modifiers).filter((id) => id !== modifier.id)
+                                : [...(visibleSettings?.modifiers ?? view.lobby.modifiers), modifier.id];
+                              updateDraftSettings((current) => ({ ...current, modifiers: nextModifiers }));
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </GameSettingsSection>
+                  {settingsDirty ? (
+                    <div className="flex justify-end">
+                      <button type="button" disabled={!isHost || busy} onClick={() => void applySettings()} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+                        Apply Settings
+                      </button>
+                    </div>
+                  ) : null}
+                </fieldset>
+              </MultiplayerLobbyPanel>
+            </MultiplayerLobbyGrid>
 
-              <div className="flex flex-col items-center gap-3 py-1">
-                <button type="button" disabled={!isHost || connectedPlayerCount < 2 || busy || settingsDirty} onClick={startGame} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">
-                  <Play size={17} /> Start Game
-                </button>
-                <p className="text-xs text-slate-500">{settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}</p>
-              </div>
-            </div>
-            {message ? <p className="mt-5 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-center text-sm text-slate-300">{message}</p> : null}
-          </section>
-        </div>
-      </main>
+            <MultiplayerStartGameControl
+              disabled={!isHost || connectedPlayerCount < 2 || busy || settingsDirty}
+              onStart={startGame}
+              hint={settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
+            />
+          </div>
+          <MultiplayerLobbyMessage>{message}</MultiplayerLobbyMessage>
+        </MultiplayerLobbyCard>
+      </MultiplayerLobbyShell>
     );
   }
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-6 text-white">
       <div className="mx-auto max-w-7xl">
-        {header}
+        <div className="mb-5">{header}</div>
         <div className="grid gap-6">
           <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5">
             <div className="mb-4 grid gap-4 lg:grid-cols-[minmax(220px,300px)_minmax(180px,240px)_minmax(280px,420px)] lg:items-stretch lg:justify-between">
@@ -1326,6 +1354,19 @@ export function CarvingRevelation() {
                 </div>
               </div>
             </div>
+
+            {disconnectedActivePlayers.length > 0 ? (
+              <div className="mb-4 grid gap-2 sm:grid-cols-2">
+                {disconnectedActivePlayers.map((player) => (
+                  <MultiplayerDisconnectStatus
+                    key={player.id}
+                    playerName={player.display_name}
+                    playerNameStyle={{ color: player.carve_color }}
+                    disconnectedAt={player.disconnected_at as string}
+                  />
+                ))}
+              </div>
+            ) : null}
 
             <div className={shouldShowWinnerImageBorder ? 'multiplayer-victory-border' : ''}>
               <div
@@ -1409,7 +1450,7 @@ export function CarvingRevelation() {
                     placeholder={canGuess ? 'Type the skin name' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
                   />
                   {suggestions.length > 0 && canGuess ? (
-                    <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50">
+                    <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                       {suggestions.map((suggestion) => (
                         <button
                           key={suggestion}
@@ -1443,7 +1484,7 @@ export function CarvingRevelation() {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">Recent Guesses</p>
               </div>
-              <div className={`${guessActions.length >= 8 ? 'max-h-[32rem] overflow-y-auto pr-2' : ''} space-y-4`}>
+              <div className={`${guessActions.length >= 8 ? `max-h-[32rem] overflow-y-auto pr-2 ${THEMED_SCROLLBAR_CLASS}` : ''} space-y-4`}>
                 {guessActionsByRound.length > 0 ? guessActionsByRound.map((group, groupIndex) => (
                   <div key={group.roundNumber} className={groupIndex > 0 ? 'border-t border-white/10 pt-4' : ''}>
                     <div className="mb-3 flex items-center gap-3">

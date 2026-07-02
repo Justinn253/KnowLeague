@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, Link as LinkIcon, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Check, Link as LinkIcon, Loader2, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
+import { getEarnedRewards, type AchievementListItem } from '@/lib/achievements';
+import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-ui';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type PublicProfileRecord = {
@@ -17,7 +19,11 @@ type PublicProfileRecord = {
   discord_avatar_url: string | null;
   discord_banner_url: string | null;
   riot_account_name: string | null;
+  selected_title_reward_id: string | null;
+  displayed_badge_reward_ids: string[];
+  achievements: AchievementListItem[];
   created_at: string;
+  relationship: FriendCandidate['relationship'];
 };
 
 type FriendCandidate = {
@@ -239,10 +245,13 @@ function RiotPublicCard({ profile }: { profile: PublicProfileRecord }) {
 export function PublicProfileScreen({ username, presentation = 'page', onClose }: PublicProfileScreenProps) {
   const [activeTab, setActiveTab] = useState<PublicProfileTab>('profile');
   const [profile, setProfile] = useState<PublicProfileRecord | null>(null);
+  const [liveGameStatus, setLiveGameStatus] = useState<LiveGameStatusView | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [relationship, setRelationship] = useState<FriendCandidate['relationship']>('none');
+  const [allBadgesOpen, setAllBadgesOpen] = useState(false);
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState('');
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const supabase = getOptionalSupabaseClient();
@@ -253,7 +262,10 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
     let cancelled = false;
     setBusy(true);
     setMessage('');
-    fetch(`/api/profile/public/${encodeURIComponent(username.toLowerCase())}`)
+    getAuthHeaders()
+      .then((headers) => fetch(`/api/profile/public/${encodeURIComponent(username.trim())}`, {
+        headers: headers ?? undefined,
+      }))
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) {
@@ -264,6 +276,8 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
       .then((data) => {
         if (!cancelled) {
           setProfile(data.profile);
+          setRelationship(data.profile.relationship ?? 'none');
+          setLiveGameStatus(null);
         }
       })
       .catch((error) => {
@@ -283,35 +297,50 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
   }, [username]);
 
   useEffect(() => {
-    if (!profile) {
-      return undefined;
+    const riotAccount = profile?.riot_account_name?.trim();
+    if (!riotAccount) {
+      setLiveGameStatus(null);
+      return;
     }
 
     let cancelled = false;
-    const loadRelationship = async () => {
-      const headers = await getAuthHeaders();
-      if (!headers) {
-        return;
-      }
+    setLiveGameStatus(null);
+    const requestUrl = new URL('/api/riot-account/live-game', window.location.origin);
+    requestUrl.searchParams.set('riotId', riotAccount);
 
-      fetch(`/api/friends/search?q=${encodeURIComponent(profile.username)}`, { headers })
-        .then((response) => response.json())
-        .then((data) => {
-          if (cancelled) {
-            return;
-          }
+    fetch(requestUrl)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error ?? 'Unable to load live game status.');
+        }
+        return data as LiveGameStatusView;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setLiveGameStatus(data);
+          setNow(Date.now());
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLiveGameStatus(null);
+        }
+      });
 
-          const match = (data.results ?? []).find((candidate: FriendCandidate) => candidate.id === profile.id);
-          setRelationship(match?.relationship ?? 'none');
-        })
-        .catch(() => undefined);
-    };
-
-    void loadRelationship();
     return () => {
       cancelled = true;
     };
-  }, [profile]);
+  }, [profile?.riot_account_name]);
+
+  useEffect(() => {
+    if (!liveGameStatus?.inGame) {
+      return;
+    }
+
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [liveGameStatus?.inGame]);
 
   const sendFriendRequest = async (targetUserId: string) => {
     const headers = await getAuthHeaders();
@@ -329,13 +358,25 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
       body: JSON.stringify({ targetUserId }),
     });
     const data = await response.json();
-    setMessage(response.ok ? 'Friend request sent.' : data.error ?? 'Unable to send friend request.');
     if (response.ok) {
       setRelationship('pending');
+      setMessage('');
+    } else {
+      setMessage(data.error ?? 'Unable to send friend request.');
     }
   };
 
   const profileInitial = (profile?.display_name || profile?.username || '?').slice(0, 1).toUpperCase();
+  const earnedTitleRewards = getEarnedRewards(profile?.achievements ?? [], 'title');
+  const earnedBadgeRewards = getEarnedRewards(profile?.achievements ?? [], 'badge');
+  const selectedTitleReward = earnedTitleRewards.find((reward) => reward.id === profile?.selected_title_reward_id) ?? null;
+  const displayedBadgeRewards = (profile?.displayed_badge_reward_ids ?? [])
+    .map((rewardId) => earnedBadgeRewards.find((reward) => reward.id === rewardId))
+    .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward));
+  const liveGameNote = getLiveGameNote(liveGameStatus, now);
+  const riotViewerHref = profile?.riot_account_name?.trim()
+    ? `/riot-account-viewer?riotId=${encodeURIComponent(profile.riot_account_name.trim())}`
+    : null;
 
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
@@ -355,8 +396,13 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
           </header>
         )}
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
-          {busy ? <p className="text-sm font-semibold text-slate-300">Loading profile...</p> : null}
+        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
+          {busy ? (
+            <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
+              <Loader2 size={18} className="animate-spin text-amber-300" />
+              Loading profile...
+            </div>
+          ) : null}
 
           {!busy && profile ? (
             <>
@@ -370,7 +416,27 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
                     {profile.avatar_url ? null : profileInitial}
                   </span>
                   <div className="min-w-0">
-                    <h2 className="truncate text-3xl font-bold text-white">{profile.display_name || profile.username}</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {riotViewerHref ? (
+                        <Link
+                          href={riotViewerHref}
+                          className="min-w-0 truncate text-3xl font-bold text-white transition hover:text-amber-200"
+                          title="Open linked Riot account in League Account Viewer"
+                        >
+                          {profile.display_name || profile.username}
+                        </Link>
+                      ) : (
+                        <h2 className="truncate text-3xl font-bold text-white">{profile.display_name || profile.username}</h2>
+                      )}
+                      {selectedTitleReward ? (
+                        <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
+                          {selectedTitleReward.name}
+                        </span>
+                      ) : null}
+                    </div>
+                    {liveGameNote ? (
+                      <p className="mt-1 text-sm font-semibold text-emerald-300">{liveGameNote}</p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -447,6 +513,28 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
                     <DiscordPublicCard profile={profile} />
                     <RiotPublicCard profile={profile} />
                   </div>
+                  <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Badges</p>
+                      <button
+                        type="button"
+                        onClick={() => setAllBadgesOpen(true)}
+                        className="inline-flex min-h-8 items-center justify-center rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-bold text-slate-200 transition hover:bg-slate-800"
+                      >
+                        View
+                      </button>
+                    </div>
+                    <div className="grid w-fit grid-cols-4 gap-1.5">
+                      {displayedBadgeRewards.slice(0, 8).map((badge) => (
+                        <div key={badge.id} className="group relative flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300/35 bg-amber-300/10 text-amber-100">
+                          <BadgeCheck size={16} />
+                          <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200 shadow-xl group-hover:block">
+                            {badge.name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 </div>
               ) : null}
 
@@ -455,9 +543,50 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
                   <PublicQuizStatsSection title="Ability Blitz" />
                   <PublicQuizStatsSection title="Skin Champion" />
                   <PublicSmallStatsPanels />
+                  <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Achievements</p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      {profile.achievements.map((achievement) => {
+                        const complete = Boolean(achievement.completedAt);
+                        return (
+                          <article key={achievement.id} className={`rounded-xl border px-3 py-2 ${complete ? 'border-emerald-300/30 bg-emerald-400/10' : 'border-white/10 bg-slate-900/70'}`}>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="truncate text-sm font-bold text-white">{achievement.titleVisible}</p>
+                              <span className={`text-xs font-black ${complete ? 'text-emerald-200' : 'text-slate-500'}`}>{complete ? 'Done' : `${achievement.progressCurrent}/${achievement.progressTarget}`}</span>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">{achievement.descriptionVisible}</p>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
                 </div>
               ) : null}
             </>
+          ) : null}
+          {allBadgesOpen ? (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm" onMouseDown={() => setAllBadgesOpen(false)}>
+              <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Badges</p>
+                    <h2 className="mt-1 text-lg font-bold text-white">All earned badges</h2>
+                  </div>
+                  <button type="button" onClick={() => setAllBadgesOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800" aria-label="Close badges">
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="mt-5 grid grid-cols-6 gap-2 sm:grid-cols-9">
+                  {earnedBadgeRewards.length ? earnedBadgeRewards.map((badge) => (
+                    <div key={badge.id} title={badge.name} className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300/35 bg-amber-300/10 text-amber-100">
+                      <BadgeCheck size={18} />
+                    </div>
+                  )) : (
+                    <p className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-500 sm:col-span-9">No badges earned yet.</p>
+                  )}
+                </div>
+              </div>
+            </div>
           ) : null}
 
           {message.trim() ? (

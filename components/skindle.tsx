@@ -1,10 +1,13 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
+  clearDailyGameState,
+  getDailyDateKey,
   getOrCreateClientId,
   loadDailyGameState,
   loadPlayerGameStats,
@@ -14,6 +17,8 @@ import {
 } from '@/lib/game-storage';
 import { getNextUtcResetLabel, normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { submitAchievementEvent } from '@/lib/achievement-client';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const categories = [
   { id: 'champion', label: 'Champion' },
@@ -147,6 +152,8 @@ function QuestionPingMark() {
 }
 
 export function Skindle() {
+  const router = useRouter();
+  const [activeDateKey, setActiveDateKey] = useState(() => getDailyDateKey());
   const [skins, setSkins] = useState<QuizItem[]>([]);
   const [target, setTarget] = useState<QuizItem | null>(null);
   const [inputValue, setInputValue] = useState('');
@@ -168,6 +175,8 @@ export function Skindle() {
   const topGuessesMenuRef = useRef<HTMLDivElement>(null);
   const playerStatsMenuRef = useRef<HTMLDivElement>(null);
   const hasRestoredStateRef = useRef(false);
+  const achievementRecordedRef = useRef(false);
+  const activeDateKeyRef = useRef(activeDateKey);
 
   const solved = Boolean(target && guesses.some((guess) => guess.item.id === target.id));
   const answerPool = useMemo(() => skins.filter((skin) => !guesses.some((guess) => guess.item.id === skin.id)), [guesses, skins]);
@@ -211,7 +220,22 @@ export function Skindle() {
   };
 
   useEffect(() => {
+    activeDateKeyRef.current = activeDateKey;
+  }, [activeDateKey]);
+
+  const clearStaleDailyRound = useCallback(() => {
+    clearDailyGameState('skindle', activeDateKeyRef.current);
+    setGuesses([]);
+    setInputValue('');
+    setSuggestions([]);
+    setRevealedSolvedGuessId(null);
+    setFirstGlobalGuessSkinIds(new Set());
+    setMessage('');
+  }, []);
+
+  useEffect(() => {
     setClientId(getOrCreateClientId());
+    setStorageReady(false);
 
     Promise.all([
       fetch('/api/skindle/skins').then((response) => response.json()),
@@ -232,7 +256,7 @@ export function Skindle() {
       });
 
     refreshDailyStats(false);
-  }, []);
+  }, [activeDateKey]);
 
   useEffect(() => {
     if (hasRestoredStateRef.current || skins.length === 0 || !target) {
@@ -240,7 +264,7 @@ export function Skindle() {
     }
 
     hasRestoredStateRef.current = true;
-    const savedState = loadDailyGameState<SkindleDailyState>('skindle');
+    const savedState = loadDailyGameState<SkindleDailyState>('skindle', activeDateKey);
     if (!savedState) {
       setStorageReady(true);
       return;
@@ -255,7 +279,7 @@ export function Skindle() {
     setRevealedSolvedGuessId(savedState.solvedGuessId);
     setFirstGlobalGuessSkinIds(new Set(savedState.firstGlobalGuessSkinIds ?? []));
     setStorageReady(true);
-  }, [skins, target]);
+  }, [activeDateKey, skins, target]);
 
   useEffect(() => {
     if (!storageReady || (guesses.length === 0 && !revealedSolvedGuessId)) {
@@ -266,14 +290,18 @@ export function Skindle() {
       guessIds: guesses.map((guess) => guess.item.id),
       solvedGuessId: revealedSolvedGuessId,
       firstGlobalGuessSkinIds: Array.from(firstGlobalGuessSkinIds),
-    });
-  }, [firstGlobalGuessSkinIds, guesses, revealedSolvedGuessId, storageReady]);
+    }, activeDateKey);
+  }, [activeDateKey, firstGlobalGuessSkinIds, guesses, revealedSolvedGuessId, storageReady]);
 
   useEffect(() => {
     if (storageReady && solved) {
       refreshDailyStats(true);
+      if (target && !achievementRecordedRef.current) {
+        achievementRecordedRef.current = true;
+        void submitAchievementEvent('daily_skindle_completed', { skinId: target.id });
+      }
     }
-  }, [solved, storageReady]);
+  }, [solved, storageReady, target]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -297,12 +325,29 @@ export function Skindle() {
   }, []);
 
   useEffect(() => {
-    const updateReset = () => setTimeToNextSet(getNextUtcResetLabel());
+    const updateReset = () => {
+      const nextDateKey = getDailyDateKey();
+      if (nextDateKey !== activeDateKeyRef.current) {
+        const hadUnfinishedRound = !solved && (guesses.length > 0 || inputValue.trim().length > 0);
+        clearStaleDailyRound();
+        setTarget(null);
+        setDailyStats(null);
+        hasRestoredStateRef.current = false;
+        achievementRecordedRef.current = false;
+        activeDateKeyRef.current = nextDateKey;
+        setActiveDateKey(nextDateKey);
+        if (hadUnfinishedRound) {
+          router.push('/');
+          return;
+        }
+      }
+      setTimeToNextSet(getNextUtcResetLabel());
+    };
 
     updateReset();
     const interval = window.setInterval(updateReset, 1000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [clearStaleDailyRound, guesses.length, inputValue, router, solved]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -353,6 +398,10 @@ export function Skindle() {
           })),
         ),
       );
+      if (!achievementRecordedRef.current) {
+        achievementRecordedRef.current = true;
+        void submitAchievementEvent('daily_skindle_completed', { skinId: target.id });
+      }
       refreshDailyStats(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, SKINDLE_REVEAL_TOTAL_MS);
@@ -362,6 +411,12 @@ export function Skindle() {
 
   const submitGuess = (skin: QuizItem | undefined) => {
     if (!skin || !target || solved) {
+      return;
+    }
+
+    if (activeDateKeyRef.current !== getDailyDateKey()) {
+      clearStaleDailyRound();
+      router.push('/');
       return;
     }
 
@@ -466,7 +521,7 @@ export function Skindle() {
               </button>
 
               {playerStatsMenuOpen ? (
-                <div className="absolute right-0 top-14 z-50 w-[min(30rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/50">
+                <div className="absolute right-0 top-14 z-50 w-[min(30rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
                       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Completed</p>
@@ -614,7 +669,7 @@ export function Skindle() {
             </button>
 
             {statsMenuOpen ? (
-              <div className="absolute right-0 top-full z-50 mt-2 w-full min-w-72 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50">
+              <div className="absolute right-0 top-full z-50 mt-2 w-full min-w-72 rounded-2xl border border-white/10 bg-slate-950 p-2">
                 {dailyStats?.topGuesses.length ? (
                   dailyStats.topGuesses.map((guess, index) => {
                     const skin = skinsById.get(guess.skinId);
@@ -689,7 +744,7 @@ export function Skindle() {
               </button>
             ) : null}
 
-            <div className="overflow-x-auto">
+            <div className={`overflow-x-auto ${THEMED_SCROLLBAR_CLASS}`}>
               <div className="w-full min-w-[58rem]">
                 <div className="grid grid-cols-[minmax(8.5rem,1.35fr)_repeat(7,minmax(5.5rem,1fr))] gap-2 pb-3 pl-1 pr-5 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
                   <div>Guess</div>
@@ -698,7 +753,7 @@ export function Skindle() {
                   ))}
                 </div>
 
-                <div ref={guessesPanelRef} className="max-h-[34rem] overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
+                <div ref={guessesPanelRef} className={`max-h-[34rem] overflow-y-scroll pr-2 [scrollbar-gutter:stable] ${THEMED_SCROLLBAR_CLASS}`}>
                   {guesses.length === 0 ? (
                     <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-8 text-center text-sm text-slate-500">
                       Your guesses will appear here.
@@ -831,7 +886,7 @@ export function Skindle() {
                 className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/10 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               />
               {suggestions.length > 0 ? (
-                <div className="absolute left-0 top-full z-50 mt-2 grid max-h-72 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50 sm:w-[calc(100%-8rem)]">
+                <div className="absolute left-0 top-full z-50 mt-2 grid max-h-72 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 sm:w-[calc(100%-8rem)]">
                   {suggestions.map((skin) => (
                     <button
                       key={skin.id}

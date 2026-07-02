@@ -54,13 +54,11 @@ export async function POST(request: Request) {
 
     if (category === 'player_report') {
       const cleanReportedUsername = typeof body.reportedUsername === 'string'
-        ? body.reportedUsername.trim().toLowerCase().slice(0, 100)
+        ? body.reportedUsername.trim().slice(0, 100)
         : '';
       reportedUsername = cleanReportedUsername;
       const { data: reportedProfile } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('username', cleanReportedUsername)
+        .rpc('find_profile_by_username_ci', { search_username: cleanReportedUsername })
         .maybeSingle<{ id: string; username: string }>();
 
       if (reportedProfile) {

@@ -16,10 +16,10 @@ export function MultiplayerRecordDelta({
   return (
     <div className={className}>
       {label ? <span className="text-slate-400">{label}</span> : null}
-      <span className="text-emerald-200">{wins}</span>
+      <span className="text-emerald-200">{wins}W</span>
       {result === 'win' ? <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-200">+1</span> : null}
       <span className="text-slate-600">/</span>
-      <span className="text-red-200">{losses}</span>
+      <span className="text-red-200">{losses}L</span>
       {result === 'loss' ? <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs text-red-200">+1</span> : null}
     </div>
   );

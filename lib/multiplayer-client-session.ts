@@ -11,6 +11,8 @@ type ActiveMultiplayerSession = {
   baseUrl: string;
 };
 
+type DisconnectHandler = () => void;
+
 type StoredMultiplayerSession = {
   storageKey: string;
   baseUrl: string;
@@ -48,6 +50,30 @@ export function disconnectMultiplayerSession(session: ActiveMultiplayerSession) 
   });
 }
 
+export function addMultiplayerDisconnectListeners(disconnect: DisconnectHandler) {
+  let disconnected = false;
+  const disconnectOnce = () => {
+    if (disconnected) return;
+    disconnected = true;
+    disconnect();
+  };
+  const disconnectWhenHidden = () => {
+    if (document.visibilityState === 'hidden') {
+      disconnectOnce();
+    }
+  };
+
+  window.addEventListener('pagehide', disconnectOnce);
+  window.addEventListener('beforeunload', disconnectOnce);
+  document.addEventListener('visibilitychange', disconnectWhenHidden);
+
+  return () => {
+    window.removeEventListener('pagehide', disconnectOnce);
+    window.removeEventListener('beforeunload', disconnectOnce);
+    document.removeEventListener('visibilitychange', disconnectWhenHidden);
+  };
+}
+
 export async function forfeitStoredMultiplayerSessions() {
   if (typeof window === 'undefined') return;
 
@@ -59,6 +85,7 @@ export async function forfeitStoredMultiplayerSessions() {
     { storageKey: getMultiplayerQuizLobbyStorageKey('ability_blitz'), baseUrl: '/api/multiplayer/lobbies', route: '/multiplayer/ability-blitz' },
     { storageKey: getMultiplayerQuizLobbyStorageKey('skin_champion'), baseUrl: '/api/multiplayer/lobbies', route: '/multiplayer/skin-champion' },
     { storageKey: 'knowleague:v1:carving-revelation:lobby-code', baseUrl: '/api/carving-revelation/lobbies', route: '/carving-revelation' },
+    { storageKey: 'knowleague:v1:category-clash:lobby-code', baseUrl: '/api/category-clash/lobbies', route: '/category-clash' },
   ];
 
   await Promise.all(sessions.map(async (session) => {
@@ -81,6 +108,7 @@ function getStoredMultiplayerSessions(): StoredMultiplayerSession[] {
     { storageKey: getMultiplayerQuizLobbyStorageKey('ability_blitz'), baseUrl: '/api/multiplayer/lobbies', route: '/multiplayer/ability-blitz' },
     { storageKey: getMultiplayerQuizLobbyStorageKey('skin_champion'), baseUrl: '/api/multiplayer/lobbies', route: '/multiplayer/skin-champion' },
     { storageKey: 'knowleague:v1:carving-revelation:lobby-code', baseUrl: '/api/carving-revelation/lobbies', route: '/carving-revelation' },
+    { storageKey: 'knowleague:v1:category-clash:lobby-code', baseUrl: '/api/category-clash/lobbies', route: '/category-clash' },
   ];
 }
 

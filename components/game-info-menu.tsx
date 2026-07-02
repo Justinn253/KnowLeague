@@ -29,7 +29,7 @@ export function GameInfoMenu({ title, steps }: { title: string; steps: string[] 
         <Info size={18} />
       </button>
       {open ? (
-        <div className="absolute right-0 top-14 z-50 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50">
+        <div className="absolute right-0 top-14 z-50 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">How to Play</p>

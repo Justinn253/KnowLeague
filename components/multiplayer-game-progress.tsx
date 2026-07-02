@@ -6,6 +6,7 @@ import type { QuizItem } from '@/lib/quiz';
 import type { MultiplayerQuizDifficulty, MultiplayerQuizPlayerResult, MultiplayerQuizPublicPlayer } from '@/lib/multiplayer-quiz';
 import { MultiplayerDisconnectStatus } from '@/components/multiplayer-reconnect';
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
+import { getChatNameStyle } from '@/lib/chat-colors';
 
 export type MultiplayerGameRuntime = {
   items: QuizItem[];
@@ -133,6 +134,7 @@ export function MultiplayerGameProgress({
               <MultiplayerDisconnectStatus
                 key={player.id}
                 playerName={player.display_name}
+                playerNameStyle={getChatNameStyle(player.chat_color)}
                 disconnectedAt={player.disconnected_at}
                 unavailable={player.result !== 'active'}
               >
@@ -156,16 +158,16 @@ export function MultiplayerGameProgress({
                     : 'border-white/5 bg-slate-950/50 opacity-55'
             }`}>
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-white">{player.display_name}</p>
+                <p className="truncate text-sm font-bold text-white" style={getChatNameStyle(player.chat_color)}>{player.display_name}</p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-semibold">
                   {placement ? <span className={playerResult?.result === 'loss' ? 'text-red-300' : 'text-emerald-300'}>{formatPlace(placement)} place</span> : null}
                   {failed ? <span className="text-red-300">Did not finish</span> : null}
                   {playerResult ? (
                     <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-950/70 px-2 py-0.5">
-                      <span className="text-emerald-200">{playerResult.wins}</span>
+                      <span className="text-emerald-200">{playerResult.wins}W</span>
                       {playerResult.result === 'win' ? <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[0.65rem] text-emerald-200">+1</span> : null}
                       <span className="text-slate-600">/</span>
-                      <span className="text-red-200">{playerResult.losses}</span>
+                      <span className="text-red-200">{playerResult.losses}L</span>
                       {playerResult.result === 'loss' ? <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[0.65rem] text-red-200">+1</span> : null}
                     </span>
                   ) : null}

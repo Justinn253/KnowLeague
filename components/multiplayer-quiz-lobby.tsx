@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, SlidersHorizontal, Users } from 'lucide-react';
+import { Check, SlidersHorizontal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getOrCreateClientId, loadDetailedGameStats, queuePendingQuizGameStats, recordQuizGameStats, type DetailedGameStats } from '@/lib/game-storage';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
@@ -11,10 +11,24 @@ import { MultiplayerGameProgress } from '@/components/multiplayer-game-progress'
 import { ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { GameSettingsSection } from '@/components/game-settings-section';
-import { GameInfoMenu } from '@/components/game-info-menu';
+import {
+  MultiplayerCreateJoinPanel,
+  MultiplayerLobbyCard,
+  MultiplayerLobbyCodeStrip,
+  MultiplayerLobbyGrid,
+  MultiplayerLobbyHeader,
+  MultiplayerLobbyMessage,
+  MultiplayerLobbyPanel,
+  MultiplayerLobbyShell,
+  MultiplayerModifierToggle,
+  MultiplayerPublicLobbyButton,
+  MultiplayerPublicLobbyEmpty,
+  MultiplayerStartGameControl,
+  MultiplayerVisibilityToggle,
+} from '@/components/multiplayer-lobby-layout';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
-import { disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
+import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
 import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
@@ -24,6 +38,7 @@ import type {
 } from '@/lib/multiplayer-quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
+import { CHAT_COLOR_NAME_HEX, getChatNameStyle } from '@/lib/chat-colors';
 
 type SettingOption = { id: string; name: string; description: string };
 type MultiplayerQuizConfig = {
@@ -49,6 +64,9 @@ type LatestLobbySnapshot = {
   totalItems: number;
   result: MultiplayerQuizPlayerResult;
 };
+
+const MIN_PLAYERS_TO_START = 2;
+const DEFAULT_TOTAL_ITEMS = 25;
 
 const difficulties: SettingOption[] = [
   { id: 'iron', name: 'Iron', description: 'Most forgiving timing, hints, and upcoming-item visibility.' },
@@ -281,11 +299,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         baseUrl: '/api/multiplayer/lobbies',
       });
     };
-    window.addEventListener('pagehide', disconnectOnPageExit);
-    return () => {
-      window.removeEventListener('pagehide', disconnectOnPageExit);
-      disconnectOnPageExit();
-    };
+    return addMultiplayerDisconnectListeners(disconnectOnPageExit);
   }, [gameMode]);
 
   const applyView = useCallback((nextView: MultiplayerQuizLobbyView) => {
@@ -552,14 +566,19 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       isLeavingLobbyRef.current = false;
       await loadPublicLobbies();
     } else {
-      router.push('/');
+      setRejoinCandidate({
+        code,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      isLeavingLobbyRef.current = false;
+      await loadPublicLobbies();
     }
   };
 
   const updateSettings = async (
     difficulty: MultiplayerQuizDifficulty,
     modifiers: string[],
-    totalItems = view?.lobby.total_items ?? 50,
+    totalItems = view?.lobby.total_items ?? DEFAULT_TOTAL_ITEMS,
     isPublic = view?.lobby.is_public ?? false,
     abilitySlots: AbilitySlotId[] = view?.lobby.ability_slots ?? [...ABILITY_SLOTS.map((slot) => slot.id)],
   ) => {
@@ -765,240 +784,217 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       : <SkinChampion multiplayer={runtime} />;
   }
 
+  const infoSteps = gameMode === 'ability_blitz' ? [
+    'Identify the ability shown and submit its exact name.',
+    'Correct answers advance through the shared randomized set; difficulty controls hints and penalties.',
+    'Finish the set before your opponents.',
+  ] : [
+    'Identify the skin splash art and submit its exact skin name.',
+    'Use hints and autocomplete when the selected difficulty allows them.',
+    'Finish the shared randomized set before your opponents.',
+  ];
+  const connectedWaitingPlayers = view?.players.filter((player) => player.connected).length ?? 0;
+  const statusLabel = view?.lobby.status === 'waiting'
+    ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : connectedWaitingPlayers >= MIN_PLAYERS_TO_START ? 'Ready to start' : 'Waiting for players'}`
+    : view?.lobby.status === 'active'
+      ? 'In Progress'
+      : view?.lobby.status === 'finished'
+        ? 'Finished'
+        : 'Lobby';
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-6 py-6 lg:px-12">
-        <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={leaveLobby} aria-label="Back" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
-              <ArrowLeft size={20} />
-            </button>
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
-              <h1 className="text-xl font-semibold text-white">{config.title}</h1>
-              <p className="mt-1 text-xs text-slate-400">{view ? 'Lobby' : 'Create or join a lobby'}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <GameInfoMenu title={config.title} steps={gameMode === 'ability_blitz' ? [
-              'Identify the ability shown and submit its exact name.',
-              'Correct answers advance through the shared randomized set; difficulty controls hints and penalties.',
-              'Finish the set before your opponents.',
-            ] : [
-              'Identify the skin splash art and submit its exact skin name.',
-              'Use hints and autocomplete when the selected difficulty allows them.',
-              'Finish the shared randomized set before your opponents.',
-            ]} />
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
-              <Users size={16} className="text-amber-300" />
-              {view?.lobby.status === 'waiting'
-                ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : 'Waiting for players'}`
-                : view?.lobby.status === 'active'
-                  ? 'In Progress'
-                  : view?.lobby.status === 'finished'
-                    ? 'Finished'
-                    : 'Lobby'}
-            </div>
-          </div>
-        </header>
+    <MultiplayerLobbyShell>
+      <MultiplayerLobbyHeader
+        title={config.title}
+        subtitle={view ? 'Lobby' : 'Create or join a lobby'}
+        statusLabel={statusLabel}
+        infoSteps={infoSteps}
+        onBack={view ? leaveLobby : () => router.push('/')}
+      />
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
-          {!view ? (
-            <div className="mx-auto max-w-4xl py-1">
-              <div className="text-center">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Create or Join</p>
-                <h2 className="mt-3 text-3xl font-bold text-white">Set up an {config.title} lobby</h2>
-              </div>
-              <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
-                <button type="button" onClick={createLobby} disabled={busy || !clientId} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-amber-300 px-6 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                  Create Lobby
-                </button>
-                <span className="hidden pb-3 text-sm font-semibold text-slate-500 lg:block">OR</span>
-                <form onSubmit={joinLobby} className="grid gap-2">
-                  <label htmlFor="join-code" className="text-xs uppercase tracking-[0.18em] text-slate-500">Join code</label>
-                  <div className="flex gap-2">
-                    <input id="join-code" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase().slice(0, 6))} maxLength={6} autoComplete="off" placeholder="ABC123" className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm uppercase tracking-[0.16em] text-white outline-none placeholder:text-slate-600 focus:border-white/20" />
-                    <button type="submit" disabled={busy || joinCode.trim().length !== 6} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-violet-700 px-5 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60">Join</button>
-                  </div>
-                </form>
-              </div>
-              <div className="mt-8 border-t border-white/10 pt-6">
-                {rejoinCandidate ? (
-                  <ReconnectButton
-                    candidate={rejoinCandidate}
-                    disabled={busy}
-                    onReconnect={() => void joinLobbyByCode(rejoinCandidate.code)}
-                    onExpire={() => {
-                      window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
-                      setRejoinCandidate(null);
-                    }}
-                  />
+      <MultiplayerLobbyCard>
+        {!view ? (
+          <MultiplayerCreateJoinPanel
+            title={`Set up an ${config.title} lobby`}
+            joinCode={joinCode}
+            onJoinCodeChange={setJoinCode}
+            onJoin={joinLobby}
+            onCreate={createLobby}
+            canCreate={Boolean(clientId)}
+            busy={busy}
+            onRefreshPublicLobbies={() => void loadPublicLobbies()}
+            reconnectPrompt={rejoinCandidate ? (
+              <ReconnectButton
+                candidate={rejoinCandidate}
+                disabled={busy}
+                onReconnect={() => void joinLobbyByCode(rejoinCandidate.code)}
+                onExpire={() => {
+                  window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
+                  setRejoinCandidate(null);
+                }}
+              />
+            ) : null}
+            publicLobbyContent={publicLobbies.length ? publicLobbies.map((lobby) => (
+              <MultiplayerPublicLobbyButton
+                key={lobby.code}
+                hostName={lobby.hostName}
+                hostNameStyle={getChatNameStyle(lobby.hostChatColor)}
+                playerCount={lobby.playerCount}
+                maxPlayers={lobby.maxPlayers}
+                disabled={busy}
+                onClick={() => joinLobbyByCode(lobby.code, true)}
+                details={(
+                  <>
+                    <DifficultyLabel difficulty={lobby.difficulty} />
+                    <span aria-hidden="true">|</span>
+                    <span>{lobby.totalItems} Entries</span>
+                    {lobby.gameMode === 'ability_blitz' ? (
+                      <>
+                        <span aria-hidden="true">|</span>
+                        <span>Abilities: {formatAbilitySlotSelection(lobby.abilitySlots)}</span>
+                      </>
+                    ) : null}
+                  </>
+                )}
+                badges={lobby.modifiers.length > 0 ? lobby.modifiers.map((modifierId) => (
+                  <span key={modifierId} className="rounded-md border border-violet-300/20 bg-violet-400/10 px-2 py-1 text-[0.65rem] font-semibold text-violet-200">
+                    {config.modifiers.find((modifier) => modifier.id === modifierId)?.name ?? modifierId}
+                  </span>
+                )) : <span className="text-[0.65rem] text-slate-500">No modifiers</span>}
+              />
+            )) : <MultiplayerPublicLobbyEmpty />}
+          />
+        ) : (
+          <div className="grid gap-5">
+            <MultiplayerLobbyCodeStrip
+              code={view.lobby.code}
+              revealed={codeRevealed}
+              copied={codeCopied}
+              onToggleReveal={() => setCodeRevealed((value) => !value)}
+              onCopy={copyInvite}
+            />
+
+            <MultiplayerLobbyGrid>
+              <MultiplayerLobbyRoster
+                countLabel={`${view.players.length}/${view.lobby.max_players} Players`}
+                canManage={isHost && view.lobby.status === 'waiting'}
+                players={view.players.map((player) => ({
+                  id: player.id,
+                  authUserId: player.auth_user_id,
+                  displayName: player.display_name,
+                  nameColor: CHAT_COLOR_NAME_HEX[player.chat_color],
+                  avatarUrl: player.avatar_url,
+                  role: player.role,
+                  isCurrentUser: player.is_requesting_player,
+                  isHost: player.id === view.lobby.host_player_id,
+                  status: player.id === view.lobby.host_player_id ? <Check size={16} className="text-emerald-300" /> : null,
+                }))}
+                onKick={(playerId) => managePlayer('kick', playerId)}
+                onMakeHost={(playerId) => managePlayer('make-host', playerId)}
+              />
+
+              <MultiplayerLobbyPanel
+                title="Game Settings"
+                headerAction={settingsDirty ? (
+                  <button type="button" onClick={applyDraftSettings} disabled={!isHost || busy} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-300 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+                    Apply Changes
+                  </button>
                 ) : null}
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p>
-                    <p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p>
+                trailing={(
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+                      Entries
+                      <select value={visibleSettings?.totalItems ?? view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => updateDraftSettings((current) => ({ ...current, totalItems: Number(event.target.value) }))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
+                        {[25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
+                      </select>
+                    </label>
+                    <SlidersHorizontal size={20} className="text-amber-300" />
                   </div>
-                  <button type="button" onClick={() => void loadPublicLobbies()} disabled={busy} title="Refresh public lobbies" aria-label="Refresh public lobbies" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60">
-                    <RefreshCw size={17} />
-                  </button>
-                </div>
-                <div className="mt-4 grid gap-2">
-                  {publicLobbies.length ? publicLobbies.map((lobby) => (
-                    <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code, true)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span>
-                        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
-                          <DifficultyLabel difficulty={lobby.difficulty} />
-                          <span aria-hidden="true">|</span>
-                          <span>{lobby.totalItems} Entries</span>
-                          {lobby.gameMode === 'ability_blitz' ? (
-                            <><span aria-hidden="true">|</span><span>Abilities: {formatAbilitySlotSelection(lobby.abilitySlots)}</span></>
-                          ) : null}
-                        </span>
-                        <span className="mt-2 flex flex-wrap gap-1.5">
-                          {lobby.modifiers.length > 0 ? lobby.modifiers.map((modifierId) => (
-                            <span key={modifierId} className="rounded-md border border-violet-300/20 bg-violet-400/10 px-2 py-1 text-[0.65rem] font-semibold text-violet-200">
-                              {config.modifiers.find((modifier) => modifier.id === modifierId)?.name ?? modifierId}
-                            </span>
-                          )) : <span className="text-[0.65rem] text-slate-500">No modifiers</span>}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-xs font-semibold text-slate-300">{lobby.playerCount}/{lobby.maxPlayers}</span>
-                    </button>
-                  )) : <p className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">No public lobbies are waiting.</p>}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-5">
-              <div className="flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Lobby code</span>
-                <span className="font-mono text-lg font-semibold tracking-[0.24em] text-white">{codeRevealed ? view.lobby.code : '******'}</span>
-                <button type="button" onClick={() => setCodeRevealed((value) => !value)} aria-label={codeRevealed ? 'Hide lobby code' : 'Reveal lobby code'} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800">
-                  {codeRevealed ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <button type="button" onClick={copyInvite} aria-label="Copy lobby invite" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800">
-                  {codeCopied ? <Check size={16} className="text-emerald-300" /> : <Copy size={16} />}
-                </button>
-              </div>
-
-              <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)]">
-                <MultiplayerLobbyRoster
-                  countLabel={`${view.players.length}/${view.lobby.max_players} Players`}
-                  canManage={isHost && view.lobby.status === 'waiting'}
-                  players={view.players.map((player) => ({
-                    id: player.id,
-                    authUserId: player.auth_user_id,
-                    displayName: player.display_name,
-                    avatarUrl: player.avatar_url,
-                    role: player.role,
-                    isCurrentUser: player.is_requesting_player,
-                    isHost: player.id === view.lobby.host_player_id,
-                    status: player.id === view.lobby.host_player_id ? <Check size={16} className="text-emerald-300" /> : null,
-                  }))}
-                  onKick={(playerId) => managePlayer('kick', playerId)}
-                  onMakeHost={(playerId) => managePlayer('make-host', playerId)}
+                )}
+                lockedHint={!isHost ? 'Only the host can change game settings.' : null}
+              >
+                <MultiplayerVisibilityToggle
+                  enabled={view.lobby.is_public}
+                  disabled={!isHost || busy}
+                  onToggle={() => updateSettings(view.lobby.difficulty, view.lobby.modifiers, view.lobby.total_items, !view.lobby.is_public, view.lobby.ability_slots)}
                 />
-
-                <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Game Settings</p>
-                      {settingsDirty ? (
-                        <button type="button" onClick={applyDraftSettings} disabled={!isHost || busy} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-300 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                          Apply Changes
+                <fieldset className="mt-5 grid gap-5">
+                  <legend className="sr-only">Game settings</legend>
+                  <GameSettingsSection title="Difficulty" defaultOpen summary={<DifficultyLabel difficulty={visibleSettings?.difficulty ?? view.lobby.difficulty} />}>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {config.difficulties.map((difficulty) => (
+                        <button key={difficulty.id} type="button" disabled={!isHost || busy} onClick={() => updateDraftSettings((current) => ({ ...current, difficulty: difficulty.id as MultiplayerQuizDifficulty }))} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${(visibleSettings?.difficulty ?? view.lobby.difficulty) === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                          <DifficultyLabel difficulty={difficulty.id} className="text-sm" />
+                          <span className="mt-1 block text-xs leading-5 text-slate-400">{difficulty.description}</span>
                         </button>
-                      ) : null}
+                      ))}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-                        Entries
-                        <select value={visibleSettings?.totalItems ?? view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => updateDraftSettings((current) => ({ ...current, totalItems: Number(event.target.value) }))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
-                          {[3, 10, 25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
-                        </select>
-                      </label>
-                      <SlidersHorizontal size={20} className="text-amber-300" />
+                  </GameSettingsSection>
+                  <GameSettingsSection title="Modifiers" summary={`${visibleSettings?.modifiers.length ?? view.lobby.modifiers.length} active`}>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {config.modifiers.map((modifier) => {
+                        const checked = selectedModifiers.has(modifier.id);
+                        return (
+                          <MultiplayerModifierToggle
+                            key={modifier.id}
+                            name={modifier.name}
+                            description={modifier.description}
+                            checked={checked}
+                            disabled={!isHost || busy}
+                            onToggle={() => updateDraftSettings((current) => ({
+                              ...current,
+                              modifiers: checked ? current.modifiers.filter((id) => id !== modifier.id) : [...current.modifiers, modifier.id],
+                            }))}
+                          />
+                        );
+                      })}
                     </div>
-                  </div>
-                  <button type="button" disabled={!isHost || busy} onClick={() => updateSettings(view.lobby.difficulty, view.lobby.modifiers, view.lobby.total_items, !view.lobby.is_public, view.lobby.ability_slots)} className={`mt-4 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${view.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-900/70'} disabled:opacity-60`}>
-                    <span><span className="block text-sm font-semibold text-white">Public lobby</span></span>
-                    <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${view.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${view.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
-                  </button>
-                  <fieldset className="mt-5 grid gap-5">
-                    <legend className="sr-only">Game settings</legend>
-                    <GameSettingsSection title="Difficulty" defaultOpen summary={<DifficultyLabel difficulty={visibleSettings?.difficulty ?? view.lobby.difficulty} />}>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {config.difficulties.map((difficulty) => (
-                          <button key={difficulty.id} type="button" disabled={!isHost || busy} onClick={() => updateDraftSettings((current) => ({ ...current, difficulty: difficulty.id as MultiplayerQuizDifficulty }))} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${(visibleSettings?.difficulty ?? view.lobby.difficulty) === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
-                            <DifficultyLabel difficulty={difficulty.id} className="text-sm" />
-                            <span className="mt-1 block text-xs leading-5 text-slate-400">{difficulty.description}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </GameSettingsSection>
-                    <GameSettingsSection title="Modifiers" summary={`${visibleSettings?.modifiers.length ?? view.lobby.modifiers.length} active`}>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {config.modifiers.map((modifier) => {
-                          const checked = selectedModifiers.has(modifier.id);
+                  </GameSettingsSection>
+                  {gameMode === 'ability_blitz' ? (
+                    <GameSettingsSection title="Ability Set" summary={`${visibleSettings?.abilitySlots.length ?? view.lobby.ability_slots.length}/5`}>
+                      <p className="mb-3 text-xs leading-5 text-slate-400">Select which abilities can appear in the shared round.</p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {ABILITY_SLOTS.map((slot) => {
+                          const selected = (visibleSettings?.abilitySlots ?? view.lobby.ability_slots).includes(slot.id);
                           return (
-                            <button key={modifier.id} type="button" disabled={!isHost || busy} onClick={() => updateDraftSettings((current) => ({ ...current, modifiers: checked ? current.modifiers.filter((id) => id !== modifier.id) : [...current.modifiers, modifier.id] }))} className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
-                              <span><span className="block text-sm font-bold text-white">{modifier.name}</span><span className="mt-1 block text-xs leading-5 text-slate-400">{modifier.description}</span></span>
-                              <span className={`mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ${checked ? 'bg-violet-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${checked ? 'translate-x-4' : ''}`} /></span>
+                            <button
+                              key={slot.id}
+                              type="button"
+                              title={slot.name}
+                              disabled={!isHost || busy}
+                              onClick={() => {
+                                const currentSlots = visibleSettings?.abilitySlots ?? view.lobby.ability_slots;
+                                if (selected && currentSlots.length === 1) return;
+                                updateDraftSettings((current) => ({
+                                  ...current,
+                                  abilitySlots: selected
+                                    ? current.abilitySlots.filter((id) => id !== slot.id)
+                                    : [...current.abilitySlots, slot.id],
+                                }));
+                              }}
+                              className={`flex h-12 items-center justify-center rounded-xl border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-65 ${selected ? 'border-amber-300/60 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900/80 text-slate-400 hover:border-white/25'}`}
+                            >
+                              {slot.label}
                             </button>
                           );
                         })}
                       </div>
                     </GameSettingsSection>
-                    {gameMode === 'ability_blitz' ? (
-                      <GameSettingsSection title="Ability Set" summary={`${visibleSettings?.abilitySlots.length ?? view.lobby.ability_slots.length}/5`}>
-                        <p className="mb-3 text-xs leading-5 text-slate-400">Select which abilities can appear in the shared round.</p>
-                        <div className="grid grid-cols-5 gap-2">
-                          {ABILITY_SLOTS.map((slot) => {
-                            const selected = (visibleSettings?.abilitySlots ?? view.lobby.ability_slots).includes(slot.id);
-                            return (
-                              <button
-                                key={slot.id}
-                                type="button"
-                                title={slot.name}
-                                disabled={!isHost || busy}
-                                onClick={() => {
-                                  const currentSlots = visibleSettings?.abilitySlots ?? view.lobby.ability_slots;
-                                  if (selected && currentSlots.length === 1) return;
-                                  updateDraftSettings((current) => ({
-                                    ...current,
-                                    abilitySlots: selected
-                                      ? current.abilitySlots.filter((id) => id !== slot.id)
-                                      : [...current.abilitySlots, slot.id],
-                                  }));
-                                }}
-                                className={`flex h-12 items-center justify-center rounded-xl border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-65 ${selected ? 'border-amber-300/60 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900/80 text-slate-400 hover:border-white/25'}`}
-                              >
-                                {slot.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </GameSettingsSection>
-                    ) : null}
-                  </fieldset>
-                  {!isHost ? <p className="mt-4 text-xs text-slate-500">Only the host can change game settings.</p> : null}
-                </section>
-              </div>
+                  ) : null}
+                </fieldset>
+              </MultiplayerLobbyPanel>
+            </MultiplayerLobbyGrid>
 
-              <div className="flex flex-col items-center gap-3 py-1">
-                <button type="button" disabled={!isHost || view.players.length < 2 || busy || settingsDirty} onClick={startGame} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">
-                  <Play size={17} /> Start Game
-                </button>
-                <p className="text-xs text-slate-500">{settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}</p>
-              </div>
-            </div>
-          )}
+            <MultiplayerStartGameControl
+              disabled={!isHost || connectedWaitingPlayers < MIN_PLAYERS_TO_START || busy || settingsDirty}
+              onStart={startGame}
+              hint={settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
+            />
+          </div>
+        )}
 
-          {message ? <p className="mt-5 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-center text-sm text-slate-300">{message}</p> : null}
-        </section>
-
-      </section>
-    </main>
+        <MultiplayerLobbyMessage>{message}</MultiplayerLobbyMessage>
+      </MultiplayerLobbyCard>
+    </MultiplayerLobbyShell>
   );
 }

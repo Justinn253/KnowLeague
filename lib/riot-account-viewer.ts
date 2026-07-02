@@ -471,6 +471,17 @@ export type RiotAccountSearchSuggestion = {
   searchCount: number;
 };
 
+export type RiotLiveGameStatus = {
+  riotId: string;
+  platform: RiotPlatformRoute;
+  inGame: boolean;
+  gameId: number | null;
+  gameStartTime: number | null;
+  gameLength: number | null;
+  champion: RiotChampionSummary | null;
+  updatedAt: string;
+};
+
 let cachedChampionLookup: Promise<Map<number, RiotChampionSummary>> | null = null;
 let cachedDataDragonVersion: Promise<string> | null = null;
 let cachedSummonerSpellLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
@@ -1165,6 +1176,49 @@ function normalizeCurrentGame(
     queueId: currentGame.gameQueueConfigId,
     playerChampion: participants.find((participant) => participant.isSearchedPlayer)?.champion ?? null,
     participants,
+  };
+}
+
+export async function getRiotLiveGameStatus(riotId: string, platform: RiotPlatformRoute): Promise<RiotLiveGameStatus> {
+  const parsed = parseRiotId(riotId);
+  const regionalRoute = getRegionalRoute(platform);
+  const encodedGameName = encodeURIComponent(parsed.gameName);
+  const encodedTagLine = encodeURIComponent(parsed.tagLine);
+
+  const account = await riotFetch<RiotAccountDto>(
+    `https://${regionalRoute}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodedGameName}/${encodedTagLine}`,
+  );
+  const canonicalRiotId = `${account.gameName ?? parsed.gameName}#${account.tagLine ?? parsed.tagLine}`;
+  const currentGame = await riotFetch<RiotCurrentGameDto>(
+    `https://${platform.toLowerCase()}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${encodeURIComponent(account.puuid)}`,
+    { optional404: true },
+  );
+
+  if (!currentGame) {
+    return {
+      riotId: canonicalRiotId,
+      platform,
+      inGame: false,
+      gameId: null,
+      gameStartTime: null,
+      gameLength: null,
+      champion: null,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  const champions = await getChampionLookup();
+  const participant = currentGame.participants.find((currentParticipant) => currentParticipant.puuid === account.puuid);
+
+  return {
+    riotId: canonicalRiotId,
+    platform,
+    inGame: true,
+    gameId: currentGame.gameId,
+    gameStartTime: currentGame.gameStartTime,
+    gameLength: currentGame.gameLength,
+    champion: participant ? getChampion(champions, participant.championId) : null,
+    updatedAt: new Date().toISOString(),
   };
 }
 

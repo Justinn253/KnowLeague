@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const platformRoutes = ['NA1', 'BR1', 'LA1', 'LA2', 'EUW1', 'EUN1', 'KR', 'JP1', 'OC1', 'TR1', 'RU', 'PH2', 'SG2', 'TH2', 'TW2', 'VN2'] as const;
 type ViewerTab = 'overview' | 'mastery' | 'matches' | 'challenges';
@@ -849,7 +850,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
                 <ChevronDown size={16} className="shrink-0 text-slate-400" />
               </button>
               {championDropdownOpen ? (
-                <div className="absolute left-0 top-full z-[95] mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+                <div className="absolute left-0 top-full z-[95] mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 p-3">
                   <label className="relative block">
                     <span className="sr-only">Search champions</span>
                     <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -937,7 +938,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
             ))}
           </div>
 
-          <div ref={scrollContainerRef} onScroll={updateVisibleWindow} className="overflow-x-auto overflow-y-visible pb-3">
+          <div ref={scrollContainerRef} onScroll={updateVisibleWindow} className={`overflow-x-auto overflow-y-visible pb-3 ${THEMED_SCROLLBAR_CLASS}`}>
             <div className="flex w-max items-start gap-2 pr-4">
               {masteries.map((mastery, index) => {
                 const stats = championStats.get(mastery.champion.id);
@@ -1610,7 +1611,7 @@ export function RiotAccountViewer() {
             setSharedSuggestions([]);
           }
         });
-    }, 180);
+    }, 500);
 
     return () => {
       window.clearTimeout(timeoutId);

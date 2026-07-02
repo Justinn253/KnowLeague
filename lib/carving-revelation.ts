@@ -107,6 +107,7 @@ export type CarvingRevelationPublicLobby = {
   playerCount: number;
   maxPlayers: number;
   hostName: string;
+  hostColor: string;
 };
 
 type CreateOrJoinInput = {
@@ -770,12 +771,13 @@ export async function listPublicCarvingRevelationLobbies() {
 
   const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
     .from('carving_revelation_players')
-    .select('id, lobby_id, display_name, connected, last_seen_at')
+    .select('id, lobby_id, auth_user_id, display_name, connected, last_seen_at')
     .in('lobby_id', lobbies.map((lobby) => lobby.id))
-    .returns<Array<Pick<CarvingRevelationPlayerRecord, 'id' | 'lobby_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
+    .returns<Array<Pick<CarvingRevelationPlayerRecord, 'id' | 'lobby_id' | 'auth_user_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
   if (playersError) throw playersError;
 
   const nowMs = Date.now();
+  const profileCosmeticsByUserId = await fetchProfileCosmetics(publicPlayers.map((player) => player.auth_user_id));
   return lobbies.map((lobby): CarvingRevelationPublicLobby | null => {
     const players = publicPlayers.filter((player) => (
       player.lobby_id === lobby.id && player.connected && nowMs - new Date(player.last_seen_at).getTime() <= MULTIPLAYER_STALE_AFTER_MS
@@ -788,6 +790,7 @@ export async function listPublicCarvingRevelationLobbies() {
       playerCount: players.length,
       maxPlayers: lobby.max_players,
       hostName: host.display_name,
+      hostColor: host.auth_user_id ? profileCosmeticsByUserId.get(host.auth_user_id)?.carve_color ?? getFallbackCarveColor(host.id) : getFallbackCarveColor(host.id),
     };
   }).filter((entry): entry is CarvingRevelationPublicLobby => entry !== null);
 }

@@ -1,21 +1,35 @@
 'use client';
 
 import { type CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Search, Users } from 'lucide-react';
+import { Check, Search } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
-import { GameInfoMenu } from '@/components/game-info-menu';
+import {
+  MultiplayerCreateJoinPanel,
+  MultiplayerLobbyCard,
+  MultiplayerLobbyCodeStrip,
+  MultiplayerLobbyGrid,
+  MultiplayerLobbyHeader,
+  MultiplayerLobbyMessage,
+  MultiplayerLobbyPanel,
+  MultiplayerLobbyShell,
+  MultiplayerPublicLobbyButton,
+  MultiplayerPublicLobbyEmpty,
+  MultiplayerStartGameControl,
+  MultiplayerVisibilityToggle,
+} from '@/components/multiplayer-lobby-layout';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { getOrCreateClientId, loadDetailedGameStats, recordSkincognitoStats, type DetailedGameStats } from '@/lib/game-storage';
-import { disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
+import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
-import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
+import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 type SkinAnswer = {
   id: string;
@@ -235,7 +249,12 @@ function getHeaderActionLabel(view: SkincognitoLobbyView | null) {
   }
 
   if (view?.lobby.status === 'waiting') {
-    return `Lobby - ${view.players.length >= 10 ? 'Full' : 'Waiting for players'}`;
+    const activePlayers = view.players.filter((player) => (
+      player.id === view.lobby.player_one_id ||
+      player.id === view.lobby.player_two_id
+    ));
+    const readyToStart = activePlayers.length === 2 && activePlayers.every((player) => player.connected);
+    return `Lobby - ${view.players.length >= 10 ? 'Full' : readyToStart ? 'Ready to start' : 'Waiting for players'}`;
   }
 
   return 'Lobby';
@@ -322,10 +341,11 @@ export function Skincognito() {
     ? lobbyView.players.filter((player) => player.id === lobbyView.lobby.player_one_id || player.id === lobbyView.lobby.player_two_id)
     : [], [lobbyView]);
   const spectatorCount = lobbyView ? lobbyView.players.length - activePlayers.length : 0;
-  const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2);
+  const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2 && activePlayers.every((player) => player.connected));
   const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
   const playerTwo = getPlayerById(lobbyView, lobbyView?.lobby.player_two_id);
   const winnerPlayer = getPlayerById(lobbyView, lobbyView?.lobby.winner_player_id);
+  const currentTurnPlayer = getPlayerById(lobbyView, lobbyView?.lobby.current_turn_player_id);
   const finishedTargetPlayer = getFinishedTargetPlayer(lobbyView);
   const finishedTargetSkin = finishedTargetPlayer?.selected_skin ?? null;
   const opponentPlayer = requestingPlayer?.id === playerOne?.id ? playerTwo : playerOne;
@@ -683,11 +703,7 @@ export function Skincognito() {
       });
     };
 
-    window.addEventListener('pagehide', leaveWaitingLobbyOnPageExit);
-    return () => {
-      window.removeEventListener('pagehide', leaveWaitingLobbyOnPageExit);
-      leaveWaitingLobbyOnPageExit();
-    };
+    return addMultiplayerDisconnectListeners(leaveWaitingLobbyOnPageExit);
   }, []);
 
   useEffect(() => {
@@ -1093,26 +1109,20 @@ export function Skincognito() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto flex min-h-screen max-w-6xl flex-col gap-5 px-6 py-6 lg:px-12">
-        <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={leaveLobby}
-              aria-label="Back to game hub"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
-              <h1 className="text-xl font-semibold text-white">Skincognito</h1>
-              <p className="mt-1 text-xs text-slate-400">{getLobbyStatusLabel(lobbyView)}</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+    <MultiplayerLobbyShell>
+      <MultiplayerLobbyHeader
+        title="Skincognito"
+        subtitle={getLobbyStatusLabel(lobbyView)}
+        statusLabel={getHeaderActionLabel(lobbyView)}
+        infoSteps={[
+          'Choose a skin for your opponent to identify before the match starts.',
+          'Take turns asking category questions and use the answers to narrow down the skin.',
+          "Identify your opponent's selected skin before they identify yours.",
+        ]}
+        onBack={leaveLobby}
+        backLabel="Back to game hub"
+        actions={(
+          <>
             {lobbyView?.lobby.status === 'finished' && isHost ? (
               <button
                 type="button"
@@ -1125,92 +1135,21 @@ export function Skincognito() {
                   : 'Return to Lobby'}
               </button>
             ) : null}
-            <GameInfoMenu title="Skincognito" steps={[
-              'Choose a skin for your opponent to identify before the match starts.',
-              'Take turns asking category questions and use the answers to narrow down the skin.',
-              'Identify your opponent’s selected skin before they identify yours.',
-            ]} />
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
-              <Users size={16} className="text-amber-300" />
-              {getHeaderActionLabel(lobbyView)}
-            </div>
-          </div>
-        </header>
-
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+          </>
+        )}
+      />
+      <MultiplayerLobbyCard>
           {!lobbyView ? (
-            <div className="mx-auto max-w-3xl text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Create or Join</p>
-              <h2 className="mt-3 text-3xl font-bold text-white">Set up a Skincognito lobby</h2>
-            </div>
-          ) : null}
-
-          {!lobbyView ? (
-            <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
-              <button
-                type="button"
-                onClick={createLobby}
-                disabled={busy || !clientId}
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-amber-300 px-6 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Create Lobby
-              </button>
-
-              <div className="hidden pb-3 text-sm font-semibold text-slate-500 lg:block">OR</div>
-
-              <form onSubmit={joinLobby} className="grid gap-2">
-                <label htmlFor="join-code" className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                  Join code
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    id="join-code"
-                    value={joinCode}
-                    onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-                    maxLength={6}
-                    placeholder="ABC123"
-                    className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm uppercase tracking-[0.16em] text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 focus:ring-1 focus:ring-white/15"
-                  />
-                  <button
-                    type="submit"
-                    disabled={busy || joinCode.trim().length < 6}
-                    className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-violet-700 px-5 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Join
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : lobbyView.lobby.status === 'waiting' ? (
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:flex-row">
-              <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Lobby code</span>
-              <span className="font-mono text-lg font-semibold tracking-[0.24em] text-white">
-                {codeRevealed ? lobbyView.lobby.code : '******'}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCodeRevealed((revealed) => !revealed)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
-                  aria-label={codeRevealed ? 'Hide lobby code' : 'Reveal lobby code'}
-                >
-                  {codeRevealed ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={copyCode}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
-                  aria-label="Copy lobby link"
-                >
-                  {codeCopied ? <Check size={16} className="text-emerald-300" /> : <Copy size={16} />}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {!lobbyView ? (
-            <div className="mx-auto mt-8 max-w-3xl border-t border-white/10 pt-6 text-left">
-              {rejoinCandidate ? (
+            <MultiplayerCreateJoinPanel
+              title="Set up a Skincognito lobby"
+              joinCode={joinCode}
+              onJoinCodeChange={setJoinCode}
+              onJoin={joinLobby}
+              onCreate={createLobby}
+              canCreate={Boolean(clientId)}
+              busy={busy}
+              onRefreshPublicLobbies={() => void loadPublicLobbies()}
+              reconnectPrompt={rejoinCandidate ? (
                 <ReconnectButton
                   candidate={rejoinCandidate}
                   disabled={busy}
@@ -1221,36 +1160,38 @@ export function Skincognito() {
                   }}
                 />
               ) : null}
-              <div className="flex items-center justify-between gap-3">
-                <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p><p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p></div>
-                <button type="button" onClick={() => void loadPublicLobbies()} disabled={busy} title="Refresh public lobbies" aria-label="Refresh public lobbies" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60">
-                  <RefreshCw size={17} />
-                </button>
-              </div>
-              <div className="mt-4 grid gap-2">
-                {publicLobbies.length ? publicLobbies.map((lobby) => (
-                  <button key={lobby.code} type="button" onClick={() => joinLobbyByCode(lobby.code, true)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
-                    <span className="truncate text-sm font-semibold text-white">{lobby.hostName}&apos;s lobby</span>
-                    <span className="shrink-0 text-xs font-semibold text-slate-300">{lobby.playerCount}/{lobby.maxPlayers}</span>
-                  </button>
-                )) : <p className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">No public lobbies are waiting.</p>}
-              </div>
-            </div>
+              publicLobbyContent={publicLobbies.length ? publicLobbies.map((lobby) => (
+                <MultiplayerPublicLobbyButton
+                  key={lobby.code}
+                  hostName={lobby.hostName}
+                  hostNameStyle={getChatNameStyle(lobby.hostChatColor)}
+                  playerCount={lobby.playerCount}
+                  maxPlayers={lobby.maxPlayers}
+                  disabled={busy}
+                  onClick={() => joinLobbyByCode(lobby.code, true)}
+                />
+              )) : <MultiplayerPublicLobbyEmpty />}
+            />
+          ) : lobbyView.lobby.status === 'waiting' ? (
+            <MultiplayerLobbyCodeStrip
+              code={lobbyView.lobby.code}
+              revealed={codeRevealed}
+              copied={codeCopied}
+              onToggleReveal={() => setCodeRevealed((revealed) => !revealed)}
+              onCopy={copyCode}
+            />
           ) : null}
 
-          {message ? (
-            <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-center text-sm text-slate-300">
-              {message}
-            </p>
-          ) : null}
+          <MultiplayerLobbyMessage>{message}</MultiplayerLobbyMessage>
 
           {lobbyView && lobbyView.lobby.status === 'waiting' ? (
-            <div className="mt-8 border-t border-white/10 pt-8">
-              <button type="button" disabled={!isHost || busy} onClick={updateLobbyVisibility} className={`mb-5 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${lobbyView.lobby.is_public ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-white/10 bg-slate-950/70'} disabled:opacity-60`}>
-                <span><span className="block text-sm font-semibold text-white">Public lobby</span></span>
-                <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${lobbyView.lobby.is_public ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${lobbyView.lobby.is_public ? 'translate-x-5' : ''}`} /></span>
-              </button>
-              <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
+            <div className="mt-5 grid gap-5">
+              <MultiplayerVisibilityToggle
+                enabled={lobbyView.lobby.is_public}
+                disabled={!isHost || busy}
+                onToggle={updateLobbyVisibility}
+              />
+              <MultiplayerLobbyGrid>
                 <MultiplayerLobbyRoster
                   countLabel={`${activePlayers.length}/2 Players - ${spectatorCount}/8 Spectators`}
                   canManage={isHost && lobbyView.lobby.status === 'waiting'}
@@ -1258,6 +1199,7 @@ export function Skincognito() {
                     id: player.id,
                     authUserId: player.auth_user_id,
                     displayName: player.display_name,
+                    nameColor: CHAT_COLOR_NAME_HEX[player.chat_color],
                     avatarUrl: player.avatar_url,
                     role: player.role,
                     isCurrentUser: player.is_requesting_player,
@@ -1283,13 +1225,10 @@ export function Skincognito() {
                   onMakeHost={makeHost}
                 />
 
-                <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Your skin</p>
-                    <h3 className="mt-2 text-lg font-semibold text-white">
-                      {requestingPlayer?.role === 'spectator' ? 'Spectating' : 'Choose your skin'}
-                    </h3>
-                  </div>
+                <MultiplayerLobbyPanel title="Your Skin">
+                  <h3 className="text-lg font-semibold text-white">
+                    {requestingPlayer?.role === 'spectator' ? 'Spectating' : 'Choose your skin'}
+                  </h3>
 
                   <div className="mt-5 grid gap-5 md:grid-cols-[14rem_1fr]">
                     <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
@@ -1338,7 +1277,7 @@ export function Skincognito() {
                       </div>
 
                       {suggestions.length > 0 ? (
-                        <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50">
+                        <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                           {suggestions.map((skin) => (
                             <button
                               key={skin.id}
@@ -1367,26 +1306,14 @@ export function Skincognito() {
                       </p>
                     </div>
                   </div>
-                </section>
-              </div>
+                </MultiplayerLobbyPanel>
+              </MultiplayerLobbyGrid>
 
-              <div className="mt-6 flex justify-center">
-                <button
-                  type="button"
-                  onClick={startGame}
-                  disabled={busy || !canStart}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Play size={16} />
-                  Start Game
-                </button>
-              </div>
-
-              {lobbyView.lobby.status === 'waiting' ? (
-                <p className="mt-3 text-center text-xs text-slate-500">
-                  The host can start once two active players have joined. Missing skin selections use a random skin.
-                </p>
-              ) : null}
+              <MultiplayerStartGameControl
+                disabled={busy || !canStart}
+                onStart={startGame}
+                hint="The host can start once two active players have joined. Missing skin selections use a random skin."
+              />
             </div>
           ) : null}
 
@@ -1399,9 +1326,17 @@ export function Skincognito() {
                       {lobbyView.lobby.status === 'finished' ? 'Game finished' : 'Current turn'}
                     </p>
                     <h2 className="mt-1 text-xl font-bold text-white">
-                      {lobbyView.lobby.status === 'finished'
-                        ? `${getPlayerLabel(getPlayerById(lobbyView, lobbyView.lobby.winner_player_id))} found the skin`
-                        : `${getPlayerLabel(getPlayerById(lobbyView, lobbyView.lobby.current_turn_player_id))}'s turn`}
+                      {lobbyView.lobby.status === 'finished' ? (
+                        <>
+                          <span style={winnerPlayer ? getChatNameStyle(winnerPlayer.chat_color) : undefined}>{getPlayerLabel(winnerPlayer)}</span>
+                          {' found the skin'}
+                        </>
+                      ) : (
+                        <>
+                          <span style={currentTurnPlayer ? getChatNameStyle(currentTurnPlayer.chat_color) : undefined}>{getPlayerLabel(currentTurnPlayer)}</span>
+                          {"'s turn"}
+                        </>
+                      )}
                     </h2>
                   </div>
                   <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
@@ -1419,6 +1354,7 @@ export function Skincognito() {
                       <MultiplayerDisconnectStatus
                         key={player.id}
                         playerName={player.display_name}
+                        playerNameStyle={getChatNameStyle(player.chat_color)}
                         disconnectedAt={player.disconnected_at as string}
                         unavailable={lobbyView.lobby.status === 'finished'}
                       />
@@ -1446,7 +1382,8 @@ export function Skincognito() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`${getPlayerLabel(topPlayer)}'s correct guesses`}
+                  <span style={topPlayer ? getChatNameStyle(topPlayer.chat_color) : undefined}>{getPlayerLabel(topPlayer)}</span>
+                  {"'s correct guesses"}
                 </p>
               </section>
 
@@ -1466,7 +1403,7 @@ export function Skincognito() {
                     onScroll={(event) => {
                       wasGuessesAtBottomRef.current = isScrolledToBottom(event.currentTarget);
                     }}
-                    className="mt-3 grid flex-1 content-start gap-2 overflow-y-auto pr-3"
+                    className={`mt-3 grid flex-1 content-start gap-2 overflow-y-auto pr-3 ${THEMED_SCROLLBAR_CLASS}`}
                   >
                     {recentActions.map((action) => {
                       const actor = getPlayerById(lobbyView, action.player_id);
@@ -1482,7 +1419,7 @@ export function Skincognito() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-white">{getPlayerLabel(actor)}</p>
+                              <p className="text-sm font-semibold text-white" style={actor ? getChatNameStyle(actor.chat_color) : undefined}>{getPlayerLabel(actor)}</p>
                               <p className="mt-1 truncate text-xs uppercase tracking-[0.16em] text-slate-500">
                                 {categoryLabel} - <span className="normal-case tracking-normal text-slate-200">{action.guess_value}</span>
                                 {action.category_id === 'releaseYear' && action.result_hint ? (
@@ -1512,7 +1449,7 @@ export function Skincognito() {
                     onScroll={(event) => {
                       wasChatAtBottomRef.current = isScrolledToBottom(event.currentTarget);
                     }}
-                    className="mt-3 grid flex-1 content-start gap-3 overflow-y-auto pr-5"
+                    className={`mt-3 grid flex-1 content-start gap-3 overflow-y-auto pr-5 ${THEMED_SCROLLBAR_CLASS}`}
                   >
                     {chatGroups.map((group) => {
                       const bubbleStyle = getChatBubbleStyle(group.chatColor, group.chatBorder);
@@ -1619,7 +1556,8 @@ export function Skincognito() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`${getPlayerLabel(bottomPlayer)}'s correct guesses`}
+                  <span style={bottomPlayer ? getChatNameStyle(bottomPlayer.chat_color) : undefined}>{getPlayerLabel(bottomPlayer)}</span>
+                  {"'s correct guesses"}
                 </p>
               </section>
 
@@ -1653,7 +1591,12 @@ export function Skincognito() {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Game Complete</p>
                           <h3 className="text-2xl font-bold text-white sm:text-right">
-                            {winnerPlayer ? `${winnerPlayer.display_name} won` : 'Game finished'}
+                            {winnerPlayer ? (
+                              <>
+                                <span style={getChatNameStyle(winnerPlayer.chat_color)}>{winnerPlayer.display_name}</span>
+                                {' won'}
+                              </>
+                            ) : 'Game finished'}
                           </h3>
                         </div>
 
@@ -1675,7 +1618,7 @@ export function Skincognito() {
                           {finishedPlayerStats.map((stats) => (
                             <div key={stats.player.id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
                               <div className="mb-3 flex items-center justify-between gap-3">
-                                <p className="truncate text-sm font-bold text-white">{stats.player.display_name}</p>
+                                <p className="truncate text-sm font-bold text-white" style={getChatNameStyle(stats.player.chat_color)}>{stats.player.display_name}</p>
                                 <span className="rounded-full border border-white/10 bg-slate-900 px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-400">
                                   {stats.player.id === lobbyView.lobby.winner_player_id ? 'Winner' : 'Player'}
                                 </span>
@@ -1781,7 +1724,7 @@ export function Skincognito() {
                         />
 
                         {guessMenuOpen && guessSuggestions.length > 0 && canSubmitAction ? (
-                          <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50">
+                          <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                             {guessSuggestions.map((suggestion) => (
                               <button
                                 key={`${selectedCategory}-${suggestion.id}`}
@@ -1821,8 +1764,7 @@ export function Skincognito() {
               ) : null}
             </div>
           ) : null}
-        </section>
-      </section>
-    </main>
+      </MultiplayerLobbyCard>
+    </MultiplayerLobbyShell>
   );
 }

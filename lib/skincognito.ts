@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { canReconnect, getReconnectDeadline, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 import { DEFAULT_CHAT_BORDER, normalizeChatBorder, normalizeChatColor, type ChatBorder, type ChatColor } from '@/lib/chat-colors';
+import { sanitizeChatMessage } from '@/lib/chat-filter';
 import {
   addMultiplayerLobbyEvent,
   assertMultiplayerAccountAvailable,
@@ -115,6 +116,7 @@ export type SkincognitoLobbyView = {
 export type SkincognitoPublicLobby = {
   code: string;
   hostName: string;
+  hostChatColor: ChatColor;
   playerCount: number;
   maxPlayers: number;
 };
@@ -919,12 +921,13 @@ export async function listPublicSkincognitoLobbies() {
   if (lobbies.length === 0) return [];
   const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
     .from('skincognito_players')
-    .select('id, lobby_id, display_name, connected, last_seen_at')
+    .select('id, lobby_id, auth_user_id, display_name, connected, last_seen_at')
     .in('lobby_id', lobbies.map((lobby) => lobby.id))
-    .returns<Array<Pick<SkincognitoPlayerRecord, 'id' | 'lobby_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
+    .returns<Array<Pick<SkincognitoPlayerRecord, 'id' | 'lobby_id' | 'auth_user_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
   if (playersError) throw playersError;
 
   const nowMs = Date.now();
+  const profileCosmeticsByUserId = await fetchProfileChatCosmetics(publicPlayers.map((player) => player.auth_user_id).filter((userId): userId is string => Boolean(userId)));
   return lobbies.map((lobby): SkincognitoPublicLobby | null => {
     const players = getFreshConnectedMembers(publicPlayers.filter((player) => player.lobby_id === lobby.id), nowMs);
     if (players.length === 0) return null;
@@ -934,6 +937,7 @@ export async function listPublicSkincognitoLobbies() {
     return {
       code: lobby.code,
       hostName: host.display_name,
+      hostChatColor: host.auth_user_id ? profileCosmeticsByUserId.get(host.auth_user_id)?.color ?? 'amber' : 'amber',
       playerCount: players.length,
       maxPlayers: MAX_LOBBY_PLAYERS,
     };
@@ -1356,6 +1360,7 @@ export async function postSkincognitoChatMessage(code: string, clientId: string,
   if (!cleanMessage) {
     throw new Error('Message cannot be empty.');
   }
+  const filteredMessage = sanitizeChatMessage(cleanMessage);
 
   const playerCosmetics = player.auth_user_id
     ? (await fetchProfileChatCosmetics([player.auth_user_id])).get(player.auth_user_id)
@@ -1366,7 +1371,7 @@ export async function postSkincognitoChatMessage(code: string, clientId: string,
     .insert({
       lobby_id: lobby.id,
       player_id: player.id,
-      message: cleanMessage,
+      message: filteredMessage,
       message_type: 'player',
       chat_color: playerCosmetics?.color ?? 'amber',
       chat_border: playerCosmetics?.border ?? DEFAULT_CHAT_BORDER,

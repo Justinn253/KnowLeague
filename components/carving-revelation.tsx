@@ -23,7 +23,7 @@ import {
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { getOrCreateClientId } from '@/lib/game-storage';
-import { disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
+import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
 import { getReconnectDeadline, MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import { normalizeAnswer } from '@/lib/quiz';
 import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevelationModifier, CarvingRevelationPublicLobby, CarvingRevelationWinCondition } from '@/lib/carving-revelation';
@@ -589,11 +589,7 @@ export function CarvingRevelation() {
       });
     };
 
-    window.addEventListener('pagehide', disconnectCurrentSession);
-    return () => {
-      window.removeEventListener('pagehide', disconnectCurrentSession);
-      disconnectCurrentSession();
-    };
+    return addMultiplayerDisconnectListeners(disconnectCurrentSession);
   }, []);
 
   useEffect(() => {
@@ -1017,14 +1013,14 @@ export function CarvingRevelation() {
     setIsDrawing(false);
   };
 
+  const connectedPlayerCount = view?.players.filter((player) => player.connected).length ?? 0;
   const headerStatus = view?.lobby.status === 'waiting'
-    ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : 'Waiting for players'}`
+    ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : connectedPlayerCount >= 2 ? 'Ready to start' : 'Waiting for players'}`
     : view?.lobby.status === 'active'
       ? view.lobby.phase === 'carve' ? 'Carving' : 'Guessing'
       : view?.lobby.status === 'finished'
         ? 'Finished'
         : 'Lobby';
-  const connectedPlayerCount = view?.players.filter((player) => player.connected).length ?? 0;
   const rosterPlayers = view?.players.map((player) => ({
     id: player.id,
     authUserId: player.auth_user_id,
@@ -1454,7 +1450,7 @@ export function CarvingRevelation() {
                     placeholder={canGuess ? 'Type the skin name' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
                   />
                   {suggestions.length > 0 && canGuess ? (
-                    <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50">
+                    <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                       {suggestions.map((suggestion) => (
                         <button
                           key={suggestion}

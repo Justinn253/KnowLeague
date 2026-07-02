@@ -22,7 +22,7 @@ import {
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { getOrCreateClientId, loadDetailedGameStats, recordSkincognitoStats, type DetailedGameStats } from '@/lib/game-storage';
-import { disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
+import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
@@ -249,7 +249,12 @@ function getHeaderActionLabel(view: SkincognitoLobbyView | null) {
   }
 
   if (view?.lobby.status === 'waiting') {
-    return `Lobby - ${view.players.length >= 10 ? 'Full' : 'Waiting for players'}`;
+    const activePlayers = view.players.filter((player) => (
+      player.id === view.lobby.player_one_id ||
+      player.id === view.lobby.player_two_id
+    ));
+    const readyToStart = activePlayers.length === 2 && activePlayers.every((player) => player.connected);
+    return `Lobby - ${view.players.length >= 10 ? 'Full' : readyToStart ? 'Ready to start' : 'Waiting for players'}`;
   }
 
   return 'Lobby';
@@ -336,7 +341,7 @@ export function Skincognito() {
     ? lobbyView.players.filter((player) => player.id === lobbyView.lobby.player_one_id || player.id === lobbyView.lobby.player_two_id)
     : [], [lobbyView]);
   const spectatorCount = lobbyView ? lobbyView.players.length - activePlayers.length : 0;
-  const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2);
+  const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2 && activePlayers.every((player) => player.connected));
   const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
   const playerTwo = getPlayerById(lobbyView, lobbyView?.lobby.player_two_id);
   const winnerPlayer = getPlayerById(lobbyView, lobbyView?.lobby.winner_player_id);
@@ -698,11 +703,7 @@ export function Skincognito() {
       });
     };
 
-    window.addEventListener('pagehide', leaveWaitingLobbyOnPageExit);
-    return () => {
-      window.removeEventListener('pagehide', leaveWaitingLobbyOnPageExit);
-      leaveWaitingLobbyOnPageExit();
-    };
+    return addMultiplayerDisconnectListeners(leaveWaitingLobbyOnPageExit);
   }, []);
 
   useEffect(() => {
@@ -1276,7 +1277,7 @@ export function Skincognito() {
                       </div>
 
                       {suggestions.length > 0 ? (
-                        <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50">
+                        <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                           {suggestions.map((skin) => (
                             <button
                               key={skin.id}
@@ -1723,7 +1724,7 @@ export function Skincognito() {
                         />
 
                         {guessMenuOpen && guessSuggestions.length > 0 && canSubmitAction ? (
-                          <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50">
+                          <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                             {guessSuggestions.map((suggestion) => (
                               <button
                                 key={`${selectedCategory}-${suggestion.id}`}

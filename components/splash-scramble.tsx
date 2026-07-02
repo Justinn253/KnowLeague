@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ArrowLeft,
@@ -76,6 +76,9 @@ type AccountPayload = {
 
 const ACTIVE_ROUND_STORAGE_KEY = 'knowleague:v1:splash-scramble:active-round';
 const STATS_STORAGE_KEY = 'knowleague:v1:splash-scramble:stats';
+const SKIN_SEARCH_ROW_HEIGHT = 56;
+const SKIN_SEARCH_MAX_HEIGHT = 360;
+const SKIN_SEARCH_OVERSCAN = 4;
 const DEFAULT_SETTINGS: SplashScrambleSettings = {
   gridSize: 6,
   timeLimit: null,
@@ -196,6 +199,10 @@ function isRoundResumeable(round: SavedRoundState, now = Date.now()) {
   return round.timeLimit === null || round.endsAt === null || round.endsAt > now;
 }
 
+function isSavedRoundPlayable(round: SavedRoundState, now = Date.now()) {
+  return isRoundResumeable(round, now) && !isSolved(round.tiles, round.rotations);
+}
+
 function getStatsKey(columns: number, rows: number) {
   return `${columns}x${rows}`;
 }
@@ -216,7 +223,7 @@ function readLocalSavedRound() {
       return null;
     }
 
-    if (!isRoundResumeable(round)) {
+    if (!isSavedRoundPlayable(round)) {
       window.localStorage.removeItem(ACTIVE_ROUND_STORAGE_KEY);
       return null;
     }
@@ -400,6 +407,8 @@ export function SplashScramble() {
   const [mobileViewRotated, setMobileViewRotated] = useState(false);
   const [skinCatalog, setSkinCatalog] = useState<QuizItem[]>([]);
   const [skinSearch, setSkinSearch] = useState('');
+  const deferredSkinSearch = useDeferredValue(skinSearch);
+  const [skinSearchScrollTop, setSkinSearchScrollTop] = useState(0);
   const [selectedSkin, setSelectedSkin] = useState<QuizItem | null>(null);
   const [skinListError, setSkinListError] = useState('');
   const [targetSkin, setTargetSkin] = useState<QuizItem | null>(null);
@@ -447,16 +456,27 @@ export function SplashScramble() {
   }), [activeColumns, activeRows]);
   const boardUsesRotatedMobileView = mobileViewRotated && !rotateTiles;
   const selectedRotation = selectedTile === null ? 0 : rotations[selectedTile] ?? 0;
+  const skinSearchIndex = useMemo(() => (
+    skinCatalog.map((skin) => ({
+      skin,
+      searchText: `${skin.answer} ${skin.champion}`.toLowerCase(),
+    }))
+  ), [skinCatalog]);
   const filteredSkins = useMemo(() => {
-    const query = skinSearch.trim().toLowerCase();
+    const query = deferredSkinSearch.trim().toLowerCase();
     if (!query) {
       return [];
     }
 
-    return skinCatalog
-      .filter((skin) => `${skin.answer} ${skin.champion}`.toLowerCase().includes(query))
-      .slice(0, 8);
-  }, [skinCatalog, skinSearch]);
+    return skinSearchIndex
+      .filter((entry) => entry.searchText.includes(query))
+      .map((entry) => entry.skin);
+  }, [deferredSkinSearch, skinSearchIndex]);
+  const skinSearchListHeight = Math.min(SKIN_SEARCH_MAX_HEIGHT, filteredSkins.length * SKIN_SEARCH_ROW_HEIGHT);
+  const skinSearchStartIndex = Math.max(0, Math.floor(skinSearchScrollTop / SKIN_SEARCH_ROW_HEIGHT) - SKIN_SEARCH_OVERSCAN);
+  const skinSearchVisibleCount = Math.ceil(SKIN_SEARCH_MAX_HEIGHT / SKIN_SEARCH_ROW_HEIGHT) + SKIN_SEARCH_OVERSCAN * 2;
+  const visibleFilteredSkins = filteredSkins.slice(skinSearchStartIndex, skinSearchStartIndex + skinSearchVisibleCount);
+  const skinSearchIsUpdating = skinSearch !== deferredSkinSearch;
   const pieceStats = useMemo(
     () => [
       ...gridOptions.map((option) => ({
@@ -470,6 +490,10 @@ export function SplashScramble() {
     ],
     [stats.solvesByPieceCount],
   );
+
+  useEffect(() => {
+    setSkinSearchScrollTop(0);
+  }, [deferredSkinSearch]);
 
   const buildSavedRound = useCallback((savedAt = Date.now()): SavedRoundState | null => {
     if (!targetSkin || phase !== 'playing' || startedAt === null) {
@@ -538,9 +562,13 @@ export function SplashScramble() {
           saveLocalStats(nextStats);
           setProfileStatsLoaded(true);
 
-          if (payload.state) {
+          if (payload.state && isSavedRoundPlayable(payload.state)) {
             setResumeRound(payload.state);
             saveLocalRound(payload.state);
+          } else if (payload.state) {
+            setResumeRound(null);
+            clearLocalRound();
+            syncAccountRound(null).catch(() => undefined);
           } else if (localRound) {
             syncAccountRound(localRound).catch(() => undefined);
           }
@@ -671,7 +699,11 @@ export function SplashScramble() {
     });
   };
 
-  const completeRound = () => {
+  const completeRound = (solvedTiles = tiles, solvedRotations = rotations) => {
+    if (phase !== 'playing' || !isSolved(solvedTiles, solvedRotations)) {
+      return;
+    }
+
     recordSolveStats();
     clearLocalRound();
     setResumeRound(null);
@@ -839,7 +871,7 @@ export function SplashScramble() {
     updateLocksAfterMove(nextTiles, nextRotations, [selectedTile, position]);
 
     if (isSolved(nextTiles, nextRotations)) {
-      completeRound();
+      completeRound(nextTiles, nextRotations);
     }
   };
 
@@ -855,7 +887,7 @@ export function SplashScramble() {
     updateLocksAfterMove(tiles, nextRotations, [selectedTile]);
 
     if (isSolved(tiles, nextRotations)) {
-      completeRound();
+      completeRound(tiles, nextRotations);
     }
   };
   rotateSelectedTileRef.current = rotateSelectedTile;
@@ -896,26 +928,40 @@ export function SplashScramble() {
               className="h-11 w-full rounded-2xl border border-white/10 bg-slate-900 py-2 pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300/60"
             />
             {filteredSkins.length > 0 ? (
-              <div className="absolute left-0 right-0 top-12 z-40 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/40">
-                {filteredSkins.map((skin) => (
-                  <button
-                    key={skin.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedSkin(skin);
-                      setSkinSearch('');
-                    }}
-                    className="grid w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 border-b border-white/5 p-2 text-left transition last:border-b-0 hover:bg-white/5"
-                  >
-                    <span className="relative h-10 overflow-hidden rounded-xl bg-slate-900">
-                      <Image src={skin.imageUrl} alt="" fill sizes="48px" className="object-cover" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold text-white">{skin.answer}</span>
-                      <span className="block truncate text-xs text-slate-500">{skin.champion}</span>
-                    </span>
-                  </button>
-                ))}
+              <div
+                className="absolute left-0 right-0 top-12 z-40 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950"
+                style={{ height: skinSearchListHeight }}
+                onScroll={(event) => setSkinSearchScrollTop(event.currentTarget.scrollTop)}
+              >
+                <div className="relative" style={{ height: filteredSkins.length * SKIN_SEARCH_ROW_HEIGHT }}>
+                  {visibleFilteredSkins.map((skin, index) => (
+                    <button
+                      key={skin.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSkin(skin);
+                        setSkinSearch('');
+                      }}
+                      className="absolute left-0 grid w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 border-b border-white/5 p-2 text-left transition last:border-b-0 hover:bg-white/5"
+                      style={{
+                        top: (skinSearchStartIndex + index) * SKIN_SEARCH_ROW_HEIGHT,
+                        height: SKIN_SEARCH_ROW_HEIGHT,
+                      }}
+                    >
+                      <span className="relative h-10 overflow-hidden rounded-xl bg-slate-900">
+                        <Image src={skin.imageUrl} alt="" fill sizes="48px" loading="lazy" className="object-cover" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-white">{skin.answer}</span>
+                        <span className="block truncate text-xs text-slate-500">{skin.champion}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : skinSearchIsUpdating && skinSearch.trim() ? (
+              <div className="absolute left-0 right-0 top-12 z-40 rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm font-semibold text-slate-400">
+                Searching...
               </div>
             ) : null}
           </div>
@@ -1336,15 +1382,15 @@ export function SplashScramble() {
                 {won ? <Trophy size={14} /> : <Clock3 size={14} />}
                 {won ? 'Puzzle Complete' : 'Time Expired'}
               </p>
-              <h2 className="mt-4 text-4xl font-black tracking-tight text-white">{targetSkin.answer}</h2>
+              <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">{targetSkin.answer}</h2>
               <p className="mt-3 text-sm leading-6 text-slate-200">
                 {timeSummary} You made {moves} moves.
               </p>
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={startRound}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
                 >
                   <RotateCcw size={16} />
                   Another Round
@@ -1352,7 +1398,7 @@ export function SplashScramble() {
                 <button
                   type="button"
                   onClick={clearCompletedRound}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/75 px-5 text-sm font-bold text-white transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/75 px-5 text-sm font-bold text-white transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
                 >
                   Change Settings
                 </button>

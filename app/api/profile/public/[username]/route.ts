@@ -74,16 +74,26 @@ async function fetchPrivateDetails(userId: string) {
 
 export async function GET(request: Request, { params }: { params: { username: string } }) {
   try {
-    const username = decodeURIComponent(params.username).trim().toLowerCase();
+    const username = decodeURIComponent(params.username).trim();
     if (!username) {
       throw new Error('Profile not found.');
     }
 
     const supabase = getSupabaseServiceClient();
+    const { data: matchingProfile, error: matchError } = await supabase
+      .rpc('find_profile_by_username_ci', { search_username: username })
+      .maybeSingle<{ id: string; username: string }>();
+    if (matchError) {
+      throw matchError;
+    }
+    if (!matchingProfile) {
+      throw new Error('Profile not found.');
+    }
+
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id, username, display_name, about_me, avatar_url, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
-      .eq('username', username)
+      .eq('id', matchingProfile.id)
       .maybeSingle<PublicProfileRow>();
 
     if (error) {

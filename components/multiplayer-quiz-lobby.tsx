@@ -28,7 +28,7 @@ import {
 } from '@/components/multiplayer-lobby-layout';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
-import { disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
+import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
 import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
@@ -64,6 +64,9 @@ type LatestLobbySnapshot = {
   totalItems: number;
   result: MultiplayerQuizPlayerResult;
 };
+
+const MIN_PLAYERS_TO_START = 2;
+const DEFAULT_TOTAL_ITEMS = 25;
 
 const difficulties: SettingOption[] = [
   { id: 'iron', name: 'Iron', description: 'Most forgiving timing, hints, and upcoming-item visibility.' },
@@ -296,11 +299,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         baseUrl: '/api/multiplayer/lobbies',
       });
     };
-    window.addEventListener('pagehide', disconnectOnPageExit);
-    return () => {
-      window.removeEventListener('pagehide', disconnectOnPageExit);
-      disconnectOnPageExit();
-    };
+    return addMultiplayerDisconnectListeners(disconnectOnPageExit);
   }, [gameMode]);
 
   const applyView = useCallback((nextView: MultiplayerQuizLobbyView) => {
@@ -567,14 +566,19 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       isLeavingLobbyRef.current = false;
       await loadPublicLobbies();
     } else {
-      router.push('/');
+      setRejoinCandidate({
+        code,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      isLeavingLobbyRef.current = false;
+      await loadPublicLobbies();
     }
   };
 
   const updateSettings = async (
     difficulty: MultiplayerQuizDifficulty,
     modifiers: string[],
-    totalItems = view?.lobby.total_items ?? 50,
+    totalItems = view?.lobby.total_items ?? DEFAULT_TOTAL_ITEMS,
     isPublic = view?.lobby.is_public ?? false,
     abilitySlots: AbilitySlotId[] = view?.lobby.ability_slots ?? [...ABILITY_SLOTS.map((slot) => slot.id)],
   ) => {
@@ -789,8 +793,9 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     'Use hints and autocomplete when the selected difficulty allows them.',
     'Finish the shared randomized set before your opponents.',
   ];
+  const connectedWaitingPlayers = view?.players.filter((player) => player.connected).length ?? 0;
   const statusLabel = view?.lobby.status === 'waiting'
-    ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : 'Waiting for players'}`
+    ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : connectedWaitingPlayers >= MIN_PLAYERS_TO_START ? 'Ready to start' : 'Waiting for players'}`
     : view?.lobby.status === 'active'
       ? 'In Progress'
       : view?.lobby.status === 'finished'
@@ -804,7 +809,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         subtitle={view ? 'Lobby' : 'Create or join a lobby'}
         statusLabel={statusLabel}
         infoSteps={infoSteps}
-        onBack={leaveLobby}
+        onBack={view ? leaveLobby : () => router.push('/')}
       />
 
       <MultiplayerLobbyCard>
@@ -900,7 +905,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                     <label className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                       Entries
                       <select value={visibleSettings?.totalItems ?? view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => updateDraftSettings((current) => ({ ...current, totalItems: Number(event.target.value) }))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
-                        {[10, 25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
+                        {[25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
                       </select>
                     </label>
                     <SlidersHorizontal size={20} className="text-amber-300" />
@@ -981,7 +986,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
             </MultiplayerLobbyGrid>
 
             <MultiplayerStartGameControl
-              disabled={!isHost || view.players.length < 2 || busy || settingsDirty}
+              disabled={!isHost || connectedWaitingPlayers < MIN_PLAYERS_TO_START || busy || settingsDirty}
               onStart={startGame}
               hint={settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
             />

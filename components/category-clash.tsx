@@ -10,6 +10,7 @@ import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate }
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatNameStyle } from '@/lib/chat-colors';
 import { getOrCreateClientId } from '@/lib/game-storage';
+import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
 import { getReconnectDeadline, MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
@@ -318,6 +319,23 @@ export function CategoryClash() {
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    const disconnectCurrentSession = () => {
+      if (isLeavingLobbyRef.current) return;
+      const currentView = viewRef.current;
+      if (!currentView || !clientId) return;
+      disconnectMultiplayerSession({
+        code: currentView.lobby.code,
+        clientId,
+        status: currentView.lobby.status,
+        storageKey: STORAGE_KEY,
+        baseUrl: API_BASE,
+      });
+    };
+
+    return addMultiplayerDisconnectListeners(disconnectCurrentSession);
+  }, [clientId]);
 
   useEffect(() => {
     settingsDirtyRef.current = settingsDirty;
@@ -862,7 +880,7 @@ export function CategoryClash() {
             <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
               <Users size={16} className="text-amber-300" />
                 {view.lobby.status === 'waiting'
-                  ? `Lobby - ${connectedPlayers.length >= view.lobby.max_players ? 'Full' : 'Waiting for players'}`
+                  ? `Lobby - ${connectedPlayers.length >= view.lobby.max_players ? 'Full' : connectedPlayers.length >= 2 ? 'Ready to start' : 'Waiting for players'}`
                   : view.lobby.status === 'active'
                     ? 'In Progress'
                     : view.lobby.status === 'finished'

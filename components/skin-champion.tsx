@@ -179,7 +179,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
-  const [entryCount, setEntryCount] = useState(10);
+  const [entryCount, setEntryCount] = useState(25);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -243,7 +243,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const shouldHideTimers = activeModifiers.hiddenTimer && !chaosMode;
   const completedProgressCount = items.filter((item) => item.guessed).length;
   const showSinglePlayerEndState = !multiplayer && finished;
-  const showEndState = showSinglePlayerEndState || Boolean(multiplayer && multiplayerGameEnded);
+  const showEndState = showSinglePlayerEndState || Boolean(multiplayer && finished);
   const showSoloPrematch = !multiplayer && !started && !finished && !failed;
   const leaderboardMode = isLeaderboardMode(soloMode);
   const casualSettingsAvailable = soloMode === 'casual';
@@ -801,7 +801,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setLeaderboardNotice('');
     if (mode === 'daily') {
       setSelectedDifficulty('gold');
-      setEntryCount(3);
+      setEntryCount(10);
       setActiveModifiers(defaultModifiers);
     }
     if (mode === 'chaos') {
@@ -1092,7 +1092,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 </button>
 
                 {openMenu === 'difficulty' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/40">
+                  <div className="absolute right-0 top-14 z-40 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Difficulty</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1149,7 +1149,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 </button>
 
                 {openMenu === 'modifiers' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(24rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/40">
+                  <div className="absolute right-0 top-14 z-40 w-[min(24rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Modifiers</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1375,7 +1375,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/10 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               />
               {suggestions.length > 0 && autocompleteEnabled ? (
-                <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50 sm:w-[calc(100%-8rem)]">
+                <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 sm:w-[calc(100%-8rem)]">
                   {suggestions.map((suggestion) => (
                     <button
                       key={suggestion}

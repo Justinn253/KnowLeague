@@ -442,7 +442,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
-  const cleanUsernameDraft = usernameDraft.trim().toLowerCase();
+  const cleanUsernameDraft = usernameDraft.trim();
   const cleanAboutDraft = aboutDraft.trim();
   const hasAvatarChanges = avatarAction !== 'unchanged';
   const avatarPreviewUrl = avatarAction === 'replace'
@@ -758,7 +758,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const supabase = getOptionalSupabaseClient();
-    const cleanUsername = usernameDraft.trim().toLowerCase();
+    const cleanUsername = usernameDraft.trim();
 
     if (!supabase || !userId) {
       return;
@@ -776,6 +776,20 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
 
     setSaving(true);
     setMessage('');
+
+    const { data: usernameMatch, error: usernameMatchError } = await supabase
+      .rpc('find_profile_by_username_ci', { search_username: cleanUsername })
+      .maybeSingle<{ id: string; username: string }>();
+    if (usernameMatchError) {
+      setSaving(false);
+      setMessage(usernameMatchError.message);
+      return;
+    }
+    if (usernameMatch && usernameMatch.id !== userId) {
+      setSaving(false);
+      setMessage('This username is already taken.');
+      return;
+    }
 
     let nextAvatarUrl = profile?.avatar_url ?? null;
     if (avatarAction === 'replace') {
@@ -1071,7 +1085,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
         .then((response) => response.json())
         .then((body) => setFriendSearchResults(body.results ?? []))
         .catch(() => undefined);
-    }, 250);
+    }, 500);
 
     return () => window.clearTimeout(timeout);
   }, [addFriendOpen, friendSearchQuery]);
@@ -1416,7 +1430,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                 Add Friend
               </button>
               {requestsOpen ? (
-                <div className="absolute right-0 top-14 z-30 grid max-h-72 w-80 gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+                <div className="absolute right-0 top-14 z-30 grid max-h-72 w-80 gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3">
                   {incomingRequests.map((request) => (
                     <div key={request.id} className="grid gap-2 rounded-xl bg-slate-900 p-3">
                       <p className="text-sm font-semibold text-white">{request.requester.displayName}</p>
@@ -1436,7 +1450,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                 </div>
               ) : null}
               {addFriendOpen ? (
-                <div ref={addFriendPanelRef} className="absolute right-0 top-14 z-30 w-96 rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+                <div ref={addFriendPanelRef} className="absolute right-0 top-14 z-30 w-96 rounded-2xl border border-white/10 bg-slate-950 p-3">
                   <div className="relative">
                     <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
                     <input
@@ -1732,7 +1746,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                           <ChevronDown size={14} className={`text-slate-400 transition ${titleMenuOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {titleMenuOpen ? (
-                          <div className="absolute left-0 top-11 z-30 grid min-w-52 gap-1 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl">
+                          <div className="absolute left-0 top-11 z-30 grid min-w-52 gap-1 rounded-2xl border border-white/10 bg-slate-950 p-2">
                             <button
                               type="button"
                               onClick={() => {
@@ -1894,7 +1908,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                         Filter
                       </button>
                       {achievementFiltersOpen ? (
-                        <div className="absolute right-0 top-12 z-30 grid w-52 gap-2 rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+                        <div className="absolute right-0 top-12 z-30 grid w-52 gap-2 rounded-2xl border border-white/10 bg-slate-950 p-3">
                           {[
                             ['general', 'General App'],
                             ['skindle', 'Skindle'],

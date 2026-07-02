@@ -298,7 +298,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
   const [selectedAbilitySlots, setSelectedAbilitySlots] = useState<AbilitySlotState>(defaultAbilitySlots);
-  const [entryCount, setEntryCount] = useState(10);
+  const [entryCount, setEntryCount] = useState(25);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [isSliding, setIsSliding] = useState(false);
@@ -355,7 +355,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
   const multiplayerGameEnded = multiplayer?.gameEnded ?? false;
   const showSinglePlayerEndState = !multiplayer && finished;
-  const showEndState = showSinglePlayerEndState || Boolean(multiplayer && multiplayerGameEnded);
+  const showEndState = showSinglePlayerEndState || Boolean(multiplayer && finished);
   const showSoloPrematch = !multiplayer && !started && !finished && !failed;
   const leaderboardMode = isLeaderboardMode(soloMode);
   const casualSettingsAvailable = soloMode === 'casual';
@@ -1327,7 +1327,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 </button>
 
                 {openMenu === 'difficulty' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/40">
+                  <div className="absolute right-0 top-14 z-40 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Difficulty</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1386,7 +1386,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 </button>
 
                 {openMenu === 'modifiers' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(24rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/40">
+                  <div className="absolute right-0 top-14 z-40 w-[min(24rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Modifiers</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1711,7 +1711,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   type="text"
                 />
                 {suggestions.length > 0 && started && autocompleteEnabled ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/40">
+                  <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95">
                     {suggestions.map((suggestion) => (
                       <button
                         key={suggestion}

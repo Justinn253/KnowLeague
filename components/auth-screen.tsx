@@ -29,6 +29,7 @@ export function AuthScreen() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
@@ -54,7 +55,7 @@ export function AuthScreen() {
       return undefined;
     }
 
-    const cleanUsername = username.trim().toLowerCase();
+    const cleanUsername = username.trim();
     if (!cleanUsername) {
       setUsernameStatus('idle');
       return undefined;
@@ -72,13 +73,15 @@ export function AuthScreen() {
     }
 
     setUsernameStatus('checking');
+    const checkedUsername = cleanUsername;
     const timeout = window.setTimeout(() => {
       supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', cleanUsername)
+        .rpc('find_profile_by_username_ci', { search_username: checkedUsername })
         .maybeSingle<{ username: string }>()
         .then(({ data, error }) => {
+          if (username.trim() !== checkedUsername) {
+            return;
+          }
           if (error) {
             setUsernameStatus('idle');
             return;
@@ -86,7 +89,7 @@ export function AuthScreen() {
 
           setUsernameStatus(data ? 'taken' : 'available');
         });
-    }, 300);
+    }, 500);
 
     return () => window.clearTimeout(timeout);
   }, [mode, username]);
@@ -144,49 +147,59 @@ export function AuthScreen() {
     setBusy(true);
     try {
       if (mode === 'signup') {
-        const cleanUsername = username.trim().toLowerCase();
+        const cleanUsername = username.trim();
         if (!isValidPassword(password)) {
           throw new Error('Please satisfy all password requirements.');
+        }
+
+        if (password !== confirmPassword) {
+          throw new Error('Passwords do not match.');
         }
 
         if (!USERNAME_PATTERN.test(cleanUsername)) {
           throw new Error('Username must be 3-16 characters and use only letters, numbers, or underscores.');
         }
 
-        if (usernameStatus === 'checking') {
-          throw new Error('Username availability is still being checked.');
+        const { data: existingUsername, error: usernameError } = await supabase
+          .rpc('find_profile_by_username_ci', { search_username: cleanUsername })
+          .maybeSingle<{ username: string }>();
+        if (usernameError) {
+          throw usernameError;
         }
-
-        if (usernameStatus === 'taken') {
+        if (existingUsername) {
           throw new Error('This username is already taken.');
         }
 
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+            username: cleanUsername,
             emailRedirectTo: getAuthRedirectUrl('/'),
-            data: {
-              username: cleanUsername,
-              display_name: cleanUsername,
-            },
-          },
+          }),
         });
-
-        if (error) {
-          throw error;
+        const payload = await response.json() as {
+          error?: string;
+          session?: { accessToken: string; refreshToken: string; userId: string } | null;
+        };
+        if (!response.ok) {
+          throw new Error(payload.error ?? 'Unable to create account.');
         }
 
-        if (data.user && data.user.identities?.length === 0) {
-          throw new Error('An account already exists for this email address. Log in or reset your password instead.');
-        }
-
-        if (data.session) {
-          await activateSession(data.session.access_token, data.session.user.id);
+        if (payload.session) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: payload.session.accessToken,
+            refresh_token: payload.session.refreshToken,
+          });
+          if (sessionError) throw sessionError;
+          await activateSession(payload.session.accessToken, payload.session.userId);
           await forfeitStoredMultiplayerSessions();
           setEmail('');
           setUsername('');
           setPassword('');
+          setConfirmPassword('');
           router.push('/');
           return;
         }
@@ -224,6 +237,7 @@ export function AuthScreen() {
       setEmail('');
       setUsername('');
       setPassword('');
+      setConfirmPassword('');
       router.push('/');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Authentication failed.');
@@ -258,10 +272,11 @@ export function AuthScreen() {
               <button
                 key={nextMode}
                 type="button"
-                onClick={() => {
+                  onClick={() => {
                   setMode(nextMode as AuthMode);
                   setMessage('');
                   setEmailDelivery(null);
+                  setConfirmPassword('');
                 }}
                 className={`min-h-10 rounded-xl px-3 text-sm font-semibold transition ${
                   mode === nextMode ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900'
@@ -354,6 +369,23 @@ export function AuthScreen() {
               </label>
             ) : null}
 
+            {mode === 'signup' ? (
+              <label className="grid gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Confirm Password</span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  autoComplete="new-password"
+                  placeholder="Confirm password"
+                  className="min-h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 focus:ring-1 focus:ring-white/15"
+                />
+                {confirmPassword && password !== confirmPassword ? (
+                  <span className="text-xs font-semibold text-red-200">Passwords do not match.</span>
+                ) : null}
+              </label>
+            ) : null}
+
             <button
               type="submit"
               disabled={
@@ -361,6 +393,7 @@ export function AuthScreen() {
                 !email.trim() ||
                 (mode !== 'password' && !password) ||
                 (mode === 'signup' && !isValidPassword(password)) ||
+                (mode === 'signup' && password !== confirmPassword) ||
                 (mode === 'signup' && (usernameStatus === 'checking' || usernameStatus === 'invalid' || usernameStatus === 'taken'))
               }
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"

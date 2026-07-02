@@ -677,15 +677,13 @@ export async function createFriendRequest(userId: string, targetUserId: string):
 }
 
 export async function createFriendRequestByUsername(userId: string, targetUsername: string): Promise<FriendRequestResult> {
-  const cleanUsername = targetUsername.trim().toLowerCase();
+  const cleanUsername = targetUsername.trim();
   if (cleanUsername.length < 3) {
     throw new Error('Username must be at least 3 characters.');
   }
 
   const { data: target, error } = await getSupabaseServiceClient()
-    .from('profiles')
-    .select('id')
-    .eq('username', cleanUsername)
+    .rpc('find_profile_by_username_ci', { search_username: cleanUsername })
     .maybeSingle<{ id: string }>();
 
   if (error) {

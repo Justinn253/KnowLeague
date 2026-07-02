@@ -164,10 +164,10 @@ export function MultiplayerGameProgress({
                   {failed ? <span className="text-red-300">Did not finish</span> : null}
                   {playerResult ? (
                     <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-950/70 px-2 py-0.5">
-                      <span className="text-emerald-200">{playerResult.wins}</span>
+                      <span className="text-emerald-200">{playerResult.wins}W</span>
                       {playerResult.result === 'win' ? <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[0.65rem] text-emerald-200">+1</span> : null}
                       <span className="text-slate-600">/</span>
-                      <span className="text-red-200">{playerResult.losses}</span>
+                      <span className="text-red-200">{playerResult.losses}L</span>
                       {playerResult.result === 'loss' ? <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[0.65rem] text-red-200">+1</span> : null}
                     </span>
                   ) : null}

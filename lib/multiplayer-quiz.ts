@@ -105,6 +105,7 @@ type MultiplayerQuizRecordSnapshot = {
 };
 
 const MAX_PLAYERS = MULTIPLAYER_MAX_LOBBY_PLAYERS;
+const DEFAULT_TOTAL_ITEMS = 25;
 const difficulties = new Set<MultiplayerQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
 const modifierIds: Record<MultiplayerQuizGameMode, Set<string>> = {
   ability_blitz: new Set(['greyscale', 'pixelated', 'rotating', 'disappearing', 'hiddenTimer', 'confirmEntry']),
@@ -397,7 +398,7 @@ export async function createMultiplayerQuizLobby(input: CreateOrJoinInput) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const { data: lobby, error } = await getSupabaseServiceClient()
       .from('multiplayer_quiz_lobbies')
-      .insert({ code: generateMultiplayerLobbyCode(), game_mode: input.gameMode, max_players: MAX_PLAYERS })
+      .insert({ code: generateMultiplayerLobbyCode(), game_mode: input.gameMode, max_players: MAX_PLAYERS, total_items: DEFAULT_TOTAL_ITEMS })
       .select('*')
       .single<MultiplayerQuizLobby>();
 

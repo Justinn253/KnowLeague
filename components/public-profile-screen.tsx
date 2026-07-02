@@ -263,7 +263,7 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
     setBusy(true);
     setMessage('');
     getAuthHeaders()
-      .then((headers) => fetch(`/api/profile/public/${encodeURIComponent(username.toLowerCase())}`, {
+      .then((headers) => fetch(`/api/profile/public/${encodeURIComponent(username.trim())}`, {
         headers: headers ?? undefined,
       }))
       .then(async (response) => {

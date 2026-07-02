@@ -624,7 +624,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
 
   const sendDirectFriendRequest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const cleanUsername = addFriendUsername.trim().toLowerCase();
+    const cleanUsername = addFriendUsername.trim();
     if (cleanUsername.length < 3) {
       setStatus('Enter a username with at least 3 characters.');
       return;
@@ -815,7 +815,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       {isOpen ? (
         <div
           ref={panelRef}
-          className="absolute bottom-full right-0 mb-3 flex w-[min(calc(100vw-2.5rem),42rem)] flex-col rounded-3xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/40"
+          className="absolute bottom-full right-0 mb-3 flex w-[min(calc(100vw-2.5rem),42rem)] flex-col rounded-3xl border border-white/10 bg-slate-950 p-4"
         >
           {activeFriendView ? (
             <>
@@ -1187,7 +1187,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
           {contextFriend ? (
             <div
               ref={contextMenuRef}
-              className="fixed z-[70] w-72 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/50"
+              className="fixed z-[70] w-72 rounded-2xl border border-white/10 bg-slate-950 p-2"
               style={{ left: contextFriend.x, top: contextFriend.y }}
             >
               <button

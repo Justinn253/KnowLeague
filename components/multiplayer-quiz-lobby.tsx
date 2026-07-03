@@ -19,6 +19,7 @@ import {
   MultiplayerLobbyHeader,
   MultiplayerLobbyMessage,
   MultiplayerLobbyPanel,
+  MultiplayerLobbyDescriptionInput,
   MultiplayerLobbyShell,
   MultiplayerModifierToggle,
   MultiplayerPublicLobbyButton,
@@ -234,6 +235,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const [codeRevealed, setCodeRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<MultiplayerQuizPublicLobby[]>([]);
+  const [lobbyDescription, setLobbyDescription] = useState('');
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const [draftSettings, setDraftSettings] = useState<DraftQuizSettings | null>(null);
   const [settingsDirty, setSettingsDirty] = useState(false);
@@ -259,6 +261,9 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   });
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
+  const lobbyId = view?.lobby.id ?? null;
+  const serverLobbyDescription = view?.lobby.lobby_description ?? '';
+  const lobbyDescriptionDirty = lobbyDescription !== serverLobbyDescription;
   const visibleSettings = draftSettings ?? (view ? createDraftSettings(view) : null);
   const selectedModifiers = useMemo(() => new Set(visibleSettings?.modifiers ?? []), [visibleSettings?.modifiers]);
   const connectedLobbyCode = view && (view.lobby.status === 'waiting' || view.lobby.status === 'active')
@@ -287,6 +292,12 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
     setDraftSettings(createDraftSettings(view));
   }, [settingsDirty, view?.lobby.ability_slots, view?.lobby.difficulty, view?.lobby.modifiers, view?.lobby.total_items, view]);
+
+  useEffect(() => {
+    if (lobbyId) {
+      setLobbyDescription(serverLobbyDescription);
+    }
+  }, [lobbyId, serverLobbyDescription]);
 
   useEffect(() => {
     const disconnectOnPageExit = () => {
@@ -590,7 +601,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, difficulty, modifiers, totalItems, isPublic, abilitySlots }),
+        body: JSON.stringify({ clientId, difficulty, modifiers, totalItems, isPublic, abilitySlots, lobbyDescription: view.lobby.lobby_description }),
       });
       applyView(await readResponse(response));
     } catch (error) {
@@ -610,7 +621,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   };
 
   const applyDraftSettings = async () => {
-    if (!view || !clientId || !isHost || !draftSettings || !settingsDirty) {
+    if (!view || !clientId || !isHost || !draftSettings || (!settingsDirty && !lobbyDescriptionDirty)) {
       return;
     }
 
@@ -627,6 +638,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
           totalItems: draftSettings.totalItems,
           isPublic: view.lobby.is_public,
           abilitySlots: draftSettings.abilitySlots,
+          lobbyDescription,
         }),
       });
       const nextView = await readResponse(response);
@@ -845,6 +857,11 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                 onClick={() => joinLobbyByCode(lobby.code, true)}
                 details={(
                   <>
+                    {lobby.description ? (
+                      <>
+                        <span className="basis-full text-slate-300">{lobby.description}</span>
+                      </>
+                    ) : null}
                     <DifficultyLabel difficulty={lobby.difficulty} />
                     <span aria-hidden="true">|</span>
                     <span>{lobby.totalItems} Entries</span>
@@ -860,7 +877,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                   <span key={modifierId} className="rounded-md border border-violet-300/20 bg-violet-400/10 px-2 py-1 text-[0.65rem] font-semibold text-violet-200">
                     {config.modifiers.find((modifier) => modifier.id === modifierId)?.name ?? modifierId}
                   </span>
-                )) : <span className="text-[0.65rem] text-slate-500">No modifiers</span>}
+                )) : null}
               />
             )) : <MultiplayerPublicLobbyEmpty />}
           />
@@ -895,7 +912,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
               <MultiplayerLobbyPanel
                 title="Game Settings"
-                headerAction={settingsDirty ? (
+                headerAction={settingsDirty || lobbyDescriptionDirty ? (
                   <button type="button" onClick={applyDraftSettings} disabled={!isHost || busy} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-300 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
                     Apply Changes
                   </button>
@@ -917,6 +934,11 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                   enabled={view.lobby.is_public}
                   disabled={!isHost || busy}
                   onToggle={() => updateSettings(view.lobby.difficulty, view.lobby.modifiers, view.lobby.total_items, !view.lobby.is_public, view.lobby.ability_slots)}
+                />
+                <MultiplayerLobbyDescriptionInput
+                  value={lobbyDescription}
+                  disabled={!isHost || busy}
+                  onChange={setLobbyDescription}
                 />
                 <fieldset className="mt-5 grid gap-5">
                   <legend className="sr-only">Game settings</legend>
@@ -986,9 +1008,9 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
             </MultiplayerLobbyGrid>
 
             <MultiplayerStartGameControl
-              disabled={!isHost || connectedWaitingPlayers < MIN_PLAYERS_TO_START || busy || settingsDirty}
+              disabled={!isHost || connectedWaitingPlayers < MIN_PLAYERS_TO_START || busy || settingsDirty || lobbyDescriptionDirty}
               onStart={startGame}
-              hint={settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
+              hint={settingsDirty || lobbyDescriptionDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
             />
           </div>
         )}

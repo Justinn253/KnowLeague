@@ -13,6 +13,7 @@ import {
   MultiplayerLobbyHeader,
   MultiplayerLobbyMessage,
   MultiplayerLobbyPanel,
+  MultiplayerLobbyDescriptionInput,
   MultiplayerLobbyShell,
   MultiplayerModifierToggle,
   MultiplayerPublicLobbyButton,
@@ -342,6 +343,7 @@ export function CarvingRevelation() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [view, setView] = useState<CarvingRevelationLobbyView | null>(null);
   const [publicLobbies, setPublicLobbies] = useState<CarvingRevelationPublicLobby[]>([]);
+  const [lobbyDescription, setLobbyDescription] = useState('');
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [guess, setGuess] = useState('');
@@ -361,6 +363,9 @@ export function CarvingRevelation() {
   const [settingsDirty, setSettingsDirty] = useState(false);
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
+  const lobbyId = view?.lobby.id ?? null;
+  const serverLobbyDescription = view?.lobby.lobby_description ?? '';
+  const lobbyDescriptionDirty = lobbyDescription !== serverLobbyDescription;
   const isActivePlayer = Boolean(view?.requestingPlayer?.result === 'active' && view.requestingPlayer.connected);
   const hasWonCurrentMatch = Boolean(view?.requestingPlayer?.result === 'won');
   const hasForfeitedCurrentMatch = Boolean(view?.requestingPlayer?.result === 'eliminated');
@@ -374,6 +379,7 @@ export function CarvingRevelation() {
   const hasVotedForNextRound = Boolean(view?.requestingPlayer && view.nextRoundVotes.includes(view.requestingPlayer.id));
   const lineLimitPercent = view ? Math.round((view.lineLengthLimit / view.maxLineLength) * 100) : 0;
   const visibleSettings = draftSettings ?? (view ? createDraftSettings(view) : null);
+  const settingsPending = settingsDirty || lobbyDescriptionDirty;
   const selectedModifiers = useMemo(() => new Set(visibleSettings?.modifiers ?? []), [visibleSettings?.modifiers]);
   const activeModifiers = useMemo(() => new Set(view?.lobby.modifiers ?? []), [view?.lobby.modifiers]);
   const phaseTimeSummary = visibleSettings?.phaseDurationSeconds === null ? 'None' : `${visibleSettings?.phaseDurationSeconds ?? 30}s`;
@@ -565,6 +571,12 @@ export function CarvingRevelation() {
   ]);
 
   useEffect(() => {
+    if (lobbyId) {
+      setLobbyDescription(serverLobbyDescription);
+    }
+  }, [lobbyId, serverLobbyDescription]);
+
+  useEffect(() => {
     setDraftPath([]);
     setConfirmedCarvePath([]);
     setIsDrawing(false);
@@ -752,6 +764,7 @@ export function CarvingRevelation() {
     modifiers?: CarvingRevelationModifier[];
     startingLineLengthPercent?: number;
     lineLengthIncrementPercent?: number;
+    lobbyDescription?: string;
   }) => {
     if (!clientId || !view || !isHost) return;
     setBusy(true);
@@ -768,6 +781,7 @@ export function CarvingRevelation() {
           modifiers: settings.modifiers ?? view.lobby.modifiers,
           startingLineLengthPercent: settings.startingLineLengthPercent ?? view.lobby.starting_line_length_percent,
           lineLengthIncrementPercent: settings.lineLengthIncrementPercent ?? view.lobby.line_length_increment_percent,
+          lobbyDescription: settings.lobbyDescription ?? view.lobby.lobby_description,
         }),
       });
       applyView(await readLobbyResponse(response));
@@ -792,6 +806,7 @@ export function CarvingRevelation() {
       modifiers: draftSettings.modifiers,
       startingLineLengthPercent: draftSettings.startingLineLengthPercent,
       lineLengthIncrementPercent: draftSettings.lineLengthIncrementPercent,
+      lobbyDescription,
     });
     if (applied) setSettingsDirty(false);
   };
@@ -1156,7 +1171,7 @@ export function CarvingRevelation() {
                 maxPlayers={lobby.maxPlayers}
                 disabled={busy}
                 onClick={() => joinLobbyByCode(lobby.code, true)}
-                details={<span>Shared canvas reveal</span>}
+                details={lobby.description ? <span className="basis-full text-slate-300">{lobby.description}</span> : null}
               />
             )) : <MultiplayerPublicLobbyEmpty />}
           />
@@ -1197,6 +1212,11 @@ export function CarvingRevelation() {
                   enabled={view.lobby.is_public}
                   disabled={!isHost || busy}
                   onToggle={updatePublicStatus}
+                />
+                <MultiplayerLobbyDescriptionInput
+                  value={lobbyDescription}
+                  disabled={!isHost || busy}
+                  onChange={setLobbyDescription}
                 />
                 <fieldset className="mt-5 grid gap-5">
                     <legend className="sr-only">Carving Revelation settings</legend>
@@ -1282,7 +1302,7 @@ export function CarvingRevelation() {
                       })}
                     </div>
                   </GameSettingsSection>
-                  {settingsDirty ? (
+                  {settingsPending ? (
                     <div className="flex justify-end">
                       <button type="button" disabled={!isHost || busy} onClick={() => void applySettings()} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
                         Apply Settings
@@ -1294,9 +1314,9 @@ export function CarvingRevelation() {
             </MultiplayerLobbyGrid>
 
             <MultiplayerStartGameControl
-              disabled={!isHost || connectedPlayerCount < 2 || busy || settingsDirty}
+              disabled={!isHost || connectedPlayerCount < 2 || busy || settingsPending}
               onStart={startGame}
-              hint={settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
+              hint={settingsPending ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
             />
           </div>
           <MultiplayerLobbyMessage>{message}</MultiplayerLobbyMessage>

@@ -5,6 +5,7 @@ import { ArrowLeft, Check, Copy, Eye, EyeOff, MessageSquare, Play, RefreshCw, Se
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { GameSettingsSection } from '@/components/game-settings-section';
+import { MultiplayerLobbyDescriptionInput } from '@/components/multiplayer-lobby-layout';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
@@ -231,6 +232,7 @@ export function CategoryClash() {
   const [publicLobbies, setPublicLobbies] = useState<CategoryClashPublicLobby[]>([]);
   const [joinCode, setJoinCode] = useState('');
   const [draftSettings, setDraftSettings] = useState<DraftSettings | null>(null);
+  const [lobbyDescription, setLobbyDescription] = useState('');
   const [answerDraft, setAnswerDraft] = useState('');
   const [chatDraft, setChatDraft] = useState('');
   const [message, setMessage] = useState('');
@@ -249,6 +251,9 @@ export function CategoryClash() {
   const settingsDirtyRef = useRef(false);
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
+  const lobbyId = view?.lobby.id ?? null;
+  const serverLobbyDescription = view?.lobby.lobby_description ?? '';
+  const lobbyDescriptionDirty = lobbyDescription !== serverLobbyDescription;
   const visibleSettings = draftSettings ?? (view ? createDraftSettings(view) : null);
   const currentPlayer = view?.requestingPlayer ?? null;
   const activePlayers = view?.players.filter((player) => player.result === 'active') ?? [];
@@ -264,14 +269,14 @@ export function CategoryClash() {
     ),
   );
   const canTypeChat = view?.lobby.status === 'finished';
-  const settingsDirty = Boolean(draftSettings && view && (
+  const settingsDirty = Boolean(lobbyDescriptionDirty || (draftSettings && view && (
     draftSettings.gameMode !== view.lobby.game_mode ||
     draftSettings.roundSeconds !== view.lobby.round_seconds ||
     draftSettings.intermissionSeconds !== view.lobby.intermission_seconds ||
     draftSettings.timerDecrementInterval !== view.lobby.timer_decrement_interval ||
     draftSettings.maxStrikes !== view.lobby.max_strikes ||
     draftSettings.enabledCategoryIds.join(',') !== view.lobby.enabled_category_ids.join(',')
-  ));
+  )));
   const categoryOptions = useMemo(() => getCategorySelectionOptions(view?.categories ?? []), [view?.categories]);
   const selectedCategoryOptionCount = useMemo(() => {
     const selectedIds = new Set(visibleSettings?.enabledCategoryIds ?? []);
@@ -340,6 +345,12 @@ export function CategoryClash() {
   useEffect(() => {
     settingsDirtyRef.current = settingsDirty;
   }, [settingsDirty]);
+
+  useEffect(() => {
+    if (lobbyId) {
+      setLobbyDescription(serverLobbyDescription);
+    }
+  }, [lobbyId, serverLobbyDescription]);
 
   const requestLobby = useCallback(async (path: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers);
@@ -589,7 +600,7 @@ export function CategoryClash() {
     try {
       await requestLobby(`${API_BASE}/${view.lobby.code}/settings`, {
         method: 'POST',
-        body: JSON.stringify({ clientId, ...draftSettings }),
+        body: JSON.stringify({ clientId, ...draftSettings, lobbyDescription }),
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to update settings.');
@@ -615,6 +626,7 @@ export function CategoryClash() {
           intermissionSeconds: view.lobby.intermission_seconds,
           timerDecrementInterval: view.lobby.timer_decrement_interval,
           maxStrikes: view.lobby.max_strikes,
+          lobbyDescription: view.lobby.lobby_description,
         }),
       });
       setDraftSettings((current) => (current ? { ...current, isPublic: nextIsPublic } : current));
@@ -764,15 +776,6 @@ export function CategoryClash() {
             </div>
           </header>
 
-          {rejoinCandidate ? (
-            <ReconnectButton
-              candidate={rejoinCandidate}
-              disabled={busy}
-              onReconnect={() => void joinLobby(rejoinCandidate.code)}
-              onExpire={() => setRejoinCandidate(null)}
-            />
-          ) : null}
-
           <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
             <div className="mx-auto max-w-4xl py-1">
               <div className="text-center">
@@ -802,6 +805,16 @@ export function CategoryClash() {
               </div>
 
               <div className="mt-8 border-t border-white/10 pt-6">
+                {rejoinCandidate ? (
+                  <div className="mb-6">
+                    <ReconnectButton
+                      candidate={rejoinCandidate}
+                      disabled={busy}
+                      onReconnect={() => void joinLobby(rejoinCandidate.code)}
+                      onExpire={() => setRejoinCandidate(null)}
+                    />
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p>
@@ -815,7 +828,11 @@ export function CategoryClash() {
                   {publicLobbies.length > 0 ? publicLobbies.map((lobby) => (
                     <button key={lobby.code} type="button" onClick={() => void joinLobby(lobby.code)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-white">{`${lobby.hostName}'s lobby`}</span>
+                        <span className="block truncate text-sm font-semibold text-white">
+                          <span style={getChatNameStyle(lobby.hostChatColor)}>{lobby.hostName}</span>
+                          &apos;s lobby
+                        </span>
+                        {lobby.description ? <span className="mt-1 block text-xs text-slate-300">{lobby.description}</span> : null}
                         <span className="mt-1 block text-xs text-slate-400">{lobby.mode === 'turns' ? 'Turn based' : 'Simultaneous'} - {lobby.playerCount}/{lobby.maxPlayers}</span>
                       </span>
                     </button>
@@ -956,6 +973,11 @@ export function CategoryClash() {
                     <span><span className="block text-sm font-semibold text-white">Public lobby</span></span>
                     <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${visibleSettings?.isPublic ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${visibleSettings?.isPublic ? 'translate-x-5' : ''}`} /></span>
                   </button>
+                  <MultiplayerLobbyDescriptionInput
+                    value={lobbyDescription}
+                    disabled={!isHost || busy}
+                    onChange={setLobbyDescription}
+                  />
                   <fieldset className="mt-5 grid gap-5">
                     <legend className="sr-only">Game settings</legend>
                     <GameSettingsSection title="Mode" defaultOpen summary={visibleSettings?.gameMode === 'turns' ? 'Turn based' : 'Simultaneous'}>

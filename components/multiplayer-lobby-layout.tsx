@@ -66,6 +66,12 @@ type MultiplayerVisibilityToggleProps = {
   onToggle: () => void;
 };
 
+type MultiplayerLobbyDescriptionInputProps = {
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+};
+
 type MultiplayerStartGameControlProps = {
   disabled: boolean;
   onStart: () => void;
@@ -326,6 +332,35 @@ export function MultiplayerVisibilityToggle({ enabled, disabled, onToggle }: Mul
         <span className={`h-4 w-4 rounded-full bg-white transition ${enabled ? 'translate-x-5' : ''}`} />
       </span>
     </button>
+  );
+}
+
+export function MultiplayerLobbyDescriptionInput({
+  value,
+  disabled,
+  onChange,
+}: MultiplayerLobbyDescriptionInputProps) {
+  return (
+    <label className="mt-3 grid gap-2 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3">
+      <span className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-white">Lobby description</span>
+        <span className="text-xs font-semibold text-slate-500">{value.length}/75</span>
+      </span>
+      <input
+        type="text"
+        value={value}
+        maxLength={75}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value.slice(0, 75))}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.currentTarget.blur();
+          }
+        }}
+        placeholder="None set"
+        className="min-h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+      />
+    </label>
   );
 }
 

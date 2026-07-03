@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 export const MULTIPLAYER_LOBBY_CODE_LENGTH = 6;
 export const MULTIPLAYER_LOBBY_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const MULTIPLAYER_MAX_LOBBY_PLAYERS = 10;
+export const MULTIPLAYER_LOBBY_DESCRIPTION_MAX_LENGTH = 75;
 
 type MultiplayerIdentityInput = {
   clientId: string;
@@ -51,6 +52,12 @@ export function generateMultiplayerLobbyCode(length = MULTIPLAYER_LOBBY_CODE_LEN
 
 export function sanitizeMultiplayerDisplayName(displayName: string) {
   return displayName.trim().slice(0, 16) || 'Player';
+}
+
+export function sanitizeMultiplayerLobbyDescription(description: unknown) {
+  return typeof description === 'string'
+    ? description.trim().slice(0, MULTIPLAYER_LOBBY_DESCRIPTION_MAX_LENGTH)
+    : '';
 }
 
 export async function resolveMultiplayerDisplayName(input: MultiplayerIdentityInput) {

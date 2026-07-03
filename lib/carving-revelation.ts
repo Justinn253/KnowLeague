@@ -12,6 +12,7 @@ import {
   MULTIPLAYER_MAX_LOBBY_PLAYERS,
   normalizeLobbyCode,
   resolveMultiplayerDisplayName,
+  sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 import { answerMatches, shuffle, type QuizItem } from '@/lib/quiz';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -30,6 +31,7 @@ export type CarvingRevelationLobby = {
   host_player_id: string | null;
   max_players: number;
   is_public: boolean;
+  lobby_description: string;
   secret_skin_id: string | null;
   turn_order: string[];
   current_turn_index: number;
@@ -108,6 +110,7 @@ export type CarvingRevelationPublicLobby = {
   maxPlayers: number;
   hostName: string;
   hostColor: string;
+  description: string;
 };
 
 type CreateOrJoinInput = {
@@ -791,6 +794,7 @@ export async function listPublicCarvingRevelationLobbies() {
       maxPlayers: lobby.max_players,
       hostName: host.display_name,
       hostColor: host.auth_user_id ? profileCosmeticsByUserId.get(host.auth_user_id)?.carve_color ?? getFallbackCarveColor(host.id) : getFallbackCarveColor(host.id),
+      description: lobby.lobby_description,
     };
   }).filter((entry): entry is CarvingRevelationPublicLobby => entry !== null);
 }
@@ -805,6 +809,7 @@ export async function updateCarvingRevelationSettings(
     modifiers?: unknown;
     startingLineLengthPercent?: unknown;
     lineLengthIncrementPercent?: unknown;
+    lobbyDescription?: unknown;
   },
 ) {
   const fetchedLobby = await fetchLobby(code);
@@ -832,6 +837,7 @@ export async function updateCarvingRevelationSettings(
       modifiers,
       starting_line_length_percent: startingLineLengthPercent,
       line_length_increment_percent: lineLengthIncrementPercent,
+      lobby_description: sanitizeMultiplayerLobbyDescription(input.lobbyDescription ?? lobby.lobby_description),
       updated_at: new Date().toISOString(),
     })
     .eq('id', lobby.id)

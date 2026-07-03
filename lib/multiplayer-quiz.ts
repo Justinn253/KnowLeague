@@ -19,6 +19,7 @@ import {
   MULTIPLAYER_MAX_LOBBY_PLAYERS,
   normalizeLobbyCode,
   resolveMultiplayerDisplayName,
+  sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 import { normalizeChatColor, type ChatColor } from '@/lib/chat-colors';
 
@@ -37,6 +38,7 @@ export type MultiplayerQuizLobby = {
   ability_slots: AbilitySlotId[];
   max_players: number;
   is_public: boolean;
+  lobby_description: string;
   created_at: string;
   updated_at: string;
   terminated_at: string | null;
@@ -90,6 +92,7 @@ export type MultiplayerQuizPublicLobby = {
   maxPlayers: number;
   hostName: string;
   hostChatColor: ChatColor;
+  description: string;
 };
 
 type CreateOrJoinInput = {
@@ -730,6 +733,7 @@ export async function updateMultiplayerQuizSettings(
   totalItems: number,
   isPublic: boolean,
   abilitySlots: unknown,
+  lobbyDescription?: unknown,
 ) {
   const fetchedLobby = await fetchLobby(code);
   if (!fetchedLobby || fetchedLobby.status !== 'waiting') {
@@ -770,6 +774,7 @@ export async function updateMultiplayerQuizSettings(
       ability_slots: validAbilitySlots,
       total_items: validTotalItems,
       is_public: isPublic,
+      lobby_description: sanitizeMultiplayerLobbyDescription(lobbyDescription ?? lobby.lobby_description),
       updated_at: new Date().toISOString(),
     })
     .eq('id', lobby.id)
@@ -827,6 +832,7 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
       maxPlayers: lobby.max_players,
       hostName: host.display_name,
       hostChatColor: host.auth_user_id ? profileCosmeticsByUserId.get(host.auth_user_id)?.chatColor ?? 'amber' : 'amber',
+      description: lobby.lobby_description,
     };
   }).filter((entry): entry is MultiplayerQuizPublicLobby => entry !== null);
 }

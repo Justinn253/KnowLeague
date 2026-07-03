@@ -13,6 +13,7 @@ import {
   MultiplayerLobbyHeader,
   MultiplayerLobbyMessage,
   MultiplayerLobbyPanel,
+  MultiplayerLobbyDescriptionInput,
   MultiplayerLobbyShell,
   MultiplayerPublicLobbyButton,
   MultiplayerPublicLobbyEmpty,
@@ -294,6 +295,7 @@ export function Skincognito() {
   const [codeRevealed, setCodeRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<SkincognitoPublicLobby[]>([]);
+  const [lobbyDescription, setLobbyDescription] = useState('');
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const [detailedStats, setDetailedStats] = useState<DetailedGameStats>(() => loadDetailedGameStats());
   const skinSearchRef = useRef<HTMLDivElement>(null);
@@ -342,6 +344,9 @@ export function Skincognito() {
     : [], [lobbyView]);
   const spectatorCount = lobbyView ? lobbyView.players.length - activePlayers.length : 0;
   const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2 && activePlayers.every((player) => player.connected));
+  const lobbyId = lobbyView?.lobby.id ?? null;
+  const serverLobbyDescription = lobbyView?.lobby.lobby_description ?? '';
+  const lobbyDescriptionDirty = lobbyDescription !== serverLobbyDescription;
   const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
   const playerTwo = getPlayerById(lobbyView, lobbyView?.lobby.player_two_id);
   const winnerPlayer = getPlayerById(lobbyView, lobbyView?.lobby.winner_player_id);
@@ -523,6 +528,12 @@ export function Skincognito() {
       }
     }
   }, [router]);
+
+  useEffect(() => {
+    if (lobbyId) {
+      setLobbyDescription(serverLobbyDescription);
+    }
+  }, [lobbyId, serverLobbyDescription]);
 
   const requestLobby = useCallback(async (url: string, body?: Record<string, unknown>) => {
     setBusy(true);
@@ -923,6 +934,16 @@ export function Skincognito() {
     void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/visibility`, {
       clientId,
       isPublic: !lobbyView.lobby.is_public,
+      lobbyDescription: lobbyView.lobby.lobby_description,
+    });
+  };
+
+  const saveLobbyDescription = () => {
+    if (!clientId || !lobbyView || !isHost || lobbyDescription === (lobbyView.lobby.lobby_description ?? '')) return;
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/visibility`, {
+      clientId,
+      isPublic: lobbyView.lobby.is_public,
+      lobbyDescription,
     });
   };
 
@@ -1169,6 +1190,7 @@ export function Skincognito() {
                   maxPlayers={lobby.maxPlayers}
                   disabled={busy}
                   onClick={() => joinLobbyByCode(lobby.code, true)}
+                  details={lobby.description ? <span>{lobby.description}</span> : null}
                 />
               )) : <MultiplayerPublicLobbyEmpty />}
             />
@@ -1186,11 +1208,6 @@ export function Skincognito() {
 
           {lobbyView && lobbyView.lobby.status === 'waiting' ? (
             <div className="mt-5 grid gap-5">
-              <MultiplayerVisibilityToggle
-                enabled={lobbyView.lobby.is_public}
-                disabled={!isHost || busy}
-                onToggle={updateLobbyVisibility}
-              />
               <MultiplayerLobbyGrid>
                 <MultiplayerLobbyRoster
                   countLabel={`${activePlayers.length}/2 Players - ${spectatorCount}/8 Spectators`}
@@ -1225,8 +1242,25 @@ export function Skincognito() {
                   onMakeHost={makeHost}
                 />
 
-                <MultiplayerLobbyPanel title="Your Skin">
-                  <h3 className="text-lg font-semibold text-white">
+                <MultiplayerLobbyPanel
+                  title="Your Skin"
+                  headerAction={lobbyDescriptionDirty ? (
+                    <button type="button" onClick={saveLobbyDescription} disabled={!isHost || busy} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-300 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+                      Apply Changes
+                    </button>
+                  ) : null}
+                >
+                  <MultiplayerVisibilityToggle
+                    enabled={lobbyView.lobby.is_public}
+                    disabled={!isHost || busy}
+                    onToggle={updateLobbyVisibility}
+                  />
+                  <MultiplayerLobbyDescriptionInput
+                    value={lobbyDescription}
+                    disabled={!isHost || busy}
+                    onChange={setLobbyDescription}
+                  />
+                  <h3 className="mt-5 text-lg font-semibold text-white">
                     {requestingPlayer?.role === 'spectator' ? 'Spectating' : 'Choose your skin'}
                   </h3>
 
@@ -1310,9 +1344,9 @@ export function Skincognito() {
               </MultiplayerLobbyGrid>
 
               <MultiplayerStartGameControl
-                disabled={busy || !canStart}
+                disabled={busy || !canStart || lobbyDescriptionDirty}
                 onStart={startGame}
-                hint="The host can start once two active players have joined. Missing skin selections use a random skin."
+                hint={lobbyDescriptionDirty ? 'Apply setting changes before starting.' : 'The host can start once two active players have joined. Missing skin selections use a random skin.'}
               />
             </div>
           ) : null}

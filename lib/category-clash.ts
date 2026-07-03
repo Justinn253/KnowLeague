@@ -21,6 +21,7 @@ import {
   MULTIPLAYER_MAX_LOBBY_PLAYERS,
   normalizeLobbyCode,
   resolveMultiplayerDisplayName,
+  sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 import { shuffle } from '@/lib/quiz';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -41,6 +42,7 @@ export type CategoryClashLobby = {
   host_player_id: string | null;
   max_players: number;
   is_public: boolean;
+  lobby_description: string;
   game_mode: CategoryClashGameMode;
   round_seconds: number;
   intermission_seconds: number;
@@ -132,7 +134,9 @@ export type CategoryClashPublicLobby = {
   playerCount: number;
   maxPlayers: number;
   hostName: string;
+  hostChatColor: ChatColor;
   mode: CategoryClashGameMode;
+  description: string;
 };
 
 type CreateOrJoinInput = {
@@ -1340,12 +1344,13 @@ export async function listPublicCategoryClashLobbies() {
 
   const { data: publicPlayers, error: playersError } = await getSupabaseServiceClient()
     .from('category_clash_players')
-    .select('id, lobby_id, display_name, connected, last_seen_at')
+    .select('id, lobby_id, auth_user_id, display_name, connected, last_seen_at')
     .in('lobby_id', lobbies.map((lobby) => lobby.id))
-    .returns<Array<Pick<CategoryClashPlayerRecord, 'id' | 'lobby_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
+    .returns<Array<Pick<CategoryClashPlayerRecord, 'id' | 'lobby_id' | 'auth_user_id' | 'display_name' | 'connected' | 'last_seen_at'>>>();
   if (playersError) throw playersError;
 
   const nowMs = Date.now();
+  const cosmeticsByUserId = await fetchProfileCosmetics(publicPlayers.map((player) => player.auth_user_id));
   return lobbies.map((rawLobby): CategoryClashPublicLobby | null => {
     const lobby = normalizeLobby(rawLobby);
     const players = publicPlayers.filter((player) => (
@@ -1359,7 +1364,9 @@ export async function listPublicCategoryClashLobbies() {
       playerCount: players.length,
       maxPlayers: lobby.max_players,
       hostName: host.display_name,
+      hostChatColor: host.auth_user_id ? cosmeticsByUserId.get(host.auth_user_id)?.chat_color ?? 'amber' : 'amber',
       mode: lobby.game_mode,
+      description: lobby.lobby_description,
     };
   }).filter((entry): entry is CategoryClashPublicLobby => entry !== null);
 }
@@ -1375,6 +1382,7 @@ export async function updateCategoryClashSettings(
     intermissionSeconds?: unknown;
     timerDecrementInterval?: unknown;
     maxStrikes?: unknown;
+    lobbyDescription?: unknown;
   },
 ) {
   const fetchedLobby = await fetchLobby(code);
@@ -1402,6 +1410,7 @@ export async function updateCategoryClashSettings(
       timer_decrement_interval: normalizeNumberOption(input.timerDecrementInterval ?? lobby.timer_decrement_interval, TIMER_DECREMENT_INTERVAL_OPTIONS, 2),
       max_strikes: normalizeNumberOption(input.maxStrikes ?? lobby.max_strikes, MAX_STRIKES_OPTIONS, 3),
       enabled_category_ids: enabledCategoryIds,
+      lobby_description: sanitizeMultiplayerLobbyDescription(input.lobbyDescription ?? lobby.lobby_description),
       updated_at: new Date().toISOString(),
     })
     .eq('id', lobby.id)

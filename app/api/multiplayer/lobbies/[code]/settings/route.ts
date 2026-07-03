@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { updateMultiplayerQuizSettings } from '@/lib/multiplayer-quiz';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 
-type SettingsBody = { clientId: string; difficulty: string; modifiers?: unknown; totalItems?: number; isPublic?: boolean; abilitySlots?: unknown };
+type SettingsBody = { clientId: string; difficulty: string; modifiers?: unknown; totalItems?: number; isPublic?: boolean; abilitySlots?: unknown; lobbyDescription?: unknown };
 export const runtime = 'nodejs';
 export async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
@@ -15,6 +15,7 @@ export async function POST(request: Request, { params }: { params: { code: strin
       Number(body.totalItems ?? 50),
       body.isPublic === true,
       body.abilitySlots,
+      body.lobbyDescription,
     ));
   } catch (error) {
     return getRouteErrorResponse(error);

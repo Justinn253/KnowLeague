@@ -3,22 +3,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { UserCircle, X } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { AchievementToasts } from '@/components/achievement-toasts';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { FriendsWidget } from '@/components/friends-widget';
+import { ModerationWidget } from '@/components/moderation-widget';
 import { ProfileScreen } from '@/components/profile-screen';
 import { PublicProfileScreen } from '@/components/public-profile-screen';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getAuthSessionId } from '@/lib/auth-session';
 import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import type { AppRole } from '@/lib/moderation';
 
 type ProfileOverlayTab = 'profile' | 'stats' | 'achievements' | 'account';
 
 export function GlobalActions() {
   const pathname = usePathname();
+  const router = useRouter();
   const [profileHref, setProfileHref] = useState('/login');
   const [profileLabel, setProfileLabel] = useState('Profile');
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
@@ -26,6 +29,7 @@ export function GlobalActions() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileInitialTab, setProfileInitialTab] = useState<ProfileOverlayTab>('profile');
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
+  const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
   const [publicProfileUsername, setPublicProfileUsername] = useState<string | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
 
@@ -40,6 +44,27 @@ export function GlobalActions() {
     }
     let signInCheckTimeout: number | null = null;
 
+    const updateModerationRole = async (session: Session | null) => {
+      if (!session) {
+        setModerationRole(null);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/moderation/me', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = await response.json() as { role?: AppRole };
+        if (!response.ok || (data.role !== 'moderator' && data.role !== 'admin')) {
+          setModerationRole(null);
+          return;
+        }
+        setModerationRole(data.role);
+      } catch {
+        setModerationRole(null);
+      }
+    };
+
     const updateProfileAction = async (session?: Session | null, mismatchRetries = 0) => {
       if (!session) {
         setProfileHref('/login');
@@ -47,11 +72,13 @@ export function GlobalActions() {
         setProfileAvatarUrl(null);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
+        setModerationRole(null);
         return;
       }
       const userId = session.user.id;
 
       setIsLoggedIn(true);
+      void updateModerationRole(session);
       const firstLoginStorageKey = `knowleague:v1:achievement:first-login:${userId}`;
       if (!firstLoginSubmittedRef.current.has(userId) && window.localStorage.getItem(firstLoginStorageKey) !== 'synced') {
         firstLoginSubmittedRef.current.add(userId);
@@ -86,7 +113,9 @@ export function GlobalActions() {
         setProfileAvatarUrl(null);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
+        setModerationRole(null);
         setProfileOpen(false);
+        router.push('/login');
         return;
       }
 
@@ -133,7 +162,7 @@ export function GlobalActions() {
       listener.subscription.unsubscribe();
       void supabase.removeChannel(profileChannel);
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     const openProfileTab = (event: Event) => {
@@ -160,6 +189,7 @@ export function GlobalActions() {
 
   return (
     <div className="fixed bottom-5 right-5 z-50 flex items-end gap-3">
+      {moderationRole ? <ModerationWidget role={moderationRole} /> : null}
       {isLoggedIn ? <FriendsWidget onPendingRequestCountChange={setPendingFriendRequests} /> : null}
       {isLoggedIn ? (
         <button

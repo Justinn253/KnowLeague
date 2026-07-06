@@ -65,6 +65,33 @@ select {
   animation: slide-in 0.45s ease-out;
 }
 
+@keyframes game-card-arrow-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+.game-card-arrow {
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.group:hover .game-card-arrow {
+  animation: game-card-arrow-drift 0.72s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group:hover .game-card-arrow {
+    animation: none;
+    transform: translateX(4px);
+  }
+}
+
 @keyframes skindle-reveal {
   from {
     transform: translateX(0);

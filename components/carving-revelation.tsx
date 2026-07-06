@@ -47,8 +47,8 @@ const WIN_CONDITION_OPTIONS: Array<{ value: CarvingRevelationWinCondition; label
   { value: 'first_correct', label: 'First correct guess wins', description: 'The first correct guess immediately wins the match.' },
 ];
 const CARVING_MODIFIERS: Array<{ id: CarvingRevelationModifier; name: string; description: string }> = [
-  { id: 'greyscale', name: 'Greyscale', description: 'Skin splash art is greyscaled.' },
-  { id: 'blurred', name: 'Blurred', description: 'Skin splash art is slightly blurred.' },
+  { id: 'greyscale', name: 'Greyscale', description: 'Splash art is greyscaled.' },
+  { id: 'blurred', name: 'Blurred', description: 'Splash art is slightly blurred.' },
   { id: 'cropped', name: 'Cropped', description: 'Only a cropped section of the splash art is shown.' },
 ];
 const STARTING_LINE_LENGTH_OPTIONS = [5, 8, 10, 15, 20];
@@ -337,6 +337,7 @@ function useCanvasRenderer(
 export function CarvingRevelation() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const guessInputAreaRef = useRef<HTMLDivElement>(null);
   const latestSessionRef = useRef<{ code: string; clientId: string; status: CarvingRevelationLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
   const autoSubmittedCarveKeyRef = useRef<string | null>(null);
@@ -421,25 +422,36 @@ export function CarvingRevelation() {
       ))
       .map((action) => action.player_id as string));
   }, [view]);
-  const exactGuessSuggestion = useMemo(() => {
-    const query = normalizeAnswer(guess);
-    if (!query) return null;
-    return skinAnswers.find((answer) => normalizeAnswer(answer) === query) ?? null;
-  }, [guess, skinAnswers]);
   const playerColorById = useMemo(() => Object.fromEntries(
     view?.players.map((player) => [player.id, player.carve_color]) ?? [],
   ), [view?.players]);
 
-  useEffect(() => {
-    const query = normalizeAnswer(guess);
-    if (!canGuess || query.length < 2 || (exactGuessSuggestion && normalizeAnswer(exactGuessSuggestion) === query)) {
-      setSuggestions([]);
-      return;
+  const getGuessSuggestions = useCallback((value: string) => {
+    const query = normalizeAnswer(value);
+    if (!canGuess || query.length < 2) {
+      return [];
     }
-    setSuggestions(skinAnswers
+
+    return skinAnswers
       .filter((answer) => normalizeAnswer(answer).includes(query))
-      .slice(0, 12));
-  }, [canGuess, exactGuessSuggestion, guess, skinAnswers]);
+      .slice(0, 12);
+  }, [canGuess, skinAnswers]);
+
+  useEffect(() => {
+    setSuggestions(getGuessSuggestions(guess));
+  }, [getGuessSuggestions, guess]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!guessInputAreaRef.current?.contains(target)) {
+        setSuggestions([]);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, []);
 
   const previewPath = draftPath.length > 0 ? draftPath : confirmedCarvePath;
   useCanvasRenderer(
@@ -551,7 +563,7 @@ export function CarvingRevelation() {
   }, [loadPublicLobbies, refreshLobby]);
 
   useEffect(() => {
-    fetch('/api/skin-champion/quiz-answers')
+    fetch('/api/skin-champion/quiz-answers?answerMode=skin-line')
       .then((response) => response.json())
       .then((answers: string[]) => setSkinAnswers(Array.isArray(answers) ? answers : []))
       .catch(() => setSkinAnswers([]));
@@ -908,7 +920,7 @@ export function CarvingRevelation() {
 
   const giveUp = async () => {
     if (!clientId || !view) return;
-    if (!window.confirm('Give up this match? You will stay connected but cannot keep playing this skin.')) return;
+    if (!window.confirm('Give up this match? You will stay connected but cannot keep playing this skin line.')) return;
     setBusy(true);
     setMessage('');
     try {
@@ -1079,8 +1091,8 @@ export function CarvingRevelation() {
       subtitle={view ? (view.lobby.status === 'waiting' ? 'Lobby' : '') : 'Create or join a lobby'}
       statusLabel={headerStatus}
       infoSteps={[
-        'A secret skin is selected when the host starts the game.',
-        'Players take turns carving one reveal line into the shared canvas or guessing the skin.',
+        'A secret skin line is selected when the host starts the game.',
+        'Players take turns carving one reveal line into the shared canvas or guessing the skin line.',
         'The reveal line limit grows each round until someone finds the answer.',
       ]}
       onBack={handleBack}
@@ -1353,8 +1365,8 @@ export function CarvingRevelation() {
                   <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-300">Round {view.lobby.round_number}</p>
                   <h2 className="mt-1 text-xl font-black">
                     {winningPlayers.length > 1
-                      ? `${winningPlayers.map((player) => player.display_name).join(', ')} found the skin`
-                      : winner ? `${winner.display_name} found the skin` : 'Game complete'}
+                      ? `${winningPlayers.map((player) => player.display_name).join(', ')} found the skin line`
+                      : winner ? `${winner.display_name} found the skin line` : 'Game complete'}
                   </h2>
                 </div>
               )}
@@ -1442,7 +1454,7 @@ export function CarvingRevelation() {
 
             {view.lobby.status === 'finished' && view.skin?.answer ? (
               <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">The skin was</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">The skin line was</p>
                 <p className="mt-1 text-2xl font-black">{view.skin.answer}</p>
                 <p className="mt-3 text-sm font-semibold text-emerald-50/80">
                   Next round votes: {nextRoundVotePlayers.length > 0
@@ -1454,27 +1466,27 @@ export function CarvingRevelation() {
 
             {shouldShowGuessForm ? (
               <form id="carving-revelation-guess-form" onSubmit={submitGuess} className="relative mt-4 flex gap-3">
-                <div className="relative min-w-0 flex-1">
+                <div ref={guessInputAreaRef} className="relative min-w-0 flex-1">
                   <input
                     value={guess}
                     onChange={(event) => setGuess(event.target.value)}
-                    onFocus={() => {
-                      const query = normalizeAnswer(guess);
-                      if (!canGuess || query.length < 2) return;
-                      setSuggestions(skinAnswers.filter((answer) => normalizeAnswer(answer).includes(query)).slice(0, 12));
-                    }}
+                    onFocus={() => setSuggestions(getGuessSuggestions(guess))}
                     disabled={!canGuess || busy}
                     autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-controls="carving-revelation-guess-suggestions"
                     spellCheck={false}
                     className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-amber-300/60 disabled:opacity-60"
-                    placeholder={canGuess ? 'Type the skin name' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
+                    placeholder={canGuess ? 'Type the skin line' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
                   />
                   {suggestions.length > 0 && canGuess ? (
-                    <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
+                    <div id="carving-revelation-guess-suggestions" role="listbox" className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                       {suggestions.map((suggestion) => (
                         <button
                           key={suggestion}
                           type="button"
+                          role="option"
+                          aria-selected={false}
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => handleSuggestionClick(suggestion)}
                           className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"

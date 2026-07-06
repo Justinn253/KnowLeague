@@ -15,6 +15,7 @@ import {
   sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 import { answerMatches, shuffle, type QuizItem } from '@/lib/quiz';
+import { toSkinThemeQuizItem } from '@/lib/skin-themes';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export type CarvingRevelationLobbyStatus = 'waiting' | 'active' | 'finished' | 'terminated';
@@ -191,7 +192,16 @@ function getLineLengthLimit(lobby: CarvingRevelationLobby) {
 
 function getSkinById(skinId: string | null) {
   if (!skinId) return null;
-  return getSkinCatalog().find((skin) => skin.id === skinId) ?? null;
+  const skin = getSkinCatalog().find((candidate) => candidate.id === skinId);
+  if (!skin) return null;
+
+  return toSkinThemeQuizItem(skin) ?? skin;
+}
+
+function getSkinThemeCatalog() {
+  return getSkinCatalog()
+    .map(toSkinThemeQuizItem)
+    .filter((skin): skin is QuizItem => Boolean(skin));
 }
 
 function toPublicSkin(lobby: CarvingRevelationLobby): CarvingRevelationPublicSkin | null {
@@ -872,7 +882,7 @@ export async function startCarvingRevelationLobby(code: string, clientId: string
     throw new Error('At least two players are required.');
   }
 
-  const skin = shuffle(getSkinCatalog())[0] as QuizItem | undefined;
+  const skin = shuffle(getSkinThemeCatalog())[0] as QuizItem | undefined;
   if (!skin) {
     throw new Error('No skins are available.');
   }
@@ -920,8 +930,9 @@ export async function startNextCarvingRevelationRound(code: string, clientId: st
     throw new Error('At least two connected players are required.');
   }
 
-  const eligibleSkins = getSkinCatalog().filter((skin) => skin.id !== fetchedLobby.secret_skin_id);
-  const skin = shuffle(eligibleSkins.length > 0 ? eligibleSkins : getSkinCatalog())[0] as QuizItem | undefined;
+  const skinCatalog = getSkinThemeCatalog();
+  const eligibleSkins = skinCatalog.filter((skin) => skin.id !== fetchedLobby.secret_skin_id);
+  const skin = shuffle(eligibleSkins.length > 0 ? eligibleSkins : skinCatalog)[0] as QuizItem | undefined;
   if (!skin) {
     throw new Error('No skins are available.');
   }

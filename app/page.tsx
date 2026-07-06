@@ -132,7 +132,7 @@ const multiplayerGames: GameLink[] = [
   {
     title: 'Carving Revelation',
     href: '/carving-revelation',
-    description: 'Take turns carving reveal lines into one shared hidden skin canvas before someone names it.',
+    description: 'Take turns carving reveal lines into one shared hidden splash before someone names the skin line.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jhin_5.jpg',
     gameIcon: Eye,
     modeIcon: Users,

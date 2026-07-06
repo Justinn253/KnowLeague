@@ -248,13 +248,13 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const showSoloPrematch = !multiplayer && !started && !finished && !failed;
   const leaderboardMode = isLeaderboardMode(soloMode);
   const casualSettingsAvailable = soloMode === 'casual';
-  const answerLabel = multiplayer ? 'skin name' : 'skin line';
-  const promptLabel = multiplayer ? 'skin' : 'skin line';
-  const itemHeaderLabel = multiplayer ? 'Skin Splash' : 'Skin Line';
-  const itemBadgeLabel = multiplayer ? 'Skin' : 'Line';
+  const answerLabel = 'skin line';
+  const promptLabel = 'skin line';
+  const itemHeaderLabel = 'Skin Line';
+  const itemBadgeLabel = 'Line';
   const getAnswerForItem = useCallback(
-    (item: QuizItem) => (multiplayer ? item.answer : getSkinThemeAnswer(item) ?? item.answer),
-    [multiplayer],
+    (item: QuizItem) => getSkinThemeAnswer(item) ?? item.answer,
+    [],
   );
   const currentAnswer = currentItem ? getAnswerForItem(currentItem) : '';
 
@@ -326,10 +326,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (!multiplayer) {
-      params.set('answerMode', 'skin-line');
-    }
+    const params = new URLSearchParams({ answerMode: 'skin-line' });
 
     fetch(`/api/skin-champion/quiz-answers${params.size ? `?${params}` : ''}`)
       .then((res) => res.json())
@@ -341,7 +338,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       .catch((error) => {
         console.error('Failed to load skin answer suggestions', error);
       });
-  }, [multiplayer]);
+  }, []);
 
   useEffect(() => {
     if (hasRestoredStateRef.current) {
@@ -1070,9 +1067,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
             <GameInfoMenu title="Skin Champion" steps={[
-              multiplayer
-                ? 'Identify the skin splash art and submit its exact skin name.'
-                : 'Identify the skin line shown by the splash art.',
+              'Identify the skin line shown by the splash art.',
               'Use hints and autocomplete when the selected difficulty allows them.',
               multiplayer ? 'Finish the shared randomized set before your opponents.' : 'Complete the randomized set as quickly as possible.',
             ]} />

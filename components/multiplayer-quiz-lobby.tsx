@@ -97,8 +97,8 @@ const configs: Record<MultiplayerQuizGameMode, MultiplayerQuizConfig> = {
     route: '/multiplayer/skin-champion',
     difficulties,
     modifiers: [
-      { id: 'greyscale', name: 'Greyscale', description: 'Skin splash art is greyscaled.' },
-      { id: 'blurred', name: 'Blurred', description: 'Skin splash art is slightly blurred.' },
+      { id: 'greyscale', name: 'Greyscale', description: 'Splash art is greyscaled.' },
+      { id: 'blurred', name: 'Blurred', description: 'Splash art is slightly blurred.' },
       { id: 'cropped', name: 'Cropped', description: 'Only a cropped section of the splash art is shown.' },
       { id: 'hiddenTimer', name: 'Hidden Timer', description: 'The timer is hidden during play.' },
       { id: 'confirmEntry', name: 'Confirm Entry', description: 'Answers require confirmation before submission.' },
@@ -801,7 +801,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     'Correct answers advance through the shared randomized set; difficulty controls hints and penalties.',
     'Finish the set before your opponents.',
   ] : [
-    'Identify the skin splash art and submit its exact skin name.',
+    'Identify the skin line shown by the splash art.',
     'Use hints and autocomplete when the selected difficulty allows them.',
     'Finish the shared randomized set before your opponents.',
   ];

@@ -22,6 +22,7 @@ import {
   sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 import { normalizeChatColor, type ChatColor } from '@/lib/chat-colors';
+import { toSkinThemeQuizItem } from '@/lib/skin-themes';
 
 export type MultiplayerQuizGameMode = 'ability_blitz' | 'skin_champion';
 export type MultiplayerQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
@@ -201,7 +202,13 @@ async function addLobbyEvent(lobbyId: string, eventType: string) {
 }
 
 function getGameCatalog(gameMode: MultiplayerQuizGameMode) {
-  return gameMode === 'ability_blitz' ? getAbilityCatalog() : getSkinCatalog();
+  if (gameMode === 'ability_blitz') {
+    return getAbilityCatalog();
+  }
+
+  return getSkinCatalog()
+    .map(toSkinThemeQuizItem)
+    .filter((item): item is QuizItem => Boolean(item));
 }
 
 async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {

@@ -120,7 +120,7 @@ const multiplayerGames: GameLink[] = [
   {
     title: 'Skin Champion',
     href: '/multiplayer/skin-champion',
-    description: 'Compete to identify League of Legends champion skins from image-focused clues.',
+    description: 'Compete to identify League of Legends skin lines from image-focused clues.',
     imageUrl: '/game-snapshots/skin_champion_snapshot.png',
     imageFit: 'contain',
     gameIcon: Sparkles,

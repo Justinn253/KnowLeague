@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { MultiplayerPlayerCountBadge } from '@/components/multiplayer-player-count-badge';
+import type { MultiplayerPlayerCountGameId } from '@/lib/multiplayer-player-counts';
 
 type Accent = 'gold' | 'cyan' | 'rose' | 'violet' | 'emerald' | 'sky';
 
@@ -25,6 +27,7 @@ type GameLink = {
   imageFit?: 'cover' | 'contain';
   gameIcon: LucideIcon;
   modeIcon: LucideIcon;
+  playerCountId?: MultiplayerPlayerCountGameId;
   accent: Accent;
   kicker: string;
   feature?: boolean;
@@ -97,6 +100,7 @@ const multiplayerGames: GameLink[] = [
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shaco_0.jpg',
     gameIcon: ShieldQuestion,
     modeIcon: Users,
+    playerCountId: 'skincognito',
     accent: 'rose',
     kicker: 'Deduction Duel',
     feature: true,
@@ -109,6 +113,7 @@ const multiplayerGames: GameLink[] = [
     imageFit: 'contain',
     gameIcon: Clock3,
     modeIcon: Users,
+    playerCountId: 'ability-blitz',
     accent: 'cyan',
     kicker: 'Live Race',
   },
@@ -120,6 +125,7 @@ const multiplayerGames: GameLink[] = [
     imageFit: 'contain',
     gameIcon: Sparkles,
     modeIcon: Users,
+    playerCountId: 'skin-champion',
     accent: 'sky',
     kicker: 'Skin Sprint',
   },
@@ -130,6 +136,7 @@ const multiplayerGames: GameLink[] = [
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jhin_5.jpg',
     gameIcon: Eye,
     modeIcon: Users,
+    playerCountId: 'carving-revelation',
     accent: 'gold',
     kicker: 'Shared Canvas',
   },
@@ -140,6 +147,7 @@ const multiplayerGames: GameLink[] = [
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sylas_0.jpg',
     gameIcon: Swords,
     modeIcon: Users,
+    playerCountId: 'category-clash',
     accent: 'emerald',
     kicker: 'Last Player Standing',
   },
@@ -224,6 +232,9 @@ function GameCard({ game }: { game: GameLink }) {
               </span>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
+              {game.playerCountId ? (
+                <MultiplayerPlayerCountBadge gameId={game.playerCountId} />
+              ) : null}
               {game.mostPlayed ? (
                 <span className="rounded-full border border-amber-100/60 bg-amber-300 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-950">
                   Most Popular
@@ -270,6 +281,9 @@ function GameCard({ game }: { game: GameLink }) {
             <ModeIcon size={16} />
           </span>
         </div>
+        {game.playerCountId ? (
+          <MultiplayerPlayerCountBadge gameId={game.playerCountId} className="absolute right-4 top-4" />
+        ) : null}
       </div>
       <div className="flex min-h-[14rem] flex-col p-5">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{game.kicker}</p>
@@ -335,16 +349,16 @@ export default function Home() {
         </header>
 
         <GameSection
-          title="Multiplayer Games"
-          description="Create or join a lobby and configure a shared competitive challenge."
-          games={multiplayerGames}
+          title="Solo Games"
+          description="Play daily and self-paced modes with personal progress and statistics."
+          games={singlePlayerGames}
           showEyebrow
         />
         <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         <GameSection
-          title="Solo Games"
-          description="Play daily and self-paced modes with personal progress and statistics."
-          games={singlePlayerGames}
+          title="Multiplayer Games"
+          description="Create or join a lobby and configure a shared competitive challenge."
+          games={multiplayerGames}
         />
       </section>
     </main>

@@ -145,6 +145,10 @@ function countCorrectPositions(tiles: readonly number[], rotations: readonly Rot
   return tiles.reduce((count, tile, index) => count + (tile === index && (rotations[index] ?? 0) === 0 ? 1 : 0), 0);
 }
 
+function getMisplacedPositions(tiles: readonly number[], rotations: readonly RotationDegrees[]) {
+  return tiles.flatMap((tile, index) => (tile !== index || (rotations[index] ?? 0) !== 0 ? [index] : []));
+}
+
 function isSolved(tiles: readonly number[], rotations: readonly RotationDegrees[]) {
   return countCorrectPositions(tiles, rotations) === tiles.length;
 }
@@ -423,6 +427,7 @@ export function SplashScramble() {
   const [selectedTile, setSelectedTile] = useState<number | null>(null);
   const [lockedPositions, setLockedPositions] = useState<Set<number>>(new Set());
   const [flashingPositions, setFlashingPositions] = useState<Set<number>>(new Set());
+  const [misplacedHintPositions, setMisplacedHintPositions] = useState<Set<number>>(new Set());
   const [moves, setMoves] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -433,6 +438,7 @@ export function SplashScramble() {
   const [profileStatsLoaded, setProfileStatsLoaded] = useState(false);
   const [error, setError] = useState('');
   const flashTimeoutRef = useRef<number | null>(null);
+  const misplacedHintTimeoutRef = useRef<number | null>(null);
   const lastAccountSyncMoveRef = useRef<number | null>(null);
   const solveRecordedRef = useRef(false);
   const rotateSelectedTileRef = useRef<(direction?: 1 | -1) => void>(() => undefined);
@@ -454,6 +460,7 @@ export function SplashScramble() {
   const tileCount = started || roundEnded ? tiles.length : configuredTileCount;
   const puzzleLabel = `${configuredColumns} x ${configuredRows}`;
   const correctPositions = useMemo(() => countCorrectPositions(tiles, rotations), [rotations, tiles]);
+  const misplacedPositionCount = useMemo(() => getMisplacedPositions(tiles, rotations).length, [rotations, tiles]);
   const timerLabel = timeLimit === null ? 'No Timer' : formatTimer(timeLimit);
   const activeTimeValue = timeLimit === null ? formatTimer(elapsedSeconds) : formatTimer(remainingSeconds);
   const boardColumns = useMemo(() => ({
@@ -538,6 +545,7 @@ export function SplashScramble() {
     setRotations(round.rotations.length === round.tiles.length ? round.rotations : Array.from({ length: round.tiles.length }, () => 0));
     setLockedPositions(new Set(round.lockedPositions));
     setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
     setSelectedTile(null);
     setMoves(round.moves);
     setStartedAt(round.startedAt);
@@ -626,6 +634,9 @@ export function SplashScramble() {
   useEffect(() => () => {
     if (flashTimeoutRef.current !== null) {
       window.clearTimeout(flashTimeoutRef.current);
+    }
+    if (misplacedHintTimeoutRef.current !== null) {
+      window.clearTimeout(misplacedHintTimeoutRef.current);
     }
   }, []);
 
@@ -723,6 +734,7 @@ export function SplashScramble() {
     setSelectedTile(null);
     setLockedPositions(new Set());
     setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
     setMoves(0);
     setElapsedSeconds(0);
     lastAccountSyncMoveRef.current = null;
@@ -815,6 +827,7 @@ export function SplashScramble() {
     setPhase('prematch');
     setSelectedTile(null);
     setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
   };
 
   const clearCompletedRound = () => {
@@ -832,6 +845,7 @@ export function SplashScramble() {
     setElapsedSeconds(0);
     setLockedPositions(new Set());
     setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
   };
 
   const flashPositions = (positions: number[]) => {
@@ -848,6 +862,27 @@ export function SplashScramble() {
       setFlashingPositions(new Set());
       flashTimeoutRef.current = null;
     }, 650);
+  };
+
+  const revealMisplacedTiles = () => {
+    if (phase !== 'playing' || !lockCorrectTiles) {
+      return;
+    }
+
+    const misplacedPositions = getMisplacedPositions(tiles, rotations);
+    if (misplacedPositions.length === 0) {
+      return;
+    }
+
+    if (misplacedHintTimeoutRef.current !== null) {
+      window.clearTimeout(misplacedHintTimeoutRef.current);
+    }
+
+    setMisplacedHintPositions(new Set(misplacedPositions));
+    misplacedHintTimeoutRef.current = window.setTimeout(() => {
+      setMisplacedHintPositions(new Set());
+      misplacedHintTimeoutRef.current = null;
+    }, 900);
   };
 
   const updateLocksAfterMove = (nextTiles: readonly number[], nextRotations: readonly RotationDegrees[], candidatePositions: readonly number[]) => {
@@ -1239,14 +1274,28 @@ export function SplashScramble() {
             <StatPill label="Moves" value={moves} />
             <StatPill label="Correct" value={`${correctPositions}/${tileCount}`} />
           </div>
-          <button
-            type="button"
-            onClick={startNewSkinRound}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-amber-300/10 px-4 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-200 lg:w-auto"
-          >
-            <Shuffle size={15} />
-            New Skin
-          </button>
+          <div className="flex w-full items-center justify-end gap-2 lg:w-auto">
+            {lockCorrectTiles ? (
+              <button
+                type="button"
+                onClick={revealMisplacedTiles}
+                disabled={misplacedPositionCount === 0}
+                title="Show misplaced pieces"
+                aria-label="Show misplaced pieces"
+                className="inline-flex min-h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-300/40 bg-sky-300/10 text-sky-100 transition hover:bg-sky-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <Eye size={17} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={startNewSkinRound}
+              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-amber-300/10 px-4 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-200 lg:w-auto lg:flex-none"
+            >
+              <Shuffle size={15} />
+              New Skin
+            </button>
+          </div>
         </div>
 
         {rotateTiles ? (
@@ -1302,6 +1351,7 @@ export function SplashScramble() {
               const selected = selectedTile === position;
               const locked = lockedPositions.has(position);
               const flashing = flashingPositions.has(position);
+              const misplacedHint = misplacedHintPositions.has(position);
               const rotation = rotations[position] ?? 0;
 
               return (
@@ -1316,9 +1366,11 @@ export function SplashScramble() {
                       ? 'z-20 border-emerald-300 ring-2 ring-inset ring-emerald-300 shadow-[0_0_22px_rgba(52,211,153,0.55)] brightness-125'
                       : selected
                         ? 'z-20 scale-[0.98] border-amber-300 ring-2 ring-inset ring-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.4)]'
-                        : locked
-                          ? 'border-emerald-400/40 brightness-105'
-                          : 'border-slate-950/60 hover:brightness-110'
+                        : misplacedHint
+                          ? 'z-10 border-sky-300 ring-2 ring-inset ring-sky-300 shadow-[0_0_22px_rgba(125,211,252,0.6)] brightness-125'
+                          : locked
+                            ? 'border-emerald-400/40 brightness-105'
+                            : 'border-slate-950/60 hover:brightness-110'
                   }`}
                   aria-label={`Tile ${position + 1}${locked ? ', locked' : ''}`}
                   aria-pressed={selected}
@@ -1332,12 +1384,14 @@ export function SplashScramble() {
                       transform: `rotate(${rotation}deg)`,
                     }}
                   />
-                  {selected || flashing ? (
+                  {selected || flashing || misplacedHint ? (
                     <span
                       className={`pointer-events-none absolute inset-0 z-10 ${
                         flashing
                           ? 'ring-4 ring-inset ring-emerald-300 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.95),0_0_20px_rgba(52,211,153,0.75)]'
-                          : 'ring-4 ring-inset ring-amber-300 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.95),0_0_18px_rgba(251,191,36,0.55)]'
+                          : selected
+                            ? 'ring-4 ring-inset ring-amber-300 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.95),0_0_18px_rgba(251,191,36,0.55)]'
+                            : 'ring-4 ring-inset ring-sky-300 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.95),0_0_20px_rgba(125,211,252,0.75)]'
                       }`}
                     />
                   ) : null}

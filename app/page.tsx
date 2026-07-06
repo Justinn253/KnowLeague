@@ -180,7 +180,7 @@ const singlePlayerGames: GameLink[] = [
   {
     title: 'Skin Champion',
     href: '/skin-champion',
-    description: 'Practice League of Legends champion skin recognition at your own pace.',
+    description: 'Practice identifying League of Legends skin lines from splash art at your own pace.',
     imageUrl: '/game-snapshots/skin_champion_snapshot.png',
     imageFit: 'contain',
     gameIcon: Sparkles,

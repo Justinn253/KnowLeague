@@ -1,12 +1,32 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { dailySeed, seededShuffle } from '@/lib/daily-set';
 import { getSkinCatalog } from '@/lib/catalogs';
 import { shuffle } from '@/lib/quiz';
-import { getSoloQuizItems, type SoloQuizDifficulty, type SoloQuizMode } from '@/lib/solo-quiz';
+import type { SoloQuizDifficulty, SoloQuizMode } from '@/lib/solo-quiz';
+import { toSkinThemeQuizItem } from '@/lib/skin-themes';
 
 export const dynamic = 'force-dynamic';
 
 const modes = new Set<SoloQuizMode>(['casual', 'daily', 'chaos']);
 const difficulties = new Set<SoloQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
+
+function getSoloSkinThemeItems(input: {
+  mode: SoloQuizMode;
+  difficulty: SoloQuizDifficulty;
+  entryCount: number;
+}) {
+  const catalog = getSkinCatalog()
+    .map(toSkinThemeQuizItem)
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const count = Math.max(1, Math.min(100, Math.floor(input.entryCount)));
+
+  if (input.mode === 'casual') {
+    return shuffle(catalog).slice(0, count);
+  }
+
+  const seed = dailySeed(`skin-champion:${input.mode}:${input.difficulty}`);
+  return seededShuffle(catalog, seed).slice(0, count);
+}
 
 export async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get('mode') as SoloQuizMode | null;
@@ -14,8 +34,7 @@ export async function GET(request: NextRequest) {
   const entryCount = Number(request.nextUrl.searchParams.get('entries') ?? 50);
 
   if (mode && modes.has(mode) && difficulty && difficulties.has(difficulty)) {
-    return NextResponse.json(getSoloQuizItems({
-      gameId: 'skin-champion',
+    return NextResponse.json(getSoloSkinThemeItems({
       mode,
       difficulty,
       entryCount: Number.isFinite(entryCount) ? entryCount : 50,
@@ -24,7 +43,11 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json(shuffle(getSkinCatalog()).slice(0, 50), {
+  const catalog = getSkinCatalog()
+    .map(toSkinThemeQuizItem)
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  return NextResponse.json(shuffle(catalog).slice(0, 50), {
     headers: { 'Cache-Control': 'no-store' },
   });
 }

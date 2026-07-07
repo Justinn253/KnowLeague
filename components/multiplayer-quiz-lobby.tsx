@@ -40,6 +40,7 @@ import type {
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import { CHAT_COLOR_NAME_HEX, getChatNameStyle } from '@/lib/chat-colors';
+import { playUiSound } from '@/lib/ui-sounds';
 
 type SettingOption = { id: string; name: string; description: string };
 type MultiplayerQuizConfig = {
@@ -172,6 +173,17 @@ function createDraftSettings(view: MultiplayerQuizLobbyView): DraftQuizSettings 
   };
 }
 
+function areDraftSettingsDirty(view: MultiplayerQuizLobbyView, draft: DraftQuizSettings) {
+  const currentAbilitySlots = [...view.lobby.ability_slots].sort().join(',');
+  const draftAbilitySlots = [...draft.abilitySlots].sort().join(',');
+  return (
+    draft.difficulty !== view.lobby.difficulty ||
+    draft.totalItems !== view.lobby.total_items ||
+    [...draft.modifiers].sort().join(',') !== [...view.lobby.modifiers].sort().join(',') ||
+    draftAbilitySlots !== currentAbilitySlots
+  );
+}
+
 function getQuizMultiplayerRecord(stats: DetailedGameStats, gameMode: MultiplayerQuizGameMode) {
   return gameMode === 'ability_blitz'
     ? stats.abilityBlitz.multiplayer
@@ -243,6 +255,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const [draftSettings, setDraftSettings] = useState<DraftQuizSettings | null>(null);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const latestLobbyRef = useRef<LatestLobbySnapshot | null>(null);
+  const previousLobbyRosterRef = useRef<{ hostPlayerId: string | null; playerIds: Set<string> }>({ hostPlayerId: null, playerIds: new Set() });
   const isLeavingLobbyRef = useRef(false);
 
   useMultiplayerAuthTransition(async () => {
@@ -331,8 +344,20 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       setView(null);
       setMessage('You were removed from the lobby.');
       window.history.replaceState(null, '', config.route);
+      playUiSound('player-management');
       return;
     }
+    const previousRoster = previousLobbyRosterRef.current;
+    const nextPlayerIds = new Set(nextView.players.map((player) => player.id));
+    const hostChanged = Boolean(previousRoster.hostPlayerId && previousRoster.hostPlayerId !== nextView.lobby.host_player_id);
+    const playerRemoved = [...previousRoster.playerIds].some((playerId) => !nextPlayerIds.has(playerId));
+    if (hostChanged || playerRemoved) {
+      playUiSound('player-management');
+    }
+    previousLobbyRosterRef.current = {
+      hostPlayerId: nextView.lobby.host_player_id,
+      playerIds: nextPlayerIds,
+    };
     setView(nextView);
     setRejoinCandidate(null);
     if (nextView.lobby.status === 'waiting' || nextView.lobby.status === 'active') {
@@ -619,8 +644,11 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       return;
     }
 
-    setDraftSettings((current) => updater(current ?? createDraftSettings(view)));
-    setSettingsDirty(true);
+    setDraftSettings((current) => {
+      const nextSettings = updater(current ?? createDraftSettings(view));
+      setSettingsDirty(areDraftSettingsDirty(view, nextSettings));
+      return nextSettings;
+    });
   };
 
   const applyDraftSettings = async () => {
@@ -630,6 +658,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
     setBusy(true);
     setMessage('');
+    playUiSound('setting-select');
     try {
       const response = await fetch(`/api/multiplayer/lobbies/${view.lobby.code}/settings`, {
         method: 'POST',
@@ -675,7 +704,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
   };
 
-  const startGame = async () => {
+  const startGame = useCallback(async () => {
     if (!view || !clientId || !isHost) {
       return;
     }
@@ -693,7 +722,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     } finally {
       setBusy(false);
     }
-  };
+  }, [applyView, clientId, gameMode, isHost, view]);
 
   const reportProgress = useCallback(async (progress: number, elapsedSeconds: number, result: MultiplayerQuizPlayerResult) => {
     if (!view || !clientId) {
@@ -716,6 +745,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       return;
     }
 
+    playUiSound('random-select');
     setBusy(true);
     setMessage('');
     try {
@@ -771,6 +801,9 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       modifiers: view.lobby.modifiers,
       initialProgress: view.requestingPlayer.progress,
       initialElapsedSeconds: view.requestingPlayer.elapsed_seconds,
+      startCountdownSeconds: view.lobby.status === 'active' && view.lobby.started_at
+        ? Math.max(0, Math.ceil((new Date(view.lobby.started_at).getTime() - Date.now()) / 1000))
+        : 0,
       gameEnded: view.lobby.status === 'finished',
       matchId: view.lobby.id,
       won: recordResult === 'win',
@@ -926,7 +959,10 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                   <div className="flex items-center gap-2">
                     <label className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                       Entries
-                      <select value={visibleSettings?.totalItems ?? view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => updateDraftSettings((current) => ({ ...current, totalItems: Number(event.target.value) }))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
+                      <select value={visibleSettings?.totalItems ?? view.lobby.total_items} disabled={!isHost || busy} onChange={(event) => {
+                        playUiSound('autocomplete-select');
+                        updateDraftSettings((current) => ({ ...current, totalItems: Number(event.target.value) }));
+                      }} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:opacity-60">
                         {[10, 25, 50, 75, 100].map((count) => <option key={count} value={count}>{count}</option>)}
                       </select>
                     </label>
@@ -950,7 +986,18 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                   <GameSettingsSection title="Difficulty" defaultOpen summary={<DifficultyLabel difficulty={visibleSettings?.difficulty ?? view.lobby.difficulty} />}>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {config.difficulties.map((difficulty) => (
-                        <button key={difficulty.id} type="button" disabled={!isHost || busy} onClick={() => updateDraftSettings((current) => ({ ...current, difficulty: difficulty.id as MultiplayerQuizDifficulty }))} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${(visibleSettings?.difficulty ?? view.lobby.difficulty) === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                        <button
+                          key={difficulty.id}
+                          type="button"
+                          disabled={!isHost || busy}
+                          onMouseEnter={() => playUiSound('autocomplete-hover')}
+                          onFocus={() => playUiSound('autocomplete-hover')}
+                          onClick={() => {
+                            playUiSound('autocomplete-select');
+                            updateDraftSettings((current) => ({ ...current, difficulty: difficulty.id as MultiplayerQuizDifficulty }));
+                          }}
+                          className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${(visibleSettings?.difficulty ?? view.lobby.difficulty) === difficulty.id ? getDifficultyStyle(difficulty.id).selected : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}
+                        >
                           <DifficultyLabel difficulty={difficulty.id} className="text-sm" />
                           <span className="mt-1 block text-xs leading-5 text-slate-400">{difficulty.description}</span>
                         </button>
@@ -989,7 +1036,10 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
                               type="button"
                               title={slot.name}
                               disabled={!isHost || busy}
+                              onMouseEnter={() => playUiSound('autocomplete-hover')}
+                              onFocus={() => playUiSound('autocomplete-hover')}
                               onClick={() => {
+                                playUiSound('autocomplete-select');
                                 const currentSlots = visibleSettings?.abilitySlots ?? view.lobby.ability_slots;
                                 if (selected && currentSlots.length === 1) return;
                                 updateDraftSettings((current) => ({

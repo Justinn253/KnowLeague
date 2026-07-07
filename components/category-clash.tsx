@@ -818,7 +818,7 @@ export function CategoryClash() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p>
-                    <p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p>
+                    <p className="mt-1 text-sm text-slate-400">Join a public lobby.</p>
                   </div>
                   <button type="button" onClick={() => void loadPublicLobbies()} disabled={busy} title="Refresh public lobbies" aria-label="Refresh public lobbies" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60">
                     <RefreshCw size={17} />

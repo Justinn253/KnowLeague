@@ -15,6 +15,7 @@ import {
   type SoloQuizMode,
 } from '@/lib/solo-quiz';
 import type { PlayerGameStats } from '@/lib/game-storage';
+import { playUiSound } from '@/lib/ui-sounds';
 
 type SoloQuizPrematchProps = {
   gameId: SoloQuizGameId;
@@ -165,7 +166,12 @@ export function SoloQuizPrematch({
       <button
         key={mode.id}
         type="button"
-        onClick={() => onModeSelect(mode.id)}
+        onMouseEnter={() => playUiSound('autocomplete-hover')}
+        onFocus={() => playUiSound('autocomplete-hover')}
+        onClick={() => {
+          playUiSound('setting-select');
+          onModeSelect(mode.id);
+        }}
         disabled={disabled || countdown !== null}
         className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
           selected

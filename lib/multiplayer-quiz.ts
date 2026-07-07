@@ -110,6 +110,7 @@ type MultiplayerQuizRecordSnapshot = {
 
 const MAX_PLAYERS = MULTIPLAYER_MAX_LOBBY_PLAYERS;
 const DEFAULT_TOTAL_ITEMS = 25;
+const START_COUNTDOWN_SECONDS = 5;
 const difficulties = new Set<MultiplayerQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
 const modifierIds: Record<MultiplayerQuizGameMode, Set<string>> = {
   ability_blitz: new Set(['greyscale', 'pixelated', 'rotating', 'disappearing', 'hiddenTimer', 'confirmEntry']),
@@ -562,7 +563,9 @@ export async function startMultiplayerQuizLobby(code: string, clientId: string, 
     ? filterItemsByAbilitySlots(catalog, lobby.ability_slots)
     : catalog;
   const itemIds = shuffle(eligibleItems).slice(0, lobby.total_items).map((item) => item.id);
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const startsAt = new Date(nowMs + START_COUNTDOWN_SECONDS * 1000).toISOString();
   const { error: playerError } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
     .update({ progress: 0, elapsed_seconds: 0, finished_at: null, result: 'active', connected: true, last_seen_at: now, disconnected_at: null, updated_at: now })
@@ -572,7 +575,7 @@ export async function startMultiplayerQuizLobby(code: string, clientId: string, 
   }
   const { data: updatedLobby, error } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_lobbies')
-    .update({ status: 'active', quiz_item_ids: itemIds, total_items: itemIds.length, started_at: now, finished_at: null, updated_at: now })
+    .update({ status: 'active', quiz_item_ids: itemIds, total_items: itemIds.length, started_at: startsAt, finished_at: null, updated_at: now })
     .eq('id', lobby.id)
     .select('*')
     .single<MultiplayerQuizLobby>();

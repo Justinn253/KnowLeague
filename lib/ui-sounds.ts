@@ -17,7 +17,11 @@ export type SoundName =
   | 'timer-expired'
   | 'timer-countdown'
   | 'tile-rotate'
-  | 'random-select';
+  | 'random-select'
+  | 'opponent-correct'
+  | 'item-slide'
+  | 'disconnect-expired'
+  | 'player-management';
 type SoundCategory = 'chat' | 'friend-request' | 'game';
 
 export type UiSoundSettings = {
@@ -110,6 +114,22 @@ const soundTones: Record<SoundName, Tone[]> = {
     { frequency: 720, duration: 0.045, delay: 0.035, gain: 0.032, type: 'triangle' },
     { frequency: 960, duration: 0.065, delay: 0.075, gain: 0.028, type: 'sine' },
   ],
+  'opponent-correct': [
+    { frequency: 620, duration: 0.055, gain: 0.018, type: 'triangle' },
+    { frequency: 820, duration: 0.07, delay: 0.05, gain: 0.016, type: 'sine' },
+  ],
+  'item-slide': [
+    { frequency: 360, duration: 0.04, gain: 0.024, type: 'triangle' },
+    { frequency: 520, duration: 0.055, delay: 0.035, gain: 0.02, type: 'triangle' },
+  ],
+  'disconnect-expired': [
+    { frequency: 220, duration: 0.12, gain: 0.038, type: 'sawtooth' },
+    { frequency: 150, duration: 0.18, delay: 0.1, gain: 0.028, type: 'triangle' },
+  ],
+  'player-management': [
+    { frequency: 500, duration: 0.055, gain: 0.034, type: 'triangle' },
+    { frequency: 700, duration: 0.065, delay: 0.05, gain: 0.03, type: 'triangle' },
+  ],
 };
 
 const soundCategories: Record<SoundName, SoundCategory> = {
@@ -130,6 +150,10 @@ const soundCategories: Record<SoundName, SoundCategory> = {
   'timer-countdown': 'game',
   'tile-rotate': 'game',
   'random-select': 'game',
+  'opponent-correct': 'game',
+  'item-slide': 'game',
+  'disconnect-expired': 'game',
+  'player-management': 'game',
 };
 
 const SOUND_SETTINGS_KEY = 'knowleague:v1:ui-sound-settings';

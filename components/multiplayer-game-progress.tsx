@@ -7,6 +7,7 @@ import type { MultiplayerQuizDifficulty, MultiplayerQuizPlayerResult, Multiplaye
 import { MultiplayerDisconnectStatus } from '@/components/multiplayer-reconnect';
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
 import { getChatNameStyle } from '@/lib/chat-colors';
+import { playUiSound } from '@/lib/ui-sounds';
 
 export type MultiplayerGameRuntime = {
   items: QuizItem[];
@@ -14,6 +15,7 @@ export type MultiplayerGameRuntime = {
   modifiers: string[];
   initialProgress: number;
   initialElapsedSeconds: number;
+  startCountdownSeconds?: number;
   gameEnded: boolean;
   matchId?: string;
   won?: boolean;
@@ -62,6 +64,8 @@ export function MultiplayerGameProgress({
   }>;
 }) {
   const previousProgressRef = useRef<Record<string, number>>({});
+  const previousFinishedPlayerIdsRef = useRef<Set<string>>(new Set());
+  const finishedSoundReadyRef = useRef(false);
   const [flashingPlayerIds, setFlashingPlayerIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -77,6 +81,10 @@ export function MultiplayerGameProgress({
       return undefined;
     }
 
+    if (changedPlayerIds.some((playerId) => players.some((player) => player.id === playerId && !player.is_requesting_player))) {
+      playUiSound('opponent-correct');
+    }
+
     setFlashingPlayerIds((current) => new Set([...current, ...changedPlayerIds]));
     const timeout = window.setTimeout(() => {
       setFlashingPlayerIds((current) => {
@@ -86,6 +94,25 @@ export function MultiplayerGameProgress({
       });
     }, 500);
     return () => window.clearTimeout(timeout);
+  }, [players]);
+
+  useEffect(() => {
+    const newlyFinishedOpponent = players.some((player) => (
+      !player.is_requesting_player &&
+      player.result === 'completed' &&
+      !previousFinishedPlayerIdsRef.current.has(player.id)
+    ));
+
+    previousFinishedPlayerIdsRef.current = new Set(players.filter((player) => player.result === 'completed').map((player) => player.id));
+
+    if (!finishedSoundReadyRef.current) {
+      finishedSoundReadyRef.current = true;
+      return;
+    }
+
+    if (newlyFinishedOpponent) {
+      playUiSound('puzzle-complete');
+    }
   }, [players]);
 
   const opponents = players.filter((player) => !player.is_requesting_player);

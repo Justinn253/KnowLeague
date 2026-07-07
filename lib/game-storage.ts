@@ -177,7 +177,7 @@ export function getOrCreateClientId() {
   return clientId;
 }
 
-function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {
+export function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {
   return {
     gameId,
     completedDates: [],

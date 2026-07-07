@@ -140,6 +140,7 @@ type SubmitActionInput = {
 
 const MAX_LOBBY_PLAYERS = MULTIPLAYER_MAX_LOBBY_PLAYERS;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
+const SKINCOGNITO_START_COUNTDOWN_MS = 5000;
 
 type ProfileChatCosmetics = {
   color: ChatColor;
@@ -1253,7 +1254,7 @@ export async function startSkincognitoLobby(code: string, clientId: string) {
     status: 'active',
     current_turn_player_id: startingPlayer.id,
     winner_player_id: null,
-    started_at: new Date().toISOString(),
+    started_at: new Date(Date.now() + SKINCOGNITO_START_COUNTDOWN_MS).toISOString(),
     finished_at: null,
     return_to_lobby_at: null,
   });
@@ -1271,13 +1272,13 @@ export async function scheduleSkincognitoReturnToLobby(code: string, clientId: s
   const players = await fetchPlayers(lobby.id);
   assertMultiplayerHost(players, lobby.host_player_id, clientId, 'Only the host can return everyone to the lobby.');
 
-  const returnToLobbyAt = new Date(Date.now() + 5000).toISOString();
   const updatedLobby = await updateLobby(lobby.id, {
-    return_to_lobby_at: returnToLobbyAt,
+    return_to_lobby_at: new Date().toISOString(),
   });
 
   await addLobbyEvent(updatedLobby.id, 'return_to_lobby_scheduled');
-  return getLobbyView(updatedLobby, clientId);
+  const reconciledLobby = await reconcileLobby(updatedLobby);
+  return getLobbyView(reconciledLobby, clientId);
 }
 
 export async function submitSkincognitoAction(code: string, input: SubmitActionInput) {
@@ -1288,6 +1289,9 @@ export async function submitSkincognitoAction(code: string, input: SubmitActionI
   const lobby = await reconcileLobby(fetchedLobby);
   if (lobby.status !== 'active') {
     throw new Error('Game is not active.');
+  }
+  if (lobby.started_at && new Date(lobby.started_at).getTime() > Date.now()) {
+    throw new Error('Game is starting.');
   }
 
   const players = await fetchPlayers(lobby.id);

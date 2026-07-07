@@ -9,7 +9,15 @@ export type SoundName =
   | 'autocomplete-select'
   | 'skindle-guess-correct'
   | 'skindle-guess-incorrect'
-  | 'skindle-answer-reveal';
+  | 'skindle-answer-reveal'
+  | 'setting-select'
+  | 'tile-lock-correct'
+  | 'tile-lock-miss'
+  | 'puzzle-complete'
+  | 'timer-expired'
+  | 'timer-countdown'
+  | 'tile-rotate'
+  | 'random-select';
 type SoundCategory = 'chat' | 'friend-request' | 'game';
 
 export type UiSoundSettings = {
@@ -68,6 +76,40 @@ const soundTones: Record<SoundName, Tone[]> = {
     { frequency: 783.99, duration: 0.12, delay: 0.17, gain: 0.045, type: 'triangle' },
     { frequency: 1174.66, duration: 0.18, delay: 0.29, gain: 0.035, type: 'sine' },
   ],
+  'setting-select': [
+    { frequency: 640, duration: 0.045, gain: 0.026, type: 'triangle' },
+    { frequency: 860, duration: 0.055, delay: 0.04, gain: 0.024, type: 'sine' },
+  ],
+  'tile-lock-correct': [
+    { frequency: 740, duration: 0.055, gain: 0.04, type: 'triangle' },
+    { frequency: 980, duration: 0.075, delay: 0.05, gain: 0.04, type: 'triangle' },
+  ],
+  'tile-lock-miss': [
+    { frequency: 320, duration: 0.08, gain: 0.034, type: 'triangle' },
+    { frequency: 250, duration: 0.1, delay: 0.065, gain: 0.026, type: 'sine' },
+  ],
+  'puzzle-complete': [
+    { frequency: 523.25, duration: 0.09, gain: 0.045, type: 'triangle' },
+    { frequency: 659.25, duration: 0.09, delay: 0.08, gain: 0.045, type: 'triangle' },
+    { frequency: 783.99, duration: 0.11, delay: 0.16, gain: 0.045, type: 'triangle' },
+    { frequency: 1046.5, duration: 0.2, delay: 0.27, gain: 0.036, type: 'sine' },
+  ],
+  'timer-expired': [
+    { frequency: 240, duration: 0.16, gain: 0.05, type: 'sawtooth' },
+    { frequency: 160, duration: 0.22, delay: 0.14, gain: 0.04, type: 'triangle' },
+  ],
+  'timer-countdown': [
+    { frequency: 500, duration: 0.11, gain: 0.08, type: 'sine' },
+  ],
+  'tile-rotate': [
+    { frequency: 460, duration: 0.045, gain: 0.032, type: 'triangle' },
+    { frequency: 620, duration: 0.045, delay: 0.035, gain: 0.028, type: 'triangle' },
+  ],
+  'random-select': [
+    { frequency: 520, duration: 0.04, gain: 0.032, type: 'triangle' },
+    { frequency: 720, duration: 0.045, delay: 0.035, gain: 0.032, type: 'triangle' },
+    { frequency: 960, duration: 0.065, delay: 0.075, gain: 0.028, type: 'sine' },
+  ],
 };
 
 const soundCategories: Record<SoundName, SoundCategory> = {
@@ -80,6 +122,14 @@ const soundCategories: Record<SoundName, SoundCategory> = {
   'skindle-guess-correct': 'game',
   'skindle-guess-incorrect': 'game',
   'skindle-answer-reveal': 'game',
+  'setting-select': 'game',
+  'tile-lock-correct': 'game',
+  'tile-lock-miss': 'game',
+  'puzzle-complete': 'game',
+  'timer-expired': 'game',
+  'timer-countdown': 'game',
+  'tile-rotate': 'game',
+  'random-select': 'game',
 };
 
 const SOUND_SETTINGS_KEY = 'knowleague:v1:ui-sound-settings';

@@ -19,6 +19,7 @@ import { getNextUtcResetLabel, normalizeAnswer, type QuizItem } from '@/lib/quiz
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
+import { playUiSound, type SoundName } from '@/lib/ui-sounds';
 
 const categories = [
   { id: 'champion', label: 'Champion' },
@@ -255,6 +256,8 @@ export function Skindle() {
   const guessesPanelRef = useRef<HTMLDivElement>(null);
   const topGuessesMenuRef = useRef<HTMLDivElement>(null);
   const playerStatsMenuRef = useRef<HTMLDivElement>(null);
+  const soundTimeoutsRef = useRef<number[]>([]);
+  const hoveredSuggestionIdRef = useRef<string | null>(null);
   const hasRestoredStateRef = useRef(false);
   const achievementRecordedRef = useRef(false);
   const activeDateKeyRef = useRef(activeDateKey);
@@ -410,6 +413,31 @@ export function Skindle() {
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, []);
 
+  const scheduleSound = useCallback((sound: SoundName, delay: number) => {
+    const timeout = window.setTimeout(() => {
+      playUiSound(sound);
+      soundTimeoutsRef.current = soundTimeoutsRef.current.filter((entry) => entry !== timeout);
+    }, delay);
+
+    soundTimeoutsRef.current.push(timeout);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      soundTimeoutsRef.current.forEach((timeout) => window.clearTimeout(timeout));
+      soundTimeoutsRef.current = [];
+    };
+  }, []);
+
+  const playSuggestionHoverSound = (skinId: string) => {
+    if (hoveredSuggestionIdRef.current === skinId) {
+      return;
+    }
+
+    hoveredSuggestionIdRef.current = skinId;
+    playUiSound('autocomplete-hover');
+  };
+
   useEffect(() => {
     const updateReset = () => {
       const nextDateKey = getDailyDateKey();
@@ -475,6 +503,7 @@ export function Skindle() {
     setRevealedSolvedGuessId(null);
     const timeout = window.setTimeout(() => {
       setRevealedSolvedGuessId(latestGuess.item.id);
+      playUiSound('skindle-answer-reveal');
       setPlayerStats(
         recordPlayerGameCompletion(
           'skindle',
@@ -520,6 +549,10 @@ export function Skindle() {
     setInputValue('');
     setSuggestions([]);
     setMessage(skin.id === target.id ? 'Solved.' : '');
+    scheduleSound(
+      skin.id === target.id ? 'skindle-guess-correct' : 'skindle-guess-incorrect',
+      Math.max(0, SKINDLE_REVEAL_TOTAL_MS - 220),
+    );
 
     if (clientId) {
       fetch('/api/skindle/stats', {
@@ -1006,7 +1039,22 @@ export function Skindle() {
                         key={skin.id}
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => submitGuess(skin)}
+                        onPointerEnter={() => playSuggestionHoverSound(skin.id)}
+                        onPointerLeave={() => {
+                          if (hoveredSuggestionIdRef.current === skin.id) {
+                            hoveredSuggestionIdRef.current = null;
+                          }
+                        }}
+                        onFocus={() => playSuggestionHoverSound(skin.id)}
+                        onBlur={() => {
+                          if (hoveredSuggestionIdRef.current === skin.id) {
+                            hoveredSuggestionIdRef.current = null;
+                          }
+                        }}
+                        onClick={() => {
+                          playUiSound('autocomplete-select');
+                          submitGuess(skin);
+                        }}
                         className="absolute left-0 grid w-full grid-cols-[4rem_minmax(0,1fr)] items-center gap-3 rounded-xl px-2 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
                         style={{
                           top: (suggestionsStartIndex + index) * SKINDLE_SUGGESTION_ROW_HEIGHT,

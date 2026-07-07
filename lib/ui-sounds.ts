@@ -1,7 +1,16 @@
 'use client';
 
-type SoundName = 'friend-request-incoming' | 'friend-request-sent' | 'message-incoming' | 'message-sent';
-type SoundCategory = 'chat' | 'friend-request';
+export type SoundName =
+  | 'friend-request-incoming'
+  | 'friend-request-sent'
+  | 'message-incoming'
+  | 'message-sent'
+  | 'autocomplete-hover'
+  | 'autocomplete-select'
+  | 'skindle-guess-correct'
+  | 'skindle-guess-incorrect'
+  | 'skindle-answer-reveal';
+type SoundCategory = 'chat' | 'friend-request' | 'game';
 
 export type UiSoundSettings = {
   volume: number;
@@ -35,6 +44,30 @@ const soundTones: Record<SoundName, Tone[]> = {
     { frequency: 560, duration: 0.055, gain: 0.035 },
     { frequency: 680, duration: 0.055, delay: 0.055, gain: 0.035 },
   ],
+  'autocomplete-hover': [
+    { frequency: 820, duration: 0.035, gain: 0.026, type: 'triangle' },
+    { frequency: 1240, duration: 0.045, delay: 0.025, gain: 0.022, type: 'sine' },
+  ],
+  'autocomplete-select': [
+    { frequency: 560, duration: 0.045, gain: 0.034, type: 'triangle' },
+    { frequency: 840, duration: 0.06, delay: 0.045, gain: 0.038, type: 'triangle' },
+    { frequency: 1120, duration: 0.08, delay: 0.1, gain: 0.03, type: 'sine' },
+  ],
+  'skindle-guess-correct': [
+    { frequency: 660, duration: 0.08, gain: 0.045, type: 'triangle' },
+    { frequency: 880, duration: 0.08, delay: 0.07, gain: 0.05, type: 'triangle' },
+    { frequency: 1320, duration: 0.11, delay: 0.15, gain: 0.04, type: 'sine' },
+  ],
+  'skindle-guess-incorrect': [
+    { frequency: 260, duration: 0.1, gain: 0.045, type: 'sawtooth' },
+    { frequency: 180, duration: 0.16, delay: 0.08, gain: 0.032, type: 'triangle' },
+  ],
+  'skindle-answer-reveal': [
+    { frequency: 392, duration: 0.09, gain: 0.04, type: 'triangle' },
+    { frequency: 587.33, duration: 0.1, delay: 0.08, gain: 0.045, type: 'triangle' },
+    { frequency: 783.99, duration: 0.12, delay: 0.17, gain: 0.045, type: 'triangle' },
+    { frequency: 1174.66, duration: 0.18, delay: 0.29, gain: 0.035, type: 'sine' },
+  ],
 };
 
 const soundCategories: Record<SoundName, SoundCategory> = {
@@ -42,6 +75,11 @@ const soundCategories: Record<SoundName, SoundCategory> = {
   'friend-request-sent': 'friend-request',
   'message-incoming': 'chat',
   'message-sent': 'chat',
+  'autocomplete-hover': 'game',
+  'autocomplete-select': 'game',
+  'skindle-guess-correct': 'game',
+  'skindle-guess-incorrect': 'game',
+  'skindle-answer-reveal': 'game',
 };
 
 const SOUND_SETTINGS_KEY = 'knowleague:v1:ui-sound-settings';
@@ -107,7 +145,11 @@ function canPlaySound(sound: SoundName, settings: UiSoundSettings) {
     return !settings.chatMuted;
   }
 
-  return !settings.friendRequestMuted;
+  if (category === 'friend-request') {
+    return !settings.friendRequestMuted;
+  }
+
+  return true;
 }
 
 function getAudioContext() {

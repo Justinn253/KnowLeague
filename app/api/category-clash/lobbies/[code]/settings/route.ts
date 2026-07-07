@@ -11,6 +11,7 @@ type SettingsBody = {
   intermissionSeconds?: unknown;
   timerDecrementInterval?: unknown;
   maxStrikes?: unknown;
+  lobbyDescription?: unknown;
 };
 export const runtime = 'nodejs';
 
@@ -28,6 +29,7 @@ export async function POST(request: Request, { params }: { params: { code: strin
         intermissionSeconds: body.intermissionSeconds,
         timerDecrementInterval: body.timerDecrementInterval,
         maxStrikes: body.maxStrikes,
+        lobbyDescription: body.lobbyDescription,
       },
     ));
   } catch (error) {

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { updateSkincognitoLobbyVisibility } from '@/lib/skincognito';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 
-type VisibilityBody = { clientId: string; isPublic?: boolean };
+type VisibilityBody = { clientId: string; isPublic?: boolean; lobbyDescription?: unknown };
 export const runtime = 'nodejs';
 
 export async function POST(request: Request, { params }: { params: { code: string } }) {
@@ -12,6 +12,7 @@ export async function POST(request: Request, { params }: { params: { code: strin
       params.code,
       requireString(body.clientId, 'clientId'),
       body.isPublic === true,
+      body.lobbyDescription,
     ));
   } catch (error) {
     return getRouteErrorResponse(error);

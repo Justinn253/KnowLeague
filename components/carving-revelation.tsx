@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, PointerEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, LogOut, PencilLine, RefreshCw, XCircle } from 'lucide-react';
+import { Check, ChevronDown, LogOut, PencilLine, RefreshCw, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { GameSettingsSection } from '@/components/game-settings-section';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
@@ -13,6 +13,7 @@ import {
   MultiplayerLobbyHeader,
   MultiplayerLobbyMessage,
   MultiplayerLobbyPanel,
+  MultiplayerLobbyDescriptionInput,
   MultiplayerLobbyShell,
   MultiplayerModifierToggle,
   MultiplayerPublicLobbyButton,
@@ -29,6 +30,7 @@ import { normalizeAnswer } from '@/lib/quiz';
 import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevelationModifier, CarvingRevelationPublicLobby, CarvingRevelationWinCondition } from '@/lib/carving-revelation';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
+import { playUiSound } from '@/lib/ui-sounds';
 
 const STORAGE_KEY = 'knowleague:v1:carving-revelation:lobby-code';
 const API_BASE = '/api/carving-revelation/lobbies';
@@ -46,8 +48,8 @@ const WIN_CONDITION_OPTIONS: Array<{ value: CarvingRevelationWinCondition; label
   { value: 'first_correct', label: 'First correct guess wins', description: 'The first correct guess immediately wins the match.' },
 ];
 const CARVING_MODIFIERS: Array<{ id: CarvingRevelationModifier; name: string; description: string }> = [
-  { id: 'greyscale', name: 'Greyscale', description: 'Skin splash art is greyscaled.' },
-  { id: 'blurred', name: 'Blurred', description: 'Skin splash art is slightly blurred.' },
+  { id: 'greyscale', name: 'Greyscale', description: 'Splash art is greyscaled.' },
+  { id: 'blurred', name: 'Blurred', description: 'Splash art is slightly blurred.' },
   { id: 'cropped', name: 'Cropped', description: 'Only a cropped section of the splash art is shown.' },
 ];
 const STARTING_LINE_LENGTH_OPTIONS = [5, 8, 10, 15, 20];
@@ -59,6 +61,11 @@ type DraftCarvingSettings = {
   modifiers: CarvingRevelationModifier[];
   startingLineLengthPercent: number;
   lineLengthIncrementPercent: number;
+};
+
+type SettingOption<T extends string | number | null> = {
+  value: T;
+  label: string;
 };
 
 type Stroke = {
@@ -182,6 +189,76 @@ function createDraftSettings(view: CarvingRevelationLobbyView): DraftCarvingSett
     startingLineLengthPercent: view.lobby.starting_line_length_percent,
     lineLengthIncrementPercent: view.lobby.line_length_increment_percent,
   };
+}
+
+function getSettingOptionKey(value: string | number | null) {
+  return value === null ? 'none' : String(value);
+}
+
+function haveSameModifiers(first: CarvingRevelationModifier[], second: CarvingRevelationModifier[]) {
+  if (first.length !== second.length) return false;
+  const firstSet = new Set(first);
+  return second.every((modifier) => firstSet.has(modifier));
+}
+
+function SettingDropdown<T extends string | number | null>({
+  label,
+  value,
+  options,
+  disabled,
+  onSelect,
+}: {
+  label: string;
+  value: T;
+  options: Array<SettingOption<T>>;
+  disabled?: boolean;
+  onSelect: (value: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedOption = options.find((option) => getSettingOptionKey(option.value) === getSettingOptionKey(value)) ?? options[0];
+
+  return (
+    <label className="relative grid gap-2">
+      <span className="text-sm font-bold text-white">{label}</span>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          playUiSound('autocomplete-select');
+          setOpen((current) => !current);
+        }}
+        className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900 px-3 text-left text-sm font-semibold text-white outline-none transition hover:bg-slate-800 focus:border-amber-300/60 disabled:cursor-not-allowed disabled:opacity-65"
+      >
+        <span className="truncate">{selectedOption?.label}</span>
+        <ChevronDown size={16} className="shrink-0 text-slate-500" />
+      </button>
+      {open && !disabled ? (
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 grid overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1 shadow-lg shadow-slate-950/40">
+          {options.map((option) => (
+            <button
+              key={getSettingOptionKey(option.value)}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => playUiSound('autocomplete-hover')}
+              onFocus={() => playUiSound('autocomplete-hover')}
+              onClick={() => {
+                playUiSound('autocomplete-select');
+                setOpen(false);
+                onSelect(option.value);
+              }}
+              className={`rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
+                getSettingOptionKey(option.value) === getSettingOptionKey(value)
+                  ? 'bg-amber-300/15 text-amber-100'
+                  : 'text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </label>
+  );
 }
 
 function useCanvasRenderer(
@@ -336,12 +413,21 @@ function useCanvasRenderer(
 export function CarvingRevelation() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const guessInputAreaRef = useRef<HTMLDivElement>(null);
   const latestSessionRef = useRef<{ code: string; clientId: string; status: CarvingRevelationLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
   const autoSubmittedCarveKeyRef = useRef<string | null>(null);
+  const countdownSoundSecondRef = useRef<number | null>(null);
+  const startCountdownSoundSecondRef = useRef<number | null>(null);
+  const phaseSoundKeyRef = useRef<string | null>(null);
+  const finishSoundLobbyIdRef = useRef<string | null>(null);
+  const guessOutcomeSoundIdsRef = useRef<Set<number>>(new Set());
+  const guessOutcomeLobbyIdRef = useRef<string | null>(null);
+  const previousRosterSnapshotRef = useRef<{ hostId: string | null; roles: Map<string, string>; playerIds: Set<string> } | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [view, setView] = useState<CarvingRevelationLobbyView | null>(null);
   const [publicLobbies, setPublicLobbies] = useState<CarvingRevelationPublicLobby[]>([]);
+  const [lobbyDescription, setLobbyDescription] = useState('');
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [guess, setGuess] = useState('');
@@ -356,28 +442,55 @@ export function CarvingRevelation() {
   const [confirmedCarvePath, setConfirmedCarvePath] = useState<RevealPoint[]>([]);
   const [draftLocked, setDraftLocked] = useState(false);
   const [phaseRemainingSeconds, setPhaseRemainingSeconds] = useState(0);
+  const [startCountdownSeconds, setStartCountdownSeconds] = useState<number | null>(null);
   const [matchElapsedSeconds, setMatchElapsedSeconds] = useState(0);
   const [draftSettings, setDraftSettings] = useState<DraftCarvingSettings | null>(null);
   const [settingsDirty, setSettingsDirty] = useState(false);
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
+  const lobbyId = view?.lobby.id ?? null;
+  const serverLobbyDescription = view?.lobby.lobby_description ?? '';
+  const lobbyDescriptionDirty = lobbyDescription !== serverLobbyDescription;
   const isActivePlayer = Boolean(view?.requestingPlayer?.result === 'active' && view.requestingPlayer.connected);
   const hasWonCurrentMatch = Boolean(view?.requestingPlayer?.result === 'won');
   const hasForfeitedCurrentMatch = Boolean(view?.requestingPlayer?.result === 'eliminated');
   const shouldShowGuessForm = !hasWonCurrentMatch && !hasForfeitedCurrentMatch;
   const shouldShowWinnerImageBorder = Boolean(view?.lobby.status === 'active' && hasWonCurrentMatch);
-  const canCarve = Boolean(view?.lobby.status === 'active' && view.lobby.phase === 'carve' && isActivePlayer);
-  const canGuess = Boolean(view?.lobby.status === 'active' && view.lobby.phase === 'guess' && isActivePlayer);
+  const computedStartCountdownSeconds = startCountdownSeconds ?? (
+    view?.lobby.status === 'active' && view.lobby.started_at && new Date(view.lobby.started_at).getTime() > Date.now()
+      ? Math.max(1, Math.ceil((new Date(view.lobby.started_at).getTime() - Date.now()) / 1000))
+      : null
+  );
+  const isStartCountdownPending = Boolean(computedStartCountdownSeconds && computedStartCountdownSeconds > 0);
+  const canCarve = Boolean(view?.lobby.status === 'active' && !isStartCountdownPending && view.lobby.phase === 'carve' && isActivePlayer);
+  const canGuess = Boolean(view?.lobby.status === 'active' && !isStartCountdownPending && view.lobby.phase === 'guess' && isActivePlayer);
   const winner = view?.players.find((player) => player.id === view.lobby.winner_player_id) ?? null;
   const winningPlayers = view?.players.filter((player) => player.result === 'won') ?? [];
   const nextRoundVotePlayers = view?.players.filter((player) => view.nextRoundVotes.includes(player.id)) ?? [];
   const hasVotedForNextRound = Boolean(view?.requestingPlayer && view.nextRoundVotes.includes(view.requestingPlayer.id));
+  const connectedPlayerCount = view?.players.filter((player) => player.connected).length ?? 0;
   const lineLimitPercent = view ? Math.round((view.lineLengthLimit / view.maxLineLength) * 100) : 0;
   const visibleSettings = draftSettings ?? (view ? createDraftSettings(view) : null);
+  const settingsChanged = Boolean(view && visibleSettings && (
+    visibleSettings.phaseDurationSeconds !== view.lobby.phase_duration_seconds ||
+    visibleSettings.winCondition !== view.lobby.win_condition ||
+    visibleSettings.startingLineLengthPercent !== view.lobby.starting_line_length_percent ||
+    visibleSettings.lineLengthIncrementPercent !== view.lobby.line_length_increment_percent ||
+    !haveSameModifiers(visibleSettings.modifiers, view.lobby.modifiers)
+  ));
+  const settingsPending = settingsChanged || lobbyDescriptionDirty;
   const selectedModifiers = useMemo(() => new Set(visibleSettings?.modifiers ?? []), [visibleSettings?.modifiers]);
   const activeModifiers = useMemo(() => new Set(view?.lobby.modifiers ?? []), [view?.lobby.modifiers]);
   const phaseTimeSummary = visibleSettings?.phaseDurationSeconds === null ? 'None' : `${visibleSettings?.phaseDurationSeconds ?? 30}s`;
   const winConditionSummary = WIN_CONDITION_OPTIONS.find((option) => option.value === visibleSettings?.winCondition)?.label ?? 'Everyone guess correct';
+  const nextRoundVoteThreshold = Math.floor(connectedPlayerCount / 2) + 1;
+  const canHostStartNextRound = Boolean(isHost && view?.lobby.status === 'finished' && view.nextRoundVotes.length >= nextRoundVoteThreshold);
+  const shouldShowLeaveGame = Boolean(view?.requestingPlayer && (
+    view.requestingPlayer.result === 'eliminated' ||
+    view.requestingPlayer.disconnected_at === FORFEIT_DISCONNECTED_AT
+  ));
+  const displayedRoundTimerSeconds = computedStartCountdownSeconds ?? phaseRemainingSeconds;
+  const timerIsUrgent = Boolean(view?.lobby.status === 'active' && view.lobby.phase_duration_seconds !== null && displayedRoundTimerSeconds > 0 && displayedRoundTimerSeconds <= 3);
   const imageModifierClassName = [
     'absolute inset-0 bg-cover bg-center transition duration-300',
     activeModifiers.has('greyscale') ? 'grayscale' : '',
@@ -415,25 +528,36 @@ export function CarvingRevelation() {
       ))
       .map((action) => action.player_id as string));
   }, [view]);
-  const exactGuessSuggestion = useMemo(() => {
-    const query = normalizeAnswer(guess);
-    if (!query) return null;
-    return skinAnswers.find((answer) => normalizeAnswer(answer) === query) ?? null;
-  }, [guess, skinAnswers]);
   const playerColorById = useMemo(() => Object.fromEntries(
     view?.players.map((player) => [player.id, player.carve_color]) ?? [],
   ), [view?.players]);
 
-  useEffect(() => {
-    const query = normalizeAnswer(guess);
-    if (!canGuess || query.length < 2 || (exactGuessSuggestion && normalizeAnswer(exactGuessSuggestion) === query)) {
-      setSuggestions([]);
-      return;
+  const getGuessSuggestions = useCallback((value: string) => {
+    const query = normalizeAnswer(value);
+    if (!canGuess || query.length < 2) {
+      return [];
     }
-    setSuggestions(skinAnswers
+
+    return skinAnswers
       .filter((answer) => normalizeAnswer(answer).includes(query))
-      .slice(0, 12));
-  }, [canGuess, exactGuessSuggestion, guess, skinAnswers]);
+      .slice(0, 12);
+  }, [canGuess, skinAnswers]);
+
+  useEffect(() => {
+    setSuggestions(getGuessSuggestions(guess));
+  }, [getGuessSuggestions, guess]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!guessInputAreaRef.current?.contains(target)) {
+        setSuggestions([]);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, []);
 
   const previewPath = draftPath.length > 0 ? draftPath : confirmedCarvePath;
   useCanvasRenderer(
@@ -545,7 +669,7 @@ export function CarvingRevelation() {
   }, [loadPublicLobbies, refreshLobby]);
 
   useEffect(() => {
-    fetch('/api/skin-champion/quiz-answers')
+    fetch('/api/skin-champion/quiz-answers?answerMode=skin-line')
       .then((response) => response.json())
       .then((answers: string[]) => setSkinAnswers(Array.isArray(answers) ? answers : []))
       .catch(() => setSkinAnswers([]));
@@ -563,6 +687,18 @@ export function CarvingRevelation() {
     view?.lobby.starting_line_length_percent,
     view?.lobby.win_condition,
   ]);
+
+  useEffect(() => {
+    if (settingsDirty && !settingsChanged) {
+      setSettingsDirty(false);
+    }
+  }, [settingsChanged, settingsDirty]);
+
+  useEffect(() => {
+    if (lobbyId) {
+      setLobbyDescription(serverLobbyDescription);
+    }
+  }, [lobbyId, serverLobbyDescription]);
 
   useEffect(() => {
     setDraftPath([]);
@@ -601,7 +737,9 @@ export function CarvingRevelation() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clientId }),
         });
-        applyView(await readLobbyResponse(response));
+        if (!response.ok) {
+          await readLobbyResponse(response);
+        }
       } catch (error) {
         if (error instanceof Error && (error.message.includes('cannot rejoin') || error.message.includes('Player not found'))) {
           window.localStorage.removeItem(STORAGE_KEY);
@@ -614,7 +752,7 @@ export function CarvingRevelation() {
     };
     const interval = window.setInterval(() => void heartbeat(), MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [applyView, clientId, router, view]);
+  }, [clientId, router, view]);
 
   useEffect(() => {
     if (!view || !clientId || view.lobby.status !== 'active') return undefined;
@@ -630,12 +768,17 @@ export function CarvingRevelation() {
   useEffect(() => {
     if (!view?.lobby.phase_deadline_at || view.lobby.status !== 'active') {
       setPhaseRemainingSeconds(0);
+      countdownSoundSecondRef.current = null;
       return undefined;
     }
     let refreshed = false;
     const update = () => {
       const remaining = Math.max(0, Math.ceil((new Date(view.lobby.phase_deadline_at as string).getTime() - Date.now()) / 1000));
       setPhaseRemainingSeconds(remaining);
+      if (remaining > 0 && remaining <= 3 && countdownSoundSecondRef.current !== remaining) {
+        countdownSoundSecondRef.current = remaining;
+        playUiSound('timer-countdown');
+      }
       if (remaining === 0 && !refreshed && clientId) {
         refreshed = true;
         window.setTimeout(() => void refreshLobby(view.lobby.code, clientId).catch(() => undefined), 200);
@@ -647,6 +790,28 @@ export function CarvingRevelation() {
   }, [clientId, refreshLobby, view]);
 
   useEffect(() => {
+    if (!view?.lobby.started_at || view.lobby.status !== 'active') {
+      setStartCountdownSeconds(null);
+      startCountdownSoundSecondRef.current = null;
+      return undefined;
+    }
+
+    const startedAtMs = new Date(view.lobby.started_at).getTime();
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((startedAtMs - Date.now()) / 1000));
+      setStartCountdownSeconds(remaining > 0 ? remaining : null);
+      if (remaining > 0 && startCountdownSoundSecondRef.current !== remaining) {
+        startCountdownSoundSecondRef.current = remaining;
+        playUiSound('timer-countdown');
+      }
+    };
+
+    update();
+    const interval = window.setInterval(update, 200);
+    return () => window.clearInterval(interval);
+  }, [view?.lobby.started_at, view?.lobby.status]);
+
+  useEffect(() => {
     if (!view?.lobby.started_at || (view.lobby.status !== 'active' && view.lobby.status !== 'finished')) {
       setMatchElapsedSeconds(0);
       return undefined;
@@ -654,7 +819,7 @@ export function CarvingRevelation() {
     const startedAtMs = new Date(view.lobby.started_at).getTime();
     const finishedAtMs = view.lobby.finished_at ? new Date(view.lobby.finished_at).getTime() : null;
     const update = () => {
-      const endMs = finishedAtMs ?? Date.now();
+      const endMs = Math.max(startedAtMs, finishedAtMs ?? Date.now());
       setMatchElapsedSeconds(Math.max(0, Math.floor((endMs - startedAtMs) / 1000)));
     };
     update();
@@ -662,6 +827,83 @@ export function CarvingRevelation() {
     const interval = window.setInterval(update, 1000);
     return () => window.clearInterval(interval);
   }, [view?.lobby.finished_at, view?.lobby.started_at, view?.lobby.status]);
+
+  useEffect(() => {
+    const phaseKey = view?.lobby.status === 'active'
+      ? `${view.lobby.id}:${view.lobby.round_number}:${view.lobby.phase}`
+      : null;
+    const previousPhaseKey = phaseSoundKeyRef.current;
+    phaseSoundKeyRef.current = phaseKey;
+    countdownSoundSecondRef.current = null;
+
+    if (phaseKey && previousPhaseKey && phaseKey !== previousPhaseKey) {
+      playUiSound('skindle-answer-reveal');
+    }
+  }, [view?.lobby.id, view?.lobby.phase, view?.lobby.round_number, view?.lobby.status]);
+
+  useEffect(() => {
+    const currentGuessIds = new Set(
+      (view?.actions ?? [])
+        .filter((action) => action.action_type === 'guess' && typeof action.payload.correct === 'boolean')
+        .map((action) => action.id),
+    );
+    const previousGuessIds = guessOutcomeSoundIdsRef.current;
+    const lobbyChanged = guessOutcomeLobbyIdRef.current !== (view?.lobby.id ?? null);
+    const newResolvedGuesses = (view?.actions ?? []).filter((action) => (
+      action.action_type === 'guess' &&
+      typeof action.payload.correct === 'boolean' &&
+      !previousGuessIds.has(action.id)
+    ));
+
+    if (!lobbyChanged) {
+      newResolvedGuesses.forEach((action) => {
+        playUiSound(action.payload.correct ? 'skindle-guess-correct' : 'skindle-guess-incorrect');
+      });
+    }
+
+    guessOutcomeLobbyIdRef.current = view?.lobby.id ?? null;
+    guessOutcomeSoundIdsRef.current = currentGuessIds;
+  }, [view?.actions, view?.lobby.id]);
+
+  useEffect(() => {
+    if (!view || view.lobby.status !== 'waiting') {
+      previousRosterSnapshotRef.current = null;
+      return;
+    }
+
+    const nextSnapshot = {
+      hostId: view.lobby.host_player_id,
+      roles: new Map(view.players.map((player) => [player.id, player.role])),
+      playerIds: new Set(view.players.map((player) => player.id)),
+    };
+    const previousSnapshot = previousRosterSnapshotRef.current;
+
+    if (previousSnapshot) {
+      const hostChanged = previousSnapshot.hostId !== nextSnapshot.hostId;
+      const roleChanged = view.players.some((player) => previousSnapshot.roles.get(player.id) && previousSnapshot.roles.get(player.id) !== player.role);
+      const playerRemoved = [...previousSnapshot.playerIds].some((playerId) => !nextSnapshot.playerIds.has(playerId));
+
+      if (hostChanged || roleChanged || playerRemoved) {
+        playUiSound('player-management');
+      }
+    }
+
+    previousRosterSnapshotRef.current = nextSnapshot;
+  }, [view]);
+
+  useEffect(() => {
+    if (!view || view.lobby.status !== 'finished') {
+      finishSoundLobbyIdRef.current = null;
+      return;
+    }
+
+    if (finishSoundLobbyIdRef.current === view.lobby.id) {
+      return;
+    }
+
+    finishSoundLobbyIdRef.current = view.lobby.id;
+    playUiSound(view.requestingPlayer?.result === 'won' ? 'puzzle-complete' : 'timer-expired');
+  }, [view]);
 
   useEffect(() => {
     if (!view || !clientId) return undefined;
@@ -752,6 +994,7 @@ export function CarvingRevelation() {
     modifiers?: CarvingRevelationModifier[];
     startingLineLengthPercent?: number;
     lineLengthIncrementPercent?: number;
+    lobbyDescription?: string;
   }) => {
     if (!clientId || !view || !isHost) return;
     setBusy(true);
@@ -768,6 +1011,7 @@ export function CarvingRevelation() {
           modifiers: settings.modifiers ?? view.lobby.modifiers,
           startingLineLengthPercent: settings.startingLineLengthPercent ?? view.lobby.starting_line_length_percent,
           lineLengthIncrementPercent: settings.lineLengthIncrementPercent ?? view.lobby.line_length_increment_percent,
+          lobbyDescription: settings.lobbyDescription ?? view.lobby.lobby_description,
         }),
       });
       applyView(await readLobbyResponse(response));
@@ -792,6 +1036,7 @@ export function CarvingRevelation() {
       modifiers: draftSettings.modifiers,
       startingLineLengthPercent: draftSettings.startingLineLengthPercent,
       lineLengthIncrementPercent: draftSettings.lineLengthIncrementPercent,
+      lobbyDescription,
     });
     if (applied) setSettingsDirty(false);
   };
@@ -834,6 +1079,7 @@ export function CarvingRevelation() {
 
   const startNextRound = async () => {
     if (!clientId || !view || !isHost) return;
+    playUiSound('random-select');
     setBusy(true);
     setMessage('');
     try {
@@ -856,6 +1102,7 @@ export function CarvingRevelation() {
 
   const voteNextRound = async () => {
     if (!clientId || !view || view.lobby.status !== 'finished') return;
+    playUiSound('random-select');
     setBusy(true);
     setMessage('');
     try {
@@ -875,8 +1122,28 @@ export function CarvingRevelation() {
   const leaveGame = async () => {
     if (!view) return;
     if (!window.confirm('Leave this game permanently? You will not be able to reconnect to this match.')) return;
+    playUiSound('timer-expired');
     await leaveCurrentLobby(true);
     router.push('/');
+  };
+
+  const returnToLobby = async () => {
+    if (!clientId || !view || !isHost) return;
+    playUiSound('random-select');
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${API_BASE}/${view.lobby.code}/return`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      });
+      applyView(await readLobbyResponse(response));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to return to the lobby.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleBack = async () => {
@@ -893,7 +1160,8 @@ export function CarvingRevelation() {
 
   const giveUp = async () => {
     if (!clientId || !view) return;
-    if (!window.confirm('Give up this match? You will stay connected but cannot keep playing this skin.')) return;
+    if (!window.confirm('Give up this match? You will stay connected but cannot keep playing this skin line.')) return;
+    playUiSound('timer-expired');
     setBusy(true);
     setMessage('');
     try {
@@ -932,10 +1200,12 @@ export function CarvingRevelation() {
 
   const submitGuess = async (event: FormEvent) => {
     event.preventDefault();
+    playUiSound('autocomplete-select');
     await submitGuessValue(guess);
   };
 
   const handleSuggestionClick = (suggestion: string) => {
+    playUiSound('autocomplete-select');
     setGuess(suggestion);
     setSuggestions([]);
     void submitGuessValue(suggestion);
@@ -943,6 +1213,7 @@ export function CarvingRevelation() {
 
   const submitShape = useCallback(async (points: RevealPoint[]) => {
     if (!clientId || !view || !canCarve) return;
+    playUiSound('tile-lock-correct');
     setBusy(true);
     setMessage('');
     try {
@@ -1013,7 +1284,6 @@ export function CarvingRevelation() {
     setIsDrawing(false);
   };
 
-  const connectedPlayerCount = view?.players.filter((player) => player.connected).length ?? 0;
   const headerStatus = view?.lobby.status === 'waiting'
     ? `Lobby - ${view.players.length >= view.lobby.max_players ? 'Full' : connectedPlayerCount >= 2 ? 'Ready to start' : 'Waiting for players'}`
     : view?.lobby.status === 'active'
@@ -1064,8 +1334,8 @@ export function CarvingRevelation() {
       subtitle={view ? (view.lobby.status === 'waiting' ? 'Lobby' : '') : 'Create or join a lobby'}
       statusLabel={headerStatus}
       infoSteps={[
-        'A secret skin is selected when the host starts the game.',
-        'Players take turns carving one reveal line into the shared canvas or guessing the skin.',
+        'A secret skin line is selected when the host starts the game.',
+        'Players take turns carving one reveal line into the shared canvas or guessing the skin line.',
         'The reveal line limit grows each round until someone finds the answer.',
       ]}
       onBack={handleBack}
@@ -1074,16 +1344,7 @@ export function CarvingRevelation() {
         <>
           {view?.lobby.status === 'finished' ? (
             <>
-              <button
-                type="button"
-                onClick={voteNextRound}
-                disabled={busy || hasVotedForNextRound}
-                title={nextRoundVotePlayers.length > 0 ? nextRoundVotePlayers.map((player) => player.display_name).join(', ') : 'No votes yet'}
-                className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Check size={16} /> {hasVotedForNextRound ? 'Voted' : 'Vote Next'} {view.nextRoundVotes.length}/{connectedPlayerCount}
-              </button>
-              {isHost ? (
+              {canHostStartNextRound ? (
                 <button
                   type="button"
                   onClick={startNextRound}
@@ -1091,6 +1352,26 @@ export function CarvingRevelation() {
                   className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <RefreshCw size={16} /> Start Next Round
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={voteNextRound}
+                  disabled={busy || hasVotedForNextRound}
+                  title={nextRoundVotePlayers.length > 0 ? nextRoundVotePlayers.map((player) => player.display_name).join(', ') : 'No votes yet'}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Check size={16} /> {hasVotedForNextRound ? 'Voted' : 'Vote Next'} {view.nextRoundVotes.length}/{connectedPlayerCount}
+                </button>
+              )}
+              {isHost ? (
+                <button
+                  type="button"
+                  onClick={returnToLobby}
+                  disabled={busy}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Return to Lobby
                 </button>
               ) : null}
             </>
@@ -1107,14 +1388,16 @@ export function CarvingRevelation() {
                 <XCircle size={16} /> Give Up
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={leaveGame}
-              disabled={busy}
-              className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-black text-slate-200 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-                <LogOut size={16} /> Leave Game
-              </button>
+            {shouldShowLeaveGame ? (
+              <button
+                type="button"
+                onClick={leaveGame}
+                disabled={busy}
+                className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-black text-slate-200 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                  <LogOut size={16} /> Leave Game
+                </button>
+            ) : null}
             </>
           ) : null}
         </>
@@ -1156,7 +1439,7 @@ export function CarvingRevelation() {
                 maxPlayers={lobby.maxPlayers}
                 disabled={busy}
                 onClick={() => joinLobbyByCode(lobby.code, true)}
-                details={<span>Shared canvas reveal</span>}
+                details={lobby.description ? <span className="basis-full text-slate-300">{lobby.description}</span> : null}
               />
             )) : <MultiplayerPublicLobbyEmpty />}
           />
@@ -1191,6 +1474,11 @@ export function CarvingRevelation() {
 
               <MultiplayerLobbyPanel
                 title="Game Settings"
+                headerAction={settingsPending ? (
+                  <button type="button" disabled={!isHost || busy} onClick={() => void applySettings()} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-300 px-4 text-xs font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+                    Apply Settings
+                  </button>
+                ) : null}
                 lockedHint={!isHost ? 'Only the host can change game settings.' : null}
               >
                 <MultiplayerVisibilityToggle
@@ -1198,65 +1486,46 @@ export function CarvingRevelation() {
                   disabled={!isHost || busy}
                   onToggle={updatePublicStatus}
                 />
+                <MultiplayerLobbyDescriptionInput
+                  value={lobbyDescription}
+                  disabled={!isHost || busy}
+                  onChange={setLobbyDescription}
+                />
                 <fieldset className="mt-5 grid gap-5">
                     <legend className="sr-only">Carving Revelation settings</legend>
                     <GameSettingsSection title="Settings" defaultOpen summary={`${phaseTimeSummary} - ${winConditionSummary}`}>
                       <div className="grid gap-4">
                         <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="grid gap-2">
-                          <span className="text-sm font-bold text-white">Phase Time</span>
-                          <select
-                            value={visibleSettings?.phaseDurationSeconds ?? 'none'}
+                          <SettingDropdown
+                            label="Phase Time"
+                            value={visibleSettings?.phaseDurationSeconds ?? null}
+                            options={PHASE_TIME_OPTIONS}
                             disabled={!isHost || busy}
-                            onChange={(event) => updateDraftSettings((current) => ({ ...current, phaseDurationSeconds: event.target.value === 'none' ? null : Number(event.target.value) }))}
-                            className="min-h-11 rounded-2xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300/60 disabled:cursor-not-allowed disabled:opacity-65"
-                          >
-                            {PHASE_TIME_OPTIONS.map((option) => (
-                              <option key={option.value ?? 'none'} value={option.value ?? 'none'}>{option.label}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="grid gap-2">
-                          <span className="text-sm font-bold text-white">Win Condition</span>
-                          <select
+                            onSelect={(value) => updateDraftSettings((current) => ({ ...current, phaseDurationSeconds: value }))}
+                          />
+                          <SettingDropdown
+                            label="Win Condition"
                             value={visibleSettings?.winCondition ?? 'everyone_correct'}
+                            options={WIN_CONDITION_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
                             disabled={!isHost || busy}
-                            onChange={(event) => updateDraftSettings((current) => ({ ...current, winCondition: event.target.value as CarvingRevelationWinCondition }))}
-                            className="min-h-11 rounded-2xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300/60 disabled:cursor-not-allowed disabled:opacity-65"
-                          >
-                            {WIN_CONDITION_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                          </select>
-                        </label>
+                            onSelect={(value) => updateDraftSettings((current) => ({ ...current, winCondition: value }))}
+                          />
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <label className="grid gap-2">
-                            <span className="text-sm font-bold text-white">Starting Line Length</span>
-                            <select
-                              value={visibleSettings?.startingLineLengthPercent ?? 8}
-                              disabled={!isHost || busy}
-                              onChange={(event) => updateDraftSettings((current) => ({ ...current, startingLineLengthPercent: Number(event.target.value) }))}
-                              className="min-h-11 rounded-2xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300/60 disabled:cursor-not-allowed disabled:opacity-65"
-                            >
-                              {STARTING_LINE_LENGTH_OPTIONS.map((option) => (
-                                <option key={option} value={option}>{option}%</option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="grid gap-2">
-                            <span className="text-sm font-bold text-white">Round Increment</span>
-                            <select
-                              value={visibleSettings?.lineLengthIncrementPercent ?? 2}
-                              disabled={!isHost || busy}
-                              onChange={(event) => updateDraftSettings((current) => ({ ...current, lineLengthIncrementPercent: Number(event.target.value) }))}
-                              className="min-h-11 rounded-2xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300/60 disabled:cursor-not-allowed disabled:opacity-65"
-                            >
-                              {LINE_LENGTH_INCREMENT_OPTIONS.map((option) => (
-                                <option key={option} value={option}>{option}%</option>
-                              ))}
-                            </select>
-                          </label>
+                          <SettingDropdown
+                            label="Starting Line Length"
+                            value={visibleSettings?.startingLineLengthPercent ?? 8}
+                            options={STARTING_LINE_LENGTH_OPTIONS.map((option) => ({ value: option, label: `${option}%` }))}
+                            disabled={!isHost || busy}
+                            onSelect={(value) => updateDraftSettings((current) => ({ ...current, startingLineLengthPercent: value }))}
+                          />
+                          <SettingDropdown
+                            label="Round Increment"
+                            value={visibleSettings?.lineLengthIncrementPercent ?? 2}
+                            options={LINE_LENGTH_INCREMENT_OPTIONS.map((option) => ({ value: option, label: `${option}%` }))}
+                            disabled={!isHost || busy}
+                            onSelect={(value) => updateDraftSettings((current) => ({ ...current, lineLengthIncrementPercent: value }))}
+                          />
                         </div>
                       </div>
                     </GameSettingsSection>
@@ -1282,21 +1551,14 @@ export function CarvingRevelation() {
                       })}
                     </div>
                   </GameSettingsSection>
-                  {settingsDirty ? (
-                    <div className="flex justify-end">
-                      <button type="button" disabled={!isHost || busy} onClick={() => void applySettings()} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                        Apply Settings
-                      </button>
-                    </div>
-                  ) : null}
                 </fieldset>
               </MultiplayerLobbyPanel>
             </MultiplayerLobbyGrid>
 
             <MultiplayerStartGameControl
-              disabled={!isHost || connectedPlayerCount < 2 || busy || settingsDirty}
+              disabled={!isHost || connectedPlayerCount < 2 || busy || settingsPending}
               onStart={startGame}
-              hint={settingsDirty ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
+              hint={settingsPending ? 'Apply setting changes before starting.' : 'The host can start once at least two players have joined.'}
             />
           </div>
           <MultiplayerLobbyMessage>{message}</MultiplayerLobbyMessage>
@@ -1314,18 +1576,18 @@ export function CarvingRevelation() {
             <div className="mb-4 grid gap-4 lg:grid-cols-[minmax(220px,300px)_minmax(180px,240px)_minmax(280px,420px)] lg:items-stretch lg:justify-between">
               {view.lobby.status === 'active' ? (
                 <div className={`flex min-h-24 flex-col justify-center rounded-2xl border px-6 py-4 shadow-lg ${
-                  view.lobby.phase === 'carve'
-                    ? 'border-amber-300/50 bg-amber-300/10 shadow-amber-950/40'
-                    : 'border-violet-300/50 bg-violet-300/10 shadow-violet-950/40'
+                  timerIsUrgent
+                    ? 'animate-pulse border-red-400/70 bg-red-500/10 shadow-red-950/40'
+                    : 'border-amber-300/50 bg-amber-300/10 shadow-amber-950/40'
                 }`}>
-                  <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-300">Round {view.lobby.round_number}</p>
-                  <p className={`text-xs font-black uppercase tracking-[0.26em] ${
-                    view.lobby.phase === 'carve' ? 'text-amber-200' : 'text-violet-200'
-                  }`}>
-                    {view.lobby.phase === 'carve' ? 'Carving Phase' : 'Guessing Phase'}
+                  <p className={`text-xs font-black uppercase tracking-[0.24em] ${timerIsUrgent ? 'text-red-200' : 'text-amber-300'}`}>Round {view.lobby.round_number}</p>
+                  <p className={`text-xs font-black uppercase tracking-[0.26em] ${timerIsUrgent ? 'text-red-100' : 'text-amber-200'}`}>
+                    {computedStartCountdownSeconds
+                      ? 'Starting'
+                      : view.lobby.phase === 'carve' ? 'Carving Phase' : 'Guessing Phase'}
                   </p>
-                  <p className="mt-1 font-mono text-5xl font-black leading-none text-white">
-                    {view.lobby.phase_duration_seconds === null ? '--' : `0:${phaseRemainingSeconds.toString().padStart(2, '0')}`}
+                  <p className={`mt-1 font-mono text-5xl font-black leading-none ${timerIsUrgent ? 'text-red-100' : 'text-white'}`}>
+                    {view.lobby.phase_duration_seconds === null && !computedStartCountdownSeconds ? '--' : `0:${displayedRoundTimerSeconds.toString().padStart(2, '0')}`}
                   </p>
                 </div>
               ) : (
@@ -1333,8 +1595,8 @@ export function CarvingRevelation() {
                   <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-300">Round {view.lobby.round_number}</p>
                   <h2 className="mt-1 text-xl font-black">
                     {winningPlayers.length > 1
-                      ? `${winningPlayers.map((player) => player.display_name).join(', ')} found the skin`
-                      : winner ? `${winner.display_name} found the skin` : 'Game complete'}
+                      ? `${winningPlayers.map((player) => player.display_name).join(', ')} found the skin line`
+                      : winner ? `${winner.display_name} found the skin line` : 'Game complete'}
                   </h2>
                 </div>
               )}
@@ -1399,6 +1661,7 @@ export function CarvingRevelation() {
                     type="button"
                     disabled={draftPath.length === 0 || busy}
                     onClick={() => {
+                      playUiSound('random-select');
                       setDraftPath([]);
                       setConfirmedCarvePath([]);
                       setIsDrawing(false);
@@ -1422,7 +1685,7 @@ export function CarvingRevelation() {
 
             {view.lobby.status === 'finished' && view.skin?.answer ? (
               <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">The skin was</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">The skin line was</p>
                 <p className="mt-1 text-2xl font-black">{view.skin.answer}</p>
                 <p className="mt-3 text-sm font-semibold text-emerald-50/80">
                   Next round votes: {nextRoundVotePlayers.length > 0
@@ -1434,28 +1697,30 @@ export function CarvingRevelation() {
 
             {shouldShowGuessForm ? (
               <form id="carving-revelation-guess-form" onSubmit={submitGuess} className="relative mt-4 flex gap-3">
-                <div className="relative min-w-0 flex-1">
+                <div ref={guessInputAreaRef} className="relative min-w-0 flex-1">
                   <input
                     value={guess}
                     onChange={(event) => setGuess(event.target.value)}
-                    onFocus={() => {
-                      const query = normalizeAnswer(guess);
-                      if (!canGuess || query.length < 2) return;
-                      setSuggestions(skinAnswers.filter((answer) => normalizeAnswer(answer).includes(query)).slice(0, 12));
-                    }}
+                    onFocus={() => setSuggestions(getGuessSuggestions(guess))}
                     disabled={!canGuess || busy}
                     autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-controls="carving-revelation-guess-suggestions"
                     spellCheck={false}
                     className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-amber-300/60 disabled:opacity-60"
-                    placeholder={canGuess ? 'Type the skin name' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
+                    placeholder={canGuess ? 'Type the skin line' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
                   />
                   {suggestions.length > 0 && canGuess ? (
-                    <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
+                    <div id="carving-revelation-guess-suggestions" role="listbox" className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                       {suggestions.map((suggestion) => (
                         <button
                           key={suggestion}
                           type="button"
+                          role="option"
+                          aria-selected={false}
                           onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() => playUiSound('autocomplete-hover')}
+                          onFocus={() => playUiSound('autocomplete-hover')}
                           onClick={() => handleSuggestionClick(suggestion)}
                           className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
                         >

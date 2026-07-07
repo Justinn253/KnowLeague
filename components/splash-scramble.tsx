@@ -25,6 +25,7 @@ import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import type { QuizItem } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { playUiSound } from '@/lib/ui-sounds';
 
 type PuzzlePhase = 'prematch' | 'loading' | 'playing' | 'won' | 'lost';
 type RotationDegrees = 0 | 90 | 180 | 270;
@@ -38,7 +39,6 @@ type GridOption = {
 type TimeOption = {
   seconds: number | null;
   label: string;
-  description: string;
 };
 
 type SplashScrambleSettings = {
@@ -96,11 +96,11 @@ const gridOptions: GridOption[] = [
 ];
 
 const timeOptions: TimeOption[] = [
-  { seconds: 180, label: '3:00', description: 'Fast solve' },
-  { seconds: 300, label: '5:00', description: 'Standard' },
-  { seconds: 480, label: '8:00', description: 'Measured' },
-  { seconds: 720, label: '12:00', description: 'Practice' },
-  { seconds: null, label: 'No Timer', description: 'Tracks current time' },
+  { seconds: 180, label: '3:00' },
+  { seconds: 300, label: '5:00' },
+  { seconds: 480, label: '8:00' },
+  { seconds: 720, label: '12:00' },
+  { seconds: null, label: 'No Timer' },
 ];
 
 function createEmptyStats(): SplashScrambleStats {
@@ -146,6 +146,10 @@ function countCorrectPositions(tiles: readonly number[], rotations: readonly Rot
   return tiles.reduce((count, tile, index) => count + (tile === index && (rotations[index] ?? 0) === 0 ? 1 : 0), 0);
 }
 
+function getMisplacedPositions(tiles: readonly number[], rotations: readonly RotationDegrees[]) {
+  return tiles.flatMap((tile, index) => (tile !== index || (rotations[index] ?? 0) !== 0 ? [index] : []));
+}
+
 function isSolved(tiles: readonly number[], rotations: readonly RotationDegrees[]) {
   return countCorrectPositions(tiles, rotations) === tiles.length;
 }
@@ -168,9 +172,13 @@ async function fetchSkins() {
   return (await response.json() as QuizItem[]).filter((skin) => skin.imageUrl);
 }
 
-async function loadRandomSkin(cachedSkins: readonly QuizItem[]) {
+async function loadRandomSkin(cachedSkins: readonly QuizItem[], excludedSkinId?: string) {
   const eligibleSkins = cachedSkins.length > 0 ? cachedSkins : await fetchSkins();
-  const skin = eligibleSkins[Math.floor(Math.random() * eligibleSkins.length)];
+  const availableSkins = excludedSkinId
+    ? eligibleSkins.filter((skin) => skin.id !== excludedSkinId)
+    : eligibleSkins;
+  const skinPool = availableSkins.length > 0 ? availableSkins : eligibleSkins;
+  const skin = skinPool[Math.floor(Math.random() * skinPool.length)];
 
   if (!skin) {
     throw new Error('No skin splash art is available.');
@@ -351,6 +359,7 @@ function SettingButton({
   disabled,
   icon,
   title,
+  sideLabel,
   description,
   onClick,
 }: {
@@ -358,41 +367,46 @@ function SettingButton({
   disabled?: boolean;
   icon: ReactNode;
   title: string;
-  description: string;
+  sideLabel?: string;
+  description?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        playUiSound('setting-select');
+        onClick();
+      }}
       disabled={disabled}
-      className={`group flex min-h-20 items-start gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`group flex gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
         selected
           ? 'border-amber-300/70 bg-amber-300/10 shadow-lg shadow-amber-500/10'
           : 'border-white/10 bg-slate-950/70 hover:border-white/25 hover:bg-slate-950'
-      }`}
+      } ${description ? 'min-h-20 items-start' : 'min-h-14 items-center'}`}
     >
       <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
         selected ? 'border-amber-300/50 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900 text-slate-300'
       }`}>
         {icon}
       </span>
-      <span className="min-w-0">
-        <span className="flex items-center gap-2 text-sm font-bold text-white">
-          {title}
-          {selected ? <Check size={15} className="text-amber-300" /> : null}
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-white">
+          <span className="min-w-0 truncate">{title}</span>
+          {selected ? <Check size={15} className="shrink-0 text-amber-300" /> : null}
+          {sideLabel ? <span className="ml-auto shrink-0 text-xs font-semibold italic text-slate-500">{sideLabel}</span> : null}
         </span>
-        <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span>
+        {description ? <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span> : null}
       </span>
     </button>
   );
 }
 
-function StatPill({ label, value }: { label: string; value: string | number }) {
+function StatPill({ label, value, valueClassName = 'text-white' }: { label: string; value: string | number; valueClassName?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 sm:px-4 sm:py-3">
       <p className="text-[0.62rem] uppercase tracking-[0.18em] text-slate-500 sm:text-xs">{label}</p>
-      <p className="mt-1 text-base font-black text-white sm:text-lg">{value}</p>
+      <p className={`mt-1 text-base font-black sm:text-lg ${valueClassName}`}>{value}</p>
     </div>
   );
 }
@@ -417,6 +431,7 @@ export function SplashScramble() {
   const [selectedTile, setSelectedTile] = useState<number | null>(null);
   const [lockedPositions, setLockedPositions] = useState<Set<number>>(new Set());
   const [flashingPositions, setFlashingPositions] = useState<Set<number>>(new Set());
+  const [misplacedHintPositions, setMisplacedHintPositions] = useState<Set<number>>(new Set());
   const [moves, setMoves] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -427,7 +442,11 @@ export function SplashScramble() {
   const [profileStatsLoaded, setProfileStatsLoaded] = useState(false);
   const [error, setError] = useState('');
   const flashTimeoutRef = useRef<number | null>(null);
+  const misplacedHintTimeoutRef = useRef<number | null>(null);
   const lastAccountSyncMoveRef = useRef<number | null>(null);
+  const lastCountdownSecondRef = useRef<number | null>(null);
+  const timerExpiredSoundPlayedRef = useRef(false);
+  const hoveredSkinSuggestionIdRef = useRef<string | null>(null);
   const solveRecordedRef = useRef(false);
   const rotateSelectedTileRef = useRef<(direction?: 1 | -1) => void>(() => undefined);
 
@@ -448,8 +467,11 @@ export function SplashScramble() {
   const tileCount = started || roundEnded ? tiles.length : configuredTileCount;
   const puzzleLabel = `${configuredColumns} x ${configuredRows}`;
   const correctPositions = useMemo(() => countCorrectPositions(tiles, rotations), [rotations, tiles]);
+  const misplacedPositionCount = useMemo(() => getMisplacedPositions(tiles, rotations).length, [rotations, tiles]);
   const timerLabel = timeLimit === null ? 'No Timer' : formatTimer(timeLimit);
   const activeTimeValue = timeLimit === null ? formatTimer(elapsedSeconds) : formatTimer(remainingSeconds);
+  const timerUrgent = phase === 'playing' && timeLimit !== null && remainingSeconds > 0 && remainingSeconds <= 10;
+  const timerValueClassName = timeLimit === null ? 'text-white' : timerUrgent ? 'animate-pulse text-red-300' : 'text-amber-200';
   const boardColumns = useMemo(() => ({
     gridTemplateColumns: `repeat(${activeColumns}, minmax(0, 1fr))`,
     gridTemplateRows: `repeat(${activeRows}, minmax(0, 1fr))`,
@@ -495,6 +517,20 @@ export function SplashScramble() {
     setSkinSearchScrollTop(0);
   }, [deferredSkinSearch]);
 
+  const playSkinSuggestionHoverSound = (skinId: string) => {
+    if (hoveredSkinSuggestionIdRef.current === skinId) {
+      return;
+    }
+
+    hoveredSkinSuggestionIdRef.current = skinId;
+    playUiSound('autocomplete-hover');
+  };
+
+  const resetTimerSoundRefs = () => {
+    lastCountdownSecondRef.current = null;
+    timerExpiredSoundPlayedRef.current = false;
+  };
+
   const buildSavedRound = useCallback((savedAt = Date.now()): SavedRoundState | null => {
     if (!targetSkin || phase !== 'playing' || startedAt === null) {
       return null;
@@ -532,12 +568,14 @@ export function SplashScramble() {
     setRotations(round.rotations.length === round.tiles.length ? round.rotations : Array.from({ length: round.tiles.length }, () => 0));
     setLockedPositions(new Set(round.lockedPositions));
     setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
     setSelectedTile(null);
     setMoves(round.moves);
     setStartedAt(round.startedAt);
     setEndsAt(round.endsAt);
     setElapsedSeconds(getSavedElapsedSeconds(round));
     setRemainingSeconds(getSavedRemainingSeconds(round));
+    resetTimerSoundRefs();
     setPhase('playing');
   };
 
@@ -621,6 +659,9 @@ export function SplashScramble() {
     if (flashTimeoutRef.current !== null) {
       window.clearTimeout(flashTimeoutRef.current);
     }
+    if (misplacedHintTimeoutRef.current !== null) {
+      window.clearTimeout(misplacedHintTimeoutRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -633,6 +674,7 @@ export function SplashScramble() {
       setElapsedSeconds(nextElapsed);
 
       if (timeLimit === null || endsAt === null) {
+        lastCountdownSecondRef.current = null;
         return;
       }
 
@@ -640,11 +682,21 @@ export function SplashScramble() {
       setRemainingSeconds(nextRemaining);
 
       if (nextRemaining <= 0) {
+        if (!timerExpiredSoundPlayedRef.current) {
+          timerExpiredSoundPlayedRef.current = true;
+          playUiSound('timer-expired');
+        }
         setSelectedTile(null);
         clearLocalRound();
         setResumeRound(null);
         syncAccountRound(null).catch(() => undefined);
         setPhase('lost');
+        return;
+      }
+
+      if (nextRemaining <= 10 && lastCountdownSecondRef.current !== nextRemaining) {
+        lastCountdownSecondRef.current = nextRemaining;
+        playUiSound('timer-countdown');
       }
     };
 
@@ -704,6 +756,7 @@ export function SplashScramble() {
       return;
     }
 
+    playUiSound('puzzle-complete');
     recordSolveStats();
     clearLocalRound();
     setResumeRound(null);
@@ -711,19 +764,22 @@ export function SplashScramble() {
     setPhase('won');
   };
 
-  const startRound = async () => {
+  const startRound = async (options?: { forceRandomSkin?: boolean; excludedSkinId?: string }) => {
     setPhase('loading');
     setError('');
     setSelectedTile(null);
     setLockedPositions(new Set());
     setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
     setMoves(0);
     setElapsedSeconds(0);
     lastAccountSyncMoveRef.current = null;
+    resetTimerSoundRefs();
     solveRecordedRef.current = false;
 
     try {
-      const skin = selectedSkin ?? await loadRandomSkin(skinCatalog);
+      const roundSelectedSkin = options?.forceRandomSkin ? null : selectedSkin;
+      const skin = roundSelectedSkin ?? await loadRandomSkin(skinCatalog, options?.excludedSkinId);
       await preloadImage(skin.imageUrl);
       const nextTiles = shuffleTiles(configuredTileCount);
       const nextRotations = createInitialRotations(configuredTileCount, rotateTiles);
@@ -736,7 +792,7 @@ export function SplashScramble() {
         showReference,
         lockCorrectTiles,
         rotateTiles,
-        selectedSkin,
+        selectedSkin: roundSelectedSkin,
         targetSkin: skin,
         tiles: nextTiles,
         rotations: nextRotations,
@@ -747,6 +803,7 @@ export function SplashScramble() {
         savedAt: now,
       };
 
+      setSelectedSkin(roundSelectedSkin);
       setTargetSkin(skin);
       setTiles(nextTiles);
       setRotations(nextRotations);
@@ -764,6 +821,15 @@ export function SplashScramble() {
       setEndsAt(null);
       setPhase('prematch');
     }
+  };
+
+  const startNewSkinRound = () => {
+    if (moves > 0 && !window.confirm('Start a new skin? Your current swaps will be lost.')) {
+      return;
+    }
+
+    playUiSound('random-select');
+    void startRound({ forceRandomSkin: true, excludedSkinId: targetSkin?.id });
   };
 
   const resumeSavedRound = async () => {
@@ -792,23 +858,33 @@ export function SplashScramble() {
       syncAccountRound(round).catch(() => undefined);
     }
 
+    if (roundEnded && targetSkin) {
+      setSelectedSkin(targetSkin);
+    }
+
     setPhase('prematch');
     setSelectedTile(null);
     setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
   };
 
   const clearCompletedRound = () => {
     clearLocalRound();
     setResumeRound(null);
     syncAccountRound(null).catch(() => undefined);
+    if (targetSkin) {
+      setSelectedSkin(targetSkin);
+    }
     setPhase('prematch');
     setSelectedTile(null);
     setStartedAt(null);
     setEndsAt(null);
     setRemainingSeconds(timeLimit ?? 0);
     setElapsedSeconds(0);
+    resetTimerSoundRefs();
     setLockedPositions(new Set());
     setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
   };
 
   const flashPositions = (positions: number[]) => {
@@ -827,21 +903,48 @@ export function SplashScramble() {
     }, 650);
   };
 
-  const updateLocksAfterMove = (nextTiles: readonly number[], nextRotations: readonly RotationDegrees[], candidatePositions: readonly number[]) => {
-    if (!lockCorrectTiles) {
+  const revealMisplacedTiles = () => {
+    if (phase !== 'playing' || !lockCorrectTiles) {
       return;
     }
 
+    const misplacedPositions = getMisplacedPositions(tiles, rotations);
+    if (misplacedPositions.length === 0) {
+      return;
+    }
+
+    if (misplacedHintTimeoutRef.current !== null) {
+      window.clearTimeout(misplacedHintTimeoutRef.current);
+    }
+
+    setMisplacedHintPositions(new Set(misplacedPositions));
+    misplacedHintTimeoutRef.current = window.setTimeout(() => {
+      setMisplacedHintPositions(new Set());
+      misplacedHintTimeoutRef.current = null;
+    }, 900);
+  };
+
+  const updateLocksAfterMove = (nextTiles: readonly number[], nextRotations: readonly RotationDegrees[], candidatePositions: readonly number[]) => {
+    if (!lockCorrectTiles) {
+      return 0;
+    }
+
+    const nextLockedPositions = getInitialLockedPositions(nextTiles, nextRotations, true);
     const newlyCorrectPositions = candidatePositions.filter((candidate) => (
-      nextTiles[candidate] === candidate &&
-      (nextRotations[candidate] ?? 0) === 0 &&
+      nextLockedPositions.has(candidate) &&
       !lockedPositions.has(candidate)
     ));
 
+    setLockedPositions(nextLockedPositions);
+
     if (newlyCorrectPositions.length > 0) {
-      setLockedPositions((current) => new Set([...current, ...newlyCorrectPositions]));
+      playUiSound('tile-lock-correct');
       flashPositions(newlyCorrectPositions);
+      return newlyCorrectPositions.length;
     }
+
+    playUiSound('tile-lock-miss');
+    return 0;
   };
 
   const handleTileClick = (position: number) => {
@@ -850,6 +953,11 @@ export function SplashScramble() {
     }
 
     if (selectedTile === null) {
+      setSelectedTile(position);
+      return;
+    }
+
+    if (lockedPositions.has(selectedTile)) {
       setSelectedTile(position);
       return;
     }
@@ -883,8 +991,12 @@ export function SplashScramble() {
     const nextRotations = [...rotations];
     nextRotations[selectedTile] = ((nextRotations[selectedTile] + (direction === 1 ? 90 : 270)) % 360) as RotationDegrees;
 
+    playUiSound('tile-rotate');
     setRotations(nextRotations);
-    updateLocksAfterMove(tiles, nextRotations, [selectedTile]);
+    const newlyLockedCount = updateLocksAfterMove(tiles, nextRotations, [selectedTile]);
+    if (newlyLockedCount > 0) {
+      setSelectedTile(null);
+    }
 
     if (isSolved(tiles, nextRotations)) {
       completeRound(tiles, nextRotations);
@@ -938,7 +1050,20 @@ export function SplashScramble() {
                     <button
                       key={skin.id}
                       type="button"
+                      onPointerEnter={() => playSkinSuggestionHoverSound(skin.id)}
+                      onPointerLeave={() => {
+                        if (hoveredSkinSuggestionIdRef.current === skin.id) {
+                          hoveredSkinSuggestionIdRef.current = null;
+                        }
+                      }}
+                      onFocus={() => playSkinSuggestionHoverSound(skin.id)}
+                      onBlur={() => {
+                        if (hoveredSkinSuggestionIdRef.current === skin.id) {
+                          hoveredSkinSuggestionIdRef.current = null;
+                        }
+                      }}
                       onClick={() => {
+                        playUiSound('autocomplete-select');
                         setSelectedSkin(skin);
                         setSkinSearch('');
                       }}
@@ -969,6 +1094,7 @@ export function SplashScramble() {
           <button
             type="button"
             onClick={() => {
+              playUiSound('random-select');
               setSelectedSkin(null);
               setSkinSearch('');
             }}
@@ -997,16 +1123,25 @@ export function SplashScramble() {
           <Shuffle size={22} className="text-amber-300" />
         </div>
 
-        {selectedSkin ? (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+        <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+          {selectedSkin ? (
             <div className="relative aspect-[16/4] max-h-28">
               <Image src={selectedSkin.imageUrl} alt={`${selectedSkin.answer} selected splash art`} fill sizes="(min-width: 1024px) 420px, 100vw" className="object-cover" />
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-white/10 p-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-white">{selectedSkin.answer}</p>
-                <p className="text-xs text-slate-500">Selected skin</p>
+          ) : (
+            <div className="grid aspect-[16/4] max-h-28 place-items-center bg-slate-950/70">
+              <div className="inline-flex items-center gap-3 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-amber-100">
+                <Shuffle size={18} />
+                <span className="text-sm font-black">Random skin</span>
               </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3 border-t border-white/10 p-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-white">{selectedSkin ? selectedSkin.answer : 'Random skin'}</p>
+              <p className="text-xs text-slate-500">{selectedSkin ? 'Selected skin' : 'A random splash will be selected'}</p>
+            </div>
+            {selectedSkin ? (
               <button
                 type="button"
                 onClick={() => setSelectedSkin(null)}
@@ -1015,9 +1150,9 @@ export function SplashScramble() {
               >
                 <X size={15} />
               </button>
-            </div>
+            ) : null}
           </div>
-        ) : null}
+        </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
           <StatPill label="Pieces" value={`${puzzleLabel} = ${configuredTileCount}`} />
@@ -1073,14 +1208,14 @@ export function SplashScramble() {
 
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pieces</p>
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {gridOptions.map((option) => (
                 <SettingButton
                   key={option.size}
                   selected={gridSize === option.size}
                   icon={<Grid3X3 size={17} />}
                   title={option.label}
-                  description={option.description}
+                  sideLabel={option.description}
                   onClick={() => setGridSize(option.size)}
                 />
               ))}
@@ -1099,7 +1234,6 @@ export function SplashScramble() {
                   selected={timeLimit === option.seconds}
                   icon={<Clock3 size={17} />}
                   title={option.label}
-                  description={option.description}
                   onClick={() => {
                     setTimeLimit(option.seconds);
                     setRemainingSeconds(option.seconds ?? 0);
@@ -1156,7 +1290,7 @@ export function SplashScramble() {
                 <SettingButton
                   selected={rotateTiles}
                   icon={<RotateCw size={17} />}
-                  title="Rotated"
+                  title="Rotated - 16x9"
                   description="Pieces start rotated and must be turned."
                   onClick={() => setRotateTiles(true)}
                 />
@@ -1175,7 +1309,10 @@ export function SplashScramble() {
         <div className={`grid gap-3 ${resumeRound ? 'sm:grid-cols-2' : ''}`}>
           <button
             type="button"
-            onClick={startRound}
+            onClick={() => {
+              playUiSound('random-select');
+              void startRound();
+            }}
             className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
           >
             <Play size={16} />
@@ -1211,10 +1348,34 @@ export function SplashScramble() {
   const renderBoard = () => (
     <section className="grid gap-4">
       <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 shadow-glow backdrop-blur-xl sm:p-5">
-        <div className="mb-3 grid grid-cols-3 gap-2 sm:mb-4 sm:gap-3">
-          <StatPill label={timeLimit === null ? 'Elapsed' : 'Time'} value={activeTimeValue} />
-          <StatPill label="Moves" value={moves} />
-          <StatPill label="Correct" value={`${correctPositions}/${tileCount}`} />
+        <div className="mb-3 grid gap-2 sm:mb-4 sm:gap-3 lg:grid-cols-[1fr_auto]">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <StatPill label={timeLimit === null ? 'Elapsed' : 'Time'} value={activeTimeValue} valueClassName={timerValueClassName} />
+            <StatPill label="Moves" value={moves} />
+            <StatPill label="Correct" value={`${correctPositions}/${tileCount}`} />
+          </div>
+          <div className="flex w-full items-center justify-end gap-2 lg:w-auto">
+            {lockCorrectTiles ? (
+              <button
+                type="button"
+                onClick={revealMisplacedTiles}
+                disabled={misplacedPositionCount === 0}
+                title="Show misplaced pieces"
+                aria-label="Show misplaced pieces"
+                className="inline-flex min-h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-300/40 bg-sky-300/10 text-sky-100 transition hover:bg-sky-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <Eye size={17} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={startNewSkinRound}
+              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-amber-300/10 px-4 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-200 lg:w-auto lg:flex-none"
+            >
+              <Shuffle size={15} />
+              New Skin
+            </button>
+          </div>
         </div>
 
         {rotateTiles ? (
@@ -1270,6 +1431,7 @@ export function SplashScramble() {
               const selected = selectedTile === position;
               const locked = lockedPositions.has(position);
               const flashing = flashingPositions.has(position);
+              const misplacedHint = misplacedHintPositions.has(position);
               const rotation = rotations[position] ?? 0;
 
               return (
@@ -1284,9 +1446,11 @@ export function SplashScramble() {
                       ? 'z-20 border-emerald-300 ring-2 ring-inset ring-emerald-300 shadow-[0_0_22px_rgba(52,211,153,0.55)] brightness-125'
                       : selected
                         ? 'z-20 scale-[0.98] border-amber-300 ring-2 ring-inset ring-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.4)]'
-                        : locked
-                          ? 'border-emerald-400/40 brightness-105'
-                          : 'border-slate-950/60 hover:brightness-110'
+                        : misplacedHint
+                          ? 'z-10 border-sky-300 ring-2 ring-inset ring-sky-300 shadow-[0_0_22px_rgba(125,211,252,0.6)] brightness-125'
+                          : locked
+                            ? 'border-emerald-400/40 brightness-105'
+                            : 'border-slate-950/60 hover:brightness-110'
                   }`}
                   aria-label={`Tile ${position + 1}${locked ? ', locked' : ''}`}
                   aria-pressed={selected}
@@ -1300,12 +1464,14 @@ export function SplashScramble() {
                       transform: `rotate(${rotation}deg)`,
                     }}
                   />
-                  {selected || flashing ? (
+                  {selected || flashing || misplacedHint ? (
                     <span
                       className={`pointer-events-none absolute inset-0 z-10 ${
                         flashing
                           ? 'ring-4 ring-inset ring-emerald-300 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.95),0_0_20px_rgba(52,211,153,0.75)]'
-                          : 'ring-4 ring-inset ring-amber-300 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.95),0_0_18px_rgba(251,191,36,0.55)]'
+                          : selected
+                            ? 'ring-4 ring-inset ring-amber-300 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.95),0_0_18px_rgba(251,191,36,0.55)]'
+                            : 'ring-4 ring-inset ring-sky-300 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.95),0_0_20px_rgba(125,211,252,0.75)]'
                       }`}
                     />
                   ) : null}
@@ -1389,7 +1555,10 @@ export function SplashScramble() {
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
-                  onClick={startRound}
+                  onClick={() => {
+                    playUiSound('random-select');
+                    void startRound();
+                  }}
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
                 >
                   <RotateCcw size={16} />

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import {
   clearDailyGameState,
   clearSoloQuizGameState,
+  createEmptyPlayerStats,
   getPlayerGameStreakForScope,
   hasCompletedSoloQuizMode,
   loadSoloQuizGameState,
@@ -32,8 +33,10 @@ import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progr
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
+import { getSkinThemeAnswer } from '@/lib/skin-themes';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
+import { playUiSound } from '@/lib/ui-sounds';
 
 const modifiers = [
   { id: 'greyscale', name: 'Greyscale', description: 'Splash art appears in greyscale.' },
@@ -47,22 +50,22 @@ const difficulties = [
   {
     id: 'iron',
     name: 'Iron',
-    description: 'No upcoming skin blur, hints appear instantly, wrong guesses add no time, and auto-fill is active.',
+    description: 'No upcoming preview blur, hints appear instantly, wrong guesses add no time, and auto-fill is active.',
   },
   {
     id: 'gold',
     name: 'Gold',
-    description: 'Upcoming skins are blurred, hints appear after 10 seconds, wrong guesses add 5 seconds, and auto-fill is active.',
+    description: 'Upcoming previews are blurred, hints appear after 10 seconds, wrong guesses add 5 seconds, and auto-fill is active.',
   },
   {
     id: 'diamond',
     name: 'Diamond',
-    description: 'Upcoming skins are blocked, hints appear after 30 seconds, wrong guesses scale upward, and auto-fill is active.',
+    description: 'Upcoming previews are blocked, hints appear after 30 seconds, wrong guesses scale upward, and auto-fill is active.',
   },
   {
     id: 'challenger',
     name: 'Challenger',
-    description: 'Upcoming skins are blocked, hints are disabled, wrong guesses end the game, and auto-fill is off.',
+    description: 'Upcoming previews are blocked, hints are disabled, wrong guesses end the game, and auto-fill is off.',
   },
 ] as const;
 
@@ -181,8 +184,9 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
   const [entryCount, setEntryCount] = useState(25);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
-  const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const multiplayerStartCountdown = multiplayer?.startCountdownSeconds && multiplayer.startCountdownSeconds > 0 ? multiplayer.startCountdownSeconds : null;
+  const [started, setStarted] = useState(Boolean(multiplayer && !multiplayerStartCountdown && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
+  const [countdown, setCountdown] = useState<number | null>(multiplayerStartCountdown);
   const [isSliding, setIsSliding] = useState(false);
   const [activeIndex, setActiveIndex] = useState(multiplayer ? Math.min(multiplayer.initialProgress, Math.max(0, multiplayer.items.length - 1)) : 0);
   const [inputValue, setInputValue] = useState('');
@@ -205,7 +209,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [successFlash, setSuccessFlash] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
-  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('skin-champion'));
+  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => createEmptyPlayerStats('skin-champion'));
   const [leaderboardNotice, setLeaderboardNotice] = useState('');
   const [completedDailyMode, setCompletedDailyMode] = useState(false);
   const [resumeAvailable, setResumeAvailable] = useState(false);
@@ -226,6 +230,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const progressContainerRef = useRef<HTMLDivElement>(null);
   const hasRestoredStateRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
+  const multiplayerResultSoundRef = useRef<string | null>(null);
 
   const currentItem = started ? items[activeIndex] ?? null : null;
   const nextItem = started ? items[activeIndex + 1] ?? null : null;
@@ -247,6 +252,28 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const showSoloPrematch = !multiplayer && !started && !finished && !failed;
   const leaderboardMode = isLeaderboardMode(soloMode);
   const casualSettingsAvailable = soloMode === 'casual';
+  const answerLabel = 'skin line';
+  const promptLabel = 'skin line';
+  const itemHeaderLabel = 'Skin Line';
+  const itemBadgeLabel = 'Line';
+  const getAnswerForItem = useCallback(
+    (item: QuizItem) => getSkinThemeAnswer(item) ?? item.answer,
+    [],
+  );
+  const currentAnswer = currentItem ? getAnswerForItem(currentItem) : '';
+
+  useEffect(() => {
+    setPlayerStats(loadPlayerGameStats('skin-champion'));
+  }, []);
+
+  useEffect(() => {
+    if (!multiplayer?.gameEnded || multiplayerResultSoundRef.current === multiplayer.matchId) {
+      return;
+    }
+
+    multiplayerResultSoundRef.current = multiplayer.matchId ?? 'ended';
+    playUiSound(multiplayer.lost ? 'timer-expired' : 'puzzle-complete');
+  }, [multiplayer]);
 
   useEffect(() => {
     if (multiplayerInitialProgress === undefined) return;
@@ -274,8 +301,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   };
 
   const filteredAnswers = useMemo(
-    () => Array.from(new Set(items.map((item) => item.answer))).sort(),
-    [items],
+    () => Array.from(new Set(items.map(getAnswerForItem).filter(Boolean))).sort(),
+    [getAnswerForItem, items],
   );
 
   const autocompleteAnswers = useMemo(
@@ -316,7 +343,9 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   }, []);
 
   useEffect(() => {
-    fetch('/api/skin-champion/quiz-answers')
+    const params = new URLSearchParams({ answerMode: 'skin-line' });
+
+    fetch(`/api/skin-champion/quiz-answers${params.size ? `?${params}` : ''}`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -506,9 +535,9 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     const answerPool = answers.length ? answers : filteredAnswers;
-    const wrongAnswers = shuffle(answerPool.filter((answer) => answer !== currentItem.answer)).slice(0, 9);
+    const wrongAnswers = shuffle(answerPool.filter((answer) => answer !== currentAnswer)).slice(0, 9);
 
-    setOptions(shuffle([currentItem.answer, ...wrongAnswers]));
+    setOptions(shuffle([currentAnswer, ...wrongAnswers]));
     setShowOptions(false);
     setTimeUntilOptions(difficultyRule.hintDelaySeconds ?? 0);
     setPenaltyCount(0);
@@ -518,7 +547,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setInputValue('');
     setSuggestions([]);
     setPendingConfirmedGuess('');
-  }, [answers, currentItem, difficultyRule.hintDelaySeconds, filteredAnswers]);
+  }, [answers, currentAnswer, currentItem, difficultyRule.hintDelaySeconds, filteredAnswers]);
 
   useEffect(() => {
     if (!started || countdown !== null || isSliding || !currentItem || finished || showOptions || hintsDisabled) {
@@ -541,7 +570,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       setTimeUntilOptions((value) => Math.max(0, value - 1));
     }, 1000);
 
-    const timeout = window.setTimeout(() => setShowOptions(true), hintDelaySeconds * 1000);
+    const timeout = window.setTimeout(() => {
+      playUiSound('setting-select');
+      setShowOptions(true);
+    }, hintDelaySeconds * 1000);
 
     return () => {
       window.clearInterval(interval);
@@ -587,7 +619,18 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
-    const timeout = window.setTimeout(() => setCountdown((value) => (value === null ? null : value - 1)), 1000);
+    const timeout = window.setTimeout(() => {
+      setCountdown((value) => {
+        if (value === null) {
+          return null;
+        }
+        const nextValue = value - 1;
+        if (nextValue > 0) {
+          playUiSound('timer-countdown');
+        }
+        return nextValue;
+      });
+    }, 1000);
     return () => window.clearTimeout(timeout);
   }, [countdown]);
 
@@ -718,6 +761,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     if (started || finished || failed) {
+      playUiSound('timer-expired');
       if (started && leaderboardMode) {
         await submitOfficialAttemptState('abandoned');
         recordCompletedSoloQuizMode('skin-champion', soloMode, selectedDifficulty);
@@ -778,7 +822,9 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       setSelectedDifficulty(CHAOS_DIFFICULTY);
       setActiveModifiers(forceAllModifiers(defaultModifiers));
     }
-    setCountdown(3);
+    playUiSound('random-select');
+    setCountdown(5);
+    playUiSound('timer-countdown');
   };
 
   const handleDifficultySelect = (difficultyId: DifficultyId) => {
@@ -789,6 +835,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
+    playUiSound('autocomplete-select');
     setSelectedDifficulty(difficultyId);
   };
 
@@ -823,6 +870,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       ...current,
       [modifierId]: !current[modifierId],
     }));
+    playUiSound('autocomplete-select');
   };
 
   const handleEntryCountChange = (count: number) => {
@@ -834,6 +882,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     setEntryCount(count);
+    playUiSound('autocomplete-select');
   };
 
   useEffect(() => {
@@ -842,6 +891,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     if (currentTime >= CHAOS_ROUND_TIME_LIMIT_SECONDS) {
+      playUiSound('timer-expired');
       setFailed(true);
       setFailureReason('timeout');
       setStarted(false);
@@ -888,6 +938,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
   const advance = () => {
     const item = items[activeIndex];
+    playUiSound('skindle-guess-correct');
     setCompletedTimes((current) => ({
       ...current,
       [item.id]: {
@@ -897,6 +948,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }));
     setItems((current) => current.map((candidate, index) => (index === activeIndex ? { ...candidate, guessed: true } : candidate)));
     if (activeIndex >= items.length - 1) {
+      playUiSound('puzzle-complete');
       setSuccessFlash(true);
       window.setTimeout(() => setSuccessFlash(false), 260);
       setInputValue('');
@@ -913,6 +965,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
     setSuccessFlash(true);
     window.setTimeout(() => setSuccessFlash(false), 260);
+    playUiSound('item-slide');
     setIsSliding(true);
 
     window.setTimeout(() => {
@@ -928,12 +981,14 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   };
 
   const applyWrongGuess = (wrongOption?: string) => {
+    playUiSound('skindle-guess-incorrect');
     setWrongGuessCount((count) => count + 1);
     if (activeModifiers.cropped) {
       setCroppedZoom((value) => Math.max(CROPPED_MIN_ZOOM, value - CROPPED_ZOOM_STEP));
     }
 
     if (difficultyRule.wrongGuess === 'game-over') {
+      playUiSound('timer-expired');
       setFailed(true);
       setFailureReason('wrong');
       setStarted(false);
@@ -987,7 +1042,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setPendingConfirmedGuess('');
     setPenaltyMessage('');
 
-    if (answerMatches(guess, currentItem.answer)) {
+    if (answerMatches(guess, currentAnswer)) {
       setStatus('correct');
       advance();
       return;
@@ -1012,7 +1067,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
-    if (answerMatches(option, currentItem.answer)) {
+    if (answerMatches(option, currentAnswer)) {
       advance();
       return;
     }
@@ -1030,13 +1085,19 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <ArrowLeft size={20} />
               </button>
             ) : (
-              <Link href="/" aria-label="Back to game hub" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+              <Link href="/multiplayer/skin-champion" aria-label="Back to Skin Champion lobby setup" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
                 <ArrowLeft size={20} />
               </Link>
             )}
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{multiplayer ? 'Multiplayer Game' : 'Single Player Game'}</p>
-              <h1 className="text-xl font-semibold text-white">Skin Champion</h1>
+              <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-white">
+                Skin Champion
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-xs font-bold text-amber-100">
+                  <Flame size={12} className="text-amber-300" />
+                  {playerStats.currentStreak}
+                </span>
+              </h1>
               <p className="mt-1 text-xs text-slate-400">
                 {failed
                   ? 'Game over'
@@ -1046,6 +1107,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   ? shouldHideTimers
                     ? 'Completed'
                     : `Completed in ${formatSeconds(totalTime)}`
+                  : countdown !== null
+                    ? `Starting in ${countdown}`
                   : multiplayer
                     ? 'Match in progress'
                     : ''}
@@ -1055,14 +1118,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
             <GameInfoMenu title="Skin Champion" steps={[
-              'Identify the skin splash art and submit its exact skin name.',
+              'Identify the skin line shown by the splash art.',
               'Use hints and autocomplete when the selected difficulty allows them.',
               multiplayer ? 'Finish the shared randomized set before your opponents.' : 'Complete the randomized set as quickly as possible.',
             ]} />
-            {multiplayer ? <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
-              <Flame size={16} className="text-amber-300" />
-              {playerStats.currentStreak} day streak
-            </div> : null}
             {multiplayer?.gameEnded && multiplayer.canReturnToLobby ? (
               <button
                 type="button"
@@ -1107,6 +1166,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                           <button
                             key={difficulty.id}
                             type="button"
+                            onMouseEnter={() => playUiSound('autocomplete-hover')}
+                            onFocus={() => playUiSound('autocomplete-hover')}
                             onClick={() => handleDifficultySelect(difficulty.id)}
                             disabled={configurationLocked}
                             className={`rounded-xl border p-3 text-left transition ${
@@ -1164,6 +1225,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                           <button
                             key={modifier.id}
                             type="button"
+                            onMouseEnter={() => playUiSound('autocomplete-hover')}
+                            onFocus={() => playUiSound('autocomplete-hover')}
                             onClick={() => handleModifierToggle(modifier.id)}
                             disabled={configurationLocked || !casualSettingsAvailable}
                             className={`flex items-center justify-between gap-4 rounded-xl border p-3 text-left transition ${
@@ -1185,12 +1248,15 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       <label className="flex items-center justify-between gap-3">
                         <span>
                           <span className="block text-sm font-semibold text-white">Entries</span>
-                          <span className="mt-1 block text-xs leading-5 text-slate-400">Select how many skins appear this round.</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-400">Select how many {promptLabel}s appear this round.</span>
                         </span>
                         <select
                           value={entryCount}
                           disabled={configurationLocked || !casualSettingsAvailable}
-                          onChange={(event) => handleEntryCountChange(Number(event.target.value))}
+                          onChange={(event) => {
+                            playUiSound('autocomplete-select');
+                            handleEntryCountChange(Number(event.target.value));
+                          }}
                           className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {entryCountOptions.map((count) => <option key={count} value={count}>{count}</option>)}
@@ -1260,9 +1326,9 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
           {!showEndState ? <div className="overflow-hidden">
             <div className={`grid gap-4 lg:grid-cols-3 lg:items-start transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
               {[
-                { label: 'Next item', item: nextItem, fallback: 'Next skin will appear here' },
-                { label: 'Current item', item: currentItem, fallback: 'Press Play to reveal the next skin' },
-                { label: 'Completed', item: previousItem, fallback: 'Your completed skins appear here' },
+                { label: 'Next item', item: nextItem, fallback: `Next ${promptLabel} will appear here` },
+                { label: 'Current item', item: currentItem, fallback: `Press Play to reveal the next ${promptLabel}` },
+                { label: 'Completed', item: previousItem, fallback: `Your completed ${promptLabel}s appear here` },
               ].map((card) => (
                 <div
                   key={card.label}
@@ -1274,11 +1340,11 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     <div>
                       <p className="text-xs uppercase tracking-[0.22em]">{card.label}</p>
                       <p className="mt-1 text-sm text-slate-300">
-                        {card.label === 'Completed' ? card.item?.answer ?? '' : 'Skin Splash'}
+                        {card.label === 'Completed' ? (card.item ? getAnswerForItem(card.item) : '') : itemHeaderLabel}
                       </p>
                     </div>
                     <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
-                      {card.label === 'Completed' ? <Check size={14} className="inline text-emerald-300" /> : 'Skin'}
+                      {card.label === 'Completed' ? <Check size={14} className="inline text-emerald-300" /> : itemBadgeLabel}
                     </span>
                   </div>
                   <div className="relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 border-slate-400/70 bg-slate-950/50 text-white shadow-2xl shadow-black/20">
@@ -1334,7 +1400,12 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   <button
                     key={option}
                     type="button"
-                    onClick={() => handleOptionClick(option)}
+                    onMouseEnter={() => playUiSound('autocomplete-hover')}
+                    onFocus={() => playUiSound('autocomplete-hover')}
+                    onClick={() => {
+                      playUiSound('autocomplete-select');
+                      handleOptionClick(option);
+                    }}
                     className="min-h-14 rounded-2xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-amber-300/60 hover:bg-slate-800"
                   >
                     {option}
@@ -1363,7 +1434,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 autoComplete="off"
                 spellCheck={false}
                 disabled={!started || finished}
-                placeholder={started ? 'Type the skin name' : 'Press Play to begin'}
+                placeholder={started ? `Type the ${answerLabel}` : 'Press Play to begin'}
                 onFocus={() => {
                   const query = normalizeAnswer(inputValue);
                   if (!currentItem || inputValue.trim().length < 3 || !query || !autocompleteEnabled) {
@@ -1381,7 +1452,12 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       key={suggestion}
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => handleSuggestionClick(suggestion)}
+                      onMouseEnter={() => playUiSound('autocomplete-hover')}
+                      onFocus={() => playUiSound('autocomplete-hover')}
+                      onClick={() => {
+                        playUiSound('autocomplete-select');
+                        handleSuggestionClick(suggestion);
+                      }}
                       className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
                     >
                       {suggestion}
@@ -1428,6 +1504,18 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
               <div className="flex items-center gap-3">
+                {showSinglePlayerEndState ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playUiSound('random-select');
+                      resetSinglePlayerRound();
+                    }}
+                    className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
+                  >
+                    Start Another
+                  </button>
+                ) : null}
                 {multiplayerGameEnded ? <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">Race Ended</span> : null}
                 <span className="text-xs text-slate-500">{completedProgressCount}/{items.length}</span>
               </div>
@@ -1450,7 +1538,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     }`}
                   >
                     <div className="text-sm font-semibold text-white">
-                      <span>{completed ? item.answer : '???'}</span>
+                      <span>{completed ? getAnswerForItem(item) : '???'}</span>
                     </div>
                     <p className="mt-2 text-sm leading-5 text-slate-400">
                       {time ? `${formatSeconds(time.total)} - ${formatSeconds(time.duration)}` : 'TBD - TBD'}

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import {
   clearDailyGameState,
   clearSoloQuizGameState,
+  createEmptyPlayerStats,
   getPlayerGameStreakForScope,
   hasCompletedSoloQuizMode,
   loadSoloQuizGameState,
@@ -35,6 +36,7 @@ import { ABILITY_SLOTS as abilitySlots, filterItemsByAbilitySlots, type AbilityS
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
+import { playUiSound } from '@/lib/ui-sounds';
 
 const placeholderItems: QuizItem[] = [
   {
@@ -300,9 +302,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [selectedAbilitySlots, setSelectedAbilitySlots] = useState<AbilitySlotState>(defaultAbilitySlots);
   const [entryCount, setEntryCount] = useState(25);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
-  const [started, setStarted] = useState(Boolean(multiplayer && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
+  const multiplayerStartCountdown = multiplayer?.startCountdownSeconds && multiplayer.startCountdownSeconds > 0 ? multiplayer.startCountdownSeconds : null;
+  const [started, setStarted] = useState(Boolean(multiplayer && !multiplayerStartCountdown && !multiplayer.gameEnded && multiplayer.initialProgress < multiplayer.items.length));
   const [isSliding, setIsSliding] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(multiplayerStartCountdown);
   const [activeIndex, setActiveIndex] = useState(multiplayer ? Math.min(multiplayer.initialProgress, Math.max(0, multiplayer.items.length - 1)) : 0);
   const [inputValue, setInputValue] = useState('');
   const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle');
@@ -325,7 +328,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const [suppressHints, setSuppressHints] = useState(false);
   const [pendingConfirmedGuess, setPendingConfirmedGuess] = useState('');
   const [storageReady, setStorageReady] = useState(Boolean(multiplayer));
-  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('ability-blitz'));
+  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => createEmptyPlayerStats('ability-blitz'));
   const [leaderboardNotice, setLeaderboardNotice] = useState('');
   const [completedDailyMode, setCompletedDailyMode] = useState(false);
   const [resumeAvailable, setResumeAvailable] = useState(false);
@@ -347,6 +350,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const answerInputAreaRef = useRef<HTMLDivElement | null>(null);
   const hasRestoredStateRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
+  const multiplayerResultSoundRef = useRef<string | null>(null);
 
   const currentItem = items[activeIndex];
   const nextItem = items[activeIndex + 1];
@@ -367,6 +371,19 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const hintsDisabled = difficultyRule.hintDelaySeconds === null;
   const autocompleteEnabled = difficultyRule.autocomplete;
   const shouldHideTimers = activeModifiers.hiddenTimer && !chaosMode;
+
+  useEffect(() => {
+    setPlayerStats(loadPlayerGameStats('ability-blitz'));
+  }, []);
+
+  useEffect(() => {
+    if (!multiplayer?.gameEnded || multiplayerResultSoundRef.current === multiplayer.matchId) {
+      return;
+    }
+
+    multiplayerResultSoundRef.current = multiplayer.matchId ?? 'ended';
+    playUiSound(multiplayer.lost ? 'timer-expired' : 'puzzle-complete');
+  }, [multiplayer]);
   const currentIconHidden = activeModifiers.disappearing && started && currentTime >= 5;
   const filteredItems = useMemo(
     () => filterItemsByAbilitySlots(items, selectedAbilitySlots),
@@ -502,7 +519,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       setTimeUntilOptions((value) => Math.max(0, value - 1));
     }, 1000);
 
-    const timeout = window.setTimeout(() => setShowOptions(true), hintDelaySeconds * 1000);
+    const timeout = window.setTimeout(() => {
+      playUiSound('setting-select');
+      setShowOptions(true);
+    }, hintDelaySeconds * 1000);
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
@@ -735,7 +755,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
         const params = new URLSearchParams({
           mode: soloMode,
           difficulty: selectedDifficulty,
-          entries: String(entryCount),
+          entries: String(soloMode === 'casual' ? 100 : entryCount),
         });
         const res = await fetch(`/api/ability-blitz/quiz-items?${params}`);
         const data = await res.json();
@@ -767,7 +787,9 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
         setStarted(true);
         setCountdown(null);
       } else {
-        setCountdown(countdown - 1);
+        const nextCountdown = countdown - 1;
+        setCountdown(nextCountdown);
+        playUiSound('timer-countdown');
       }
     }, 1000);
 
@@ -827,6 +849,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   };
 
   const handleAdvance = () => {
+    playUiSound('item-slide');
     setIsSliding(true);
     setTimeout(() => {
       setActiveIndex((current) => Math.min(current + 1, items.length - 1));
@@ -851,6 +874,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }));
 
     markGuessed(currentItem.id);
+    playUiSound('skindle-guess-correct');
     setStatus('correct');
     setSuccessFlash(true);
     setShowOptions(false);
@@ -860,6 +884,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     const isFinalItem = activeIndex >= items.length - 1;
     multiplayer?.onProgress(activeIndex + 1, completedAt, isFinalItem ? 'completed' : 'active');
     if (isFinalItem) {
+      playUiSound('puzzle-complete');
       setFinished(true);
       setStarted(false);
       return;
@@ -870,8 +895,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   };
 
   const applyWrongGuess = (wrongOption?: string) => {
+    playUiSound('skindle-guess-incorrect');
     setWrongGuessCount((count) => count + 1);
     if (difficultyRule.wrongGuess === 'game-over') {
+      playUiSound('timer-expired');
       setFailed(true);
       setFailureReason('wrong');
       setStarted(false);
@@ -1061,6 +1088,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     if (started || finished || failed) {
+      playUiSound('timer-expired');
       if (started && leaderboardMode) {
         await submitOfficialAttemptState('abandoned');
         recordCompletedSoloQuizMode('ability-blitz', soloMode, selectedDifficulty);
@@ -1122,7 +1150,9 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       setSelectedDifficulty(CHAOS_DIFFICULTY);
       setActiveModifiers(forceAllModifiers(defaultModifiers));
     }
-    setCountdown(3);
+    playUiSound('random-select');
+    setCountdown(5);
+    playUiSound('timer-countdown');
   };
 
   const handleDifficultySelect = (difficultyId: DifficultyId) => {
@@ -1133,6 +1163,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
+    playUiSound('autocomplete-select');
     setSelectedDifficulty(difficultyId);
   };
 
@@ -1169,6 +1200,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       ...current,
       [modifierId]: !current[modifierId],
     }));
+    playUiSound('autocomplete-select');
   };
 
   const handleEntryCountChange = (count: number) => {
@@ -1180,6 +1212,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     setEntryCount(count);
+    playUiSound('autocomplete-select');
   };
 
   const handleAbilitySlotToggle = (slotId: AbilitySlotId) => {
@@ -1202,6 +1235,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
         [slotId]: !current[slotId],
       };
     });
+    playUiSound('autocomplete-select');
   };
 
   useEffect(() => {
@@ -1210,6 +1244,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     if (currentTime >= CHAOS_ROUND_TIME_LIMIT_SECONDS) {
+      playUiSound('timer-expired');
       setFailed(true);
       setFailureReason('timeout');
       setStarted(false);
@@ -1265,13 +1300,19 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <ArrowLeft size={20} />
               </button>
             ) : (
-              <Link href="/" aria-label="Back to game hub" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+              <Link href="/multiplayer/ability-blitz" aria-label="Back to Ability Blitz lobby setup" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
                 <ArrowLeft size={20} />
               </Link>
             )}
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{multiplayer ? 'Multiplayer Game' : 'Single Player Game'}</p>
-              <h1 className="text-xl font-semibold text-white">Ability Blitz</h1>
+              <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-white">
+                Ability Blitz
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-xs font-bold text-amber-100">
+                  <Flame size={12} className="text-amber-300" />
+                  {playerStats.currentStreak}
+                </span>
+              </h1>
               <p className="mt-1 text-xs text-slate-400">
                 {failed
                   ? 'Game over'
@@ -1281,6 +1322,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   ? shouldHideTimers
                     ? 'Completed'
                     : `Completed in ${formatSeconds(totalTime)}`
+                  : countdown !== null
+                    ? `Starting in ${countdown}`
                   : multiplayer
                     ? 'Match in progress'
                     : ''}
@@ -1294,10 +1337,6 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               'Correct answers advance through the randomized set; difficulty controls hints and penalties.',
               multiplayer ? 'Finish the shared set before your opponents.' : 'Complete the set as quickly as possible.',
             ]} />
-            {multiplayer ? <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100">
-              <Flame size={16} className="text-amber-300" />
-              {playerStats.currentStreak} day streak
-            </div> : null}
             {multiplayer?.gameEnded && multiplayer.canReturnToLobby ? (
               <button
                 type="button"
@@ -1342,6 +1381,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                           <button
                             key={difficulty.id}
                             type="button"
+                            onMouseEnter={() => playUiSound('autocomplete-hover')}
+                            onFocus={() => playUiSound('autocomplete-hover')}
                             onClick={() => handleDifficultySelect(difficulty.id)}
                             disabled={configurationLocked}
                             className={`rounded-xl border p-3 text-left transition ${
@@ -1401,6 +1442,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                           <button
                             key={modifier.id}
                             type="button"
+                            onMouseEnter={() => playUiSound('autocomplete-hover')}
+                            onFocus={() => playUiSound('autocomplete-hover')}
                             onClick={() => handleModifierToggle(modifier.id)}
                             disabled={configurationLocked || !casualSettingsAvailable}
                             className={`flex items-center justify-between gap-4 rounded-xl border p-3 text-left transition ${
@@ -1427,7 +1470,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                         <select
                           value={entryCount}
                           disabled={configurationLocked || !casualSettingsAvailable}
-                          onChange={(event) => handleEntryCountChange(Number(event.target.value))}
+                          onChange={(event) => {
+                            playUiSound('autocomplete-select');
+                            handleEntryCountChange(Number(event.target.value));
+                          }}
                           className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {entryCountOptions.map((count) => <option key={count} value={count}>{count}</option>)}
@@ -1454,6 +1500,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                             <button
                               key={slot.id}
                               type="button"
+                              onMouseEnter={() => playUiSound('autocomplete-hover')}
+                              onFocus={() => playUiSound('autocomplete-hover')}
                               onClick={() => handleAbilitySlotToggle(slot.id)}
                               disabled={configurationLocked || !casualSettingsAvailable}
                               title={slot.name}
@@ -1650,7 +1698,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   <button
                     key={option}
                     type="button"
-                    onClick={() => applyOption(option)}
+                    onMouseEnter={() => playUiSound('autocomplete-hover')}
+                    onFocus={() => playUiSound('autocomplete-hover')}
+                    onClick={() => {
+                      playUiSound('autocomplete-select');
+                      applyOption(option);
+                    }}
                     className="rounded-3xl border border-white/10 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 transition hover:border-violet-400 hover:bg-slate-800"
                   >
                     {option}
@@ -1716,7 +1769,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       <button
                         key={suggestion}
                         type="button"
-                        onClick={() => handleSuggestionSelect(suggestion)}
+                        onMouseEnter={() => playUiSound('autocomplete-hover')}
+                        onFocus={() => playUiSound('autocomplete-hover')}
+                        onClick={() => {
+                          playUiSound('autocomplete-select');
+                          handleSuggestionSelect(suggestion);
+                        }}
                         className="w-full px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-900"
                       >
                         {suggestion}
@@ -1760,6 +1818,18 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
               <div className="flex items-center gap-3">
+                {showSinglePlayerEndState ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playUiSound('random-select');
+                      resetSinglePlayerRound();
+                    }}
+                    className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
+                  >
+                    Start Another
+                  </button>
+                ) : null}
                 {multiplayerGameEnded ? <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">Race Ended</span> : null}
                 <span className="text-xs text-slate-500">{completedProgressCount}/{progressList.length}</span>
               </div>

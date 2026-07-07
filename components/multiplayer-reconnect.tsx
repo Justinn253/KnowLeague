@@ -3,6 +3,7 @@
 import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
 import { RotateCcw, WifiOff, X } from 'lucide-react';
 import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
+import { playUiSound } from '@/lib/ui-sounds';
 
 export type ReconnectCandidate = {
   code: string;
@@ -19,6 +20,7 @@ function useRemainingSeconds(expiresAt: string, onExpire?: () => void) {
       setRemaining(next);
       if (next === 0 && !expired) {
         expired = true;
+        playUiSound('disconnect-expired');
         onExpire?.();
       }
     };

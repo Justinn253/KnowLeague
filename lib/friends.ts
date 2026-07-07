@@ -330,7 +330,7 @@ async function refreshFriendCounts(supabase: ReturnType<typeof getSupabaseServic
   }));
 }
 
-async function acceptFriendPair(
+export async function acceptFriendPair(
   supabase: ReturnType<typeof getSupabaseServiceClient>,
   firstUserId: string,
   secondUserId: string,
@@ -826,20 +826,40 @@ export async function markFriendMessagesRead(userId: string, friendId: string) {
   }
 }
 
-export async function sendFriendMessage(userId: string, friendId: string, message: string) {
-  const cleanMessage = message.trim().slice(0, 1000);
+type SendFriendMessageOptions = {
+  createThread?: boolean;
+  adminMessage?: boolean;
+};
+
+export async function sendFriendMessage(
+  userId: string,
+  friendId: string,
+  message: string,
+  options: SendFriendMessageOptions = {},
+) {
+  const adminPrefix = options.adminMessage ? '[Admin message]\n' : '';
+  const cleanMessage = message.trim().slice(0, 1000 - adminPrefix.length);
   if (!cleanMessage) {
     throw new Error('Message is required.');
   }
-  const filteredMessage = sanitizeChatMessage(cleanMessage);
+  const filteredMessage = sanitizeChatMessage(`${adminPrefix}${cleanMessage}`);
 
   const supabase = getSupabaseServiceClient();
-  const { friendshipId } = await getFriendMessages(userId, friendId);
+  if (options.createThread) {
+    await acceptFriendPair(supabase, userId, friendId);
+  }
+
+  const { userOneId, userTwoId } = orderedPair(userId, friendId);
+  const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
+  if (!friendship) {
+    throw new Error('You are not friends with this user.');
+  }
+
   const [profile] = await selectProfilesByIds(supabase, [userId]);
   const { error } = await supabase
     .from('friend_messages')
     .insert({
-      friendship_id: friendshipId,
+      friendship_id: friendship.id,
       sender_id: userId,
       message: filteredMessage,
       chat_color: normalizeChatColor(profile?.chat_color),

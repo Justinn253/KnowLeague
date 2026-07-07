@@ -19,8 +19,10 @@ import {
   MULTIPLAYER_MAX_LOBBY_PLAYERS,
   normalizeLobbyCode,
   resolveMultiplayerDisplayName,
+  sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 import { normalizeChatColor, type ChatColor } from '@/lib/chat-colors';
+import { toSkinThemeQuizItem } from '@/lib/skin-themes';
 
 export type MultiplayerQuizGameMode = 'ability_blitz' | 'skin_champion';
 export type MultiplayerQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
@@ -37,6 +39,7 @@ export type MultiplayerQuizLobby = {
   ability_slots: AbilitySlotId[];
   max_players: number;
   is_public: boolean;
+  lobby_description: string;
   created_at: string;
   updated_at: string;
   terminated_at: string | null;
@@ -90,6 +93,7 @@ export type MultiplayerQuizPublicLobby = {
   maxPlayers: number;
   hostName: string;
   hostChatColor: ChatColor;
+  description: string;
 };
 
 type CreateOrJoinInput = {
@@ -106,6 +110,7 @@ type MultiplayerQuizRecordSnapshot = {
 
 const MAX_PLAYERS = MULTIPLAYER_MAX_LOBBY_PLAYERS;
 const DEFAULT_TOTAL_ITEMS = 25;
+const START_COUNTDOWN_SECONDS = 5;
 const difficulties = new Set<MultiplayerQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
 const modifierIds: Record<MultiplayerQuizGameMode, Set<string>> = {
   ability_blitz: new Set(['greyscale', 'pixelated', 'rotating', 'disappearing', 'hiddenTimer', 'confirmEntry']),
@@ -198,7 +203,13 @@ async function addLobbyEvent(lobbyId: string, eventType: string) {
 }
 
 function getGameCatalog(gameMode: MultiplayerQuizGameMode) {
-  return gameMode === 'ability_blitz' ? getAbilityCatalog() : getSkinCatalog();
+  if (gameMode === 'ability_blitz') {
+    return getAbilityCatalog();
+  }
+
+  return getSkinCatalog()
+    .map(toSkinThemeQuizItem)
+    .filter((item): item is QuizItem => Boolean(item));
 }
 
 async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {
@@ -552,7 +563,9 @@ export async function startMultiplayerQuizLobby(code: string, clientId: string, 
     ? filterItemsByAbilitySlots(catalog, lobby.ability_slots)
     : catalog;
   const itemIds = shuffle(eligibleItems).slice(0, lobby.total_items).map((item) => item.id);
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const startsAt = new Date(nowMs + START_COUNTDOWN_SECONDS * 1000).toISOString();
   const { error: playerError } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_players')
     .update({ progress: 0, elapsed_seconds: 0, finished_at: null, result: 'active', connected: true, last_seen_at: now, disconnected_at: null, updated_at: now })
@@ -562,7 +575,7 @@ export async function startMultiplayerQuizLobby(code: string, clientId: string, 
   }
   const { data: updatedLobby, error } = await getSupabaseServiceClient()
     .from('multiplayer_quiz_lobbies')
-    .update({ status: 'active', quiz_item_ids: itemIds, total_items: itemIds.length, started_at: now, finished_at: null, updated_at: now })
+    .update({ status: 'active', quiz_item_ids: itemIds, total_items: itemIds.length, started_at: startsAt, finished_at: null, updated_at: now })
     .eq('id', lobby.id)
     .select('*')
     .single<MultiplayerQuizLobby>();
@@ -730,6 +743,7 @@ export async function updateMultiplayerQuizSettings(
   totalItems: number,
   isPublic: boolean,
   abilitySlots: unknown,
+  lobbyDescription?: unknown,
 ) {
   const fetchedLobby = await fetchLobby(code);
   if (!fetchedLobby || fetchedLobby.status !== 'waiting') {
@@ -770,6 +784,7 @@ export async function updateMultiplayerQuizSettings(
       ability_slots: validAbilitySlots,
       total_items: validTotalItems,
       is_public: isPublic,
+      lobby_description: sanitizeMultiplayerLobbyDescription(lobbyDescription ?? lobby.lobby_description),
       updated_at: new Date().toISOString(),
     })
     .eq('id', lobby.id)
@@ -827,6 +842,7 @@ export async function listPublicMultiplayerQuizLobbies(gameMode: MultiplayerQuiz
       maxPlayers: lobby.max_players,
       hostName: host.display_name,
       hostChatColor: host.auth_user_id ? profileCosmeticsByUserId.get(host.auth_user_id)?.chatColor ?? 'amber' : 'amber',
+      description: lobby.lobby_description,
     };
   }).filter((entry): entry is MultiplayerQuizPublicLobby => entry !== null);
 }

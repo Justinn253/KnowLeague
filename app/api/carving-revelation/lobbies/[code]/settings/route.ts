@@ -10,6 +10,7 @@ type SettingsBody = {
   modifiers?: unknown;
   startingLineLengthPercent?: number;
   lineLengthIncrementPercent?: number;
+  lobbyDescription?: unknown;
 };
 export const runtime = 'nodejs';
 
@@ -26,6 +27,7 @@ export async function POST(request: Request, { params }: { params: { code: strin
         modifiers: body.modifiers,
         startingLineLengthPercent: body.startingLineLengthPercent,
         lineLengthIncrementPercent: body.lineLengthIncrementPercent,
+        lobbyDescription: body.lobbyDescription,
       },
     ));
   } catch (error) {

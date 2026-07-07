@@ -25,6 +25,7 @@
 - Use lucide icons for controls and include accessible labels on icon-only buttons.
 - Keep dropdown and overlay stacking behavior explicit; inspect parent overflow before changing z-index.
 - Do not duplicate profile, friends, invite, or autocomplete behavior when a shared helper/component can own it.
+- Timed game displays should default to the Category Clash timer treatment: amber/yellow normally, red and pulsing during the urgent window, and one `timer-countdown` UI sound per displayed urgent second. Prefer a 10-second urgent window for new timers unless the game's established rules differ.
 - Avoid broad rewrites of large game components during a narrow UI fix.
 - When a component exceeds a reasonable ownership boundary, extract pure helpers or focused subcomponents without changing behavior.
 

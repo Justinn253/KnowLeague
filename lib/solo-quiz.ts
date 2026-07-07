@@ -59,7 +59,7 @@ export const soloQuizModes: { id: SoloQuizMode; name: string; description: strin
   {
     id: 'daily',
     name: 'Daily',
-    description: 'One shared set per difficulty each day. You get one attempts per day. Do you think you can reach the top of the leaderboard?',
+    description: 'One shared set per difficulty each day. You get one attempt per day. Do you think you can reach the top of the leaderboard?',
     leaderboard: true,
   },
   {

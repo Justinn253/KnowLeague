@@ -2,9 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, MessageSquare, Play, RefreshCw, Send, SlidersHorizontal, Trophy, Users, X } from 'lucide-react';
-import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { GameSettingsSection } from '@/components/game-settings-section';
+import {
+  MultiplayerCreateJoinPanel,
+  MultiplayerLobbyDescriptionInput,
+  MultiplayerPublicLobbyButton,
+  MultiplayerPublicLobbyEmpty,
+} from '@/components/multiplayer-lobby-layout';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
@@ -14,6 +19,7 @@ import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from 
 import { getReconnectDeadline, MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
+import { playUiSound } from '@/lib/ui-sounds';
 import type {
   CategoryClashCategory,
   CategoryClashChatMessage,
@@ -225,12 +231,24 @@ function getSubmissionFailureLabel(reason: string | null | undefined, expectedAn
   return 'Wrong answer.';
 }
 
+function getSoundOptionHandlers(onClick: () => void) {
+  return {
+    onMouseEnter: () => playUiSound('autocomplete-hover'),
+    onFocus: () => playUiSound('autocomplete-hover'),
+    onClick: () => {
+      playUiSound('setting-select');
+      onClick();
+    },
+  };
+}
+
 export function CategoryClash() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [view, setView] = useState<CategoryClashLobbyView | null>(null);
   const [publicLobbies, setPublicLobbies] = useState<CategoryClashPublicLobby[]>([]);
   const [joinCode, setJoinCode] = useState('');
   const [draftSettings, setDraftSettings] = useState<DraftSettings | null>(null);
+  const [lobbyDescription, setLobbyDescription] = useState('');
   const [answerDraft, setAnswerDraft] = useState('');
   const [chatDraft, setChatDraft] = useState('');
   const [message, setMessage] = useState('');
@@ -247,8 +265,16 @@ export function CategoryClash() {
   const requestInFlightRef = useRef(false);
   const viewRef = useRef<CategoryClashLobbyView | null>(null);
   const settingsDirtyRef = useRef(false);
+  const countdownSoundSecondRef = useRef<number | null>(null);
+  const submissionSoundIdsRef = useRef<Set<number>>(new Set());
+  const submissionSoundLobbyIdRef = useRef<string | null>(null);
+  const finishSoundLobbyIdRef = useRef<string | null>(null);
+  const previousRosterSnapshotRef = useRef<{ hostId: string | null; roles: Map<string, string>; playerIds: Set<string> } | null>(null);
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
+  const lobbyId = view?.lobby.id ?? null;
+  const serverLobbyDescription = view?.lobby.lobby_description ?? '';
+  const lobbyDescriptionDirty = lobbyDescription !== serverLobbyDescription;
   const visibleSettings = draftSettings ?? (view ? createDraftSettings(view) : null);
   const currentPlayer = view?.requestingPlayer ?? null;
   const activePlayers = view?.players.filter((player) => player.result === 'active') ?? [];
@@ -264,14 +290,14 @@ export function CategoryClash() {
     ),
   );
   const canTypeChat = view?.lobby.status === 'finished';
-  const settingsDirty = Boolean(draftSettings && view && (
+  const settingsDirty = Boolean(lobbyDescriptionDirty || (draftSettings && view && (
     draftSettings.gameMode !== view.lobby.game_mode ||
     draftSettings.roundSeconds !== view.lobby.round_seconds ||
     draftSettings.intermissionSeconds !== view.lobby.intermission_seconds ||
     draftSettings.timerDecrementInterval !== view.lobby.timer_decrement_interval ||
     draftSettings.maxStrikes !== view.lobby.max_strikes ||
     draftSettings.enabledCategoryIds.join(',') !== view.lobby.enabled_category_ids.join(',')
-  ));
+  )));
   const categoryOptions = useMemo(() => getCategorySelectionOptions(view?.categories ?? []), [view?.categories]);
   const selectedCategoryOptionCount = useMemo(() => {
     const selectedIds = new Set(visibleSettings?.enabledCategoryIds ?? []);
@@ -284,6 +310,8 @@ export function CategoryClash() {
   const connectedPlayerCount = view?.players.filter((player) => player.connected).length ?? 0;
   const hasVotedForNextMatch = Boolean(currentPlayer && view?.nextMatchVotes.includes(currentPlayer.id));
   const nextMatchVotePlayers = view?.players.filter((player) => view.nextMatchVotes.includes(player.id)) ?? [];
+  const nextMatchVoteThreshold = Math.floor(connectedPlayerCount / 2) + 1;
+  const canHostStartNextMatch = Boolean(isHost && view?.lobby.status === 'finished' && view.nextMatchVotes.length >= nextMatchVoteThreshold);
   const currentPlayerCurrentSubmission = view && currentPlayer
     ? [...view.submissions].reverse().find((submission) => (
       submission.player_id === currentPlayer.id &&
@@ -340,6 +368,12 @@ export function CategoryClash() {
   useEffect(() => {
     settingsDirtyRef.current = settingsDirty;
   }, [settingsDirty]);
+
+  useEffect(() => {
+    if (lobbyId) {
+      setLobbyDescription(serverLobbyDescription);
+    }
+  }, [lobbyId, serverLobbyDescription]);
 
   const requestLobby = useCallback(async (path: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers);
@@ -423,24 +457,14 @@ export function CategoryClash() {
     const previous = previousRemainingSecondsRef.current;
     previousRemainingSecondsRef.current = remainingSeconds;
     if (view?.lobby.status !== 'active' || view.lobby.phase !== 'answering') return;
-    if (previous === null || remainingSeconds > previous || remainingSeconds > 3) return;
-
-    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-
-    const audioContext = new AudioContextClass();
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    oscillator.type = remainingSeconds === 0 ? 'triangle' : 'sine';
-    oscillator.frequency.value = remainingSeconds === 0 ? 660 : 420 + ((3 - remainingSeconds) * 80);
-    gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + (remainingSeconds === 0 ? 0.22 : 0.11));
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + (remainingSeconds === 0 ? 0.24 : 0.12));
-    window.setTimeout(() => void audioContext.close().catch(() => undefined), 320);
+    if (previous === null || remainingSeconds > previous) {
+      countdownSoundSecondRef.current = null;
+      return;
+    }
+    if (remainingSeconds <= 0 || remainingSeconds > 3) return;
+    if (countdownSoundSecondRef.current === remainingSeconds) return;
+    countdownSoundSecondRef.current = remainingSeconds;
+    playUiSound('timer-countdown');
   }, [remainingSeconds, view?.lobby.phase, view?.lobby.status]);
 
   useEffect(() => {
@@ -514,6 +538,63 @@ export function CategoryClash() {
     element.scrollTop = element.scrollHeight;
   }, [view?.chatMessages]);
 
+  useEffect(() => {
+    const resolvedOwnSubmissions = (view?.submissions ?? []).filter((submission) => (
+      submission.player_id === currentPlayer?.id && typeof submission.correct === 'boolean'
+    ));
+    const nextIds = new Set(resolvedOwnSubmissions.map((submission) => submission.id));
+    const previousIds = submissionSoundIdsRef.current;
+    const lobbyChanged = submissionSoundLobbyIdRef.current !== (view?.lobby.id ?? null);
+
+    if (!lobbyChanged) {
+      resolvedOwnSubmissions
+        .filter((submission) => !previousIds.has(submission.id))
+        .forEach((submission) => {
+          playUiSound(submission.correct ? 'skindle-guess-correct' : 'skindle-guess-incorrect');
+        });
+    }
+
+    submissionSoundLobbyIdRef.current = view?.lobby.id ?? null;
+    submissionSoundIdsRef.current = nextIds;
+  }, [currentPlayer?.id, view?.lobby.id, view?.submissions]);
+
+  useEffect(() => {
+    if (!view || view.lobby.status !== 'finished') {
+      finishSoundLobbyIdRef.current = null;
+      return;
+    }
+
+    if (finishSoundLobbyIdRef.current === view.lobby.id) return;
+    finishSoundLobbyIdRef.current = view.lobby.id;
+    playUiSound(currentPlayer?.result === 'won' ? 'puzzle-complete' : 'timer-expired');
+  }, [currentPlayer?.result, view]);
+
+  useEffect(() => {
+    if (!view || view.lobby.status !== 'waiting') {
+      previousRosterSnapshotRef.current = null;
+      return;
+    }
+
+    const nextSnapshot = {
+      hostId: view.lobby.host_player_id,
+      roles: new Map(view.players.map((player) => [player.id, player.role])),
+      playerIds: new Set(view.players.map((player) => player.id)),
+    };
+    const previousSnapshot = previousRosterSnapshotRef.current;
+
+    if (previousSnapshot) {
+      const hostChanged = previousSnapshot.hostId !== nextSnapshot.hostId;
+      const roleChanged = view.players.some((player) => previousSnapshot.roles.get(player.id) && previousSnapshot.roles.get(player.id) !== player.role);
+      const playerRemoved = [...previousSnapshot.playerIds].some((playerId) => !nextSnapshot.playerIds.has(playerId));
+
+      if (hostChanged || roleChanged || playerRemoved) {
+        playUiSound('player-management');
+      }
+    }
+
+    previousRosterSnapshotRef.current = nextSnapshot;
+  }, [view]);
+
   const hardLeaveForAuthChange = useCallback(async () => {
     if (!view || !clientId || isLeavingLobbyRef.current) return;
     isLeavingLobbyRef.current = true;
@@ -543,14 +624,14 @@ export function CategoryClash() {
     }
   };
 
-  const joinLobby = async (code = joinCode) => {
+  const joinLobbyByCode = async (code: string, requirePublic = false) => {
     if (!clientId || !code.trim()) return;
     ignoredLobbyCodeRef.current = null;
     setBusy(true);
     try {
       await requestLobby(`${API_BASE}/join`, {
         method: 'POST',
-        body: JSON.stringify({ clientId, code: code.trim() }),
+        body: JSON.stringify({ clientId, code: code.trim(), requirePublic }),
       });
       setJoinCode('');
       setRejoinCandidate(null);
@@ -559,6 +640,11 @@ export function CategoryClash() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const joinLobby = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await joinLobbyByCode(joinCode);
   };
 
   const leaveLobby = async (forfeit = false) => {
@@ -585,11 +671,12 @@ export function CategoryClash() {
 
   const applySettings = async () => {
     if (!view || !clientId || !draftSettings) return;
+    playUiSound('setting-select');
     setBusy(true);
     try {
       await requestLobby(`${API_BASE}/${view.lobby.code}/settings`, {
         method: 'POST',
-        body: JSON.stringify({ clientId, ...draftSettings }),
+        body: JSON.stringify({ clientId, ...draftSettings, lobbyDescription }),
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to update settings.');
@@ -600,6 +687,7 @@ export function CategoryClash() {
 
   const updatePublicStatus = async () => {
     if (!view || !clientId) return;
+    playUiSound('setting-select');
     const nextIsPublic = !view.lobby.is_public;
     setBusy(true);
     setDraftSettings((current) => ({ ...(current ?? createDraftSettings(view)), isPublic: nextIsPublic }));
@@ -615,6 +703,7 @@ export function CategoryClash() {
           intermissionSeconds: view.lobby.intermission_seconds,
           timerDecrementInterval: view.lobby.timer_decrement_interval,
           maxStrikes: view.lobby.max_strikes,
+          lobbyDescription: view.lobby.lobby_description,
         }),
       });
       setDraftSettings((current) => (current ? { ...current, isPublic: nextIsPublic } : current));
@@ -628,6 +717,7 @@ export function CategoryClash() {
 
   const startGame = async () => {
     if (!view || !clientId) return;
+    playUiSound('random-select');
     setBusy(true);
     try {
       await requestLobby(`${API_BASE}/${view.lobby.code}/start`, {
@@ -643,6 +733,7 @@ export function CategoryClash() {
 
   const startNextMatch = async () => {
     if (!view || !clientId) return;
+    playUiSound('random-select');
     setBusy(true);
     try {
       await requestLobby(`${API_BASE}/${view.lobby.code}/next-match`, {
@@ -658,6 +749,7 @@ export function CategoryClash() {
 
   const returnToLobby = async () => {
     if (!view || !clientId || !isHost) return;
+    playUiSound('random-select');
     setBusy(true);
     try {
       await requestLobby(`${API_BASE}/${view.lobby.code}/return`, {
@@ -673,6 +765,7 @@ export function CategoryClash() {
 
   const voteNextMatch = async () => {
     if (!view || !clientId || view.lobby.status !== 'finished') return;
+    playUiSound('random-select');
     setBusy(true);
     try {
       await requestLobby(`${API_BASE}/${view.lobby.code}/next-match-vote`, {
@@ -705,6 +798,7 @@ export function CategoryClash() {
   const submitChat = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!view || !clientId || !canTypeChat || !chatDraft.trim()) return;
+    playUiSound('message-sent');
     const nextMessage = chatDraft.trim();
     setChatDraft('');
     try {
@@ -739,9 +833,9 @@ export function CategoryClash() {
         <div className="mx-auto max-w-6xl">
           <header className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
             <div className="flex items-center gap-4">
-              <Link href="/" className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to home">
+              <button type="button" onClick={() => { window.location.href = '/'; }} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to home">
                 <ArrowLeft size={22} />
-              </Link>
+              </button>
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
                 <h1 className="text-2xl font-black">Category Clash</h1>
@@ -764,67 +858,42 @@ export function CategoryClash() {
             </div>
           </header>
 
-          {rejoinCandidate ? (
-            <ReconnectButton
-              candidate={rejoinCandidate}
-              disabled={busy}
-              onReconnect={() => void joinLobby(rejoinCandidate.code)}
-              onExpire={() => setRejoinCandidate(null)}
-            />
-          ) : null}
-
           <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
-            <div className="mx-auto max-w-4xl py-1">
-              <div className="text-center">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Create or Join</p>
-                <h2 className="mt-3 text-3xl font-bold text-white">Set up a Category Clash lobby</h2>
-              </div>
-              <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
-                <button type="button" onClick={createLobby} disabled={busy || !clientId} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-amber-300 px-6 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                  Create Lobby
-                </button>
-                <span className="hidden pb-3 text-sm font-semibold text-slate-500 lg:block">OR</span>
-                <form onSubmit={(event) => { event.preventDefault(); void joinLobby(); }} className="grid gap-2">
-                  <label htmlFor="category-clash-join-code" className="text-xs uppercase tracking-[0.18em] text-slate-500">Join code</label>
-                  <div className="flex gap-2">
-                    <input
-                      id="category-clash-join-code"
-                      value={joinCode}
-                      onChange={(event) => setJoinCode(event.target.value.toUpperCase().slice(0, 6))}
-                      maxLength={6}
-                      autoComplete="off"
-                      placeholder="ABC123"
-                      className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm uppercase tracking-[0.16em] text-white outline-none placeholder:text-slate-600 focus:border-white/20"
-                    />
-                    <button type="submit" disabled={busy || joinCode.trim().length !== 6} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-violet-700 px-5 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60">Join</button>
-                  </div>
-                </form>
-              </div>
-
-              <div className="mt-8 border-t border-white/10 pt-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p>
-                    <p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p>
-                  </div>
-                  <button type="button" onClick={() => void loadPublicLobbies()} disabled={busy} title="Refresh public lobbies" aria-label="Refresh public lobbies" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60">
-                    <RefreshCw size={17} />
-                  </button>
-                </div>
-                <div className="mt-4 grid gap-2">
-                  {publicLobbies.length > 0 ? publicLobbies.map((lobby) => (
-                    <button key={lobby.code} type="button" onClick={() => void joinLobby(lobby.code)} disabled={busy} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60">
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-white">{`${lobby.hostName}'s lobby`}</span>
-                        <span className="mt-1 block text-xs text-slate-400">{lobby.mode === 'turns' ? 'Turn based' : 'Simultaneous'} - {lobby.playerCount}/{lobby.maxPlayers}</span>
-                      </span>
-                    </button>
-                  )) : (
-                    <p className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4 text-sm text-slate-500">No public lobbies are waiting.</p>
+            <MultiplayerCreateJoinPanel
+              title="Set up a Category Clash lobby"
+              joinCode={joinCode}
+              onJoinCodeChange={setJoinCode}
+              onJoin={joinLobby}
+              onCreate={createLobby}
+              canCreate={Boolean(clientId)}
+              busy={busy}
+              onRefreshPublicLobbies={() => void loadPublicLobbies()}
+              reconnectPrompt={rejoinCandidate ? (
+                <ReconnectButton
+                  candidate={rejoinCandidate}
+                  disabled={busy}
+                  onReconnect={() => void joinLobbyByCode(rejoinCandidate.code)}
+                  onExpire={() => setRejoinCandidate(null)}
+                />
+              ) : null}
+              publicLobbyContent={publicLobbies.length > 0 ? publicLobbies.map((lobby) => (
+                <MultiplayerPublicLobbyButton
+                  key={lobby.code}
+                  hostName={lobby.hostName}
+                  hostNameStyle={getChatNameStyle(lobby.hostChatColor)}
+                  playerCount={lobby.playerCount}
+                  maxPlayers={lobby.maxPlayers}
+                  disabled={busy}
+                  onClick={() => void joinLobbyByCode(lobby.code, true)}
+                  details={(
+                    <>
+                      {lobby.description ? <span className="basis-full text-slate-300">{lobby.description}</span> : null}
+                      <span>{lobby.mode === 'turns' ? 'Turn based' : 'Simultaneous'}</span>
+                    </>
                   )}
-                </div>
-              </div>
-            </div>
+                />
+              )) : <MultiplayerPublicLobbyEmpty />}
+            />
             {message ? <p className="mt-5 rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-center text-sm font-semibold text-red-100">{message}</p> : null}
           </section>
         </div>
@@ -877,30 +946,31 @@ export function CategoryClash() {
                   'Spelling is forgiving: punctuation is ignored, & and "and" are interchangeable, and one-character typos are accepted.',
                 ]}
               />
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
-              <Users size={16} className="text-amber-300" />
-                {view.lobby.status === 'waiting'
-                  ? `Lobby - ${connectedPlayers.length >= view.lobby.max_players ? 'Full' : connectedPlayers.length >= 2 ? 'Ready to start' : 'Waiting for players'}`
-                  : view.lobby.status === 'active'
-                    ? 'In Progress'
-                    : view.lobby.status === 'finished'
-                      ? 'Finished'
+            {view.lobby.status !== 'finished' ? (
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
+                <Users size={16} className="text-amber-300" />
+                  {view.lobby.status === 'waiting'
+                    ? `Lobby - ${connectedPlayers.length >= view.lobby.max_players ? 'Full' : connectedPlayers.length >= 2 ? 'Ready to start' : 'Waiting for players'}`
+                    : view.lobby.status === 'active'
+                      ? 'In Progress'
                       : 'Lobby'}
-            </div>
+              </div>
+            ) : null}
             {view.lobby.status === 'finished' ? (
               <>
-                <button type="button" onClick={voteNextMatch} disabled={busy || hasVotedForNextMatch} title={nextMatchVotePlayers.length > 0 ? nextMatchVotePlayers.map((player) => player.display_name).join(', ') : 'No votes yet'} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60">
-                  <Check size={16} /> {hasVotedForNextMatch ? 'Voted' : 'Vote Next'} {view.nextMatchVotes.length}/{connectedPlayerCount}
-                </button>
+                {canHostStartNextMatch ? (
+                  <button type="button" onClick={startNextMatch} disabled={busy || connectedPlayers.length < 2} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+                    <Trophy size={16} /> Start New Match
+                  </button>
+                ) : (
+                  <button type="button" onClick={voteNextMatch} disabled={busy || hasVotedForNextMatch} title={nextMatchVotePlayers.length > 0 ? nextMatchVotePlayers.map((player) => player.display_name).join(', ') : 'No votes yet'} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60">
+                    <Check size={16} /> {hasVotedForNextMatch ? 'Voted' : 'Vote Next'} {view.nextMatchVotes.length}/{connectedPlayerCount}
+                  </button>
+                )}
                 {isHost ? (
-                  <>
-                    <button type="button" onClick={returnToLobby} disabled={busy} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-black text-slate-100 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60">
-                      <RefreshCw size={16} /> Return to Lobby
-                    </button>
-                    <button type="button" onClick={startNextMatch} disabled={busy || connectedPlayers.length < 2} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                      <Trophy size={16} /> Start New Match
-                    </button>
-                  </>
+                  <button type="button" onClick={returnToLobby} disabled={busy} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-black text-slate-100 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60">
+                    <RefreshCw size={16} /> Return to Lobby
+                  </button>
                 ) : null}
               </>
             ) : null}
@@ -956,6 +1026,11 @@ export function CategoryClash() {
                     <span><span className="block text-sm font-semibold text-white">Public lobby</span></span>
                     <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition ${visibleSettings?.isPublic ? 'bg-emerald-500' : 'bg-slate-700'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${visibleSettings?.isPublic ? 'translate-x-5' : ''}`} /></span>
                   </button>
+                  <MultiplayerLobbyDescriptionInput
+                    value={lobbyDescription}
+                    disabled={!isHost || busy}
+                    onChange={setLobbyDescription}
+                  />
                   <fieldset className="mt-5 grid gap-5">
                     <legend className="sr-only">Game settings</legend>
                     <GameSettingsSection title="Mode" defaultOpen summary={visibleSettings?.gameMode === 'turns' ? 'Turn based' : 'Simultaneous'}>
@@ -964,7 +1039,7 @@ export function CategoryClash() {
                           { id: 'simultaneous' as const, title: 'Simultaneous', text: 'Everyone answers the same category each round.' },
                           { id: 'turns' as const, title: 'Turn Based', text: 'Players answer one at a time with a short intermission.' },
                         ].map((mode) => (
-                          <button key={mode.id} type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, gameMode: mode.id } : current)} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.gameMode === mode.id ? 'border-amber-300/60 bg-amber-300/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                          <button key={mode.id} type="button" disabled={!isHost || busy} {...getSoundOptionHandlers(() => setDraftSettings((current) => current ? { ...current, gameMode: mode.id } : current))} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.gameMode === mode.id ? 'border-amber-300/60 bg-amber-300/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
                             <span className="block text-sm font-bold text-white">{mode.title}</span>
                             <span className="mt-1 block text-xs leading-5 text-slate-400">{mode.text}</span>
                           </button>
@@ -981,7 +1056,7 @@ export function CategoryClash() {
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{visibleSettings?.gameMode === 'turns' ? 'Turn length' : 'Round length'}</p>
                           <div className="mt-2 grid gap-2 sm:grid-cols-5">
                             {ROUND_SECONDS_OPTIONS.map((seconds) => (
-                              <button key={seconds} type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, roundSeconds: seconds } : current)} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.roundSeconds === seconds ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
+                              <button key={seconds} type="button" disabled={!isHost || busy} {...getSoundOptionHandlers(() => setDraftSettings((current) => current ? { ...current, roundSeconds: seconds } : current))} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.roundSeconds === seconds ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
                                 {seconds}s
                               </button>
                             ))}
@@ -991,7 +1066,7 @@ export function CategoryClash() {
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Intermission</p>
                           <div className="mt-2 grid gap-2 sm:grid-cols-4">
                             {INTERMISSION_SECONDS_OPTIONS.map((option) => (
-                              <button key={option.value} type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, intermissionSeconds: option.value } : current)} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.intermissionSeconds === option.value ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
+                              <button key={option.value} type="button" disabled={!isHost || busy} {...getSoundOptionHandlers(() => setDraftSettings((current) => current ? { ...current, intermissionSeconds: option.value } : current))} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.intermissionSeconds === option.value ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
                                 {option.label}
                               </button>
                             ))}
@@ -1001,7 +1076,7 @@ export function CategoryClash() {
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Timer decrement</p>
                           <div className="mt-2 grid gap-2 sm:grid-cols-4">
                             {TIMER_DECREMENT_OPTIONS.map((option) => (
-                              <button key={option.value} type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, timerDecrementInterval: option.value } : current)} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.timerDecrementInterval === option.value ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
+                              <button key={option.value} type="button" disabled={!isHost || busy} {...getSoundOptionHandlers(() => setDraftSettings((current) => current ? { ...current, timerDecrementInterval: option.value } : current))} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.timerDecrementInterval === option.value ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
                                 {option.label}
                               </button>
                             ))}
@@ -1013,7 +1088,7 @@ export function CategoryClash() {
                     <GameSettingsSection title="Strikes" defaultOpen={!isHost} summary={`${visibleSettings?.maxStrikes ?? 3} strikes`}>
                       <div className="grid gap-2 sm:grid-cols-5">
                         {MAX_STRIKES_OPTIONS.map((strikes) => (
-                          <button key={strikes} type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, maxStrikes: strikes } : current)} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.maxStrikes === strikes ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
+                          <button key={strikes} type="button" disabled={!isHost || busy} {...getSoundOptionHandlers(() => setDraftSettings((current) => current ? { ...current, maxStrikes: strikes } : current))} className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-65 ${visibleSettings?.maxStrikes === strikes ? 'border-amber-300/60 bg-amber-300/10 text-white' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:bg-slate-900'}`}>
                             {strikes}
                           </button>
                         ))}
@@ -1023,15 +1098,15 @@ export function CategoryClash() {
                     <GameSettingsSection title="Categories" summary={`${selectedCategoryOptionCount} selected`}>
                       <div className={`max-h-[28rem] overflow-y-auto pr-2 ${THEMED_SCROLLBAR_CLASS}`}>
                         <div className="mb-3 flex flex-wrap gap-2">
-                          <button type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, enabledCategoryIds: view.categories.map((category) => category.id) } : current)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-60">Select All</button>
-                          <button type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => current ? { ...current, enabledCategoryIds: [] } : current)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-60">Clear</button>
+                          <button type="button" disabled={!isHost || busy} {...getSoundOptionHandlers(() => setDraftSettings((current) => current ? { ...current, enabledCategoryIds: view.categories.map((category) => category.id) } : current))} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-60">Select All</button>
+                          <button type="button" disabled={!isHost || busy} {...getSoundOptionHandlers(() => setDraftSettings((current) => current ? { ...current, enabledCategoryIds: [] } : current))} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-60">Clear</button>
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {categoryOptions.map((option) => {
                             const selectedIds = new Set(visibleSettings?.enabledCategoryIds ?? []);
                             const checked = option.categoryIds.every((id) => selectedIds.has(id));
                             return (
-                              <button key={option.id} type="button" disabled={!isHost || busy} onClick={() => setDraftSettings((current) => {
+                              <button key={option.id} type="button" disabled={!isHost || busy} {...getSoundOptionHandlers(() => setDraftSettings((current) => {
                                 if (!current) return current;
                                 const currentIds = new Set(current.enabledCategoryIds);
                                 if (checked) {
@@ -1045,7 +1120,7 @@ export function CategoryClash() {
                                     .map((category) => category.id)
                                     .filter((id) => currentIds.has(id)),
                                 };
-                              })} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
+                              }))} className={`rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}>
                                 <span className="flex items-start justify-between gap-3">
                                   <span className="min-w-0">
                                     <span className="block text-sm font-bold text-white">{option.label}</span>

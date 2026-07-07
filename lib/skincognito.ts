@@ -16,6 +16,7 @@ import {
   MULTIPLAYER_MAX_LOBBY_PLAYERS,
   normalizeLobbyCode,
   resolveMultiplayerDisplayName,
+  sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 
 export type SkincognitoCategoryId = 'skin' | 'champion' | 'skinLine' | 'releaseYear' | 'rarity' | 'gender' | 'role' | 'race';
@@ -39,6 +40,7 @@ export type SkincognitoLobbyRecord = {
   terminated_at: string | null;
   return_to_lobby_at: string | null;
   is_public: boolean;
+  lobby_description: string;
 };
 
 export type SkincognitoPlayerRecord = {
@@ -119,6 +121,7 @@ export type SkincognitoPublicLobby = {
   hostChatColor: ChatColor;
   playerCount: number;
   maxPlayers: number;
+  description: string;
 };
 
 type CreateOrJoinInput = {
@@ -137,6 +140,7 @@ type SubmitActionInput = {
 
 const MAX_LOBBY_PLAYERS = MULTIPLAYER_MAX_LOBBY_PLAYERS;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
+const SKINCOGNITO_START_COUNTDOWN_MS = 5000;
 
 type ProfileChatCosmetics = {
   color: ChatColor;
@@ -940,18 +944,22 @@ export async function listPublicSkincognitoLobbies() {
       hostChatColor: host.auth_user_id ? profileCosmeticsByUserId.get(host.auth_user_id)?.color ?? 'amber' : 'amber',
       playerCount: players.length,
       maxPlayers: MAX_LOBBY_PLAYERS,
+      description: lobby.lobby_description,
     };
   }).filter((entry): entry is SkincognitoPublicLobby => entry !== null);
 }
 
-export async function updateSkincognitoLobbyVisibility(code: string, clientId: string, isPublic: boolean) {
+export async function updateSkincognitoLobbyVisibility(code: string, clientId: string, isPublic: boolean, lobbyDescription?: unknown) {
   const fetchedLobby = await fetchLobbyByCode(code);
   if (!fetchedLobby || fetchedLobby.status !== 'waiting') throw new Error('Lobby is not available.');
   const lobby = await reconcileLobby(fetchedLobby);
   if (lobby.status !== 'waiting') throw new Error('Lobby is not available.');
   const players = await fetchPlayers(lobby.id);
   assertMultiplayerHost(players, lobby.host_player_id, clientId, 'Only the host can change lobby visibility.');
-  const updatedLobby = await updateLobby(lobby.id, { is_public: isPublic });
+  const updatedLobby = await updateLobby(lobby.id, {
+    is_public: isPublic,
+    lobby_description: sanitizeMultiplayerLobbyDescription(lobbyDescription ?? lobby.lobby_description),
+  });
   await addLobbyEvent(lobby.id, 'visibility_updated');
   return getLobbyView(updatedLobby, clientId);
 }
@@ -1246,7 +1254,7 @@ export async function startSkincognitoLobby(code: string, clientId: string) {
     status: 'active',
     current_turn_player_id: startingPlayer.id,
     winner_player_id: null,
-    started_at: new Date().toISOString(),
+    started_at: new Date(Date.now() + SKINCOGNITO_START_COUNTDOWN_MS).toISOString(),
     finished_at: null,
     return_to_lobby_at: null,
   });
@@ -1264,13 +1272,13 @@ export async function scheduleSkincognitoReturnToLobby(code: string, clientId: s
   const players = await fetchPlayers(lobby.id);
   assertMultiplayerHost(players, lobby.host_player_id, clientId, 'Only the host can return everyone to the lobby.');
 
-  const returnToLobbyAt = new Date(Date.now() + 5000).toISOString();
   const updatedLobby = await updateLobby(lobby.id, {
-    return_to_lobby_at: returnToLobbyAt,
+    return_to_lobby_at: new Date().toISOString(),
   });
 
   await addLobbyEvent(updatedLobby.id, 'return_to_lobby_scheduled');
-  return getLobbyView(updatedLobby, clientId);
+  const reconciledLobby = await reconcileLobby(updatedLobby);
+  return getLobbyView(reconciledLobby, clientId);
 }
 
 export async function submitSkincognitoAction(code: string, input: SubmitActionInput) {
@@ -1281,6 +1289,9 @@ export async function submitSkincognitoAction(code: string, input: SubmitActionI
   const lobby = await reconcileLobby(fetchedLobby);
   if (lobby.status !== 'active') {
     throw new Error('Game is not active.');
+  }
+  if (lobby.started_at && new Date(lobby.started_at).getTime() > Date.now()) {
+    throw new Error('Game is starting.');
   }
 
   const players = await fetchPlayers(lobby.id);

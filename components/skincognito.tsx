@@ -1,7 +1,7 @@
 'use client';
 
 import { type CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Search } from 'lucide-react';
+import { Check, ChevronDown, Search, Shuffle } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
@@ -13,6 +13,7 @@ import {
   MultiplayerLobbyHeader,
   MultiplayerLobbyMessage,
   MultiplayerLobbyPanel,
+  MultiplayerLobbyDescriptionInput,
   MultiplayerLobbyShell,
   MultiplayerPublicLobbyButton,
   MultiplayerPublicLobbyEmpty,
@@ -30,6 +31,7 @@ import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobb
 import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
+import { playUiSound } from '@/lib/ui-sounds';
 
 type SkinAnswer = {
   id: string;
@@ -285,18 +287,21 @@ export function Skincognito() {
   const [skinQuery, setSkinQuery] = useState('');
   const [selectedSkin, setSelectedSkin] = useState<SkinAnswer | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<SkincognitoCategoryId>('skin');
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [guessQuery, setGuessQuery] = useState('');
   const [guessMenuOpen, setGuessMenuOpen] = useState(false);
+  const [startCountdownSeconds, setStartCountdownSeconds] = useState<number | null>(null);
   const [chatDraft, setChatDraft] = useState('');
-  const [returnToLobbyCountdown, setReturnToLobbyCountdown] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [codeRevealed, setCodeRevealed] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [publicLobbies, setPublicLobbies] = useState<SkincognitoPublicLobby[]>([]);
+  const [lobbyDescription, setLobbyDescription] = useState('');
   const [rejoinCandidate, setRejoinCandidate] = useState<ReconnectCandidate | null>(null);
   const [detailedStats, setDetailedStats] = useState<DetailedGameStats>(() => loadDetailedGameStats());
   const skinSearchRef = useRef<HTMLDivElement>(null);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const guessSearchRef = useRef<HTMLDivElement>(null);
   const guessesScrollRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -308,6 +313,14 @@ export function Skincognito() {
   const statsRecordedRef = useRef<string | null>(null);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: SkincognitoLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
+  const seenActionIdsRef = useRef<Set<string>>(new Set());
+  const seenChatIdsRef = useRef<Set<string>>(new Set());
+  const seenActionLobbyIdRef = useRef<string | null>(null);
+  const seenChatLobbyIdRef = useRef<string | null>(null);
+  const previousLobbyRosterRef = useRef<{ hostId: string | null; roles: Map<string, string>; playerIds: Set<string> } | null>(null);
+  const finishSoundLobbyIdRef = useRef<string | null>(null);
+  const countdownSoundSecondRef = useRef<number | null>(null);
+  const previousLobbyStatusRef = useRef<SkincognitoLobbyView['lobby']['status'] | null>(null);
 
   useMultiplayerAuthTransition(async () => {
     const activeLobby = latestLobbyRef.current;
@@ -342,6 +355,9 @@ export function Skincognito() {
     : [], [lobbyView]);
   const spectatorCount = lobbyView ? lobbyView.players.length - activePlayers.length : 0;
   const canStart = Boolean(isHost && lobbyView?.lobby.status === 'waiting' && activePlayers.length === 2 && activePlayers.every((player) => player.connected));
+  const lobbyId = lobbyView?.lobby.id ?? null;
+  const serverLobbyDescription = lobbyView?.lobby.lobby_description ?? '';
+  const lobbyDescriptionDirty = lobbyDescription !== serverLobbyDescription;
   const playerOne = getPlayerById(lobbyView, lobbyView?.lobby.player_one_id);
   const playerTwo = getPlayerById(lobbyView, lobbyView?.lobby.player_two_id);
   const winnerPlayer = getPlayerById(lobbyView, lobbyView?.lobby.winner_player_id);
@@ -354,7 +370,17 @@ export function Skincognito() {
   const topCorrectCategories = getCategoryCorrectSet(lobbyView, topPlayer?.id);
   const bottomCorrectCategories = getCategoryCorrectSet(lobbyView, bottomPlayer?.id);
   const isTurn = Boolean(requestingPlayer && lobbyView?.lobby.current_turn_player_id === requestingPlayer.id);
-  const canSubmitAction = Boolean(lobbyView?.lobby.status === 'active' && requestingPlayer?.role !== 'spectator' && isTurn);
+  const isStartCountdownPending = Boolean(
+    lobbyView?.lobby.status === 'active' &&
+      lobbyView.lobby.started_at &&
+      new Date(lobbyView.lobby.started_at).getTime() > Date.now(),
+  );
+  const displayedStartCountdownSeconds = startCountdownSeconds ?? (
+    isStartCountdownPending && lobbyView?.lobby.started_at
+      ? Math.max(1, Math.ceil((new Date(lobbyView.lobby.started_at).getTime() - Date.now()) / 1000))
+      : null
+  );
+  const canSubmitAction = Boolean(lobbyView?.lobby.status === 'active' && !isStartCountdownPending && !startCountdownSeconds && requestingPlayer?.role !== 'spectator' && isTurn);
   const lobbyProfileSubscriptionKey = useMemo(() => (
     (lobbyView?.players ?? [])
       .map((player) => player.auth_user_id)
@@ -374,6 +400,7 @@ export function Skincognito() {
   const availableInputCategories = useMemo(() => (
     INPUT_CATEGORIES.filter((category) => !ownCorrectCategories.has(category.id))
   ), [ownCorrectCategories]);
+  const selectedCategoryLabel = INPUT_CATEGORIES.find((category) => category.id === selectedCategory)?.label ?? 'Skin';
   const suggestions = useMemo(() => {
     const query = normalizeAnswer(skinQuery);
     if (query.length < 2 || selectedSkin?.label === skinQuery) {
@@ -523,6 +550,12 @@ export function Skincognito() {
       }
     }
   }, [router]);
+
+  useEffect(() => {
+    if (lobbyId) {
+      setLobbyDescription(serverLobbyDescription);
+    }
+  }, [lobbyId, serverLobbyDescription]);
 
   const requestLobby = useCallback(async (url: string, body?: Record<string, unknown>) => {
     setBusy(true);
@@ -725,6 +758,9 @@ export function Skincognito() {
       if (!guessSearchRef.current?.contains(event.target as Node)) {
         setGuessMenuOpen(false);
       }
+      if (!categoryDropdownRef.current?.contains(event.target as Node)) {
+        setCategoryMenuOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -737,9 +773,120 @@ export function Skincognito() {
     }
 
     setSelectedCategory(getNextAvailableCategory(ownCorrectCategories));
-    setGuessQuery('');
+    setCategoryMenuOpen(false);
     setGuessMenuOpen(false);
   }, [ownCorrectCategories, selectedCategory]);
+
+  useEffect(() => {
+    const previousStatus = previousLobbyStatusRef.current;
+    const nextStatus = lobbyView?.lobby.status ?? null;
+    previousLobbyStatusRef.current = nextStatus;
+
+    if (nextStatus === 'active' && previousStatus !== 'active') {
+      setSelectedCategory('skin');
+      setCategoryMenuOpen(false);
+      setGuessMenuOpen(false);
+    }
+  }, [lobbyView?.lobby.status]);
+
+  useEffect(() => {
+    if (lobbyView?.lobby.status !== 'active' || !lobbyView.lobby.started_at) {
+      setStartCountdownSeconds(null);
+      countdownSoundSecondRef.current = null;
+      return undefined;
+    }
+
+    const startedAtMs = new Date(lobbyView.lobby.started_at).getTime();
+    const updateCountdown = () => {
+      const secondsRemaining = Math.max(0, Math.ceil((startedAtMs - Date.now()) / 1000));
+      setStartCountdownSeconds(secondsRemaining > 0 ? secondsRemaining : null);
+      if (secondsRemaining > 0 && countdownSoundSecondRef.current !== secondsRemaining) {
+        countdownSoundSecondRef.current = secondsRemaining;
+        playUiSound('timer-countdown');
+      }
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 200);
+    return () => window.clearInterval(interval);
+  }, [lobbyView?.lobby.started_at, lobbyView?.lobby.status]);
+
+  useEffect(() => {
+    const actionIds = new Set((lobbyView?.actions ?? []).map((action) => action.id));
+    const previousIds = seenActionIdsRef.current;
+    const lobbyChanged = seenActionLobbyIdRef.current !== (lobbyView?.lobby.id ?? null);
+
+    if (!lobbyChanged) {
+      const newActions = (lobbyView?.actions ?? []).filter((action) => !previousIds.has(action.id));
+      newActions.forEach((action) => {
+        playUiSound(action.is_correct ? 'skindle-guess-correct' : 'skindle-guess-incorrect');
+      });
+    }
+
+    seenActionLobbyIdRef.current = lobbyView?.lobby.id ?? null;
+    seenActionIdsRef.current = actionIds;
+  }, [lobbyView?.actions, lobbyView?.lobby.id]);
+
+  useEffect(() => {
+    const playerMessages = (lobbyView?.chatMessages ?? []).filter((chat) => chat.message_type === 'player');
+    const messageIds = new Set(playerMessages.map((chat) => chat.id));
+    const previousIds = seenChatIdsRef.current;
+    const lobbyChanged = seenChatLobbyIdRef.current !== (lobbyView?.lobby.id ?? null);
+
+    if (!lobbyChanged) {
+      const newMessages = playerMessages.filter((chat) => !previousIds.has(chat.id));
+      newMessages.forEach((chat) => {
+        playUiSound(chat.player_id === requestingPlayer?.id ? 'message-sent' : 'message-incoming');
+      });
+    }
+
+    seenChatLobbyIdRef.current = lobbyView?.lobby.id ?? null;
+    seenChatIdsRef.current = messageIds;
+  }, [lobbyView?.chatMessages, lobbyView?.lobby.id, requestingPlayer?.id]);
+
+  useEffect(() => {
+    if (!lobbyView || lobbyView.lobby.status !== 'waiting') {
+      previousLobbyRosterRef.current = null;
+      return;
+    }
+
+    const nextSnapshot = {
+      hostId: lobbyView.lobby.host_player_id,
+      roles: new Map(lobbyView.players.map((player) => [player.id, player.role])),
+      playerIds: new Set(lobbyView.players.map((player) => player.id)),
+    };
+    const previousSnapshot = previousLobbyRosterRef.current;
+
+    if (previousSnapshot) {
+      const hostChanged = previousSnapshot.hostId !== nextSnapshot.hostId;
+      const roleChanged = lobbyView.players.some((player) => previousSnapshot.roles.get(player.id) && previousSnapshot.roles.get(player.id) !== player.role);
+      const playerRemoved = [...previousSnapshot.playerIds].some((playerId) => !nextSnapshot.playerIds.has(playerId));
+
+      if (hostChanged || roleChanged || playerRemoved) {
+        playUiSound('player-management');
+      }
+    }
+
+    previousLobbyRosterRef.current = nextSnapshot;
+  }, [lobbyView]);
+
+  useEffect(() => {
+    if (!lobbyView || lobbyView.lobby.status !== 'finished') {
+      finishSoundLobbyIdRef.current = null;
+      return;
+    }
+
+    if (finishSoundLobbyIdRef.current === lobbyView.lobby.id) {
+      return;
+    }
+
+    finishSoundLobbyIdRef.current = lobbyView.lobby.id;
+    if (requestingPlayer?.role === 'spectator' || lobbyView.lobby.winner_player_id === requestingPlayer?.id) {
+      playUiSound('puzzle-complete');
+    } else {
+      playUiSound('timer-expired');
+    }
+  }, [lobbyView, requestingPlayer?.id, requestingPlayer?.role]);
 
   useEffect(() => {
     const guessesElement = guessesScrollRef.current;
@@ -758,30 +905,6 @@ export function Skincognito() {
 
     chatElement.scrollTop = chatElement.scrollHeight;
   }, [visibleChatMessages.length]);
-
-  useEffect(() => {
-    if (!lobbyView?.lobby.return_to_lobby_at || !clientId) {
-      setReturnToLobbyCountdown(null);
-      return undefined;
-    }
-
-    const code = lobbyView.lobby.code;
-    const updateCountdown = () => {
-      const secondsRemaining = Math.max(
-        0,
-        Math.ceil((new Date(lobbyView.lobby.return_to_lobby_at as string).getTime() - Date.now()) / 1000),
-      );
-      setReturnToLobbyCountdown(secondsRemaining);
-
-      if (secondsRemaining === 0) {
-        void refreshLobbyView(code, clientId);
-      }
-    };
-
-    updateCountdown();
-    const interval = window.setInterval(updateCountdown, 250);
-    return () => window.clearInterval(interval);
-  }, [clientId, lobbyView?.lobby.code, lobbyView?.lobby.return_to_lobby_at, refreshLobbyView]);
 
   useEffect(() => {
     if (!lobbyView?.lobby.id || !lobbyView.lobby.code || !clientId || lobbyView.lobby.status === 'terminated') {
@@ -923,14 +1046,25 @@ export function Skincognito() {
     void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/visibility`, {
       clientId,
       isPublic: !lobbyView.lobby.is_public,
+      lobbyDescription: lobbyView.lobby.lobby_description,
     });
   };
 
-  const chooseSkin = (skin: SkinAnswer) => {
+  const saveLobbyDescription = () => {
+    if (!clientId || !lobbyView || !isHost || lobbyDescription === (lobbyView.lobby.lobby_description ?? '')) return;
+    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/visibility`, {
+      clientId,
+      isPublic: lobbyView.lobby.is_public,
+      lobbyDescription,
+    });
+  };
+
+  const chooseSkin = (skin: SkinAnswer, sound: 'autocomplete' | 'random' = 'autocomplete') => {
     if (!canSelectSkin) {
       return;
     }
 
+    playUiSound(sound === 'random' ? 'random-select' : 'autocomplete-select');
     setSelectedSkin(skin);
     setSkinQuery(skin.label);
     skinQueryDirtyRef.current = false;
@@ -943,11 +1077,21 @@ export function Skincognito() {
     }
   };
 
+  const chooseRandomSkin = () => {
+    if (!canSelectSkin || answers.skin.length === 0) {
+      return;
+    }
+
+    const randomSkin = answers.skin[Math.floor(Math.random() * answers.skin.length)];
+    chooseSkin(randomSkin, 'random');
+  };
+
   const startGame = () => {
     if (!clientId || !lobbyView) {
       return;
     }
 
+    setSelectedCategory('skin');
     void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/start`, {
       clientId,
     });
@@ -982,19 +1126,23 @@ export function Skincognito() {
     setMessage('');
     setPublicLobbies((current) => current.filter((lobby) => lobby.code !== code));
     if (clientId) {
-      const endpoint = wasWaiting ? 'leave' : 'heartbeat';
-      await fetch(`/api/skincognito/lobbies/${code}/${endpoint}`, {
+      await fetch(`/api/skincognito/lobbies/${code}/leave`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, ...(wasWaiting ? {} : { connected: false }) }),
+        body: JSON.stringify({ clientId }),
       }).catch(() => undefined);
     }
+    window.history.replaceState(null, '', '/skincognito');
     if (wasWaiting) {
       isLeavingLobbyRef.current = false;
-      window.history.replaceState(null, '', '/skincognito');
       await loadPublicLobbies();
     } else {
-      router.push('/');
+      setRejoinCandidate({
+        code,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      isLeavingLobbyRef.current = false;
+      await loadPublicLobbies();
     }
   };
 
@@ -1068,6 +1216,7 @@ export function Skincognito() {
   }, [canSubmitAction, clientId, lobbyView, refreshLobbyView, requestLobby, selectedCategory]);
 
   const chooseGuess = (label: string) => {
+    playUiSound('autocomplete-select');
     setGuessQuery(label);
     submitGuessValue(label);
   };
@@ -1103,6 +1252,7 @@ export function Skincognito() {
       return;
     }
 
+    playUiSound('random-select');
     void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/return`, {
       clientId,
     });
@@ -1127,12 +1277,10 @@ export function Skincognito() {
               <button
                 type="button"
                 onClick={scheduleReturnToLobby}
-                disabled={busy || Boolean(lobbyView.lobby.return_to_lobby_at)}
+                disabled={busy}
                 className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {lobbyView.lobby.return_to_lobby_at
-                  ? `Returning in ${returnToLobbyCountdown ?? 5}s`
-                  : 'Return to Lobby'}
+                Return to Lobby
               </button>
             ) : null}
           </>
@@ -1169,6 +1317,7 @@ export function Skincognito() {
                   maxPlayers={lobby.maxPlayers}
                   disabled={busy}
                   onClick={() => joinLobbyByCode(lobby.code, true)}
+                  details={lobby.description ? <span>{lobby.description}</span> : null}
                 />
               )) : <MultiplayerPublicLobbyEmpty />}
             />
@@ -1186,11 +1335,6 @@ export function Skincognito() {
 
           {lobbyView && lobbyView.lobby.status === 'waiting' ? (
             <div className="mt-5 grid gap-5">
-              <MultiplayerVisibilityToggle
-                enabled={lobbyView.lobby.is_public}
-                disabled={!isHost || busy}
-                onToggle={updateLobbyVisibility}
-              />
               <MultiplayerLobbyGrid>
                 <MultiplayerLobbyRoster
                   countLabel={`${activePlayers.length}/2 Players - ${spectatorCount}/8 Spectators`}
@@ -1225,8 +1369,25 @@ export function Skincognito() {
                   onMakeHost={makeHost}
                 />
 
-                <MultiplayerLobbyPanel title="Your Skin">
-                  <h3 className="text-lg font-semibold text-white">
+                <MultiplayerLobbyPanel
+                  title="Your Skin"
+                  headerAction={lobbyDescriptionDirty ? (
+                    <button type="button" onClick={saveLobbyDescription} disabled={!isHost || busy} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-300 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+                      Apply Changes
+                    </button>
+                  ) : null}
+                >
+                  <MultiplayerVisibilityToggle
+                    enabled={lobbyView.lobby.is_public}
+                    disabled={!isHost || busy}
+                    onToggle={updateLobbyVisibility}
+                  />
+                  <MultiplayerLobbyDescriptionInput
+                    value={lobbyDescription}
+                    disabled={!isHost || busy}
+                    onChange={setLobbyDescription}
+                  />
+                  <h3 className="mt-5 text-lg font-semibold text-white">
                     {requestingPlayer?.role === 'spectator' ? 'Spectating' : 'Choose your skin'}
                   </h3>
 
@@ -1252,10 +1413,21 @@ export function Skincognito() {
                       </div>
                     </div>
 
-                    <div ref={skinSearchRef} className="relative">
-                      <label htmlFor="skin-search" className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                        Search skins
-                      </label>
+                    <div ref={skinSearchRef}>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <label htmlFor="skin-search" className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                          Search skins
+                        </label>
+                        <button
+                          type="button"
+                          disabled={!canSelectSkin || answers.skin.length === 0}
+                          onClick={chooseRandomSkin}
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-100 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Shuffle size={14} />
+                          Random Skin
+                        </button>
+                      </div>
                       <div className="relative mt-2">
                         <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                         <input
@@ -1274,30 +1446,32 @@ export function Skincognito() {
                           disabled={!canSelectSkin}
                           className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-11 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
                         />
-                      </div>
 
-                      {suggestions.length > 0 ? (
-                        <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
-                          {suggestions.map((skin) => (
-                            <button
-                              key={skin.id}
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => chooseSkin(skin)}
-                              className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-                            >
-                              <Image
-                                src={skin.imageUrl}
-                                alt=""
-                                width={72}
-                                height={42}
-                                className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
-                              />
-                              <span className="min-w-0 truncate">{skin.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
+                        {suggestions.length > 0 ? (
+                          <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
+                            {suggestions.map((skin) => (
+                              <button
+                                key={skin.id}
+                                type="button"
+                                onMouseEnter={() => playUiSound('autocomplete-hover')}
+                                onFocus={() => playUiSound('autocomplete-hover')}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => chooseSkin(skin)}
+                                className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                              >
+                                <Image
+                                  src={skin.imageUrl}
+                                  alt=""
+                                  width={72}
+                                  height={42}
+                                  className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
+                                />
+                                <span className="min-w-0 truncate">{skin.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
 
                       <p className="mt-3 text-xs leading-5 text-slate-500">
                         {requestingPlayer?.role === 'spectator'
@@ -1310,15 +1484,22 @@ export function Skincognito() {
               </MultiplayerLobbyGrid>
 
               <MultiplayerStartGameControl
-                disabled={busy || !canStart}
+                disabled={busy || !canStart || lobbyDescriptionDirty}
                 onStart={startGame}
-                hint="The host can start once two active players have joined. Missing skin selections use a random skin."
+                hint={lobbyDescriptionDirty ? 'Apply setting changes before starting.' : 'The host can start once two active players have joined. Missing skin selections use a random skin.'}
               />
             </div>
           ) : null}
 
           {lobbyView && lobbyView.lobby.status !== 'waiting' ? (
             <div className="mt-4">
+              {displayedStartCountdownSeconds ? (
+                <section className="mb-4 rounded-3xl border border-red-400/60 bg-red-500/10 p-5 text-center shadow-lg shadow-red-950/30 animate-pulse">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-200">Starting in</p>
+                  <p className="mt-2 text-4xl font-black text-red-100">{displayedStartCountdownSeconds}</p>
+                </section>
+              ) : null}
+
               <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -1684,26 +1865,46 @@ export function Skincognito() {
 
                   <form onSubmit={submitGuess} className="mt-4 grid gap-3">
                     <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
-                      <select
-                        value={selectedCategory}
-                        onChange={(event) => {
-                          setSelectedCategory(event.target.value as SkincognitoCategoryId);
-                          setGuessQuery('');
-                          setGuessMenuOpen(false);
-                        }}
-                        style={{
-                          backgroundImage:
-                            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
-                          backgroundPosition: 'right 1.15rem center',
-                          backgroundRepeat: 'no-repeat',
-                          backgroundSize: '16px 16px',
-                        }}
-                        className="min-h-11 appearance-none rounded-2xl border border-white/10 bg-slate-950 px-4 pr-12 text-sm font-semibold text-white outline-none transition focus:border-white/20 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {availableInputCategories.map((category) => (
-                          <option key={category.id} value={category.id}>{category.label}</option>
-                        ))}
-                      </select>
+                      <div ref={categoryDropdownRef} className="relative">
+                        <button
+                          type="button"
+                          disabled={!canSubmitAction || availableInputCategories.length === 0}
+                          onClick={() => {
+                            playUiSound('autocomplete-select');
+                            setCategoryMenuOpen((open) => !open);
+                            setGuessMenuOpen(false);
+                          }}
+                          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950 px-4 text-left text-sm font-semibold text-white outline-none transition hover:bg-slate-900 focus:border-white/20 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <span className="truncate">{selectedCategoryLabel}</span>
+                          <ChevronDown size={16} className="shrink-0 text-slate-500" />
+                        </button>
+
+                        {categoryMenuOpen && canSubmitAction && availableInputCategories.length > 0 ? (
+                          <div className="absolute left-0 right-0 top-full z-40 mt-2 grid overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1">
+                            {availableInputCategories.map((category) => (
+                              <button
+                                key={category.id}
+                                type="button"
+                                onMouseEnter={() => playUiSound('autocomplete-hover')}
+                                onFocus={() => playUiSound('autocomplete-hover')}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  playUiSound('autocomplete-select');
+                                  setSelectedCategory(category.id);
+                                  setCategoryMenuOpen(false);
+                                  setGuessMenuOpen(true);
+                                }}
+                                className={`rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
+                                  category.id === selectedCategory ? 'bg-violet-500/20 text-violet-100' : 'text-slate-200 hover:bg-slate-800'
+                                }`}
+                              >
+                                {category.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
 
                       <div ref={guessSearchRef} className="relative">
                         <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
@@ -1729,6 +1930,8 @@ export function Skincognito() {
                               <button
                                 key={`${selectedCategory}-${suggestion.id}`}
                                 type="button"
+                                onMouseEnter={() => playUiSound('autocomplete-hover')}
+                                onFocus={() => playUiSound('autocomplete-hover')}
                                 onMouseDown={(event) => event.preventDefault()}
                                 onClick={() => chooseGuess(suggestion.label)}
                                 className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"

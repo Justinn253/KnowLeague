@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
-export async function getAuthenticatedUserId(request: Request) {
+export async function getAuthenticatedUser(request: Request) {
   const authHeader = request.headers.get('authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
 
@@ -13,7 +13,12 @@ export async function getAuthenticatedUserId(request: Request) {
     throw new Error('Authentication is required.');
   }
 
-  return data.user.id;
+  return data.user;
+}
+
+export async function getAuthenticatedUserId(request: Request) {
+  const user = await getAuthenticatedUser(request);
+  return user.id;
 }
 
 export async function getOptionalAuthenticatedUserId(request: Request) {

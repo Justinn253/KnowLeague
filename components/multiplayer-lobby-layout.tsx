@@ -2,7 +2,9 @@
 
 import { type CSSProperties, FormEvent, ReactNode } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Users } from 'lucide-react';
+import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { playUiSound } from '@/lib/ui-sounds';
 
 type MultiplayerLobbyShellProps = {
   children: ReactNode;
@@ -29,6 +31,9 @@ type MultiplayerCreateJoinPanelProps = {
   canJoin?: boolean;
   busy?: boolean;
   reconnectPrompt?: ReactNode;
+  soloHref?: string;
+  soloLabel?: string;
+  soloDescription?: string;
   publicLobbyContent: ReactNode;
   onRefreshPublicLobbies: () => void;
 };
@@ -64,6 +69,12 @@ type MultiplayerVisibilityToggleProps = {
   enabled: boolean;
   disabled?: boolean;
   onToggle: () => void;
+};
+
+type MultiplayerLobbyDescriptionInputProps = {
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
 };
 
 type MultiplayerStartGameControlProps = {
@@ -148,6 +159,9 @@ export function MultiplayerCreateJoinPanel({
   canJoin = joinCode.trim().length === 6,
   busy = false,
   reconnectPrompt,
+  soloHref,
+  soloLabel = 'Play Solo',
+  soloDescription = 'Start a personal run',
   publicLobbyContent,
   onRefreshPublicLobbies,
 }: MultiplayerCreateJoinPanelProps) {
@@ -158,17 +172,44 @@ export function MultiplayerCreateJoinPanel({
         <h2 className="mt-3 text-3xl font-bold text-white">{title}</h2>
       </div>
 
+      {soloHref ? (
+        <div className="mt-7 flex justify-center">
+          <Link
+            href={soloHref}
+            onClick={() => playUiSound('random-select')}
+            className="group relative inline-flex min-h-14 w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-6 text-slate-950 shadow-lg shadow-cyan-950/20 transition-[transform,border-color,box-shadow,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75 hover:shadow-cyan-900/30 hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+          >
+            <span className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/25 opacity-0 blur-xl transition-[left,opacity] duration-700 ease-out group-hover:left-full group-hover:opacity-100" />
+            <span className="relative grid text-center">
+              <span className="text-sm font-black uppercase tracking-[0.14em]">{soloLabel}</span>
+              <span className="text-xs font-semibold text-slate-800/75">{soloDescription}</span>
+            </span>
+          </Link>
+        </div>
+      ) : null}
+
       <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
         <button
           type="button"
-          onClick={onCreate}
+          onClick={() => {
+            playUiSound('random-select');
+            onCreate();
+          }}
           disabled={busy || !canCreate}
           className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-amber-300 px-6 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Create Lobby
         </button>
         <span className="hidden pb-3 text-sm font-semibold text-slate-500 lg:block">OR</span>
-        <form onSubmit={onJoin} className="grid gap-2">
+        <form
+          onSubmit={(event) => {
+            if (canJoin && !busy) {
+              playUiSound('random-select');
+            }
+            onJoin(event);
+          }}
+          className="grid gap-2"
+        >
           <label htmlFor="join-code" className="text-xs uppercase tracking-[0.18em] text-slate-500">Join code</label>
           <div className="flex gap-2">
             <input
@@ -196,11 +237,14 @@ export function MultiplayerCreateJoinPanel({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Public Lobbies</p>
-            <p className="mt-1 text-sm text-slate-400">Join a waiting game without a code.</p>
+            <p className="mt-1 text-sm text-slate-400">Join a public lobby.</p>
           </div>
           <button
             type="button"
-            onClick={onRefreshPublicLobbies}
+            onClick={() => {
+              playUiSound('random-select');
+              onRefreshPublicLobbies();
+            }}
             disabled={busy}
             title="Refresh public lobbies"
             aria-label="Refresh public lobbies"
@@ -230,7 +274,12 @@ export function MultiplayerPublicLobbyButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onMouseEnter={() => playUiSound('autocomplete-hover')}
+      onFocus={() => playUiSound('autocomplete-hover')}
+      onClick={() => {
+        playUiSound('random-select');
+        onClick();
+      }}
       disabled={disabled}
       className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60"
     >
@@ -329,6 +378,35 @@ export function MultiplayerVisibilityToggle({ enabled, disabled, onToggle }: Mul
   );
 }
 
+export function MultiplayerLobbyDescriptionInput({
+  value,
+  disabled,
+  onChange,
+}: MultiplayerLobbyDescriptionInputProps) {
+  return (
+    <label className="mt-3 grid gap-2 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3">
+      <span className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-white">Lobby description</span>
+        <span className="text-xs font-semibold text-slate-500">{value.length}/75</span>
+      </span>
+      <input
+        type="text"
+        value={value}
+        maxLength={75}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value.slice(0, 75))}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.currentTarget.blur();
+          }
+        }}
+        placeholder="None set"
+        className="min-h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+      />
+    </label>
+  );
+}
+
 export function MultiplayerStartGameControl({
   disabled,
   onStart,
@@ -340,7 +418,10 @@ export function MultiplayerStartGameControl({
       <button
         type="button"
         disabled={disabled}
-        onClick={onStart}
+        onClick={() => {
+          playUiSound('random-select');
+          onStart();
+        }}
         className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-700 px-8 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Play size={17} /> {label}
@@ -370,7 +451,12 @@ export function MultiplayerModifierToggle({
     <button
       type="button"
       disabled={disabled}
-      onClick={onToggle}
+      onMouseEnter={() => playUiSound('autocomplete-hover')}
+      onFocus={() => playUiSound('autocomplete-hover')}
+      onClick={() => {
+        playUiSound('autocomplete-select');
+        onToggle();
+      }}
       className={`flex items-start justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${checked ? 'border-violet-400/60 bg-violet-500/10' : 'border-white/10 bg-slate-900/70 hover:bg-slate-900'}`}
     >
       <span>

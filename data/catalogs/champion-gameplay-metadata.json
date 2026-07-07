@@ -1,0 +1,694 @@
+{
+  "Lux": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Aatrox": {
+    "resourceType": "No Mana",
+    "lane": "Top"
+  },
+  "Ahri": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Akali": {
+    "resourceType": "Energy",
+    "lane": "Top"
+  },
+  "Akshan": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Alistar": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Amumu": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Anivia": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Annie": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Aphelios": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Ashe": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Aurelion Sol": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Azir": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Bard": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Blitzcrank": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Brand": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Braum": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Caitlyn": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Camille": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Cassiopeia": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Cho'Gath": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Corki": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Darius": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Diana": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Dr. Mundo": {
+    "resourceType": "Health costs",
+    "lane": "Top"
+  },
+  "Draven": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Ekko": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Elise": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Evelynn": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Ezreal": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Fiddlesticks": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Fiora": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Fizz": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Galio": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Gangplank": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Garen": {
+    "resourceType": "No Mana",
+    "lane": "Top"
+  },
+  "Gnar": {
+    "resourceType": "Rage",
+    "lane": "Top"
+  },
+  "Gragas": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Graves": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Gwen": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Hecarim": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Heimerdinger": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Illaoi": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Irelia": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Ivern": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Janna": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Jarvan IV": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Jax": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Jayce": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Jhin": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Jinx": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Kai'Sa": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Kalista": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Karma": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Karthus": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Kassadin": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Katarina": {
+    "resourceType": "No Mana",
+    "lane": "Middle"
+  },
+  "Kayle": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Kayn": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Kennen": {
+    "resourceType": "Energy",
+    "lane": "Top"
+  },
+  "Kha'Zix": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Kindred": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Kled": {
+    "resourceType": "Courage",
+    "lane": "Top"
+  },
+  "Kog'Maw": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "LeBlanc": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Lee Sin": {
+    "resourceType": "Energy",
+    "lane": "Jungle"
+  },
+  "Leona": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Lillia": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Lissandra": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Lucian": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Lulu": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Malphite": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Malzahar": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Maokai": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Master Yi": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Miss Fortune": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Mordekaiser": {
+    "resourceType": "Shield",
+    "lane": "Top"
+  },
+  "Morgana": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Nami": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Nasus": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Nautilus": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Neeko": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Nidalee": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Nocturne": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Nunu & Willump": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Olaf": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Orianna": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Ornn": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Pantheon": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Poppy": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Pyke": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Qiyana": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Quinn": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Rakan": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Rammus": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Rek'Sai": {
+    "resourceType": "Rage",
+    "lane": "Jungle"
+  },
+  "Rell": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Renekton": {
+    "resourceType": "Fury",
+    "lane": "Top"
+  },
+  "Rengar": {
+    "resourceType": "Ferocity",
+    "lane": "Top"
+  },
+  "Riven": {
+    "resourceType": "No Mana",
+    "lane": "Top"
+  },
+  "Rumble": {
+    "resourceType": "Heat",
+    "lane": "Top"
+  },
+  "Ryze": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Samira": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Sejuani": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Senna": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Seraphine": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Sett": {
+    "resourceType": "Grit",
+    "lane": "Top"
+  },
+  "Shaco": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Shen": {
+    "resourceType": "Energy",
+    "lane": "Top"
+  },
+  "Shyvana": {
+    "resourceType": "Fury",
+    "lane": "Jungle"
+  },
+  "Singed": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Sion": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Sivir": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Skarner": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Sona": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Soraka": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Swain": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Sylas": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Syndra": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Tahm Kench": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Taliyah": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Talon": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Taric": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Teemo": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Thresh": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Tristana": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Trundle": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Tryndamere": {
+    "resourceType": "Fury",
+    "lane": "Top"
+  },
+  "Twisted Fate": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Twitch": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Udyr": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Urgot": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Varus": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Vayne": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Veigar": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Vel'Koz": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Vex": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Vi": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Viego": {
+    "resourceType": "No Mana",
+    "lane": "Jungle"
+  },
+  "Viktor": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Vladimir": {
+    "resourceType": "Bloodthirst",
+    "lane": "Middle"
+  },
+  "Volibear": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Warwick": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Wukong": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Xayah": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Xerath": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Xin Zhao": {
+    "resourceType": "Mana",
+    "lane": "Jungle"
+  },
+  "Yasuo": {
+    "resourceType": "Flow",
+    "lane": "Middle"
+  },
+  "Yone": {
+    "resourceType": "No Mana",
+    "lane": "Top"
+  },
+  "Yorick": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Yuumi": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Zac": {
+    "resourceType": "Health costs",
+    "lane": "Jungle"
+  },
+  "Zed": {
+    "resourceType": "Energy",
+    "lane": "Middle"
+  },
+  "Zeri": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Ziggs": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Zilean": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Zoe": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Zyra": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Renata Glasc": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Bel'Veth": {
+    "resourceType": "No Mana",
+    "lane": "Jungle"
+  },
+  "Nilah": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "K'Sante": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Ambessa": {
+    "resourceType": "Energy",
+    "lane": "Top"
+  },
+  "Aurora": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Briar": {
+    "resourceType": "Health",
+    "lane": "Jungle"
+  },
+  "Hwei": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Mel": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Milio": {
+    "resourceType": "Mana",
+    "lane": "Support"
+  },
+  "Naafiri": {
+    "resourceType": "Mana",
+    "lane": "Middle"
+  },
+  "Smolder": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Yunara": {
+    "resourceType": "Mana",
+    "lane": "Bottom"
+  },
+  "Zaahen": {
+    "resourceType": "No Mana",
+    "lane": "Top"
+  },
+  "Urf": {
+    "resourceType": "Unknown",
+    "lane": "Top"
+  }
+}

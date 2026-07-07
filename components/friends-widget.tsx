@@ -207,6 +207,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   const [messageProfiles, setMessageProfiles] = useState<Record<string, MessageProfile>>({});
   const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
   const [messageDraft, setMessageDraft] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [addFriendUsername, setAddFriendUsername] = useState('');
@@ -224,6 +225,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   const panelRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const messageInputRef = useRef<HTMLInputElement | null>(null);
   const isOpenRef = useRef(false);
   const dashboardRef = useRef<FriendDashboard | null>(null);
   const activeFriendRef = useRef<FriendSummary | null>(null);
@@ -409,29 +411,35 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
         return;
       }
 
-      supabase
+      const staleChannels = supabase
         .getChannels()
         .filter((channel) => (
           channel.topic.endsWith('knowleague-online-users') ||
           channel.topic.endsWith(`friend-social:${userId}`)
-        ))
-        .forEach((channel) => {
-          void supabase.removeChannel(channel);
-        });
+        ));
 
-      const nextPresenceChannel = supabase.channel('knowleague-online-users', {
-        config: { presence: { key: userId } },
-      });
-      presenceChannel = nextPresenceChannel;
-      nextPresenceChannel
-        .on('presence', { event: 'sync' }, () => {
-          const state = nextPresenceChannel.presenceState<{ userId: string }>();
-          setOnlineUserIds(new Set(Object.values(state).flat().map((presence) => presence.userId)));
-        });
-      nextPresenceChannel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          void nextPresenceChannel.track({ userId });
+      void Promise.all(staleChannels.map((channel) => supabase.removeChannel(channel))).then(() => {
+        if (disposed) {
+          return;
         }
+
+        const nextPresenceChannel = supabase.channel('knowleague-online-users', {
+          config: { presence: { key: userId } },
+        });
+        presenceChannel = nextPresenceChannel;
+        nextPresenceChannel
+          .on('presence', { event: 'sync' }, () => {
+            const state = nextPresenceChannel.presenceState<{ userId: string }>();
+            const ids = Object.values(state).flat().map((presence) => presence.userId);
+            setOnlineUserIds(new Set(ids));
+            (window as Window & { __knowleagueOnlineUserIds?: string[] }).__knowleagueOnlineUserIds = ids;
+            window.dispatchEvent(new CustomEvent<string[]>('knowleague:online-users', { detail: ids }));
+          });
+        nextPresenceChannel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            void nextPresenceChannel.track({ userId });
+          }
+        });
       });
 
       const nextSocialChannel = supabase.channel(`friend-social:${userId}`);
@@ -496,6 +504,8 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
 
           const friendshipIds = new Set(dashboardRef.current?.friends.map((friend) => friend.friendshipId) ?? []);
           if (friendshipId && friendshipIds.has(friendshipId)) {
+            scheduleDashboardRefresh();
+          } else if (isIncomingMessage) {
             scheduleDashboardRefresh();
           }
         })
@@ -622,36 +632,59 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     prefetchFriendMessages(dashboard.friends);
   }, [dashboard, isOpen, prefetchFriendMessages]);
 
+  useEffect(() => {
+    const refreshFriendsFromExternalAction = () => {
+      void refreshDashboard().then(() => {
+        const active = activeFriendRef.current;
+        if (active) {
+          void loadFriendMessages(active, { markRead: false });
+        }
+      });
+    };
+
+    window.addEventListener('knowleague:friends-refresh', refreshFriendsFromExternalAction);
+    return () => window.removeEventListener('knowleague:friends-refresh', refreshFriendsFromExternalAction);
+  }, [loadFriendMessages, refreshDashboard]);
+
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const cleanMessage = messageDraft.trim();
-    if (!activeFriend || !cleanMessage) {
+    const cleanMessage = (messageInputRef.current?.value ?? messageDraft).trim();
+    if (!activeFriend || !cleanMessage || isSendingMessage) {
       return;
     }
 
-    setMessageDraft('');
+    const targetFriendId = activeFriend.id;
+    setIsSendingMessage(true);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15_000);
     try {
       const data = await fetchAuthedJson('/api/friends/messages', {
         method: 'POST',
-        body: JSON.stringify({ friendId: activeFriend.id, message: cleanMessage }),
+        body: JSON.stringify({ friendId: targetFriendId, message: cleanMessage }),
+        signal: controller.signal,
       });
-      await broadcastFriendMessageNotification(activeFriend.id);
       const nextMessages = data.messages ?? [];
       const nextProfiles = data.profiles ?? {};
       const nextFirstUnreadMessageId = data.firstUnreadMessageId ?? null;
       nextMessages.forEach((message: FriendMessage) => knownMessageIdsRef.current.add(message.id));
       playUiSound('message-sent');
-      messageCacheRef.current.set(activeFriend.id, nextMessages);
-      messageProfileCacheRef.current.set(activeFriend.id, nextProfiles);
-      firstUnreadMessageCacheRef.current.set(activeFriend.id, nextFirstUnreadMessageId);
+      setMessageDraft('');
+      messageCacheRef.current.set(targetFriendId, nextMessages);
+      messageProfileCacheRef.current.set(targetFriendId, nextProfiles);
+      firstUnreadMessageCacheRef.current.set(targetFriendId, nextFirstUnreadMessageId);
       setMessages(nextMessages);
       setMessageProfiles(nextProfiles);
       setFirstUnreadMessageId(nextFirstUnreadMessageId);
       scrollMessagesToBottom();
-      await refreshDashboard();
+      void broadcastFriendMessageNotification(targetFriendId);
+      void refreshDashboard();
     } catch (error) {
-      setMessageDraft(cleanMessage);
-      setStatus(error instanceof Error ? error.message : 'Unable to send message.');
+      setStatus(error instanceof DOMException && error.name === 'AbortError'
+        ? 'Message send timed out. Please try again.'
+        : error instanceof Error ? error.message : 'Unable to send message.');
+    } finally {
+      window.clearTimeout(timeoutId);
+      setIsSendingMessage(false);
     }
   };
 
@@ -1136,6 +1169,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                     </div>
                     <form onSubmit={sendMessage} className="mt-3 flex gap-2">
                       <input
+                        ref={messageInputRef}
                         value={messageDraft}
                         onChange={(event) => setMessageDraft(event.target.value.slice(0, 1000))}
                         placeholder="Message"
@@ -1143,7 +1177,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                       />
                       <button
                         type="submit"
-                        disabled={!messageDraft.trim()}
+                        disabled={isSendingMessage}
                         className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-300 text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Send size={16} />

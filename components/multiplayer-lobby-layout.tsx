@@ -2,6 +2,7 @@
 
 import { type CSSProperties, FormEvent, ReactNode } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Users } from 'lucide-react';
+import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 
 type MultiplayerLobbyShellProps = {
@@ -29,6 +30,9 @@ type MultiplayerCreateJoinPanelProps = {
   canJoin?: boolean;
   busy?: boolean;
   reconnectPrompt?: ReactNode;
+  soloHref?: string;
+  soloLabel?: string;
+  soloDescription?: string;
   publicLobbyContent: ReactNode;
   onRefreshPublicLobbies: () => void;
 };
@@ -154,6 +158,9 @@ export function MultiplayerCreateJoinPanel({
   canJoin = joinCode.trim().length === 6,
   busy = false,
   reconnectPrompt,
+  soloHref,
+  soloLabel = 'Play Solo',
+  soloDescription = 'Start a personal run',
   publicLobbyContent,
   onRefreshPublicLobbies,
 }: MultiplayerCreateJoinPanelProps) {
@@ -163,6 +170,21 @@ export function MultiplayerCreateJoinPanel({
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Create or Join</p>
         <h2 className="mt-3 text-3xl font-bold text-white">{title}</h2>
       </div>
+
+      {soloHref ? (
+        <div className="mt-7 flex justify-center">
+          <Link
+            href={soloHref}
+            className="group relative inline-flex min-h-14 w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-6 text-slate-950 shadow-lg shadow-cyan-950/20 transition-[transform,border-color,box-shadow,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75 hover:shadow-cyan-900/30 hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+          >
+            <span className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/25 opacity-0 blur-xl transition-[left,opacity] duration-700 ease-out group-hover:left-full group-hover:opacity-100" />
+            <span className="relative grid text-center">
+              <span className="text-sm font-black uppercase tracking-[0.14em]">{soloLabel}</span>
+              <span className="text-xs font-semibold text-slate-800/75">{soloDescription}</span>
+            </span>
+          </Link>
+        </div>
+      ) : null}
 
       <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
         <button

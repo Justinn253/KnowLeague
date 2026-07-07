@@ -1265,7 +1265,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <ArrowLeft size={20} />
               </button>
             ) : (
-              <Link href="/" aria-label="Back to game hub" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+              <Link href="/multiplayer/ability-blitz" aria-label="Back to Ability Blitz lobby setup" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
                 <ArrowLeft size={20} />
               </Link>
             )}

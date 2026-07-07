@@ -131,6 +131,7 @@ type DrawInput = {
 
 const MAX_PLAYERS = Math.min(8, MULTIPLAYER_MAX_LOBBY_PLAYERS);
 const MAX_LINE_LENGTH = 0.5;
+const START_COUNTDOWN_MS = 5000;
 const DEFAULT_PHASE_SECONDS = 30;
 const PHASE_DURATION_OPTIONS = new Set<number | null>([10, 20, 30, 45, 60, null]);
 const WIN_CONDITIONS = new Set<CarvingRevelationWinCondition>(['everyone_correct', 'first_correct']);
@@ -887,7 +888,9 @@ export async function startCarvingRevelationLobby(code: string, clientId: string
     throw new Error('No skins are available.');
   }
 
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const startsAt = new Date(nowMs + START_COUNTDOWN_MS).toISOString();
   const turnOrder = shuffle(players).map((player) => player.id);
   const { error: playerError } = await getSupabaseServiceClient()
     .from('carving_revelation_players')
@@ -904,9 +907,9 @@ export async function startCarvingRevelationLobby(code: string, clientId: string
       current_turn_index: 0,
       round_number: 1,
       phase: 'carve',
-      phase_deadline_at: getPhaseDeadline(lobby.phase_duration_seconds),
+      phase_deadline_at: getPhaseDeadline(lobby.phase_duration_seconds, nowMs + START_COUNTDOWN_MS),
       winner_player_id: null,
-      started_at: now,
+      started_at: startsAt,
       finished_at: null,
       updated_at: now,
     })
@@ -937,7 +940,9 @@ export async function startNextCarvingRevelationRound(code: string, clientId: st
     throw new Error('No skins are available.');
   }
 
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const startsAt = new Date(nowMs + START_COUNTDOWN_MS).toISOString();
   const turnOrder = shuffle(connectedPlayers).map((player) => player.id);
   const { error: actionError } = await getSupabaseServiceClient()
     .from('carving_revelation_actions')
@@ -969,9 +974,9 @@ export async function startNextCarvingRevelationRound(code: string, clientId: st
       current_turn_index: 0,
       round_number: 1,
       phase: 'carve',
-      phase_deadline_at: getPhaseDeadline(fetchedLobby.phase_duration_seconds),
+      phase_deadline_at: getPhaseDeadline(fetchedLobby.phase_duration_seconds, nowMs + START_COUNTDOWN_MS),
       winner_player_id: null,
-      started_at: now,
+      started_at: startsAt,
       finished_at: null,
       updated_at: now,
     })
@@ -981,6 +986,65 @@ export async function startNextCarvingRevelationRound(code: string, clientId: st
   if (error) throw error;
 
   await addLobbyEvent(fetchedLobby.id, 'next_round_started');
+  return getLobbyView(normalizeLobbySettings(updatedLobby), clientId);
+}
+
+export async function returnCarvingRevelationToLobby(code: string, clientId: string) {
+  const fetchedLobby = await fetchLobby(code);
+  if (!fetchedLobby || fetchedLobby.status !== 'finished') {
+    throw new Error('Only finished games can return to the lobby.');
+  }
+
+  const players = await fetchPlayers(fetchedLobby.id);
+  assertMultiplayerHost(players, fetchedLobby.host_player_id, clientId, 'Only the host can return everyone to the lobby.');
+
+  const now = new Date().toISOString();
+  const connectedPlayers = players.filter((player) => player.connected);
+  const disconnectedPlayerIds = players.filter((player) => !player.connected).map((player) => player.id);
+
+  if (disconnectedPlayerIds.length > 0) {
+    const { error } = await getSupabaseServiceClient()
+      .from('carving_revelation_players')
+      .delete()
+      .in('id', disconnectedPlayerIds);
+    if (error) throw error;
+  }
+
+  if (connectedPlayers.length > 0) {
+    const { error } = await getSupabaseServiceClient()
+      .from('carving_revelation_players')
+      .update({ result: 'active', connected: true, disconnected_at: null, last_seen_at: now, updated_at: now })
+      .in('id', connectedPlayers.map((player) => player.id));
+    if (error) throw error;
+  }
+
+  const { error: actionError } = await getSupabaseServiceClient()
+    .from('carving_revelation_actions')
+    .delete()
+    .eq('lobby_id', fetchedLobby.id);
+  if (actionError) throw actionError;
+
+  const { data: updatedLobby, error } = await getSupabaseServiceClient()
+    .from('carving_revelation_lobbies')
+    .update({
+      status: 'waiting',
+      secret_skin_id: null,
+      turn_order: [],
+      current_turn_index: 0,
+      round_number: 1,
+      phase: 'carve',
+      phase_deadline_at: null,
+      winner_player_id: null,
+      started_at: null,
+      finished_at: null,
+      updated_at: now,
+    })
+    .eq('id', fetchedLobby.id)
+    .select('*')
+    .single<CarvingRevelationLobby>();
+  if (error) throw error;
+
+  await addLobbyEvent(fetchedLobby.id, 'returned_to_lobby');
   return getLobbyView(normalizeLobbySettings(updatedLobby), clientId);
 }
 
@@ -1074,8 +1138,11 @@ export async function heartbeatCarvingRevelationPlayer(code: string, clientId: s
     .eq('lobby_id', lobby.id)
     .eq('client_id', clientId);
   if (error) throw error;
-  await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
-  return getLobbyView(lobby, clientId);
+  if (player.connected !== connected) {
+    await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
+  }
+  const reconciledLobby = await reconcileCarvingRevelationLobby(lobby);
+  return getLobbyView(reconciledLobby, clientId);
 }
 
 export async function leaveCarvingRevelationLobby(code: string, clientId: string, forfeit = false) {
@@ -1295,6 +1362,9 @@ async function assertActivePhasePlayer(code: string, clientId: string, phase: Ca
   const lobby = await reconcileCarvingRevelationLobby(fetchedLobby);
   if (lobby.status !== 'active' || lobby.phase !== phase) {
     throw new Error(phase === 'carve' ? 'Carving is not active.' : 'Guessing is not active.');
+  }
+  if (lobby.started_at && new Date(lobby.started_at).getTime() > Date.now()) {
+    throw new Error('Round is starting.');
   }
   const players = await fetchPlayers(lobby.id);
   const player = players.find((candidate) => candidate.client_id === clientId);

@@ -624,11 +624,13 @@ export function recordPlayerGameCompletion(
   streakScope?: SoloQuizStreakScope,
 ) {
   const currentStats = loadPlayerGameStats(gameId);
-  if (currentStats.completedDates.includes(dateKey)) {
+  const currentScope = streakScope ? currentStats.streaksByScope?.[streakScope] : null;
+  const dateAlreadyCompleted = currentStats.completedDates.includes(dateKey);
+  if (dateAlreadyCompleted && (!streakScope || currentScope?.completedDates.includes(dateKey))) {
     return currentStats;
   }
 
-  const completedDates = [...currentStats.completedDates, dateKey].sort();
+  const completedDates = dateAlreadyCompleted ? currentStats.completedDates : [...currentStats.completedDates, dateKey].sort();
   const guessStats = { ...currentStats.guessStats };
   const skinLineStats = { ...currentStats.skinLineStats };
   const releaseYearStats = { ...currentStats.releaseYearStats };
@@ -662,7 +664,7 @@ export function recordPlayerGameCompletion(
     completedDates,
     currentStreak,
     highestStreak: Math.max(currentStats.highestStreak, currentStreak),
-    gamesCompleted: currentStats.gamesCompleted + 1,
+    gamesCompleted: currentStats.gamesCompleted + (dateAlreadyCompleted ? 0 : 1),
     totalGuesses: currentStats.totalGuesses + guesses.length,
     guessStats,
     skinLineStats,
@@ -689,21 +691,21 @@ export function recordPlayerGameCompletion(
   };
 
   if (streakScope) {
-    const currentScope = currentStats.streaksByScope?.[streakScope] ?? {
+    const currentScopeStats = currentScope ?? {
       completedDates: [],
       currentStreak: 0,
       highestStreak: 0,
     };
-    const scopeDates = currentScope.completedDates.includes(dateKey)
-      ? currentScope.completedDates
-      : [...currentScope.completedDates, dateKey].sort();
+    const scopeDates = currentScopeStats.completedDates.includes(dateKey)
+      ? currentScopeStats.completedDates
+      : [...currentScopeStats.completedDates, dateKey].sort();
     const scopeStreak = calculateCurrentStreak(scopeDates, dateKey);
     updatedStats.streaksByScope = {
       ...(currentStats.streaksByScope ?? {}),
       [streakScope]: {
         completedDates: scopeDates,
         currentStreak: scopeStreak,
-        highestStreak: Math.max(currentScope.highestStreak, scopeStreak),
+        highestStreak: Math.max(currentScopeStats.highestStreak, scopeStreak),
       },
     };
   }

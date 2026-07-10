@@ -45,7 +45,7 @@ type GameLink = {
   mode: GameMode;
   playerCountId?: MultiplayerPlayerCountGameId;
   streakGameId?: StreakGameId;
-  streakStyle?: 'single' | 'modes';
+  streakStyle?: 'single' | 'daily-pair' | 'modes';
   accent: Accent;
   kicker: string;
   feature?: boolean;
@@ -148,7 +148,7 @@ const games: GameLink[] = [
     gameIcon: Eye,
     mode: 'solo',
     streakGameId: 'splash-scramble',
-    streakStyle: 'single',
+    streakStyle: 'daily-pair',
     accent: 'sky',
     kicker: 'Tile Puzzle',
   },
@@ -243,6 +243,21 @@ function StreakBadge({ game, stats }: { game: GameLink; stats?: PlayerGameStatsB
   }
 
   const gameStats = stats?.[game.streakGameId] ?? createEmptyPlayerStats(game.streakGameId);
+  if (game.streakStyle === 'daily-pair') {
+    const regular = getPlayerGameStreakForMode(gameStats, 'casual').currentStreak;
+    const daily = getPlayerGameStreakForMode(gameStats, 'daily').currentStreak;
+
+    return (
+      <span
+        title={`Current streaks: Regular ${regular}, Daily ${daily}`}
+        className="inline-flex h-8 items-center gap-1 rounded-xl border border-amber-300/25 bg-slate-950/70 px-2 text-xs font-black text-amber-100 backdrop-blur"
+      >
+        <Flame size={13} className="text-amber-300" />
+        {regular}/{daily}
+      </span>
+    );
+  }
+
   if (game.streakStyle === 'modes') {
     const casual = getPlayerGameStreakForMode(gameStats, 'casual').currentStreak;
     const daily = getPlayerGameStreakForMode(gameStats, 'daily').currentStreak;

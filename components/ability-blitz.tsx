@@ -1177,7 +1177,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     setLeaderboardNotice('');
     if (mode === 'daily') {
       setSelectedDifficulty('gold');
-      setEntryCount(3);
+      setEntryCount(10);
       setActiveModifiers(defaultModifiers);
       setSelectedAbilitySlots(defaultAbilitySlots);
     }

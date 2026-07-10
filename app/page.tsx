@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   BarChart3,
   Clock3,
   Eye,
+  Flame,
   Search,
   ShieldQuestion,
   Sparkles,
@@ -18,6 +20,15 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { MultiplayerPlayerCountBadge } from '@/components/multiplayer-player-count-badge';
+import {
+  createEmptyPlayerStats,
+  getPlayerGameStreakForMode,
+  loadPlayerGameStats,
+  PLAYER_GAME_STATS_CHANGED_EVENT,
+  STREAK_GAME_IDS,
+  type PlayerGameStatsByGame,
+  type StreakGameId,
+} from '@/lib/game-storage';
 import type { MultiplayerPlayerCountGameId } from '@/lib/multiplayer-player-counts';
 import { playUiSound } from '@/lib/ui-sounds';
 
@@ -33,6 +44,8 @@ type GameLink = {
   gameIcon: LucideIcon;
   mode: GameMode;
   playerCountId?: MultiplayerPlayerCountGameId;
+  streakGameId?: StreakGameId;
+  streakStyle?: 'single' | 'modes';
   accent: Accent;
   kicker: string;
   feature?: boolean;
@@ -120,6 +133,8 @@ const games: GameLink[] = [
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
     gameIcon: Search,
     mode: 'solo',
+    streakGameId: 'skindle',
+    streakStyle: 'single',
     accent: 'gold',
     kicker: 'Daily Puzzle',
     feature: true,
@@ -132,6 +147,8 @@ const games: GameLink[] = [
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ashe_0.jpg',
     gameIcon: Eye,
     mode: 'solo',
+    streakGameId: 'splash-scramble',
+    streakStyle: 'single',
     accent: 'sky',
     kicker: 'Tile Puzzle',
   },
@@ -144,6 +161,8 @@ const games: GameLink[] = [
     gameIcon: Clock3,
     mode: 'hybrid',
     playerCountId: 'ability-blitz',
+    streakGameId: 'ability-blitz',
+    streakStyle: 'modes',
     accent: 'cyan',
     kicker: 'Solo or Race',
   },
@@ -156,6 +175,8 @@ const games: GameLink[] = [
     gameIcon: Sparkles,
     mode: 'hybrid',
     playerCountId: 'skin-champion',
+    streakGameId: 'skin-champion',
+    streakStyle: 'modes',
     accent: 'sky',
     kicker: 'Solo or Sprint',
   },
@@ -216,7 +237,40 @@ function GameModeBadge({ mode, featured = false }: { mode: GameMode; featured?: 
   );
 }
 
-function GameCard({ game }: { game: GameLink }) {
+function StreakBadge({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGame }) {
+  if (!game.streakGameId || !game.streakStyle) {
+    return null;
+  }
+
+  const gameStats = stats?.[game.streakGameId] ?? createEmptyPlayerStats(game.streakGameId);
+  if (game.streakStyle === 'modes') {
+    const casual = getPlayerGameStreakForMode(gameStats, 'casual').currentStreak;
+    const daily = getPlayerGameStreakForMode(gameStats, 'daily').currentStreak;
+    const chaos = getPlayerGameStreakForMode(gameStats, 'chaos').currentStreak;
+
+    return (
+      <span
+        title={`Current streaks: Casual ${casual}, Daily ${daily}, Chaos ${chaos}`}
+        className="inline-flex h-8 items-center gap-1 rounded-xl border border-amber-300/25 bg-slate-950/70 px-2 text-xs font-black text-amber-100 backdrop-blur"
+      >
+        <Flame size={13} className="text-amber-300" />
+        {casual}/{daily}/{chaos}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      title={`Current streak: ${gameStats.currentStreak}`}
+      className="inline-flex h-8 items-center gap-1 rounded-xl border border-amber-300/25 bg-slate-950/70 px-2 text-xs font-black text-amber-100 backdrop-blur"
+    >
+      <Flame size={13} className="text-amber-300" />
+      {gameStats.currentStreak}
+    </span>
+  );
+}
+
+function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGame }) {
   const GameIcon = game.gameIcon;
   const accent = accentStyles[game.accent];
   const featuredOverlayTarget = game.mostPlayed ? 'to-slate-950/60' : 'to-slate-950/90';
@@ -253,11 +307,14 @@ function GameCard({ game }: { game: GameLink }) {
         <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/0 transition duration-300 group-hover:ring-white/15" />
         <div className="relative flex min-h-[24rem] flex-col justify-between p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="relative flex items-center gap-2 pb-10">
               <span className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 ${accent.icon}`}>
                 <GameIcon size={22} />
               </span>
               <GameModeBadge mode={game.mode} featured />
+              <span className="absolute left-0 top-14">
+                <StreakBadge game={game} stats={stats} />
+              </span>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               {game.playerCountId ? (
@@ -311,6 +368,9 @@ function GameCard({ game }: { game: GameLink }) {
             <GameIcon size={20} />
           </span>
           <GameModeBadge mode={game.mode} />
+          <span className="absolute left-0 top-[3.25rem]">
+            <StreakBadge game={game} stats={stats} />
+          </span>
         </div>
         {game.playerCountId ? (
           <MultiplayerPlayerCountBadge gameId={game.playerCountId} className="absolute right-4 top-4" />
@@ -335,11 +395,13 @@ function GameSection({
   description,
   games,
   showEyebrow = false,
+  stats,
 }: {
   title: string;
   description: string;
   games: GameLink[];
   showEyebrow?: boolean;
+  stats?: PlayerGameStatsByGame;
 }) {
   const sectionId = `${title.toLowerCase().replace(' ', '-')}-heading`;
 
@@ -355,13 +417,27 @@ function GameSection({
         <p className="max-w-xl text-sm leading-6 text-slate-400">{description}</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {games.map((game) => <GameCard key={game.href} game={game} />)}
+        {games.map((game) => <GameCard key={game.href} game={game} stats={stats} />)}
       </div>
     </section>
   );
 }
 
 export default function Home() {
+  const [playerStats, setPlayerStats] = useState<PlayerGameStatsByGame>(() => (
+    Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [gameId, createEmptyPlayerStats(gameId)]))
+  ));
+
+  useEffect(() => {
+    const refreshStats = () => {
+      setPlayerStats(Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [gameId, loadPlayerGameStats(gameId)])));
+    };
+
+    refreshStats();
+    window.addEventListener(PLAYER_GAME_STATS_CHANGED_EVENT, refreshStats);
+    return () => window.removeEventListener(PLAYER_GAME_STATS_CHANGED_EVENT, refreshStats);
+  }, []);
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#030712] text-slate-100">
       <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-12 px-6 py-10 lg:px-12">
@@ -388,6 +464,7 @@ export default function Home() {
           description="Try one of our many games from Solo to Multiplayer!"
           games={games}
           showEyebrow
+          stats={playerStats}
         />
       </section>
     </main>

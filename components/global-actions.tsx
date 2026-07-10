@@ -9,6 +9,7 @@ import { AchievementToasts } from '@/components/achievement-toasts';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { FriendsWidget } from '@/components/friends-widget';
 import { ModerationWidget } from '@/components/moderation-widget';
+import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
 import { ProfileScreen } from '@/components/profile-screen';
 import { PublicProfileScreen } from '@/components/public-profile-screen';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
@@ -190,6 +191,8 @@ export function GlobalActions() {
 
   return (
     <>
+      <PlayerGameStatsSync />
+
       <div className="fixed right-5 top-5 z-[90]">
         <SoundSettingsMenu />
       </div>

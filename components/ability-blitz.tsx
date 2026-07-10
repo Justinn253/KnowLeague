@@ -8,7 +8,7 @@ import {
   clearDailyGameState,
   clearSoloQuizGameState,
   createEmptyPlayerStats,
-  getPlayerGameStreakForScope,
+  getPlayerGameStreakForMode,
   hasCompletedSoloQuizMode,
   loadSoloQuizGameState,
   loadPlayerGameStats,
@@ -689,7 +689,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
         void submitLeaderboard();
       }
-      const streakScope: SoloQuizStreakScope = soloMode === 'casual' ? 'casual:all' : `${soloMode}:${selectedDifficulty}`;
+      const streakScope: SoloQuizStreakScope = soloMode === 'casual' ? 'casual:all' : soloMode === 'daily' ? 'daily:all' : 'chaos:challenger';
       setPlayerStats(recordPlayerGameCompletion('ability-blitz', [], undefined, streakScope));
     } else if (failed && !multiplayer && leaderboardMode) {
       recordCompletedSoloQuizMode('ability-blitz', soloMode, selectedDifficulty);
@@ -697,6 +697,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       if (soloMode !== 'chaos' && selectedDifficulty !== CHAOS_DIFFICULTY) {
         return;
       }
+      setPlayerStats(recordPlayerGameCompletion('ability-blitz', [], undefined, 'chaos:challenger'));
       const submitFailure = async () => {
         const supabase = getOptionalSupabaseClient();
         const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
@@ -1552,9 +1553,9 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
             countdown={countdown}
             playerStats={playerStats}
             streaks={{
-              casual: getPlayerGameStreakForScope(playerStats, 'casual:all').currentStreak,
-              daily: getPlayerGameStreakForScope(playerStats, `daily:${selectedDifficulty}`).currentStreak,
-              chaos: getPlayerGameStreakForScope(playerStats, 'chaos:challenger').currentStreak,
+              casual: getPlayerGameStreakForMode(playerStats, 'casual').currentStreak,
+              daily: getPlayerGameStreakForMode(playerStats, 'daily').currentStreak,
+              chaos: getPlayerGameStreakForMode(playerStats, 'chaos').currentStreak,
             }}
             completedToday={completedDailyMode}
             modeStatuses={modeStatuses}

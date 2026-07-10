@@ -8,6 +8,7 @@ import {
   Clock3,
   Eye,
   EyeOff,
+  Flame,
   Grid3X3,
   Lock,
   LockOpen,
@@ -23,6 +24,12 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import {
+  loadPlayerGameStats,
+  PLAYER_GAME_STATS_CHANGED_EVENT,
+  recordPlayerGameCompletion,
+  type PlayerGameStats,
+} from '@/lib/game-storage';
 import type { QuizItem } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { playUiSound } from '@/lib/ui-sounds';
@@ -439,6 +446,7 @@ export function SplashScramble() {
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [resumeRound, setResumeRound] = useState<SavedRoundState | null>(null);
   const [stats, setStats] = useState<SplashScrambleStats>(() => createEmptyStats());
+  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('splash-scramble'));
   const [profileStatsLoaded, setProfileStatsLoaded] = useState(false);
   const [error, setError] = useState('');
   const flashTimeoutRef = useRef<number | null>(null);
@@ -516,6 +524,18 @@ export function SplashScramble() {
   useEffect(() => {
     setSkinSearchScrollTop(0);
   }, [deferredSkinSearch]);
+
+  useEffect(() => {
+    const handleStatsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ gameId?: string; stats?: PlayerGameStats }>).detail;
+      if (detail?.gameId === 'splash-scramble' && detail.stats) {
+        setPlayerStats(detail.stats);
+      }
+    };
+
+    window.addEventListener(PLAYER_GAME_STATS_CHANGED_EVENT, handleStatsChanged);
+    return () => window.removeEventListener(PLAYER_GAME_STATS_CHANGED_EVENT, handleStatsChanged);
+  }, []);
 
   const playSkinSuggestionHoverSound = (skinId: string) => {
     if (hoveredSkinSuggestionIdRef.current === skinId) {
@@ -735,6 +755,7 @@ export function SplashScramble() {
     }
 
     solveRecordedRef.current = true;
+    setPlayerStats(recordPlayerGameCompletion('splash-scramble'));
     setStats((current) => {
       const nextStats: SplashScrambleStats = {
         solvesByPieceCount: {
@@ -1612,7 +1633,13 @@ export function SplashScramble() {
             {renderBackControl()}
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Single Player Game</p>
-              <h1 className="mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">Splash Scramble</h1>
+              <h1 className="mt-1 flex flex-wrap items-center gap-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                Splash Scramble
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-xs font-bold text-amber-100">
+                  <Flame size={12} className="text-amber-300" />
+                  {playerStats.currentStreak}
+                </span>
+              </h1>
             </div>
           </div>
           <GameInfoMenu

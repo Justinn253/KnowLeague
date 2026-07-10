@@ -8,6 +8,8 @@ type SettingsBody = {
   phaseDurationSeconds?: number | null;
   winCondition?: string;
   modifiers?: unknown;
+  powerUpsEnabled?: boolean;
+  powerUpCount?: number;
   startingLineLengthPercent?: number;
   lineLengthIncrementPercent?: number;
   lobbyDescription?: unknown;
@@ -25,6 +27,8 @@ export async function POST(request: Request, { params }: { params: { code: strin
         phaseDurationSeconds: body.phaseDurationSeconds,
         winCondition: body.winCondition,
         modifiers: body.modifiers,
+        powerUpsEnabled: body.powerUpsEnabled,
+        powerUpCount: body.powerUpCount,
         startingLineLengthPercent: body.startingLineLengthPercent,
         lineLengthIncrementPercent: body.lineLengthIncrementPercent,
         lobbyDescription: body.lobbyDescription,

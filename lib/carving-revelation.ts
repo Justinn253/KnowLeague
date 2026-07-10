@@ -20,10 +20,32 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export type CarvingRevelationLobbyStatus = 'waiting' | 'active' | 'finished' | 'terminated';
 export type CarvingRevelationPlayerResult = 'active' | 'eliminated' | 'won';
-export type CarvingRevelationActionType = 'draw' | 'guess' | 'next_round_vote';
+export type CarvingRevelationActionType = 'draw' | 'guess' | 'next_round_vote' | 'power_up';
 export type CarvingRevelationPhase = 'carve' | 'guess';
 export type CarvingRevelationWinCondition = 'everyone_correct' | 'first_correct';
 export type CarvingRevelationModifier = 'greyscale' | 'blurred' | 'cropped';
+
+export type CarvingRevelationPowerUpKind = 'skip_turns';
+
+export type CarvingRevelationPowerUp = {
+  id: string;
+  kind: CarvingRevelationPowerUpKind;
+  x: number;
+  y: number;
+  radius: number;
+};
+
+export type CarvingRevelationPowerUpState = CarvingRevelationPowerUp & {
+  claimedByPlayerId: string | null;
+  conflicted: boolean;
+};
+
+export type CarvingRevelationPowerUpMessage = {
+  id: string;
+  roundNumber: number;
+  type: 'claimed' | 'contested';
+  playerIds: string[];
+};
 
 export type CarvingRevelationLobby = {
   id: string;
@@ -42,6 +64,9 @@ export type CarvingRevelationLobby = {
   phase_duration_seconds: number | null;
   win_condition: CarvingRevelationWinCondition;
   modifiers: CarvingRevelationModifier[];
+  power_ups_enabled: boolean;
+  power_up_count: number;
+  power_ups: CarvingRevelationPowerUp[];
   starting_line_length_percent: number;
   line_length_increment_percent: number;
   winner_player_id: string | null;
@@ -103,6 +128,9 @@ export type CarvingRevelationLobbyView = {
   maxLineLength: number;
   nextRoundVotes: string[];
   phaseEndsAt: string | null;
+  powerUps: CarvingRevelationPowerUpState[];
+  claimedPowerUps: CarvingRevelationPowerUpState[];
+  powerUpMessages: CarvingRevelationPowerUpMessage[];
 };
 
 export type CarvingRevelationPublicLobby = {
@@ -112,6 +140,11 @@ export type CarvingRevelationPublicLobby = {
   hostName: string;
   hostColor: string;
   description: string;
+};
+
+export type CarvingRevelationSkinImageSource = {
+  imageUrl: string;
+  status: CarvingRevelationLobbyStatus;
 };
 
 type CreateOrJoinInput = {
@@ -138,6 +171,10 @@ const WIN_CONDITIONS = new Set<CarvingRevelationWinCondition>(['everyone_correct
 const MODIFIERS = new Set<CarvingRevelationModifier>(['greyscale', 'blurred', 'cropped']);
 const STARTING_LINE_LENGTH_OPTIONS = new Set([5, 8, 10, 15, 20]);
 const LINE_LENGTH_INCREMENT_OPTIONS = new Set([1, 2, 3, 4, 5]);
+const POWER_UP_COUNT_OPTIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+const DEFAULT_POWER_UP_COUNT = 3;
+const POWER_UP_RADIUS = 0.035;
+const ALL_PLAYERS_BLOCKED_GUESS_SECONDS = 5;
 
 function getPhaseDeadline(seconds: number | null, now = Date.now()) {
   if (seconds === null) return null;
@@ -164,6 +201,33 @@ function normalizeModifiers(value: unknown): CarvingRevelationModifier[] {
     : [];
 }
 
+function normalizePowerUpCount(value: unknown) {
+  const numericValue = Number(value);
+  return POWER_UP_COUNT_OPTIONS.has(numericValue) ? numericValue : DEFAULT_POWER_UP_COUNT;
+}
+
+function normalizePowerUps(value: unknown): CarvingRevelationPowerUp[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry, index): CarvingRevelationPowerUp | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const candidate = entry as Partial<CarvingRevelationPowerUp>;
+      const radius = Number(candidate.radius);
+      const x = Number(candidate.x);
+      const y = Number(candidate.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(radius)) return null;
+      const safeRadius = Math.max(0.02, Math.min(0.06, radius));
+      return {
+        id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `power-up-${index + 1}`,
+        kind: candidate.kind === 'skip_turns' ? 'skip_turns' : 'skip_turns',
+        x: Math.max(safeRadius, Math.min(1 - safeRadius, x)),
+        y: Math.max(safeRadius, Math.min(1 - safeRadius, y)),
+        radius: safeRadius,
+      };
+    })
+    .filter((entry): entry is CarvingRevelationPowerUp => Boolean(entry));
+}
+
 function normalizeStartingLineLength(value: unknown) {
   const numericValue = Number(value);
   return STARTING_LINE_LENGTH_OPTIONS.has(numericValue) ? numericValue : 8;
@@ -181,6 +245,9 @@ function normalizeLobbySettings<TLobby extends CarvingRevelationLobby>(lobby: TL
     phase_duration_seconds: normalizePhaseDuration(lobby.phase_duration_seconds),
     win_condition: normalizeWinCondition(lobby.win_condition),
     modifiers: normalizeModifiers(lobby.modifiers),
+    power_ups_enabled: lobby.power_ups_enabled !== false,
+    power_up_count: normalizePowerUpCount(lobby.power_up_count),
+    power_ups: normalizePowerUps(lobby.power_ups),
     starting_line_length_percent: normalizeStartingLineLength(lobby.starting_line_length_percent),
     line_length_increment_percent: normalizeLineLengthIncrement(lobby.line_length_increment_percent),
   };
@@ -189,6 +256,187 @@ function normalizeLobbySettings<TLobby extends CarvingRevelationLobby>(lobby: TL
 function getLineLengthLimit(lobby: CarvingRevelationLobby) {
   const percent = lobby.starting_line_length_percent + Math.max(0, lobby.round_number - 1) * lobby.line_length_increment_percent;
   return Math.min(MAX_LINE_LENGTH, percent / 100);
+}
+
+function getAspectDistance(first: RevealPoint, second: RevealPoint) {
+  return Math.hypot((first.x - second.x) * 16, (first.y - second.y) * 9);
+}
+
+function generatePowerUps(enabled: boolean, count: number): CarvingRevelationPowerUp[] {
+  if (!enabled) return [];
+  const powerUps: CarvingRevelationPowerUp[] = [];
+  const radius = POWER_UP_RADIUS;
+  const minDistance = radius * 2.75 * 16;
+  let attempts = 0;
+  while (powerUps.length < count && attempts < count * 80) {
+    attempts += 1;
+    const candidate = {
+      id: `power-up-${powerUps.length + 1}`,
+      kind: 'skip_turns' as const,
+      x: radius + Math.random() * (1 - radius * 2),
+      y: radius + Math.random() * (1 - radius * 2),
+      radius,
+    };
+    const hasRoom = powerUps.every((powerUp) => (
+      getAspectDistance(candidate, powerUp) >= minDistance
+    ));
+    if (hasRoom) powerUps.push(candidate);
+  }
+  return powerUps;
+}
+
+function getPointSegmentDistance(point: RevealPoint, start: RevealPoint, end: RevealPoint) {
+  const segmentX = (end.x - start.x) * 16;
+  const segmentY = (end.y - start.y) * 9;
+  const pointX = (point.x - start.x) * 16;
+  const pointY = (point.y - start.y) * 9;
+  const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+  if (segmentLengthSquared === 0) return Math.hypot(pointX, pointY);
+  const scale = Math.max(0, Math.min(1, (pointX * segmentX + pointY * segmentY) / segmentLengthSquared));
+  return Math.hypot(pointX - segmentX * scale, pointY - segmentY * scale);
+}
+
+function isPointInPolygon(point: RevealPoint, polygon: RevealPoint[]) {
+  let inside = false;
+  for (let index = 0, previousIndex = polygon.length - 1; index < polygon.length; previousIndex = index, index += 1) {
+    const current = polygon[index];
+    const previous = polygon[previousIndex];
+    const crosses = (current.y > point.y) !== (previous.y > point.y)
+      && point.x < ((previous.x - current.x) * (point.y - current.y)) / (previous.y - current.y) + current.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function shapeClaimsPowerUp(points: RevealPoint[], powerUp: CarvingRevelationPowerUp) {
+  const center = { x: powerUp.x, y: powerUp.y };
+  if (isPointInPolygon(center, points)) return true;
+  const radius = powerUp.radius * 16;
+  return points.some((point, index) => {
+    const nextPoint = points[(index + 1) % points.length];
+    return getAspectDistance(point, center) <= radius || getPointSegmentDistance(center, point, nextPoint) <= radius;
+  });
+}
+
+function getDrawClaimedPowerUpIds(action: CarvingRevelationAction) {
+  const value = action.payload.claimedPowerUpIds;
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+function getPowerUpStates(lobby: CarvingRevelationLobby, actions: CarvingRevelationAction[]) {
+  if (!lobby.power_ups_enabled || lobby.power_ups.length === 0) return [];
+  const claimersByPowerUpId = new Map<string, Set<string>>();
+  actions
+    .filter((action) => action.action_type === 'draw' && action.round_number === lobby.round_number && action.player_id)
+    .forEach((action) => {
+      getDrawClaimedPowerUpIds(action).forEach((powerUpId) => {
+        const claimers = claimersByPowerUpId.get(powerUpId) ?? new Set<string>();
+        claimers.add(action.player_id as string);
+        claimersByPowerUpId.set(powerUpId, claimers);
+      });
+    });
+
+  const claimedPowerUpIds = new Set<string>();
+  actions
+    .filter((action) => action.action_type === 'draw' && action.round_number < lobby.round_number)
+    .forEach((action) => getDrawClaimedPowerUpIds(action).forEach((powerUpId) => claimedPowerUpIds.add(powerUpId)));
+
+  return lobby.power_ups
+    .filter((powerUp) => !claimedPowerUpIds.has(powerUp.id))
+    .map((powerUp) => {
+      const claimers = [...(claimersByPowerUpId.get(powerUp.id) ?? new Set<string>())];
+      return {
+        ...powerUp,
+        claimedByPlayerId: claimers.length === 1 ? claimers[0] : null,
+        conflicted: claimers.length > 1,
+      };
+    });
+}
+
+function getPowerUpBlockedPlayerIds(lobby: CarvingRevelationLobby, actions: CarvingRevelationAction[]) {
+  return new Set(getPowerUpStates(lobby, actions)
+    .filter((powerUp) => powerUp.claimedByPlayerId && !powerUp.conflicted)
+    .map((powerUp) => powerUp.claimedByPlayerId as string));
+}
+
+function getPowerUpClaimGroups(actions: CarvingRevelationAction[]) {
+  const claimersByKey = new Map<string, { roundNumber: number; powerUpId: string; playerIds: Set<string> }>();
+  actions
+    .filter((action) => action.action_type === 'draw' && action.player_id)
+    .forEach((action) => {
+      getDrawClaimedPowerUpIds(action).forEach((powerUpId) => {
+        const key = `${action.round_number}:${powerUpId}`;
+        const group = claimersByKey.get(key) ?? {
+          roundNumber: action.round_number,
+          powerUpId,
+          playerIds: new Set<string>(),
+        };
+        group.playerIds.add(action.player_id as string);
+        claimersByKey.set(key, group);
+      });
+    });
+  return [...claimersByKey.values()].sort((first, second) => (
+    first.roundNumber - second.roundNumber || first.powerUpId.localeCompare(second.powerUpId)
+  ));
+}
+
+function getUsedPowerUpIds(lobby: CarvingRevelationLobby, actions: CarvingRevelationAction[]) {
+  return new Set(actions
+    .filter((action) => action.action_type === 'power_up' && action.round_number === lobby.round_number)
+    .map((action) => action.payload.powerUpId)
+    .filter((powerUpId): powerUpId is string => typeof powerUpId === 'string'));
+}
+
+function getUsablePowerUpsForPlayer(lobby: CarvingRevelationLobby, actions: CarvingRevelationAction[], playerId: string) {
+  const usedPowerUpIds = getUsedPowerUpIds(lobby, actions);
+  const powerUpsById = new Map(lobby.power_ups.map((powerUp) => [powerUp.id, powerUp]));
+  const usablePowerUps: CarvingRevelationPowerUpState[] = [];
+  getPowerUpClaimGroups(actions)
+    .filter((group) => group.playerIds.size === 1 && group.playerIds.has(playerId) && !usedPowerUpIds.has(group.powerUpId))
+    .forEach((group) => {
+      const powerUp = powerUpsById.get(group.powerUpId);
+      if (!powerUp) return;
+      usablePowerUps.push({
+        ...powerUp,
+        claimedByPlayerId: playerId,
+        conflicted: false,
+      });
+    });
+  return usablePowerUps;
+}
+
+function getPowerUpMessages(actions: CarvingRevelationAction[]): CarvingRevelationPowerUpMessage[] {
+  return getPowerUpClaimGroups(actions).map((group) => {
+    const playerIds = [...group.playerIds];
+    return {
+      id: `${group.roundNumber}:${group.powerUpId}`,
+      roundNumber: group.roundNumber,
+      type: playerIds.length > 1 ? 'contested' : 'claimed',
+      playerIds,
+    };
+  });
+}
+
+function getSkipTurnBlockedPlayerIds(lobby: CarvingRevelationLobby, actions: CarvingRevelationAction[], players: CarvingRevelationPlayerRecord[]) {
+  const activePlayerIds = new Set(getActivePlayerIds(players));
+  const skippedPlayerIds = new Set<string>();
+  const powerUpStates = getPowerUpStates(lobby, actions);
+  actions
+    .filter((action) => (
+      action.action_type === 'power_up' &&
+      Number(action.payload.targetRoundNumber) === lobby.round_number &&
+      action.player_id &&
+      action.payload.kind === 'skip_turns'
+    ))
+    .forEach((action) => {
+      const powerUpId = typeof action.payload.powerUpId === 'string' ? action.payload.powerUpId : null;
+      const powerUp = powerUpStates.find((candidate) => candidate.id === powerUpId);
+      if (!powerUp || powerUp.claimedByPlayerId !== action.player_id || powerUp.conflicted) return;
+      activePlayerIds.forEach((playerId) => {
+        if (playerId !== action.player_id) skippedPlayerIds.add(playerId);
+      });
+    });
+  return skippedPlayerIds;
 }
 
 function getSkinById(skinId: string | null) {
@@ -453,13 +701,13 @@ async function resolveGuessPhase(lobby: CarvingRevelationLobby, players: Carving
   return normalizeLobbySettings(data);
 }
 
-async function startGuessPhase(lobby: CarvingRevelationLobby, nowMs = Date.now()) {
+async function startGuessPhase(lobby: CarvingRevelationLobby, nowMs = Date.now(), durationSeconds = lobby.phase_duration_seconds) {
   const now = new Date(nowMs).toISOString();
   const { data, error } = await getSupabaseServiceClient()
     .from('carving_revelation_lobbies')
     .update({
       phase: 'guess',
-      phase_deadline_at: getPhaseDeadline(lobby.phase_duration_seconds, nowMs),
+      phase_deadline_at: getPhaseDeadline(durationSeconds, nowMs),
       updated_at: now,
     })
     .eq('id', lobby.id)
@@ -594,7 +842,19 @@ async function getLobbyView(lobby: CarvingRevelationLobby, clientId?: string | n
     .filter((action) => action.action_type === 'next_round_vote' && action.player_id)
     .map((action) => action.player_id as string)
     .filter((playerId, index, playerIds) => playerIds.indexOf(playerId) === index);
+  const claimedPowerUps = requestingPlayer
+    ? getUsablePowerUpsForPlayer(reconciledLobby, actions, requestingPlayer.id)
+    : [];
   const publicActions = actions.map((action) => {
+    if (action.action_type === 'power_up') {
+      const targetRoundNumber = Number(action.payload.targetRoundNumber);
+      const visibleToEveryone = reconciledLobby.phase === 'guess' && targetRoundNumber === reconciledLobby.round_number;
+      const visibleToRequester = requestingPlayer && action.player_id === requestingPlayer.id;
+      if (visibleToEveryone || visibleToRequester) {
+        return action;
+      }
+      return { ...action, payload: { pending: true } };
+    }
     if (action.action_type !== 'guess') {
       return action;
     }
@@ -639,6 +899,9 @@ async function getLobbyView(lobby: CarvingRevelationLobby, clientId?: string | n
     maxLineLength: MAX_LINE_LENGTH,
     nextRoundVotes,
     phaseEndsAt: reconciledLobby.phase_deadline_at,
+    powerUps: getPowerUpStates(reconciledLobby, actions),
+    claimedPowerUps,
+    powerUpMessages: getPowerUpMessages(actions),
   };
 }
 
@@ -770,6 +1033,23 @@ export async function getCarvingRevelationLobby(code: string, clientId?: string 
   return getLobbyView(lobby, clientId);
 }
 
+export async function getCarvingRevelationSkinImageSource(code: string, clientId: string): Promise<CarvingRevelationSkinImageSource> {
+  const lobby = await fetchLobby(code);
+  if (!lobby || (lobby.status !== 'active' && lobby.status !== 'finished')) {
+    throw new Error('Skin image is unavailable.');
+  }
+  const players = await fetchPlayers(lobby.id);
+  const player = players.find((candidate) => candidate.client_id === clientId);
+  if (!player || !player.connected) {
+    throw new Error('Player not found.');
+  }
+  const skin = getSkinById(lobby.secret_skin_id);
+  if (!skin) {
+    throw new Error('Skin image is unavailable.');
+  }
+  return { imageUrl: skin.imageUrl, status: lobby.status };
+}
+
 export async function listPublicCarvingRevelationLobbies() {
   assertSupabaseConfigured();
   const { data: lobbies, error } = await getSupabaseServiceClient()
@@ -818,6 +1098,8 @@ export async function updateCarvingRevelationSettings(
     phaseDurationSeconds?: unknown;
     winCondition?: unknown;
     modifiers?: unknown;
+    powerUpsEnabled?: unknown;
+    powerUpCount?: unknown;
     startingLineLengthPercent?: unknown;
     lineLengthIncrementPercent?: unknown;
     lobbyDescription?: unknown;
@@ -836,6 +1118,8 @@ export async function updateCarvingRevelationSettings(
   const phaseDurationSeconds = normalizePhaseDuration(input.phaseDurationSeconds ?? lobby.phase_duration_seconds);
   const winCondition = normalizeWinCondition(input.winCondition ?? lobby.win_condition);
   const modifiers = normalizeModifiers(input.modifiers ?? lobby.modifiers);
+  const powerUpsEnabled = typeof input.powerUpsEnabled === 'boolean' ? input.powerUpsEnabled : lobby.power_ups_enabled !== false;
+  const powerUpCount = normalizePowerUpCount(input.powerUpCount ?? lobby.power_up_count);
   const startingLineLengthPercent = normalizeStartingLineLength(input.startingLineLengthPercent ?? lobby.starting_line_length_percent);
   const lineLengthIncrementPercent = normalizeLineLengthIncrement(input.lineLengthIncrementPercent ?? lobby.line_length_increment_percent);
 
@@ -846,6 +1130,8 @@ export async function updateCarvingRevelationSettings(
       phase_duration_seconds: phaseDurationSeconds,
       win_condition: winCondition,
       modifiers,
+      power_ups_enabled: powerUpsEnabled,
+      power_up_count: powerUpCount,
       starting_line_length_percent: startingLineLengthPercent,
       line_length_increment_percent: lineLengthIncrementPercent,
       lobby_description: sanitizeMultiplayerLobbyDescription(input.lobbyDescription ?? lobby.lobby_description),
@@ -908,6 +1194,7 @@ export async function startCarvingRevelationLobby(code: string, clientId: string
       round_number: 1,
       phase: 'carve',
       phase_deadline_at: getPhaseDeadline(lobby.phase_duration_seconds, nowMs + START_COUNTDOWN_MS),
+      power_ups: generatePowerUps(lobby.power_ups_enabled !== false, lobby.power_up_count),
       winner_player_id: null,
       started_at: startsAt,
       finished_at: null,
@@ -975,6 +1262,7 @@ export async function startNextCarvingRevelationRound(code: string, clientId: st
       round_number: 1,
       phase: 'carve',
       phase_deadline_at: getPhaseDeadline(fetchedLobby.phase_duration_seconds, nowMs + START_COUNTDOWN_MS),
+      power_ups: generatePowerUps(fetchedLobby.power_ups_enabled !== false, fetchedLobby.power_up_count),
       winner_player_id: null,
       started_at: startsAt,
       finished_at: null,
@@ -1381,6 +1669,19 @@ export async function drawCarvingRevealStroke(code: string, clientId: string, in
   if (shape.length > lineLengthLimit + 0.004) {
     throw new Error('Reveal shape is too long for this round.');
   }
+  const existingActions = await fetchActions(lobby.id);
+  const alreadyUsedPowerUp = existingActions.some((action) => (
+    action.action_type === 'power_up' &&
+    action.round_number === lobby.round_number &&
+    action.player_id === player.id
+  ));
+  if (alreadyUsedPowerUp) {
+    throw new Error('You cannot redraw after using a power up.');
+  }
+  const activePowerUps = getPowerUpStates(lobby, existingActions);
+  const claimedPowerUpIds = activePowerUps
+    .filter((powerUp) => shapeClaimsPowerUp(shape.points, powerUp))
+    .map((powerUp) => powerUp.id);
 
   const { error: deletePreviousError } = await getSupabaseServiceClient()
     .from('carving_revelation_actions')
@@ -1399,7 +1700,7 @@ export async function drawCarvingRevealStroke(code: string, clientId: string, in
       action_type: 'draw',
       turn_index: 0,
       round_number: lobby.round_number,
-      payload: { points: shape.points, length: shape.length, lineLengthLimit },
+      payload: { points: shape.points, length: shape.length, lineLengthLimit, claimedPowerUpIds },
     });
   if (error) throw error;
   await addLobbyEvent(lobby.id, 'carve_submitted');
@@ -1409,7 +1710,16 @@ export async function drawCarvingRevealStroke(code: string, clientId: string, in
     .filter((action) => action.action_type === 'draw' && action.round_number === lobby.round_number && action.player_id)
     .map((action) => action.player_id as string));
   if (activePlayerIds.length > 0 && activePlayerIds.every((playerId) => carvedPlayerIds.has(playerId))) {
-    const nextLobby = await startGuessPhase(lobby);
+    const blockedPlayerIds = getPowerUpBlockedPlayerIds(lobby, nextActions);
+    const skippedPlayerIds = getSkipTurnBlockedPlayerIds(lobby, nextActions, players);
+    const allRemainingGuessersBlocked = activePlayerIds.every((playerId) => (
+      blockedPlayerIds.has(playerId) || skippedPlayerIds.has(playerId)
+    ));
+    const nextLobby = await startGuessPhase(
+      lobby,
+      Date.now(),
+      allRemainingGuessersBlocked ? ALL_PLAYERS_BLOCKED_GUESS_SECONDS : lobby.phase_duration_seconds,
+    );
     return getLobbyView(nextLobby, clientId);
   }
   return getLobbyView(lobby, clientId);
@@ -1427,6 +1737,14 @@ export async function guessCarvingRevelationSkin(code: string, clientId: string,
   }
   const correct = answerMatches(trimmedGuess, skin.answer);
   const actions = await fetchActions(lobby.id);
+  const powerUpBlockedPlayerIds = getPowerUpBlockedPlayerIds(lobby, actions);
+  if (powerUpBlockedPlayerIds.has(player.id)) {
+    throw new Error('You claimed a power up and cannot guess this phase.');
+  }
+  const skipTurnBlockedPlayerIds = getSkipTurnBlockedPlayerIds(lobby, actions, players);
+  if (skipTurnBlockedPlayerIds.has(player.id)) {
+    throw new Error('Your guessing turn was skipped by a power up.');
+  }
   const alreadyGuessed = actions.some((action) => (
     action.action_type === 'guess' &&
     action.round_number === lobby.round_number &&
@@ -1452,7 +1770,10 @@ export async function guessCarvingRevelationSkin(code: string, clientId: string,
     return getLobbyView(nextLobby, clientId);
   }
 
-  const activePlayerIds = getActivePlayerIds(players);
+  const activePlayerIds = getActivePlayerIds(players).filter((playerId) => (
+    !powerUpBlockedPlayerIds.has(playerId) &&
+    !skipTurnBlockedPlayerIds.has(playerId)
+  ));
   const nextActions = await fetchActions(lobby.id);
   const guessedPlayerIds = new Set(nextActions
     .filter((action) => action.action_type === 'guess' && action.round_number === lobby.round_number && action.player_id)
@@ -1462,5 +1783,31 @@ export async function guessCarvingRevelationSkin(code: string, clientId: string,
     return getLobbyView(nextLobby, clientId);
   }
   await addLobbyEvent(lobby.id, 'guess_submitted');
+  return getLobbyView(lobby, clientId);
+}
+
+export async function activateCarvingRevelationPowerUp(code: string, clientId: string, powerUpId: string) {
+  const { lobby, player } = await assertActivePhasePlayer(code, clientId, 'carve');
+  const actions = await fetchActions(lobby.id);
+  const powerUp = getUsablePowerUpsForPlayer(lobby, actions, player.id).find((candidate) => candidate.id === powerUpId);
+  if (!powerUp) {
+    throw new Error('Power up is not available.');
+  }
+  if (powerUp.kind !== 'skip_turns') {
+    throw new Error('Power up cannot be used during carving.');
+  }
+
+  const { error } = await getSupabaseServiceClient()
+    .from('carving_revelation_actions')
+    .insert({
+      lobby_id: lobby.id,
+      player_id: player.id,
+      action_type: 'power_up',
+      turn_index: 0,
+      round_number: lobby.round_number,
+      payload: { powerUpId: powerUp.id, kind: powerUp.kind, targetRoundNumber: lobby.round_number + 1 },
+    });
+  if (error) throw error;
+  await addLobbyEvent(lobby.id, 'power_up_used');
   return getLobbyView(lobby, clientId);
 }

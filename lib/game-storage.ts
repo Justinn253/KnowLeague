@@ -1,5 +1,6 @@
-export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle' | 'skincognito';
+export type GameId = 'ability-blitz' | 'skin-champion' | 'skindle' | 'splash-scramble' | 'skincognito';
 export type QuizStatsGameId = 'ability-blitz' | 'skin-champion';
+export type StreakGameId = 'ability-blitz' | 'skin-champion' | 'skindle' | 'splash-scramble';
 export type StatsMode = 'solo' | 'multiplayer';
 export type SoloQuizStorageMode = 'casual' | 'daily' | 'chaos';
 export type SoloQuizStreakScope = `${SoloQuizStorageMode}:${string}`;
@@ -10,6 +11,8 @@ const DETAILED_STATS_KEY = `${STORAGE_PREFIX}:detailed-game-stats`;
 const PENDING_QUIZ_STATS_KEY = `${STORAGE_PREFIX}:pending-quiz-stats`;
 const MAX_RECORDED_MATCH_IDS = 250;
 const MAX_SKIN_GUESS_STATS = 50;
+export const STREAK_GAME_IDS: StreakGameId[] = ['skindle', 'splash-scramble', 'ability-blitz', 'skin-champion'];
+export const PLAYER_GAME_STATS_CHANGED_EVENT = 'knowleague:player-game-stats-changed';
 
 export type PlayerGuessStat = {
   itemId: string;
@@ -49,6 +52,8 @@ export type PlayerGameStats = {
     highestStreak: number;
   }>;
 };
+
+export type PlayerGameStatsByGame = Partial<Record<StreakGameId, PlayerGameStats>>;
 
 export type PlayerCompletionGuess = {
   itemId: string;
@@ -192,6 +197,95 @@ export function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {
     firstGuess: null,
     lastCorrectGuess: null,
     streaksByScope: {},
+  };
+}
+
+function normalizeCompletedDates(dates: unknown) {
+  return Array.isArray(dates)
+    ? [...new Set(dates.filter((date): date is string => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
+    : [];
+}
+
+function normalizePlayerValueStats<TValue extends { count: number }>(stats: unknown) {
+  return stats && typeof stats === 'object' ? stats as Record<string, TValue> : {};
+}
+
+export function normalizePlayerGameStats(gameId: GameId, stats?: Partial<PlayerGameStats> | null): PlayerGameStats {
+  const completedDates = normalizeCompletedDates(stats?.completedDates);
+  const streaksByScope = Object.fromEntries(
+    Object.entries(stats?.streaksByScope ?? {}).map(([scope, scopeStats]) => {
+      const scopeDates = normalizeCompletedDates(scopeStats?.completedDates);
+      const currentStreak = calculateCurrentStreak(scopeDates);
+      return [scope, {
+        completedDates: scopeDates,
+        currentStreak,
+        highestStreak: Math.max(scopeStats?.highestStreak ?? 0, calculateHighestStreak(scopeDates)),
+      }];
+    }),
+  );
+  const currentStreak = calculateCurrentStreak(completedDates);
+
+  return {
+    ...createEmptyPlayerStats(gameId),
+    ...stats,
+    gameId,
+    completedDates,
+    currentStreak,
+    highestStreak: Math.max(stats?.highestStreak ?? 0, calculateHighestStreak(completedDates)),
+    gamesCompleted: Math.max(stats?.gamesCompleted ?? 0, completedDates.length),
+    totalGuesses: Math.max(0, Math.floor(stats?.totalGuesses ?? 0)),
+    guessStats: normalizePlayerValueStats<PlayerGuessStat>(stats?.guessStats),
+    skinLineStats: normalizePlayerValueStats<PlayerValueStat>(stats?.skinLineStats),
+    releaseYearStats: normalizePlayerValueStats<PlayerValueStat>(stats?.releaseYearStats),
+    rarityStats: normalizePlayerValueStats<PlayerValueStat>(stats?.rarityStats),
+    firstGuess: stats?.firstGuess ?? null,
+    lastCorrectGuess: stats?.lastCorrectGuess ?? null,
+    streaksByScope,
+  };
+}
+
+export function mergePlayerGameStats(gameId: GameId, left?: Partial<PlayerGameStats> | null, right?: Partial<PlayerGameStats> | null) {
+  const leftStats = normalizePlayerGameStats(gameId, left);
+  const rightStats = normalizePlayerGameStats(gameId, right);
+  const completedDates = [...new Set([...leftStats.completedDates, ...rightStats.completedDates])].sort();
+  const scopeKeys = new Set([
+    ...Object.keys(leftStats.streaksByScope ?? {}),
+    ...Object.keys(rightStats.streaksByScope ?? {}),
+  ]);
+  const streaksByScope = Object.fromEntries([...scopeKeys].map((scope) => {
+    const scopeDates = [...new Set([
+      ...(leftStats.streaksByScope?.[scope]?.completedDates ?? []),
+      ...(rightStats.streaksByScope?.[scope]?.completedDates ?? []),
+    ])].sort();
+    const currentStreak = calculateCurrentStreak(scopeDates);
+    return [scope, {
+      completedDates: scopeDates,
+      currentStreak,
+      highestStreak: Math.max(
+        leftStats.streaksByScope?.[scope]?.highestStreak ?? 0,
+        rightStats.streaksByScope?.[scope]?.highestStreak ?? 0,
+        calculateHighestStreak(scopeDates),
+      ),
+    }];
+  }));
+  const currentStreak = calculateCurrentStreak(completedDates);
+
+  return {
+    ...leftStats,
+    ...rightStats,
+    gameId,
+    completedDates,
+    currentStreak,
+    highestStreak: Math.max(leftStats.highestStreak, rightStats.highestStreak, calculateHighestStreak(completedDates)),
+    gamesCompleted: Math.max(leftStats.gamesCompleted, rightStats.gamesCompleted, completedDates.length),
+    totalGuesses: Math.max(leftStats.totalGuesses, rightStats.totalGuesses),
+    guessStats: { ...leftStats.guessStats, ...rightStats.guessStats },
+    skinLineStats: { ...leftStats.skinLineStats, ...rightStats.skinLineStats },
+    releaseYearStats: { ...leftStats.releaseYearStats, ...rightStats.releaseYearStats },
+    rarityStats: { ...leftStats.rarityStats, ...rightStats.rarityStats },
+    firstGuess: leftStats.firstGuess ?? rightStats.firstGuess,
+    lastCorrectGuess: rightStats.lastCorrectGuess ?? leftStats.lastCorrectGuess,
+    streaksByScope,
   };
 }
 
@@ -502,15 +596,7 @@ export function loadPlayerGameStats(gameId: GameId) {
       return createEmptyPlayerStats(gameId);
     }
 
-    const stats = JSON.parse(rawStats) as PlayerGameStats;
-    return {
-      ...createEmptyPlayerStats(gameId),
-      ...stats,
-      gameId,
-      currentStreak: calculateCurrentStreak(stats.completedDates ?? []),
-      highestStreak: Math.max(stats.highestStreak ?? 0, calculateHighestStreak(stats.completedDates ?? [])),
-      streaksByScope: stats.streaksByScope ?? {},
-    };
+    return normalizePlayerGameStats(gameId, JSON.parse(rawStats) as PlayerGameStats);
   } catch (error) {
     console.warn(`Unable to load saved ${gameId} player stats.`, error);
     return createEmptyPlayerStats(gameId);
@@ -523,7 +609,9 @@ export function savePlayerGameStats(stats: PlayerGameStats) {
   }
 
   try {
-    window.localStorage.setItem(getPlayerStatsKey(stats.gameId), JSON.stringify(stats));
+    const normalizedStats = normalizePlayerGameStats(stats.gameId, stats);
+    window.localStorage.setItem(getPlayerStatsKey(stats.gameId), JSON.stringify(normalizedStats));
+    window.dispatchEvent(new CustomEvent(PLAYER_GAME_STATS_CHANGED_EVENT, { detail: { gameId: normalizedStats.gameId, stats: normalizedStats } }));
   } catch (error) {
     console.warn(`Unable to save ${stats.gameId} player stats.`, error);
   }
@@ -536,11 +624,13 @@ export function recordPlayerGameCompletion(
   streakScope?: SoloQuizStreakScope,
 ) {
   const currentStats = loadPlayerGameStats(gameId);
-  if (currentStats.completedDates.includes(dateKey)) {
+  const currentScope = streakScope ? currentStats.streaksByScope?.[streakScope] : null;
+  const dateAlreadyCompleted = currentStats.completedDates.includes(dateKey);
+  if (dateAlreadyCompleted && (!streakScope || currentScope?.completedDates.includes(dateKey))) {
     return currentStats;
   }
 
-  const completedDates = [...currentStats.completedDates, dateKey].sort();
+  const completedDates = dateAlreadyCompleted ? currentStats.completedDates : [...currentStats.completedDates, dateKey].sort();
   const guessStats = { ...currentStats.guessStats };
   const skinLineStats = { ...currentStats.skinLineStats };
   const releaseYearStats = { ...currentStats.releaseYearStats };
@@ -574,7 +664,7 @@ export function recordPlayerGameCompletion(
     completedDates,
     currentStreak,
     highestStreak: Math.max(currentStats.highestStreak, currentStreak),
-    gamesCompleted: currentStats.gamesCompleted + 1,
+    gamesCompleted: currentStats.gamesCompleted + (dateAlreadyCompleted ? 0 : 1),
     totalGuesses: currentStats.totalGuesses + guesses.length,
     guessStats,
     skinLineStats,
@@ -601,21 +691,21 @@ export function recordPlayerGameCompletion(
   };
 
   if (streakScope) {
-    const currentScope = currentStats.streaksByScope?.[streakScope] ?? {
+    const currentScopeStats = currentScope ?? {
       completedDates: [],
       currentStreak: 0,
       highestStreak: 0,
     };
-    const scopeDates = currentScope.completedDates.includes(dateKey)
-      ? currentScope.completedDates
-      : [...currentScope.completedDates, dateKey].sort();
+    const scopeDates = currentScopeStats.completedDates.includes(dateKey)
+      ? currentScopeStats.completedDates
+      : [...currentScopeStats.completedDates, dateKey].sort();
     const scopeStreak = calculateCurrentStreak(scopeDates, dateKey);
     updatedStats.streaksByScope = {
       ...(currentStats.streaksByScope ?? {}),
       [streakScope]: {
         completedDates: scopeDates,
         currentStreak: scopeStreak,
-        highestStreak: Math.max(currentScope.highestStreak, scopeStreak),
+        highestStreak: Math.max(currentScopeStats.highestStreak, scopeStreak),
       },
     };
   }
@@ -634,6 +724,28 @@ export function getPlayerGameStreakForScope(stats: PlayerGameStats, scope: SoloQ
     currentStreak: calculateCurrentStreak(current.completedDates ?? []),
     highestStreak: Math.max(current.highestStreak ?? 0, calculateHighestStreak(current.completedDates ?? [])),
   };
+}
+
+export function getPlayerGameStreakForMode(stats: PlayerGameStats, mode: SoloQuizStorageMode) {
+  if (mode === 'casual') {
+    return getPlayerGameStreakForScope(stats, 'casual:all');
+  }
+
+  if (mode === 'chaos') {
+    return getPlayerGameStreakForScope(stats, 'chaos:challenger');
+  }
+
+  const modeScope = getPlayerGameStreakForScope(stats, 'daily:all');
+  const legacyDifficultyScopes = Object.entries(stats.streaksByScope ?? {})
+    .filter(([scope]) => scope.startsWith('daily:') && scope !== 'daily:all')
+    .map(([scope]) => getPlayerGameStreakForScope(stats, scope as SoloQuizStreakScope));
+
+  return legacyDifficultyScopes.reduce((best, current) => (
+    current.currentStreak > best.currentStreak || current.highestStreak > best.highestStreak ? {
+      currentStreak: Math.max(best.currentStreak, current.currentStreak),
+      highestStreak: Math.max(best.highestStreak, current.highestStreak),
+    } : best
+  ), modeScope);
 }
 
 export function loadDailyGameState<TState>(gameId: GameId, dateKey = getDailyDateKey()) {

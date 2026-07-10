@@ -610,7 +610,13 @@ export function Skindle() {
             </Link>
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Single Player Game</p>
-              <h1 className="text-xl font-semibold text-white">Skindle</h1>
+              <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-white">
+                Skindle
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-xs font-bold text-amber-100">
+                  <Flame size={12} className="text-amber-300" />
+                  {playerStats.currentStreak}
+                </span>
+              </h1>
               <p className="mt-1 text-xs text-slate-400">
                 {`Daily skin resets in ${timeToNextSet}`}
               </p>
@@ -623,11 +629,6 @@ export function Skindle() {
               'Each guess compares champion, skin line, rarity, species, gender, role, lane, release year, and resource against the target.',
               'Green means a match, orange means a partial match, and release year arrows point toward the target.',
             ]} />
-            <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200">
-              <Flame size={16} className="text-amber-300" />
-              {playerStats.currentStreak} day streak
-            </div>
-
             <div ref={playerStatsMenuRef} className="relative">
               <button
                 type="button"

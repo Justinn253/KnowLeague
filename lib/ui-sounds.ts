@@ -1,5 +1,3 @@
-'use client';
-
 export type SoundName =
   | 'friend-request-incoming'
   | 'friend-request-sent'
@@ -172,23 +170,27 @@ function clampVolume(volume: unknown) {
     : DEFAULT_UI_SOUND_SETTINGS.volume;
 }
 
+export function normalizeUiSoundSettings(settings: unknown): UiSoundSettings {
+  if (!settings || typeof settings !== 'object') {
+    return DEFAULT_UI_SOUND_SETTINGS;
+  }
+
+  const parsed = settings as Partial<UiSoundSettings>;
+  return {
+    volume: clampVolume(parsed.volume),
+    muted: Boolean(parsed.muted),
+    chatMuted: Boolean(parsed.chatMuted),
+    friendRequestMuted: Boolean(parsed.friendRequestMuted),
+  };
+}
+
 export function readUiSoundSettings(): UiSoundSettings {
   if (typeof window === 'undefined') {
     return DEFAULT_UI_SOUND_SETTINGS;
   }
 
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(SOUND_SETTINGS_KEY) ?? 'null') as Partial<UiSoundSettings> | null;
-    if (!parsed || typeof parsed !== 'object') {
-      return DEFAULT_UI_SOUND_SETTINGS;
-    }
-
-    return {
-      volume: clampVolume(parsed.volume),
-      muted: Boolean(parsed.muted),
-      chatMuted: Boolean(parsed.chatMuted),
-      friendRequestMuted: Boolean(parsed.friendRequestMuted),
-    };
+    return normalizeUiSoundSettings(JSON.parse(window.localStorage.getItem(SOUND_SETTINGS_KEY) ?? 'null'));
   } catch {
     return DEFAULT_UI_SOUND_SETTINGS;
   }
@@ -199,12 +201,7 @@ export function saveUiSoundSettings(settings: UiSoundSettings) {
     return;
   }
 
-  const nextSettings = {
-    volume: clampVolume(settings.volume),
-    muted: settings.muted,
-    chatMuted: settings.chatMuted,
-    friendRequestMuted: settings.friendRequestMuted,
-  };
+  const nextSettings = normalizeUiSoundSettings(settings);
   window.localStorage.setItem(SOUND_SETTINGS_KEY, JSON.stringify(nextSettings));
   window.dispatchEvent(new CustomEvent('knowleague:sound-settings-changed', { detail: nextSettings }));
 }

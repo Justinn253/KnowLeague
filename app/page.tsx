@@ -1,3 +1,5 @@
+'use client';
+
 import {
   ArrowRight,
   BarChart3,
@@ -17,6 +19,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { MultiplayerPlayerCountBadge } from '@/components/multiplayer-player-count-badge';
 import type { MultiplayerPlayerCountGameId } from '@/lib/multiplayer-player-counts';
+import { playUiSound } from '@/lib/ui-sounds';
 
 type Accent = 'gold' | 'cyan' | 'rose' | 'violet' | 'emerald' | 'sky';
 type GameMode = 'solo' | 'multiplayer' | 'hybrid';
@@ -231,6 +234,9 @@ function GameCard({ game }: { game: GameLink }) {
     return (
       <Link
         href={game.href}
+        onMouseEnter={() => playUiSound('autocomplete-hover')}
+        onFocus={() => playUiSound('autocomplete-hover')}
+        onClick={() => playUiSound('autocomplete-select')}
         className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl bg-slate-950 bg-clip-padding ${featuredBorder} ${featuredGlow} transition-[transform,border-color,box-shadow] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:shadow-[0_10px_28px_rgba(15,23,42,0.24)] focus:outline-none focus:ring-2 focus:ring-amber-200 lg:col-span-2`}
       >
         <Image
@@ -283,6 +289,9 @@ function GameCard({ game }: { game: GameLink }) {
   return (
     <Link
       href={game.href}
+      onMouseEnter={() => playUiSound('autocomplete-hover')}
+      onFocus={() => playUiSound('autocomplete-hover')}
+      onClick={() => playUiSound('autocomplete-select')}
       className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl border bg-slate-900/80 bg-clip-padding transition-[transform,border-color,background-color,box-shadow] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:border-white/35 hover:bg-slate-900 hover:shadow-[0_12px_34px_rgba(15,23,42,0.26)] focus:outline-none focus:ring-2 focus:ring-amber-200 ${accent.border}`}
     >
       <div className="relative h-40 overflow-hidden border-b border-white/10 bg-slate-950">
@@ -362,6 +371,9 @@ export default function Home() {
           </div>
           <Link
             href="/riot-account-viewer"
+            onMouseEnter={() => playUiSound('autocomplete-hover')}
+            onFocus={() => playUiSound('autocomplete-hover')}
+            onClick={() => playUiSound('autocomplete-select')}
             className="group relative inline-flex min-h-14 shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-amber-200/40 bg-gradient-to-br from-amber-200 via-amber-300 to-yellow-500 px-5 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-lg shadow-amber-950/30 transition hover:-translate-y-0.5 hover:shadow-amber-900/40 focus:outline-none focus:ring-2 focus:ring-amber-100"
           >
             <span className="absolute inset-y-0 left-0 w-1/3 bg-white/30 opacity-0 blur-xl transition group-hover:opacity-100" />

@@ -129,7 +129,7 @@ const games: GameLink[] = [
   {
     title: 'Skindle',
     href: '/skindle',
-    description: 'Solve the daily League of Legends skin with category clues that sharpen after every guess.',
+    description: 'Solve the daily League of Legends skin with each guess revealing more information.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
     gameIcon: Search,
     mode: 'solo',
@@ -143,7 +143,7 @@ const games: GameLink[] = [
   {
     title: 'Splash Scramble',
     href: '/splash-scramble',
-    description: 'Rebuild a scrambled League of Legends splash art by swapping tiles before time runs out.',
+    description: 'Rebuild a scrambled League of Legends skin by swapping pieces.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ashe_0.jpg',
     gameIcon: Eye,
     mode: 'solo',
@@ -155,7 +155,7 @@ const games: GameLink[] = [
   {
     title: 'Ability Blitz',
     href: '/multiplayer/ability-blitz',
-    description: 'Play solo or race friends through League of Legends ability icons with configurable modifiers.',
+    description: 'Play solo or with friends through League of Legends ability icons.',
     imageUrl: '/game-snapshots/ability_blitz_snapshot.png',
     imageFit: 'contain',
     gameIcon: Clock3,
@@ -169,7 +169,7 @@ const games: GameLink[] = [
   {
     title: 'Skin Champion',
     href: '/multiplayer/skin-champion',
-    description: 'Play solo or compete to identify League of Legends skin lines from image-focused clues.',
+    description: 'Play solo or with friends to identify League of Legends skin lines.',
     imageUrl: '/game-snapshots/skin_champion_snapshot.png',
     imageFit: 'contain',
     gameIcon: Sparkles,
@@ -183,7 +183,7 @@ const games: GameLink[] = [
   {
     title: 'Skincognito',
     href: '/skincognito',
-    description: 'Try to guess your opponents League of Legends skin before they can decipher yours.',
+    description: 'Try to guess your opponents League of Legends skin before they can guess yours.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shaco_0.jpg',
     gameIcon: ShieldQuestion,
     mode: 'multiplayer',
@@ -195,7 +195,7 @@ const games: GameLink[] = [
   {
     title: 'Carving Revelation',
     href: '/carving-revelation',
-    description: 'Take turns carving reveal lines into one shared hidden splash before someone names the skin line.',
+    description: 'Carve through a hidden League of Legends skin line and figure it out before your opponents do.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jhin_5.jpg',
     gameIcon: Eye,
     mode: 'multiplayer',
@@ -206,7 +206,7 @@ const games: GameLink[] = [
   {
     title: 'Category Clash',
     href: '/category-clash',
-    description: 'Name unique League answers from rotating categories before strikes knock you out.',
+    description: 'Name unique League answers from rotating categories and be the last player standing.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sylas_0.jpg',
     gameIcon: Swords,
     mode: 'multiplayer',

@@ -4,6 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import type { ReactNode } from 'react';
 import {
   ArrowLeft,
+  CalendarDays,
   Check,
   Clock3,
   Eye,
@@ -23,10 +24,12 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { SplashScrambleDailyLeaderboard } from '@/components/splash-scramble-daily-leaderboard';
 import {
+  createEmptyPlayerStats,
   getDailyDateKey,
+  getOrCreateClientId,
   getPlayerGameStreakForMode,
   loadPlayerGameStats,
   PLAYER_GAME_STATS_CHANGED_EVENT,
@@ -37,6 +40,7 @@ import {
 import type { QuizItem } from '@/lib/quiz';
 import { getNextUtcResetLabel } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import type { SplashScrambleLeaderboardSnapshot } from '@/lib/splash-scramble-leaderboard';
 import { playUiSound } from '@/lib/ui-sounds';
 
 type PuzzlePhase = 'prematch' | 'loading' | 'playing' | 'won' | 'lost';
@@ -74,7 +78,20 @@ type SavedRoundState = SplashScrambleSettings & {
   moves: number;
   startedAt: number;
   endsAt: number | null;
+  pausedAt?: number;
   savedAt: number;
+};
+
+type DailyCompletionSummary = {
+  version: 1;
+  dateKey: string;
+  targetSkin: QuizItem;
+  timeLimit: number | null;
+  elapsedSeconds: number;
+  remainingSeconds: number;
+  moves: number;
+  dailyGlobalSolves: number | null;
+  skinSolveCount: number | null;
 };
 
 type SplashScrambleStats = {
@@ -90,11 +107,17 @@ type AccountPayload = {
 };
 
 type DailyStatsResponse = {
-  correctGuesses?: number;
+  correctSolves?: number;
+};
+
+type SkinSolveResponse = {
+  skinKey?: string;
+  solveCount?: number;
 };
 
 const ACTIVE_ROUND_STORAGE_KEY = 'knowleague:v1:splash-scramble:active-round';
 const DAILY_ROUND_STORAGE_KEY = 'knowleague:v1:splash-scramble:daily-round';
+const DAILY_COMPLETION_STORAGE_KEY_PREFIX = 'knowleague:v1:splash-scramble:daily-completion';
 const STATS_STORAGE_KEY = 'knowleague:v1:splash-scramble:stats';
 const SKIN_SEARCH_ROW_HEIGHT = 56;
 const SKIN_SEARCH_MAX_HEIGHT = 360;
@@ -112,6 +135,11 @@ const DAILY_SETTINGS: SplashScrambleSettings = {
   showReference: true,
   lockCorrectTiles: true,
   rotateTiles: false,
+};
+
+const EMPTY_DAILY_LEADERBOARD: SplashScrambleLeaderboardSnapshot = {
+  entries: [],
+  currentUserEntry: null,
 };
 
 const gridOptions: GridOption[] = [
@@ -142,13 +170,10 @@ function createEmptyStats(): SplashScrambleStats {
 function shuffleTiles(tileCount: number) {
   const tiles = Array.from({ length: tileCount }, (_, index) => index);
 
+  // Sattolo's algorithm creates one random cycle, so no tile can remain in its original position.
   for (let index = tiles.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = Math.floor(Math.random() * index);
     [tiles[index], tiles[swapIndex]] = [tiles[swapIndex], tiles[index]];
-  }
-
-  if (tiles.every((tile, index) => tile === index) && tiles.length > 1) {
-    [tiles[0], tiles[1]] = [tiles[1], tiles[0]];
   }
 
   return tiles;
@@ -231,16 +256,24 @@ function getInitialLockedPositions(tiles: readonly number[], rotations: readonly
   return new Set(tiles.flatMap((tile, position) => (tile === position && (rotations[position] ?? 0) === 0 ? [position] : [])));
 }
 
+function getSavedElapsedMilliseconds(round: SavedRoundState, now = Date.now()) {
+  return Math.max(0, (round.pausedAt ?? now) - round.startedAt);
+}
+
+function getSavedRemainingMilliseconds(round: SavedRoundState, now = Date.now()) {
+  return round.endsAt === null ? 0 : Math.max(0, round.endsAt - (round.pausedAt ?? now));
+}
+
 function getSavedElapsedSeconds(round: SavedRoundState, now = Date.now()) {
-  return Math.max(0, Math.floor((now - round.startedAt) / 1000));
+  return Math.max(0, Math.floor(getSavedElapsedMilliseconds(round, now) / 1000));
 }
 
 function getSavedRemainingSeconds(round: SavedRoundState, now = Date.now()) {
-  return round.endsAt === null ? 0 : Math.max(0, Math.ceil((round.endsAt - now) / 1000));
+  return Math.max(0, Math.ceil(getSavedRemainingMilliseconds(round, now) / 1000));
 }
 
 function isRoundResumeable(round: SavedRoundState, now = Date.now()) {
-  return round.timeLimit === null || round.endsAt === null || round.endsAt > now;
+  return round.timeLimit === null || round.endsAt === null || round.endsAt > (round.pausedAt ?? now);
 }
 
 function isSavedRoundPlayable(round: SavedRoundState, now = Date.now()) {
@@ -301,6 +334,64 @@ function clearLocalRound(mode: PuzzleMode = 'regular') {
   }
 
   window.localStorage.removeItem(getRoundStorageKey(mode));
+}
+
+function getDailyCompletionStorageKey(accountId: string) {
+  return `${DAILY_COMPLETION_STORAGE_KEY_PREFIX}:${accountId}`;
+}
+
+function readLocalDailyCompletion(accountId: string, dateKey = getDailyDateKey()) {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const storageKey = getDailyCompletionStorageKey(accountId);
+    const rawCompletion = window.localStorage.getItem(storageKey);
+    if (!rawCompletion) {
+      return null;
+    }
+
+    const completion = JSON.parse(rawCompletion) as Partial<DailyCompletionSummary>;
+    if (
+      completion.version !== 1
+      || completion.dateKey !== dateKey
+      || !completion.targetSkin?.imageUrl
+      || typeof completion.timeLimit !== 'number' && completion.timeLimit !== null
+      || typeof completion.elapsedSeconds !== 'number'
+      || typeof completion.remainingSeconds !== 'number'
+      || typeof completion.moves !== 'number'
+      || typeof completion.dailyGlobalSolves !== 'number' && completion.dailyGlobalSolves !== null
+    ) {
+      if (completion.dateKey !== dateKey) {
+        window.localStorage.removeItem(storageKey);
+      }
+      return null;
+    }
+
+    return {
+      ...completion,
+      skinSolveCount: typeof completion.skinSolveCount === 'number' ? completion.skinSolveCount : null,
+    } as DailyCompletionSummary;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalDailyCompletion(completion: DailyCompletionSummary, accountId: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(getDailyCompletionStorageKey(accountId), JSON.stringify(completion));
+}
+
+function clearLocalDailyCompletion(accountId: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(getDailyCompletionStorageKey(accountId));
 }
 
 function readLocalStats() {
@@ -440,15 +531,15 @@ function SettingButton({
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-white">
           <span className="min-w-0 truncate">{title}</span>
-          {solveCount !== undefined ? (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2 py-0.5 text-[0.68rem] font-bold text-slate-300">
-              <Trophy size={11} className="text-amber-300" />
-              {solveCount}
-            </span>
-          ) : null}
           {selected ? <Check size={15} className="shrink-0 text-amber-300" /> : null}
           {sideLabel ? <span className="ml-auto shrink-0 text-xs font-semibold italic text-slate-500">{sideLabel}</span> : null}
         </span>
+        {solveCount !== undefined ? (
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2 py-0.5 text-[0.68rem] font-bold text-slate-300">
+            <Trophy size={11} className="text-amber-300" />
+            {solveCount}
+          </span>
+        ) : null}
         {description ? <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span> : null}
       </span>
     </button>
@@ -464,8 +555,53 @@ function StatPill({ label, value, valueClassName = 'text-white' }: { label: stri
   );
 }
 
+function EndStateSettingsCard({
+  daily,
+  gridSize,
+  timeLimit,
+  showReference,
+  lockCorrectTiles,
+  rotateTiles,
+}: SplashScrambleSettings & { daily: boolean }) {
+  if (daily) {
+    return (
+      <aside className="flex w-full shrink-0 items-center justify-center self-end rounded-2xl border border-amber-300/35 bg-slate-950/80 px-6 py-5 shadow-xl backdrop-blur-md sm:w-52" aria-label="Daily puzzle">
+        <div className="flex items-center gap-3 text-amber-100">
+          <CalendarDays size={26} className="text-amber-300" />
+          <span className="text-2xl font-black tracking-tight">Daily</span>
+        </div>
+      </aside>
+    );
+  }
+
+  const settings = [
+    { label: 'Pieces', value: rotateTiles ? '16 x 9' : `${gridSize} x ${gridSize}`, icon: <Grid3X3 size={15} /> },
+    { label: 'Timer', value: timeLimit === null ? 'No Timer' : formatTimer(timeLimit), icon: <Clock3 size={15} /> },
+    { label: 'Reference', value: showReference ? 'Visible Reference' : 'Hidden Reference', icon: showReference ? <Eye size={15} /> : <EyeOff size={15} /> },
+    { label: 'Tile Locking', value: lockCorrectTiles ? 'Locked Tiles' : 'Unlocked Tiles', icon: lockCorrectTiles ? <Lock size={15} /> : <LockOpen size={15} /> },
+    { label: 'Rotation', value: rotateTiles ? 'Rotation Enabled' : 'Rotation Disabled', icon: rotateTiles ? <RotateCw size={15} /> : <RotateCcw size={15} /> },
+  ];
+
+  return (
+    <aside className="w-full shrink-0 self-end rounded-2xl border border-white/10 bg-slate-950/80 p-4 shadow-xl backdrop-blur-md sm:w-60" aria-label="Puzzle settings">
+      <div className="space-y-3">
+        {settings.map((setting) => (
+          <div key={setting.label} className="flex items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-amber-200">
+              {setting.icon}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-slate-500">{setting.label}</span>
+              <span className="block truncate text-sm font-bold text-white">{setting.value}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 export function SplashScramble() {
-  const router = useRouter();
   const [phase, setPhase] = useState<PuzzlePhase>('prematch');
   const [roundMode, setRoundMode] = useState<PuzzleMode>('regular');
   const [gridSize, setGridSize] = useState(DEFAULT_SETTINGS.gridSize);
@@ -481,6 +617,7 @@ export function SplashScramble() {
   const [selectedSkin, setSelectedSkin] = useState<QuizItem | null>(null);
   const [skinListError, setSkinListError] = useState('');
   const [targetSkin, setTargetSkin] = useState<QuizItem | null>(null);
+  const [targetSkinSolveCount, setTargetSkinSolveCount] = useState<number | null>(null);
   const [tiles, setTiles] = useState<number[]>([]);
   const [rotations, setRotations] = useState<RotationDegrees[]>([]);
   const [selectedTile, setSelectedTile] = useState<number | null>(null);
@@ -495,11 +632,20 @@ export function SplashScramble() {
   const [resumeRound, setResumeRound] = useState<SavedRoundState | null>(null);
   const [dailyResumeRound, setDailyResumeRound] = useState<SavedRoundState | null>(null);
   const [stats, setStats] = useState<SplashScrambleStats>(() => createEmptyStats());
-  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => loadPlayerGameStats('splash-scramble'));
+  const [playerStats, setPlayerStats] = useState<PlayerGameStats>(() => createEmptyPlayerStats('splash-scramble'));
+  const [dailyCompletionSummary, setDailyCompletionSummary] = useState<DailyCompletionSummary | null>(null);
+  const [clientStateReady, setClientStateReady] = useState(false);
   const [profileStatsLoaded, setProfileStatsLoaded] = useState(false);
   const [error, setError] = useState('');
   const [timeToNextDaily, setTimeToNextDaily] = useState('00:00:00');
   const [dailyGlobalSolves, setDailyGlobalSolves] = useState<number | null>(null);
+  const [dailyLeaderboardSnapshot, setDailyLeaderboardSnapshot] = useState<SplashScrambleLeaderboardSnapshot>(EMPTY_DAILY_LEADERBOARD);
+  const [dailyLeaderboardLoading, setDailyLeaderboardLoading] = useState(false);
+  const [dailyLeaderboardError, setDailyLeaderboardError] = useState('');
+  const [dailyLeaderboardUserId, setDailyLeaderboardUserId] = useState<string | null>(null);
+  const [dailyLeaderboardFriendIds, setDailyLeaderboardFriendIds] = useState<Set<string>>(new Set());
+  const [dailyCompletionStatus, setDailyCompletionStatus] = useState<boolean | null>(null);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const flashTimeoutRef = useRef<number | null>(null);
   const misplacedHintTimeoutRef = useRef<number | null>(null);
   const lastAccountSyncMoveRef = useRef<number | null>(null);
@@ -507,8 +653,25 @@ export function SplashScramble() {
   const timerExpiredSoundPlayedRef = useRef(false);
   const hoveredSkinSuggestionIdRef = useRef<string | null>(null);
   const solveRecordedRef = useRef(false);
+  const dailyStatsRequestIdRef = useRef(0);
+  const dailyLeaderboardRequestIdRef = useRef(0);
+  const skinSolveRequestIdRef = useRef(0);
+  const dailyLeaderboardUserIdRef = useRef<string | null>(null);
+  const guestDailyCompletionRef = useRef(false);
+  const pausedAtRef = useRef<number | null>(null);
+  const phaseRef = useRef(phase);
+  const roundModeRef = useRef(roundMode);
+  const startedAtRef = useRef<number | null>(startedAt);
+  const endsAtRef = useRef<number | null>(endsAt);
+  const buildSavedRoundRef = useRef<(() => SavedRoundState | null)>(() => null);
   const rotateSelectedTileRef = useRef<(direction?: 1 | -1) => void>(() => undefined);
   const activeDateKeyRef = useRef(getDailyDateKey());
+
+  phaseRef.current = phase;
+  roundModeRef.current = roundMode;
+  startedAtRef.current = startedAt;
+  endsAtRef.current = endsAt;
+  dailyLeaderboardUserIdRef.current = dailyLeaderboardUserId;
 
   const configuredColumns = rotateTiles ? 16 : gridSize;
   const configuredRows = rotateTiles ? 9 : gridSize;
@@ -574,7 +737,7 @@ export function SplashScramble() {
   );
   const regularStreak = getPlayerGameStreakForMode(playerStats, 'casual').currentStreak;
   const dailyStreak = getPlayerGameStreakForMode(playerStats, 'daily').currentStreak;
-  const dailyCompletedToday = Boolean(playerStats.streaksByScope?.['daily:all']?.completedDates.includes(activeDateKeyRef.current));
+  const dailyCompletedToday = dailyCompletionStatus === true;
   const getPieceSolveCount = (columns: number, rows = columns) => (
     stats.solvesByPieceCount[getStatsKey(columns, rows)] ?? stats.solvesByPieceCount[String(columns)] ?? 0
   );
@@ -582,6 +745,25 @@ export function SplashScramble() {
   useEffect(() => {
     setSkinSearchScrollTop(0);
   }, [deferredSkinSearch]);
+
+  useEffect(() => {
+    if (phase === 'prematch') {
+      void loadDailyLeaderboard();
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'prematch') {
+      return;
+    }
+
+    if (!selectedSkin) {
+      setTargetSkinSolveCount(null);
+      return;
+    }
+
+    void loadTargetSkinSolveCount(selectedSkin.id);
+  }, [phase, selectedSkin]);
 
   useEffect(() => {
     const handleStatsChanged = (event: Event) => {
@@ -610,17 +792,210 @@ export function SplashScramble() {
   };
 
   const loadDailyGlobalSolves = async () => {
+    const requestId = dailyStatsRequestIdRef.current + 1;
+    dailyStatsRequestIdRef.current = requestId;
     setDailyGlobalSolves(null);
     try {
-      const response = await fetch('/api/skindle/stats?includeTop=false');
-      if (!response.ok) {
+      const response = await fetch('/api/splash-scramble/stats', { cache: 'no-store' });
+      if (!response.ok || requestId !== dailyStatsRequestIdRef.current) {
         return;
       }
 
       const data = await response.json() as DailyStatsResponse;
-      setDailyGlobalSolves(typeof data.correctGuesses === 'number' ? data.correctGuesses : 0);
+      if (typeof data.correctSolves === 'number') {
+        updateDailyGlobalSolves(data.correctSolves);
+      }
     } catch {
-      setDailyGlobalSolves(null);
+      if (requestId === dailyStatsRequestIdRef.current) {
+        setDailyGlobalSolves(null);
+      }
+    }
+  };
+
+  const loadDailyLeaderboard = async () => {
+    const requestId = dailyLeaderboardRequestIdRef.current + 1;
+    dailyLeaderboardRequestIdRef.current = requestId;
+    const previousUserId = dailyLeaderboardUserIdRef.current;
+    setDailyLeaderboardLoading(true);
+    setDailyLeaderboardError('');
+    setDailyCompletionStatus(null);
+
+    try {
+      const supabase = getOptionalSupabaseClient();
+      const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+      const session = data.session;
+      const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined;
+      const [leaderboardResponse, friendsResponse] = await Promise.all([
+        fetch('/api/splash-scramble/leaderboard', { headers, cache: 'no-store' }),
+        session ? fetch('/api/friends', { headers, cache: 'no-store' }) : Promise.resolve(null),
+      ]);
+      const leaderboard = await leaderboardResponse.json() as SplashScrambleLeaderboardSnapshot & { error?: string };
+      if (!leaderboardResponse.ok) {
+        throw new Error(leaderboard.error ?? 'Unable to load the daily leaderboard.');
+      }
+
+      const friends = friendsResponse?.ok
+        ? await friendsResponse.json() as { friends?: Array<{ id: string }> }
+        : null;
+      if (requestId !== dailyLeaderboardRequestIdRef.current) {
+        return;
+      }
+
+      const nextUserId = session?.user.id ?? null;
+      dailyLeaderboardUserIdRef.current = nextUserId;
+      setDailyLeaderboardSnapshot({
+        entries: Array.isArray(leaderboard.entries) ? leaderboard.entries : [],
+        currentUserEntry: leaderboard.currentUserEntry ?? null,
+      });
+      setDailyLeaderboardUserId(nextUserId);
+      setDailyLeaderboardFriendIds(new Set((friends?.friends ?? []).map((friend) => friend.id)));
+      setDailyCompletionStatus(Boolean(session && leaderboard.currentUserEntry) || (!session && guestDailyCompletionRef.current));
+      if (nextUserId !== previousUserId) {
+        setDailyCompletionSummary(session ? readLocalDailyCompletion(session.user.id) : null);
+      }
+    } catch (loadError) {
+      if (requestId === dailyLeaderboardRequestIdRef.current) {
+        setDailyLeaderboardError(loadError instanceof Error ? loadError.message : 'Unable to load the daily leaderboard.');
+        setDailyCompletionStatus(false);
+      }
+    } finally {
+      if (requestId === dailyLeaderboardRequestIdRef.current) {
+        setDailyLeaderboardLoading(false);
+      }
+    }
+  };
+
+  const saveCurrentDailyCompletion = (completion: DailyCompletionSummary) => {
+    const accountId = dailyLeaderboardUserIdRef.current;
+    if (accountId) {
+      saveLocalDailyCompletion(completion, accountId);
+    }
+  };
+
+  const clearCurrentDailyCompletion = () => {
+    const accountId = dailyLeaderboardUserIdRef.current;
+    if (accountId) {
+      clearLocalDailyCompletion(accountId);
+    }
+  };
+
+  const updateDailyGlobalSolves = (correctSolves: number) => {
+    setDailyGlobalSolves(correctSolves);
+    setDailyCompletionSummary((current) => {
+      if (!current || current.dateKey !== activeDateKeyRef.current) {
+        return current;
+      }
+
+      const nextCompletion = { ...current, dailyGlobalSolves: correctSolves };
+      saveCurrentDailyCompletion(nextCompletion);
+      return nextCompletion;
+    });
+  };
+
+  const recordDailyGlobalSolve = async () => {
+    const requestId = dailyStatsRequestIdRef.current + 1;
+    dailyStatsRequestIdRef.current = requestId;
+    const clientId = getOrCreateClientId();
+    if (!clientId) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/splash-scramble/stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      });
+      if (!response.ok) {
+        void loadDailyGlobalSolves();
+        return;
+      }
+
+      const data = await response.json() as DailyStatsResponse;
+      const correctSolves = data.correctSolves;
+      if (requestId === dailyStatsRequestIdRef.current && typeof correctSolves === 'number') {
+        updateDailyGlobalSolves(correctSolves);
+      }
+    } catch {
+      if (requestId === dailyStatsRequestIdRef.current) {
+        void loadDailyGlobalSolves();
+      }
+    }
+  };
+
+  const loadTargetSkinSolveCount = async (skinId: string) => {
+    const requestId = skinSolveRequestIdRef.current + 1;
+    skinSolveRequestIdRef.current = requestId;
+    setTargetSkinSolveCount(null);
+
+    try {
+      const response = await fetch(`/api/splash-scramble/skins/${encodeURIComponent(skinId)}/solves`, { cache: 'no-store' });
+      if (!response.ok || requestId !== skinSolveRequestIdRef.current) {
+        return;
+      }
+
+      const data = await response.json() as SkinSolveResponse;
+      if (typeof data.solveCount === 'number') {
+        setTargetSkinSolveCount(data.solveCount);
+      }
+    } catch {
+      if (requestId === skinSolveRequestIdRef.current) {
+        setTargetSkinSolveCount(null);
+      }
+    }
+  };
+
+  const recordTargetSkinSolve = async (skinId: string) => {
+    const requestId = skinSolveRequestIdRef.current + 1;
+    skinSolveRequestIdRef.current = requestId;
+
+    try {
+      const response = await fetch(`/api/splash-scramble/skins/${encodeURIComponent(skinId)}/solves`, {
+        method: 'POST',
+      });
+      if (!response.ok || requestId !== skinSolveRequestIdRef.current) {
+        return;
+      }
+
+      const data = await response.json() as SkinSolveResponse;
+      const solveCount = data.solveCount;
+      if (typeof solveCount !== 'number') {
+        return;
+      }
+
+      setTargetSkinSolveCount(solveCount);
+      setDailyCompletionSummary((current) => {
+        if (!current || current.targetSkin.id !== skinId) {
+          return current;
+        }
+
+        const nextCompletion = { ...current, skinSolveCount: solveCount };
+        saveCurrentDailyCompletion(nextCompletion);
+        return nextCompletion;
+      });
+    } catch {
+      // The completion remains valid even if the optional global skin count is unavailable.
+    }
+  };
+
+  const submitDailyLeaderboard = async (moves: number, completionTimeSeconds: number) => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      return;
+    }
+
+    try {
+      await fetch('/api/splash-scramble/leaderboard', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${data.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ moves, completionTimeSeconds }),
+      });
+    } catch {
+      // Leaderboard submission is non-blocking; the daily completion remains recorded locally.
     }
   };
 
@@ -646,12 +1021,24 @@ export function SplashScramble() {
       moves,
       startedAt,
       endsAt,
+      pausedAt: pausedAtRef.current ?? undefined,
       savedAt,
     };
   }, [endsAt, gridSize, lockCorrectTiles, lockedPositions, moves, phase, rotateTiles, rotations, roundMode, selectedSkin, showReference, startedAt, targetSkin, tiles, timeLimit]);
+  buildSavedRoundRef.current = buildSavedRound;
 
   const applyRound = async (round: SavedRoundState) => {
     await preloadImage(round.targetSkin.imageUrl);
+    const resumedAt = Date.now();
+    const hasPausedTimestamp = typeof round.pausedAt === 'number';
+    const resumedStartedAt = hasPausedTimestamp
+      ? resumedAt - getSavedElapsedMilliseconds(round)
+      : round.startedAt;
+    const resumedEndsAt = round.endsAt === null
+      ? null
+      : hasPausedTimestamp
+        ? resumedAt + getSavedRemainingMilliseconds(round)
+        : round.endsAt;
     setRoundMode(round.mode ?? 'regular');
     setGridSize(round.gridSize);
     setTimeLimit(round.timeLimit);
@@ -660,6 +1047,7 @@ export function SplashScramble() {
     setRotateTiles(round.rotateTiles);
     setSelectedSkin(round.selectedSkin);
     setTargetSkin(round.targetSkin);
+    void loadTargetSkinSolveCount(round.targetSkin.id);
     setTiles(round.tiles);
     setRotations(round.rotations.length === round.tiles.length ? round.rotations : Array.from({ length: round.tiles.length }, () => 0));
     setLockedPositions(new Set(round.lockedPositions));
@@ -667,10 +1055,11 @@ export function SplashScramble() {
     setMisplacedHintPositions(new Set());
     setSelectedTile(null);
     setMoves(round.moves);
-    setStartedAt(round.startedAt);
-    setEndsAt(round.endsAt);
-    setElapsedSeconds(getSavedElapsedSeconds(round));
-    setRemainingSeconds(getSavedRemainingSeconds(round));
+    setStartedAt(resumedStartedAt);
+    setEndsAt(resumedEndsAt);
+    setElapsedSeconds(hasPausedTimestamp ? getSavedElapsedSeconds(round) : getSavedElapsedSeconds(round, resumedAt));
+    setRemainingSeconds(hasPausedTimestamp ? getSavedRemainingSeconds(round) : getSavedRemainingSeconds(round, resumedAt));
+    pausedAtRef.current = null;
     resetTimerSoundRefs();
     setPhase('playing');
   };
@@ -678,6 +1067,8 @@ export function SplashScramble() {
   useEffect(() => {
     const localStats = readLocalStats();
     setStats(localStats);
+    setPlayerStats(loadPlayerGameStats('splash-scramble'));
+    setClientStateReady(true);
     const localRound = readLocalSavedRound('regular');
     const localDailyRound = readLocalSavedRound('daily');
     if (localRound) {
@@ -719,11 +1110,19 @@ export function SplashScramble() {
     const subscription = supabase?.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         loadProfileData();
+        void loadDailyLeaderboard();
       }
 
       if (event === 'SIGNED_OUT') {
         setStats(readLocalStats());
+        setPlayerStats(loadPlayerGameStats('splash-scramble'));
         setProfileStatsLoaded(false);
+        dailyLeaderboardUserIdRef.current = null;
+        guestDailyCompletionRef.current = false;
+        setDailyLeaderboardUserId(null);
+        setDailyCompletionStatus(null);
+        setDailyCompletionSummary(null);
+        void loadDailyLeaderboard();
         const savedRound = readLocalSavedRound('regular');
         const savedDailyRound = readLocalSavedRound('daily');
         if (savedRound) {
@@ -747,19 +1146,109 @@ export function SplashScramble() {
       }
 
       activeDateKeyRef.current = nextDateKey;
+      dailyStatsRequestIdRef.current += 1;
+      dailyLeaderboardRequestIdRef.current += 1;
+      skinSolveRequestIdRef.current += 1;
       clearLocalRound('daily');
+      clearCurrentDailyCompletion();
       setDailyResumeRound(null);
+      setDailyCompletionSummary(null);
       setDailyGlobalSolves(null);
-      if (roundMode === 'daily' && phase === 'playing') {
+      setDailyCompletionStatus(null);
+      guestDailyCompletionRef.current = false;
+      setDailyLeaderboardSnapshot(EMPTY_DAILY_LEADERBOARD);
+      setDailyLeaderboardError('');
+      setDailyLeaderboardUserId(null);
+      setDailyLeaderboardFriendIds(new Set());
+      if (roundMode === 'daily') {
+        pausedAtRef.current = null;
+        setRoundMode('regular');
         setPhase('prematch');
-        router.push('/');
+        setTargetSkin(null);
+        setTargetSkinSolveCount(null);
+        setSelectedSkin(null);
+        setTiles([]);
+        setRotations([]);
+        setSelectedTile(null);
+        setLockedPositions(new Set());
+        setFlashingPositions(new Set());
+        setMisplacedHintPositions(new Set());
+        setMoves(0);
+        setStartedAt(null);
+        setEndsAt(null);
+        setElapsedSeconds(0);
+        setRemainingSeconds(0);
+        setMobileViewRotated(false);
+        lastAccountSyncMoveRef.current = null;
+        solveRecordedRef.current = false;
+        resetTimerSoundRefs();
       }
     };
 
     updateDailyReset();
     const interval = window.setInterval(updateDailyReset, 1000);
     return () => window.clearInterval(interval);
-  }, [phase, roundMode, router]);
+  }, [phase, roundMode]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const now = Date.now();
+      if (document.hidden) {
+        if (phaseRef.current !== 'playing' || roundModeRef.current !== 'daily' || pausedAtRef.current !== null) {
+          return;
+        }
+
+        pausedAtRef.current = now;
+        const round = buildSavedRoundRef.current();
+        if (round) {
+          saveLocalRound(round, 'daily');
+          setDailyResumeRound(round);
+          setElapsedSeconds(getSavedElapsedSeconds(round, now));
+          setRemainingSeconds(getSavedRemainingSeconds(round, now));
+        }
+        return;
+      }
+
+      const pausedAt = pausedAtRef.current;
+      const currentStartedAt = startedAtRef.current;
+      if (pausedAt === null || phaseRef.current !== 'playing' || roundModeRef.current !== 'daily' || currentStartedAt === null) {
+        return;
+      }
+
+      const pauseDuration = Math.max(0, now - pausedAt);
+      const resumedStartedAt = currentStartedAt + pauseDuration;
+      const currentEndsAt = endsAtRef.current;
+      const resumedEndsAt = currentEndsAt === null ? null : currentEndsAt + pauseDuration;
+      pausedAtRef.current = null;
+      setStartedAt(resumedStartedAt);
+      setEndsAt(resumedEndsAt);
+
+      const round = buildSavedRoundRef.current();
+      if (round) {
+        saveLocalRound({
+          ...round,
+          startedAt: resumedStartedAt,
+          endsAt: resumedEndsAt,
+          pausedAt: undefined,
+          savedAt: now,
+        }, 'daily');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  useEffect(() => () => {
+    if (phaseRef.current !== 'playing' || roundModeRef.current !== 'daily') {
+      return;
+    }
+
+    const round = buildSavedRoundRef.current();
+    if (round) {
+      saveLocalRound({ ...round, pausedAt: pausedAtRef.current ?? Date.now() }, 'daily');
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -797,6 +1286,10 @@ export function SplashScramble() {
     }
 
     const updateTimer = () => {
+      if (document.hidden) {
+        return;
+      }
+
       const nextElapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
       setElapsedSeconds(nextElapsed);
 
@@ -890,13 +1383,43 @@ export function SplashScramble() {
     });
   };
 
-  const completeRound = (solvedTiles = tiles, solvedRotations = rotations) => {
+  const completeRound = (solvedTiles = tiles, solvedRotations = rotations, completionMoves = moves) => {
     if (phase !== 'playing' || !isSolved(solvedTiles, solvedRotations)) {
       return;
     }
 
+    const completionElapsedSeconds = startedAt === null
+      ? elapsedSeconds
+      : Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+    setElapsedSeconds(completionElapsedSeconds);
     playUiSound('puzzle-complete');
     recordSolveStats();
+    if (targetSkin) {
+      void recordTargetSkinSolve(targetSkin.id);
+    }
+    if (roundMode === 'daily' && targetSkin) {
+      const completion: DailyCompletionSummary = {
+        version: 1,
+        dateKey: activeDateKeyRef.current,
+        targetSkin,
+        timeLimit,
+        elapsedSeconds: completionElapsedSeconds,
+        remainingSeconds,
+        moves: completionMoves,
+        dailyGlobalSolves,
+        skinSolveCount: targetSkinSolveCount,
+      };
+      saveCurrentDailyCompletion(completion);
+      setDailyCompletionSummary(completion);
+      if (!dailyLeaderboardUserIdRef.current) {
+        guestDailyCompletionRef.current = true;
+      }
+      setDailyCompletionStatus(true);
+      void recordDailyGlobalSolve();
+      void submitDailyLeaderboard(completionMoves, completionElapsedSeconds).finally(() => {
+        void loadDailyLeaderboard();
+      });
+    }
     clearLocalRound(roundMode);
     if (roundMode === 'daily') {
       setDailyResumeRound(null);
@@ -922,6 +1445,7 @@ export function SplashScramble() {
     setMisplacedHintPositions(new Set());
     setMoves(0);
     setElapsedSeconds(0);
+    pausedAtRef.current = null;
     lastAccountSyncMoveRef.current = null;
     resetTimerSoundRefs();
     solveRecordedRef.current = false;
@@ -965,6 +1489,7 @@ export function SplashScramble() {
       setRotateTiles(nextSettings.rotateTiles);
       setSelectedSkin(roundSelectedSkin);
       setTargetSkin(skin);
+      void loadTargetSkinSolveCount(skin.id);
       setTiles(nextTiles);
       setRotations(nextRotations);
       setLockedPositions(initialLockedPositions);
@@ -1070,6 +1595,30 @@ export function SplashScramble() {
     setMisplacedHintPositions(new Set());
   };
 
+  const reopenDailyCompletion = () => {
+    if (!dailyCompletionSummary) {
+      return;
+    }
+
+    setRoundMode('daily');
+    setTargetSkin(dailyCompletionSummary.targetSkin);
+    setTargetSkinSolveCount(dailyCompletionSummary.skinSolveCount);
+    setTimeLimit(dailyCompletionSummary.timeLimit);
+    setElapsedSeconds(dailyCompletionSummary.elapsedSeconds);
+    setRemainingSeconds(dailyCompletionSummary.remainingSeconds);
+    setMoves(dailyCompletionSummary.moves);
+    setDailyGlobalSolves(dailyCompletionSummary.dailyGlobalSolves);
+    setTiles([]);
+    setRotations([]);
+    setSelectedTile(null);
+    setStartedAt(null);
+    setEndsAt(null);
+    setLockedPositions(new Set());
+    setFlashingPositions(new Set());
+    setMisplacedHintPositions(new Set());
+    setPhase('won');
+  };
+
   const flashPositions = (positions: number[]) => {
     if (positions.length === 0) {
       return;
@@ -1158,11 +1707,12 @@ export function SplashScramble() {
     setTiles(nextTiles);
     setRotations(nextRotations);
     setSelectedTile(null);
-    setMoves((current) => current + 1);
+    const nextMoves = moves + 1;
+    setMoves(nextMoves);
     updateLocksAfterMove(nextTiles, nextRotations, [selectedTile, position]);
 
     if (isSolved(nextTiles, nextRotations)) {
-      completeRound(nextTiles, nextRotations);
+      completeRound(nextTiles, nextRotations, nextMoves);
     }
   };
 
@@ -1299,7 +1849,11 @@ export function SplashScramble() {
     <button
       type="button"
       onClick={() => {
-        if (dailyCompletedToday && !dailyResumeRound) {
+        if (!clientStateReady || dailyCompletionStatus === null) {
+          return;
+        }
+        if (dailyCompletedToday) {
+          reopenDailyCompletion();
           return;
         }
         playUiSound('random-select');
@@ -1309,11 +1863,11 @@ export function SplashScramble() {
         }
         void startRound({ mode: 'daily' });
       }}
-      disabled={dailyCompletedToday && !dailyResumeRound}
-      className="group relative inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-4 text-sm font-black text-slate-950 shadow-lg shadow-cyan-950/20 transition-[transform,border-color,box-shadow,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75 hover:shadow-cyan-900/30 hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+      disabled={!clientStateReady || dailyCompletionStatus === null}
+      className="group relative inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-4 text-sm font-black text-slate-950 shadow-lg shadow-cyan-950/20 transition-[transform,border-color,box-shadow,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75 hover:shadow-cyan-900/30 hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-800 disabled:bg-none disabled:text-slate-400 disabled:opacity-100 disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:border-white/10 disabled:hover:ring-0 disabled:hover:brightness-100"
     >
-      {dailyResumeRound ? <RefreshCw size={16} /> : dailyCompletedToday ? <Check size={16} /> : <Play size={16} />}
-      {dailyResumeRound ? 'Resume' : dailyCompletedToday ? 'Completed' : 'Play'} Daily
+      {dailyCompletionStatus === null ? <RefreshCw size={16} className="animate-spin" /> : dailyCompletedToday ? <Check size={16} /> : dailyResumeRound ? <RefreshCw size={16} /> : <Play size={16} />}
+      {dailyCompletionStatus === null ? 'Checking Daily' : dailyCompletedToday ? 'Daily Completed' : dailyResumeRound ? 'Resume Daily' : 'Play Daily'}
       <span className="inline-flex items-center gap-1 rounded-full bg-slate-950/90 px-2 py-0.5 text-xs text-cyan-100">
         <Flame size={12} />
         {dailyStreak}
@@ -1348,7 +1902,11 @@ export function SplashScramble() {
           <div className="flex items-center justify-between gap-3 border-t border-white/10 p-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-white">{selectedSkin ? selectedSkin.answer : 'Random skin'}</p>
-              <p className="text-xs text-slate-500">{selectedSkin ? 'Selected skin' : 'A random splash will be selected'}</p>
+              <p className="text-xs text-slate-500">
+                {selectedSkin
+                  ? targetSkinSolveCount === null ? 'Loading global solves...' : `Global solves: ${targetSkinSolveCount}`
+                  : 'A random splash will be selected'}
+              </p>
             </div>
             {selectedSkin ? (
               <button
@@ -1404,7 +1962,7 @@ export function SplashScramble() {
           <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">{error}</div>
         ) : null}
 
-        <div className="grid gap-5">
+        <div className="grid content-start gap-5">
           {renderSkinSearch()}
 
           <div>
@@ -1515,7 +2073,7 @@ export function SplashScramble() {
               playUiSound('random-select');
               void startRound();
             }}
-            className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
           >
             <Play size={16} />
             Play
@@ -1524,7 +2082,7 @@ export function SplashScramble() {
             <button
               type="button"
               onClick={() => resumeSavedRound('regular')}
-              className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-300/10 px-5 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-200"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-300/10 px-5 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-200"
             >
               <RefreshCw size={16} />
               Resume
@@ -1734,7 +2292,7 @@ export function SplashScramble() {
 
     return (
       <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 shadow-glow backdrop-blur-xl">
-        <div className="relative aspect-video min-h-[18rem]">
+        <div className="relative min-h-[38rem] lg:aspect-video lg:min-h-[18rem]">
           <Image
             src={targetSkin.imageUrl}
             alt={`${targetSkin.answer} full splash art`}
@@ -1745,37 +2303,55 @@ export function SplashScramble() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
-            <div className="max-w-2xl">
-              <p className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${
-                won ? 'border-emerald-300/40 bg-emerald-300/15 text-emerald-100' : 'border-red-300/40 bg-red-300/15 text-red-100'
-              }`}>
-                {won ? <Trophy size={14} /> : <Clock3 size={14} />}
-                {won ? 'Puzzle Complete' : 'Time Expired'}
-              </p>
-              <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">{targetSkin.answer}</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-200">
-                {timeSummary} You made {moves} moves.
-              </p>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    playUiSound('random-select');
-                    void startRound();
-                  }}
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                >
-                  <RotateCcw size={16} />
-                  Another Round
-                </button>
-                <button
-                  type="button"
-                  onClick={clearCompletedRound}
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/75 px-5 text-sm font-bold text-white transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                >
-                  Change Settings
-                </button>
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <p className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${
+                  won ? 'border-emerald-300/40 bg-emerald-300/15 text-emerald-100' : 'border-red-300/40 bg-red-300/15 text-red-100'
+                }`}>
+                  {won ? <Trophy size={14} /> : <Clock3 size={14} />}
+                  {won ? 'Puzzle Complete' : 'Time Expired'}
+                </p>
+                <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">{targetSkin.answer}</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-200">
+                  {timeSummary} You made {moves} moves.
+                </p>
+                {won ? (
+                  <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-slate-950/65 px-3 py-1.5 text-xs font-bold text-amber-100">
+                    <Trophy size={14} className="text-amber-300" />
+                    Global solves for today: {targetSkinSolveCount ?? '-'}
+                  </p>
+                ) : null}
+                <div className={`mt-6 grid gap-3 ${roundMode === 'daily' ? '' : 'sm:grid-cols-2'}`}>
+                  {roundMode !== 'daily' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playUiSound('random-select');
+                        void startRound();
+                      }}
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    >
+                      <RotateCcw size={16} />
+                      Another Round
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={clearCompletedRound}
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/75 px-5 text-sm font-bold text-white transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  >
+                    Change Settings
+                  </button>
+                </div>
               </div>
+              <EndStateSettingsCard
+                daily={roundMode === 'daily'}
+                gridSize={gridSize}
+                timeLimit={timeLimit}
+                showReference={showReference}
+                lockCorrectTiles={lockCorrectTiles}
+                rotateTiles={rotateTiles}
+              />
             </div>
           </div>
         </div>
@@ -1838,10 +2414,18 @@ export function SplashScramble() {
                 'If rotation is enabled, select a tile and use Rotate Selected until it is upright.',
               ]}
             />
+            <button
+              type="button"
+              onClick={() => setLeaderboardOpen(true)}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-amber-300/35 bg-amber-300/10 px-4 text-sm font-black text-amber-100 transition hover:bg-amber-300 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            >
+              <Trophy size={16} />
+              Daily Leaderboard
+            </button>
             {roundMode === 'daily' && phase !== 'prematch' ? (
               <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200">
                 <Trophy size={16} className="text-amber-300" />
-                Global solves {dailyGlobalSolves ?? '-'}
+                Global solves {targetSkinSolveCount ?? '-'}
               </div>
             ) : null}
             {phase === 'prematch' ? renderDailyAction() : null}
@@ -1853,6 +2437,15 @@ export function SplashScramble() {
         {started ? renderBoard() : null}
         {roundEnded ? renderEndState() : null}
       </div>
+      <SplashScrambleDailyLeaderboard
+        open={leaderboardOpen}
+        onClose={() => setLeaderboardOpen(false)}
+        snapshot={dailyLeaderboardSnapshot}
+        loading={dailyLeaderboardLoading}
+        error={dailyLeaderboardError}
+        currentUserId={dailyLeaderboardUserId}
+        friendIds={dailyLeaderboardFriendIds}
+      />
     </main>
   );
 }

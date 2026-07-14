@@ -32,6 +32,7 @@ import {
 import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
+import { QuizItemCarousel } from '@/components/quiz-item-carousel';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
 import { getSkinThemeAnswer } from '@/lib/skin-themes';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -254,7 +255,6 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const casualSettingsAvailable = soloMode === 'casual';
   const answerLabel = 'skin line';
   const promptLabel = 'skin line';
-  const itemHeaderLabel = 'Skin Line';
   const itemBadgeLabel = 'Line';
   const getAnswerForItem = useCallback(
     (item: QuizItem) => getSkinThemeAnswer(item) ?? item.answer,
@@ -1313,77 +1313,92 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
         ) : null}
 
         {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
-          {afterNextItem?.imageUrl ? (
-            <Image
-              key={`preload-${afterNextItem.id}`}
-              src={afterNextItem.imageUrl}
-              alt=""
-              width={1215}
-              height={717}
-              aria-hidden="true"
-              className="pointer-events-none absolute h-px w-px opacity-0"
-            />
-          ) : null}
-          {!showEndState ? <div className="overflow-hidden">
-            <div className={`grid gap-4 lg:grid-cols-3 lg:items-start transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
-              {[
-                { label: 'Next item', item: nextItem, fallback: `Next ${promptLabel} will appear here` },
-                { label: 'Current item', item: currentItem, fallback: `Press Play to reveal the next ${promptLabel}` },
-                { label: 'Completed', item: previousItem, fallback: `Your completed ${promptLabel}s appear here` },
-              ].map((card) => (
-                <div
-                  key={card.label}
-                  className={`min-w-0 transition ${
-                    card.label === 'Current item' && successFlash ? 'rounded-2xl ring-1 ring-emerald-400/40' : ''
-                  }`}
-                >
-                  <div className="mb-3 flex min-h-[4.75rem] flex-col gap-2 px-1 text-slate-400 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.22em]">{card.label}</p>
-                      <p className="mt-1 text-sm text-slate-300">
-                        {card.label === 'Completed' ? (card.item ? getAnswerForItem(card.item) : '') : itemHeaderLabel}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
-                      {card.label === 'Completed' ? <Check size={14} className="inline text-emerald-300" /> : itemBadgeLabel}
-                    </span>
-                  </div>
-                  <div className="relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 border-slate-400/70 bg-slate-950/50 text-white shadow-2xl shadow-black/20">
-                    {card.item && card.label === 'Next item' && difficultyRule.upcomingVisibility === 'blocked' ? (
+          {!showEndState ? (
+            <QuizItemCarousel
+              slots={[
+                {
+                  id: 'next',
+                  label: 'Next item',
+                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">{itemBadgeLabel}</span>,
+                },
+                {
+                  id: 'current',
+                  label: 'Current item',
+                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">{itemBadgeLabel}</span>,
+                },
+                {
+                  id: 'completed',
+                  label: 'Completed',
+                  subLabel: previousItem ? getAnswerForItem(previousItem) : undefined,
+                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-emerald-300"><Check size={14} /></span>,
+                },
+              ]}
+              afterNextItem={afterNextItem}
+              nextItem={nextItem}
+              currentItem={currentItem}
+              previousItem={previousItem}
+              isSliding={isSliding}
+              renderItem={(item, role) => {
+                const isCurrent = role === 'current';
+                const isCompleted = role === 'previous';
+                const cardLabel = isCompleted ? 'Completed' : isCurrent ? 'Current item' : 'Next item';
+                const fallback = isCompleted
+                  ? `Your completed ${promptLabel}s appear here`
+                  : isCurrent
+                    ? `Press Play to reveal the next ${promptLabel}`
+                    : `Next ${promptLabel} will appear here`;
+
+                return (
+                  <div
+                    className={`relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 bg-slate-950/50 text-white shadow-2xl shadow-black/20 transition ${
+                      isCurrent && successFlash
+                        ? 'border-emerald-400/70 ring-1 ring-emerald-400/40'
+                        : isCurrent
+                          ? 'border-violet-500/50'
+                          : isCompleted
+                            ? 'border-emerald-500/20'
+                            : 'border-slate-400/70'
+                    }`}
+                  >
+                    {item && role === 'next' && difficultyRule.upcomingVisibility === 'blocked' ? (
                       <div className="flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-500">
                         <p className="text-xs font-semibold uppercase tracking-[0.24em]">Hidden</p>
                       </div>
-                    ) : card.item?.imageUrl ? (
-                      <Image
-                        key={`${card.label}-${card.item.id}`}
-                        src={card.item.imageUrl}
-                        alt={card.item.question}
-                        width={1215}
-                        height={717}
-                        className={getSkinImageClassName(card.label)}
-                        priority={card.label === 'Current item'}
-                        style={{
-                          transform:
-                            activeModifiers.cropped && card.label !== 'Completed'
-                              ? `scale(${card.label === 'Current item' ? croppedZoom : CROPPED_INITIAL_ZOOM})`
-                              : undefined,
-                          transformOrigin:
-                            activeModifiers.cropped && card.label !== 'Completed'
-                              ? getCropOrigin(card.item)
-                              : undefined,
-                          transition: 'transform 240ms ease',
-                        }}
-                      />
+                    ) : item?.imageUrl ? (
+                      <div className="relative z-10 flex h-full w-full flex-col">
+                        <div className="relative h-full min-h-0 flex-1">
+                          <Image
+                            key={`${cardLabel}-${item.id}`}
+                            src={item.imageUrl}
+                            alt={item.question}
+                            width={1215}
+                            height={717}
+                            className={getSkinImageClassName(cardLabel)}
+                            priority={isCurrent}
+                            style={{
+                              transform:
+                                activeModifiers.cropped && !isCompleted
+                                  ? `scale(${isCurrent ? croppedZoom : CROPPED_INITIAL_ZOOM})`
+                                  : undefined,
+                              transformOrigin:
+                                activeModifiers.cropped && !isCompleted
+                                  ? getCropOrigin(item)
+                                  : undefined,
+                              transition: 'transform 240ms ease',
+                            }}
+                          />
+                        </div>
+                      </div>
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center rounded-2xl bg-slate-950/70 p-4 text-center text-slate-400">
-                        <p className="text-sm leading-6">{card.fallback}</p>
+                      <div className="relative z-10 flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-400">
+                        <p className="text-sm leading-6">{fallback}</p>
                       </div>
                     )}
                   </div>
-                </div>
-              ))}
-            </div>
-          </div> : null}
+                );
+              }}
+            />
+          ) : null}
 
           {!showEndState ? <form
             onSubmit={handleSubmit}

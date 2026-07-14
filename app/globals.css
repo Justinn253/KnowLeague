@@ -237,15 +237,20 @@ select {
 
 @keyframes carousel-slide {
   from {
-    transform: translateX(0);
+    transform: translateX(-25%);
   }
   to {
-    transform: translateX(33.333%);
+    transform: translateX(0);
   }
 }
 
+.quiz-carousel-track {
+  transform: translateX(-25%);
+  will-change: transform;
+}
+
 .animate-carousel-slide {
-  animation: carousel-slide 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: carousel-slide 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes spin-slow {

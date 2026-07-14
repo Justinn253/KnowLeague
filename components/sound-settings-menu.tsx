@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MessageCircle, Volume2, VolumeX, UserPlus } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
+import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { DEFAULT_UI_SOUND_SETTINGS, readUiSoundSettings, saveUiSoundSettings, type UiSoundSettings } from '@/lib/ui-sounds';
 
@@ -84,37 +85,35 @@ export function SoundSettingsMenu() {
       }
 
       try {
-        const response = await fetch('/api/profile/sound-settings', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
+        await getSessionScopedRequest('sound-settings', session, async () => {
+          const response = await fetch('/api/profile/sound-settings', {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (!response.ok) {
+            return;
+          }
+
+          const data = await response.json() as SoundSettingsResponse;
+          if (!data.settings) {
+            saveAccountSettings(readUiSoundSettings());
+            return;
+          }
+
+          hydratingRef.current = true;
+          saveUiSoundSettings(data.settings);
+          setSettings(data.settings);
+          hydratingRef.current = false;
         });
-        if (!response.ok) {
-          return;
-        }
-
-        const data = await response.json() as SoundSettingsResponse;
-        if (!data.settings) {
-          saveAccountSettings(readUiSoundSettings());
-          return;
-        }
-
-        hydratingRef.current = true;
-        saveUiSoundSettings(data.settings);
-        setSettings(data.settings);
-        hydratingRef.current = false;
       } catch {
         hydratingRef.current = false;
       }
     };
 
-    supabase.auth.getSession().then(({ data }) => {
-      void loadAccountSettings(data.session);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const unsubscribeFromAuthSession = subscribeToAuthSession((session) => {
       void loadAccountSettings(session);
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => unsubscribeFromAuthSession();
   }, []);
 
   useEffect(() => {

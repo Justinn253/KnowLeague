@@ -12,6 +12,7 @@ import {
   type PlayerGameStatsByGame,
   type StreakGameId,
 } from '@/lib/game-storage';
+import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type PlayerGameStatsResponse = {
@@ -58,30 +59,32 @@ export function PlayerGameStatsSync() {
       }
 
       try {
-        const response = await fetch('/api/profile/player-game-stats', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!response.ok) {
-          saveAccountStats(getLocalStatsByGame());
-          return;
-        }
-
-        const data = await response.json() as PlayerGameStatsResponse;
-        const serverStats = data.stats ?? {};
-        const mergedStats = Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [
-          gameId,
-          mergePlayerGameStats(gameId, loadPlayerGameStats(gameId), serverStats[gameId]),
-        ])) as PlayerGameStatsByGame;
-
-        hydratingRef.current = true;
-        STREAK_GAME_IDS.forEach((gameId) => {
-          const stats = mergedStats[gameId];
-          if (stats) {
-            savePlayerGameStats(stats);
+        await getSessionScopedRequest('player-game-stats', session, async () => {
+          const response = await fetch('/api/profile/player-game-stats', {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (!response.ok) {
+            saveAccountStats(getLocalStatsByGame());
+            return;
           }
+
+          const data = await response.json() as PlayerGameStatsResponse;
+          const serverStats = data.stats ?? {};
+          const mergedStats = Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [
+            gameId,
+            mergePlayerGameStats(gameId, loadPlayerGameStats(gameId), serverStats[gameId]),
+          ])) as PlayerGameStatsByGame;
+
+          hydratingRef.current = true;
+          STREAK_GAME_IDS.forEach((gameId) => {
+            const stats = mergedStats[gameId];
+            if (stats) {
+              savePlayerGameStats(stats);
+            }
+          });
+          hydratingRef.current = false;
+          saveAccountStats(mergedStats);
         });
-        hydratingRef.current = false;
-        saveAccountStats(mergedStats);
       } catch {
         hydratingRef.current = false;
       }
@@ -92,11 +95,7 @@ export function PlayerGameStatsSync() {
       return undefined;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      void hydrateAccountStats(data.session);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const unsubscribeFromAuthSession = subscribeToAuthSession((session) => {
       void hydrateAccountStats(session);
     });
 
@@ -113,7 +112,7 @@ export function PlayerGameStatsSync() {
     window.addEventListener(PLAYER_GAME_STATS_CHANGED_EVENT, handleStatsChanged);
 
     return () => {
-      listener.subscription.unsubscribe();
+      unsubscribeFromAuthSession();
       window.removeEventListener(PLAYER_GAME_STATS_CHANGED_EVENT, handleStatsChanged);
       if (saveTimeoutRef.current) {
         window.clearTimeout(saveTimeoutRef.current);

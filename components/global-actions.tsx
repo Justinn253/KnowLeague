@@ -15,6 +15,7 @@ import { PublicProfileScreen } from '@/components/public-profile-screen';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getAuthSessionId } from '@/lib/auth-session';
+import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
 import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { AppRole } from '@/lib/moderation';
@@ -46,28 +47,30 @@ export function GlobalActions() {
     }
     let signInCheckTimeout: number | null = null;
 
-    const updateModerationRole = async (session: Session | null) => {
-      if (!session) {
-        setModerationRole(null);
-        return;
-      }
-
+    const updateModerationRole = async (session: Session, force = false) => {
       try {
-        const response = await fetch('/api/moderation/me', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        const data = await response.json() as { role?: AppRole };
-        if (!response.ok || (data.role !== 'moderator' && data.role !== 'admin')) {
-          setModerationRole(null);
-          return;
-        }
-        setModerationRole(data.role);
+        const role = await getSessionScopedRequest('moderation-role', session, async () => {
+          const response = await fetch('/api/moderation/me', {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          const data = await response.json() as { role?: AppRole };
+          if (!response.ok || (data.role !== 'moderator' && data.role !== 'admin')) {
+            return null;
+          }
+          return data.role;
+        }, { force });
+        setModerationRole(role);
       } catch {
         setModerationRole(null);
       }
     };
 
-    const updateProfileAction = async (session?: Session | null, mismatchRetries = 0) => {
+    const updateProfileAction = async (
+      session?: Session | null,
+      mismatchRetries = 0,
+      forceProfile = false,
+      forceModeration = false,
+    ) => {
       if (!session) {
         setProfileHref('/login');
         setProfileLabel('Profile');
@@ -80,7 +83,7 @@ export function GlobalActions() {
       const userId = session.user.id;
 
       setIsLoggedIn(true);
-      void updateModerationRole(session);
+      void updateModerationRole(session, forceModeration);
       const firstLoginStorageKey = `knowleague:v1:achievement:first-login:${userId}`;
       if (!firstLoginSubmittedRef.current.has(userId) && window.localStorage.getItem(firstLoginStorageKey) !== 'synced') {
         firstLoginSubmittedRef.current.add(userId);
@@ -93,18 +96,19 @@ export function GlobalActions() {
         });
       }
       setProfileHref('/profile');
-      const { data } = await supabase
+      const profileResult = await getSessionScopedRequest('global-profile', session, async () => supabase
         .from('profiles')
         .select('username, display_name, active_session_id, avatar_url')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null; avatar_url: string | null }>();
+        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null; avatar_url: string | null }>(), { force: forceProfile || forceModeration });
+      const { data } = profileResult;
 
       const sessionId = getAuthSessionId(session.access_token);
       if (data?.active_session_id && sessionId && data.active_session_id !== sessionId) {
         if (mismatchRetries > 0) {
           signInCheckTimeout = window.setTimeout(() => {
             signInCheckTimeout = null;
-            void updateProfileAction(session, mismatchRetries - 1);
+            void updateProfileAction(session, mismatchRetries - 1, true);
           }, 500);
           return;
         }
@@ -129,11 +133,7 @@ export function GlobalActions() {
       setProfileAvatarUrl(data?.avatar_url ?? null);
     };
 
-    supabase.auth.getSession().then(({ data }) => {
-      void updateProfileAction(data.session);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+    const unsubscribeFromAuthSession = subscribeToAuthSession((session, event) => {
       if (signInCheckTimeout) {
         window.clearTimeout(signInCheckTimeout);
         signInCheckTimeout = null;
@@ -151,7 +151,9 @@ export function GlobalActions() {
         const profileId = (payload.new as { id?: string }).id;
         supabase.auth.getSession().then(({ data }) => {
           if (profileId && profileId === data.session?.user.id) {
-            void updateProfileAction(data.session);
+            if (data.session) {
+              void updateProfileAction(data.session, 0, true, true);
+            }
           }
         });
       })
@@ -161,7 +163,7 @@ export function GlobalActions() {
       if (signInCheckTimeout) {
         window.clearTimeout(signInCheckTimeout);
       }
-      listener.subscription.unsubscribe();
+      unsubscribeFromAuthSession();
       void supabase.removeChannel(profileChannel);
     };
   }, [router]);

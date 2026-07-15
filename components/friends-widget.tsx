@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, ExternalLink, Loader2, Pencil, Save, Search, Send, Star, StickyNote, Users, X } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle } from '@/lib/chat-colors';
@@ -74,7 +74,7 @@ const multiplayerInviteGames: Record<string, MultiplayerInvite['gameName']> = {
   '/multiplayer/ability-blitz': 'Ability Blitz',
   '/multiplayer/skin-champion': 'Skin Champion',
 };
-const CHAT_PREFETCH_LIMIT = 30;
+const CHAT_PREFETCH_LIMIT = 5;
 
 function getCurrentMultiplayerInvite(): MultiplayerInvite | null {
   if (typeof window === 'undefined') {
@@ -483,13 +483,16 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
           const friendshipId = row.friendship_id;
           const messageId = row.id;
           const isIncomingMessage = Boolean(row.sender_id && row.sender_id !== userId);
+          const alreadyKnown = Boolean(messageId && knownMessageIdsRef.current.has(messageId));
           if (messageId) {
-            const alreadyKnown = knownMessageIdsRef.current.has(messageId);
             knownMessageIdsRef.current.add(messageId);
             if (isIncomingMessage && !alreadyKnown) {
               playUiSound('message-incoming');
             }
           }
+          // This tab appends its own POST response; retain unknown outgoing events for cross-tab sync.
+          if (!isIncomingMessage && alreadyKnown) return;
+
           const active = activeFriendRef.current;
           if (isOpenRef.current && active && friendshipId === active.friendshipId) {
             void loadFriendMessages(active);
@@ -663,21 +666,20 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
         body: JSON.stringify({ friendId: targetFriendId, message: cleanMessage }),
         signal: controller.signal,
       });
-      const nextMessages = data.messages ?? [];
-      const nextProfiles = data.profiles ?? {};
-      const nextFirstUnreadMessageId = data.firstUnreadMessageId ?? null;
-      nextMessages.forEach((message: FriendMessage) => knownMessageIdsRef.current.add(message.id));
+      const sentMessage = data.message as FriendMessage;
+      knownMessageIdsRef.current.add(sentMessage.id);
       playUiSound('message-sent');
       setMessageDraft('');
+      const cachedMessages = messageCacheRef.current.get(targetFriendId) ?? messages;
+      const nextMessages = cachedMessages.some((message) => message.id === sentMessage.id)
+        ? cachedMessages
+        : [...cachedMessages, sentMessage];
       messageCacheRef.current.set(targetFriendId, nextMessages);
-      messageProfileCacheRef.current.set(targetFriendId, nextProfiles);
-      firstUnreadMessageCacheRef.current.set(targetFriendId, nextFirstUnreadMessageId);
-      setMessages(nextMessages);
-      setMessageProfiles(nextProfiles);
-      setFirstUnreadMessageId(nextFirstUnreadMessageId);
-      scrollMessagesToBottom();
+      if (activeFriendRef.current?.id === targetFriendId) {
+        setMessages(nextMessages);
+        scrollMessagesToBottom();
+      }
       void broadcastFriendMessageNotification(targetFriendId);
-      void refreshDashboard();
     } catch (error) {
       setStatus(error instanceof DOMException && error.name === 'AbortError'
         ? 'Message send timed out. Please try again.'
@@ -711,27 +713,27 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     }
   };
 
-  const allFriends = (dashboard?.friends ?? [])
+  const allFriends = useMemo(() => (dashboard?.friends ?? [])
     .map((friend) => ({ ...friend, online: onlineUserIds.has(friend.id) }))
-    .sort((left, right) => Number(right.favorite) - Number(left.favorite) || Number(right.online) - Number(left.online) || left.displayName.localeCompare(right.displayName));
-  const onlineCount = allFriends.filter((friend) => friend.online).length;
+    .sort((left, right) => Number(right.favorite) - Number(left.favorite) || Number(right.online) - Number(left.online) || left.displayName.localeCompare(right.displayName)), [dashboard?.friends, onlineUserIds]);
+  const onlineCount = useMemo(() => allFriends.filter((friend) => friend.online).length, [allFriends]);
   const totalFriendCount = allFriends.length;
   const cleanSearchQuery = searchQuery.trim().toLowerCase();
-  const friends = cleanSearchQuery
+  const friends = useMemo(() => cleanSearchQuery
     ? allFriends.filter((friend) => (
         friend.displayName.toLowerCase().includes(cleanSearchQuery) ||
         friend.username.toLowerCase().includes(cleanSearchQuery)
       ))
-    : allFriends;
-  const activeFriendView = activeFriend
+    : allFriends, [allFriends, cleanSearchQuery]);
+  const activeFriendView = useMemo(() => activeFriend
     ? { ...(allFriends.find((friend) => friend.id === activeFriend.id) ?? activeFriend), online: onlineUserIds.has(activeFriend.id) }
-    : null;
+    : null, [activeFriend, allFriends, onlineUserIds]);
   const snapshotAboutIsLong = Boolean(activeFriendView?.aboutMe && activeFriendView.aboutMe.length > 140);
   const activeFriendLiveGameNote = getLiveGameNote(liveGameStatus, liveGameNow);
   const activeFriendRiotViewerHref = activeFriendView?.riotAccountName?.trim()
     ? `/riot-account-viewer?riotId=${encodeURIComponent(activeFriendView.riotAccountName.trim())}`
     : null;
-  const unreadTotal = dashboard?.friends.reduce((total, friend) => total + friend.unreadCount, 0) ?? 0;
+  const unreadTotal = useMemo(() => dashboard?.friends.reduce((total, friend) => total + friend.unreadCount, 0) ?? 0, [dashboard?.friends]);
 
   useEffect(() => {
     const riotAccount = activeFriendView?.riotAccountName?.trim();
@@ -809,13 +811,27 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
     }
 
     try {
-      await fetchAuthedJson('/api/friends/messages', {
+      const data = await fetchAuthedJson('/api/friends/messages', {
         method: 'POST',
         body: JSON.stringify({
           friendId: friend.id,
           message: `Join my ${invite.gameName} game: ${invite.url}`,
         }),
       });
+      const sentMessage = data.message as FriendMessage;
+      knownMessageIdsRef.current.add(sentMessage.id);
+      messageCacheRef.current.delete(friend.id);
+      prefetchedFriendIdsRef.current.delete(friend.id);
+      if (activeFriendRef.current?.id === friend.id) {
+        setMessages((current) => {
+          const nextMessages = current.some((message) => message.id === sentMessage.id)
+            ? current
+            : [...current, sentMessage];
+          messageCacheRef.current.set(friend.id, nextMessages);
+          return nextMessages;
+        });
+        scrollMessagesToBottom();
+      }
       await broadcastFriendMessageNotification(friend.id);
       playUiSound('message-sent');
       setContextFriend(null);

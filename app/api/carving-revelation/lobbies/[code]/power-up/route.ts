@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
-import { activateCarvingRevelationPowerUp } from '@/lib/carving-revelation';
+import { activateCarvingRevelationPowerUp, cancelCarvingRevelationPowerUp } from '@/lib/carving-revelation';
 
 type PowerUpBody = {
   clientId: string;
   powerUpId: string;
+  cancel?: boolean;
 };
 
 export const runtime = 'nodejs';
@@ -12,11 +13,12 @@ export const runtime = 'nodejs';
 export async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<PowerUpBody>(request);
-    return NextResponse.json(await activateCarvingRevelationPowerUp(
-      params.code,
-      requireString(body.clientId, 'clientId'),
-      requireString(body.powerUpId, 'powerUpId'),
-    ));
+    const clientId = requireString(body.clientId, 'clientId');
+    const powerUpId = requireString(body.powerUpId, 'powerUpId');
+    const result = body.cancel === true
+      ? await cancelCarvingRevelationPowerUp(params.code, clientId, powerUpId)
+      : await activateCarvingRevelationPowerUp(params.code, clientId, powerUpId);
+    return NextResponse.json(result);
   } catch (error) {
     return getRouteErrorResponse(error);
   }

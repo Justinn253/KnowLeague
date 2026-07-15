@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, PointerEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, LogOut, PencilLine, RefreshCw, XCircle } from 'lucide-react';
+import { Check, ChevronDown, LogOut, PencilLine, RefreshCw, Sparkles, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { GameSettingsSection } from '@/components/game-settings-section';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
@@ -31,6 +31,12 @@ import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevela
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
+import {
+  canActivateCarvingRevelationPowerUp,
+  CARVING_REVELATION_POWER_UP_DEFINITIONS,
+  getCarvingRevelationPowerUpDefinition,
+  MAX_CARVING_REVELATION_POWER_UP_COUNT,
+} from '@/lib/carving-revelation-power-ups';
 
 const STORAGE_KEY = 'knowleague:v1:carving-revelation:lobby-code';
 const API_BASE = '/api/carving-revelation/lobbies';
@@ -54,7 +60,7 @@ const CARVING_MODIFIERS: Array<{ id: CarvingRevelationModifier; name: string; de
 ];
 const STARTING_LINE_LENGTH_OPTIONS = [5, 8, 10, 15, 20];
 const LINE_LENGTH_INCREMENT_OPTIONS = [1, 2, 3, 4, 5];
-const POWER_UP_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const POWER_UP_COUNT_OPTIONS = Array.from({ length: MAX_CARVING_REVELATION_POWER_UP_COUNT }, (_, index) => index + 1);
 
 type DraftCarvingSettings = {
   phaseDurationSeconds: number | null;
@@ -85,6 +91,7 @@ type RevealPoint = {
 
 type RevealShape = {
   points: RevealPoint[];
+  outlineOnly?: boolean;
 };
 
 function getAspectDistance(first: RevealPoint, second: RevealPoint) {
@@ -141,23 +148,42 @@ async function readPublicLobbiesResponse(response: Response) {
   return data as CarvingRevelationPublicLobby[];
 }
 
+function getSerializedRevealPoints(value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const normalizedPoints = value
+    .map((point) => (
+      typeof point === 'object' && point !== null && 'x' in point && 'y' in point
+        ? { x: Number(point.x), y: Number(point.y) }
+        : null
+    ))
+    .filter((point): point is RevealPoint => Boolean(point && Number.isFinite(point.x) && Number.isFinite(point.y)));
+  return normalizedPoints.length >= 3 ? normalizedPoints : null;
+}
+
 function getDrawPayload(action: CarvingRevelationAction): RevealShape | Stroke | null {
   if (action.action_type !== 'draw') return null;
-  const { points, x1, y1, x2, y2 } = action.payload;
-  if (Array.isArray(points)) {
-    const normalizedPoints = points
-      .map((point) => (
-        typeof point === 'object' && point !== null && 'x' in point && 'y' in point
-          ? { x: Number(point.x), y: Number(point.y) }
-          : null
-      ))
-      .filter((point): point is RevealPoint => Boolean(point && Number.isFinite(point.x) && Number.isFinite(point.y)));
-    return normalizedPoints.length >= 3 ? { points: normalizedPoints } : null;
+  if (action.payload.hidden === true) return null;
+  const { points, outlinePoints, x1, y1, x2, y2 } = action.payload;
+  const serializedPoints = Array.isArray(points) ? points : outlinePoints;
+  if (Array.isArray(serializedPoints)) {
+    const normalizedPoints = getSerializedRevealPoints(serializedPoints);
+    return normalizedPoints ? { points: normalizedPoints, outlineOnly: !Array.isArray(points) } : null;
   }
   if (typeof x1 === 'number' && typeof y1 === 'number' && typeof x2 === 'number' && typeof y2 === 'number') {
     return { x1, y1, x2, y2 };
   }
   return null;
+}
+
+function getShuffleSourcePoints(action: CarvingRevelationAction) {
+  return getSerializedRevealPoints(action.payload.shuffleSourcePoints);
+}
+
+function getShuffleImageSwap(action: CarvingRevelationAction) {
+  const payload = getDrawPayload(action);
+  const sourcePoints = getShuffleSourcePoints(action);
+  if (!payload || !('points' in payload) || payload.outlineOnly || !sourcePoints) return null;
+  return { sourcePoints, destinationPoints: payload.points };
 }
 
 function getPlayerColor(playerId: string | null | undefined) {
@@ -258,12 +284,145 @@ function getPowerUpClassName(powerUp: CarvingRevelationPowerUpState, phase: Carv
 }
 
 function getPowerUpLabel(powerUp: CarvingRevelationPowerUpState) {
-  return powerUp.kind === 'skip_turns' ? 'Skip next guess turn for all opponents' : 'Power Up';
+  return getCarvingRevelationPowerUpDefinition(powerUp.kind)?.name ?? 'Power Up';
 }
 
 function getActionPowerUpId(action: CarvingRevelationAction) {
   const value = action.payload.powerUpId;
   return typeof value === 'string' ? value : null;
+}
+
+function CarvingRevelationPowerUpMenu({
+  menuRef,
+  open,
+  phase,
+  busy,
+  usablePowerUps,
+  pendingPowerUpIdsByKind,
+  onToggle,
+  onActivate,
+  onCancel,
+}: {
+  menuRef: RefObject<HTMLDivElement>;
+  open: boolean;
+  phase: 'carve' | 'guess';
+  busy: boolean;
+  usablePowerUps: CarvingRevelationPowerUpState[];
+  pendingPowerUpIdsByKind: ReadonlyMap<string, string>;
+  onToggle: () => void;
+  onActivate: (powerUpId: string) => void;
+  onCancel: (powerUpId: string) => void;
+}) {
+  const possessedPowerUpIds = new Set(usablePowerUps.map((powerUp) => powerUp.kind));
+  const guessingSection = {
+    title: 'Guessing phase power ups',
+    definitions: CARVING_REVELATION_POWER_UP_DEFINITIONS.filter((definition) => (
+      definition.activationPhase === 'guess' || definition.activationPhase === 'any'
+    )),
+  };
+  const carvingSection = {
+    title: 'Carving phase power ups',
+    definitions: CARVING_REVELATION_POWER_UP_DEFINITIONS.filter((definition) => (
+      definition.activationPhase === 'carve' || definition.activationPhase === 'any'
+    )),
+  };
+  const sections = phase === 'carve'
+    ? [carvingSection, guessingSection]
+    : [guessingSection, carvingSection];
+  const trackedPowerUpCount = usablePowerUps.length + pendingPowerUpIdsByKind.size;
+
+  return (
+    <div ref={menuRef} className="relative shrink-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={onToggle}
+        disabled={busy}
+        className={`inline-flex min-h-12 items-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${open
+          ? 'border-amber-200 bg-amber-300 text-slate-950 shadow-lg shadow-amber-950/30'
+          : 'border-amber-300/50 bg-gradient-to-r from-amber-300/20 to-violet-400/20 text-amber-100 shadow-lg shadow-amber-950/20 hover:border-amber-200 hover:bg-amber-300/25'} disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        <Sparkles size={17} />
+        <span>Power Ups</span>
+        <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${open ? 'bg-slate-950/15' : 'bg-amber-300 text-slate-950'}`}>
+          {trackedPowerUpCount}
+        </span>
+        <ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          aria-label="Power ups"
+          className="absolute bottom-full right-0 z-50 mb-3 max-h-[min(70vh,34rem)] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-amber-200/30 bg-slate-950/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+        >
+          <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 px-1 pb-3">
+            <div>
+              <p className="text-sm font-black text-white">Power ups</p>
+              <p className="mt-1 text-xs text-slate-400">Possessed power ups are highlighted.</p>
+            </div>
+            <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.14em] text-amber-200">
+              {trackedPowerUpCount} possessed
+            </span>
+          </div>
+
+          {sections.map((section) => (
+            <section key={section.title} className="mt-4 first:mt-0">
+              <p className="px-1 text-[0.65rem] font-black uppercase tracking-[0.18em] text-slate-500">{section.title}</p>
+              <div className="mt-2 grid gap-2">
+                {section.definitions.map((definition) => {
+                  const pendingPowerUpId = pendingPowerUpIdsByKind.get(definition.kind) ?? null;
+                  const pending = Boolean(pendingPowerUpId);
+                  const possessed = possessedPowerUpIds.has(definition.kind) || pending;
+                  const availableThisPhase = canActivateCarvingRevelationPowerUp(definition.kind, phase);
+                  const powerUp = usablePowerUps.find((candidate) => candidate.kind === definition.kind);
+                  const disabled = busy || (!pending && (!possessed || !availableThisPhase));
+                  return (
+                    <button
+                      key={definition.kind}
+                      type="button"
+                      role="menuitem"
+                      disabled={disabled}
+                      onClick={() => {
+                        if (pendingPowerUpId && !busy) {
+                          onCancel(pendingPowerUpId);
+                        } else if (powerUp && !disabled) {
+                          onActivate(powerUp.id);
+                        }
+                      }}
+                      className={`group flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ${pending
+                        ? 'border-violet-300/50 bg-violet-300/10'
+                        : possessed
+                          ? 'border-amber-300/45 bg-amber-300/10 hover:border-amber-200 hover:bg-amber-300/15'
+                        : 'border-white/10 bg-slate-900/60'} ${disabled && possessed ? 'cursor-not-allowed opacity-55' : ''} ${!possessed ? 'cursor-not-allowed opacity-55' : ''}`}
+                    >
+                      <span className="min-w-0">
+                        <span className={`block text-sm font-black ${possessed ? 'text-amber-100' : 'text-slate-300'}`}>
+                          {definition.name}
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-400">{definition.description}</span>
+                        {pending ? <span className="mt-2 block text-[0.65rem] font-black uppercase tracking-[0.12em] text-violet-200">Queued - applies at phase end</span> : null}
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[0.6rem] font-black uppercase tracking-[0.12em] ${pending
+                        ? 'bg-violet-300/20 text-violet-100'
+                        : possessed
+                        ? availableThisPhase
+                          ? 'bg-emerald-300/20 text-emerald-200'
+                          : 'bg-slate-700/70 text-slate-400'
+                        : 'bg-slate-800 text-slate-500'}`}>
+                        {pending ? 'Cancel' : possessed ? (availableThisPhase ? 'Use' : 'Owned') : 'Find'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function SettingDropdown<T extends string | number | null>({
@@ -326,6 +485,121 @@ function SettingDropdown<T extends string | number | null>({
   );
 }
 
+type ShuffleImageSwap = NonNullable<ReturnType<typeof getShuffleImageSwap>>;
+
+function getPolygonCenter(points: RevealPoint[]) {
+  return points.reduce((center, point) => ({
+    x: center.x + point.x / points.length,
+    y: center.y + point.y / points.length,
+  }), { x: 0, y: 0 });
+}
+
+function clipCanvasPolygon(context: CanvasRenderingContext2D, points: RevealPoint[], width: number, height: number) {
+  if (points.length < 3) return;
+  context.beginPath();
+  context.moveTo(points[0].x * width, points[0].y * height);
+  points.slice(1).forEach((point) => context.lineTo(point.x * width, point.y * height));
+  context.closePath();
+  context.clip();
+}
+
+function drawCoverImage(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  width: number,
+  height: number,
+  modifiers: { greyscale: boolean; blurred: boolean; cropped: boolean },
+) {
+  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+  const imageWidth = image.naturalWidth * scale;
+  const imageHeight = image.naturalHeight * scale;
+  const imageX = (width - imageWidth) / 2;
+  const imageY = (height - imageHeight) / 2;
+  context.save();
+  context.filter = [
+    modifiers.greyscale ? 'grayscale(1)' : '',
+    modifiers.blurred ? 'blur(4px)' : '',
+  ].filter(Boolean).join(' ') || 'none';
+  if (modifiers.cropped) {
+    context.translate(width / 2, height * 0.42);
+    context.scale(1.65, 1.65);
+    context.translate(-width / 2, -height * 0.42);
+  }
+  context.drawImage(image, imageX, imageY, imageWidth, imageHeight);
+  context.restore();
+}
+
+function useShuffleImageRenderer(
+  canvasRef: RefObject<HTMLCanvasElement>,
+  imageUrl: string | null,
+  swaps: ShuffleImageSwap[],
+  modifiers: { greyscale: boolean; blurred: boolean; cropped: boolean },
+) {
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imageUrl || swaps.length === 0) {
+      if (canvas) canvas.style.visibility = 'hidden';
+      return undefined;
+    }
+
+    let disposed = false;
+    const image = new window.Image();
+    image.crossOrigin = 'anonymous';
+
+    const render = () => {
+      if (disposed || !canvas.parentElement || !image.naturalWidth || !image.naturalHeight) return;
+      const bounds = canvas.parentElement.getBoundingClientRect();
+      const width = Math.max(320, Math.floor(bounds.width));
+      const height = Math.floor(width * 0.5625);
+      const pixelRatio = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(width * pixelRatio);
+      canvas.height = Math.floor(height * pixelRatio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      const originalCanvas = document.createElement('canvas');
+      originalCanvas.width = Math.floor(width * pixelRatio);
+      originalCanvas.height = Math.floor(height * pixelRatio);
+      const originalContext = originalCanvas.getContext('2d');
+      if (!originalContext) return;
+      originalContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      drawCoverImage(originalContext, image, width, height, modifiers);
+
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      context.drawImage(originalCanvas, 0, 0, width, height);
+      swaps.forEach(({ sourcePoints, destinationPoints }) => {
+        const sourceCenter = getPolygonCenter(sourcePoints);
+        const destinationCenter = getPolygonCenter(destinationPoints);
+        const offsetX = (destinationCenter.x - sourceCenter.x) * width;
+        const offsetY = (destinationCenter.y - sourceCenter.y) * height;
+
+        context.save();
+        clipCanvasPolygon(context, destinationPoints, width, height);
+        context.translate(offsetX, offsetY);
+        context.drawImage(originalCanvas, 0, 0, width, height);
+        context.restore();
+
+        context.save();
+        clipCanvasPolygon(context, sourcePoints, width, height);
+        context.translate(-offsetX, -offsetY);
+        context.drawImage(originalCanvas, 0, 0, width, height);
+        context.restore();
+      });
+      canvas.style.visibility = 'visible';
+    };
+
+    image.onload = render;
+    image.src = imageUrl;
+    window.addEventListener('resize', render);
+    return () => {
+      disposed = true;
+      window.removeEventListener('resize', render);
+    };
+  }, [canvasRef, imageUrl, modifiers, swaps]);
+}
+
 function useCanvasRenderer(
   canvasRef: RefObject<HTMLCanvasElement>,
   actions: CarvingRevelationAction[],
@@ -334,6 +608,9 @@ function useCanvasRenderer(
   phase: 'carve' | 'guess',
   playerColorById: Record<string, string>,
   draftColor: string,
+  insightSquares: CarvingRevelationLobbyView['insightSquares'],
+  viewerPlayerId: string | null,
+  showCurrentCarvesToViewer: boolean,
 ) {
   const fadeStartByActionIdRef = useRef<Map<number, number>>(new Map());
 
@@ -389,7 +666,7 @@ function useCanvasRenderer(
       };
 
       actions.forEach((action) => {
-        const visible = action.round_number < currentRound || phase !== 'carve';
+        const visible = action.round_number < currentRound || phase !== 'carve' || action.player_id === viewerPlayerId || (showCurrentCarvesToViewer && action.round_number === currentRound);
         if (!visible) return;
         const payload = getDrawPayload(action);
         if (!payload) return;
@@ -404,13 +681,20 @@ function useCanvasRenderer(
         if (alpha < 1) hasActiveFade = true;
         context.save();
         context.globalAlpha = alpha;
-        if ('points' in payload) {
+        if ('points' in payload && !payload.outlineOnly) {
           drawPolygon(payload.points, 'fill');
         } else {
-          drawStroke(payload);
+          if (!('points' in payload)) drawStroke(payload);
         }
         context.restore();
       });
+
+      if (phase === 'guess') {
+        insightSquares.forEach((square) => {
+          context.fillStyle = 'rgb(2, 6, 23)';
+          context.fillRect(square.x * width, square.y * height, square.size * width, square.size * height);
+        });
+      }
 
       context.globalCompositeOperation = 'source-over';
       context.strokeStyle = 'rgba(250, 204, 21, 0.42)';
@@ -418,12 +702,13 @@ function useCanvasRenderer(
       context.strokeRect(1, 1, width - 2, height - 2);
 
       actions.forEach((action) => {
-        const visible = action.round_number < currentRound || phase !== 'carve';
-        if (!visible) return;
-        const outlineRound = phase === 'guess' ? currentRound : currentRound - 1;
-        if (action.round_number !== outlineRound) return;
         const payload = getDrawPayload(action);
         if (!payload || !('points' in payload)) return;
+        const currentCarveOutline = phase === 'carve' && action.round_number === currentRound && payload.outlineOnly;
+        const visible = action.round_number < currentRound || phase !== 'carve' || action.player_id === viewerPlayerId || currentCarveOutline;
+        if (!visible) return;
+        const outlineRound = currentCarveOutline ? currentRound : phase === 'guess' ? currentRound : currentRound - 1;
+        if (action.round_number !== outlineRound) return;
         const fadeStart = phase === 'guess' && action.round_number === currentRound
           ? fadeStartByActionIdRef.current.get(action.id)
           : null;
@@ -472,13 +757,15 @@ function useCanvasRenderer(
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', render);
     };
-  }, [actions, canvasRef, currentRound, draftColor, draftPath, phase, playerColorById]);
+  }, [actions, canvasRef, currentRound, draftColor, draftPath, insightSquares, phase, playerColorById, showCurrentCarvesToViewer, viewerPlayerId]);
 }
 
 export function CarvingRevelation() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageCanvasRef = useRef<HTMLCanvasElement>(null);
   const guessInputAreaRef = useRef<HTMLDivElement>(null);
+  const powerUpMenuRef = useRef<HTMLDivElement>(null);
   const latestSessionRef = useRef<{ code: string; clientId: string; status: CarvingRevelationLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
   const autoSubmittedCarveKeyRef = useRef<string | null>(null);
@@ -488,6 +775,8 @@ export function CarvingRevelation() {
   const finishSoundLobbyIdRef = useRef<string | null>(null);
   const guessOutcomeSoundIdsRef = useRef<Set<number>>(new Set());
   const guessOutcomeLobbyIdRef = useRef<string | null>(null);
+  const powerUpClaimsSnapshotRef = useRef<{ lobbyId: string; roundNumber: number; phase: 'carve' | 'guess'; ids: Set<string> } | null>(null);
+  const pendingAcquiredPowerUpIdsRef = useRef<{ lobbyId: string; roundNumber: number; ids: Set<string> } | null>(null);
   const previousRosterSnapshotRef = useRef<{ hostId: string | null; roles: Map<string, string>; playerIds: Set<string> } | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [view, setView] = useState<CarvingRevelationLobbyView | null>(null);
@@ -511,6 +800,8 @@ export function CarvingRevelation() {
   const [matchElapsedSeconds, setMatchElapsedSeconds] = useState(0);
   const [draftSettings, setDraftSettings] = useState<DraftCarvingSettings | null>(null);
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [powerUpMenuOpen, setPowerUpMenuOpen] = useState(false);
+  const [acquiredPowerUpNotice, setAcquiredPowerUpNotice] = useState<{ names: string[] } | null>(null);
 
   const clearTransientState = useCallback(() => {
     setMessage('');
@@ -523,6 +814,10 @@ export function CarvingRevelation() {
     setSuggestions([]);
     setCodeCopied(false);
     setCodeRevealed(false);
+    setPowerUpMenuOpen(false);
+    setAcquiredPowerUpNotice(null);
+    powerUpClaimsSnapshotRef.current = null;
+    pendingAcquiredPowerUpIdsRef.current = null;
   }, []);
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
@@ -540,18 +835,29 @@ export function CarvingRevelation() {
       : null
   );
   const isStartCountdownPending = Boolean(computedStartCountdownSeconds && computedStartCountdownSeconds > 0);
-  const powerUpBlockedByClaim = Boolean(view?.requestingPlayer && view.powerUps.some((powerUp) => (
-    powerUp.claimedByPlayerId === view.requestingPlayer?.id && !powerUp.conflicted
-  )));
   const skipTurnBlockedByPowerUp = Boolean(view?.requestingPlayer && view.actions.some((action) => (
     action.action_type === 'power_up' &&
     Number(action.payload.targetRoundNumber) === view.lobby.round_number &&
+    action.payload.targetPhase === 'carve' &&
     view.lobby.phase === 'guess' &&
     action.player_id !== view.requestingPlayer?.id &&
     action.payload.kind === 'skip_turns'
   )));
+  const currentPlayerDrawCount = view?.requestingPlayer
+    ? view.actions.filter((action) => (
+      action.action_type === 'draw' &&
+      action.round_number === view.lobby.round_number &&
+      action.player_id === view.requestingPlayer?.id
+    )).length
+    : 0;
+  const hasDoubleLineForCurrentCarve = Boolean(view?.requestingPlayer && view.actions.some((action) => (
+    action.action_type === 'power_up' &&
+    action.payload.kind === 'double_line' &&
+    action.player_id === view.requestingPlayer?.id &&
+    Number(action.payload.targetRoundNumber) + 1 === view.lobby.round_number
+  )));
   const canCarve = Boolean(view?.lobby.status === 'active' && !isStartCountdownPending && view.lobby.phase === 'carve' && isActivePlayer);
-  const canGuess = Boolean(view?.lobby.status === 'active' && !isStartCountdownPending && view.lobby.phase === 'guess' && isActivePlayer && !powerUpBlockedByClaim && !skipTurnBlockedByPowerUp);
+  const canGuess = Boolean(view?.lobby.status === 'active' && !isStartCountdownPending && view.lobby.phase === 'guess' && isActivePlayer && !skipTurnBlockedByPowerUp);
   const shouldShowPowerUpControls = Boolean(view?.lobby.status === 'active' && !isStartCountdownPending && isActivePlayer && (view.lobby.phase === 'carve' || view.lobby.phase === 'guess'));
   const winner = view?.players.find((player) => player.id === view.lobby.winner_player_id) ?? null;
   const winningPlayers = view?.players.filter((player) => player.result === 'won') ?? [];
@@ -620,14 +926,120 @@ export function CarvingRevelation() {
       .map(getActionPowerUpId)
       .filter((powerUpId): powerUpId is string => Boolean(powerUpId)) ?? [],
   ), [view?.actions]);
-  const playerUsedPowerUpThisRound = Boolean(view?.requestingPlayer && view.actions.some((action) => (
-    action.action_type === 'power_up' &&
-    Number(action.payload.targetRoundNumber) === view.lobby.round_number + 1 &&
-    action.player_id === view.requestingPlayer?.id
-  )));
   const usablePowerUps = useMemo(() => (
     view?.claimedPowerUps.filter((powerUp) => !usedPowerUpIds.has(powerUp.id)) ?? []
   ), [usedPowerUpIds, view?.claimedPowerUps]);
+  const currentPhase = view?.lobby.phase;
+  const activatablePowerUps = useMemo(() => (
+    currentPhase
+      ? usablePowerUps.filter((powerUp) => canActivateCarvingRevelationPowerUp(powerUp.kind, currentPhase))
+      : []
+  ), [currentPhase, usablePowerUps]);
+
+  const pendingPowerUpIdsByKind = useMemo(() => {
+    const entries = view?.actions
+      .filter((action) => (
+        action.action_type === 'power_up' &&
+        action.player_id === view.requestingPlayer?.id &&
+        Number(action.payload.targetRoundNumber) === view.lobby.round_number &&
+        action.payload.targetPhase === currentPhase
+      ))
+      .map((action) => {
+        const kind = action.payload.kind;
+        const powerUpId = action.payload.powerUpId;
+        return typeof kind === 'string' && typeof powerUpId === 'string' ? [kind, powerUpId] as [string, string] : null;
+      })
+      .filter((entry): entry is [string, string] => Boolean(entry)) ?? [];
+    return new Map<string, string>(entries);
+  }, [currentPhase, view?.actions, view?.lobby.round_number, view?.requestingPlayer?.id]);
+
+  useEffect(() => {
+    const activeView = view?.lobby.status === 'active' && view.requestingPlayer ? view : null;
+    if (!activeView) {
+      powerUpClaimsSnapshotRef.current = null;
+      pendingAcquiredPowerUpIdsRef.current = null;
+      return;
+    }
+
+    const claimedIds = new Set(activeView.powerUps
+      .filter((powerUp) => powerUp.claimedByPlayerId === activeView.requestingPlayer?.id && !powerUp.conflicted)
+      .map((powerUp) => powerUp.id));
+    const previousSnapshot = powerUpClaimsSnapshotRef.current;
+    const sameRound = previousSnapshot?.lobbyId === activeView.lobby.id && previousSnapshot.roundNumber === activeView.lobby.round_number;
+    const newlyAcquiredIds = sameRound && previousSnapshot
+      ? [...claimedIds].filter((powerUpId) => !previousSnapshot.ids.has(powerUpId))
+      : [];
+    if (newlyAcquiredIds.length > 0) {
+      const pendingNotice = pendingAcquiredPowerUpIdsRef.current;
+      const pendingIds = pendingNotice?.lobbyId === activeView.lobby.id && pendingNotice.roundNumber === activeView.lobby.round_number
+        ? pendingNotice.ids
+        : new Set<string>();
+      newlyAcquiredIds.forEach((powerUpId) => pendingIds.add(powerUpId));
+      pendingAcquiredPowerUpIdsRef.current = {
+        lobbyId: activeView.lobby.id,
+        roundNumber: activeView.lobby.round_number,
+        ids: pendingIds,
+      };
+    }
+
+    const phaseEnded = previousSnapshot?.lobbyId === activeView.lobby.id
+      && previousSnapshot.roundNumber === activeView.lobby.round_number
+      && previousSnapshot.phase === 'carve'
+      && activeView.lobby.phase === 'guess';
+    powerUpClaimsSnapshotRef.current = {
+      lobbyId: activeView.lobby.id,
+      roundNumber: activeView.lobby.round_number,
+      phase: activeView.lobby.phase,
+      ids: claimedIds,
+    };
+    if (!phaseEnded) return;
+
+    const pendingNotice = pendingAcquiredPowerUpIdsRef.current;
+    const acquiredNames = pendingNotice?.lobbyId === activeView.lobby.id && pendingNotice.roundNumber === activeView.lobby.round_number
+      ? [...pendingNotice.ids]
+        .filter((powerUpId) => claimedIds.has(powerUpId))
+        .map((powerUpId) => activeView.powerUps.find((powerUp) => powerUp.id === powerUpId))
+        .filter((powerUp): powerUp is CarvingRevelationPowerUpState => Boolean(powerUp))
+        .map(getPowerUpLabel)
+      : [];
+    pendingAcquiredPowerUpIdsRef.current = null;
+    if (acquiredNames.length === 0) return;
+
+    const uniqueNames = [...new Set(acquiredNames)];
+    setAcquiredPowerUpNotice({ names: uniqueNames });
+  }, [view]);
+
+  useEffect(() => {
+    if (!acquiredPowerUpNotice) return;
+    const timeoutId = window.setTimeout(() => setAcquiredPowerUpNotice(null), 3800);
+    return () => window.clearTimeout(timeoutId);
+  }, [acquiredPowerUpNotice]);
+
+  useEffect(() => {
+    setPowerUpMenuOpen(false);
+  }, [currentPhase, lobbyId]);
+
+  useEffect(() => {
+    if (!powerUpMenuOpen) return;
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      if (!powerUpMenuRef.current?.contains(event.target as Node)) {
+        setPowerUpMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPowerUpMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [powerUpMenuOpen]);
   const guessActionsByRound = useMemo(() => {
     const groups = new Map<number, CarvingRevelationAction[]>();
     guessActions.forEach((action) => {
@@ -692,6 +1104,27 @@ export function CarvingRevelation() {
   }, []);
 
   const previewPath = draftPath.length > 0 ? draftPath : confirmedCarvePath;
+  const shuffleImageSwaps = useMemo(() => (
+    view?.actions
+      .map(getShuffleImageSwap)
+      .filter((swap): swap is ShuffleImageSwap => Boolean(swap)) ?? []
+  ), [view?.actions]);
+  const showCurrentCarvesToViewer = Boolean(view?.requestingPlayer && view.actions.some((action) => (
+    action.action_type === 'power_up' &&
+    action.payload.kind === 'view_thief' &&
+    action.player_id === view.requestingPlayer?.id &&
+    Number(action.payload.targetRoundNumber) + 1 === view.lobby.round_number
+  )));
+  useShuffleImageRenderer(
+    imageCanvasRef,
+    displayedSkinImageUrl,
+    shuffleImageSwaps,
+    {
+      greyscale: activeModifiers.has('greyscale'),
+      blurred: activeModifiers.has('blurred'),
+      cropped: activeModifiers.has('cropped'),
+    },
+  );
   useCanvasRenderer(
     canvasRef,
     view?.actions ?? [],
@@ -700,6 +1133,9 @@ export function CarvingRevelation() {
     view?.lobby.phase ?? 'carve',
     playerColorById,
     view?.requestingPlayer?.carve_color ?? '#facc15',
+    view?.insightSquares ?? [],
+    view?.requestingPlayer?.id ?? null,
+    showCurrentCarvesToViewer,
   );
 
   const applyView = useCallback((nextView: CarvingRevelationLobbyView) => {
@@ -1379,7 +1815,7 @@ export function CarvingRevelation() {
   }, [applyView, canCarve, clientId, view]);
 
   const activatePowerUp = async (powerUpId: string) => {
-    if (!clientId || !view || view.lobby.phase !== 'carve') return;
+    if (!clientId || !view || !activatablePowerUps.some((powerUp) => powerUp.id === powerUpId)) return;
     playUiSound('autocomplete-select');
     setBusy(true);
     setMessage('');
@@ -1397,17 +1833,37 @@ export function CarvingRevelation() {
     }
   };
 
+  const cancelPowerUp = async (powerUpId: string) => {
+    if (!clientId || !view || ![...pendingPowerUpIdsByKind.values()].includes(powerUpId)) return;
+    playUiSound('autocomplete-select');
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${API_BASE}/${view.lobby.code}/power-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, powerUpId, cancel: true }),
+      });
+      applyView(await readLobbyResponse(response));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to cancel power up.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!clientId || !view || !canCarve || busy || !view.lobby.phase_deadline_at) return;
     const msRemaining = new Date(view.lobby.phase_deadline_at).getTime() - Date.now();
     if (msRemaining > 1000) return;
+    if (hasDoubleLineForCurrentCarve && currentPlayerDrawCount >= 1) return;
     const points = draftPath.length >= 3 ? draftPath : confirmedCarvePath.length >= 3 ? confirmedCarvePath : [];
     if (points.length < 3) return;
     const key = `${view.lobby.id}:${view.lobby.round_number}:${view.requestingPlayer?.id ?? 'unknown'}`;
     if (autoSubmittedCarveKeyRef.current === key) return;
     autoSubmittedCarveKeyRef.current = key;
     void submitShape(points);
-  }, [busy, canCarve, clientId, confirmedCarvePath, draftPath, phaseRemainingSeconds, submitShape, view]);
+  }, [busy, canCarve, clientId, confirmedCarvePath, currentPlayerDrawCount, draftPath, hasDoubleLineForCurrentCarve, phaseRemainingSeconds, submitShape, view]);
 
   const copyInvite = async () => {
     if (!view) return;
@@ -1705,7 +2161,7 @@ export function CarvingRevelation() {
                       <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
                         <SettingDropdown
                           label="Power Up Count"
-                          value={visibleSettings?.powerUpCount ?? 3}
+                           value={Math.min(MAX_CARVING_REVELATION_POWER_UP_COUNT, visibleSettings?.powerUpCount ?? 3)}
                           options={POWER_UP_COUNT_OPTIONS.map((option) => ({ value: option, label: String(option) }))}
                           disabled={!isHost || busy || !(visibleSettings?.powerUpsEnabled ?? true)}
                           onSelect={(value) => updateDraftSettings((current) => ({ ...current, powerUpCount: value }))}
@@ -1815,6 +2271,7 @@ export function CarvingRevelation() {
                 className="relative aspect-video overflow-hidden border-2 border-[#8a6a14] bg-slate-950 bg-cover bg-center"
               >
                 {displayedSkinImageUrl ? <div className={imageModifierClassName} style={imageModifierStyle} /> : null}
+                <canvas ref={imageCanvasRef} aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] block h-full w-full" />
                 <canvas
                   ref={canvasRef}
                   className={`absolute inset-0 z-10 block h-full w-full touch-none select-none ${canCarve ? 'cursor-crosshair' : 'cursor-not-allowed'}`}
@@ -1854,62 +2311,55 @@ export function CarvingRevelation() {
                     })}
                   </div>
                 ) : null}
+                {acquiredPowerUpNotice ? (
+                  <div
+                    aria-live="polite"
+                    className="pointer-events-none absolute left-1/2 top-4 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-300 px-4 py-2 text-sm font-black text-slate-950 shadow-xl shadow-emerald-950/40 animate-pulse"
+                  >
+                    <Sparkles size={16} />
+                    <span>Acquired: {acquiredPowerUpNotice.names.join(' + ')}</span>
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            {shouldShowPowerUpControls ? (
-              <div className={`mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-3 ${canCarve ? 'justify-between' : 'justify-start'}`}>
-                {canCarve ? (
-                  <p className="text-sm font-semibold text-slate-300">
-                    {draftPath.length >= 3
-                      ? 'Submit your carve.'
-                      : 'Carve an area on the canvas.'}
-                  </p>
-                ) : null}
+            {view.revealedChampionName ? (
+              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-violet-300/30 bg-violet-300/10 px-4 py-3 text-violet-100">
+                <Sparkles size={18} className="shrink-0 text-violet-200" />
+                <p className="text-sm font-semibold">Name Reveal: <span className="font-black">{view.revealedChampionName}</span></p>
+              </div>
+            ) : null}
+
+            {canCarve ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+                <p className="text-sm font-semibold text-slate-300">
+                  {draftPath.length >= 3
+                    ? hasDoubleLineForCurrentCarve && currentPlayerDrawCount >= 1 ? 'Submit your second carve.' : 'Submit your carve.'
+                    : hasDoubleLineForCurrentCarve && currentPlayerDrawCount >= 1 ? 'Carve your second area.' : 'Carve an area on the canvas.'}
+                </p>
                 <div className="flex gap-2">
-                  <label className="self-end">
-                    <span className="sr-only">Use power up</span>
-                    <select
-                      aria-label="Use power up"
-                      disabled={busy || view.lobby.phase !== 'carve' || usablePowerUps.length === 0}
-                      value=""
-                      onChange={(event) => {
-                        if (event.target.value) void activatePowerUp(event.target.value);
-                      }}
-                      className="min-h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm font-bold text-slate-200 outline-none transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="">{usablePowerUps.length > 0 ? 'Select power up' : 'No power ups'}</option>
-                      {usablePowerUps.map((powerUp) => (
-                        <option key={powerUp.id} value={powerUp.id}>{getPowerUpLabel(powerUp)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  {canCarve ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={draftPath.length === 0 || busy || playerUsedPowerUpThisRound}
-                        onClick={() => {
-                          playUiSound('random-select');
-                          setDraftPath([]);
-                          setConfirmedCarvePath([]);
-                          setIsDrawing(false);
-                          setDraftLocked(false);
-                        }}
-                        className="self-end rounded-xl border border-white/10 bg-slate-900 px-4 py-2 text-sm font-bold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Redraw
-                      </button>
-                      <button
-                        type="button"
-                        disabled={draftPath.length < 3 || busy || playerUsedPowerUpThisRound}
-                        onClick={() => draftPath.length >= 3 ? void submitShape(draftPath) : undefined}
-                        className="self-end rounded-xl bg-emerald-300 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Confirm Carve
-                      </button>
-                    </>
-                  ) : null}
+                  <button
+                    type="button"
+                    disabled={draftPath.length === 0 || busy}
+                    onClick={() => {
+                      playUiSound('random-select');
+                      setDraftPath([]);
+                      setConfirmedCarvePath([]);
+                      setIsDrawing(false);
+                      setDraftLocked(false);
+                    }}
+                    className="self-end rounded-xl border border-white/10 bg-slate-900 px-4 py-2 text-sm font-bold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Redraw
+                  </button>
+                  <button
+                    type="button"
+                    disabled={draftPath.length < 3 || busy}
+                    onClick={() => draftPath.length >= 3 ? void submitShape(draftPath) : undefined}
+                    className="self-end rounded-xl bg-emerald-300 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {hasDoubleLineForCurrentCarve && currentPlayerDrawCount >= 1 ? 'Confirm Second Carve' : 'Confirm Carve'}
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -1927,7 +2377,7 @@ export function CarvingRevelation() {
             ) : null}
 
             {shouldShowGuessForm ? (
-              <form id="carving-revelation-guess-form" onSubmit={submitGuess} className="relative mt-4 flex gap-3">
+              <form id="carving-revelation-guess-form" onSubmit={submitGuess} className="relative mt-4 flex flex-wrap gap-3">
                 <div ref={guessInputAreaRef} className="relative min-w-0 flex-1">
                   <input
                     value={guess}
@@ -1939,7 +2389,7 @@ export function CarvingRevelation() {
                     aria-controls="carving-revelation-guess-suggestions"
                     spellCheck={false}
                     className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-amber-300/60 disabled:opacity-60"
-                    placeholder={canGuess ? 'Type the skin line' : powerUpBlockedByClaim ? 'Power up claimed' : skipTurnBlockedByPowerUp ? 'Turn skipped by power up' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
+                    placeholder={canGuess ? 'Type the skin line' : skipTurnBlockedByPowerUp ? 'Turn skipped by power up' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
                   />
                   {suggestions.length > 0 && canGuess ? (
                     <div id="carving-revelation-guess-suggestions" role="listbox" className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
@@ -1961,15 +2411,29 @@ export function CarvingRevelation() {
                     </div>
                   ) : null}
                 </div>
-                <button type="submit" disabled={!canGuess || !guess.trim() || busy} className="inline-flex items-center gap-2 rounded-2xl bg-violet-400 px-5 py-3 font-black text-white transition hover:bg-violet-300 disabled:opacity-60">
+                <button type="submit" disabled={!canGuess || !guess.trim() || busy} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-violet-400 px-5 py-3 font-black text-white transition hover:bg-violet-300 disabled:opacity-60">
                   <PencilLine size={18} /> Guess
                 </button>
+                {shouldShowPowerUpControls ? (
+                  <CarvingRevelationPowerUpMenu
+                    menuRef={powerUpMenuRef}
+                    open={powerUpMenuOpen}
+                    phase={view.lobby.phase}
+                    busy={busy}
+                    usablePowerUps={usablePowerUps}
+                    pendingPowerUpIdsByKind={pendingPowerUpIdsByKind}
+                    onToggle={() => setPowerUpMenuOpen((isOpen) => !isOpen)}
+                    onActivate={(powerUpId) => {
+                      setPowerUpMenuOpen(false);
+                      void activatePowerUp(powerUpId);
+                    }}
+                    onCancel={(powerUpId) => {
+                      setPowerUpMenuOpen(false);
+                      void cancelPowerUp(powerUpId);
+                    }}
+                  />
+                ) : null}
               </form>
-            ) : null}
-            {powerUpBlockedByClaim ? (
-              <p className="mt-2 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm font-semibold text-amber-100">
-                You claimed a power up and cannot guess this phase.
-              </p>
             ) : null}
             {skipTurnBlockedByPowerUp ? (
               <p className="mt-2 rounded-2xl border border-red-300/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100">
@@ -2005,7 +2469,14 @@ export function CarvingRevelation() {
                           .filter((player): player is NonNullable<typeof player> => Boolean(player));
                         return (
                           <div key={powerUpMessage.id} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-sm text-slate-300">
-                            {powerUpMessage.type === 'claimed' ? (
+                            {powerUpMessage.type === 'used' ? (
+                              <p>
+                                <span className="font-bold" style={players[0]?.carve_color ? { color: players[0].carve_color } : undefined}>
+                                  {players[0]?.display_name ?? 'Player'}
+                                </span>
+                                {` used ${powerUpMessage.powerUpName ?? 'a power up'}`}
+                              </p>
+                            ) : powerUpMessage.type === 'claimed' ? (
                               <p>
                                 <span className="font-bold" style={players[0]?.carve_color ? { color: players[0].carve_color } : undefined}>
                                   {players[0]?.display_name ?? 'Player'}
@@ -2051,6 +2522,7 @@ export function CarvingRevelation() {
               </div>
             </section>
           </div>
+
         </div>
         {message ? <p className="mt-5 rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-100">{message}</p> : null}
       </div>

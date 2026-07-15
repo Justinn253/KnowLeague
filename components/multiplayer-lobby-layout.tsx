@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, FormEvent, ReactNode } from 'react';
+import { type CSSProperties, FormEvent, ReactNode, useEffect, useState } from 'react';
 import { ArrowLeft, Check, Copy, Eye, EyeOff, Play, RefreshCw, Users } from 'lucide-react';
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
@@ -37,6 +37,8 @@ type MultiplayerCreateJoinPanelProps = {
   publicLobbyContent: ReactNode;
   onRefreshPublicLobbies: () => void;
 };
+
+const PUBLIC_LOBBY_REFRESH_COOLDOWN_SECONDS = 5;
 
 type MultiplayerPublicLobbyButtonProps = {
   hostName: string;
@@ -165,6 +167,24 @@ export function MultiplayerCreateJoinPanel({
   publicLobbyContent,
   onRefreshPublicLobbies,
 }: MultiplayerCreateJoinPanelProps) {
+  const [refreshCooldownSeconds, setRefreshCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (refreshCooldownSeconds <= 0) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setRefreshCooldownSeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [refreshCooldownSeconds]);
+
+  const refreshButtonLabel = refreshCooldownSeconds > 0
+    ? `Refresh in ${refreshCooldownSeconds}s`
+    : 'Refresh public lobbies';
+
   return (
     <div className="mx-auto max-w-4xl py-1">
       <div className="text-center">
@@ -242,15 +262,21 @@ export function MultiplayerCreateJoinPanel({
           <button
             type="button"
             onClick={() => {
+              if (busy || refreshCooldownSeconds > 0) {
+                return;
+              }
+
               playUiSound('random-select');
+              setRefreshCooldownSeconds(PUBLIC_LOBBY_REFRESH_COOLDOWN_SECONDS);
               onRefreshPublicLobbies();
             }}
-            disabled={busy}
-            title="Refresh public lobbies"
-            aria-label="Refresh public lobbies"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:opacity-60"
+            disabled={busy || refreshCooldownSeconds > 0}
+            title={refreshButtonLabel}
+            aria-label={refreshButtonLabel}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw size={17} />
+            {refreshCooldownSeconds > 0 ? <span>{refreshCooldownSeconds}s</span> : null}
           </button>
         </div>
         <div className="mt-4 grid gap-2">

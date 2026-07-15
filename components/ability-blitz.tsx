@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -36,6 +36,7 @@ import { ABILITY_SLOTS as abilitySlots, filterItemsByAbilitySlots, type AbilityS
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
+import { QuizItemCarousel, type QuizCarouselRole } from '@/components/quiz-item-carousel';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const placeholderItems: QuizItem[] = [
@@ -354,6 +355,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
   const currentItem = items[activeIndex];
   const nextItem = items[activeIndex + 1];
+  const afterNextItem = items[activeIndex + 2] ?? null;
   const previousItem = items[activeIndex - 1];
   const configurationLocked = started || countdown !== null || finished || failed;
   const multiplayerRaceEndedEarly = Boolean(multiplayer?.gameEnded && multiplayer.initialProgress < multiplayer.items.length);
@@ -409,8 +411,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
   }, [configurationLocked, multiplayer, soloMode]);
 
-  const getIconClassName = (visibility: 'current' | 'next' | 'previous') => {
-    const classes = ['h-24 w-24 rounded-3xl object-cover transition duration-300'];
+  const getIconClassName = (visibility: QuizCarouselRole) => {
+    const classes = ['h-32 w-32 rounded-3xl object-cover transition duration-300'];
 
     if (activeModifiers.greyscale) {
       classes.push('grayscale');
@@ -1566,120 +1568,81 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
           />
         ) : null}
 
-        {!showSoloPrematch ? <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl overflow-hidden">
-          {!showEndState ? <div className={`grid gap-4 lg:grid-cols-3 lg:items-center transition-none ${isSliding ? 'animate-carousel-slide' : ''}`}>
-            {/* Next Item Card */}
-            <div className="rounded-[2.5rem] border border-slate-700/50 bg-slate-950/80 p-8 shadow-lg">
-              <div className="mb-5 flex items-center justify-between gap-3 text-slate-400">
-                <p className="text-xs uppercase tracking-[0.22em]">Next item</p>
-                <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
-                  Ability
-                </span>
-              </div>
-              <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900/90 text-white shadow-2xl shadow-black/20">
-                <div className="absolute inset-0 bg-grid-slate opacity-10" />
-                <div className="relative z-10 flex h-full w-full items-center justify-center px-4">
-                  {nextItem ? (
-                    <div className="flex h-36 w-full max-w-xs flex-col items-center justify-center gap-4 rounded-3xl bg-slate-800/90 p-4 shadow-inner shadow-slate-950/60">
-                      {difficultyRule.upcomingVisibility === 'blocked' ? (
-                        <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                          Hidden
-                        </span>
-                      ) : nextItem.imageUrl ? (
-                        <PixelatedIcon
-                          src={nextItem.imageUrl}
-                          alt={nextItem.question}
-                          className={getIconClassName('next')}
-                          pixelated={activeModifiers.pixelated}
-                        />
-                      ) : (
-                        <span className="text-4xl opacity-30">?</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="h-36 w-full max-w-xs rounded-3xl bg-slate-800/80 p-4" />
-                  )}
-                </div>
-              </div>
-            </div>
+        {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+          {!showEndState ? (
+            <QuizItemCarousel
+              slots={[
+                {
+                  id: 'next',
+                  label: 'Next item',
+                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">Ability</span>,
+                },
+                {
+                  id: 'current',
+                  label: 'Current item',
+                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">Ability</span>,
+                },
+                {
+                  id: 'completed',
+                  label: 'Completed',
+                  subLabel: previousItem ? (
+                    <>
+                      {previousItem.answer}{' '}
+                      <span className="text-xs text-slate-400">{previousItem.champion} / {getAbilityKeyLabel(previousItem)}</span>
+                    </>
+                  ) : undefined,
+                  badge: <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-emerald-300">✓</span>,
+                },
+              ]}
+              afterNextItem={afterNextItem}
+              nextItem={nextItem ?? null}
+              currentItem={started ? currentItem ?? null : null}
+              previousItem={previousItem ?? null}
+              isSliding={isSliding}
+              renderItem={(item, role) => {
+                const isCurrent = role === 'current';
+                const isCompleted = role === 'previous';
 
-            {/* Current Item Card */}
-            <div
-              key={activeIndex}
-              className={`rounded-[2.5rem] bg-slate-950/80 p-8 shadow-xl transition-all duration-300 ${
-                successFlash
-                  ? 'border border-emerald-400/40 ring-1 ring-emerald-400/20 shadow-emerald-500/10'
-                  : 'border border-violet-500/20 shadow-violet-500/10'
-              }`}
-            >
-              <div className="mb-5 flex items-center justify-between gap-3 text-slate-400">
-                <p className="text-xs uppercase tracking-[0.22em]">Current item</p>
-                <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">
-                  Ability
-                </span>
-              </div>
-              <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900/90 text-white shadow-2xl shadow-black/20">
-                <div className="absolute inset-0 bg-grid-slate opacity-10" />
-                <div className="relative z-10 flex h-full w-full items-center justify-center px-4">
-                  {started && currentItem ? (
-                    <div className="flex h-36 w-full max-w-xs flex-col items-center justify-center gap-4 rounded-3xl bg-slate-800/90 p-4 shadow-inner shadow-slate-950/60">
-                      {currentItem.imageUrl ? (
-                        <PixelatedIcon
-                          src={currentItem.imageUrl}
-                          alt={currentItem.question}
-                          className={getIconClassName('current')}
-                          pixelated={activeModifiers.pixelated}
-                        />
+                return (
+                  <div
+                    className={`relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 bg-slate-950/50 text-white shadow-2xl shadow-black/20 transition ${
+                      isCurrent && successFlash
+                        ? 'border-emerald-400/70 ring-1 ring-emerald-400/40'
+                        : isCurrent
+                          ? 'border-violet-500/50'
+                          : isCompleted
+                            ? 'border-emerald-500/20'
+                            : 'border-slate-400/50'
+                    }`}
+                  >
+                    <div className="absolute inset-0 bg-grid-slate opacity-10" />
+                    {item ? (
+                      difficultyRule.upcomingVisibility === 'blocked' && role === 'next' ? (
+                        <div className="relative z-10 flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-500">
+                          <p className="text-xs font-semibold uppercase tracking-[0.24em]">Hidden</p>
+                        </div>
                       ) : (
-                        <span className="text-4xl">?</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="h-36 w-full max-w-xs rounded-3xl bg-slate-800/80 p-4" />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Previous Item Card */}
-            <div className="rounded-[2.5rem] border border-emerald-500/20 bg-slate-950/80 p-8 shadow-lg">
-              <div className="mb-5 flex items-start justify-between gap-3 text-slate-400">
-                <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-[0.22em]">Completed</p>
-                  {previousItem ? (
-                    <p className="mt-1 truncate text-sm text-slate-300">
-                      <span>{previousItem.answer}</span>
-                      <span className="ml-3 text-xs text-slate-400">{previousItem.champion} - {getAbilityKeyLabel(previousItem)}</span>
-                    </p>
-                  ) : null}
-                </div>
-                <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-emerald-300">
-                  <Check size={14} className="inline" />
-                </span>
-              </div>
-              <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900/90 text-white shadow-2xl shadow-black/20">
-                <div className="absolute inset-0 bg-grid-slate opacity-10" />
-                <div className="relative z-10 flex h-full w-full items-center justify-center px-4">
-                  {previousItem ? (
-                    <div className="flex h-36 w-full max-w-xs flex-col items-center justify-center gap-4 rounded-3xl bg-slate-800/90 p-4 shadow-inner shadow-slate-950/60">
-                      {previousItem.imageUrl ? (
-                        <PixelatedIcon
-                          src={previousItem.imageUrl}
-                          alt={previousItem.question}
-                          className={getIconClassName('previous')}
-                          pixelated={activeModifiers.pixelated}
-                        />
-                      ) : (
-                        <span className="text-4xl">?</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="h-36 w-full max-w-xs rounded-3xl bg-slate-800/80 p-4" />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div> : null}
+                        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-3 p-4">
+                          {item.imageUrl ? (
+                            <PixelatedIcon
+                              src={item.imageUrl}
+                              alt={item.question}
+                              className={getIconClassName(role)}
+                              pixelated={activeModifiers.pixelated}
+                            />
+                          ) : (
+                            <span className="text-4xl opacity-30">?</span>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      <div className="relative z-10 h-full w-full bg-slate-950/30" />
+                    )}
+                  </div>
+                );
+              }}
+            />
+          ) : null}
 
           {!showEndState ? <form
             onSubmit={handleSubmit}

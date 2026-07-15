@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { ReactNode } from 'react';
 import type { QuizItem } from '@/lib/quiz';
 
@@ -25,7 +26,7 @@ type QuizItemCarouselProps = {
  * the three visible positions. The first item is initially just outside the
  * viewport, so it can slide into the next position during an advance.
  */
-export function QuizItemCarousel({
+export const QuizItemCarousel = memo(function QuizItemCarousel({
   slots,
   afterNextItem,
   nextItem,
@@ -77,4 +78,4 @@ export function QuizItemCarousel({
       </div>
     </div>
   );
-}
+});

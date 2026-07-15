@@ -7,8 +7,12 @@ export async function GET(request: NextRequest) {
   const catalog = getSkinCatalog();
 
   if (answerMode === 'skin-line') {
-    return NextResponse.json(getSkinThemeAnswerList(catalog));
+    return NextResponse.json(getSkinThemeAnswerList(catalog), {
+      headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' },
+    });
   }
 
-  return NextResponse.json(getAnswerList(catalog));
+  return NextResponse.json(getAnswerList(catalog), {
+    headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' },
+  });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isDeepStrictEqual } from 'node:util';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -68,6 +69,9 @@ export async function PUT(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await request.json() as { state?: unknown; stats?: unknown };
+    if (!('state' in body) && !('stats' in body)) {
+      throw new Error('No splash scramble data was provided.');
+    }
     const supabase = getSupabaseServiceClient();
     const { data: existing, error: loadError } = await supabase
       .from('splash_scramble_states')
@@ -94,8 +98,9 @@ export async function PUT(request: Request) {
       payload.stats = assertStats(body.stats);
     }
 
-    if (!('state' in payload) && !('stats' in payload)) {
-      throw new Error('No splash scramble data was provided.');
+    if (isDeepStrictEqual(existing?.state ?? null, payload.state)
+      && isDeepStrictEqual(existing?.stats ?? {}, payload.stats)) {
+      return NextResponse.json({ saved: false });
     }
 
     const { error } = await getSupabaseServiceClient()

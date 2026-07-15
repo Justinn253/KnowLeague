@@ -29,6 +29,7 @@ export type RecordSplashScrambleSolveResult = {
 
 const STATS_PATH = path.join(process.cwd(), 'data', 'runtime', 'splash-scramble-stats.json');
 let writeQueue = Promise.resolve();
+let cachedStats: Record<string, SplashScrambleDailyStatsRecord> | null = null;
 
 function createEmptyDailyRecord(dateKey: string): SplashScrambleDailyStatsRecord {
   return {
@@ -39,12 +40,18 @@ function createEmptyDailyRecord(dateKey: string): SplashScrambleDailyStatsRecord
 }
 
 async function readStatsFile() {
+  if (cachedStats) {
+    return cachedStats;
+  }
+
   try {
     const rawStats = await fs.readFile(STATS_PATH, 'utf8');
-    return JSON.parse(rawStats) as Record<string, SplashScrambleDailyStatsRecord>;
+    cachedStats = JSON.parse(rawStats) as Record<string, SplashScrambleDailyStatsRecord>;
+    return cachedStats;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return {};
+      cachedStats = {};
+      return cachedStats;
     }
 
     throw error;
@@ -53,7 +60,8 @@ async function readStatsFile() {
 
 async function writeStatsFile(stats: Record<string, SplashScrambleDailyStatsRecord>) {
   await fs.mkdir(path.dirname(STATS_PATH), { recursive: true });
-  await fs.writeFile(STATS_PATH, JSON.stringify(stats, null, 2), 'utf8');
+  await fs.writeFile(STATS_PATH, JSON.stringify(stats), 'utf8');
+  cachedStats = stats;
 }
 
 function toSnapshot(record: SplashScrambleDailyStatsRecord): SplashScrambleDailyStatsSnapshot {
@@ -70,8 +78,12 @@ export async function getSplashScrambleDailyStats(dateKey: string): Promise<Spla
 
 export function recordSplashScrambleSolve(input: RecordSplashScrambleSolveInput): Promise<RecordSplashScrambleSolveResult> {
   const operation = writeQueue.then(async () => {
-    const stats = await readStatsFile();
-    const dailyRecord = stats[input.dateKey] ?? createEmptyDailyRecord(input.dateKey);
+    const stats = { ...await readStatsFile() };
+    const storedDailyRecord = stats[input.dateKey] ?? createEmptyDailyRecord(input.dateKey);
+    const dailyRecord = {
+      ...storedDailyRecord,
+      clients: { ...storedDailyRecord.clients },
+    };
     const clientRecord = dailyRecord.clients[input.clientId] ?? { solved: false };
     const clientAlreadySolved = clientRecord.solved;
     const accepted = !clientAlreadySolved;
@@ -81,9 +93,11 @@ export function recordSplashScrambleSolve(input: RecordSplashScrambleSolveInput)
       clientRecord.solved = true;
     }
 
-    dailyRecord.clients[input.clientId] = clientRecord;
-    stats[input.dateKey] = dailyRecord;
-    await writeStatsFile(stats);
+    if (accepted) {
+      dailyRecord.clients[input.clientId] = clientRecord;
+      stats[input.dateKey] = dailyRecord;
+      await writeStatsFile(stats);
+    }
 
     return {
       snapshot: toSnapshot(dailyRecord),

@@ -240,7 +240,6 @@ export function Skindle() {
   const [suggestions, setSuggestions] = useState<QuizItem[]>([]);
   const [suggestionsScrollTop, setSuggestionsScrollTop] = useState(0);
   const [guesses, setGuesses] = useState<GuessResult[]>([]);
-  const [message, setMessage] = useState('');
   const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
   const [revealedSolvedGuessId, setRevealedSolvedGuessId] = useState<string | null>(null);
   const [previewSkin, setPreviewSkin] = useState<QuizItem | null>(null);
@@ -319,7 +318,6 @@ export function Skindle() {
     setSuggestions([]);
     setRevealedSolvedGuessId(null);
     setFirstGlobalGuessSkinIds(new Set());
-    setMessage('');
   }, []);
 
   useEffect(() => {
@@ -341,7 +339,6 @@ export function Skindle() {
       })
       .catch((error) => {
         console.error('Failed to load Skindle data', error);
-        setMessage('Unable to load Skindle data.');
       });
 
     refreshDailyStats(false);
@@ -540,7 +537,6 @@ export function Skindle() {
     }
 
     if (guesses.some((guess) => guess.item.id === skin.id)) {
-      setMessage('Already guessed.');
       return;
     }
 
@@ -548,7 +544,6 @@ export function Skindle() {
     setGuesses((current) => [...current, result]);
     setInputValue('');
     setSuggestions([]);
-    setMessage(skin.id === target.id ? 'Solved.' : '');
     scheduleSound(
       skin.id === target.id ? 'skindle-guess-correct' : 'skindle-guess-incorrect',
       Math.max(0, SKINDLE_REVEAL_TOTAL_MS - 220),
@@ -589,7 +584,6 @@ export function Skindle() {
     const exact = answerPool.find((skin) => normalizeAnswer(skin.answer) === normalized);
 
     if (!exact) {
-      setMessage('Choose a skin from the list.');
       return;
     }
 
@@ -1011,10 +1005,7 @@ export function Skindle() {
             <div ref={inputAreaRef} className="relative flex flex-col gap-3 sm:flex-row">
               <input
                 value={inputValue}
-                onChange={(event) => {
-                  setInputValue(event.target.value);
-                  setMessage('');
-                }}
+                onChange={(event) => setInputValue(event.target.value)}
                 onFocus={() => {
                   const query = normalizeAnswer(inputValue);
                   if (inputValue.trim().length >= 2 && query && !solved) {

@@ -394,13 +394,6 @@ async function deleteExpiredFriendMessages(supabase: ReturnType<typeof getSupaba
   }
 }
 
-export async function touchUserPresence(userId: string) {
-  await getSupabaseServiceClient()
-    .from('profiles')
-    .update({ last_seen_at: new Date().toISOString() })
-    .eq('id', userId);
-}
-
 export async function getFriendDashboard(userId: string) {
   const supabase = getSupabaseServiceClient();
   await deleteExpiredFriendMessages(supabase);

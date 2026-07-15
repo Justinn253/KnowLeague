@@ -464,7 +464,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
             scheduleDashboardRefresh();
           }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, (payload) => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => {
           scheduleDashboardRefresh();
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {

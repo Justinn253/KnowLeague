@@ -1188,7 +1188,7 @@ export async function selectSkincognitoSkin(code: string, clientId: string, skin
     throw new Error('Spectators cannot select skins.');
   }
 
-  const { data: player, error } = await getSupabaseServiceClient()
+  const { error } = await getSupabaseServiceClient()
     .from('skincognito_players')
     .update({
       selected_skin_id: skin.id,

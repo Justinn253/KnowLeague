@@ -700,7 +700,6 @@ export function SplashScramble() {
     gridTemplateRows: `repeat(${activeRows}, minmax(0, 1fr))`,
   }), [activeColumns, activeRows]);
   const boardUsesRotatedMobileView = mobileViewRotated && !rotateTiles;
-  const selectedRotation = selectedTile === null ? 0 : rotations[selectedTile] ?? 0;
   const skinSearchIndex = useMemo(() => (
     skinCatalog.map((skin) => ({
       skin,

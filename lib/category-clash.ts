@@ -404,10 +404,6 @@ async function addSystemChatMessage(
   if (error) throw error;
 }
 
-function getUsedAnswerSet(lobby: CategoryClashLobby, categoryId: string) {
-  return new Set(lobby.used_answers[categoryId] ?? []);
-}
-
 function getNextUsedAnswers(
   lobby: CategoryClashLobby,
   categoryId: string,

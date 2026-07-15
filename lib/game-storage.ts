@@ -821,19 +821,6 @@ export function loadSoloQuizGameState<TState>(
   }
 }
 
-export function hasSoloQuizGameState(
-  gameId: QuizStatsGameId,
-  mode: SoloQuizStorageMode,
-  difficulty: string,
-  dateKey = getDailyDateKey(),
-) {
-  if (!isStorageAvailable()) {
-    return false;
-  }
-
-  return window.localStorage.getItem(getSoloQuizStateKey(gameId, mode, difficulty, dateKey)) !== null;
-}
-
 export function saveSoloQuizGameState<TState>(
   gameId: QuizStatsGameId,
   mode: SoloQuizStorageMode,

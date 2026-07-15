@@ -20,14 +20,6 @@ export type AchievementDefinition = {
 
 export type AchievementEventName = 'first_login' | 'discord_linked' | 'daily_skindle_completed';
 
-export type AchievementProgressRecord = {
-  achievementId: string;
-  progressCurrent: number;
-  progressTarget: number;
-  completedAt: string | null;
-  updatedAt: string | null;
-};
-
 export type AchievementListItem = AchievementDefinition & {
   progressCurrent: number;
   progressTarget: number;

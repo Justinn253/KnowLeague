@@ -11,7 +11,6 @@ import {
   ShieldQuestion,
   Sparkles,
   Swords,
-  Trophy,
   User,
   UserPlus,
   Users,

@@ -23,5 +23,7 @@ export async function GET() {
     race: Array.from(new Set(skins.flatMap((skin) => (skin.race || 'Unknown').split(',').map((race) => race.trim())))).sort(),
   };
 
-  return NextResponse.json(values);
+  return NextResponse.json(values, {
+    headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' },
+  });
 }

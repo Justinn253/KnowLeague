@@ -1046,13 +1046,13 @@ async function advanceExpiredCarvingPhase(lobby: CarvingRevelationLobby, players
   return resolveGuessPhase(lobby, players);
 }
 
-async function reconcileCarvingRevelationLobby(lobby: CarvingRevelationLobby) {
+async function reconcileCarvingRevelationLobby(lobby: CarvingRevelationLobby, initialPlayers?: CarvingRevelationPlayerRecord[]) {
   if (lobby.status === 'finished' || lobby.status === 'terminated') {
     return lobby;
   }
 
   let nextLobby = lobby;
-  let players = await fetchPlayers(lobby.id);
+  let players = initialPlayers ?? await fetchPlayers(lobby.id);
   const nowMs = Date.now();
   const now = new Date(nowMs).toISOString();
   const stalePlayers = getStaleConnectedMembers(players, nowMs);
@@ -1797,8 +1797,11 @@ export async function heartbeatCarvingRevelationPlayer(code: string, clientId: s
   if (player.connected !== connected) {
     await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
   }
-  const reconciledLobby = await reconcileCarvingRevelationLobby(lobby);
-  return getLobbyView(reconciledLobby, clientId);
+  const updatedPlayers = players.map((candidate) => candidate.id === player.id
+    ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt, updated_at: now }
+    : candidate);
+  const reconciledLobby = await reconcileCarvingRevelationLobby(lobby, updatedPlayers);
+  return { connected, status: reconciledLobby.status };
 }
 
 export async function leaveCarvingRevelationLobby(code: string, clientId: string, forfeit = false) {

@@ -12,12 +12,9 @@ import {
   type PlayerGameStatsByGame,
   type StreakGameId,
 } from '@/lib/game-storage';
-import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
+import { subscribeToAuthSession } from '@/lib/auth-session-client';
+import { getProfileBootstrap } from '@/lib/profile-bootstrap-client';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-
-type PlayerGameStatsResponse = {
-  stats?: PlayerGameStatsByGame;
-};
 
 function getLocalStatsByGame(): PlayerGameStatsByGame {
   return Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [gameId, loadPlayerGameStats(gameId)]));
@@ -59,32 +56,22 @@ export function PlayerGameStatsSync() {
       }
 
       try {
-        await getSessionScopedRequest('player-game-stats', session, async () => {
-          const response = await fetch('/api/profile/player-game-stats', {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          if (!response.ok) {
-            saveAccountStats(getLocalStatsByGame());
-            return;
+        const data = await getProfileBootstrap(session);
+        const serverStats = data.playerGameStats;
+        const mergedStats = Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [
+          gameId,
+          mergePlayerGameStats(gameId, loadPlayerGameStats(gameId), serverStats[gameId]),
+        ])) as PlayerGameStatsByGame;
+
+        hydratingRef.current = true;
+        STREAK_GAME_IDS.forEach((gameId) => {
+          const stats = mergedStats[gameId];
+          if (stats) {
+            savePlayerGameStats(stats);
           }
-
-          const data = await response.json() as PlayerGameStatsResponse;
-          const serverStats = data.stats ?? {};
-          const mergedStats = Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [
-            gameId,
-            mergePlayerGameStats(gameId, loadPlayerGameStats(gameId), serverStats[gameId]),
-          ])) as PlayerGameStatsByGame;
-
-          hydratingRef.current = true;
-          STREAK_GAME_IDS.forEach((gameId) => {
-            const stats = mergedStats[gameId];
-            if (stats) {
-              savePlayerGameStats(stats);
-            }
-          });
-          hydratingRef.current = false;
-          saveAccountStats(mergedStats);
         });
+        hydratingRef.current = false;
+        saveAccountStats(mergedStats);
       } catch {
         hydratingRef.current = false;
       }

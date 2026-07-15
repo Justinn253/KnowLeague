@@ -3,11 +3,9 @@ import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import {
   mergePlayerGameStats,
-  normalizePlayerGameStats,
+  normalizePlayerGameStatsByGame,
   STREAK_GAME_IDS,
-  type PlayerGameStats,
   type PlayerGameStatsByGame,
-  type StreakGameId,
 } from '@/lib/game-storage';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
@@ -20,17 +18,6 @@ type PlayerGameStatsRow = {
 type PlayerGameStatsBody = {
   stats: PlayerGameStatsByGame;
 };
-
-function normalizeStatsByGame(stats: unknown): PlayerGameStatsByGame {
-  if (!stats || typeof stats !== 'object') {
-    return {};
-  }
-
-  return Object.fromEntries(STREAK_GAME_IDS.flatMap((gameId) => {
-    const rawStats = (stats as Partial<Record<StreakGameId, Partial<PlayerGameStats>>>)[gameId];
-    return rawStats ? [[gameId, normalizePlayerGameStats(gameId, rawStats)]] : [];
-  }));
-}
 
 function mergeStatsByGame(left: PlayerGameStatsByGame, right: PlayerGameStatsByGame): PlayerGameStatsByGame {
   return Object.fromEntries(STREAK_GAME_IDS.flatMap((gameId) => {
@@ -53,7 +40,7 @@ export async function GET(request: Request) {
       throw error;
     }
 
-    return NextResponse.json({ stats: normalizeStatsByGame(data?.player_game_stats) });
+    return NextResponse.json({ stats: normalizePlayerGameStatsByGame(data?.player_game_stats) });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -63,7 +50,7 @@ export async function PUT(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<PlayerGameStatsBody>(request);
-    const incomingStats = normalizeStatsByGame(body.stats);
+    const incomingStats = normalizePlayerGameStatsByGame(body.stats);
     const supabase = getSupabaseServiceClient();
     const { data: existing, error: loadError } = await supabase
       .from('profile_private_details')
@@ -75,7 +62,7 @@ export async function PUT(request: Request) {
       throw loadError;
     }
 
-    const stats = mergeStatsByGame(normalizeStatsByGame(existing?.player_game_stats), incomingStats);
+    const stats = mergeStatsByGame(normalizePlayerGameStatsByGame(existing?.player_game_stats), incomingStats);
     const { error } = await supabase
       .from('profile_private_details')
       .upsert({

@@ -2,25 +2,40 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { UserCircle, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { AchievementToasts } from '@/components/achievement-toasts';
 import { ContactUsWidget } from '@/components/contact-us-widget';
-import { FriendsWidget } from '@/components/friends-widget';
-import { ModerationWidget } from '@/components/moderation-widget';
 import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
-import { ProfileScreen } from '@/components/profile-screen';
-import { PublicProfileScreen } from '@/components/public-profile-screen';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getAuthSessionId } from '@/lib/auth-session';
 import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
 import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
+import { getProfileBootstrap } from '@/lib/profile-bootstrap-client';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { AppRole } from '@/lib/moderation';
 
 type ProfileOverlayTab = 'profile' | 'stats' | 'achievements' | 'account';
+
+const FriendsWidget = dynamic(
+  () => import('@/components/friends-widget').then((module) => module.FriendsWidget),
+  { ssr: false },
+);
+const ModerationWidget = dynamic(
+  () => import('@/components/moderation-widget').then((module) => module.ModerationWidget),
+  { ssr: false },
+);
+const ProfileScreen = dynamic(
+  () => import('@/components/profile-screen').then((module) => module.ProfileScreen),
+  { ssr: false },
+);
+const PublicProfileScreen = dynamic(
+  () => import('@/components/public-profile-screen').then((module) => module.PublicProfileScreen),
+  { ssr: false },
+);
 
 export function GlobalActions() {
   const pathname = usePathname();
@@ -35,6 +50,8 @@ export function GlobalActions() {
   const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
   const [publicProfileUsername, setPublicProfileUsername] = useState<string | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
+  const activeSessionRef = useRef<Session | null>(null);
+  const profileAppRoleRef = useRef<string | null>(null);
 
   useEffect(() => {
     void reconcileStoredMultiplayerSessionsAwayFromGame(pathname);
@@ -49,17 +66,8 @@ export function GlobalActions() {
 
     const updateModerationRole = async (session: Session, force = false) => {
       try {
-        const role = await getSessionScopedRequest('moderation-role', session, async () => {
-          const response = await fetch('/api/moderation/me', {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          const data = await response.json() as { role?: AppRole };
-          if (!response.ok || (data.role !== 'moderator' && data.role !== 'admin')) {
-            return null;
-          }
-          return data.role;
-        }, { force });
-        setModerationRole(role);
+        const { role } = await getProfileBootstrap(session, { force });
+        setModerationRole(role === 'moderator' || role === 'admin' ? role : null);
       } catch {
         setModerationRole(null);
       }
@@ -71,7 +79,9 @@ export function GlobalActions() {
       forceProfile = false,
       forceModeration = false,
     ) => {
+      activeSessionRef.current = session ?? null;
       if (!session) {
+        profileAppRoleRef.current = null;
         setProfileHref('/login');
         setProfileLabel('Profile');
         setProfileAvatarUrl(null);
@@ -98,10 +108,11 @@ export function GlobalActions() {
       setProfileHref('/profile');
       const profileResult = await getSessionScopedRequest('global-profile', session, async () => supabase
         .from('profiles')
-        .select('username, display_name, active_session_id, avatar_url')
+        .select('username, display_name, active_session_id, avatar_url, app_role')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null; avatar_url: string | null }>(), { force: forceProfile || forceModeration });
+        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null; avatar_url: string | null; app_role: string | null }>(), { force: forceProfile || forceModeration });
       const { data } = profileResult;
+      profileAppRoleRef.current = data?.app_role ?? null;
 
       const sessionId = getAuthSessionId(session.access_token);
       if (data?.active_session_id && sessionId && data.active_session_id !== sessionId) {
@@ -114,6 +125,7 @@ export function GlobalActions() {
         }
         await forfeitStoredMultiplayerSessions();
         await supabase.auth.signOut({ scope: 'local' });
+        activeSessionRef.current = null;
         setProfileHref('/login');
         setProfileLabel('Profile');
         setProfileAvatarUrl(null);
@@ -134,6 +146,7 @@ export function GlobalActions() {
     };
 
     const unsubscribeFromAuthSession = subscribeToAuthSession((session, event) => {
+      activeSessionRef.current = session;
       if (signInCheckTimeout) {
         window.clearTimeout(signInCheckTimeout);
         signInCheckTimeout = null;
@@ -148,14 +161,15 @@ export function GlobalActions() {
     const profileChannel = supabase
       .channel('global-profile-action')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
-        const profileId = (payload.new as { id?: string }).id;
-        supabase.auth.getSession().then(({ data }) => {
-          if (profileId && profileId === data.session?.user.id) {
-            if (data.session) {
-              void updateProfileAction(data.session, 0, true, true);
-            }
-          }
-        });
+        const nextProfile = payload.new as { id?: string; app_role?: string };
+        const session = activeSessionRef.current;
+        if (session && nextProfile.id === session.user.id) {
+          const roleChanged = typeof nextProfile.app_role === 'string'
+            && profileAppRoleRef.current !== null
+            && profileAppRoleRef.current !== nextProfile.app_role;
+          profileAppRoleRef.current = nextProfile.app_role ?? profileAppRoleRef.current;
+          void updateProfileAction(session, 0, true, roleChanged);
+        }
       })
       .subscribe();
 

@@ -244,6 +244,17 @@ export function normalizePlayerGameStats(gameId: GameId, stats?: Partial<PlayerG
   };
 }
 
+export function normalizePlayerGameStatsByGame(stats: unknown): PlayerGameStatsByGame {
+  if (!stats || typeof stats !== 'object') {
+    return {};
+  }
+
+  return Object.fromEntries(STREAK_GAME_IDS.flatMap((gameId) => {
+    const rawStats = (stats as Partial<Record<StreakGameId, Partial<PlayerGameStats>>>)[gameId];
+    return rawStats ? [[gameId, normalizePlayerGameStats(gameId, rawStats)]] : [];
+  }));
+}
+
 export function mergePlayerGameStats(gameId: GameId, left?: Partial<PlayerGameStats> | null, right?: Partial<PlayerGameStats> | null) {
   const leftStats = normalizePlayerGameStats(gameId, left);
   const rightStats = normalizePlayerGameStats(gameId, right);
@@ -610,7 +621,12 @@ export function savePlayerGameStats(stats: PlayerGameStats) {
 
   try {
     const normalizedStats = normalizePlayerGameStats(stats.gameId, stats);
-    window.localStorage.setItem(getPlayerStatsKey(stats.gameId), JSON.stringify(normalizedStats));
+    const storageKey = getPlayerStatsKey(stats.gameId);
+    const serializedStats = JSON.stringify(normalizedStats);
+    if (window.localStorage.getItem(storageKey) === serializedStats) {
+      return;
+    }
+    window.localStorage.setItem(storageKey, serializedStats);
     window.dispatchEvent(new CustomEvent(PLAYER_GAME_STATS_CHANGED_EVENT, { detail: { gameId: normalizedStats.gameId, stats: normalizedStats } }));
   } catch (error) {
     console.warn(`Unable to save ${stats.gameId} player stats.`, error);

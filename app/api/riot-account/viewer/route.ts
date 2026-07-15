@@ -9,6 +9,35 @@ export const runtime = 'nodejs';
 const rateLimitWindowMs = Number(process.env.RIOT_VIEWER_RATE_LIMIT_WINDOW_MS ?? 60_000);
 const rateLimitRequests = Number(process.env.RIOT_VIEWER_RATE_LIMIT_REQUESTS ?? 12);
 const cacheTtlMs = Number(process.env.RIOT_VIEWER_CACHE_TTL_MS ?? 5 * 60_000);
+type ViewerData = Awaited<ReturnType<typeof getRiotAccountViewerData>>;
+
+const inFlightViewerRequests = new Map<string, Promise<ViewerData>>();
+
+function loadAndCacheAccount(cacheKey: string, riotId: string, platform: Parameters<typeof getRiotAccountViewerData>[1]) {
+  const existingRequest = inFlightViewerRequests.get(cacheKey);
+  if (existingRequest) return existingRequest;
+
+  const request = (async () => {
+    const data = await getRiotAccountViewerData(riotId, platform);
+    setServerCache(cacheKey, data, cacheTtlMs);
+    await recordRiotAccountSearch({
+      riotId: `${data.account.gameName}#${data.account.tagLine}`,
+      gameName: data.account.gameName,
+      tagLine: data.account.tagLine,
+      platform: data.platform,
+    });
+    return data;
+  })();
+
+  inFlightViewerRequests.set(cacheKey, request);
+  const clearRequest = () => {
+    if (inFlightViewerRequests.get(cacheKey) === request) {
+      inFlightViewerRequests.delete(cacheKey);
+    }
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
 
 function getErrorStatus(error: unknown) {
   const message = error instanceof Error ? error.message : '';
@@ -60,7 +89,7 @@ export async function GET(request: Request) {
     }
 
     const cacheKey = `riot-account-viewer:${platform}:${riotId.toLowerCase()}`;
-    const cachedData = shouldRefresh ? null : getServerCache<Awaited<ReturnType<typeof getRiotAccountViewerData>>>(cacheKey);
+    const cachedData = shouldRefresh ? null : getServerCache<ViewerData>(cacheKey);
     if (cachedData) {
       return NextResponse.json(cachedData, {
         headers: {
@@ -72,14 +101,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const data = await getRiotAccountViewerData(riotId, platform);
-    setServerCache(cacheKey, data, cacheTtlMs);
-    await recordRiotAccountSearch({
-      riotId: `${data.account.gameName}#${data.account.tagLine}`,
-      gameName: data.account.gameName,
-      tagLine: data.account.tagLine,
-      platform: data.platform,
-    });
+    const data = await loadAndCacheAccount(cacheKey, riotId, platform);
     return NextResponse.json(data, {
       headers: {
         'Cache-Control': 'private, no-store',

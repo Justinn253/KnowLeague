@@ -1,10 +1,12 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { getServerCache, setServerCache } from '@/lib/server-memory-cache';
 
 const DATA_DRAGON_VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json';
 const RIOT_API_KEY_HEADER = 'X-Riot-Token';
 const MATCH_COUNT = process.env.NODE_ENV === 'production' ? 20 : 8;
 const MATCH_DETAIL_BATCH_SIZE = 4;
 const MATCH_DETAIL_BATCH_DELAY_MS = 350;
+const PARTICIPANT_RANK_CACHE_TTL_MS = Number(process.env.RIOT_PARTICIPANT_RANK_CACHE_TTL_MS ?? 5 * 60_000);
 
 export const RIOT_PLATFORM_ROUTES = [
   'BR1',
@@ -28,6 +30,8 @@ export const RIOT_PLATFORM_ROUTES = [
 export type RiotPlatformRoute = (typeof RIOT_PLATFORM_ROUTES)[number];
 type RiotRegionalRoute = 'americas' | 'asia' | 'europe' | 'sea';
 type RankedQueueKey = 'solo' | 'flex';
+type ParticipantRank = { tier: string; rank: string; queueType: string };
+type CachedParticipantRank = { rank: ParticipantRank | null };
 
 type RiotAccountDto = {
   puuid: string;
@@ -487,6 +491,7 @@ let cachedDataDragonVersion: Promise<string> | null = null;
 let cachedSummonerSpellLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
 let cachedRuneLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
 let cachedItemLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
+const inFlightParticipantRanks = new Map<string, Promise<ParticipantRank | null>>();
 
 export function isRiotPlatformRoute(value: string): value is RiotPlatformRoute {
   return RIOT_PLATFORM_ROUTES.includes(value.toUpperCase() as RiotPlatformRoute);
@@ -1242,31 +1247,61 @@ async function getMatchDetails(matchIds: string[], regionalRoute: RiotRegionalRo
   return matches;
 }
 
-async function getParticipantRankLookup(matches: RiotMatchDto[], platform: RiotPlatformRoute) {
-  const puuids = Array.from(new Set(matches.flatMap((match) => match.info.participants.map((participant) => participant.puuid))));
-  const ranks = new Map<string, { tier: string; rank: string; queueType: string }>();
+function preferredParticipantRank(entries: RiotLeagueEntryDto[] | null | undefined): ParticipantRank | null {
+  const soloQueue = entries?.find((entry) => entry.queueType === 'RANKED_SOLO_5x5');
+  const flexQueue = entries?.find((entry) => entry.queueType === 'RANKED_FLEX_SR');
+  const entry = soloQueue ?? flexQueue;
+  return entry ? { tier: entry.tier, rank: entry.rank, queueType: entry.queueType } : null;
+}
+
+async function getParticipantRank(puuid: string, platform: RiotPlatformRoute) {
+  const cacheKey = `riot-participant-rank:${platform}:${puuid}`;
+  const cached = getServerCache<CachedParticipantRank>(cacheKey);
+  if (cached) return cached.rank;
+
+  const existingRequest = inFlightParticipantRanks.get(cacheKey);
+  if (existingRequest) return existingRequest;
+
+  const request = riotFetch<RiotLeagueEntryDto[]>(
+    `https://${platform.toLowerCase()}.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`,
+    { optional404: true },
+  )
+    .then(preferredParticipantRank)
+    .catch(() => null);
+
+  inFlightParticipantRanks.set(cacheKey, request);
+  void request.then((rank) => {
+    setServerCache<CachedParticipantRank>(cacheKey, { rank }, PARTICIPANT_RANK_CACHE_TTL_MS);
+  }).finally(() => {
+    if (inFlightParticipantRanks.get(cacheKey) === request) {
+      inFlightParticipantRanks.delete(cacheKey);
+    }
+  });
+  return request;
+}
+
+async function getParticipantRankLookup(
+  matches: RiotMatchDto[],
+  platform: RiotPlatformRoute,
+  searchedPuuid: string,
+  searchedPlayerEntries: RiotLeagueEntryDto[],
+) {
+  const ranks = new Map<string, ParticipantRank>();
+  const searchedPlayerRank = preferredParticipantRank(searchedPlayerEntries);
+  if (searchedPlayerRank) ranks.set(searchedPuuid, searchedPlayerRank);
+
+  const puuids = Array.from(new Set(matches.flatMap((match) => match.info.participants.map((participant) => participant.puuid))))
+    .filter((puuid) => puuid !== searchedPuuid);
 
   for (let index = 0; index < puuids.length; index += MATCH_DETAIL_BATCH_SIZE) {
     const batch = puuids.slice(index, index + MATCH_DETAIL_BATCH_SIZE);
     const results = await Promise.all(batch.map(async (puuid) => {
-      const entries = await riotFetch<RiotLeagueEntryDto[]>(
-        `https://${platform.toLowerCase()}.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`,
-        { optional404: true },
-      ).catch(() => null);
-      return { puuid, entries };
+      const rank = await getParticipantRank(puuid, platform);
+      return { puuid, rank };
     }));
 
-    results.forEach(({ puuid, entries }) => {
-      const soloQueue = entries?.find((entry) => entry.queueType === 'RANKED_SOLO_5x5');
-      const flexQueue = entries?.find((entry) => entry.queueType === 'RANKED_FLEX_SR');
-      const entry = soloQueue ?? flexQueue;
-      if (entry) {
-        ranks.set(puuid, {
-          tier: entry.tier,
-          rank: entry.rank,
-          queueType: entry.queueType,
-        });
-      }
+    results.forEach(({ puuid, rank }) => {
+      if (rank) ranks.set(puuid, rank);
     });
 
     if (index + MATCH_DETAIL_BATCH_SIZE < puuids.length) {
@@ -1318,7 +1353,7 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
   ]);
 
   const matches = await getMatchDetails(matchIds, regionalRoute);
-  const participantRanks = await getParticipantRankLookup(matches, platform);
+  const participantRanks = await getParticipantRankLookup(matches, platform, account.puuid, ranked);
 
   const normalizedMatches = matches
     .map((match) => normalizeMatch(match, account.puuid, champions, summonerSpells, runes, items, participantRanks, version))

@@ -475,6 +475,23 @@ export type RiotAccountSearchSuggestion = {
   searchCount: number;
 };
 
+export type MasteryMasterChampion = {
+  id: number;
+  key: string;
+  name: string;
+  title: string;
+  imageUrl: string;
+  splashUrl: string;
+  championLevel: number;
+  championPoints: number;
+};
+
+export type MasteryMasterProfile = {
+  riotId: string;
+  platform: RiotPlatformRoute;
+  champions: MasteryMasterChampion[];
+};
+
 export type RiotLiveGameStatus = {
   riotId: string;
   platform: RiotPlatformRoute;
@@ -1224,6 +1241,43 @@ export async function getRiotLiveGameStatus(riotId: string, platform: RiotPlatfo
     gameLength: currentGame.gameLength,
     champion: participant ? getChampion(champions, participant.championId) : null,
     updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function getMasteryMasterProfile(riotId: string, platform: RiotPlatformRoute): Promise<MasteryMasterProfile> {
+  const parsed = parseRiotId(riotId);
+  const regionalRoute = getRegionalRoute(platform);
+  const encodedGameName = encodeURIComponent(parsed.gameName);
+  const encodedTagLine = encodeURIComponent(parsed.tagLine);
+  const account = await riotFetch<RiotAccountDto>(
+    `https://${regionalRoute}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodedGameName}/${encodedTagLine}`,
+  );
+  const [champions, masteries] = await Promise.all([
+    getChampionLookup(),
+    riotFetch<RiotChampionMasteryDto[]>(
+      `https://${platform.toLowerCase()}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(account.puuid)}`,
+    ),
+  ]);
+
+  return {
+    riotId: `${account.gameName ?? parsed.gameName}#${account.tagLine ?? parsed.tagLine}`,
+    platform,
+    champions: masteries
+      .map((mastery) => {
+        const champion = getChampion(champions, mastery.championId);
+        return {
+          id: champion.id,
+          key: champion.key,
+          name: champion.name,
+          title: champion.title,
+          imageUrl: champion.imageUrl,
+          splashUrl: `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${champion.key}_0.jpg`,
+          championLevel: mastery.championLevel,
+          championPoints: mastery.championPoints,
+        };
+      })
+      .filter((champion) => champion.id > 0)
+      .sort((left, right) => right.championPoints - left.championPoints),
   };
 }
 

@@ -11,6 +11,7 @@ import {
   ShieldQuestion,
   Sparkles,
   Swords,
+  Trophy,
   User,
   UserPlus,
   Users,
@@ -212,6 +213,16 @@ const games: GameLink[] = [
     playerCountId: 'category-clash',
     accent: 'emerald',
     kicker: 'Last Player Standing',
+  },
+  {
+    title: 'Mastery Master',
+    href: '/mastery-master',
+    description: 'Put a League account&apos;s champion mastery knowledge to the test.',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Malzahar_0.jpg',
+    gameIcon: Trophy,
+    mode: 'solo',
+    accent: 'violet',
+    kicker: 'Mastery Challenge',
   },
 ];
 

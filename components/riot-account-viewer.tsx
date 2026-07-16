@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, Play, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
@@ -422,6 +422,14 @@ function buildRiotViewerUrl(input: { riotId: string; platform: PlatformRoute; ta
   return url.toString();
 }
 
+function buildMasteryMasterUrl(data: RiotAccountViewerResponse) {
+  const params = new URLSearchParams({
+    riotId: `${data.account.gameName}#${data.account.tagLine}`,
+    platform: data.platform,
+  });
+  return `/mastery-master?${params.toString()}`;
+}
+
 async function copyTextToClipboard(value: string) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
@@ -708,7 +716,13 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
         </section>
 
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
+            <a href={buildMasteryMasterUrl(data)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 py-2 text-xs font-black text-slate-950 shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+              <Play size={14} fill="currentColor" />
+              Play Mastery Master
+            </a>
+          </div>
           <div className="mt-5 grid gap-3">
             {topMasteries.map((mastery) => {
               const stats = championStats.get(mastery.champion.id);
@@ -898,7 +912,11 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
             </button>
           </div>
         </div>
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-3">
+          <a href={buildMasteryMasterUrl(data)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+            <Play size={15} fill="currentColor" />
+            Play Mastery Master
+          </a>
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Champion Role</span>
             <select value={tag} onChange={(event) => setTag(event.target.value)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">

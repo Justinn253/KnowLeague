@@ -5,10 +5,25 @@ import { getRouteErrorResponse } from '@/lib/api-utils';
 
 export const runtime = 'nodejs';
 
+const inFlightDashboards = new Map<string, Promise<Awaited<ReturnType<typeof getFriendDashboard>>>>();
+
+function loadFriendDashboard(userId: string) {
+  const existingRequest = inFlightDashboards.get(userId);
+  if (existingRequest) return existingRequest;
+
+  const request = getFriendDashboard(userId);
+  inFlightDashboards.set(userId, request);
+  const clearRequest = () => {
+    if (inFlightDashboards.get(userId) === request) inFlightDashboards.delete(userId);
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
+
 export async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    const dashboard = await getFriendDashboard(userId);
+    const dashboard = await loadFriendDashboard(userId);
     return NextResponse.json(dashboard);
   } catch (error) {
     return getRouteErrorResponse(error);

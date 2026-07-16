@@ -37,6 +37,7 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
 import { QuizItemCarousel, type QuizCarouselRole } from '@/components/quiz-item-carousel';
+import { QuizProgressCard } from '@/components/quiz-progress-card';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const placeholderItems: QuizItem[] = [
@@ -182,6 +183,39 @@ const defaultAbilitySlots = abilitySlots.reduce(
 );
 
 const entryCountOptions = [10, 25, 50, 75, 100] as const;
+let abilityAnswersRequest: Promise<string[]> | null = null;
+const abilityItemsRequests = new Map<string, Promise<QuizItem[]>>();
+
+function loadAbilityAnswers() {
+  if (!abilityAnswersRequest) {
+    abilityAnswersRequest = fetch('/api/ability-blitz/quiz-answers')
+      .then((response) => {
+        if (!response.ok) throw new Error('Unable to load ability answers.');
+        return response.json() as Promise<string[]>;
+      })
+      .catch((error) => {
+        abilityAnswersRequest = null;
+        throw error;
+      });
+  }
+  return abilityAnswersRequest;
+}
+
+function loadAbilityItems(url: string) {
+  const existingRequest = abilityItemsRequests.get(url);
+  if (existingRequest) return existingRequest;
+
+  const request = fetch(url).then((response) => {
+    if (!response.ok) throw new Error('Unable to load abilities.');
+    return response.json() as Promise<QuizItem[]>;
+  });
+  abilityItemsRequests.set(url, request);
+  const clearRequest = () => {
+    if (abilityItemsRequests.get(url) === request) abilityItemsRequests.delete(url);
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
 
 function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boolean }) {
   return (
@@ -292,11 +326,13 @@ function PixelatedIcon({
 }
 
 export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRuntime }) {
-  const multiplayerItems = multiplayer?.items.map((item, index) => ({
-    ...item,
-    guessed: index < multiplayer.initialProgress,
-  }));
-  const [items, setItems] = useState<QuizItem[]>(multiplayerItems?.length ? multiplayerItems : placeholderItems);
+  const [items, setItems] = useState<QuizItem[]>(() => {
+    const multiplayerItems = multiplayer?.items.map((item, index) => ({
+      ...item,
+      guessed: index < multiplayer.initialProgress,
+    }));
+    return multiplayerItems?.length ? multiplayerItems : placeholderItems;
+  });
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
@@ -352,6 +388,18 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const hasRestoredStateRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
   const multiplayerResultSoundRef = useRef<string | null>(null);
+  const persistenceSnapshotRef = useRef<{
+    mode: SoloQuizMode;
+    difficulty: DifficultyId;
+    state: AbilityBlitzDailyState;
+    enabled: boolean;
+  } | null>(null);
+  const persistCurrentGameState = useCallback(() => {
+    const snapshot = persistenceSnapshotRef.current;
+    if (snapshot?.enabled) {
+      saveSoloQuizGameState('ability-blitz', snapshot.mode, snapshot.difficulty, snapshot.state);
+    }
+  }, []);
 
   const currentItem = items[activeIndex];
   const nextItem = items[activeIndex + 1];
@@ -373,6 +421,26 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const hintsDisabled = difficultyRule.hintDelaySeconds === null;
   const autocompleteEnabled = difficultyRule.autocomplete;
   const shouldHideTimers = activeModifiers.hiddenTimer && !chaosMode;
+  persistenceSnapshotRef.current = {
+    mode: soloMode,
+    difficulty: selectedDifficulty,
+    enabled: !multiplayer && storageReady && (hasLoadedOnce || started || finished || failed),
+    state: {
+      items,
+      soloMode,
+      selectedDifficulty,
+      activeModifiers,
+      selectedAbilitySlots,
+      entryCount,
+      started,
+      activeIndex,
+      currentTime,
+      totalTime,
+      completedTimes,
+      finished,
+      failed,
+    },
+  };
 
   useEffect(() => {
     setPlayerStats(loadPlayerGameStats('ability-blitz'));
@@ -395,6 +463,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     () => Array.from(new Set(filteredItems.map((item) => item.answer))).sort(),
     [filteredItems],
   );
+  const autocompleteSearchIndex = useMemo(() => {
+    const candidateAnswers = categoryAnswers['all']?.length ? categoryAnswers['all'] : filteredAnswers;
+    return candidateAnswers.map((answer) => ({ answer, normalized: normalizeAnswer(answer) }));
+  }, [categoryAnswers, filteredAnswers]);
 
   useEffect(() => {
     if (multiplayer || !storageReady) {
@@ -411,7 +483,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
   }, [configurationLocked, multiplayer, soloMode]);
 
-  const getIconClassName = (visibility: QuizCarouselRole) => {
+  const getIconClassName = useCallback((visibility: QuizCarouselRole) => {
     const classes = ['h-32 w-32 rounded-3xl object-cover transition duration-300'];
 
     if (activeModifiers.greyscale) {
@@ -435,7 +507,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     return classes.join(' ');
-  };
+  }, [activeModifiers.greyscale, activeModifiers.pixelated, activeModifiers.rotating, currentIconHidden, difficultyRule.upcomingVisibility]);
 
   const progressList = useMemo(
     () =>
@@ -449,7 +521,75 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       })),
     [items, activeIndex, finished],
   );
-  const completedProgressCount = progressList.filter((item) => item.state === 'completed').length;
+  const completedProgressCount = useMemo(
+    () => progressList.filter((item) => item.state === 'completed').length,
+    [progressList],
+  );
+  const carouselSlots = useMemo(() => ([
+    {
+      id: 'next',
+      label: 'Next item',
+      badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">Ability</span>,
+    },
+    {
+      id: 'current',
+      label: 'Current item',
+      badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">Ability</span>,
+    },
+    {
+      id: 'completed',
+      label: 'Completed',
+      subLabel: previousItem ? (
+        <>
+          {previousItem.answer}{' '}
+          <span className="text-xs text-slate-400">{previousItem.champion} / {getAbilityKeyLabel(previousItem)}</span>
+        </>
+      ) : undefined,
+      badge: <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-emerald-300">✓</span>,
+    },
+  ] as const), [previousItem]);
+  const renderCarouselItem = useCallback((item: QuizItem | null, role: QuizCarouselRole) => {
+    const isCurrent = role === 'current';
+    const isCompleted = role === 'previous';
+
+    return (
+      <div
+        className={`relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 bg-slate-950/50 text-white shadow-2xl shadow-black/20 transition ${
+          isCurrent && successFlash
+            ? 'border-emerald-400/70 ring-1 ring-emerald-400/40'
+            : isCurrent
+              ? 'border-violet-500/50'
+              : isCompleted
+                ? 'border-emerald-500/20'
+                : 'border-slate-400/50'
+        }`}
+      >
+        <div className="absolute inset-0 bg-grid-slate opacity-10" />
+        {item ? (
+          difficultyRule.upcomingVisibility === 'blocked' && role === 'next' ? (
+            <div className="relative z-10 flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em]">Hidden</p>
+            </div>
+          ) : (
+            <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-3 p-4">
+              {item.imageUrl ? (
+                <PixelatedIcon
+                  src={item.imageUrl}
+                  alt={item.question}
+                  className={getIconClassName(role)}
+                  pixelated={activeModifiers.pixelated}
+                />
+              ) : (
+                <span className="text-4xl opacity-30">?</span>
+              )}
+            </div>
+          )
+        ) : (
+          <div className="relative z-10 h-full w-full bg-slate-950/30" />
+        )}
+      </div>
+    );
+  }, [activeModifiers.pixelated, difficultyRule.upcomingVisibility, getIconClassName, successFlash]);
 
   useEffect(() => {
     if (multiplayerInitialProgress === undefined) return;
@@ -536,8 +676,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
-    fetch(`/api/ability-blitz/quiz-answers`)
-      .then((res) => res.json())
+    loadAbilityAnswers()
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setCategoryAnswers((current) => ({
@@ -575,31 +714,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   }, [multiplayer, selectedDifficulty, showSoloPrematch, soloMode, storageReady]);
 
   useEffect(() => {
-    if (multiplayer || !storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
-      return;
-    }
-
-    saveSoloQuizGameState<AbilityBlitzDailyState>('ability-blitz', soloMode, selectedDifficulty, {
-      items,
-      soloMode,
-      selectedDifficulty,
-      activeModifiers,
-      selectedAbilitySlots,
-      entryCount,
-      started,
-      activeIndex,
-      currentTime,
-      totalTime,
-      completedTimes,
-      finished,
-      failed,
-    });
+    persistCurrentGameState();
   }, [
     activeIndex,
     activeModifiers,
     completedTimes,
     entryCount,
-    currentTime,
     failed,
     finished,
     hasLoadedOnce,
@@ -608,10 +728,25 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     selectedDifficulty,
     started,
     storageReady,
-    totalTime,
     multiplayer,
+    penaltyCount,
     soloMode,
+    persistCurrentGameState,
   ]);
+
+  useEffect(() => {
+    if (totalTime > 0 && totalTime % 5 === 0) {
+      persistCurrentGameState();
+    }
+  }, [persistCurrentGameState, totalTime]);
+
+  useEffect(() => {
+    window.addEventListener('pagehide', persistCurrentGameState);
+    return () => {
+      window.removeEventListener('pagehide', persistCurrentGameState);
+      persistCurrentGameState();
+    };
+  }, [persistCurrentGameState]);
 
   useEffect(() => {
     const shouldRecord = multiplayer ? multiplayerGameEnded : finished || failed;
@@ -739,14 +874,12 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
-    const candidateAnswers = categoryAnswers['all']?.length
-      ? categoryAnswers['all']
-      : filteredAnswers.length
-      ? filteredAnswers
-      : Array.from(new Set(items.map((item) => item.answer)));
-
-    setSuggestions(candidateAnswers.filter((answer) => normalizeAnswer(answer).includes(query)));
-  }, [inputValue, currentItem, items, filteredAnswers, autocompleteEnabled, categoryAnswers]);
+    setSuggestions(
+      autocompleteSearchIndex
+        .filter((entry) => entry.normalized.includes(query))
+        .map((entry) => entry.answer),
+    );
+  }, [autocompleteEnabled, autocompleteSearchIndex, currentItem, inputValue]);
 
   useEffect(() => {
     if (multiplayer || !started || hasLoadedOnce) {
@@ -760,8 +893,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
           difficulty: selectedDifficulty,
           entries: String(soloMode === 'casual' ? 100 : entryCount),
         });
-        const res = await fetch(`/api/ability-blitz/quiz-items?${params}`);
-        const data = await res.json();
+        const data = await loadAbilityItems(`/api/ability-blitz/quiz-items?${params}`);
         if (Array.isArray(data) && data.length > 0) {
           if (soloMode === 'casual') {
             const filteredData = filterItemsByAbilitySlots(data, selectedAbilitySlots);
@@ -1571,76 +1703,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
         {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
           {!showEndState ? (
             <QuizItemCarousel
-              slots={[
-                {
-                  id: 'next',
-                  label: 'Next item',
-                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">Ability</span>,
-                },
-                {
-                  id: 'current',
-                  label: 'Current item',
-                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">Ability</span>,
-                },
-                {
-                  id: 'completed',
-                  label: 'Completed',
-                  subLabel: previousItem ? (
-                    <>
-                      {previousItem.answer}{' '}
-                      <span className="text-xs text-slate-400">{previousItem.champion} / {getAbilityKeyLabel(previousItem)}</span>
-                    </>
-                  ) : undefined,
-                  badge: <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-emerald-300">✓</span>,
-                },
-              ]}
+              slots={carouselSlots}
               afterNextItem={afterNextItem}
               nextItem={nextItem ?? null}
               currentItem={started ? currentItem ?? null : null}
               previousItem={previousItem ?? null}
               isSliding={isSliding}
-              renderItem={(item, role) => {
-                const isCurrent = role === 'current';
-                const isCompleted = role === 'previous';
-
-                return (
-                  <div
-                    className={`relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 bg-slate-950/50 text-white shadow-2xl shadow-black/20 transition ${
-                      isCurrent && successFlash
-                        ? 'border-emerald-400/70 ring-1 ring-emerald-400/40'
-                        : isCurrent
-                          ? 'border-violet-500/50'
-                          : isCompleted
-                            ? 'border-emerald-500/20'
-                            : 'border-slate-400/50'
-                    }`}
-                  >
-                    <div className="absolute inset-0 bg-grid-slate opacity-10" />
-                    {item ? (
-                      difficultyRule.upcomingVisibility === 'blocked' && role === 'next' ? (
-                        <div className="relative z-10 flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-500">
-                          <p className="text-xs font-semibold uppercase tracking-[0.24em]">Hidden</p>
-                        </div>
-                      ) : (
-                        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-3 p-4">
-                          {item.imageUrl ? (
-                            <PixelatedIcon
-                              src={item.imageUrl}
-                              alt={item.question}
-                              className={getIconClassName(role)}
-                              pixelated={activeModifiers.pixelated}
-                            />
-                          ) : (
-                            <span className="text-4xl opacity-30">?</span>
-                          )}
-                        </div>
-                      )
-                    ) : (
-                      <div className="relative z-10 h-full w-full bg-slate-950/30" />
-                    )}
-                  </div>
-                );
-              }}
+              renderItem={renderCarouselItem}
             />
           ) : null}
 
@@ -1709,13 +1778,11 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       return;
                     }
 
-                    const candidateAnswers = categoryAnswers['all']?.length
-                      ? categoryAnswers['all']
-                      : filteredAnswers.length
-                      ? filteredAnswers
-                      : Array.from(new Set(items.map((item) => item.answer)));
-
-                    setSuggestions(candidateAnswers.filter((answer) => normalizeAnswer(answer).includes(query)));
+                    setSuggestions(
+                      autocompleteSearchIndex
+                        .filter((entry) => entry.normalized.includes(query))
+                        .map((entry) => entry.answer),
+                    );
                   }}
                   disabled={!started}
                   className={`w-full rounded-3xl border px-5 py-4 text-lg text-slate-100 outline-none transition duration-500 disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -1801,45 +1868,29 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
             <div ref={progressSectionRef} className="max-h-[22rem] overflow-y-auto scroll-smooth pr-2">
               <div className="grid gap-3 lg:grid-cols-4">
                 {progressList.map((item) => {
-                  const itemClass =
-                    item.state === 'current'
-                      ? 'border-violet-400/50 bg-violet-500/10 ring-1 ring-violet-400/20'
-                      : item.state === 'completed'
-                      ? 'border-emerald-500/20 bg-emerald-500/5'
-                      : 'border-white/10 bg-slate-950/70';
-
                   return (
-                    <div
+                    <QuizProgressCard
                       key={item.id}
                       ref={item.state === 'current' ? currentProgressItemRef : undefined}
-                      className={`relative min-h-20 overflow-hidden rounded-3xl border px-4 py-3 pr-16 transition ${itemClass}`}
-                    >
-                      <div className="text-sm font-semibold text-slate-100">
-                        <span>{item.guessed ? item.answer : '???'}</span>
-                      </div>
-                      <p className="mt-2 text-sm leading-5 text-slate-400">
-                        {shouldHideTimers
+                      item={item}
+                      state={item.state === 'completed' ? 'completed' : item.state === 'current' ? 'current' : 'pending'}
+                      title={item.guessed ? item.answer : '???'}
+                      detail={shouldHideTimers
                           ? item.state === 'completed'
                             ? 'Completed'
                             : 'Timer hidden'
                           : item.state === 'current'
-                          ? formatSeconds(currentTime)
-                          : item.state === 'completed' && completedTimes[item.id]
-                          ? `${formatSeconds(completedTimes[item.id].total)} - ${formatSeconds(completedTimes[item.id].duration)}`
-                          : item.state === 'completed'
-                          ? 'Completed'
-                          : 'TBD - TBD'}
-                      </p>
-                      {item.imageUrl ? (
-                        <Image
-                          src={item.imageUrl}
-                          alt=""
-                          width={40}
-                          height={40}
-                          className={`absolute right-3 top-3 h-10 w-10 rounded-xl border border-white/10 object-cover ${item.state === 'pending' ? 'blur-sm brightness-50' : ''}`}
-                        />
-                      ) : null}
-                    </div>
+                            ? formatSeconds(currentTime)
+                            : item.state === 'completed' && completedTimes[item.id]
+                              ? `${formatSeconds(completedTimes[item.id].total)} - ${formatSeconds(completedTimes[item.id].duration)}`
+                              : item.state === 'completed'
+                                ? 'Completed'
+                                : 'TBD - TBD'}
+                      activeClassName="border-violet-400/50 bg-violet-500/10 ring-1 ring-violet-400/20"
+                      completedClassName="border-emerald-500/20 bg-emerald-500/5"
+                      pendingClassName="border-white/10 bg-slate-950/70"
+                      pendingImageClassName="blur-sm brightness-50"
+                    />
                   );
                 })}
               </div>

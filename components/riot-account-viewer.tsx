@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, Play, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
@@ -422,6 +422,14 @@ function buildRiotViewerUrl(input: { riotId: string; platform: PlatformRoute; ta
   return url.toString();
 }
 
+function buildMasteryMasterUrl(data: RiotAccountViewerResponse) {
+  const params = new URLSearchParams({
+    riotId: `${data.account.gameName}#${data.account.tagLine}`,
+    platform: data.platform,
+  });
+  return `/mastery-master?${params.toString()}`;
+}
+
 async function copyTextToClipboard(value: string) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
@@ -708,7 +716,13 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
         </section>
 
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
+            <a href={buildMasteryMasterUrl(data)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 py-2 text-xs font-black text-slate-950 shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+              <Play size={14} fill="currentColor" />
+              Play Mastery Master
+            </a>
+          </div>
           <div className="mt-5 grid gap-3">
             {topMasteries.map((mastery) => {
               const stats = championStats.get(mastery.champion.id);
@@ -898,7 +912,11 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
             </button>
           </div>
         </div>
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-3">
+          <a href={buildMasteryMasterUrl(data)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+            <Play size={15} fill="currentColor" />
+            Play Mastery Master
+          </a>
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Champion Role</span>
             <select value={tag} onChange={(event) => setTag(event.target.value)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">
@@ -1115,7 +1133,7 @@ function TeamObjectiveSummary({ team }: { team: MatchTeam }) {
   );
 }
 
-function MatchParticipantRow({ participant, maxDamage, gameDuration, platform }: { participant: MatchParticipant; maxDamage: number; gameDuration: number; platform: PlatformRoute }) {
+const MatchParticipantRow = memo(function MatchParticipantRow({ participant, maxDamage, gameDuration, platform }: { participant: MatchParticipant; maxDamage: number; gameDuration: number; platform: PlatformRoute }) {
   const damageWidth = maxDamage > 0 ? Math.max(8, Math.round((participant.damageToChampions / maxDamage) * 100)) : 0;
   const adjustedSeconds = Math.max(1, gameDuration - 60);
   const goldPerSecond = Math.round((participant.goldEarned / adjustedSeconds) * 10) / 10;
@@ -1219,9 +1237,9 @@ function MatchParticipantRow({ participant, maxDamage, gameDuration, platform }:
       </div>
     </div>
   );
-}
+});
 
-function MatchTeamSection({ team, maxDamage, gameDuration, platform }: { team: MatchTeam; maxDamage: number; gameDuration: number; platform: PlatformRoute }) {
+const MatchTeamSection = memo(function MatchTeamSection({ team, maxDamage, gameDuration, platform }: { team: MatchTeam; maxDamage: number; gameDuration: number; platform: PlatformRoute }) {
   const teamName = team.teamId === 100 ? 'Blue' : team.teamId === 200 ? 'Red' : `Team ${team.teamId}`;
   const status = getTeamStatus(team, gameDuration);
   const sectionClass = status === 'Remake'
@@ -1250,7 +1268,7 @@ function MatchTeamSection({ team, maxDamage, gameDuration, platform }: { team: M
       </div>
     </section>
   );
-}
+});
 
 function MatchUnknownQueuePlayers({ participants, maxDamage, gameDuration, platform }: { participants: MatchParticipant[]; maxDamage: number; gameDuration: number; platform: PlatformRoute }) {
   return (
@@ -1275,15 +1293,25 @@ function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { dat
   }, [focusedMatchId, onFocusedMatchConsumed]);
 
   const queues = useMemo(() => ['all', ...Array.from(new Set(data.matches.map((match) => String(match.queueId))))], [data.matches]);
-  const matches = data.matches.filter((match) => {
+  const matches = useMemo(() => data.matches.filter((match) => {
     const remake = isRemakeMatch(match.gameDuration);
     if (remake && resultFilter !== 'all') return false;
     if (resultFilter === 'wins' && !match.win) return false;
     if (resultFilter === 'losses' && match.win) return false;
     if (queueFilter !== 'all' && String(match.queueId) !== queueFilter) return false;
     return true;
-  });
-  const pulledAverageEnemyRank = getAverageEnemyRankForMatches(matches);
+  }), [data.matches, queueFilter, resultFilter]);
+  const matchDetailsById = useMemo(() => new Map(data.matches.map((match) => {
+    const allParticipants = Array.from(
+      new Map(match.teams.flatMap((team) => team.participants).map((participant) => [`${participant.puuid}-${participant.teamId}`, participant])).values(),
+    );
+    return [match.matchId, {
+      allParticipants,
+      averageEnemyRank: getAverageEnemyRank(match),
+      maxDamage: Math.max(...allParticipants.map((participant) => participant.damageToChampions), 1),
+    }] as const;
+  })), [data.matches]);
+  const pulledAverageEnemyRank = useMemo(() => getAverageEnemyRankForMatches(matches), [matches]);
 
   return (
     <div className="grid gap-5">
@@ -1312,13 +1340,12 @@ function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { dat
         <div className="mt-6 grid gap-3">
           {matches.map((match) => {
             const expanded = expandedMatchIds.has(match.matchId);
-            const allParticipants = Array.from(
-              new Map(match.teams.flatMap((team) => team.participants).map((participant) => [`${participant.puuid}-${participant.teamId}`, participant])).values(),
-            );
-            const maxDamage = Math.max(...allParticipants.map((participant) => participant.damageToChampions), 1);
+            const matchDetails = matchDetailsById.get(match.matchId);
+            const allParticipants = matchDetails?.allParticipants ?? [];
+            const maxDamage = matchDetails?.maxDamage ?? 1;
             const knownQueue = isKnownQueue(match.queueId);
             const matchMeta = [formatDateTime(match.gameStartTimestamp ?? match.gameCreation), formatDuration(match.gameDuration)].join(' - ');
-            const averageEnemyRank = getAverageEnemyRank(match);
+            const averageEnemyRank = matchDetails?.averageEnemyRank ?? formatRankValue(0);
             const remake = isRemakeMatch(match.gameDuration);
             const resultCardClass = remake
               ? 'border-slate-400/20 bg-slate-800/50'
@@ -1523,6 +1550,7 @@ export function RiotAccountViewer() {
   const [autoLoadMessage, setAutoLoadMessage] = useState<string | null>(null);
   const [riotIdSuggestions, setRiotIdSuggestions] = useState<string[]>([]);
   const [sharedSuggestions, setSharedSuggestions] = useState<SharedRiotIdSuggestion[]>([]);
+  const [suggestionsActive, setSuggestionsActive] = useState(false);
   const autoLoadedRef = useRef(false);
 
   const updateViewerUrl = useCallback((nextData: RiotAccountViewerResponse, nextTab: ViewerTab, nextMatchId: string | null = null) => {
@@ -1592,7 +1620,7 @@ export function RiotAccountViewer() {
 
   useEffect(() => {
     const query = riotId.trim();
-    if (query.length < 2) {
+    if (!suggestionsActive || query.length < 2) {
       setSharedSuggestions([]);
       return undefined;
     }
@@ -1617,7 +1645,7 @@ export function RiotAccountViewer() {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [platform, riotId]);
+  }, [platform, riotId, suggestionsActive]);
 
   useEffect(() => {
     if (autoLoadedRef.current) return;
@@ -1743,6 +1771,8 @@ export function RiotAccountViewer() {
               <input
                 value={riotId}
                 onChange={(event) => setRiotId(event.target.value)}
+                onFocus={() => setSuggestionsActive(true)}
+                onBlur={() => setSuggestionsActive(false)}
                 list="riot-account-viewer-suggestions"
                 autoComplete="username"
                 placeholder="Riot ID"

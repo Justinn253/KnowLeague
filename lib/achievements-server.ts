@@ -1,6 +1,5 @@
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, type AchievementEventName, type AchievementEventResult, type AchievementListItem, maskAchievement } from '@/lib/achievements';
-import { getSkinCatalog } from '@/lib/catalogs';
-import { dailySeed, seededShuffle } from '@/lib/daily-set';
+import { getDailySkindleTarget } from '@/lib/skindle-daily';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 type AchievementRow = {
@@ -31,8 +30,7 @@ function isMissingAchievementsTableError(error: unknown) {
 }
 
 function getDailySkindleTargetId() {
-  const [target] = seededShuffle(getSkinCatalog(), dailySeed('skindle'));
-  return target?.id ?? null;
+  return getDailySkindleTarget()?.id ?? null;
 }
 
 async function getCompletedRows() {

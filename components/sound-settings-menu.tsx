@@ -3,13 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { MessageCircle, Volume2, VolumeX, UserPlus } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
-import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
+import { subscribeToAuthSession } from '@/lib/auth-session-client';
+import { getProfileBootstrap } from '@/lib/profile-bootstrap-client';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { DEFAULT_UI_SOUND_SETTINGS, readUiSoundSettings, saveUiSoundSettings, type UiSoundSettings } from '@/lib/ui-sounds';
-
-type SoundSettingsResponse = {
-  settings: UiSoundSettings | null;
-};
 
 function ToggleSwitch({ enabled }: { enabled: boolean }) {
   return (
@@ -85,25 +82,16 @@ export function SoundSettingsMenu() {
       }
 
       try {
-        await getSessionScopedRequest('sound-settings', session, async () => {
-          const response = await fetch('/api/profile/sound-settings', {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          if (!response.ok) {
-            return;
-          }
+        const data = await getProfileBootstrap(session);
+        if (!data.soundSettings) {
+          saveAccountSettings(readUiSoundSettings());
+          return;
+        }
 
-          const data = await response.json() as SoundSettingsResponse;
-          if (!data.settings) {
-            saveAccountSettings(readUiSoundSettings());
-            return;
-          }
-
-          hydratingRef.current = true;
-          saveUiSoundSettings(data.settings);
-          setSettings(data.settings);
-          hydratingRef.current = false;
-        });
+        hydratingRef.current = true;
+        saveUiSoundSettings(data.soundSettings);
+        setSettings(data.soundSettings);
+        hydratingRef.current = false;
       } catch {
         hydratingRef.current = false;
       }

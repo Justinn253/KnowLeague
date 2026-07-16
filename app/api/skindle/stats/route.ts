@@ -12,7 +12,9 @@ function shouldIncludeTopGuesses(request: Request) {
 export async function GET(request: Request) {
   const dateKey = getDailyDateKey();
   const stats = await getSkindleDailyStats(dateKey, shouldIncludeTopGuesses(request));
-  return NextResponse.json(stats);
+  return NextResponse.json(stats, {
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }
 
 export async function POST(request: Request) {

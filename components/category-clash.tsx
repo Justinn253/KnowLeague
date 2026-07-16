@@ -30,6 +30,18 @@ import type {
 
 const STORAGE_KEY = 'knowleague:v1:category-clash:lobby-code';
 const API_BASE = '/api/category-clash/lobbies';
+let categoryClashPublicLobbiesRequest: Promise<CategoryClashPublicLobby[]> | null = null;
+
+function loadCategoryClashPublicLobbies() {
+  if (categoryClashPublicLobbiesRequest) return categoryClashPublicLobbiesRequest;
+  const request = fetch(`${API_BASE}/public`, { cache: 'no-store' }).then(readPublicLobbiesResponse);
+  categoryClashPublicLobbiesRequest = request;
+  const clear = () => {
+    if (categoryClashPublicLobbiesRequest === request) categoryClashPublicLobbiesRequest = null;
+  };
+  void request.then(clear, clear);
+  return request;
+}
 
 type DraftSettings = {
   gameMode: CategoryClashGameMode;
@@ -262,7 +274,10 @@ export function CategoryClash() {
   const previousRemainingSecondsRef = useRef<number | null>(null);
   const isLeavingLobbyRef = useRef(false);
   const ignoredLobbyCodeRef = useRef<string | null>(null);
-  const requestInFlightRef = useRef(false);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshVersionRef = useRef(0);
+  const heartbeatInFlightRef = useRef(false);
+  const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const viewRef = useRef<CategoryClashLobbyView | null>(null);
   const settingsDirtyRef = useRef(false);
   const countdownSoundSecondRef = useRef<number | null>(null);
@@ -396,22 +411,32 @@ export function CategoryClash() {
   }, []);
 
   const refreshView = useCallback(async () => {
-    const currentView = viewRef.current;
-    if (!currentView || !clientId || requestInFlightRef.current || isLeavingLobbyRef.current) return;
-    requestInFlightRef.current = true;
-    try {
-      await requestLobby(`${API_BASE}/${currentView.lobby.code}?clientId=${encodeURIComponent(clientId)}`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to refresh lobby.');
-    } finally {
-      requestInFlightRef.current = false;
-    }
+    refreshVersionRef.current += 1;
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const request = (async () => {
+      let handledVersion = 0;
+      while (handledVersion !== refreshVersionRef.current && !isLeavingLobbyRef.current) {
+        handledVersion = refreshVersionRef.current;
+        const currentView = viewRef.current;
+        if (!currentView || !clientId) return;
+        try {
+          await requestLobby(`${API_BASE}/${currentView.lobby.code}?clientId=${encodeURIComponent(clientId)}`);
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'Unable to refresh lobby.');
+        }
+      }
+    })();
+    refreshInFlightRef.current = request;
+    const clear = () => {
+      if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
+    };
+    void request.then(clear, clear);
+    return request;
   }, [clientId, requestLobby]);
 
   const loadPublicLobbies = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/public`, { cache: 'no-store' });
-      setPublicLobbies(await readPublicLobbiesResponse(response));
+      setPublicLobbies(await loadCategoryClashPublicLobbies());
     } catch {
       setPublicLobbies([]);
     }
@@ -493,22 +518,23 @@ export function CategoryClash() {
     if (!connectedLobbyCode || !clientId) return undefined;
     const code = connectedLobbyCode;
     const sendHeartbeat = async () => {
+      if (heartbeatInFlightRef.current) return;
+      heartbeatInFlightRef.current = true;
       try {
-        await requestLobby(`${API_BASE}/${code}/heartbeat`, {
+        const response = await fetch(`${API_BASE}/${code}/heartbeat`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clientId, connected: true }),
         });
+        if (!response.ok) await readLobbyResponse(response);
       } catch {
         // Realtime or the next heartbeat will retry transient failures.
+      } finally {
+        heartbeatInFlightRef.current = false;
       }
     };
     void sendHeartbeat();
-    const interval = window.setInterval(() => {
-      void requestLobby(`${API_BASE}/${code}/heartbeat`, {
-        method: 'POST',
-        body: JSON.stringify({ clientId, connected: true }),
-      }).catch(() => undefined);
-    }, MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
+    const interval = window.setInterval(() => void sendHeartbeat(), MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [clientId, connectedLobbyCode, requestLobby]);
 
@@ -524,10 +550,18 @@ export function CategoryClash() {
         table: 'category_clash_lobby_events',
         filter: `lobby_id=eq.${activeLobbyId}`,
       }, () => {
-        void refreshView();
+        if (realtimeRefreshTimeoutRef.current) window.clearTimeout(realtimeRefreshTimeoutRef.current);
+        realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+          realtimeRefreshTimeoutRef.current = null;
+          void refreshView();
+        }, 100);
       })
       .subscribe();
     return () => {
+      if (realtimeRefreshTimeoutRef.current) {
+        window.clearTimeout(realtimeRefreshTimeoutRef.current);
+        realtimeRefreshTimeoutRef.current = null;
+      }
       void supabase.removeChannel(channel);
     };
   }, [activeLobbyId, clientId, refreshView]);

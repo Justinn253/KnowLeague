@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, memo, type CSSProperties, FormEvent, type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, Shuffle } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -62,6 +62,11 @@ type ChatGroup = {
   messages: string[];
 };
 
+type NormalizedAnswer<T> = {
+  value: T;
+  normalized: string;
+};
+
 const LOBBY_STORAGE_KEY = SKINCOGNITO_LOBBY_STORAGE_KEY;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
 
@@ -90,6 +95,39 @@ const EMPTY_ANSWERS: SkincognitoAnswers = {
   role: [],
   race: [],
 };
+
+let skincognitoAnswersRequest: Promise<SkincognitoAnswers> | null = null;
+let skincognitoPublicLobbiesRequest: Promise<SkincognitoPublicLobby[]> | null = null;
+
+function loadSkincognitoAnswers() {
+  if (!skincognitoAnswersRequest) {
+    skincognitoAnswersRequest = fetch('/api/skincognito/answers')
+      .then((response) => {
+        if (!response.ok) throw new Error('Unable to load Skincognito answers.');
+        return response.json() as Promise<SkincognitoAnswers>;
+      })
+      .catch((error) => {
+        skincognitoAnswersRequest = null;
+        throw error;
+      });
+  }
+  return skincognitoAnswersRequest;
+}
+
+function loadSkincognitoPublicLobbies() {
+  if (skincognitoPublicLobbiesRequest) return skincognitoPublicLobbiesRequest;
+
+  const request = fetch('/api/skincognito/lobbies/public').then((response) => {
+    if (!response.ok) throw new Error('Unable to load public Skincognito lobbies.');
+    return response.json() as Promise<SkincognitoPublicLobby[]>;
+  });
+  skincognitoPublicLobbiesRequest = request;
+  const clearRequest = () => {
+    if (skincognitoPublicLobbiesRequest === request) skincognitoPublicLobbiesRequest = null;
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
 
 function getPlayerById(view: SkincognitoLobbyView | null, playerId?: string | null) {
   if (!view || !playerId) {
@@ -204,22 +242,98 @@ function createChatGroups(
       return groups;
     }
 
-    return [
-      ...groups,
-      {
-        key: chat.id,
-        playerId: chat.player_id,
-        label,
-        alignRight,
-        nameStyle: getChatNameStyleForPlayer(view, chat.player_id),
-        avatarUrl: actor?.avatar_url ?? null,
-        chatColor,
-        chatBorder,
-        messages: [chat.message],
-      },
-    ];
+    groups.push({
+      key: chat.id,
+      playerId: chat.player_id,
+      label,
+      alignRight,
+      nameStyle: getChatNameStyleForPlayer(view, chat.player_id),
+      avatarUrl: actor?.avatar_url ?? null,
+      chatColor,
+      chatBorder,
+      messages: [chat.message],
+    });
+    return groups;
   }, []);
 }
+
+const ChatMessageList = memo(forwardRef<HTMLDivElement, {
+  groups: ChatGroup[];
+  wasAtBottomRef: MutableRefObject<boolean>;
+}>(function ChatMessageList({ groups, wasAtBottomRef }, ref) {
+  return (
+    <div
+      ref={ref}
+      onScroll={(event) => {
+        wasAtBottomRef.current = isScrolledToBottom(event.currentTarget);
+      }}
+      className={`mt-3 grid flex-1 content-start gap-3 overflow-y-auto pr-5 ${THEMED_SCROLLBAR_CLASS}`}
+    >
+      {groups.map((group) => {
+        const bubbleStyle = getChatBubbleStyle(group.chatColor, group.chatBorder);
+        const inviteButtonStyle = getChatInviteButtonStyle(group.chatColor, group.alignRight);
+        return (
+          <div
+            key={group.key}
+            className={`min-w-0 max-w-[78%] ${group.alignRight ? 'ml-auto mr-3 text-right' : 'mr-auto text-left'}`}
+          >
+            <div className={`flex items-end gap-2 ${group.alignRight ? 'flex-row-reverse' : ''}`}>
+              <span
+                className="mb-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-900 bg-cover bg-center text-xs font-black text-amber-200"
+                style={group.avatarUrl ? { backgroundImage: `url(${group.avatarUrl})` } : undefined}
+              >
+                {group.avatarUrl ? null : group.label.slice(0, 1).toUpperCase()}
+              </span>
+              <div className={`min-w-0 ${group.alignRight ? 'text-right' : 'text-left'}`}>
+                <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em]" style={group.nameStyle}>
+                  {group.label}
+                </p>
+                <div className={`grid gap-1 text-sm ${group.alignRight ? 'justify-items-end' : 'justify-items-start'}`}>
+                  {group.messages.map((chatMessage, index) => {
+                    const inviteUrl = getSkincognitoInviteUrl(chatMessage);
+                    return inviteUrl ? (
+                      <div
+                        key={`${group.key}-${index}`}
+                        className={`max-w-full break-words rounded-xl px-3 py-2 font-medium [overflow-wrap:anywhere] ${group.alignRight ? 'text-right' : 'text-left'}`}
+                        style={bubbleStyle}
+                      >
+                        <div className={`flex flex-wrap items-center gap-2 ${group.alignRight ? 'justify-end' : 'justify-start'}`}>
+                          <span>Skincognito invite</span>
+                          <button
+                            type="button"
+                            disabled={group.alignRight}
+                            onClick={() => {
+                              if (group.alignRight) return;
+                              window.location.href = inviteUrl;
+                            }}
+                            className={`inline-flex min-h-8 items-center justify-center rounded-xl px-3 text-xs font-bold transition ${
+                              group.alignRight ? 'cursor-not-allowed' : ''
+                            }`}
+                            style={inviteButtonStyle}
+                          >
+                            {group.alignRight ? 'Sent' : 'Join Game'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p
+                        key={`${group.key}-${index}`}
+                        className={`max-w-full break-words rounded-xl px-3 py-2 font-medium [overflow-wrap:anywhere] ${group.alignRight ? 'text-right' : 'text-left'}`}
+                        style={bubbleStyle}
+                      >
+                        {chatMessage}
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}));
 
 function getLobbyStatusLabel(view: SkincognitoLobbyView | null) {
   if (!view) {
@@ -308,6 +422,9 @@ export function Skincognito() {
   const wasGuessesAtBottomRef = useRef(true);
   const wasChatAtBottomRef = useRef(true);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
+  const lobbyRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const lobbyRefreshVersionRef = useRef(0);
+  const heartbeatInFlightRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
@@ -367,8 +484,14 @@ export function Skincognito() {
   const opponentPlayer = requestingPlayer?.id === playerOne?.id ? playerTwo : playerOne;
   const topPlayer = requestingPlayer?.role === 'spectator' ? playerOne : opponentPlayer;
   const bottomPlayer = requestingPlayer?.role === 'spectator' ? playerTwo : requestingPlayer;
-  const topCorrectCategories = getCategoryCorrectSet(lobbyView, topPlayer?.id);
-  const bottomCorrectCategories = getCategoryCorrectSet(lobbyView, bottomPlayer?.id);
+  const topCorrectCategories = useMemo(
+    () => getCategoryCorrectSet(lobbyView, topPlayer?.id),
+    [lobbyView, topPlayer?.id],
+  );
+  const bottomCorrectCategories = useMemo(
+    () => getCategoryCorrectSet(lobbyView, bottomPlayer?.id),
+    [bottomPlayer?.id, lobbyView],
+  );
   const isTurn = Boolean(requestingPlayer && lobbyView?.lobby.current_turn_player_id === requestingPlayer.id);
   const isStartCountdownPending = Boolean(
     lobbyView?.lobby.status === 'active' &&
@@ -401,15 +524,29 @@ export function Skincognito() {
     INPUT_CATEGORIES.filter((category) => !ownCorrectCategories.has(category.id))
   ), [ownCorrectCategories]);
   const selectedCategoryLabel = INPUT_CATEGORIES.find((category) => category.id === selectedCategory)?.label ?? 'Skin';
+  const normalizedSkinAnswers = useMemo<NormalizedAnswer<SkinAnswer>[]>(
+    () => answers.skin.map((skin) => ({ value: skin, normalized: normalizeAnswer(skin.label) })),
+    [answers.skin],
+  );
+  const normalizedCategoryAnswers = useMemo(() => ({
+    champion: answers.champion.map((value) => ({ value, normalized: normalizeAnswer(value) })),
+    skinLine: answers.skinLine.map((value) => ({ value, normalized: normalizeAnswer(value) })),
+    releaseYear: answers.releaseYear.map((value) => ({ value, normalized: normalizeAnswer(value) })),
+    rarity: answers.rarity.map((value) => ({ value, normalized: normalizeAnswer(value) })),
+    gender: answers.gender.map((value) => ({ value, normalized: normalizeAnswer(value) })),
+    role: answers.role.map((value) => ({ value, normalized: normalizeAnswer(value) })),
+    race: answers.race.map((value) => ({ value, normalized: normalizeAnswer(value) })),
+  }), [answers]);
   const suggestions = useMemo(() => {
     const query = normalizeAnswer(skinQuery);
     if (query.length < 2 || selectedSkin?.label === skinQuery) {
       return [];
     }
 
-    return answers.skin
-      .filter((skin) => normalizeAnswer(skin.label).includes(query));
-  }, [answers.skin, selectedSkin?.label, skinQuery]);
+    return normalizedSkinAnswers
+      .filter((entry) => entry.normalized.includes(query))
+      .map((entry) => entry.value);
+  }, [normalizedSkinAnswers, selectedSkin?.label, skinQuery]);
 
   const guessSuggestions = useMemo(() => {
     const query = normalizeAnswer(guessQuery);
@@ -418,20 +555,18 @@ export function Skincognito() {
     }
 
     if (selectedCategory === 'skin') {
-      return answers.skin
-        .filter((skin) => normalizeAnswer(skin.label).includes(query))
-        .filter((skin) => !guessedValues.has(normalizeAnswer(skin.label)))
-        .map((skin) => ({ id: skin.id, label: skin.label, imageUrl: skin.imageUrl }));
+      return normalizedSkinAnswers
+        .filter((entry) => entry.normalized.includes(query) && !guessedValues.has(entry.normalized))
+        .map(({ value: skin }) => ({ id: skin.id, label: skin.label, imageUrl: skin.imageUrl }));
     }
 
-    return answers[selectedCategory]
-      .filter((value) => normalizeAnswer(value).includes(query))
-      .filter((value) => !guessedValues.has(normalizeAnswer(value)))
-      .map((value) => ({ id: value, label: value, imageUrl: null }));
-  }, [answers, guessedValues, guessQuery, selectedCategory]);
+    return normalizedCategoryAnswers[selectedCategory]
+      .filter((entry) => entry.normalized.includes(query) && !guessedValues.has(entry.normalized))
+      .map(({ value }) => ({ id: value, label: value, imageUrl: null }));
+  }, [guessedValues, guessQuery, normalizedCategoryAnswers, normalizedSkinAnswers, selectedCategory]);
 
   const recentActions = useMemo(() => (
-    [...(lobbyView?.actions ?? [])].slice(-8)
+    (lobbyView?.actions ?? []).slice(-8)
   ), [lobbyView?.actions]);
   const visibleChatMessages = useMemo(() => (
     (lobbyView?.chatMessages ?? []).filter((chat) => chat.message_type !== 'system')
@@ -446,26 +581,27 @@ export function Skincognito() {
     }
 
     if (selectedCategory === 'skin') {
-      const skin = answers.skin.find((answer) => normalizeAnswer(answer.label) === query);
+      const skin = normalizedSkinAnswers.find((entry) => entry.normalized === query)?.value;
       return skin ? { id: skin.id, label: skin.label, imageUrl: skin.imageUrl } : null;
     }
 
-    const value = answers[selectedCategory].find((answer) => normalizeAnswer(answer) === query);
+    const value = normalizedCategoryAnswers[selectedCategory].find((entry) => entry.normalized === query)?.value;
     return value ? { id: value, label: value, imageUrl: null } : null;
-  }, [answers, guessedValues, guessQuery, selectedCategory]);
+  }, [guessedValues, guessQuery, normalizedCategoryAnswers, normalizedSkinAnswers, selectedCategory]);
   const canSubmitExactGuess = Boolean(canSubmitAction && exactGuessSuggestion);
-  const finishedPlayerStats = [playerOne, playerTwo]
+  const finishedPlayerStats = useMemo(() => [playerOne, playerTwo]
     .filter((player): player is SkincognitoPublicPlayer => Boolean(player))
     .map((player) => {
-      const playerActions = lobbyView?.actions.filter((action) => action.player_id === player.id) ?? [];
-      return {
-        player,
-        turns: playerActions.length,
-        correct: playerActions.filter((action) => action.is_correct).length,
-        wrong: playerActions.filter((action) => !action.is_correct).length,
-        skinGuesses: playerActions.filter((action) => action.action_type === 'skin_guess').length,
-      };
-    });
+      const stats = { turns: 0, correct: 0, wrong: 0, skinGuesses: 0 };
+      (lobbyView?.actions ?? []).forEach((action) => {
+        if (action.player_id !== player.id) return;
+        stats.turns += 1;
+        if (action.is_correct) stats.correct += 1;
+        else stats.wrong += 1;
+        if (action.action_type === 'skin_guess') stats.skinGuesses += 1;
+      });
+      return { player, ...stats };
+    }), [lobbyView?.actions, playerOne, playerTwo]);
   const isFinishedWinner = Boolean(requestingPlayer && winnerPlayer && requestingPlayer.id === winnerPlayer.id);
   const isFinishedLoser = Boolean(requestingPlayer && finishedTargetPlayer && requestingPlayer.id === finishedTargetPlayer.id);
   const skincognitoRecordResult = lobbyView?.lobby.status === 'finished' && requestingPlayer?.role !== 'spectator'
@@ -596,31 +732,50 @@ export function Skincognito() {
 
   const refreshLobbyView = useCallback(async (code: string, nextClientId: string) => {
     if (isLeavingLobbyRef.current) return;
-    try {
-      const response = await fetch(`/api/skincognito/lobbies/${code}?clientId=${nextClientId}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          window.localStorage.removeItem(LOBBY_STORAGE_KEY);
-          setLobbyView(null);
-          router.replace('/');
-          return;
-        }
-        throw new Error(data.error || 'Unable to refresh Skincognito lobby.');
-      }
-
-      if (data.lobby && !data.requestingPlayer && hasRequestingPlayerRef.current) {
-        window.localStorage.removeItem(LOBBY_STORAGE_KEY);
-        setLobbyView(null);
-        setMessage('You are no longer in this lobby.');
-        return;
-      }
-
-      updateLobbyView(data);
-    } catch (error) {
-      console.error('Failed to refresh Skincognito lobby', error);
+    lobbyRefreshVersionRef.current += 1;
+    if (lobbyRefreshInFlightRef.current) {
+      return lobbyRefreshInFlightRef.current;
     }
+
+    const request = (async () => {
+      let handledVersion = 0;
+      while (handledVersion !== lobbyRefreshVersionRef.current && !isLeavingLobbyRef.current) {
+        handledVersion = lobbyRefreshVersionRef.current;
+        try {
+          const response = await fetch(`/api/skincognito/lobbies/${code}?clientId=${encodeURIComponent(nextClientId)}`);
+          const data = await response.json();
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+              setLobbyView(null);
+              router.replace('/');
+              return;
+            }
+            throw new Error(data.error || 'Unable to refresh Skincognito lobby.');
+          }
+
+          if (data.lobby && !data.requestingPlayer && hasRequestingPlayerRef.current) {
+            window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+            setLobbyView(null);
+            setMessage('You are no longer in this lobby.');
+            return;
+          }
+
+          updateLobbyView(data);
+        } catch (error) {
+          console.error('Failed to refresh Skincognito lobby', error);
+        }
+      }
+    })();
+
+    lobbyRefreshInFlightRef.current = request;
+    void request.then(() => {
+      if (lobbyRefreshInFlightRef.current === request) {
+        lobbyRefreshInFlightRef.current = null;
+      }
+    });
+    return request;
   }, [router, updateLobbyView]);
 
   useEffect(() => {
@@ -628,8 +783,7 @@ export function Skincognito() {
     setClientId(nextClientId);
     const supabase = getOptionalSupabaseClient();
 
-    fetch('/api/skincognito/answers')
-      .then((response) => response.json())
+    loadSkincognitoAnswers()
       .then((data: SkincognitoAnswers) => setAnswers({ ...EMPTY_ANSWERS, ...data, skin: data.skin ?? [] }))
       .catch((error) => {
         console.error('Failed to load Skincognito skin answers', error);
@@ -978,8 +1132,7 @@ export function Skincognito() {
 
   const loadPublicLobbies = useCallback(async () => {
     try {
-      const response = await fetch('/api/skincognito/lobbies/public');
-      if (response.ok) setPublicLobbies(await response.json());
+      setPublicLobbies(await loadSkincognitoPublicLobbies());
     } catch {
       // Code-based joining remains available if discovery is temporarily unavailable.
     }
@@ -998,11 +1151,15 @@ export function Skincognito() {
 
     const code = lobbyView.lobby.code;
     const sendHeartbeat = () => {
+      if (heartbeatInFlightRef.current) return;
+      heartbeatInFlightRef.current = true;
       fetch(`/api/skincognito/lobbies/${code}/heartbeat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, connected: true }),
-      }).catch(() => undefined);
+      }).catch(() => undefined).finally(() => {
+        heartbeatInFlightRef.current = false;
+      });
     };
 
     sendHeartbeat();
@@ -1625,76 +1782,11 @@ export function Skincognito() {
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Chat</p>
                   </div>
 
-                  <div
+                  <ChatMessageList
                     ref={chatScrollRef}
-                    onScroll={(event) => {
-                      wasChatAtBottomRef.current = isScrolledToBottom(event.currentTarget);
-                    }}
-                    className={`mt-3 grid flex-1 content-start gap-3 overflow-y-auto pr-5 ${THEMED_SCROLLBAR_CLASS}`}
-                  >
-                    {chatGroups.map((group) => {
-                      const bubbleStyle = getChatBubbleStyle(group.chatColor, group.chatBorder);
-                      const inviteButtonStyle = getChatInviteButtonStyle(group.chatColor, group.alignRight);
-                      return (
-                        <div
-                          key={group.key}
-                          className={`min-w-0 max-w-[78%] ${group.alignRight ? 'ml-auto mr-3 text-right' : 'mr-auto text-left'}`}
-                        >
-                          <div className={`flex items-end gap-2 ${group.alignRight ? 'flex-row-reverse' : ''}`}>
-                            <span
-                              className="mb-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-900 bg-cover bg-center text-xs font-black text-amber-200"
-                              style={group.avatarUrl ? { backgroundImage: `url(${group.avatarUrl})` } : undefined}
-                            >
-                              {group.avatarUrl ? null : group.label.slice(0, 1).toUpperCase()}
-                            </span>
-                            <div className={`min-w-0 ${group.alignRight ? 'text-right' : 'text-left'}`}>
-                              <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em]" style={group.nameStyle}>
-                                {group.label}
-                              </p>
-                              <div className={`grid gap-1 text-sm ${group.alignRight ? 'justify-items-end' : 'justify-items-start'}`}>
-                                {group.messages.map((chatMessage, index) => {
-                                  const inviteUrl = getSkincognitoInviteUrl(chatMessage);
-                                  return inviteUrl ? (
-                                    <div
-                                      key={`${group.key}-${index}`}
-                                      className={`max-w-full break-words rounded-xl px-3 py-2 font-medium [overflow-wrap:anywhere] ${group.alignRight ? 'text-right' : 'text-left'}`}
-                                      style={bubbleStyle}
-                                    >
-                                      <div className={`flex flex-wrap items-center gap-2 ${group.alignRight ? 'justify-end' : 'justify-start'}`}>
-                                      <span>Skincognito invite</span>
-                                      <button
-                                        type="button"
-                                        disabled={group.alignRight}
-                                        onClick={() => {
-                                          if (group.alignRight) return;
-                                          window.location.href = inviteUrl;
-                                        }}
-                                        className={`inline-flex min-h-8 items-center justify-center rounded-xl px-3 text-xs font-bold transition ${
-                                          group.alignRight ? 'cursor-not-allowed' : ''
-                                        }`}
-                                        style={inviteButtonStyle}
-                                      >
-                                        {group.alignRight ? 'Sent' : 'Join Game'}
-                                      </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <p
-                                      key={`${group.key}-${index}`}
-                                      className={`max-w-full break-words rounded-xl px-3 py-2 font-medium [overflow-wrap:anywhere] ${group.alignRight ? 'text-right' : 'text-left'}`}
-                                      style={bubbleStyle}
-                                    >
-                                      {chatMessage}
-                                    </p>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                    groups={chatGroups}
+                    wasAtBottomRef={wasChatAtBottomRef}
+                  />
 
                   <form onSubmit={submitChat} className="mt-3 flex gap-2">
                     <input

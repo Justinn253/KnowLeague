@@ -23,5 +23,9 @@ export async function POST(request: Request) {
     clientId: body.clientId,
   });
 
-  return NextResponse.json(result);
+  return NextResponse.json({
+    ...result.snapshot,
+    accepted: result.accepted,
+    clientAlreadySolved: result.clientAlreadySolved,
+  });
 }

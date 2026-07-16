@@ -9,10 +9,12 @@ const STORAGE_PREFIX = 'knowleague:v1';
 const CLIENT_ID_KEY = `${STORAGE_PREFIX}:client-id`;
 const DETAILED_STATS_KEY = `${STORAGE_PREFIX}:detailed-game-stats`;
 const PENDING_QUIZ_STATS_KEY = `${STORAGE_PREFIX}:pending-quiz-stats`;
+const MASTERY_MASTER_STATS_KEY = `${STORAGE_PREFIX}:mastery-master:stats`;
 const MAX_RECORDED_MATCH_IDS = 250;
 const MAX_SKIN_GUESS_STATS = 50;
 export const STREAK_GAME_IDS: StreakGameId[] = ['skindle', 'splash-scramble', 'ability-blitz', 'skin-champion'];
 export const PLAYER_GAME_STATS_CHANGED_EVENT = 'knowleague:player-game-stats-changed';
+export const MASTERY_MASTER_STATS_CHANGED_EVENT = 'knowleague:mastery-master-stats-changed';
 
 export type PlayerGuessStat = {
   itemId: string;
@@ -54,6 +56,18 @@ export type PlayerGameStats = {
 };
 
 export type PlayerGameStatsByGame = Partial<Record<StreakGameId, PlayerGameStats>>;
+
+export type MasteryMasterProfileUsage = {
+  riotId: string;
+  platform: string;
+  count: number;
+  lastUsedAt: string;
+};
+
+export type MasteryMasterStats = {
+  profileUsage: MasteryMasterProfileUsage[];
+  highestStreak: number;
+};
 
 export type PlayerCompletionGuess = {
   itemId: string;
@@ -200,6 +214,102 @@ export function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {
   };
 }
 
+export function createEmptyMasteryMasterStats(): MasteryMasterStats {
+  return {
+    profileUsage: [],
+    highestStreak: 0,
+  };
+}
+
+function normalizeMasteryMasterStats(stats?: Partial<MasteryMasterStats> | null): MasteryMasterStats {
+  const profileUsage = Array.isArray(stats?.profileUsage)
+    ? stats.profileUsage
+      .filter((profile): profile is MasteryMasterProfileUsage => Boolean(profile && typeof profile === 'object'))
+      .map((profile) => ({
+        riotId: typeof profile.riotId === 'string' ? profile.riotId.trim() : '',
+        platform: typeof profile.platform === 'string' ? profile.platform.trim().toUpperCase() : '',
+        count: Math.max(0, Math.floor(Number(profile.count) || 0)),
+        lastUsedAt: typeof profile.lastUsedAt === 'string' ? profile.lastUsedAt : '',
+      }))
+      .filter((profile) => profile.riotId && profile.platform && profile.count > 0)
+      .sort((left, right) => right.count - left.count || right.lastUsedAt.localeCompare(left.lastUsedAt))
+      .slice(0, 50)
+    : [];
+
+  return {
+    profileUsage,
+    highestStreak: Math.max(0, Math.floor(Number(stats?.highestStreak) || 0)),
+  };
+}
+
+export function loadMasteryMasterStats() {
+  if (!isStorageAvailable()) {
+    return createEmptyMasteryMasterStats();
+  }
+
+  try {
+    const rawStats = window.localStorage.getItem(MASTERY_MASTER_STATS_KEY);
+    return rawStats ? normalizeMasteryMasterStats(JSON.parse(rawStats) as Partial<MasteryMasterStats>) : createEmptyMasteryMasterStats();
+  } catch (error) {
+    console.warn('Unable to load saved mastery master stats.', error);
+    return createEmptyMasteryMasterStats();
+  }
+}
+
+function saveMasteryMasterStats(stats: MasteryMasterStats) {
+  if (!isStorageAvailable()) {
+    return;
+  }
+
+  try {
+    const normalizedStats = normalizeMasteryMasterStats(stats);
+    window.localStorage.setItem(MASTERY_MASTER_STATS_KEY, JSON.stringify(normalizedStats));
+    window.dispatchEvent(new CustomEvent(MASTERY_MASTER_STATS_CHANGED_EVENT, { detail: normalizedStats }));
+  } catch (error) {
+    console.warn('Unable to save mastery master stats.', error);
+  }
+}
+
+export function recordMasteryMasterProfile(riotId: string, platform: string) {
+  const normalizedRiotId = riotId.trim();
+  const normalizedPlatform = platform.trim().toUpperCase();
+  if (!normalizedRiotId || !normalizedPlatform) {
+    return loadMasteryMasterStats();
+  }
+
+  const currentStats = loadMasteryMasterStats();
+  const profileKey = `${normalizedRiotId.toLowerCase()}::${normalizedPlatform}`;
+  const updatedProfiles = currentStats.profileUsage.map((profile) => ({ ...profile }));
+  const existingProfile = updatedProfiles.find((profile) => `${profile.riotId.toLowerCase()}::${profile.platform}` === profileKey);
+  if (existingProfile) {
+    existingProfile.count += 1;
+    existingProfile.lastUsedAt = new Date().toISOString();
+  } else {
+    updatedProfiles.push({
+      riotId: normalizedRiotId,
+      platform: normalizedPlatform,
+      count: 1,
+      lastUsedAt: new Date().toISOString(),
+    });
+  }
+
+  const updatedStats = normalizeMasteryMasterStats({ ...currentStats, profileUsage: updatedProfiles });
+  saveMasteryMasterStats(updatedStats);
+  return updatedStats;
+}
+
+export function recordMasteryMasterStreak(streak: number) {
+  const currentStats = loadMasteryMasterStats();
+  const nextStreak = Math.max(0, Math.floor(streak));
+  if (nextStreak <= currentStats.highestStreak) {
+    return currentStats;
+  }
+
+  const updatedStats = { ...currentStats, highestStreak: nextStreak };
+  saveMasteryMasterStats(updatedStats);
+  return updatedStats;
+}
+
 function normalizeCompletedDates(dates: unknown) {
   return Array.isArray(dates)
     ? [...new Set(dates.filter((date): date is string => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
@@ -242,6 +352,17 @@ export function normalizePlayerGameStats(gameId: GameId, stats?: Partial<PlayerG
     lastCorrectGuess: stats?.lastCorrectGuess ?? null,
     streaksByScope,
   };
+}
+
+export function normalizePlayerGameStatsByGame(stats: unknown): PlayerGameStatsByGame {
+  if (!stats || typeof stats !== 'object') {
+    return {};
+  }
+
+  return Object.fromEntries(STREAK_GAME_IDS.flatMap((gameId) => {
+    const rawStats = (stats as Partial<Record<StreakGameId, Partial<PlayerGameStats>>>)[gameId];
+    return rawStats ? [[gameId, normalizePlayerGameStats(gameId, rawStats)]] : [];
+  }));
 }
 
 export function mergePlayerGameStats(gameId: GameId, left?: Partial<PlayerGameStats> | null, right?: Partial<PlayerGameStats> | null) {
@@ -610,7 +731,12 @@ export function savePlayerGameStats(stats: PlayerGameStats) {
 
   try {
     const normalizedStats = normalizePlayerGameStats(stats.gameId, stats);
-    window.localStorage.setItem(getPlayerStatsKey(stats.gameId), JSON.stringify(normalizedStats));
+    const storageKey = getPlayerStatsKey(stats.gameId);
+    const serializedStats = JSON.stringify(normalizedStats);
+    if (window.localStorage.getItem(storageKey) === serializedStats) {
+      return;
+    }
+    window.localStorage.setItem(storageKey, serializedStats);
     window.dispatchEvent(new CustomEvent(PLAYER_GAME_STATS_CHANGED_EVENT, { detail: { gameId: normalizedStats.gameId, stats: normalizedStats } }));
   } catch (error) {
     console.warn(`Unable to save ${stats.gameId} player stats.`, error);
@@ -819,19 +945,6 @@ export function loadSoloQuizGameState<TState>(
     console.warn(`Unable to load saved ${gameId} ${mode} state.`, error);
     return null;
   }
-}
-
-export function hasSoloQuizGameState(
-  gameId: QuizStatsGameId,
-  mode: SoloQuizStorageMode,
-  difficulty: string,
-  dateKey = getDailyDateKey(),
-) {
-  if (!isStorageAvailable()) {
-    return false;
-  }
-
-  return window.localStorage.getItem(getSoloQuizStateKey(gameId, mode, difficulty, dateKey)) !== null;
 }
 
 export function saveSoloQuizGameState<TState>(

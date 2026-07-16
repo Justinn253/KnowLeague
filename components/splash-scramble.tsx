@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
@@ -122,6 +122,8 @@ const STATS_STORAGE_KEY = 'knowleague:v1:splash-scramble:stats';
 const SKIN_SEARCH_ROW_HEIGHT = 56;
 const SKIN_SEARCH_MAX_HEIGHT = 360;
 const SKIN_SEARCH_OVERSCAN = 4;
+const CLOCKWISE_ROTATION_KEYS = new Set(['arrowup', 'arrowleft', 'w', 'a']);
+const COUNTER_CLOCKWISE_ROTATION_KEYS = new Set(['arrowdown', 'arrowright', 's', 'd']);
 const DEFAULT_SETTINGS: SplashScrambleSettings = {
   gridSize: 6,
   timeLimit: null,
@@ -157,6 +159,10 @@ const timeOptions: TimeOption[] = [
   { seconds: 720, label: '12:00' },
   { seconds: null, label: 'No Timer' },
 ];
+
+let splashScrambleSkinsRequest: Promise<QuizItem[]> | null = null;
+const splashScrambleDailyTargetRequests = new Map<string, Promise<QuizItem>>();
+const splashScrambleAccountRequests = new Map<string, Promise<AccountPayload | null>>();
 
 function createEmptyStats(): SplashScrambleStats {
   return {
@@ -216,12 +222,24 @@ function preloadImage(src: string) {
 }
 
 async function fetchSkins() {
-  const response = await fetch('/api/skindle/skins', { cache: 'no-store' });
-  if (!response.ok) {
-    throw new Error('Unable to load skin list.');
+  if (splashScrambleSkinsRequest) {
+    return splashScrambleSkinsRequest;
   }
 
-  return (await response.json() as QuizItem[]).filter((skin) => skin.imageUrl);
+  splashScrambleSkinsRequest = fetch('/api/skindle/skins')
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error('Unable to load skin list.');
+      }
+      return response.json() as Promise<QuizItem[]>;
+    })
+    .then((skins) => skins.filter((skin) => skin.imageUrl))
+    .catch((error) => {
+      splashScrambleSkinsRequest = null;
+      throw error;
+    });
+
+  return splashScrambleSkinsRequest;
 }
 
 async function loadRandomSkin(cachedSkins: readonly QuizItem[], excludedSkinId?: string) {
@@ -240,12 +258,26 @@ async function loadRandomSkin(cachedSkins: readonly QuizItem[], excludedSkinId?:
 }
 
 async function loadDailySkin() {
-  const response = await fetch('/api/skindle/target', { cache: 'no-store' });
-  if (!response.ok) {
-    throw new Error('Unable to load daily splash art.');
+  const dateKey = getDailyDateKey();
+  const existingRequest = splashScrambleDailyTargetRequests.get(dateKey);
+  if (existingRequest) {
+    return existingRequest;
   }
 
-  return await response.json() as QuizItem;
+  const request = fetch('/api/skindle/target')
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error('Unable to load daily splash art.');
+      }
+      return response.json() as Promise<QuizItem>;
+    });
+  splashScrambleDailyTargetRequests.set(dateKey, request);
+  void request.catch(() => {
+    if (splashScrambleDailyTargetRequests.get(dateKey) === request) {
+      splashScrambleDailyTargetRequests.delete(dateKey);
+    }
+  });
+  return request;
 }
 
 function getInitialLockedPositions(tiles: readonly number[], rotations: readonly RotationDegrees[], lockCorrectTiles: boolean) {
@@ -469,25 +501,39 @@ async function syncAccountStats(stats: SplashScrambleStats) {
   });
 }
 
-async function loadAccountPayload(): Promise<AccountPayload | null> {
-  const token = await getAccountToken();
+async function loadAccountPayload(accessToken?: string | null): Promise<AccountPayload | null> {
+  const token = accessToken === undefined ? await getAccountToken() : accessToken;
   if (!token) {
     return null;
   }
 
-  const response = await fetch('/api/splash-scramble/state', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) {
-    return null;
+  const existingRequest = splashScrambleAccountRequests.get(token);
+  if (existingRequest) {
+    return existingRequest;
   }
 
-  const result = await response.json() as { state?: SavedRoundState | null; stats?: SplashScrambleStats | null };
-  const round = result.state ?? null;
-  return {
-    state: round && isRoundResumeable(round) ? round : null,
-    stats: result.stats ? normalizeStats(result.stats) : null,
+  const request = fetch('/api/splash-scramble/state', {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then(async (response) => {
+    if (!response.ok) {
+      return null;
+    }
+
+    const result = await response.json() as { state?: SavedRoundState | null; stats?: SplashScrambleStats | null };
+    const round = result.state ?? null;
+    return {
+      state: round && isRoundResumeable(round) ? round : null,
+      stats: result.stats ? normalizeStats(result.stats) : null,
+    };
+  });
+  splashScrambleAccountRequests.set(token, request);
+  const clearRequest = () => {
+    if (splashScrambleAccountRequests.get(token) === request) {
+      splashScrambleAccountRequests.delete(token);
+    }
   };
+  void request.then(clearRequest, clearRequest);
+  return request;
 }
 
 function SettingButton({
@@ -601,6 +647,104 @@ function EndStateSettingsCard({
   );
 }
 
+type PuzzleBoardProps = {
+  tiles: readonly number[];
+  rotations: readonly RotationDegrees[];
+  activeColumns: number;
+  activeRows: number;
+  boardColumns: CSSProperties;
+  boardUsesRotatedMobileView: boolean;
+  imageUrl: string | null;
+  selectedTile: number | null;
+  lockedPositions: ReadonlySet<number>;
+  flashingPositions: ReadonlySet<number>;
+  misplacedHintPositions: ReadonlySet<number>;
+  onTileClick: (position: number) => void;
+};
+
+const PuzzleBoard = memo(function PuzzleBoard({
+  tiles,
+  rotations,
+  activeColumns,
+  activeRows,
+  boardColumns,
+  boardUsesRotatedMobileView,
+  imageUrl,
+  selectedTile,
+  lockedPositions,
+  flashingPositions,
+  misplacedHintPositions,
+  onTileClick,
+}: PuzzleBoardProps) {
+  return (
+    <div
+      className={`grid overflow-hidden ${
+        boardUsesRotatedMobileView
+          ? 'absolute left-1/2 top-1/2 aspect-video w-[177.777%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:static sm:h-full sm:w-full sm:translate-x-0 sm:translate-y-0 sm:rotate-0'
+          : 'h-full w-full'
+      }`}
+      style={boardColumns}
+      aria-label="Scrambled splash art puzzle"
+    >
+      {tiles.map((tile, position) => {
+        const tileRow = Math.floor(tile / activeColumns);
+        const tileColumn = tile % activeColumns;
+        const x = activeColumns === 1 ? 0 : (tileColumn / (activeColumns - 1)) * 100;
+        const y = activeRows === 1 ? 0 : (tileRow / (activeRows - 1)) * 100;
+        const selected = selectedTile === position;
+        const locked = lockedPositions.has(position);
+        const flashing = flashingPositions.has(position);
+        const misplacedHint = misplacedHintPositions.has(position);
+        const rotation = rotations[position] ?? 0;
+
+        return (
+          <button
+            key={position}
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onTileClick(position)}
+            disabled={locked}
+            className={`relative min-h-0 overflow-hidden border bg-slate-950 transition focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-default ${
+              flashing
+                ? 'z-20 border-emerald-300 ring-2 ring-inset ring-emerald-300 shadow-[0_0_22px_rgba(52,211,153,0.55)] brightness-125'
+                : selected
+                  ? 'z-20 scale-[0.98] border-amber-300 ring-2 ring-inset ring-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.4)]'
+                  : misplacedHint
+                    ? 'z-10 border-sky-300 ring-2 ring-inset ring-sky-300 shadow-[0_0_22px_rgba(125,211,252,0.6)] brightness-125'
+                    : locked
+                      ? 'border-emerald-400/40 brightness-105'
+                      : 'border-slate-950/60 hover:brightness-110'
+            }`}
+            aria-label={`Tile ${position + 1}${locked ? ', locked' : ''}`}
+            aria-pressed={selected}
+          >
+            <span
+              className="absolute inset-0 bg-cover bg-no-repeat"
+              style={{
+                backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
+                backgroundPosition: `${x}% ${y}%`,
+                backgroundSize: `${activeColumns * 100}% ${activeRows * 100}%`,
+                transform: `rotate(${rotation}deg)`,
+              }}
+            />
+            {selected || flashing || misplacedHint ? (
+              <span
+                className={`pointer-events-none absolute inset-0 z-10 ${
+                  flashing
+                    ? 'ring-4 ring-inset ring-emerald-300 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.95),0_0_20px_rgba(52,211,153,0.75)]'
+                    : selected
+                      ? 'ring-4 ring-inset ring-amber-300 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.95),0_0_18px_rgba(251,191,36,0.55)]'
+                      : 'ring-4 ring-inset ring-sky-300 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.95),0_0_20px_rgba(125,211,252,0.75)]'
+                }`}
+              />
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+});
+
 export function SplashScramble() {
   const [phase, setPhase] = useState<PuzzlePhase>('prematch');
   const [roundMode, setRoundMode] = useState<PuzzleMode>('regular');
@@ -665,7 +809,9 @@ export function SplashScramble() {
   const endsAtRef = useRef<number | null>(endsAt);
   const buildSavedRoundRef = useRef<(() => SavedRoundState | null)>(() => null);
   const rotateSelectedTileRef = useRef<(direction?: 1 | -1) => void>(() => undefined);
+  const handleTileClickRef = useRef<(position: number) => void>(() => undefined);
   const activeDateKeyRef = useRef(getDailyDateKey());
+  const handleTileClick = useCallback((position: number) => handleTileClickRef.current(position), []);
 
   phaseRef.current = phase;
   roundModeRef.current = roundMode;
@@ -689,8 +835,9 @@ export function SplashScramble() {
   const activeRows = tiles.length > 0 ? Math.ceil(tiles.length / activeColumns) : configuredRows;
   const tileCount = started || roundEnded ? tiles.length : configuredTileCount;
   const puzzleLabel = `${configuredColumns} x ${configuredRows}`;
-  const correctPositions = useMemo(() => countCorrectPositions(tiles, rotations), [rotations, tiles]);
-  const misplacedPositionCount = useMemo(() => getMisplacedPositions(tiles, rotations).length, [rotations, tiles]);
+  const misplacedPositions = useMemo(() => getMisplacedPositions(tiles, rotations), [rotations, tiles]);
+  const misplacedPositionCount = misplacedPositions.length;
+  const correctPositions = tiles.length - misplacedPositionCount;
   const timerLabel = timeLimit === null ? 'No Timer' : formatTimer(timeLimit);
   const activeTimeValue = timeLimit === null ? formatTimer(elapsedSeconds) : formatTimer(remainingSeconds);
   const timerUrgent = phase === 'playing' && timeLimit !== null && remainingSeconds > 0 && remainingSeconds <= 10;
@@ -700,7 +847,6 @@ export function SplashScramble() {
     gridTemplateRows: `repeat(${activeRows}, minmax(0, 1fr))`,
   }), [activeColumns, activeRows]);
   const boardUsesRotatedMobileView = mobileViewRotated && !rotateTiles;
-  const selectedRotation = selectedTile === null ? 0 : rotations[selectedTile] ?? 0;
   const skinSearchIndex = useMemo(() => (
     skinCatalog.map((skin) => ({
       skin,
@@ -1078,8 +1224,8 @@ export function SplashScramble() {
       setDailyResumeRound(localDailyRound);
     }
 
-    const loadProfileData = () => {
-      loadAccountPayload()
+    const loadProfileData = (accessToken?: string | null) => {
+      loadAccountPayload(accessToken)
         .then((payload) => {
           if (!payload) {
             setProfileStatsLoaded(false);
@@ -1107,9 +1253,9 @@ export function SplashScramble() {
 
     loadProfileData();
     const supabase = getOptionalSupabaseClient();
-    const subscription = supabase?.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-        loadProfileData();
+    const subscription = supabase?.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        loadProfileData(session?.access_token ?? null);
         void loadDailyLeaderboard();
       }
 
@@ -1341,7 +1487,7 @@ export function SplashScramble() {
     } else {
       setResumeRound(round);
     }
-  }, [buildSavedRound, elapsedSeconds]);
+  }, [buildSavedRound]);
 
   useEffect(() => {
     if (phase !== 'playing' || moves === 0 || moves % 5 !== 0 || lastAccountSyncMoveRef.current === moves) {
@@ -1640,7 +1786,6 @@ export function SplashScramble() {
       return;
     }
 
-    const misplacedPositions = getMisplacedPositions(tiles, rotations);
     if (misplacedPositions.length === 0) {
       return;
     }
@@ -1679,7 +1824,7 @@ export function SplashScramble() {
     return 0;
   };
 
-  const handleTileClick = (position: number) => {
+  handleTileClickRef.current = (position: number) => {
     if (phase !== 'playing' || lockedPositions.has(position)) {
       return;
     }
@@ -1744,14 +1889,12 @@ export function SplashScramble() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      const clockwiseKeys = new Set(['arrowup', 'arrowleft', 'w', 'a']);
-      const counterClockwiseKeys = new Set(['arrowdown', 'arrowright', 's', 'd']);
-      if (!clockwiseKeys.has(key) && !counterClockwiseKeys.has(key)) {
+      if (!CLOCKWISE_ROTATION_KEYS.has(key) && !COUNTER_CLOCKWISE_ROTATION_KEYS.has(key)) {
         return;
       }
 
       event.preventDefault();
-      rotateSelectedTileRef.current(clockwiseKeys.has(key) ? 1 : -1);
+      rotateSelectedTileRef.current(CLOCKWISE_ROTATION_KEYS.has(key) ? 1 : -1);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -2176,71 +2319,20 @@ export function SplashScramble() {
               : mobileViewRotated ? 'aspect-[9/16] sm:aspect-video' : 'aspect-video'
           }`}
         >
-          <div
-            className={`grid overflow-hidden ${
-              boardUsesRotatedMobileView
-                ? 'absolute left-1/2 top-1/2 aspect-video w-[177.777%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:static sm:h-full sm:w-full sm:translate-x-0 sm:translate-y-0 sm:rotate-0'
-                : 'h-full w-full'
-            }`}
-            style={boardColumns}
-            aria-label="Scrambled splash art puzzle"
-          >
-            {tiles.map((tile, position) => {
-              const tileRow = Math.floor(tile / activeColumns);
-              const tileColumn = tile % activeColumns;
-              const x = activeColumns === 1 ? 0 : (tileColumn / (activeColumns - 1)) * 100;
-              const y = activeRows === 1 ? 0 : (tileRow / (activeRows - 1)) * 100;
-              const selected = selectedTile === position;
-              const locked = lockedPositions.has(position);
-              const flashing = flashingPositions.has(position);
-              const misplacedHint = misplacedHintPositions.has(position);
-              const rotation = rotations[position] ?? 0;
-
-              return (
-                <button
-                  key={position}
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => handleTileClick(position)}
-                  disabled={locked}
-                  className={`relative min-h-0 overflow-hidden border bg-slate-950 transition focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-default ${
-                    flashing
-                      ? 'z-20 border-emerald-300 ring-2 ring-inset ring-emerald-300 shadow-[0_0_22px_rgba(52,211,153,0.55)] brightness-125'
-                      : selected
-                        ? 'z-20 scale-[0.98] border-amber-300 ring-2 ring-inset ring-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.4)]'
-                        : misplacedHint
-                          ? 'z-10 border-sky-300 ring-2 ring-inset ring-sky-300 shadow-[0_0_22px_rgba(125,211,252,0.6)] brightness-125'
-                          : locked
-                            ? 'border-emerald-400/40 brightness-105'
-                            : 'border-slate-950/60 hover:brightness-110'
-                  }`}
-                  aria-label={`Tile ${position + 1}${locked ? ', locked' : ''}`}
-                  aria-pressed={selected}
-                >
-                  <span
-                    className="absolute inset-0 bg-cover bg-no-repeat"
-                  style={{
-                      backgroundImage: targetSkin ? `url(${targetSkin.imageUrl})` : undefined,
-                      backgroundPosition: `${x}% ${y}%`,
-                      backgroundSize: `${activeColumns * 100}% ${activeRows * 100}%`,
-                      transform: `rotate(${rotation}deg)`,
-                    }}
-                  />
-                  {selected || flashing || misplacedHint ? (
-                    <span
-                      className={`pointer-events-none absolute inset-0 z-10 ${
-                        flashing
-                          ? 'ring-4 ring-inset ring-emerald-300 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.95),0_0_20px_rgba(52,211,153,0.75)]'
-                          : selected
-                            ? 'ring-4 ring-inset ring-amber-300 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.95),0_0_18px_rgba(251,191,36,0.55)]'
-                            : 'ring-4 ring-inset ring-sky-300 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.95),0_0_20px_rgba(125,211,252,0.75)]'
-                      }`}
-                    />
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
+          <PuzzleBoard
+            tiles={tiles}
+            rotations={rotations}
+            activeColumns={activeColumns}
+            activeRows={activeRows}
+            boardColumns={boardColumns}
+            boardUsesRotatedMobileView={boardUsesRotatedMobileView}
+            imageUrl={targetSkin?.imageUrl ?? null}
+            selectedTile={selectedTile}
+            lockedPositions={lockedPositions}
+            flashingPositions={flashingPositions}
+            misplacedHintPositions={misplacedHintPositions}
+            onTileClick={handleTileClick}
+          />
         </div>
       </div>
 

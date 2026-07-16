@@ -33,6 +33,7 @@ import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progr
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { QuizItemCarousel } from '@/components/quiz-item-carousel';
+import { QuizProgressCard } from '@/components/quiz-progress-card';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
 import { getSkinThemeAnswer } from '@/lib/skin-themes';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -131,6 +132,39 @@ const defaultModifiers = modifiers.reduce(
 );
 
 const entryCountOptions = [10, 25, 50, 75, 100] as const;
+let skinChampionAnswersRequest: Promise<string[]> | null = null;
+const skinChampionItemsRequests = new Map<string, Promise<QuizItem[]>>();
+
+function loadSkinChampionAnswers() {
+  if (!skinChampionAnswersRequest) {
+    skinChampionAnswersRequest = fetch('/api/skin-champion/quiz-answers?answerMode=skin-line')
+      .then((response) => {
+        if (!response.ok) throw new Error('Unable to load skin line answers.');
+        return response.json() as Promise<string[]>;
+      })
+      .catch((error) => {
+        skinChampionAnswersRequest = null;
+        throw error;
+      });
+  }
+  return skinChampionAnswersRequest;
+}
+
+function loadSkinChampionItems(url: string) {
+  const existingRequest = skinChampionItemsRequests.get(url);
+  if (existingRequest) return existingRequest;
+
+  const request = fetch(url).then((response) => {
+    if (!response.ok) throw new Error('Unable to load skins.');
+    return response.json() as Promise<QuizItem[]>;
+  });
+  skinChampionItemsRequests.set(url, request);
+  const clearRequest = () => {
+    if (skinChampionItemsRequests.get(url) === request) skinChampionItemsRequests.delete(url);
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
 
 function createModifierState(activeIds: readonly string[] = []) {
   return modifiers.reduce(
@@ -174,11 +208,10 @@ function getCropOrigin(item?: QuizItem | null) {
 }
 
 export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRuntime }) {
-  const multiplayerItems = multiplayer?.items.map((item, index) => ({
+  const [items, setItems] = useState<QuizItem[]>(() => multiplayer?.items.map((item, index) => ({
     ...item,
     guessed: index < multiplayer.initialProgress,
-  }));
-  const [items, setItems] = useState<QuizItem[]>(multiplayerItems ?? []);
+  })) ?? []);
   const [answers, setAnswers] = useState<string[]>([]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
@@ -232,6 +265,18 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const hasRestoredStateRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
   const multiplayerResultSoundRef = useRef<string | null>(null);
+  const persistenceSnapshotRef = useRef<{
+    mode: SoloQuizMode;
+    difficulty: DifficultyId;
+    state: SkinChampionDailyState;
+    enabled: boolean;
+  } | null>(null);
+  const persistCurrentGameState = useCallback(() => {
+    const snapshot = persistenceSnapshotRef.current;
+    if (snapshot?.enabled) {
+      saveSoloQuizGameState('skin-champion', snapshot.mode, snapshot.difficulty, snapshot.state);
+    }
+  }, []);
 
   const currentItem = started ? items[activeIndex] ?? null : null;
   const nextItem = started ? items[activeIndex + 1] ?? null : null;
@@ -247,7 +292,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const autocompleteEnabled = difficultyRule.autocomplete;
   const chaosMode = soloMode === 'chaos';
   const shouldHideTimers = activeModifiers.hiddenTimer && !chaosMode;
-  const completedProgressCount = items.filter((item) => item.guessed).length;
+  const completedProgressCount = useMemo(() => items.filter((item) => item.guessed).length, [items]);
   const showSinglePlayerEndState = !multiplayer && finished;
   const showEndState = showSinglePlayerEndState || Boolean(multiplayer && finished);
   const showSoloPrematch = !multiplayer && !started && !finished && !failed;
@@ -256,6 +301,25 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const answerLabel = 'skin line';
   const promptLabel = 'skin line';
   const itemBadgeLabel = 'Line';
+  persistenceSnapshotRef.current = {
+    mode: soloMode,
+    difficulty: selectedDifficulty,
+    enabled: !multiplayer && storageReady && (hasLoadedOnce || started || finished || failed),
+    state: {
+      items,
+      soloMode,
+      selectedDifficulty,
+      activeModifiers,
+      entryCount,
+      started,
+      activeIndex,
+      currentTime,
+      totalTime,
+      completedTimes,
+      finished,
+      failed,
+    },
+  };
   const getAnswerForItem = useCallback(
     (item: QuizItem) => getSkinThemeAnswer(item) ?? item.answer,
     [],
@@ -286,7 +350,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
   }, [multiplayerGameEnded, multiplayerInitialProgress]);
 
-  const getSkinImageClassName = (cardLabel: string) => {
+  const getSkinImageClassName = useCallback((cardLabel: string) => {
     const classes = ['h-full w-full object-contain transition duration-300'];
 
     if (activeModifiers.greyscale) {
@@ -298,7 +362,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     }
 
     return classes.join(' ');
-  };
+  }, [activeModifiers.blurred, activeModifiers.greyscale, difficultyRule.upcomingVisibility]);
 
   const filteredAnswers = useMemo(
     () => Array.from(new Set(items.map(getAnswerForItem).filter(Boolean))).sort(),
@@ -309,6 +373,87 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     () => (answers.length ? answers : filteredAnswers),
     [answers, filteredAnswers],
   );
+  const autocompleteSearchIndex = useMemo(
+    () => autocompleteAnswers.map((answer) => ({ answer, normalized: normalizeAnswer(answer) })),
+    [autocompleteAnswers],
+  );
+  const carouselSlots = useMemo(() => ([
+    {
+      id: 'next',
+      label: 'Next item',
+      badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">{itemBadgeLabel}</span>,
+    },
+    {
+      id: 'current',
+      label: 'Current item',
+      badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">{itemBadgeLabel}</span>,
+    },
+    {
+      id: 'completed',
+      label: 'Completed',
+      subLabel: previousItem ? getAnswerForItem(previousItem) : undefined,
+      badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-emerald-300"><Check size={14} /></span>,
+    },
+  ] as const), [getAnswerForItem, previousItem]);
+  const renderCarouselItem = useCallback((item: QuizItem | null, role: 'next' | 'current' | 'previous') => {
+    const isCurrent = role === 'current';
+    const isCompleted = role === 'previous';
+    const cardLabel = isCompleted ? 'Completed' : isCurrent ? 'Current item' : 'Next item';
+    const fallback = isCompleted
+      ? `Your completed ${promptLabel}s appear here`
+      : isCurrent
+        ? `Press Play to reveal the next ${promptLabel}`
+        : `Next ${promptLabel} will appear here`;
+
+    return (
+      <div
+        className={`relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 bg-slate-950/50 text-white shadow-2xl shadow-black/20 transition ${
+          isCurrent && successFlash
+            ? 'border-emerald-400/70 ring-1 ring-emerald-400/40'
+            : isCurrent
+              ? 'border-violet-500/50'
+              : isCompleted
+                ? 'border-emerald-500/20'
+                : 'border-slate-400/70'
+        }`}
+      >
+        {item && role === 'next' && difficultyRule.upcomingVisibility === 'blocked' ? (
+          <div className="flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em]">Hidden</p>
+          </div>
+        ) : item?.imageUrl ? (
+          <div className="relative z-10 flex h-full w-full flex-col">
+            <div className="relative h-full min-h-0 flex-1">
+              <Image
+                key={`${cardLabel}-${item.id}`}
+                src={item.imageUrl}
+                alt={item.question}
+                width={1215}
+                height={717}
+                className={getSkinImageClassName(cardLabel)}
+                priority={isCurrent}
+                style={{
+                  transform:
+                    activeModifiers.cropped && !isCompleted
+                      ? `scale(${isCurrent ? croppedZoom : CROPPED_INITIAL_ZOOM})`
+                      : undefined,
+                  transformOrigin:
+                    activeModifiers.cropped && !isCompleted
+                      ? getCropOrigin(item)
+                      : undefined,
+                  transition: 'transform 240ms ease',
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="relative z-10 flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-400">
+            <p className="text-sm leading-6">{fallback}</p>
+          </div>
+        )}
+      </div>
+    );
+  }, [activeModifiers.cropped, croppedZoom, difficultyRule.upcomingVisibility, getSkinImageClassName, successFlash]);
 
   useEffect(() => {
     if (multiplayer || !storageReady) {
@@ -343,10 +488,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams({ answerMode: 'skin-line' });
-
-    fetch(`/api/skin-champion/quiz-answers${params.size ? `?${params}` : ''}`)
-      .then((res) => res.json())
+    loadSkinChampionAnswers()
       .then((data) => {
         if (Array.isArray(data)) {
           setAnswers(data);
@@ -381,25 +523,22 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   }, [multiplayer, selectedDifficulty, showSoloPrematch, soloMode, storageReady]);
 
   useEffect(() => {
-    if (multiplayer || !storageReady || (!hasLoadedOnce && !started && !finished && !failed)) {
-      return;
-    }
+    persistCurrentGameState();
+  }, [activeIndex, activeModifiers, completedTimes, entryCount, failed, finished, hasLoadedOnce, items, multiplayer, penaltyCount, persistCurrentGameState, selectedDifficulty, soloMode, started, storageReady]);
 
-    saveSoloQuizGameState<SkinChampionDailyState>('skin-champion', soloMode, selectedDifficulty, {
-      items,
-      soloMode,
-      selectedDifficulty,
-      activeModifiers,
-      entryCount,
-      started,
-      activeIndex,
-      currentTime,
-      totalTime,
-      completedTimes,
-      finished,
-      failed,
-    });
-  }, [activeIndex, activeModifiers, completedTimes, currentTime, entryCount, failed, finished, hasLoadedOnce, items, multiplayer, selectedDifficulty, soloMode, started, storageReady, totalTime]);
+  useEffect(() => {
+    if (totalTime > 0 && totalTime % 5 === 0) {
+      persistCurrentGameState();
+    }
+  }, [persistCurrentGameState, totalTime]);
+
+  useEffect(() => {
+    window.addEventListener('pagehide', persistCurrentGameState);
+    return () => {
+      window.removeEventListener('pagehide', persistCurrentGameState);
+      persistCurrentGameState();
+    };
+  }, [persistCurrentGameState]);
 
   useEffect(() => {
     const shouldRecord = multiplayer ? multiplayerGameEnded : finished || failed;
@@ -527,8 +666,12 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
-    setSuggestions(autocompleteAnswers.filter((answer) => normalizeAnswer(answer).includes(query)));
-  }, [autocompleteAnswers, autocompleteEnabled, currentItem, inputValue]);
+    setSuggestions(
+      autocompleteSearchIndex
+        .filter((entry) => entry.normalized.includes(query))
+        .map((entry) => entry.answer),
+    );
+  }, [autocompleteEnabled, autocompleteSearchIndex, currentItem, inputValue]);
 
   useEffect(() => {
     if (!currentItem) {
@@ -594,8 +737,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
           difficulty: selectedDifficulty,
           entries: String(entryCount),
         });
-        const response = await fetch(`/api/skin-champion/quiz-items?${params}`);
-        const data = await response.json();
+        const data = await loadSkinChampionItems(`/api/skin-champion/quiz-items?${params}`);
         if (Array.isArray(data) && data.length > 0) {
           setItems(soloMode === 'casual' ? shuffle(data).slice(0, entryCount) : data.slice(0, entryCount));
         }
@@ -1315,88 +1457,13 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
         {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
           {!showEndState ? (
             <QuizItemCarousel
-              slots={[
-                {
-                  id: 'next',
-                  label: 'Next item',
-                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">{itemBadgeLabel}</span>,
-                },
-                {
-                  id: 'current',
-                  label: 'Current item',
-                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300">{itemBadgeLabel}</span>,
-                },
-                {
-                  id: 'completed',
-                  label: 'Completed',
-                  subLabel: previousItem ? getAnswerForItem(previousItem) : undefined,
-                  badge: <span className="rounded-full bg-slate-950/80 px-3 py-1 text-xs uppercase tracking-[0.25em] text-emerald-300"><Check size={14} /></span>,
-                },
-              ]}
+              slots={carouselSlots}
               afterNextItem={afterNextItem}
               nextItem={nextItem}
               currentItem={currentItem}
               previousItem={previousItem}
               isSliding={isSliding}
-              renderItem={(item, role) => {
-                const isCurrent = role === 'current';
-                const isCompleted = role === 'previous';
-                const cardLabel = isCompleted ? 'Completed' : isCurrent ? 'Current item' : 'Next item';
-                const fallback = isCompleted
-                  ? `Your completed ${promptLabel}s appear here`
-                  : isCurrent
-                    ? `Press Play to reveal the next ${promptLabel}`
-                    : `Next ${promptLabel} will appear here`;
-
-                return (
-                  <div
-                    className={`relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 bg-slate-950/50 text-white shadow-2xl shadow-black/20 transition ${
-                      isCurrent && successFlash
-                        ? 'border-emerald-400/70 ring-1 ring-emerald-400/40'
-                        : isCurrent
-                          ? 'border-violet-500/50'
-                          : isCompleted
-                            ? 'border-emerald-500/20'
-                            : 'border-slate-400/70'
-                    }`}
-                  >
-                    {item && role === 'next' && difficultyRule.upcomingVisibility === 'blocked' ? (
-                      <div className="flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-500">
-                        <p className="text-xs font-semibold uppercase tracking-[0.24em]">Hidden</p>
-                      </div>
-                    ) : item?.imageUrl ? (
-                      <div className="relative z-10 flex h-full w-full flex-col">
-                        <div className="relative h-full min-h-0 flex-1">
-                          <Image
-                            key={`${cardLabel}-${item.id}`}
-                            src={item.imageUrl}
-                            alt={item.question}
-                            width={1215}
-                            height={717}
-                            className={getSkinImageClassName(cardLabel)}
-                            priority={isCurrent}
-                            style={{
-                              transform:
-                                activeModifiers.cropped && !isCompleted
-                                  ? `scale(${isCurrent ? croppedZoom : CROPPED_INITIAL_ZOOM})`
-                                  : undefined,
-                              transformOrigin:
-                                activeModifiers.cropped && !isCompleted
-                                  ? getCropOrigin(item)
-                                  : undefined,
-                              transition: 'transform 240ms ease',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="relative z-10 flex h-full w-full items-center justify-center bg-slate-950/70 p-4 text-center text-slate-400">
-                        <p className="text-sm leading-6">{fallback}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              }}
+              renderItem={renderCarouselItem}
             />
           ) : null}
 
@@ -1457,7 +1524,11 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     return;
                   }
 
-                  setSuggestions(autocompleteAnswers.filter((answer) => normalizeAnswer(answer).includes(query)));
+                  setSuggestions(
+                    autocompleteSearchIndex
+                      .filter((entry) => entry.normalized.includes(query))
+                      .map((entry) => entry.answer),
+                  );
                 }}
                 className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/10 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -1543,30 +1614,18 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 const time = completedTimes[item.id];
 
                 return (
-                  <div
+                  <QuizProgressCard
                     key={item.id}
-                    className={`relative min-h-20 overflow-hidden rounded-3xl border px-4 py-3 pr-16 text-sm transition ${
-                      active
-                        ? 'border-violet-500/60 bg-violet-500/10'
-                        : completed
-                        ? 'border-emerald-500/30 bg-emerald-500/10'
-                        : 'border-white/10 bg-slate-950/70'
-                    }`}
-                  >
-                    <div className="text-sm font-semibold text-white">
-                      <span>{completed ? getAnswerForItem(item) : '???'}</span>
-                    </div>
-                    <p className="mt-2 text-sm leading-5 text-slate-400">
-                      {time ? `${formatSeconds(time.total)} - ${formatSeconds(time.duration)}` : 'TBD - TBD'}
-                    </p>
-                    <Image
-                      src={item.imageUrl}
-                      alt=""
-                      width={40}
-                      height={40}
-                      className={`absolute right-3 top-3 h-10 w-10 rounded-xl border border-white/10 object-cover ${completed ? '' : 'blur-sm brightness-75 scale-105'}`}
-                    />
-                  </div>
+                    item={item}
+                    state={active ? 'current' : completed ? 'completed' : 'pending'}
+                    title={completed ? getAnswerForItem(item) : '???'}
+                    detail={time ? `${formatSeconds(time.total)} - ${formatSeconds(time.duration)}` : 'TBD - TBD'}
+                    activeClassName="border-violet-500/60 bg-violet-500/10"
+                    completedClassName="border-emerald-500/30 bg-emerald-500/10"
+                    pendingClassName="border-white/10 bg-slate-950/70"
+                    pendingImageClassName="blur-sm brightness-75 scale-105"
+                    titleClassName="text-white"
+                  />
                 );
               })}
             </div>

@@ -102,12 +102,6 @@ function normalizeForChatFilter(value: string) {
   return normalized.replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-const blockedTermPatterns = BLOCKED_TERMS.map(({ value }) => {
-  const term = normalizeForChatFilter(decodeBlockedTerm(value)).replace(/\s+/g, '');
-  const separatedLetters = term.split('').map(escapeRegExp).join('\\s*');
-  return new RegExp(`(?:^|\\s)${separatedLetters}(?:\\s|$)`, 'i');
-});
-
 const sanitizerPatterns = BLOCKED_TERMS
   .map(({ value }) => normalizeForChatFilter(decodeBlockedTerm(value)).replace(/\s+/g, ''))
   .sort((left, right) => right.length - left.length)
@@ -120,24 +114,9 @@ function maskFilteredTerm(term: string) {
   return term.replace(/[^\s]/g, '*');
 }
 
-export function containsBlockedChatTerm(message: string) {
-  const normalizedMessage = normalizeForChatFilter(message);
-  if (!normalizedMessage) {
-    return false;
-  }
-
-  return blockedTermPatterns.some((pattern) => pattern.test(normalizedMessage));
-}
-
 export function sanitizeChatMessage(message: string) {
   return sanitizerPatterns.reduce(
     (sanitizedMessage, pattern) => sanitizedMessage.replace(pattern, (_match, prefix: string, term: string) => `${prefix}${maskFilteredTerm(term)}`),
     message,
   );
-}
-
-export function assertChatMessageAllowed(message: string) {
-  if (containsBlockedChatTerm(message)) {
-    throw new Error('Message blocked by chat safety filter.');
-  }
 }

@@ -70,10 +70,13 @@ type FriendMessageRow = {
 
 const ONLINE_WINDOW_MS = 20 * 1000;
 const FRIEND_MESSAGE_RETENTION_DAYS = 30;
+const FRIEND_MESSAGE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 type FriendRequestResult = 'requested' | 'accepted';
 export type PublicFriendRelationship = 'friend' | 'pending' | 'none';
 let endedAtColumnAvailable: boolean | null = null;
 let friendPreferenceColumnsAvailable: boolean | null = null;
+let lastFriendMessageCleanupAt = 0;
+let friendMessageCleanupPromise: Promise<void> | null = null;
 
 function isOnline(lastSeenAt?: string | null) {
   return Boolean(lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < ONLINE_WINDOW_MS);
@@ -394,47 +397,59 @@ async function deleteExpiredFriendMessages(supabase: ReturnType<typeof getSupaba
   }
 }
 
-export async function touchUserPresence(userId: string) {
-  await getSupabaseServiceClient()
-    .from('profiles')
-    .update({ last_seen_at: new Date().toISOString() })
-    .eq('id', userId);
+async function cleanUpExpiredFriendMessages(supabase: ReturnType<typeof getSupabaseServiceClient>) {
+  if (Date.now() - lastFriendMessageCleanupAt < FRIEND_MESSAGE_CLEANUP_INTERVAL_MS) return;
+  if (friendMessageCleanupPromise) return friendMessageCleanupPromise;
+
+  friendMessageCleanupPromise = deleteExpiredFriendMessages(supabase)
+    .then(() => {
+      lastFriendMessageCleanupAt = Date.now();
+    })
+    .catch(() => {
+      // Retention cleanup is maintenance and should not block dashboard or message reads.
+    })
+    .finally(() => {
+      friendMessageCleanupPromise = null;
+    });
+  return friendMessageCleanupPromise;
 }
 
 export async function getFriendDashboard(userId: string) {
   const supabase = getSupabaseServiceClient();
-  await deleteExpiredFriendMessages(supabase);
+  await cleanUpExpiredFriendMessages(supabase);
   const friendships = await getActiveFriendshipsForUser(supabase, userId);
 
   const friendIds = (friendships ?? []).map((friendship) => (
     friendship.user_one_id === userId ? friendship.user_two_id : friendship.user_one_id
   ));
 
-  const [currentProfile, friendProfiles] = await Promise.all([
-    selectProfilesByIds(supabase, [userId]).then((profiles) => profiles[0] ?? null),
-    selectProfilesByIds(supabase, friendIds),
-  ]);
-  const privateDetailsByUserId = await selectPrivateDetailsByUserIds(supabase, friendIds);
-
-  const { data: incoming, error: incomingError } = await supabase
+  const incomingRequest = supabase
     .from('friend_requests')
     .select('id, created_at, requester:profiles!friend_requests_requester_id_fkey(id, username, display_name, friend_requests_open, last_seen_at)')
     .eq('addressee_id', userId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
     .returns<Array<{ id: string; created_at: string; requester: ProfileRow }>>();
-
-  if (incomingError) {
-    throw incomingError;
-  }
-
-  const { data: readRows } = friendships && friendships.length > 0
-    ? await supabase
+  const readRowsRequest = friendships.length > 0
+    ? supabase
       .from('friend_message_reads')
       .select('friendship_id, last_read_at')
       .eq('user_id', userId)
       .returns<Array<{ friendship_id: string; last_read_at: string }>>()
-    : { data: [] };
+    : Promise.resolve({ data: [] as Array<{ friendship_id: string; last_read_at: string }>, error: null });
+
+  const [profiles, privateDetailsByUserId, incomingResult, readRowsResult] = await Promise.all([
+    selectProfilesByIds(supabase, [userId, ...friendIds]),
+    selectPrivateDetailsByUserIds(supabase, friendIds),
+    incomingRequest,
+    readRowsRequest,
+  ]);
+  const currentProfile = profiles.find((profile) => profile.id === userId) ?? null;
+  const friendIdSet = new Set(friendIds);
+  const friendProfiles = profiles.filter((profile) => friendIdSet.has(profile.id));
+  if (incomingResult.error) throw incomingResult.error;
+  const incoming = incomingResult.data;
+  const readRows = readRowsResult.data;
 
   const readByFriendship = new Map((readRows ?? []).map((row) => [row.friendship_id, row.last_read_at]));
   const unreadByFriendId = new Map<string, number>();
@@ -450,12 +465,14 @@ export async function getFriendDashboard(userId: string) {
     unreadByFriendId.set(friendId, count ?? 0);
   }));
 
+  const friendshipByFriendId = new Map(friendships.map((friendship) => [
+    friendship.user_one_id === userId ? friendship.user_two_id : friendship.user_one_id,
+    friendship,
+  ]));
   const friends = (friendProfiles ?? [])
     .filter((profile) => !profile.is_banned)
     .map((profile) => {
-      const friendship = (friendships ?? []).find((candidate) => (
-        candidate.user_one_id === profile.id || candidate.user_two_id === profile.id
-      ));
+      const friendship = friendshipByFriendId.get(profile.id);
       const viewerIsUserOne = friendship?.user_one_id === userId;
       return toSummary(profile, unreadByFriendId.get(profile.id) ?? 0, friendship?.id ?? '', {
         privateDetails: privateDetailsByUserId.get(profile.id) ?? null,
@@ -731,7 +748,7 @@ export async function respondToFriendRequest(userId: string, requestId: string, 
   await acceptFriendPair(supabase, request.requester_id, request.addressee_id);
 }
 
-export async function getFriendMessages(userId: string, friendId: string) {
+export async function getFriendMessages(userId: string, friendId: string, options: { markRead?: boolean } = {}) {
   const { userOneId, userTwoId } = orderedPair(userId, friendId);
   const supabase = getSupabaseServiceClient();
   const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
@@ -740,7 +757,7 @@ export async function getFriendMessages(userId: string, friendId: string) {
     throw new Error('You are not friends with this user.');
   }
 
-  await deleteExpiredFriendMessages(supabase);
+  await cleanUpExpiredFriendMessages(supabase);
 
   const { data: messages, error } = await supabase
     .from('friend_messages')
@@ -779,7 +796,18 @@ export async function getFriendMessages(userId: string, friendId: string) {
     throw readError;
   }
 
-  const profiles = await selectProfilesByIds(supabase, [userId, friendId]);
+  const profilesPromise = selectProfilesByIds(supabase, [userId, friendId]);
+  const markReadPromise = options.markRead
+    ? supabase
+      .from('friend_message_reads')
+      .upsert({
+        user_id: userId,
+        friendship_id: friendship.id,
+        last_read_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,friendship_id' })
+    : Promise.resolve({ error: null });
+  const [profiles, markReadResult] = await Promise.all([profilesPromise, markReadPromise]);
+  if (markReadResult.error) throw markReadResult.error;
   const lastReadAt = readRow?.last_read_at ?? '1970-01-01T00:00:00.000Z';
   const firstUnreadMessageId = messageRows.find((message) => (
     message.sender_id !== userId && message.created_at > lastReadAt
@@ -802,28 +830,6 @@ export async function getFriendMessages(userId: string, friendId: string) {
       },
     ])),
   };
-}
-
-export async function markFriendMessagesRead(userId: string, friendId: string) {
-  const { userOneId, userTwoId } = orderedPair(userId, friendId);
-  const supabase = getSupabaseServiceClient();
-  const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
-
-  if (!friendship) {
-    throw new Error('You are not friends with this user.');
-  }
-
-  const { error: upsertError } = await supabase
-    .from('friend_message_reads')
-    .upsert({
-      user_id: userId,
-      friendship_id: friendship.id,
-      last_read_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,friendship_id' });
-
-  if (upsertError) {
-    throw upsertError;
-  }
 }
 
 type SendFriendMessageOptions = {
@@ -856,7 +862,7 @@ export async function sendFriendMessage(
   }
 
   const [profile] = await selectProfilesByIds(supabase, [userId]);
-  const { error } = await supabase
+  const { data: insertedMessage, error } = await supabase
     .from('friend_messages')
     .insert({
       friendship_id: friendship.id,
@@ -864,11 +870,19 @@ export async function sendFriendMessage(
       message: filteredMessage,
       chat_color: normalizeChatColor(profile?.chat_color),
       chat_border: normalizeChatBorder(profile?.chat_border),
-    });
+    })
+    .select('id, sender_id, message, created_at, chat_color, chat_border')
+    .single<FriendMessageRow>();
 
   if (error) {
     throw error;
   }
+
+  return {
+    ...insertedMessage,
+    chat_color: normalizeChatColor(insertedMessage.chat_color),
+    chat_border: normalizeChatBorder(insertedMessage.chat_border),
+  };
 }
 
 export async function removeFriend(userId: string, friendId: string) {

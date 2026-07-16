@@ -103,12 +103,13 @@ export async function GET(request: Request, { params }: { params: { username: st
       throw new Error('Profile not found.');
     }
 
-    const [privateDetails, viewerId, achievements] = await Promise.all([
+    const [privateDetails, relationship, achievements] = await Promise.all([
       fetchPrivateDetails(profile.id),
-      getOptionalAuthenticatedUserId(request),
+      getOptionalAuthenticatedUserId(request).then((viewerId) => (
+        viewerId ? getFriendRelationship(viewerId, profile.id) : 'none'
+      )),
       getUserAchievements(profile.id),
     ]);
-    const relationship = viewerId ? await getFriendRelationship(viewerId, profile.id) : 'none';
 
     return NextResponse.json({
       profile: {

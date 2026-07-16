@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Award,
@@ -675,8 +675,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
         };
       }
 
-      await refreshFriendDashboard();
-      await refreshAchievements();
+      await Promise.all([refreshFriendDashboard(), refreshAchievements()]);
 
       setBusy(false);
     });
@@ -1341,14 +1340,14 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     : 1;
   const avatarDisplayWidth = avatarCropNaturalSize.width * avatarCoverScale;
   const avatarDisplayHeight = avatarCropNaturalSize.height * avatarCoverScale;
-  const earnedTitleRewards = getEarnedRewards(achievements, 'title');
-  const earnedBadgeRewards = getEarnedRewards(achievements, 'badge');
-  const selectedTitleReward = earnedTitleRewards.find((reward) => reward.id === selectedTitleRewardId) ?? null;
-  const displayedBadgeRewards = displayedBadgeRewardIds
+  const earnedTitleRewards = useMemo(() => getEarnedRewards(achievements, 'title'), [achievements]);
+  const earnedBadgeRewards = useMemo(() => getEarnedRewards(achievements, 'badge'), [achievements]);
+  const selectedTitleReward = useMemo(() => earnedTitleRewards.find((reward) => reward.id === selectedTitleRewardId) ?? null, [earnedTitleRewards, selectedTitleRewardId]);
+  const displayedBadgeRewards = useMemo(() => displayedBadgeRewardIds
     .map((rewardId) => earnedBadgeRewards.find((reward) => reward.id === rewardId))
-    .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward));
+    .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward)), [displayedBadgeRewardIds, earnedBadgeRewards]);
   const cleanAchievementSearch = achievementSearchQuery.trim().toLowerCase();
-  const visibleAchievements = achievements
+  const visibleAchievements = useMemo(() => achievements
     .filter((achievement) => achievementGameFilters.has(achievement.game))
     .filter((achievement) => {
       if (!cleanAchievementSearch) return true;
@@ -1374,7 +1373,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       const leftRank = left.topPercent;
       const rightRank = right.topPercent;
       return (leftRank - rightRank) * direction;
-    });
+    }), [achievementGameFilters, achievementSortDirection, achievementSortKey, achievements, cleanAchievementSearch]);
 
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>

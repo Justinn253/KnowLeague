@@ -24,7 +24,7 @@ function publishSession(session: Session | null, event: AuthChangeEvent) {
     return;
   }
 
-  if (!session) {
+  if (hasResolvedSession && !sessionsMatch(currentSession, session)) {
     sessionRequests.clear();
   }
 
@@ -47,12 +47,6 @@ function initializeAuthSession() {
 
   supabase.auth.onAuthStateChange((event, session) => {
     publishSession(session, event);
-  });
-
-  void supabase.auth.getSession().then(({ data }) => {
-    publishSession(data.session, 'INITIAL_SESSION');
-  }).catch(() => {
-    publishSession(null, 'INITIAL_SESSION');
   });
 }
 

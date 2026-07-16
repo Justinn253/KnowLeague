@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { MasteryMaster } from '@/components/mastery-master';
 
-export default function MasteryMasterRedirectPage() {
-  redirect('/riot-account-viewer');
+export default function MasteryMasterPage() {
+  return <MasteryMaster />;
 }

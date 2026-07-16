@@ -55,6 +55,7 @@ export type RecordSkindleGuessResult = {
 
 const STATS_PATH = path.join(process.cwd(), 'data', 'runtime', 'skindle-stats.json');
 let writeQueue = Promise.resolve();
+let statsCache: Record<string, SkindleDailyStatsRecord> | null = null;
 
 function createEmptyDailyRecord(dateKey: string): SkindleDailyStatsRecord {
   return {
@@ -68,12 +69,18 @@ function createEmptyDailyRecord(dateKey: string): SkindleDailyStatsRecord {
 }
 
 async function readStatsFile() {
+  if (statsCache) {
+    return statsCache;
+  }
+
   try {
     const rawStats = await fs.readFile(STATS_PATH, 'utf8');
-    return JSON.parse(rawStats) as Record<string, SkindleDailyStatsRecord>;
+    statsCache = JSON.parse(rawStats) as Record<string, SkindleDailyStatsRecord>;
+    return statsCache;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return {};
+      statsCache = {};
+      return statsCache;
     }
 
     throw error;
@@ -82,7 +89,8 @@ async function readStatsFile() {
 
 async function writeStatsFile(stats: Record<string, SkindleDailyStatsRecord>) {
   await fs.mkdir(path.dirname(STATS_PATH), { recursive: true });
-  await fs.writeFile(STATS_PATH, JSON.stringify(stats, null, 2), 'utf8');
+  await fs.writeFile(STATS_PATH, JSON.stringify(stats), 'utf8');
+  statsCache = stats;
 }
 
 function toSnapshot(record: SkindleDailyStatsRecord, includeTopGuesses = true): SkindleDailyStatsSnapshot {
@@ -151,9 +159,11 @@ export function recordSkindleGuess(input: RecordSkindleGuessInput, includeTopGue
       }
     }
 
-    dailyRecord.clients[input.clientId] = clientRecord;
-    stats[input.dateKey] = dailyRecord;
-    await writeStatsFile(stats);
+    if (accepted) {
+      dailyRecord.clients[input.clientId] = clientRecord;
+      stats[input.dateKey] = dailyRecord;
+      await writeStatsFile(stats);
+    }
 
     return {
       snapshot: toSnapshot(dailyRecord, includeTopGuesses),

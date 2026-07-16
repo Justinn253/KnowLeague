@@ -1,7 +1,7 @@
 import { dailySeed, seededShuffle } from '@/lib/daily-set';
 import { getAbilityCatalog, getSkinCatalog } from '@/lib/catalogs';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
-import { shuffle, type QuizItem } from '@/lib/quiz';
+import { shuffle } from '@/lib/quiz';
 
 export type SoloQuizGameId = 'ability-blitz' | 'skin-champion';
 export type SoloQuizMode = 'casual' | 'daily' | 'chaos';
@@ -366,9 +366,4 @@ export async function recordSoloLeaderboardEntry(input: {
 
 export function forceAllModifiers<TModifierState extends Record<string, boolean>>(modifiers: TModifierState) {
   return Object.fromEntries(Object.keys(modifiers).map((modifierId) => [modifierId, modifierId !== 'confirmEntry'])) as TModifierState;
-}
-
-export function filterDailyAbilityItems(items: QuizItem[], filter: (items: QuizItem[]) => QuizItem[], entryCount: number) {
-  const filtered = filter(items);
-  return (filtered.length ? filtered : items).slice(0, entryCount);
 }

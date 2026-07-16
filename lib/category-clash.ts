@@ -404,10 +404,6 @@ async function addSystemChatMessage(
   if (error) throw error;
 }
 
-function getUsedAnswerSet(lobby: CategoryClashLobby, categoryId: string) {
-  return new Set(lobby.used_answers[categoryId] ?? []);
-}
-
 function getNextUsedAnswers(
   lobby: CategoryClashLobby,
   categoryId: string,
@@ -1070,13 +1066,13 @@ async function advanceExpiredPhase(lobby: CategoryClashLobby, players: CategoryC
   return resolveSimultaneousRound(lobby, players);
 }
 
-async function reconcileCategoryClashLobby(lobby: CategoryClashLobby) {
+async function reconcileCategoryClashLobby(lobby: CategoryClashLobby, initialPlayers?: CategoryClashPlayerRecord[]) {
   if (lobby.status === 'finished' || lobby.status === 'terminated') {
     return lobby;
   }
 
   let nextLobby = lobby;
-  let players = await fetchPlayers(lobby.id);
+  let players = initialPlayers ?? await fetchPlayers(lobby.id);
   const nowMs = Date.now();
   const now = new Date(nowMs).toISOString();
   const stalePlayers = getStaleConnectedMembers(players, nowMs);
@@ -1789,6 +1785,7 @@ export async function heartbeatCategoryClashPlayer(code: string, clientId: strin
   const players = await fetchPlayers(lobby.id);
   const player = players.find((candidate) => candidate.client_id === clientId);
   if (!player) throw new Error('Player not found.');
+  const connectionChanged = player.connected !== connected;
   if (connected && lobby.status === 'active' && !player.connected && !canReconnect(player.disconnected_at)) {
     await reconcileCategoryClashLobby(lobby);
     throw new Error('The reconnect window has expired.');
@@ -1806,14 +1803,19 @@ export async function heartbeatCategoryClashPlayer(code: string, clientId: strin
     .eq('lobby_id', lobby.id)
     .eq('client_id', clientId);
   if (error) throw error;
-  await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
-  if (!connected && lobby.status === 'finished') {
-    const updatedLobby = await ensureCategoryClashHostPlayer(lobby, await fetchPlayers(lobby.id));
-    const startedMatch = await startNextMatchIfAllConnectedPlayersVoted(updatedLobby, clientId);
-    if (startedMatch) return startedMatch;
-    return getLobbyView(updatedLobby, clientId);
+  if (connectionChanged) {
+    await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
   }
-  return getLobbyView(lobby, clientId);
+  const updatedPlayers = players.map((candidate) => candidate.id === player.id
+    ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt, updated_at: now }
+    : candidate);
+  if (!connected && lobby.status === 'finished') {
+    const updatedLobby = await ensureCategoryClashHostPlayer(lobby, updatedPlayers);
+    const startedMatch = await startNextMatchIfAllConnectedPlayersVoted(updatedLobby, clientId);
+    return { connected, status: startedMatch?.lobby.status ?? updatedLobby.status };
+  }
+  const reconciledLobby = await reconcileCategoryClashLobby(lobby, updatedPlayers);
+  return { connected, status: reconciledLobby.status };
 }
 
 export async function leaveCategoryClashLobby(code: string, clientId: string, forfeit = false) {

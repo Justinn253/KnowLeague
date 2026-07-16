@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
-import { getFriendMessages, markFriendMessagesRead, sendFriendMessage } from '@/lib/friends';
+import { getFriendMessages, sendFriendMessage } from '@/lib/friends';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 import { checkRateLimit } from '@/lib/rate-limit';
 
@@ -20,10 +20,9 @@ export async function GET(request: Request) {
     const userId = await getAuthenticatedUserId(request);
     const url = new URL(request.url);
     const friendId = requireString(url.searchParams.get('friendId'), 'friendId');
-    const messages = await getFriendMessages(userId, friendId);
-    if (url.searchParams.get('markRead') !== 'false') {
-      await markFriendMessagesRead(userId, friendId);
-    }
+    const messages = await getFriendMessages(userId, friendId, {
+      markRead: url.searchParams.get('markRead') !== 'false',
+    });
     return NextResponse.json(messages);
   } catch (error) {
     return getRouteErrorResponse(error);
@@ -52,9 +51,8 @@ export async function POST(request: Request) {
       );
     }
 
-    await sendFriendMessage(userId, friendId, message);
-    const messages = await getFriendMessages(userId, friendId);
-    return NextResponse.json(messages);
+    const sentMessage = await sendFriendMessage(userId, friendId, message);
+    return NextResponse.json({ message: sentMessage });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

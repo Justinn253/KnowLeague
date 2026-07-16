@@ -41,6 +41,31 @@ import {
 const STORAGE_KEY = 'knowleague:v1:carving-revelation:lobby-code';
 const API_BASE = '/api/carving-revelation/lobbies';
 const FORFEIT_DISCONNECTED_AT = '1970-01-01T00:00:00.000Z';
+let carvingSkinAnswersRequest: Promise<string[]> | null = null;
+let carvingPublicLobbiesRequest: Promise<CarvingRevelationPublicLobby[]> | null = null;
+
+function loadCarvingSkinAnswers() {
+  if (!carvingSkinAnswersRequest) {
+    carvingSkinAnswersRequest = fetch('/api/skin-champion/quiz-answers?answerMode=skin-line')
+      .then((response) => response.ok ? response.json() as Promise<string[]> : Promise.reject(new Error('Unable to load skin lines.')))
+      .catch((error) => {
+        carvingSkinAnswersRequest = null;
+        throw error;
+      });
+  }
+  return carvingSkinAnswersRequest;
+}
+
+function loadCarvingPublicLobbies() {
+  if (carvingPublicLobbiesRequest) return carvingPublicLobbiesRequest;
+  const request = fetch(`${API_BASE}/public`).then(readPublicLobbiesResponse);
+  carvingPublicLobbiesRequest = request;
+  const clear = () => {
+    if (carvingPublicLobbiesRequest === request) carvingPublicLobbiesRequest = null;
+  };
+  void request.then(clear, clear);
+  return request;
+}
 const PHASE_TIME_OPTIONS: Array<{ value: number | null; label: string }> = [
   { value: 10, label: '10 seconds' },
   { value: 20, label: '20 seconds' },
@@ -778,6 +803,10 @@ export function CarvingRevelation() {
   const powerUpClaimsSnapshotRef = useRef<{ lobbyId: string; roundNumber: number; phase: 'carve' | 'guess'; ids: Set<string> } | null>(null);
   const pendingAcquiredPowerUpIdsRef = useRef<{ lobbyId: string; roundNumber: number; ids: Set<string> } | null>(null);
   const previousRosterSnapshotRef = useRef<{ hostId: string | null; roles: Map<string, string>; playerIds: Set<string> } | null>(null);
+  const lobbyRefreshInFlightRef = useRef<Promise<CarvingRevelationLobbyView> | null>(null);
+  const lobbyRefreshVersionRef = useRef(0);
+  const heartbeatInFlightRef = useRef(false);
+  const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [view, setView] = useState<CarvingRevelationLobbyView | null>(null);
   const [publicLobbies, setPublicLobbies] = useState<CarvingRevelationPublicLobby[]>([]);
@@ -1075,6 +1104,10 @@ export function CarvingRevelation() {
   const playerColorById = useMemo(() => Object.fromEntries(
     view?.players.map((player) => [player.id, player.carve_color]) ?? [],
   ), [view?.players]);
+  const normalizedSkinAnswers = useMemo(
+    () => skinAnswers.map((answer) => ({ answer, normalized: normalizeAnswer(answer) })),
+    [skinAnswers],
+  );
 
   const getGuessSuggestions = useCallback((value: string) => {
     const query = normalizeAnswer(value);
@@ -1082,10 +1115,11 @@ export function CarvingRevelation() {
       return [];
     }
 
-    return skinAnswers
-      .filter((answer) => normalizeAnswer(answer).includes(query))
+    return normalizedSkinAnswers
+      .filter((entry) => entry.normalized.includes(query))
+      .map((entry) => entry.answer)
       .slice(0, 12);
-  }, [canGuess, skinAnswers]);
+  }, [canGuess, normalizedSkinAnswers]);
 
   useEffect(() => {
     setSuggestions(getGuessSuggestions(guess));
@@ -1169,18 +1203,34 @@ export function CarvingRevelation() {
 
   const loadPublicLobbies = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/public`);
-      setPublicLobbies(await readPublicLobbiesResponse(response));
+      setPublicLobbies(await loadCarvingPublicLobbies());
     } catch {
       setPublicLobbies([]);
     }
   }, []);
 
   const refreshLobby = useCallback(async (code: string, activeClientId: string) => {
-    const response = await fetch(`${API_BASE}/${code}?clientId=${encodeURIComponent(activeClientId)}`);
-    const nextView = await readLobbyResponse(response);
-    applyView(nextView);
-    return nextView;
+    lobbyRefreshVersionRef.current += 1;
+    if (lobbyRefreshInFlightRef.current) return lobbyRefreshInFlightRef.current;
+
+    const request = (async () => {
+      let handledVersion = 0;
+      let latestView: CarvingRevelationLobbyView | null = null;
+      while (handledVersion !== lobbyRefreshVersionRef.current && !isLeavingLobbyRef.current) {
+        handledVersion = lobbyRefreshVersionRef.current;
+        const response = await fetch(`${API_BASE}/${code}?clientId=${encodeURIComponent(activeClientId)}`);
+        latestView = await readLobbyResponse(response);
+        applyView(latestView);
+      }
+      if (!latestView) throw new Error('Lobby refresh was cancelled.');
+      return latestView;
+    })();
+    lobbyRefreshInFlightRef.current = request;
+    const clear = () => {
+      if (lobbyRefreshInFlightRef.current === request) lobbyRefreshInFlightRef.current = null;
+    };
+    void request.then(clear, clear);
+    return request;
   }, [applyView]);
 
   const leaveCurrentLobby = useCallback(async (forfeit = false) => {
@@ -1240,8 +1290,7 @@ export function CarvingRevelation() {
   }, [loadPublicLobbies, refreshLobby]);
 
   useEffect(() => {
-    fetch('/api/skin-champion/quiz-answers?answerMode=skin-line')
-      .then((response) => response.json())
+    loadCarvingSkinAnswers()
       .then((answers: string[]) => setSkinAnswers(Array.isArray(answers) ? answers : []))
       .catch(() => setSkinAnswers([]));
   }, []);
@@ -1301,11 +1350,20 @@ export function CarvingRevelation() {
     return addMultiplayerDisconnectListeners(disconnectCurrentSession);
   }, []);
 
+  const heartbeatLobbyCode = view && view.lobby.status !== 'terminated' ? view.lobby.code : null;
+  const reconnectDeadlines = useMemo(() => view?.lobby.status === 'active'
+    ? view.players
+      .filter((player) => player.result === 'active' && !player.connected && player.disconnected_at)
+      .map((player) => getReconnectDeadline(player.disconnected_at as string))
+    : [], [view?.lobby.status, view?.players]);
+
   useEffect(() => {
-    if (!view || !clientId || view.lobby.status === 'terminated') return undefined;
+    if (!heartbeatLobbyCode || !clientId) return undefined;
     const heartbeat = async () => {
+      if (heartbeatInFlightRef.current) return;
+      heartbeatInFlightRef.current = true;
       try {
-        const response = await fetch(`${API_BASE}/${view.lobby.code}/heartbeat`, {
+        const response = await fetch(`${API_BASE}/${heartbeatLobbyCode}/heartbeat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clientId }),
@@ -1322,22 +1380,20 @@ export function CarvingRevelation() {
           return;
         }
         setMessage(error instanceof Error ? error.message : 'Unable to update lobby presence.');
+      } finally {
+        heartbeatInFlightRef.current = false;
       }
     };
     const interval = window.setInterval(() => void heartbeat(), MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [clearTransientState, clientId, router, view]);
+  }, [clearTransientState, clientId, heartbeatLobbyCode, router]);
 
   useEffect(() => {
-    if (!view || !clientId || view.lobby.status !== 'active') return undefined;
-    const deadlines = view.players
-      .filter((player) => player.result === 'active' && !player.connected && player.disconnected_at)
-      .map((player) => getReconnectDeadline(player.disconnected_at as string));
-    if (deadlines.length === 0) return undefined;
-    const delay = Math.max(0, Math.min(...deadlines) - Date.now() + 150);
-    const timeout = window.setTimeout(() => void refreshLobby(view.lobby.code, clientId).catch(() => undefined), delay);
+    if (!heartbeatLobbyCode || !clientId || reconnectDeadlines.length === 0) return undefined;
+    const delay = Math.max(0, Math.min(...reconnectDeadlines) - Date.now() + 150);
+    const timeout = window.setTimeout(() => void refreshLobby(heartbeatLobbyCode, clientId).catch(() => undefined), delay);
     return () => window.clearTimeout(timeout);
-  }, [clientId, refreshLobby, view]);
+  }, [clientId, heartbeatLobbyCode, reconnectDeadlines, refreshLobby]);
 
   useEffect(() => {
     if (!view?.lobby.phase_deadline_at || view.lobby.status !== 'active') {
@@ -1361,7 +1417,7 @@ export function CarvingRevelation() {
     update();
     const interval = window.setInterval(update, 250);
     return () => window.clearInterval(interval);
-  }, [clientId, refreshLobby, view]);
+  }, [clientId, refreshLobby, view?.lobby.code, view?.lobby.phase_deadline_at, view?.lobby.status]);
 
   useEffect(() => {
     if (!view?.lobby.started_at || view.lobby.status !== 'active') {
@@ -1480,26 +1536,36 @@ export function CarvingRevelation() {
   }, [view]);
 
   useEffect(() => {
-    if (!view || !clientId) return undefined;
+    if (!view?.lobby.id || !view.lobby.code || !clientId) return undefined;
+    const lobbyId = view.lobby.id;
+    const lobbyCode = view.lobby.code;
     const supabase = getOptionalSupabaseClient();
     if (!supabase) return undefined;
 
     const channel = supabase
-      .channel(`carving-revelation-lobby:${view.lobby.id}`)
+      .channel(`carving-revelation-lobby:${lobbyId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'carving_revelation_lobby_events',
-        filter: `lobby_id=eq.${view.lobby.id}`,
+        filter: `lobby_id=eq.${lobbyId}`,
       }, () => {
-        void refreshLobby(view.lobby.code, clientId).catch(() => undefined);
+        if (realtimeRefreshTimeoutRef.current) window.clearTimeout(realtimeRefreshTimeoutRef.current);
+        realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+          realtimeRefreshTimeoutRef.current = null;
+          void refreshLobby(lobbyCode, clientId).catch(() => undefined);
+        }, 100);
       })
       .subscribe();
 
     return () => {
+      if (realtimeRefreshTimeoutRef.current) {
+        window.clearTimeout(realtimeRefreshTimeoutRef.current);
+        realtimeRefreshTimeoutRef.current = null;
+      }
       void supabase.removeChannel(channel);
     };
-  }, [clientId, refreshLobby, view]);
+  }, [clientId, refreshLobby, view?.lobby.code, view?.lobby.id]);
 
   const createLobby = async () => {
     if (!clientId) return;

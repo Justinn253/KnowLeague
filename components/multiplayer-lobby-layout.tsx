@@ -15,6 +15,8 @@ type MultiplayerLobbyHeaderProps = {
   title: string;
   subtitle: ReactNode;
   statusLabel: ReactNode;
+  eyebrow?: string;
+  hideStatus?: boolean;
   infoSteps: string[];
   onBack: () => void;
   backLabel?: string;
@@ -32,6 +34,7 @@ type MultiplayerCreateJoinPanelProps = {
   busy?: boolean;
   reconnectPrompt?: ReactNode;
   soloHref?: string;
+  soloAction?: () => void;
   soloLabel?: string;
   soloDescription?: string;
   publicLobbyContent: ReactNode;
@@ -108,6 +111,8 @@ export function MultiplayerLobbyHeader({
   title,
   subtitle,
   statusLabel,
+  eyebrow = 'Multiplayer Game',
+  hideStatus = false,
   infoSteps,
   onBack,
   backLabel = 'Back',
@@ -125,19 +130,19 @@ export function MultiplayerLobbyHeader({
           <ArrowLeft size={20} />
         </button>
         <div>
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{eyebrow}</p>
           <h1 className="text-xl font-semibold text-white">{title}</h1>
           <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {actions}
         <GameInfoMenu title={title} steps={infoSteps} />
-        <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200">
+        {actions}
+        {!hideStatus ? <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200">
           <Users size={16} className="text-amber-300" />
           {statusLabel}
-        </div>
+        </div> : null}
       </div>
     </header>
   );
@@ -162,6 +167,7 @@ export function MultiplayerCreateJoinPanel({
   busy = false,
   reconnectPrompt,
   soloHref,
+  soloAction,
   soloLabel = 'Play Solo',
   soloDescription = 'Start a personal run',
   publicLobbyContent,
@@ -192,11 +198,17 @@ export function MultiplayerCreateJoinPanel({
         <h2 className="mt-3 text-3xl font-bold text-white">{title}</h2>
       </div>
 
-      {soloHref ? (
+      {soloHref || soloAction ? (
         <div className="mt-7 flex justify-center">
           <Link
-            href={soloHref}
-            onClick={() => playUiSound('random-select')}
+            href={soloHref ?? '#'}
+            onClick={(event) => {
+              playUiSound('random-select');
+              if (soloAction) {
+                event.preventDefault();
+                soloAction();
+              }
+            }}
             className="group relative inline-flex min-h-14 w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-6 text-slate-950 shadow-lg shadow-cyan-950/20 transition-[transform,border-color,box-shadow,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75 hover:shadow-cyan-900/30 hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100"
           >
             <span className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/25 opacity-0 blur-xl transition-[left,opacity] duration-700 ease-out group-hover:left-full group-hover:opacity-100" />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BadgeCheck, Check, Link as LinkIcon, Loader2, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { getEarnedRewards, type AchievementListItem } from '@/lib/achievements';
@@ -367,12 +367,13 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
   };
 
   const profileInitial = (profile?.display_name || profile?.username || '?').slice(0, 1).toUpperCase();
-  const earnedTitleRewards = getEarnedRewards(profile?.achievements ?? [], 'title');
-  const earnedBadgeRewards = getEarnedRewards(profile?.achievements ?? [], 'badge');
-  const selectedTitleReward = earnedTitleRewards.find((reward) => reward.id === profile?.selected_title_reward_id) ?? null;
-  const displayedBadgeRewards = (profile?.displayed_badge_reward_ids ?? [])
+  const profileAchievements = profile?.achievements;
+  const earnedTitleRewards = useMemo(() => getEarnedRewards(profileAchievements ?? [], 'title'), [profileAchievements]);
+  const earnedBadgeRewards = useMemo(() => getEarnedRewards(profileAchievements ?? [], 'badge'), [profileAchievements]);
+  const selectedTitleReward = useMemo(() => earnedTitleRewards.find((reward) => reward.id === profile?.selected_title_reward_id) ?? null, [earnedTitleRewards, profile?.selected_title_reward_id]);
+  const displayedBadgeRewards = useMemo(() => (profile?.displayed_badge_reward_ids ?? [])
     .map((rewardId) => earnedBadgeRewards.find((reward) => reward.id === rewardId))
-    .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward));
+    .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward)), [earnedBadgeRewards, profile?.displayed_badge_reward_ids]);
   const liveGameNote = getLiveGameNote(liveGameStatus, now);
   const riotViewerHref = profile?.riot_account_name?.trim()
     ? `/riot-account-viewer?riotId=${encodeURIComponent(profile.riot_account_name.trim())}`

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -49,6 +49,9 @@ const revealColumnGroups = [
   ['releaseYear', 'resourceType'],
 ] as const satisfies readonly (readonly CategoryId[])[];
 const revealCellOrder = revealColumnGroups.flat();
+const revealCellIndexById = Object.fromEntries(
+  revealCellOrder.map((categoryId, index) => [categoryId, index + 1]),
+) as Record<CategoryId, number>;
 const SKINDLE_REVEAL_DURATION_MS = 336;
 const SKINDLE_REVEAL_TOTAL_MS = SKINDLE_REVEAL_DURATION_MS * (categories.length + 1);
 const SKINDLE_SUGGESTION_ROW_HEIGHT = 64;
@@ -93,6 +96,75 @@ type RecordSkindleGuessResponse = {
   firstForSkin: boolean;
   clientAlreadySolved: boolean;
 };
+
+let skindleSkinsRequest: Promise<QuizItem[]> | null = null;
+const skindleTargetRequests = new Map<string, Promise<QuizItem>>();
+const skindleStatsRequests = new Map<string, Promise<SkindleDailyStats>>();
+
+function loadSkindleSkins() {
+  if (skindleSkinsRequest) {
+    return skindleSkinsRequest;
+  }
+
+  skindleSkinsRequest = fetch('/api/skindle/skins')
+    .then((response) => {
+      if (!response.ok) throw new Error('Unable to load Skindle skins.');
+      return response.json() as Promise<QuizItem[]>;
+    })
+    .catch((error) => {
+      skindleSkinsRequest = null;
+      throw error;
+    });
+  return skindleSkinsRequest;
+}
+
+function loadSkindleTarget(dateKey: string) {
+  const existingRequest = skindleTargetRequests.get(dateKey);
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = fetch('/api/skindle/target')
+    .then((response) => {
+      if (!response.ok) throw new Error('Unable to load the daily Skindle target.');
+      return response.json() as Promise<QuizItem>;
+    });
+  skindleTargetRequests.set(dateKey, request);
+  void request.catch(() => {
+    if (skindleTargetRequests.get(dateKey) === request) {
+      skindleTargetRequests.delete(dateKey);
+    }
+  });
+  return request;
+}
+
+function loadSkindleDailyStats(includeTopGuesses: boolean) {
+  const requestKey = `${getDailyDateKey()}:${includeTopGuesses}`;
+  const existingRequest = skindleStatsRequests.get(requestKey);
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = fetch(`/api/skindle/stats?includeTop=${includeTopGuesses ? 'true' : 'false'}`, { cache: 'no-store' })
+    .then((response) => {
+      if (!response.ok) throw new Error('Unable to load Skindle stats.');
+      return response.json() as Promise<SkindleDailyStats>;
+    });
+  skindleStatsRequests.set(requestKey, request);
+  void request.then(
+    () => {
+      if (skindleStatsRequests.get(requestKey) === request) {
+        skindleStatsRequests.delete(requestKey);
+      }
+    },
+    () => {
+      if (skindleStatsRequests.get(requestKey) === request) {
+        skindleStatsRequests.delete(requestKey);
+      }
+    },
+  );
+  return request;
+}
 
 function getReleaseYear(item: QuizItem) {
   return item.releaseDate?.slice(0, 4) || 'Unknown';
@@ -230,6 +302,136 @@ function CategoryHeaderLabel({
   );
 }
 
+const SkindleGuessRow = memo(function SkindleGuessRow({
+  guess,
+  isLatestGuess,
+  isCorrectGuess,
+  revealed,
+  globalGuessCount,
+  firstGlobalGuess,
+  onPreview,
+}: {
+  guess: GuessResult;
+  isLatestGuess: boolean;
+  isCorrectGuess: boolean;
+  revealed: boolean;
+  globalGuessCount: number;
+  firstGlobalGuess: boolean;
+  onPreview: (skin: QuizItem) => void;
+}) {
+  const getRevealOverlay = (cellIndex: number) => isLatestGuess ? (
+    <div
+      className="skindle-cell-reveal pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-800"
+      style={{
+        animationDelay: `${cellIndex * SKINDLE_REVEAL_DURATION_MS}ms`,
+        animationDuration: `${SKINDLE_REVEAL_DURATION_MS}ms`,
+      }}
+    >
+      <QuestionPingMark />
+    </div>
+  ) : null;
+  const renderCategoryCell = (categoryId: CategoryId, compact = false) => (
+    <div
+      key={categoryId}
+      className={`relative flex items-center justify-center overflow-hidden rounded-lg border text-center shadow-inner ${
+        compact ? 'min-h-0 px-2 py-2' : 'min-h-28 px-2 py-3'
+      } ${
+        guess.matches[categoryId]
+          ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
+          : guess.partialMatches[categoryId]
+          ? 'border-slate-300/70 bg-orange-500/90 text-white shadow-orange-950/30'
+          : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
+      }`}
+    >
+      <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold leading-5 ${compact ? 'text-sm' : 'text-base'}`}>
+        <span className="line-clamp-2 min-w-0">{guess.values[categoryId]}</span>
+        {categoryId === 'releaseYear' && guess.releaseYearDirection === 'higher' ? (
+          <ArrowUp size={compact ? 15 : 18} strokeWidth={2.5} aria-label="Target year is higher" className="shrink-0" />
+        ) : null}
+        {categoryId === 'releaseYear' && guess.releaseYearDirection === 'lower' ? (
+          <ArrowDown size={compact ? 15 : 18} strokeWidth={2.5} aria-label="Target year is lower" className="shrink-0" />
+        ) : null}
+      </span>
+      {getRevealOverlay(revealCellIndexById[categoryId])}
+    </div>
+  );
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-xl ${isLatestGuess ? 'animate-slide-in' : ''} ${
+        isCorrectGuess && revealed ? 'skindle-gradient-border shadow-lg shadow-violet-950/30' : ''
+      }`}
+    >
+      <div
+        className={`grid grid-cols-[minmax(8.5rem,1.25fr)_minmax(6.5rem,0.9fr)_repeat(4,minmax(7rem,1fr))] gap-2 ${
+          isCorrectGuess && revealed ? 'skindle-gradient-border-content' : ''
+        }`}
+      >
+        <div
+          className={`relative flex min-h-28 flex-col items-center justify-between overflow-hidden rounded-lg border px-2 py-3 text-center shadow-inner ${
+            isCorrectGuess
+              ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
+              : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
+          }`}
+        >
+          <span className="line-clamp-2 text-base font-semibold leading-5">{guess.item.answer}</span>
+          <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-white/80">
+            {globalGuessCount > 1 ? `${globalGuessCount} global guesses` : null}
+            {globalGuessCount === 1 || firstGlobalGuess ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.12em] text-slate-950">
+                <Sparkles size={11} />
+                First
+              </span>
+            ) : null}
+          </span>
+          <button
+            type="button"
+            onClick={() => onPreview(guess.item)}
+            className="mt-2 w-full cursor-zoom-in ring-1 ring-white/30 transition hover:ring-white/70"
+            aria-label={`Open ${guess.item.answer} splash art`}
+          >
+            <Image
+              src={guess.item.imageUrl}
+              alt=""
+              width={243}
+              height={143}
+              className="aspect-[1215/717] w-full shrink-0 object-contain"
+            />
+          </button>
+          {getRevealOverlay(0)}
+        </div>
+        {renderCategoryCell('champion')}
+        {revealColumnGroups.slice(1).map((group) => (
+          <div key={group.join('-')} className="grid min-h-28 grid-rows-2 gap-2">
+            {group.map((categoryId) => renderCategoryCell(categoryId, true))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+function SkindleResetCountdown({ activeDateKey, onDateChange }: { activeDateKey: string; onDateChange: (dateKey: string) => void }) {
+  const [label, setLabel] = useState(() => getNextUtcResetLabel());
+
+  useEffect(() => {
+    const updateReset = () => {
+      const nextDateKey = getDailyDateKey();
+      if (nextDateKey !== activeDateKey) {
+        onDateChange(nextDateKey);
+        return;
+      }
+      setLabel(getNextUtcResetLabel());
+    };
+
+    updateReset();
+    const interval = window.setInterval(updateReset, 1000);
+    return () => window.clearInterval(interval);
+  }, [activeDateKey, onDateChange]);
+
+  return <>{label}</>;
+}
+
 export function Skindle() {
   const router = useRouter();
   const [activeDateKey, setActiveDateKey] = useState(() => getDailyDateKey());
@@ -240,8 +442,6 @@ export function Skindle() {
   const [suggestions, setSuggestions] = useState<QuizItem[]>([]);
   const [suggestionsScrollTop, setSuggestionsScrollTop] = useState(0);
   const [guesses, setGuesses] = useState<GuessResult[]>([]);
-  const [message, setMessage] = useState('');
-  const [timeToNextSet, setTimeToNextSet] = useState('00:00:00');
   const [revealedSolvedGuessId, setRevealedSolvedGuessId] = useState<string | null>(null);
   const [previewSkin, setPreviewSkin] = useState<QuizItem | null>(null);
   const [dailyStats, setDailyStats] = useState<SkindleDailyStats | null>(null);
@@ -260,10 +460,13 @@ export function Skindle() {
   const hoveredSuggestionIdRef = useRef<string | null>(null);
   const hasRestoredStateRef = useRef(false);
   const achievementRecordedRef = useRef(false);
+  const correctGuessStatsPendingRef = useRef(false);
   const activeDateKeyRef = useRef(activeDateKey);
 
   const solved = Boolean(target && guesses.some((guess) => guess.item.id === target.id));
-  const answerPool = useMemo(() => skins.filter((skin) => !guesses.some((guess) => guess.item.id === skin.id)), [guesses, skins]);
+  const liveRoundStateRef = useRef({ solved, guessCount: guesses.length, inputValue });
+  liveRoundStateRef.current = { solved, guessCount: guesses.length, inputValue };
+  const guessedSkinIds = useMemo(() => new Set(guesses.map((guess) => guess.item.id)), [guesses]);
   const averageGuessesLabel = dailyStats?.averageGuessesToSolve
     ? dailyStats.averageGuessesToSolve.toFixed(1)
     : '0.0';
@@ -271,6 +474,19 @@ export function Skindle() {
     () => new Map(skins.map((skin) => [skin.id, skin])),
     [skins],
   );
+  const skinSearchIndex = useMemo(() => skins.map((skin) => ({
+    skin,
+    normalizedAnswer: normalizeAnswer(skin.answer),
+  })), [skins]);
+  const skinsByNormalizedAnswer = useMemo(() => {
+    const index = new Map<string, QuizItem>();
+    skinSearchIndex.forEach(({ skin, normalizedAnswer }) => {
+      if (!index.has(normalizedAnswer)) {
+        index.set(normalizedAnswer, skin);
+      }
+    });
+    return index;
+  }, [skinSearchIndex]);
   const mostGuessedSkin = useMemo(
     () =>
       Object.values(playerStats.guessStats).sort((a, b) => b.count - a.count || a.answer.localeCompare(b.answer))[0] ??
@@ -299,14 +515,23 @@ export function Skindle() {
     ? (playerStats.totalGuesses / playerStats.gamesCompleted).toFixed(1)
     : '0.0';
 
-  const refreshDailyStats = (includeTopGuesses = false) => {
-    fetch(`/api/skindle/stats?includeTop=${includeTopGuesses ? 'true' : 'false'}`)
-      .then((response) => response.json())
-      .then((data) => setDailyStats(data))
-      .catch((error) => {
-        console.error('Failed to load Skindle stats', error);
-      });
-  };
+  const refreshDailyStats = useCallback(async (includeTopGuesses = false) => {
+    try {
+      setDailyStats(await loadSkindleDailyStats(includeTopGuesses));
+    } catch (error) {
+      console.error('Failed to load Skindle stats', error);
+    }
+  }, []);
+
+  const getMatchingSuggestions = useCallback((value: string) => {
+    const query = normalizeAnswer(value);
+    if (value.trim().length < 2 || !query || solved) {
+      return [];
+    }
+    return skinSearchIndex
+      .filter(({ skin, normalizedAnswer }) => !guessedSkinIds.has(skin.id) && normalizedAnswer.includes(query))
+      .map(({ skin }) => skin);
+  }, [guessedSkinIds, skinSearchIndex, solved]);
 
   useEffect(() => {
     activeDateKeyRef.current = activeDateKey;
@@ -319,33 +544,35 @@ export function Skindle() {
     setSuggestions([]);
     setRevealedSolvedGuessId(null);
     setFirstGlobalGuessSkinIds(new Set());
-    setMessage('');
   }, []);
 
   useEffect(() => {
     setClientId(getOrCreateClientId());
-    setStorageReady(false);
-
-    Promise.all([
-      fetch('/api/skindle/skins').then((response) => response.json()),
-      fetch('/api/skindle/target').then((response) => response.json()),
-    ])
-      .then(([skinData, targetData]) => {
+    loadSkindleSkins()
+      .then((skinData) => {
         if (Array.isArray(skinData)) {
           setSkins(skinData);
         }
+      })
+      .catch((error) => {
+        console.error('Failed to load Skindle skins', error);
+      });
+  }, []);
 
+  useEffect(() => {
+    setStorageReady(false);
+    loadSkindleTarget(activeDateKey)
+      .then((targetData) => {
         if (targetData?.id) {
           setTarget(targetData);
         }
       })
       .catch((error) => {
         console.error('Failed to load Skindle data', error);
-        setMessage('Unable to load Skindle data.');
       });
 
-    refreshDailyStats(false);
-  }, [activeDateKey]);
+    void refreshDailyStats(false);
+  }, [activeDateKey, refreshDailyStats]);
 
   useEffect(() => {
     if (hasRestoredStateRef.current || skins.length === 0 || !target) {
@@ -360,7 +587,7 @@ export function Skindle() {
     }
 
     const restoredGuesses = savedState.guessIds
-      .map((guessId) => skins.find((skin) => skin.id === guessId))
+      .map((guessId) => skinsById.get(guessId))
       .filter((skin): skin is QuizItem => Boolean(skin))
       .map((skin) => compareGuess(skin, target));
 
@@ -368,7 +595,7 @@ export function Skindle() {
     setRevealedSolvedGuessId(savedState.solvedGuessId);
     setFirstGlobalGuessSkinIds(new Set(savedState.firstGlobalGuessSkinIds ?? []));
     setStorageReady(true);
-  }, [activeDateKey, skins, target]);
+  }, [activeDateKey, skins.length, skinsById, target]);
 
   useEffect(() => {
     if (!storageReady || (guesses.length === 0 && !revealedSolvedGuessId)) {
@@ -384,13 +611,15 @@ export function Skindle() {
 
   useEffect(() => {
     if (storageReady && solved) {
-      refreshDailyStats(true);
+      if (!correctGuessStatsPendingRef.current) {
+        void refreshDailyStats(true);
+      }
       if (target && !achievementRecordedRef.current) {
         achievementRecordedRef.current = true;
         void submitAchievementEvent('daily_skindle_completed', { skinId: target.id });
       }
     }
-  }, [solved, storageReady, target]);
+  }, [refreshDailyStats, solved, storageReady, target]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -438,40 +667,24 @@ export function Skindle() {
     playUiSound('autocomplete-hover');
   };
 
-  useEffect(() => {
-    const updateReset = () => {
-      const nextDateKey = getDailyDateKey();
-      if (nextDateKey !== activeDateKeyRef.current) {
-        const hadUnfinishedRound = !solved && (guesses.length > 0 || inputValue.trim().length > 0);
-        clearStaleDailyRound();
-        setTarget(null);
-        setDailyStats(null);
-        hasRestoredStateRef.current = false;
-        achievementRecordedRef.current = false;
-        activeDateKeyRef.current = nextDateKey;
-        setActiveDateKey(nextDateKey);
-        if (hadUnfinishedRound) {
-          router.push('/');
-          return;
-        }
-      }
-      setTimeToNextSet(getNextUtcResetLabel());
-    };
-
-    updateReset();
-    const interval = window.setInterval(updateReset, 1000);
-    return () => window.clearInterval(interval);
-  }, [clearStaleDailyRound, guesses.length, inputValue, router, solved]);
-
-  useEffect(() => {
-    const query = normalizeAnswer(deferredInputValue);
-    if (deferredInputValue.trim().length < 2 || !query || solved) {
-      setSuggestions([]);
-      return;
+  const handleDateChange = useCallback((nextDateKey: string) => {
+    const currentRound = liveRoundStateRef.current;
+    const hadUnfinishedRound = !currentRound.solved && (currentRound.guessCount > 0 || currentRound.inputValue.trim().length > 0);
+    clearStaleDailyRound();
+    setTarget(null);
+    setDailyStats(null);
+    hasRestoredStateRef.current = false;
+    achievementRecordedRef.current = false;
+    activeDateKeyRef.current = nextDateKey;
+    setActiveDateKey(nextDateKey);
+    if (hadUnfinishedRound) {
+      router.push('/');
     }
+  }, [clearStaleDailyRound, router]);
 
-    setSuggestions(answerPool.filter((skin) => normalizeAnswer(skin.answer).includes(query)));
-  }, [answerPool, deferredInputValue, solved]);
+  useEffect(() => {
+    setSuggestions(getMatchingSuggestions(deferredInputValue));
+  }, [deferredInputValue, getMatchingSuggestions]);
 
   useEffect(() => {
     setSuggestionsScrollTop(0);
@@ -521,12 +734,13 @@ export function Skindle() {
         achievementRecordedRef.current = true;
         void submitAchievementEvent('daily_skindle_completed', { skinId: target.id });
       }
-      refreshDailyStats(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, SKINDLE_REVEAL_TOTAL_MS);
 
     return () => window.clearTimeout(timeout);
   }, [guesses, revealedSolvedGuessId, target]);
+
+  const openSkinPreview = useCallback((skin: QuizItem) => setPreviewSkin(skin), []);
 
   const submitGuess = (skin: QuizItem | undefined) => {
     if (!skin || !target || solved) {
@@ -539,22 +753,23 @@ export function Skindle() {
       return;
     }
 
-    if (guesses.some((guess) => guess.item.id === skin.id)) {
-      setMessage('Already guessed.');
+    if (guessedSkinIds.has(skin.id)) {
       return;
     }
 
     const result = compareGuess(skin, target);
+    const isCorrectGuess = skin.id === target.id;
+    correctGuessStatsPendingRef.current = Boolean(clientId && isCorrectGuess);
     setGuesses((current) => [...current, result]);
     setInputValue('');
     setSuggestions([]);
-    setMessage(skin.id === target.id ? 'Solved.' : '');
     scheduleSound(
-      skin.id === target.id ? 'skindle-guess-correct' : 'skindle-guess-incorrect',
+      isCorrectGuess ? 'skindle-guess-correct' : 'skindle-guess-incorrect',
       Math.max(0, SKINDLE_REVEAL_TOTAL_MS - 220),
     );
 
     if (clientId) {
+      let statsRecorded = false;
       fetch('/api/skindle/stats', {
         method: 'POST',
         headers: {
@@ -564,11 +779,15 @@ export function Skindle() {
           clientId,
           skinId: skin.id,
           answer: skin.answer,
-          isCorrect: skin.id === target.id,
+          isCorrect: isCorrectGuess,
         }),
       })
-        .then((response) => response.json())
+        .then((response) => {
+          if (!response.ok) throw new Error('Unable to record Skindle guess.');
+          return response.json();
+        })
         .then((data: RecordSkindleGuessResponse) => {
+          statsRecorded = true;
           if (data.snapshot) {
             setDailyStats(data.snapshot);
           }
@@ -579,6 +798,13 @@ export function Skindle() {
         })
         .catch((error) => {
           console.error('Failed to record Skindle guess', error);
+        })
+        .finally(() => {
+          if (!isCorrectGuess) return;
+          correctGuessStatsPendingRef.current = false;
+          if (!statsRecorded) {
+            void refreshDailyStats(true);
+          }
         });
     }
   };
@@ -586,10 +812,9 @@ export function Skindle() {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalized = normalizeAnswer(inputValue);
-    const exact = answerPool.find((skin) => normalizeAnswer(skin.answer) === normalized);
+    const exact = skinsByNormalizedAnswer.get(normalized);
 
-    if (!exact) {
-      setMessage('Choose a skin from the list.');
+    if (!exact || guessedSkinIds.has(exact.id)) {
       return;
     }
 
@@ -618,7 +843,7 @@ export function Skindle() {
                 </span>
               </h1>
               <p className="mt-1 text-xs text-slate-400">
-                {`Daily skin resets in ${timeToNextSet}`}
+                Daily skin resets in <SkindleResetCountdown activeDateKey={activeDateKey} onDateChange={handleDateChange} />
               </p>
             </div>
           </div>
@@ -894,107 +1119,18 @@ export function Skindle() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-3">
-                      {displayedGuesses.map((guess) => {
-                        const isLatestGuess = guess.item.id === guesses[guesses.length - 1]?.item.id;
-                        const isCorrectGuess = target?.id === guess.item.id;
-                        const getRevealOverlay = (cellIndex: number) => isLatestGuess ? (
-                          <div
-                            className="skindle-cell-reveal pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-800"
-                            style={{
-                              animationDelay: `${cellIndex * SKINDLE_REVEAL_DURATION_MS}ms`,
-                              animationDuration: `${SKINDLE_REVEAL_DURATION_MS}ms`,
-                            }}
-                          >
-                            <QuestionPingMark />
-                          </div>
-                        ) : null;
-                        const renderCategoryCell = (categoryId: CategoryId, cellIndex: number, compact = false) => (
-                          <div
-                            key={categoryId}
-                            className={`relative flex items-center justify-center overflow-hidden rounded-lg border text-center shadow-inner ${
-                              compact ? 'min-h-0 px-2 py-2' : 'min-h-28 px-2 py-3'
-                            } ${
-                              guess.matches[categoryId]
-                                ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
-                                : guess.partialMatches[categoryId]
-                                ? 'border-slate-300/70 bg-orange-500/90 text-white shadow-orange-950/30'
-                                : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
-                            }`}
-                          >
-                            <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold leading-5 ${compact ? 'text-sm' : 'text-base'}`}>
-                              <span className="line-clamp-2 min-w-0">{guess.values[categoryId]}</span>
-                              {categoryId === 'releaseYear' && guess.releaseYearDirection === 'higher' ? (
-                                <ArrowUp size={compact ? 15 : 18} strokeWidth={2.5} aria-label="Target year is higher" className="shrink-0" />
-                              ) : null}
-                              {categoryId === 'releaseYear' && guess.releaseYearDirection === 'lower' ? (
-                                <ArrowDown size={compact ? 15 : 18} strokeWidth={2.5} aria-label="Target year is lower" className="shrink-0" />
-                              ) : null}
-                            </span>
-                            {getRevealOverlay(cellIndex)}
-                          </div>
-                        );
-
-                        return (
-                          <div
-                            key={guess.item.id}
-                            className={`relative overflow-hidden rounded-xl ${
-                              isLatestGuess ? 'animate-slide-in' : ''
-                            } ${
-                              isCorrectGuess && revealedSolvedGuessId === guess.item.id
-                                ? 'skindle-gradient-border shadow-lg shadow-violet-950/30'
-                                : ''
-                            }`}
-                          >
-                            <div
-                              className={`grid grid-cols-[minmax(8.5rem,1.25fr)_minmax(6.5rem,0.9fr)_repeat(4,minmax(7rem,1fr))] gap-2 ${
-                                isCorrectGuess && revealedSolvedGuessId === guess.item.id ? 'skindle-gradient-border-content' : ''
-                              }`}
-                            >
-                              <div
-                                className={`relative flex min-h-28 flex-col items-center justify-between overflow-hidden rounded-lg border px-2 py-3 text-center shadow-inner ${
-                                  isCorrectGuess
-                                    ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
-                                    : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
-                                }`}
-                              >
-                                <span className="line-clamp-2 text-base font-semibold leading-5">{guess.item.answer}</span>
-                                <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-white/80">
-                                  {(dailyStats?.guessesBySkin[guess.item.id] ?? 0) > 1 ? (
-                                    `${dailyStats?.guessesBySkin[guess.item.id] ?? 0} global guesses`
-                                  ) : null}
-                                  {(dailyStats?.guessesBySkin[guess.item.id] ?? 0) === 1 || firstGlobalGuessSkinIds.has(guess.item.id) ? (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.12em] text-slate-950">
-                                      <Sparkles size={11} />
-                                      First
-                                    </span>
-                                  ) : null}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setPreviewSkin(guess.item)}
-                                  className="mt-2 w-full cursor-zoom-in ring-1 ring-white/30 transition hover:ring-white/70"
-                                  aria-label={`Open ${guess.item.answer} splash art`}
-                                >
-                                  <Image
-                                    src={guess.item.imageUrl}
-                                    alt=""
-                                    width={243}
-                                    height={143}
-                                    className="aspect-[1215/717] w-full shrink-0 object-contain"
-                                  />
-                                </button>
-                                {getRevealOverlay(0)}
-                              </div>
-                              {renderCategoryCell('champion', 1)}
-                              {revealColumnGroups.slice(1).map((group) => (
-                                <div key={group.join('-')} className="grid min-h-28 grid-rows-2 gap-2">
-                                  {group.map((categoryId) => renderCategoryCell(categoryId, revealCellOrder.indexOf(categoryId) + 1, true))}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {displayedGuesses.map((guess) => (
+                        <SkindleGuessRow
+                          key={guess.item.id}
+                          guess={guess}
+                          isLatestGuess={guess.item.id === guesses[guesses.length - 1]?.item.id}
+                          isCorrectGuess={target?.id === guess.item.id}
+                          revealed={revealedSolvedGuessId === guess.item.id}
+                          globalGuessCount={dailyStats?.guessesBySkin[guess.item.id] ?? 0}
+                          firstGlobalGuess={firstGlobalGuessSkinIds.has(guess.item.id)}
+                          onPreview={openSkinPreview}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1011,14 +1147,11 @@ export function Skindle() {
             <div ref={inputAreaRef} className="relative flex flex-col gap-3 sm:flex-row">
               <input
                 value={inputValue}
-                onChange={(event) => {
-                  setInputValue(event.target.value);
-                  setMessage('');
-                }}
+                onChange={(event) => setInputValue(event.target.value)}
                 onFocus={() => {
-                  const query = normalizeAnswer(inputValue);
-                  if (inputValue.trim().length >= 2 && query && !solved) {
-                    setSuggestions(answerPool.filter((skin) => normalizeAnswer(skin.answer).includes(query)));
+                  const nextSuggestions = getMatchingSuggestions(inputValue);
+                  if (nextSuggestions.length > 0) {
+                    setSuggestions(nextSuggestions);
                     setSuggestionsScrollTop(0);
                   }
                 }}

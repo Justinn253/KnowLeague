@@ -9,10 +9,12 @@ const STORAGE_PREFIX = 'knowleague:v1';
 const CLIENT_ID_KEY = `${STORAGE_PREFIX}:client-id`;
 const DETAILED_STATS_KEY = `${STORAGE_PREFIX}:detailed-game-stats`;
 const PENDING_QUIZ_STATS_KEY = `${STORAGE_PREFIX}:pending-quiz-stats`;
+const MASTERY_MASTER_STATS_KEY = `${STORAGE_PREFIX}:mastery-master:stats`;
 const MAX_RECORDED_MATCH_IDS = 250;
 const MAX_SKIN_GUESS_STATS = 50;
 export const STREAK_GAME_IDS: StreakGameId[] = ['skindle', 'splash-scramble', 'ability-blitz', 'skin-champion'];
 export const PLAYER_GAME_STATS_CHANGED_EVENT = 'knowleague:player-game-stats-changed';
+export const MASTERY_MASTER_STATS_CHANGED_EVENT = 'knowleague:mastery-master-stats-changed';
 
 export type PlayerGuessStat = {
   itemId: string;
@@ -54,6 +56,18 @@ export type PlayerGameStats = {
 };
 
 export type PlayerGameStatsByGame = Partial<Record<StreakGameId, PlayerGameStats>>;
+
+export type MasteryMasterProfileUsage = {
+  riotId: string;
+  platform: string;
+  count: number;
+  lastUsedAt: string;
+};
+
+export type MasteryMasterStats = {
+  profileUsage: MasteryMasterProfileUsage[];
+  highestStreak: number;
+};
 
 export type PlayerCompletionGuess = {
   itemId: string;
@@ -198,6 +212,102 @@ export function createEmptyPlayerStats(gameId: GameId): PlayerGameStats {
     lastCorrectGuess: null,
     streaksByScope: {},
   };
+}
+
+export function createEmptyMasteryMasterStats(): MasteryMasterStats {
+  return {
+    profileUsage: [],
+    highestStreak: 0,
+  };
+}
+
+function normalizeMasteryMasterStats(stats?: Partial<MasteryMasterStats> | null): MasteryMasterStats {
+  const profileUsage = Array.isArray(stats?.profileUsage)
+    ? stats.profileUsage
+      .filter((profile): profile is MasteryMasterProfileUsage => Boolean(profile && typeof profile === 'object'))
+      .map((profile) => ({
+        riotId: typeof profile.riotId === 'string' ? profile.riotId.trim() : '',
+        platform: typeof profile.platform === 'string' ? profile.platform.trim().toUpperCase() : '',
+        count: Math.max(0, Math.floor(Number(profile.count) || 0)),
+        lastUsedAt: typeof profile.lastUsedAt === 'string' ? profile.lastUsedAt : '',
+      }))
+      .filter((profile) => profile.riotId && profile.platform && profile.count > 0)
+      .sort((left, right) => right.count - left.count || right.lastUsedAt.localeCompare(left.lastUsedAt))
+      .slice(0, 50)
+    : [];
+
+  return {
+    profileUsage,
+    highestStreak: Math.max(0, Math.floor(Number(stats?.highestStreak) || 0)),
+  };
+}
+
+export function loadMasteryMasterStats() {
+  if (!isStorageAvailable()) {
+    return createEmptyMasteryMasterStats();
+  }
+
+  try {
+    const rawStats = window.localStorage.getItem(MASTERY_MASTER_STATS_KEY);
+    return rawStats ? normalizeMasteryMasterStats(JSON.parse(rawStats) as Partial<MasteryMasterStats>) : createEmptyMasteryMasterStats();
+  } catch (error) {
+    console.warn('Unable to load saved mastery master stats.', error);
+    return createEmptyMasteryMasterStats();
+  }
+}
+
+function saveMasteryMasterStats(stats: MasteryMasterStats) {
+  if (!isStorageAvailable()) {
+    return;
+  }
+
+  try {
+    const normalizedStats = normalizeMasteryMasterStats(stats);
+    window.localStorage.setItem(MASTERY_MASTER_STATS_KEY, JSON.stringify(normalizedStats));
+    window.dispatchEvent(new CustomEvent(MASTERY_MASTER_STATS_CHANGED_EVENT, { detail: normalizedStats }));
+  } catch (error) {
+    console.warn('Unable to save mastery master stats.', error);
+  }
+}
+
+export function recordMasteryMasterProfile(riotId: string, platform: string) {
+  const normalizedRiotId = riotId.trim();
+  const normalizedPlatform = platform.trim().toUpperCase();
+  if (!normalizedRiotId || !normalizedPlatform) {
+    return loadMasteryMasterStats();
+  }
+
+  const currentStats = loadMasteryMasterStats();
+  const profileKey = `${normalizedRiotId.toLowerCase()}::${normalizedPlatform}`;
+  const updatedProfiles = currentStats.profileUsage.map((profile) => ({ ...profile }));
+  const existingProfile = updatedProfiles.find((profile) => `${profile.riotId.toLowerCase()}::${profile.platform}` === profileKey);
+  if (existingProfile) {
+    existingProfile.count += 1;
+    existingProfile.lastUsedAt = new Date().toISOString();
+  } else {
+    updatedProfiles.push({
+      riotId: normalizedRiotId,
+      platform: normalizedPlatform,
+      count: 1,
+      lastUsedAt: new Date().toISOString(),
+    });
+  }
+
+  const updatedStats = normalizeMasteryMasterStats({ ...currentStats, profileUsage: updatedProfiles });
+  saveMasteryMasterStats(updatedStats);
+  return updatedStats;
+}
+
+export function recordMasteryMasterStreak(streak: number) {
+  const currentStats = loadMasteryMasterStats();
+  const nextStreak = Math.max(0, Math.floor(streak));
+  if (nextStreak <= currentStats.highestStreak) {
+    return currentStats;
+  }
+
+  const updatedStats = { ...currentStats, highestStreak: nextStreak };
+  saveMasteryMasterStats(updatedStats);
+  return updatedStats;
 }
 
 function normalizeCompletedDates(dates: unknown) {

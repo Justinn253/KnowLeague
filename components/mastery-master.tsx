@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Loader2, Play, RotateCcw, X } from 'lucide-react';
+import { BarChart3, Check, Flame, Loader2, Play, RotateCcw, X } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppSelectMenu } from '@/components/app-select-menu';
 import { MultiplayerCreateJoinPanel, MultiplayerLobbyCard, MultiplayerLobbyHeader, MultiplayerLobbyShell, MultiplayerPublicLobbyEmpty } from '@/components/multiplayer-lobby-layout';
+import { createEmptyMasteryMasterStats, loadMasteryMasterStats, recordMasteryMasterProfile, recordMasteryMasterStreak, type MasteryMasterStats } from '@/lib/game-storage';
 import { playUiSound } from '@/lib/ui-sounds';
 
 type PlatformRoute = 'BR1' | 'EUN1' | 'EUW1' | 'JP1' | 'KR' | 'LA1' | 'LA2' | 'NA1' | 'OC1' | 'TR1' | 'RU' | 'PH2' | 'SG2' | 'TH2' | 'TW2' | 'VN2';
@@ -227,6 +228,8 @@ export function MasteryMaster() {
   const [startCountdown, setStartCountdown] = useState<number | null>(null);
   const [startAction, setStartAction] = useState<'new' | 'restart' | null>(null);
   const [message, setMessage] = useState('');
+  const [masteryStats, setMasteryStats] = useState<MasteryMasterStats>(() => createEmptyMasteryMasterStats());
+  const [correctStreak, setCorrectStreak] = useState(0);
   const transitionTimeouts = useRef<number[]>([]);
 
   const clearTransitionTimeouts = useCallback(() => {
@@ -248,6 +251,10 @@ export function MasteryMaster() {
       // Account input remains available when the previous LAV search is unavailable.
     }
   }, [initialRiotId]);
+
+  useEffect(() => {
+    setMasteryStats(loadMasteryMasterStats());
+  }, []);
 
   useEffect(() => {
     if (stage !== 'playing' || secondsRemaining === null) return undefined;
@@ -287,10 +294,12 @@ export function MasteryMaster() {
       setSelectedOrder([]);
       setAnswerStates(new Map());
       setScore(0);
+      setCorrectStreak(0);
       setRevealed(false);
       setSliding(false);
       setSecondsRemaining(settings.timerSeconds);
       setStage('playing');
+      setMasteryStats(recordMasteryMasterProfile(nextProfile.riotId, nextProfile.platform));
       window.history.replaceState(null, '', `/mastery-master?riotId=${encodeURIComponent(nextProfile.riotId)}&platform=${nextProfile.platform}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to start Mastery Master.');
@@ -308,6 +317,7 @@ export function MasteryMaster() {
     setSelectedOrder([]);
     setAnswerStates(new Map());
     setScore(0);
+    setCorrectStreak(0);
     setRevealed(false);
     setSliding(false);
     setSecondsRemaining(settings.timerSeconds);
@@ -366,11 +376,18 @@ export function MasteryMaster() {
 
   const endGame = useCallback(() => {
     clearTransitionTimeouts();
+    setCorrectStreak(0);
     setRevealed(true);
     setSliding(false);
     setStage('ended');
     playUiSound('skindle-guess-incorrect');
   }, [clearTransitionTimeouts]);
+
+  const recordCorrectAnswer = useCallback(() => {
+    const nextStreak = correctStreak + 1;
+    setCorrectStreak(nextStreak);
+    setMasteryStats(recordMasteryMasterStreak(nextStreak));
+  }, [correctStreak]);
 
   const chooseChampion = useCallback((champion: MasteryChampion) => {
     if (!round || sliding || revealed) return;
@@ -404,10 +421,11 @@ export function MasteryMaster() {
     }
     setSelectedIds(new Set([champion.id]));
     setAnswerStates(getAnswerStates(round, [champion.id]));
+    recordCorrectAnswer();
     setScore((current) => current + 1);
     playUiSound('skindle-guess-correct');
     advanceRound();
-  }, [advanceRound, endGame, revealed, round, settings.choiceCount, settings.order, sliding]);
+  }, [advanceRound, endGame, recordCorrectAnswer, revealed, round, settings.choiceCount, settings.order, sliding]);
 
   const confirmGrouped = useCallback(() => {
     if (!round || round.question !== 'grouped') return;
@@ -422,10 +440,11 @@ export function MasteryMaster() {
       return;
     }
     setAnswerStates(getAnswerStates(round, round.correctIds));
+    recordCorrectAnswer();
     setScore((current) => current + 1);
     playUiSound('skindle-guess-correct');
     advanceRound();
-  }, [advanceRound, endGame, round, selectedIds, settings.choiceCount]);
+  }, [advanceRound, endGame, recordCorrectAnswer, round, selectedIds, settings.choiceCount]);
 
   const confirmOrder = useCallback(() => {
     if (!round || settings.order !== 'required') return;
@@ -440,16 +459,18 @@ export function MasteryMaster() {
       return;
     }
     setAnswerStates(getAnswerStates(round, round.orderedIds));
+    recordCorrectAnswer();
     setScore((current) => current + 1);
     playUiSound('skindle-guess-correct');
     advanceRound();
-  }, [advanceRound, endGame, round, selectedOrder, settings.choiceCount, settings.order]);
+  }, [advanceRound, endGame, recordCorrectAnswer, round, selectedOrder, settings.choiceCount, settings.order]);
 
   const restart = () => {
     if (!profile) {
       setStage('settings');
       return;
     }
+    setMasteryStats(recordMasteryMasterProfile(profile.riotId, profile.platform));
     beginStart('restart');
   };
 
@@ -523,7 +544,31 @@ export function MasteryMaster() {
             </div>
             {message ? <p className="rounded-2xl border border-rose-400/30 bg-rose-950/30 px-4 py-3 text-sm font-semibold text-rose-100">{message}</p> : null}
             <button type="button" onClick={() => { if (startCountdown === null) beginStart('new'); else { setStartCountdown(null); setStartAction(null); } }} disabled={loading || (startCountdown === null && !canStart)} className="mt-6 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"><>{loading ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}{loading ? 'Loading mastery' : startCountdown === null ? 'Play' : `Cancel (${startCountdown})`}</></button></div>
-            <aside className="min-h-64 rounded-3xl border border-white/10 bg-slate-950/80 p-6"><p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Mastery Master</p><h3 className="mt-3 text-2xl font-black text-white">Build your challenge</h3><p className="mt-3 text-sm leading-6 text-slate-400">Choose a League account, tailor the rules, then beat the clock by reading champion mastery at a glance.</p></aside>
+            <aside className="rounded-3xl border border-white/10 bg-slate-950/80 p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Personal Stats</p><p className="mt-2 text-sm font-semibold text-slate-400">Mastery Master</p></div>
+                <BarChart3 size={22} className="text-sky-300" />
+              </div>
+              <div className="grid gap-3">
+                <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Highest Correct Streak</p>
+                  <p className="mt-2 text-xl font-black text-white">{masteryStats.highestStreak} {masteryStats.highestStreak === 1 ? 'answer' : 'answers'}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-white"><Flame size={17} className="text-amber-300" />Top Used Profiles</div>
+                  {masteryStats.profileUsage.length > 0 ? <div className="mt-3 grid gap-2">
+                    {masteryStats.profileUsage.slice(0, 5).map((entry, index) => {
+                      const region = platforms.find((item) => item.id === entry.platform);
+                      return <button key={`${entry.platform}-${entry.riotId}`} type="button" onClick={() => { setRiotId(entry.riotId); setPlatform(entry.platform as PlatformRoute); setMessage(''); playUiSound('setting-select'); }} className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/10 bg-slate-950/80 p-3 text-left transition hover:border-amber-300/50 hover:bg-slate-950">
+                        <span className="text-xs font-black text-amber-300">{index + 1}</span>
+                        <span className="min-w-0"><span className="block truncate text-sm font-bold text-white">{entry.riotId}</span><span className="block truncate text-xs text-slate-400">{region?.label ?? entry.platform}</span></span>
+                        <span className="text-xs font-bold text-amber-200">{entry.count} {entry.count === 1 ? 'use' : 'uses'}</span>
+                      </button>;
+                    })}
+                  </div> : <p className="mt-3 text-sm leading-6 text-slate-400">Profiles you play will appear here.</p>}
+                </div>
+              </div>
+            </aside>
           </section></MultiplayerLobbyCard>
         ) : null}
 

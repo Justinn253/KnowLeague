@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { getDualRateLimit } from '@/lib/abuse-controls';
+import { enforceEmailDeliveryProtection } from '@/lib/email-delivery';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
+import { verifyTurnstileToken } from '@/lib/turnstile';
 
 export const runtime = 'nodejs';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,16}$/;
+const signupRateLimit = getDualRateLimit('signup');
 
 function isValidPassword(password: string) {
   return /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && password.length >= 8;
@@ -12,18 +17,11 @@ function isValidPassword(password: string) {
 
 async function findAuthUserByEmail(email: string) {
   const supabase = getSupabaseServiceClient();
-  const normalizedEmail = email.toLowerCase();
-
-  for (let page = 1; page <= 20; page += 1) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) throw error;
-
-    const user = data.users.find((candidate) => candidate.email?.toLowerCase() === normalizedEmail);
-    if (user) return user;
-    if (data.users.length < 1000) return null;
-  }
-
-  throw new Error('Unable to verify whether this email already has a pending signup.');
+  const { data, error } = await supabase
+    .rpc('find_auth_user_by_email', { search_email: email })
+    .maybeSingle<{ id: string; email_confirmed_at: string | null }>();
+  if (error) throw error;
+  return data;
 }
 
 export async function POST(request: Request) {
@@ -33,15 +31,30 @@ export async function POST(request: Request) {
       password?: unknown;
       username?: unknown;
       emailRedirectTo?: unknown;
+      turnstileToken?: unknown;
     };
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const username = typeof body.username === 'string' ? body.username.trim() : '';
     const emailRedirectTo = typeof body.emailRedirectTo === 'string' ? body.emailRedirectTo : undefined;
+    const turnstileToken = typeof body.turnstileToken === 'string' ? body.turnstileToken : undefined;
 
     if (!email) {
       throw new Error('Enter an email address.');
     }
+
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'auth-signup',
+      ip: signupRateLimit.ip,
+      subject: { id: email.toLowerCase(), ...signupRateLimit.subject },
+      errorMessage: 'Too many signup attempts. Please wait before trying again.',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
+    if (!await verifyTurnstileToken(request, turnstileToken)) {
+      return NextResponse.json({ error: 'Verification failed. Please try again.' }, { status: 403 });
+    }
+
     if (!isValidPassword(password)) {
       throw new Error('Please satisfy all password requirements.');
     }
@@ -82,6 +95,9 @@ export async function POST(request: Request) {
         .eq('id', existingUser.id);
       if (profileUpdateError) throw profileUpdateError;
 
+      const emailDeliveryResponse = await enforceEmailDeliveryProtection(request, email);
+      if (emailDeliveryResponse) return emailDeliveryResponse;
+
       const { error: resendError } = await supabase.auth.resend({
         type: 'signup',
         email,
@@ -89,8 +105,11 @@ export async function POST(request: Request) {
       });
       if (resendError) throw resendError;
 
-      return NextResponse.json({ needsEmailConfirmation: true });
+      return NextResponse.json({ needsEmailConfirmation: true, turnstileVerified: true });
     }
+
+    const emailDeliveryResponse = await enforceEmailDeliveryProtection(request, email);
+    if (emailDeliveryResponse) return emailDeliveryResponse;
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -98,6 +117,7 @@ export async function POST(request: Request) {
       options: {
         emailRedirectTo,
         data: metadata,
+        captchaToken: turnstileToken,
       },
     });
     if (error) throw error;
@@ -108,6 +128,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       needsEmailConfirmation: !data.session,
+      turnstileVerified: true,
       session: data.session
         ? {
             accessToken: data.session.access_token,

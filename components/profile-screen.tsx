@@ -29,6 +29,10 @@ import { useRouter } from 'next/navigation';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getEarnedRewards, type AchievementListItem } from '@/lib/achievements';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import {
+  EMAIL_DELIVERY_COOLDOWN_MS,
+  getEmailDeliveryCooldownSeconds,
+} from '@/lib/email-delivery-policy';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
 import { loadDetailedGameStats, loadPlayerGameStats, type DetailedGameStats, type PlayerGameStats, type QuizGameDetailedStats, type QuizModeStats, type SkincognitoDetailedStats } from '@/lib/game-storage';
 import {
@@ -442,6 +446,9 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [passwordResetSending, setPasswordResetSending] = useState(false);
+  const [passwordResetCooldownEndsAt, setPasswordResetCooldownEndsAt] = useState(0);
+  const [passwordResetCooldownNow, setPasswordResetCooldownNow] = useState(() => Date.now());
   const cleanUsernameDraft = usernameDraft.trim();
   const cleanAboutDraft = aboutDraft.trim();
   const hasAvatarChanges = avatarAction !== 'unchanged';
@@ -460,6 +467,10 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   ) : false;
   const hasPreferenceChanges = profile ? friendRequestsOpen !== profile.friend_requests_open : false;
   const hasAnySaveChanges = hasProfileChanges || hasPreferenceChanges || hasAvatarChanges;
+  const passwordResetCooldownSeconds = getEmailDeliveryCooldownSeconds(
+    passwordResetCooldownEndsAt,
+    passwordResetCooldownNow,
+  );
   const previewChatColor = normalizeChatColor(cosmeticsPreviewColor ?? pendingChatColor);
   const previewChatBorder = normalizeChatBorder(cosmeticsPreviewBorder ?? pendingChatBorder);
   const previewBubbleStyle = getChatBubbleStyle(previewChatColor, previewChatBorder);
@@ -467,6 +478,19 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    const remainingMs = passwordResetCooldownEndsAt - passwordResetCooldownNow;
+    if (!passwordResetCooldownEndsAt || remainingMs <= 0) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setPasswordResetCooldownNow(Date.now());
+    }, Math.min(1_000, remainingMs));
+
+    return () => window.clearTimeout(timeout);
+  }, [passwordResetCooldownEndsAt, passwordResetCooldownNow]);
 
   const hydrateFromCache = useCallback((cachedState: CachedProfileScreenState) => {
     setUserId(cachedState.userId);
@@ -715,19 +739,37 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
 
     const channel = supabase.channel(`profile-friends:${userId}`);
     channel
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests' }, (payload) => {
-        const row = { ...(payload.old as Record<string, unknown>), ...(payload.new as Record<string, unknown>) };
-        if (row.requester_id === userId || row.addressee_id === userId) {
-          void refreshFriendDashboard();
-        }
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'friend_requests',
+        filter: `addressee_id=eq.${userId}`,
+      }, () => {
+        void refreshFriendDashboard();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, (payload) => {
-        const row = { ...(payload.old as Record<string, unknown>), ...(payload.new as Record<string, unknown>) };
-        if (row.user_one_id === userId || row.user_two_id === userId) {
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'friend_requests',
+        filter: `addressee_id=eq.${userId}`,
+      }, () => {
+        void refreshFriendDashboard();
+      });
+
+    (['user_one_id', 'user_two_id'] as const).forEach((column) => {
+      (['INSERT', 'UPDATE'] as const).forEach((event) => {
+        channel.on('postgres_changes', {
+          event,
+          schema: 'public',
+          table: 'friendships',
+          filter: `${column}=eq.${userId}`,
+        }, () => {
           void refreshFriendDashboard();
-        }
-      })
-      .subscribe();
+        });
+      });
+    });
+
+    channel.subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
@@ -1218,17 +1260,38 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   };
 
   const sendPasswordReset = async () => {
+    if (passwordResetSending || passwordResetCooldownSeconds > 0) {
+      return;
+    }
+
     const supabase = getOptionalSupabaseClient();
-    if (!supabase || !email) {
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!supabase || !data.session) {
+      setMessage('Login required.');
       return;
     }
 
     setMessage('');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-
-    setMessage(error ? error.message : 'Password reset email sent.');
+    setPasswordResetSending(true);
+    try {
+      const response = await fetch('/api/auth/password-reset/authenticated', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${data.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
+      });
+      const body = await response.json() as { error?: string };
+      if (response.ok) {
+        setPasswordResetCooldownEndsAt(Date.now() + EMAIL_DELIVERY_COOLDOWN_MS);
+        setMessage('Password reset email sent.');
+      } else {
+        setMessage(body.error ?? 'Unable to send password reset email.');
+      }
+    } finally {
+      setPasswordResetSending(false);
+    }
   };
 
   const connectDiscord = async () => {
@@ -2058,10 +2121,15 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                     <button
                       type="button"
                       onClick={sendPasswordReset}
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-slate-900"
+                      disabled={passwordResetSending || passwordResetCooldownSeconds > 0}
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <KeyRound size={18} />
-                      Reset Password
+                      {passwordResetCooldownSeconds > 0
+                        ? `Reset Password in ${passwordResetCooldownSeconds}s`
+                        : passwordResetSending
+                          ? 'Sending Reset Email'
+                          : 'Reset Password'}
                     </button>
                     <button
                       type="button"

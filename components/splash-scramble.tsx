@@ -22,7 +22,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import Image from 'next/image';
+import { GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { SplashScrambleDailyLeaderboard } from '@/components/splash-scramble-daily-leaderboard';
@@ -1950,7 +1950,7 @@ export function SplashScramble() {
                       }}
                     >
                       <span className="relative h-10 overflow-hidden rounded-xl bg-slate-900">
-                        <Image src={skin.imageUrl} alt="" fill sizes="48px" loading="lazy" className="object-cover" />
+                        <GameSplashImage src={skin.imageUrl} alt="" fill sizes="48px" className="object-cover" />
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-white">{skin.answer}</span>
@@ -2032,7 +2032,7 @@ export function SplashScramble() {
         <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
           {selectedSkin ? (
             <div className="relative aspect-[16/4] max-h-28">
-              <Image src={selectedSkin.imageUrl} alt={`${selectedSkin.answer} selected splash art`} fill sizes="(min-width: 1024px) 420px, 100vw" className="object-cover" />
+              <GameSplashImage src={selectedSkin.imageUrl} alt={`${selectedSkin.answer} selected splash art`} fill sizes="(min-width: 1024px) 420px, 100vw" className="object-cover" />
             </div>
           ) : (
             <div className="grid aspect-[16/4] max-h-28 place-items-center bg-slate-950/70">
@@ -2342,7 +2342,7 @@ export function SplashScramble() {
             <div className={`relative overflow-hidden bg-slate-950 ${boardUsesRotatedMobileView ? 'aspect-[9/16] sm:aspect-video' : 'aspect-video'}`}>
               {boardUsesRotatedMobileView ? (
                 <div className="absolute left-1/2 top-1/2 aspect-video w-[177.777%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:static sm:h-full sm:w-full sm:translate-x-0 sm:translate-y-0 sm:rotate-0">
-                  <Image
+                  <GameSplashImage
                     src={targetSkin.imageUrl}
                     alt={`${targetSkin.answer} splash art reference`}
                     fill
@@ -2351,7 +2351,7 @@ export function SplashScramble() {
                   />
                 </div>
               ) : (
-                <Image
+                <GameSplashImage
                   src={targetSkin.imageUrl}
                   alt={`${targetSkin.answer} splash art reference`}
                   fill
@@ -2385,7 +2385,7 @@ export function SplashScramble() {
     return (
       <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 shadow-glow backdrop-blur-xl">
         <div className="relative min-h-[38rem] lg:aspect-video lg:min-h-[18rem]">
-          <Image
+          <GameSplashImage
             src={targetSkin.imageUrl}
             alt={`${targetSkin.answer} full splash art`}
             fill

@@ -9,6 +9,8 @@ import {
   type SoloQuizGameId,
   type SoloQuizMode,
 } from '@/lib/solo-quiz';
+import { getDualRateLimit, getIpRateLimit } from '@/lib/abuse-controls';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +18,8 @@ export const dynamic = 'force-dynamic';
 const games = new Set<SoloQuizGameId>(['ability-blitz', 'skin-champion']);
 const modes = new Set<SoloQuizMode>(['daily', 'chaos']);
 const difficulties = new Set<SoloQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
+const publicLeaderboardRateLimit = getIpRateLimit('publicLeaderboard');
+const leaderboardSubmissionRateLimit = getDualRateLimit('leaderboardSubmission');
 
 function parseScope(request: NextRequest) {
   const gameId = request.nextUrl.searchParams.get('gameId') as SoloQuizGameId | null;
@@ -32,6 +36,12 @@ function parseScope(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const userId = await getOptionalAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'solo-quiz-leaderboard',
+      ip: publicLeaderboardRateLimit,
+      errorMessage: 'Too many leaderboard requests. Please wait a minute and try again.',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
     const scope = parseScope(request);
     const snapshot = await getSoloLeaderboard({
       ...scope,
@@ -47,6 +57,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'solo-quiz-leaderboard-submission',
+      ip: leaderboardSubmissionRateLimit.ip,
+      subject: { id: userId, ...leaderboardSubmissionRateLimit.subject },
+      errorMessage: 'Too many leaderboard submissions. Please wait a minute and try again.',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
     const body = await request.json() as {
       gameId?: SoloQuizGameId;
       mode?: SoloQuizMode;

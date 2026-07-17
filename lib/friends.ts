@@ -69,14 +69,10 @@ type FriendMessageRow = {
 };
 
 const ONLINE_WINDOW_MS = 20 * 1000;
-const FRIEND_MESSAGE_RETENTION_DAYS = 30;
-const FRIEND_MESSAGE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 type FriendRequestResult = 'requested' | 'accepted';
 export type PublicFriendRelationship = 'friend' | 'pending' | 'none';
 let endedAtColumnAvailable: boolean | null = null;
 let friendPreferenceColumnsAvailable: boolean | null = null;
-let lastFriendMessageCleanupAt = 0;
-let friendMessageCleanupPromise: Promise<void> | null = null;
 
 function isOnline(lastSeenAt?: string | null) {
   return Boolean(lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < ONLINE_WINDOW_MS);
@@ -385,38 +381,8 @@ export async function acceptFriendPair(
   await refreshFriendCounts(supabase, [firstUserId, secondUserId]);
 }
 
-async function deleteExpiredFriendMessages(supabase: ReturnType<typeof getSupabaseServiceClient>) {
-  const cutoff = new Date(Date.now() - FRIEND_MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabase
-    .from('friend_messages')
-    .delete()
-    .lt('created_at', cutoff);
-
-  if (error) {
-    throw error;
-  }
-}
-
-async function cleanUpExpiredFriendMessages(supabase: ReturnType<typeof getSupabaseServiceClient>) {
-  if (Date.now() - lastFriendMessageCleanupAt < FRIEND_MESSAGE_CLEANUP_INTERVAL_MS) return;
-  if (friendMessageCleanupPromise) return friendMessageCleanupPromise;
-
-  friendMessageCleanupPromise = deleteExpiredFriendMessages(supabase)
-    .then(() => {
-      lastFriendMessageCleanupAt = Date.now();
-    })
-    .catch(() => {
-      // Retention cleanup is maintenance and should not block dashboard or message reads.
-    })
-    .finally(() => {
-      friendMessageCleanupPromise = null;
-    });
-  return friendMessageCleanupPromise;
-}
-
 export async function getFriendDashboard(userId: string) {
   const supabase = getSupabaseServiceClient();
-  await cleanUpExpiredFriendMessages(supabase);
   const friendships = await getActiveFriendshipsForUser(supabase, userId);
 
   const friendIds = (friendships ?? []).map((friendship) => (
@@ -748,6 +714,24 @@ export async function respondToFriendRequest(userId: string, requestId: string, 
   await acceptFriendPair(supabase, request.requester_id, request.addressee_id);
 }
 
+export async function markFriendMessagesRead(userId: string, friendId: string) {
+  const { userOneId, userTwoId } = orderedPair(userId, friendId);
+  const supabase = getSupabaseServiceClient();
+  const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
+  if (!friendship) {
+    throw new Error('You are not friends with this user.');
+  }
+
+  const { error } = await supabase
+    .from('friend_message_reads')
+    .upsert({
+      user_id: userId,
+      friendship_id: friendship.id,
+      last_read_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,friendship_id' });
+  if (error) throw error;
+}
+
 export async function getFriendMessages(userId: string, friendId: string, options: { markRead?: boolean } = {}) {
   const { userOneId, userTwoId } = orderedPair(userId, friendId);
   const supabase = getSupabaseServiceClient();
@@ -756,8 +740,6 @@ export async function getFriendMessages(userId: string, friendId: string, option
   if (!friendship) {
     throw new Error('You are not friends with this user.');
   }
-
-  await cleanUpExpiredFriendMessages(supabase);
 
   const { data: messages, error } = await supabase
     .from('friend_messages')

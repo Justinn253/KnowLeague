@@ -1,11 +1,16 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Mail, Shield, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isValidPassword, PasswordRequirements } from '@/components/password-requirements';
+import { TurnstileChallenge, isTurnstileClientEnabled } from '@/components/turnstile-challenge';
 import { getAuthSessionId } from '@/lib/auth-session';
+import {
+  EMAIL_DELIVERY_COOLDOWN_MS,
+  getEmailDeliveryCooldownSeconds,
+} from '@/lib/email-delivery-policy';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -36,6 +41,10 @@ export function AuthScreen() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [emailDelivery, setEmailDelivery] = useState<EmailDelivery | null>(null);
+  const [emailDeliveryCooldownEndsAt, setEmailDeliveryCooldownEndsAt] = useState(0);
+  const [emailDeliveryCooldownNow, setEmailDeliveryCooldownNow] = useState(() => Date.now());
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   const title = useMemo(() => {
     if (mode === 'signup') {
@@ -48,6 +57,33 @@ export function AuthScreen() {
 
     return 'Log in to KnowLeague';
   }, [mode]);
+
+  const emailDeliveryCooldownSeconds = getEmailDeliveryCooldownSeconds(
+    emailDeliveryCooldownEndsAt,
+    emailDeliveryCooldownNow,
+  );
+
+  useEffect(() => {
+    const remainingMs = emailDeliveryCooldownEndsAt - emailDeliveryCooldownNow;
+    if (!emailDeliveryCooldownEndsAt || remainingMs <= 0) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setEmailDeliveryCooldownNow(Date.now());
+    }, Math.min(1_000, remainingMs));
+
+    return () => window.clearTimeout(timeout);
+  }, [emailDeliveryCooldownEndsAt, emailDeliveryCooldownNow]);
+
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken(null);
+    setTurnstileResetKey((value) => value + 1);
+  }, []);
+
+  const handleTurnstileTokenChange = useCallback((token: string | null) => {
+    setTurnstileToken(token);
+  }, []);
 
   useEffect(() => {
     if (mode !== 'signup') {
@@ -109,22 +145,35 @@ export function AuthScreen() {
     if (profileError) throw profileError;
   };
 
+  const requestEmailDelivery = useCallback(async (type: EmailDelivery['type'], targetEmail: string) => {
+    if (isTurnstileClientEnabled && !turnstileToken) {
+      throw new Error('Complete the verification before requesting another email.');
+    }
+
+    const response = await fetch('/api/auth/email-delivery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        email: targetEmail,
+        redirectTo: getAuthRedirectUrl(type === 'signup' ? '/' : '/reset-password'),
+        turnstileToken,
+      }),
+    });
+    const payload = await response.json() as { error?: string };
+    resetTurnstile();
+    if (!response.ok) {
+      throw new Error(payload.error ?? 'Unable to send email.');
+    }
+  }, [resetTurnstile, turnstileToken]);
+
   const resendEmail = async () => {
-    const supabase = getOptionalSupabaseClient();
-    if (!supabase || !emailDelivery) return;
+    if (!emailDelivery) return;
     setBusy(true);
     setMessage('');
     try {
-      const { error } = emailDelivery.type === 'signup'
-        ? await supabase.auth.resend({
-            type: 'signup',
-            email: emailDelivery.email,
-            options: { emailRedirectTo: getAuthRedirectUrl('/') },
-          })
-        : await supabase.auth.resetPasswordForEmail(emailDelivery.email, {
-            redirectTo: getAuthRedirectUrl('/reset-password'),
-          });
-      if (error) throw error;
+      await requestEmailDelivery(emailDelivery.type, emailDelivery.email);
+      setEmailDeliveryCooldownEndsAt(Date.now() + EMAIL_DELIVERY_COOLDOWN_MS);
       setMessage(emailDelivery.type === 'signup' ? 'Sign-up email resent.' : 'Password reset email resent.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to resend email.');
@@ -148,6 +197,9 @@ export function AuthScreen() {
     try {
       if (mode === 'signup') {
         const cleanUsername = username.trim();
+        if (isTurnstileClientEnabled && !turnstileToken) {
+          throw new Error('Complete the verification before creating an account.');
+        }
         if (!isValidPassword(password)) {
           throw new Error('Please satisfy all password requirements.');
         }
@@ -178,12 +230,14 @@ export function AuthScreen() {
             password,
             username: cleanUsername,
             emailRedirectTo: getAuthRedirectUrl('/'),
+            turnstileToken,
           }),
         });
         const payload = await response.json() as {
           error?: string;
           session?: { accessToken: string; refreshToken: string; userId: string } | null;
         };
+        resetTurnstile();
         if (!response.ok) {
           throw new Error(payload.error ?? 'Unable to create account.');
         }
@@ -205,20 +259,16 @@ export function AuthScreen() {
         }
 
         setEmailDelivery({ type: 'signup', email: email.trim() });
+        setEmailDeliveryCooldownEndsAt(Date.now() + EMAIL_DELIVERY_COOLDOWN_MS);
         setMessage('Please check your email to finish the sign up process.');
         return;
       }
 
       if (mode === 'password') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: getAuthRedirectUrl('/reset-password'),
-        });
-
-        if (error) {
-          throw error;
-        }
+        await requestEmailDelivery('password', email.trim());
 
         setEmailDelivery({ type: 'password', email: email.trim() });
+        setEmailDeliveryCooldownEndsAt(Date.now() + EMAIL_DELIVERY_COOLDOWN_MS);
         setMessage('Password reset email sent if an account exists for that address.');
         return;
       }
@@ -276,7 +326,9 @@ export function AuthScreen() {
                   setMode(nextMode as AuthMode);
                   setMessage('');
                   setEmailDelivery(null);
+                  setEmailDeliveryCooldownEndsAt(0);
                   setConfirmPassword('');
+                  resetTurnstile();
                 }}
                 className={`min-h-10 rounded-xl px-3 text-sm font-semibold transition ${
                   mode === nextMode ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900'
@@ -386,6 +438,10 @@ export function AuthScreen() {
               </label>
             ) : null}
 
+            {mode === 'signup' || mode === 'password' ? (
+              <TurnstileChallenge onTokenChange={handleTurnstileTokenChange} resetKey={turnstileResetKey} />
+            ) : null}
+
             <button
               type="submit"
               disabled={
@@ -394,7 +450,8 @@ export function AuthScreen() {
                 (mode !== 'password' && !password) ||
                 (mode === 'signup' && !isValidPassword(password)) ||
                 (mode === 'signup' && password !== confirmPassword) ||
-                (mode === 'signup' && (usernameStatus === 'checking' || usernameStatus === 'invalid' || usernameStatus === 'taken'))
+                (mode === 'signup' && (usernameStatus === 'checking' || usernameStatus === 'invalid' || usernameStatus === 'taken')) ||
+                ((mode === 'signup' || mode === 'password') && isTurnstileClientEnabled && !turnstileToken)
               }
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -412,6 +469,8 @@ export function AuthScreen() {
                     setMode(mode === 'password' ? 'login' : 'password');
                     setMessage('');
                     setEmailDelivery(null);
+                    setEmailDeliveryCooldownEndsAt(0);
+                    resetTurnstile();
                   }}
                   className="font-semibold text-amber-300 transition hover:text-amber-200"
                 >
@@ -427,8 +486,15 @@ export function AuthScreen() {
             ) : null}
             {emailDelivery ? (
               <div className="text-center text-sm">
-                <button type="button" onClick={() => void resendEmail()} disabled={busy} className="font-semibold text-amber-300 transition hover:text-amber-200 disabled:opacity-60">
-                  Resend email
+                <button
+                  type="button"
+                  onClick={() => void resendEmail()}
+                  disabled={busy || emailDeliveryCooldownSeconds > 0}
+                  className="font-semibold text-amber-300 transition hover:text-amber-200 disabled:opacity-60"
+                >
+                  {emailDeliveryCooldownSeconds > 0
+                    ? `Resend email in ${emailDeliveryCooldownSeconds}s`
+                    : 'Resend email'}
                 </button>
               </div>
             ) : null}

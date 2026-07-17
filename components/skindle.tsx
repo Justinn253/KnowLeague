@@ -2,7 +2,7 @@
 
 import { FormEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, X } from 'lucide-react';
-import Image from 'next/image';
+import { GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -390,11 +390,12 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
             className="mt-2 w-full cursor-zoom-in ring-1 ring-white/30 transition hover:ring-white/70"
             aria-label={`Open ${guess.item.answer} splash art`}
           >
-            <Image
+            <GameSplashImage
               src={guess.item.imageUrl}
               alt=""
               width={243}
               height={143}
+              sizes="(min-width: 640px) 243px, 100vw"
               className="aspect-[1215/717] w-full shrink-0 object-contain"
             />
           </button>
@@ -896,7 +897,7 @@ export function Skindle() {
                       {playerStats.lastCorrectGuess ? (
                         <div className="mt-3 flex items-center gap-3">
                           {playerStats.lastCorrectGuess.imageUrl ? (
-                            <Image
+                            <GameSplashImage
                               src={playerStats.lastCorrectGuess.imageUrl}
                               alt=""
                               width={96}
@@ -914,7 +915,7 @@ export function Skindle() {
                       {mostGuessedSkin ? (
                         <div className={`${playerStats.lastCorrectGuess ? 'mt-4 border-t border-white/10 pt-3' : 'mt-3'} flex items-center gap-3`}>
                           {mostGuessedSkin.imageUrl ? (
-                            <Image
+                            <GameSplashImage
                               src={mostGuessedSkin.imageUrl}
                               alt=""
                               width={96}
@@ -934,7 +935,7 @@ export function Skindle() {
                       {playerStats.firstGuess ? (
                         <div className="mt-4 flex items-center gap-3 border-t border-white/10 pt-3">
                           {playerStats.firstGuess.imageUrl ? (
-                            <Image
+                            <GameSplashImage
                               src={playerStats.firstGuess.imageUrl}
                               alt=""
                               width={96}
@@ -1030,7 +1031,7 @@ export function Skindle() {
                       >
                         <div className="flex min-w-0 items-center gap-3">
                           {skin ? (
-                            <Image
+                            <GameSplashImage
                               src={skin.imageUrl}
                               alt=""
                               width={72}
@@ -1082,13 +1083,14 @@ export function Skindle() {
                 className="mb-6 block w-full cursor-zoom-in overflow-hidden rounded-2xl border border-slate-300/50 bg-slate-950 transition hover:border-slate-100/80"
                 aria-label={`Open ${target.answer} splash art`}
               >
-                <Image
+                <GameSplashImage
                   src={target.imageUrl}
                   alt={target.answer}
                   width={1215}
                   height={717}
                   className="aspect-[1215/717] w-full object-contain"
                   priority
+                  sizes="(min-width: 1024px) 640px, 100vw"
                 />
               </button>
             ) : null}
@@ -1196,7 +1198,7 @@ export function Skindle() {
                         }}
                       >
                         <span className="relative h-12 overflow-hidden rounded-xl bg-slate-900">
-                          <Image src={skin.imageUrl} alt="" fill sizes="64px" loading="lazy" className="object-cover" />
+                          <GameSplashImage src={skin.imageUrl} alt="" fill sizes="64px" className="object-cover" />
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate font-semibold text-white">{skin.answer}</span>
@@ -1243,13 +1245,14 @@ export function Skindle() {
             >
               <X size={18} />
             </button>
-            <Image
+            <GameSplashImage
               src={previewSkin.imageUrl}
               alt={previewSkin.answer}
               width={1215}
               height={717}
               className="max-h-[82vh] w-full object-contain"
               priority
+              sizes="(min-width: 1280px) 1152px, 92vw"
             />
             <div className="border-t border-white/10 px-4 py-3">
               <p className="text-sm font-semibold text-white">{previewSkin.answer}</p>

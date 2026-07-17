@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
+import { GENERATED_CATALOG_CACHE_CONTROL } from '@/lib/cache-control';
 import { getSkinCatalog } from '@/lib/catalogs';
 
 export async function GET() {
   return NextResponse.json(getSkinCatalog(), {
     headers: {
-      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+      'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL,
     },
   });
 }

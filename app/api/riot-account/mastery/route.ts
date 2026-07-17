@@ -46,15 +46,16 @@ export async function GET(request: Request) {
     if (!riotId) return NextResponse.json({ error: 'riotId is required.' }, { status: 400 });
     if (!isRiotPlatformRoute(platform)) return NextResponse.json({ error: 'platform is invalid.' }, { status: 400 });
 
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: `riot-mastery-game:${clientIp}`,
       limit: rateLimitRequests,
       windowMs: rateLimitWindowMs,
     });
     if (!rateLimit.allowed) {
+      const unavailable = rateLimit.source === 'unavailable';
       return NextResponse.json(
-        { error: `Too many mastery lookups. Try again in ${rateLimit.retryAfterSeconds} seconds.` },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+        { error: unavailable ? 'Request protection is temporarily unavailable. Please try again shortly.' : `Too many mastery lookups. Try again in ${rateLimit.retryAfterSeconds} seconds.` },
+        { status: unavailable ? 503 : 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
       );
     }
 

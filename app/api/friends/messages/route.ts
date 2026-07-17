@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getFriendMessages, sendFriendMessage } from '@/lib/friends';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { getDualRateLimit } from '@/lib/abuse-controls';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 type MessageBody = {
   friendId: string;
@@ -10,10 +11,7 @@ type MessageBody = {
 };
 
 export const runtime = 'nodejs';
-const FRIEND_MESSAGE_RATE_LIMIT = {
-  limit: 6,
-  windowMs: 10 * 1000,
-};
+const friendMessageRateLimit = getDualRateLimit('friendMessage');
 
 export async function GET(request: Request) {
   try {
@@ -35,21 +33,13 @@ export async function POST(request: Request) {
     const body = await readJsonBody<MessageBody>(request);
     const friendId = requireString(body.friendId, 'friendId');
     const message = requireString(body.message, 'message');
-    const rateLimit = checkRateLimit({
-      key: `friend-message:${userId}`,
-      limit: FRIEND_MESSAGE_RATE_LIMIT.limit,
-      windowMs: FRIEND_MESSAGE_RATE_LIMIT.windowMs,
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'friend-message',
+      ip: friendMessageRateLimit.ip,
+      subject: { id: userId, ...friendMessageRateLimit.subject },
+      errorMessage: 'You are sending messages too quickly. Please wait a few seconds and try again.',
     });
-
-    if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'You are sending messages too quickly. Please wait a few seconds and try again.' },
-        {
-          status: 429,
-          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
-        },
-      );
-    }
+    if (rateLimitResponse) return rateLimitResponse;
 
     const sentMessage = await sendFriendMessage(userId, friendId, message);
     return NextResponse.json({ message: sentMessage });

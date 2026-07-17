@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, Play, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
-import Image from 'next/image';
+import { GameIconImage } from '@/components/game-asset-image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
 import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -306,7 +306,7 @@ function AverageEnemyRankBadge({ averageRank }: { averageRank: AverageRankSummar
       title={`Average Enemy Rank: ${averageRank.label}`}
     >
       <span>AER: {abbreviatedRank}</span>
-      {averageRank.tier ? <Image src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={18} height={18} className="h-4 w-4 object-contain" /> : null}
+      {averageRank.tier ? <GameIconImage src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={18} height={18} className="h-4 w-4 object-contain" /> : null}
     </span>
   );
 }
@@ -315,7 +315,7 @@ function AverageEnemyRankSummary({ averageRank }: { averageRank: AverageRankSumm
   return (
     <span className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-300" title={`Average Enemy Rank: ${averageRank.label}`}>
       <span>Average Enemy Rank: {averageRank.label}</span>
-      {averageRank.tier ? <Image src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={20} height={20} className="h-5 w-5 object-contain" /> : null}
+      {averageRank.tier ? <GameIconImage src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={20} height={20} className="h-5 w-5 object-contain" /> : null}
     </span>
   );
 }
@@ -345,7 +345,7 @@ function MatchRole({ position }: { position: string }) {
   return (
     <span className="inline-flex items-center gap-1">
       <span>{label}</span>
-      {icon ? <Image src={icon} alt="" width={16} height={16} className="h-4 w-4 object-contain" /> : null}
+      {icon ? <GameIconImage src={icon} alt="" width={16} height={16} className="h-4 w-4 object-contain" /> : null}
     </span>
   );
 }
@@ -578,13 +578,13 @@ function ChampionIcon({ src, name, size = 'md' }: { src: string; name: string; s
     );
   }
 
-  return <Image src={src} alt="" width={dimension} height={dimension} className={`${className} shrink-0 object-cover ring-1 ring-white/10`} />;
+  return <GameIconImage src={src} alt="" width={dimension} height={dimension} className={`${className} shrink-0 object-cover ring-1 ring-white/10`} />;
 }
 
 function RankIcon({ tier }: { tier: string }) {
   const rank = rankTierKey(tier);
   return (
-    <Image
+    <GameIconImage
       src={getLeagueRankIconUrl(rank)}
       alt=""
       width={96}
@@ -1054,7 +1054,7 @@ function SmallGameIcon({ src, label, size = 'sm' }: { src: string; label: string
     return <span className={`${className} border border-white/10 bg-slate-800`} aria-label={label} title={label} />;
   }
 
-  return <Image src={src} alt={label} title={label} width={pixels} height={pixels} className={`${className} object-cover ring-1 ring-white/10`} />;
+  return <GameIconImage src={src} alt={label} title={label} width={pixels} height={pixels} className={`${className} object-cover ring-1 ring-white/10`} />;
 }
 
 function MatchMetricLabel({ icon: Icon, label }: { icon: typeof Swords; label: string }) {
@@ -1179,7 +1179,7 @@ const MatchParticipantRow = memo(function MatchParticipantRow({ participant, max
           <div className="mt-1 flex items-center gap-2">
             {participant.rank && rankTier ? (
               <>
-                <Image src={getLeagueRankIconUrl(rankTier)} alt="" title={`${participant.rank.tier} ${participant.rank.rank}`} width={22} height={22} className="h-5 w-5 object-contain" />
+                <GameIconImage src={getLeagueRankIconUrl(rankTier)} alt="" title={`${participant.rank.tier} ${participant.rank.rank}`} width={22} height={22} className="h-5 w-5 object-contain" />
                 <span className={`truncate text-xs font-bold ${getLeagueRankStyle(rankTier).text}`}>
                   {formatRankedDivision(participant.rank.tier, participant.rank.rank)}
                 </span>
@@ -1730,7 +1730,7 @@ export function RiotAccountViewer() {
 
             {data ? (
               <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                <Image src={data.summoner.profileIconUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10" />
+                <GameIconImage src={data.summoner.profileIconUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10" />
                 <div>
                   <p className="font-bold text-white">Level {formatNumber(data.summoner.summonerLevel)}</p>
                   <p className="text-sm text-slate-400">{data.platform} - {data.regionalRoute.toUpperCase()}</p>

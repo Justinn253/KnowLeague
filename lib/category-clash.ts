@@ -9,7 +9,7 @@ import {
   normalizeEnabledCategoryIds,
   type CategoryClashCategory,
 } from '@/lib/category-clash-data';
-import { canReconnect, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
+import { canReconnect, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle, shouldUpdateMultiplayerPresence } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 import {
   addMultiplayerLobbyEvent,
@@ -380,8 +380,8 @@ async function fetchProfileCosmetics(authUserIds: Array<string | null>) {
   ]));
 }
 
-async function addLobbyEvent(lobbyId: string, eventType: string) {
-  await addMultiplayerLobbyEvent('category_clash_lobby_events', lobbyId, eventType);
+async function addLobbyEvent(lobbyId: string, eventType: string, payload?: Record<string, unknown>) {
+  await addMultiplayerLobbyEvent('category_clash_lobby_events', lobbyId, eventType, payload);
 }
 
 async function addSystemChatMessage(
@@ -1736,12 +1736,12 @@ export async function submitCategoryClashAnswer(code: string, clientId: string, 
     }
     await saveSimultaneousSubmission(lobby, player, category.id, cleanGuess);
     await addLobbyEvent(lobby.id, 'answer_submitted');
-    return getLobbyView(lobby, clientId);
+    return { kind: 'answer_submitted' as const };
   }
 
   await saveSimultaneousSubmission(lobby, player, category.id, cleanGuess);
   await addLobbyEvent(lobby.id, 'answer_submitted');
-  return getLobbyView(lobby, clientId);
+  return { kind: 'answer_submitted' as const };
 }
 
 export async function postCategoryClashChatMessage(code: string, clientId: string, message: string) {
@@ -1761,7 +1761,7 @@ export async function postCategoryClashChatMessage(code: string, clientId: strin
 
   const cosmeticsByUserId = await fetchProfileCosmetics([player.auth_user_id]);
   const cosmetics = player.auth_user_id ? cosmeticsByUserId.get(player.auth_user_id) : null;
-  const { error } = await getSupabaseServiceClient()
+  const { data: insertedMessage, error } = await getSupabaseServiceClient()
     .from('category_clash_chat_messages')
     .insert({
       lobby_id: lobby.id,
@@ -1771,10 +1771,17 @@ export async function postCategoryClashChatMessage(code: string, clientId: strin
       tone: 'neutral',
       chat_color: cosmetics?.chat_color ?? 'amber',
       chat_border: cosmetics?.chat_border ?? DEFAULT_CHAT_BORDER,
-    });
+    })
+    .select('*')
+    .single<CategoryClashChatMessage>();
   if (error) throw error;
-  await addLobbyEvent(lobby.id, 'chat_message_posted');
-  return getLobbyView(lobby, clientId);
+  const chatMessage: CategoryClashChatMessage = {
+    ...insertedMessage,
+    chat_color: normalizeChatColor(insertedMessage.chat_color),
+    chat_border: normalizeChatBorder(insertedMessage.chat_border),
+  };
+  await addLobbyEvent(lobby.id, 'chat_message_posted', { kind: 'chat_message', chatMessage });
+  return { kind: 'chat_message' as const, chatMessage };
 }
 
 export async function heartbeatCategoryClashPlayer(code: string, clientId: string, connected = true) {
@@ -1790,32 +1797,38 @@ export async function heartbeatCategoryClashPlayer(code: string, clientId: strin
     await reconcileCategoryClashLobby(lobby);
     throw new Error('The reconnect window has expired.');
   }
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
   const disconnectedAt = connected ? null : player.disconnected_at ?? now;
-  const { error } = await getSupabaseServiceClient()
-    .from('category_clash_players')
-    .update({
-      connected,
-      last_seen_at: now,
-      disconnected_at: disconnectedAt,
-      updated_at: now,
-    })
-    .eq('lobby_id', lobby.id)
-    .eq('client_id', clientId);
-  if (error) throw error;
+  const presenceUpdated = shouldUpdateMultiplayerPresence(player.last_seen_at, player.connected, connected, nowMs);
+  if (presenceUpdated) {
+    const { error } = await getSupabaseServiceClient()
+      .from('category_clash_players')
+      .update({
+        connected,
+        last_seen_at: now,
+        disconnected_at: disconnectedAt,
+        updated_at: now,
+      })
+      .eq('lobby_id', lobby.id)
+      .eq('client_id', clientId);
+    if (error) throw error;
+  }
   if (connectionChanged) {
     await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
   }
-  const updatedPlayers = players.map((candidate) => candidate.id === player.id
-    ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt, updated_at: now }
-    : candidate);
+  const updatedPlayers = presenceUpdated
+    ? players.map((candidate) => candidate.id === player.id
+      ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt, updated_at: now }
+      : candidate)
+    : players;
   if (!connected && lobby.status === 'finished') {
     const updatedLobby = await ensureCategoryClashHostPlayer(lobby, updatedPlayers);
     const startedMatch = await startNextMatchIfAllConnectedPlayersVoted(updatedLobby, clientId);
-    return { connected, status: startedMatch?.lobby.status ?? updatedLobby.status };
+    return { connected, status: startedMatch?.lobby.status ?? updatedLobby.status, presenceUpdated };
   }
   const reconciledLobby = await reconcileCategoryClashLobby(lobby, updatedPlayers);
-  return { connected, status: reconciledLobby.status };
+  return { connected, status: reconciledLobby.status, presenceUpdated };
 }
 
 export async function leaveCategoryClashLobby(code: string, clientId: string, forfeit = false) {

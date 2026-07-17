@@ -4,8 +4,11 @@ import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
 import { getUserAchievements } from '@/lib/achievements-server';
 import { getFriendRelationship } from '@/lib/friends';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { getIpRateLimit } from '@/lib/abuse-controls';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
+const publicProfileRateLimit = getIpRateLimit('publicProfile');
 
 type PublicProfileRow = {
   id: string;
@@ -74,6 +77,13 @@ async function fetchPrivateDetails(userId: string) {
 
 export async function GET(request: Request, { params }: { params: { username: string } }) {
   try {
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'public-profile',
+      ip: publicProfileRateLimit,
+      errorMessage: 'Too many profile requests. Please wait a minute and try again.',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const username = decodeURIComponent(params.username).trim();
     if (!username) {
       throw new Error('Profile not found.');

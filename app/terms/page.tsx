@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+export const revalidate = 86400;
+
 const sections = [
   {
     title: 'Alpha Service',

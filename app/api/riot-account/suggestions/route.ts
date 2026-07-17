@@ -11,21 +11,22 @@ const rateLimitRequests = Number(process.env.SUGGESTIONS_RATE_LIMIT_REQUESTS ?? 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const clientIp = getClientIp(request);
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: `riot-account-suggestions:${clientIp}`,
     limit: rateLimitRequests,
     windowMs: rateLimitWindowMs,
   });
 
   if (!rateLimit.allowed) {
+    const unavailable = rateLimit.source === 'unavailable';
     logServerEvent('warn', 'riot_account_suggestions_rate_limited', {
       clientIp,
       retryAfterSeconds: rateLimit.retryAfterSeconds,
     });
     return NextResponse.json(
-      { suggestions: [], error: `Too many suggestion requests. Try again in ${rateLimit.retryAfterSeconds} seconds.` },
+      { suggestions: [], error: unavailable ? 'Request protection is temporarily unavailable. Please try again shortly.' : `Too many suggestion requests. Try again in ${rateLimit.retryAfterSeconds} seconds.` },
       {
-        status: 429,
+        status: unavailable ? 503 : 429,
         headers: {
           'Retry-After': String(rateLimit.retryAfterSeconds),
           'X-RateLimit-Limit': String(rateLimitRequests),

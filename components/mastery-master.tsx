@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BarChart3, Check, Flame, Loader2, Play, RotateCcw, X } from 'lucide-react';
-import Image from 'next/image';
+import { GameSplashImage } from '@/components/game-asset-image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppSelectMenu } from '@/components/app-select-menu';
 import { MultiplayerCreateJoinPanel, MultiplayerLobbyCard, MultiplayerLobbyHeader, MultiplayerLobbyShell, MultiplayerPublicLobbyEmpty } from '@/components/multiplayer-lobby-layout';
@@ -187,14 +187,14 @@ function ShowcaseCard({ champion, revealed, selected, answerState, showMasteryLe
       aria-label={`Select ${champion.name}`}
     >
       {gridMode ? <>
-        <Image src={champion.splashUrl} alt="" fill loading={preload ? 'eager' : 'lazy'} sizes="(min-width: 1024px) 40vw, 80vw" className="object-cover object-center transition duration-500 group-hover:scale-[1.02]" />
+        <GameSplashImage src={champion.splashUrl} alt="" fill loading={preload ? 'eager' : 'lazy'} sizes="(min-width: 1024px) 40vw, 80vw" className="object-cover object-center transition duration-500 group-hover:scale-[1.02]" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/10" />
         <div className={`absolute bottom-0 p-3 sm:p-4 ${direction === 'right' ? 'left-0 text-left' : 'right-0 text-right'}`}><p className="text-sm font-black text-white sm:text-base">{champion.name}</p><p className="mt-1 text-xs font-semibold text-slate-300">{champion.title}</p></div>
       </> : direction === 'right' ? <>
         <div className="flex min-w-0 items-center justify-center bg-slate-950 p-3 text-center"><div><p className="text-xl font-black text-white sm:text-2xl">{champion.name}</p><p className="mt-1 text-xs font-semibold text-slate-300">{champion.title}</p></div></div>
-        <div className="relative min-w-0 bg-slate-950"><Image src={champion.splashUrl} alt="" fill loading={preload ? 'eager' : 'lazy'} sizes="(min-width: 1024px) 40vw, 80vw" className="object-contain object-right" /></div>
+        <div className="relative min-w-0 bg-slate-950"><GameSplashImage src={champion.splashUrl} alt="" fill loading={preload ? 'eager' : 'lazy'} sizes="(min-width: 1024px) 40vw, 80vw" className="object-contain object-right" /></div>
       </> : <>
-        <div className="relative min-w-0 bg-slate-950"><Image src={champion.splashUrl} alt="" fill loading={preload ? 'eager' : 'lazy'} sizes="(min-width: 1024px) 40vw, 80vw" className="object-contain object-left" /></div>
+        <div className="relative min-w-0 bg-slate-950"><GameSplashImage src={champion.splashUrl} alt="" fill loading={preload ? 'eager' : 'lazy'} sizes="(min-width: 1024px) 40vw, 80vw" className="object-contain object-left" /></div>
         <div className="flex min-w-0 items-center justify-center bg-slate-950 p-3 text-center"><div><p className="text-xl font-black text-white sm:text-2xl">{champion.name}</p><p className="mt-1 text-xs font-semibold text-slate-300">{champion.title}</p></div></div>
       </>}
       {positionBadge !== undefined ? <span className={`absolute z-20 inline-flex min-w-10 items-center justify-center rounded-full border border-sky-300/80 bg-slate-950/90 px-2 py-1 text-xs font-black text-sky-100 ${gridMode ? 'top-3' : 'top-1/2 -translate-y-1/2'} ${direction === 'right' ? 'right-3' : 'left-3'}`}>{formatOrdinal(positionBadge)}</span> : null}

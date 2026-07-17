@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
-import Image from 'next/image';
+import { GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import {
   clearDailyGameState,
@@ -424,12 +424,13 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
         ) : item?.imageUrl ? (
           <div className="relative z-10 flex h-full w-full flex-col">
             <div className="relative h-full min-h-0 flex-1">
-              <Image
+              <GameSplashImage
                 key={`${cardLabel}-${item.id}`}
                 src={item.imageUrl}
                 alt={item.question}
                 width={1215}
                 height={717}
+                sizes="(min-width: 1024px) 640px, 100vw"
                 className={getSkinImageClassName(cardLabel)}
                 priority={isCurrent}
                 style={{

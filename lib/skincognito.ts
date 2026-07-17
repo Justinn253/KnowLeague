@@ -1,7 +1,7 @@
 import { getSkinCatalog } from '@/lib/catalogs';
 import { normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
-import { canReconnect, getReconnectDeadline, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
+import { canReconnect, getReconnectDeadline, resolveMultiplayerLifecycle, shouldUpdateMultiplayerPresence } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 import { DEFAULT_CHAT_BORDER, normalizeChatBorder, normalizeChatColor, type ChatBorder, type ChatColor } from '@/lib/chat-colors';
 import { sanitizeChatMessage } from '@/lib/chat-filter';
@@ -385,8 +385,8 @@ async function addSystemMessage(lobbyId: string, message: string, playerId?: str
   }
 }
 
-async function addLobbyEvent(lobbyId: string, eventType: string) {
-  await addMultiplayerLobbyEvent('skincognito_lobby_events', lobbyId, eventType);
+async function addLobbyEvent(lobbyId: string, eventType: string, payload?: Record<string, unknown>) {
+  await addMultiplayerLobbyEvent('skincognito_lobby_events', lobbyId, eventType, payload);
 }
 
 async function getLobbyView(lobby: SkincognitoLobbyRecord, clientId?: string | null): Promise<SkincognitoLobbyView> {
@@ -1393,7 +1393,7 @@ export async function postSkincognitoChatMessage(code: string, clientId: string,
     ? (await fetchProfileChatCosmetics([player.auth_user_id])).get(player.auth_user_id)
     : null;
 
-  const { error } = await getSupabaseServiceClient()
+  const { data: insertedMessage, error } = await getSupabaseServiceClient()
     .from('skincognito_chat_messages')
     .insert({
       lobby_id: lobby.id,
@@ -1402,14 +1402,21 @@ export async function postSkincognitoChatMessage(code: string, clientId: string,
       message_type: 'player',
       chat_color: playerCosmetics?.color ?? 'amber',
       chat_border: playerCosmetics?.border ?? DEFAULT_CHAT_BORDER,
-    });
+    })
+    .select('*')
+    .single<SkincognitoChatMessageRecord>();
 
   if (error) {
     throw error;
   }
 
-  await addLobbyEvent(lobby.id, 'chat_message_posted');
-  return getLobbyView(lobby, clientId);
+  const chatMessage: SkincognitoChatMessageRecord = {
+    ...insertedMessage,
+    chat_color: normalizeChatColor(insertedMessage.chat_color),
+    chat_border: normalizeChatBorder(insertedMessage.chat_border),
+  };
+  await addLobbyEvent(lobby.id, 'chat_message_posted', { kind: 'chat_message', chatMessage });
+  return { kind: 'chat_message' as const, chatMessage };
 }
 
 export async function heartbeatSkincognitoPlayer(code: string, clientId: string, connected: boolean) {
@@ -1430,32 +1437,39 @@ export async function heartbeatSkincognitoPlayer(code: string, clientId: string,
     }
   }
 
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
   const disconnectedAt = connected ? null : player.disconnected_at ?? now;
-  const { error } = await getSupabaseServiceClient()
-    .from('skincognito_players')
-    .update({
-      connected,
-      last_seen_at: now,
-      disconnected_at: disconnectedAt,
-    })
-    .eq('lobby_id', lobby.id)
-    .eq('client_id', clientId);
+  const presenceUpdated = shouldUpdateMultiplayerPresence(player.last_seen_at, player.connected, connected, nowMs);
+  if (presenceUpdated) {
+    const { error } = await getSupabaseServiceClient()
+      .from('skincognito_players')
+      .update({
+        connected,
+        last_seen_at: now,
+        disconnected_at: disconnectedAt,
+      })
+      .eq('lobby_id', lobby.id)
+      .eq('client_id', clientId);
 
-  if (error) {
-    throw error;
+    if (error) {
+      throw error;
+    }
   }
 
   if (connectionChanged) {
     await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
   }
 
-  const updatedPlayers = players.map((candidate) => candidate.id === player.id
-    ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt }
-    : candidate);
+  const updatedPlayers = presenceUpdated
+    ? players.map((candidate) => candidate.id === player.id
+      ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt }
+      : candidate)
+    : players;
   const reconciledLobby = await reconcileLobby(lobby, updatedPlayers);
   return {
     connected,
     status: reconciledLobby.status,
+    presenceUpdated,
   };
 }

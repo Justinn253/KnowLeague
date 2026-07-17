@@ -17,7 +17,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import Image from 'next/image';
+import { GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { MultiplayerPlayerCountBadge } from '@/components/multiplayer-player-count-badge';
 import {
@@ -318,7 +318,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         onClick={() => playUiSound('autocomplete-select')}
         className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl bg-slate-950 bg-clip-padding ${featuredBorder} ${featuredGlow} transition-[transform,border-color,box-shadow] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:shadow-[0_10px_28px_rgba(15,23,42,0.24)] focus:outline-none focus:ring-2 focus:ring-amber-200 lg:col-span-2`}
       >
-        <Image
+        <GameSplashImage
           src={game.imageUrl}
           alt=""
           fill
@@ -377,7 +377,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
       className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl border bg-slate-900/80 bg-clip-padding transition-[transform,border-color,background-color,box-shadow] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:border-white/35 hover:bg-slate-900 hover:shadow-[0_12px_34px_rgba(15,23,42,0.26)] focus:outline-none focus:ring-2 focus:ring-amber-200 ${accent.border}`}
     >
       <div className="relative h-40 overflow-hidden border-b border-white/10 bg-slate-950">
-        <Image
+        <GameSplashImage
           src={game.imageUrl}
           alt=""
           fill

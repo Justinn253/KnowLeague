@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { createFriendRequest, createFriendRequestByUsername } from '@/lib/friends';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
+import { getDualRateLimit } from '@/lib/abuse-controls';
 
 type FriendRequestBody = {
   targetUserId?: string;
@@ -9,10 +11,21 @@ type FriendRequestBody = {
 };
 
 export const runtime = 'nodejs';
+const friendRequestRateLimit = getDualRateLimit('friendRequest');
 
 export async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'friends:request',
+      ip: friendRequestRateLimit.ip,
+      subject: { id: userId, ...friendRequestRateLimit.subject },
+      errorMessage: 'Too many friend requests. Please try again shortly.',
+    });
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const body = await readJsonBody<FriendRequestBody>(request);
     const status = body.targetUsername
       ? await createFriendRequestByUsername(userId, requireString(body.targetUsername, 'targetUsername'))

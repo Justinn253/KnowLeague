@@ -64,21 +64,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'platform is invalid.' }, { status: 400 });
     }
 
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: `riot-account-viewer:${clientIp}`,
       limit: rateLimitRequests,
       windowMs: rateLimitWindowMs,
     });
 
     if (!rateLimit.allowed) {
+      const unavailable = rateLimit.source === 'unavailable';
       logServerEvent('warn', 'riot_account_viewer_rate_limited', {
         clientIp,
         retryAfterSeconds: rateLimit.retryAfterSeconds,
       });
       return NextResponse.json(
-        { error: `Too many Riot account lookups. Try again in ${rateLimit.retryAfterSeconds} seconds.` },
+        { error: unavailable ? 'Request protection is temporarily unavailable. Please try again shortly.' : `Too many Riot account lookups. Try again in ${rateLimit.retryAfterSeconds} seconds.` },
         {
-          status: 429,
+          status: unavailable ? 503 : 429,
           headers: {
             'Retry-After': String(rateLimit.retryAfterSeconds),
             'X-RateLimit-Limit': String(rateLimitRequests),

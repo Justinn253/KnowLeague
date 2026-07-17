@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { GENERATED_CATALOG_CACHE_CONTROL } from '@/lib/cache-control';
 import { getAbilityCatalog, getAnswerList, getAnswersByType } from '@/lib/catalogs';
 
 export async function GET(request: NextRequest) {
@@ -8,11 +9,11 @@ export async function GET(request: NextRequest) {
 
   if (category) {
     return NextResponse.json(answersByType[category] ?? [], {
-      headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' },
+      headers: { 'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL },
     });
   }
 
   return NextResponse.json(getAnswerList(items), {
-    headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' },
+    headers: { 'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL },
   });
 }

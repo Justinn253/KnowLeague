@@ -1,30 +1,22 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { getDailyQuizCacheControl } from '@/lib/cache-control';
 import { dailySeed, seededShuffle } from '@/lib/daily-set';
 import { getSkinCatalog } from '@/lib/catalogs';
 import { shuffle } from '@/lib/quiz';
 import type { SoloQuizDifficulty, SoloQuizMode } from '@/lib/solo-quiz';
-import { toSkinThemeQuizItem } from '@/lib/skin-themes';
+import { getSkinThemeQuizItems } from '@/lib/skin-themes';
 
 export const dynamic = 'force-dynamic';
 
 const modes = new Set<SoloQuizMode>(['casual', 'daily', 'chaos']);
 const difficulties = new Set<SoloQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
 
-function getQuizItemsCacheControl(mode: SoloQuizMode) {
-  if (mode === 'casual') return 'no-store';
-  const now = new Date();
-  const nextReset = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
-  return `public, max-age=${Math.max(0, Math.floor((nextReset - now.getTime()) / 1000))}`;
-}
-
 function getSoloSkinThemeItems(input: {
   mode: SoloQuizMode;
   difficulty: SoloQuizDifficulty;
   entryCount: number;
 }) {
-  const catalog = getSkinCatalog()
-    .map(toSkinThemeQuizItem)
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const catalog = getSkinThemeQuizItems(getSkinCatalog());
   const count = Math.max(1, Math.min(100, Math.floor(input.entryCount)));
 
   if (input.mode === 'casual') {
@@ -46,13 +38,11 @@ export async function GET(request: NextRequest) {
       difficulty,
       entryCount: Number.isFinite(entryCount) ? entryCount : 50,
     }), {
-      headers: { 'Cache-Control': getQuizItemsCacheControl(mode) },
+      headers: { 'Cache-Control': mode === 'casual' ? 'no-store' : getDailyQuizCacheControl() },
     });
   }
 
-  const catalog = getSkinCatalog()
-    .map(toSkinThemeQuizItem)
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const catalog = getSkinThemeQuizItems(getSkinCatalog());
 
   return NextResponse.json(shuffle(catalog).slice(0, 50), {
     headers: { 'Cache-Control': 'no-store' },

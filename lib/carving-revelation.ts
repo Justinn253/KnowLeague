@@ -4,7 +4,7 @@ import {
   CHAT_COLOR_VALUES,
   normalizeChatColor,
 } from '@/lib/chat-colors';
-import { canReconnect, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle } from '@/lib/multiplayer-lifecycle';
+import { canReconnect, MULTIPLAYER_STALE_AFTER_MS, resolveMultiplayerLifecycle, shouldUpdateMultiplayerPresence } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 import {
   addMultiplayerLobbyEvent,
@@ -19,7 +19,7 @@ import {
   sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 import { answerMatches, shuffle, type QuizItem } from '@/lib/quiz';
-import { toSkinThemeQuizItem } from '@/lib/skin-themes';
+import { getSkinThemeQuizItems, toSkinThemeQuizItem } from '@/lib/skin-themes';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import {
   canActivateCarvingRevelationPowerUp,
@@ -129,6 +129,20 @@ export type CarvingRevelationAction = {
   round_number: number;
   payload: Record<string, unknown>;
   created_at: string;
+};
+
+export type CarvingRevelationRoutineActionResponse = {
+  kind: 'submission_status';
+  actionId: number;
+  actionType: 'draw' | 'guess';
+  playerId: string;
+  roundNumber: number;
+  action?: CarvingRevelationAction;
+  replacesPreviousDraw?: boolean;
+} | {
+  kind: 'next_round_vote';
+  playerId: string;
+  alreadyVoted: boolean;
 };
 
 export type CarvingRevelationPublicSkin = {
@@ -723,9 +737,7 @@ function getSkinById(skinId: string | null) {
 }
 
 function getSkinThemeCatalog() {
-  return getSkinCatalog()
-    .map(toSkinThemeQuizItem)
-    .filter((skin): skin is QuizItem => Boolean(skin));
+  return getSkinThemeQuizItems(getSkinCatalog());
 }
 
 function toPublicSkin(lobby: CarvingRevelationLobby): CarvingRevelationPublicSkin | null {
@@ -853,8 +865,8 @@ async function fetchProfileCosmetics(authUserIds: Array<string | null>) {
   ]));
 }
 
-async function addLobbyEvent(lobbyId: string, eventType: string) {
-  await addMultiplayerLobbyEvent('carving_revelation_lobby_events', lobbyId, eventType);
+async function addLobbyEvent(lobbyId: string, eventType: string, payload?: Record<string, unknown>) {
+  await addMultiplayerLobbyEvent('carving_revelation_lobby_events', lobbyId, eventType, payload);
 }
 
 function getActivePlayerIds(players: CarvingRevelationPlayerRecord[]) {
@@ -1730,9 +1742,17 @@ export async function voteForNextCarvingRevelationRound(code: string, clientId: 
         payload: {},
       });
     if (error) throw error;
-    await addLobbyEvent(fetchedLobby.id, 'next_round_vote');
+    await addLobbyEvent(fetchedLobby.id, 'next_round_vote', {
+      kind: 'next_round_vote',
+      playerId: player.id,
+      alreadyVoted: false,
+    });
   }
-  return getLobbyView(fetchedLobby, clientId);
+  return {
+    kind: 'next_round_vote' as const,
+    playerId: player.id,
+    alreadyVoted,
+  } satisfies CarvingRevelationRoutineActionResponse;
 }
 
 export async function giveUpCarvingRevelationMatch(code: string, clientId: string) {
@@ -1781,27 +1801,33 @@ export async function heartbeatCarvingRevelationPlayer(code: string, clientId: s
     }
   }
 
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
   const disconnectedAt = connected ? null : player.disconnected_at ?? now;
-  const { error } = await getSupabaseServiceClient()
-    .from('carving_revelation_players')
-    .update({
-      connected,
-      last_seen_at: now,
-      disconnected_at: disconnectedAt,
-      updated_at: now,
-    })
-    .eq('lobby_id', lobby.id)
-    .eq('client_id', clientId);
-  if (error) throw error;
+  const presenceUpdated = shouldUpdateMultiplayerPresence(player.last_seen_at, player.connected, connected, nowMs);
+  if (presenceUpdated) {
+    const { error } = await getSupabaseServiceClient()
+      .from('carving_revelation_players')
+      .update({
+        connected,
+        last_seen_at: now,
+        disconnected_at: disconnectedAt,
+        updated_at: now,
+      })
+      .eq('lobby_id', lobby.id)
+      .eq('client_id', clientId);
+    if (error) throw error;
+  }
   if (player.connected !== connected) {
     await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
   }
-  const updatedPlayers = players.map((candidate) => candidate.id === player.id
-    ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt, updated_at: now }
-    : candidate);
+  const updatedPlayers = presenceUpdated
+    ? players.map((candidate) => candidate.id === player.id
+      ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt, updated_at: now }
+      : candidate)
+    : players;
   const reconciledLobby = await reconcileCarvingRevelationLobby(lobby, updatedPlayers);
-  return { connected, status: reconciledLobby.status };
+  return { connected, status: reconciledLobby.status, presenceUpdated };
 }
 
 export async function leaveCarvingRevelationLobby(code: string, clientId: string, forfeit = false) {
@@ -2074,7 +2100,7 @@ export async function drawCarvingRevealStroke(code: string, clientId: string, in
     if (deletePreviousError) throw deletePreviousError;
   }
 
-  const { error } = await getSupabaseServiceClient()
+  const { data: insertedAction, error } = await getSupabaseServiceClient()
     .from('carving_revelation_actions')
     .insert({
       lobby_id: lobby.id,
@@ -2089,9 +2115,10 @@ export async function drawCarvingRevealStroke(code: string, clientId: string, in
         claimedPowerUpIds,
         lineNumber: hasDoubleLine ? existingDraws.length + 1 : 1,
       },
-    });
+    })
+    .select('*')
+    .single<CarvingRevelationAction>();
   if (error) throw error;
-  await addLobbyEvent(lobby.id, 'carve_submitted');
   const activePlayerIds = getActivePlayerIds(players);
   const nextActions = await fetchActions(lobby.id);
   const allPlayersFinishedCarving = activePlayerIds.every((playerId) => {
@@ -2116,7 +2143,23 @@ export async function drawCarvingRevealStroke(code: string, clientId: string, in
     );
     return getLobbyView(nextLobby, clientId);
   }
-  return getLobbyView(lobby, clientId);
+  await addLobbyEvent(lobby.id, 'carve_submitted', {
+    kind: 'submission_status',
+    actionId: insertedAction.id,
+    actionType: 'draw',
+    playerId: player.id,
+    roundNumber: lobby.round_number,
+    replacesPreviousDraw: !hasDoubleLine,
+  });
+  return {
+    kind: 'submission_status' as const,
+    actionId: insertedAction.id,
+    actionType: 'draw' as const,
+    playerId: player.id,
+    roundNumber: lobby.round_number,
+    action: insertedAction,
+    replacesPreviousDraw: !hasDoubleLine,
+  } satisfies CarvingRevelationRoutineActionResponse;
 }
 
 export async function guessCarvingRevelationSkin(code: string, clientId: string, guess: string) {
@@ -2144,7 +2187,7 @@ export async function guessCarvingRevelationSkin(code: string, clientId: string,
     throw new Error('You already guessed this round.');
   }
 
-  const { error: actionError } = await getSupabaseServiceClient()
+  const { data: insertedAction, error: actionError } = await getSupabaseServiceClient()
     .from('carving_revelation_actions')
     .insert({
       lobby_id: lobby.id,
@@ -2153,7 +2196,9 @@ export async function guessCarvingRevelationSkin(code: string, clientId: string,
       turn_index: 0,
       round_number: lobby.round_number,
       payload: { guess: trimmedGuess, correct },
-    });
+    })
+    .select('*')
+    .single<CarvingRevelationAction>();
   if (actionError) throw actionError;
   if (correct && lobby.win_condition === 'first_correct') {
     const nextLobby = await resolveGuessPhase(lobby, players);
@@ -2171,8 +2216,20 @@ export async function guessCarvingRevelationSkin(code: string, clientId: string,
     const nextLobby = await resolveGuessPhase(lobby, players);
     return getLobbyView(nextLobby, clientId);
   }
-  await addLobbyEvent(lobby.id, 'guess_submitted');
-  return getLobbyView(lobby, clientId);
+  await addLobbyEvent(lobby.id, 'guess_submitted', {
+    kind: 'submission_status',
+    actionId: insertedAction.id,
+    actionType: 'guess',
+    playerId: player.id,
+    roundNumber: lobby.round_number,
+  });
+  return {
+    kind: 'submission_status' as const,
+    actionId: insertedAction.id,
+    actionType: 'guess' as const,
+    playerId: player.id,
+    roundNumber: lobby.round_number,
+  } satisfies CarvingRevelationRoutineActionResponse;
 }
 
 export async function activateCarvingRevelationPowerUp(code: string, clientId: string, powerUpId: string) {

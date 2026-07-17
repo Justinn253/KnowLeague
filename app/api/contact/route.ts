@@ -97,17 +97,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: rateLimitKey,
       limit: 1,
       windowMs: CONTACT_RATE_LIMIT_WINDOW_MS,
     });
 
     if (!rateLimit.allowed) {
+      const unavailable = rateLimit.source === 'unavailable';
       return NextResponse.json(
-        { error: `Please wait ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minutes before submitting another contact request.` },
+        { error: unavailable ? 'Request protection is temporarily unavailable. Please try again shortly.' : `Please wait ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minutes before submitting another contact request.` },
         {
-          status: 429,
+          status: unavailable ? 503 : 429,
           headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
         },
       );

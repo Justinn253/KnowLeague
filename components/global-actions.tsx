@@ -63,6 +63,8 @@ export function GlobalActions() {
       return undefined;
     }
     let signInCheckTimeout: number | null = null;
+    let profileChannel: ReturnType<typeof supabase.channel> | null = null;
+    let subscribedProfileId: string | null = null;
 
     const updateModerationRole = async (session: Session, force = false) => {
       try {
@@ -145,8 +147,48 @@ export function GlobalActions() {
       setProfileAvatarUrl(data?.avatar_url ?? null);
     };
 
+    const replaceProfileSubscription = (session: Session | null) => {
+      const userId = session?.user.id ?? null;
+      if (subscribedProfileId === userId) {
+        return;
+      }
+
+      if (profileChannel) {
+        void supabase.removeChannel(profileChannel);
+        profileChannel = null;
+      }
+
+      subscribedProfileId = userId;
+      if (!userId) {
+        return;
+      }
+
+      profileChannel = supabase
+        .channel(`profile-action:${userId}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userId}`,
+        }, (payload) => {
+          const nextProfile = payload.new as { app_role?: string };
+          const activeSession = activeSessionRef.current;
+          if (!activeSession || activeSession.user.id !== userId) {
+            return;
+          }
+
+          const roleChanged = typeof nextProfile.app_role === 'string'
+            && profileAppRoleRef.current !== null
+            && profileAppRoleRef.current !== nextProfile.app_role;
+          profileAppRoleRef.current = nextProfile.app_role ?? profileAppRoleRef.current;
+          void updateProfileAction(activeSession, 0, true, roleChanged);
+        })
+        .subscribe();
+    };
+
     const unsubscribeFromAuthSession = subscribeToAuthSession((session, event) => {
       activeSessionRef.current = session;
+      replaceProfileSubscription(session);
       if (signInCheckTimeout) {
         window.clearTimeout(signInCheckTimeout);
         signInCheckTimeout = null;
@@ -158,27 +200,14 @@ export function GlobalActions() {
       void updateProfileAction(session);
     });
 
-    const profileChannel = supabase
-      .channel('global-profile-action')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
-        const nextProfile = payload.new as { id?: string; app_role?: string };
-        const session = activeSessionRef.current;
-        if (session && nextProfile.id === session.user.id) {
-          const roleChanged = typeof nextProfile.app_role === 'string'
-            && profileAppRoleRef.current !== null
-            && profileAppRoleRef.current !== nextProfile.app_role;
-          profileAppRoleRef.current = nextProfile.app_role ?? profileAppRoleRef.current;
-          void updateProfileAction(session, 0, true, roleChanged);
-        }
-      })
-      .subscribe();
-
     return () => {
       if (signInCheckTimeout) {
         window.clearTimeout(signInCheckTimeout);
       }
       unsubscribeFromAuthSession();
-      void supabase.removeChannel(profileChannel);
+      if (profileChannel) {
+        void supabase.removeChannel(profileChannel);
+      }
     };
   }, [router]);
 

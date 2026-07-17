@@ -13,10 +13,11 @@ import {
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
+import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatNameStyle } from '@/lib/chat-colors';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
-import { getReconnectDeadline, MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
+import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
@@ -92,12 +93,25 @@ function createDraftSettings(view: CategoryClashLobbyView): DraftSettings {
   };
 }
 
-async function readLobbyResponse(response: Response) {
+type CategoryClashChatResponse = {
+  kind: 'chat_message';
+  chatMessage: CategoryClashChatMessage;
+};
+
+function isCategoryClashChatResponse(value: unknown): value is CategoryClashChatResponse {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { kind?: unknown; chatMessage?: { id?: unknown; lobby_id?: unknown } };
+  return candidate.kind === 'chat_message'
+    && typeof candidate.chatMessage?.id === 'number'
+    && typeof candidate.chatMessage.lobby_id === 'string';
+}
+
+async function readLobbyResponse<T = CategoryClashLobbyView>(response: Response) {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.error || 'Category Clash request failed.');
   }
-  return data as CategoryClashLobbyView;
+  return data as T;
 }
 
 async function readPublicLobbiesResponse(response: Response) {
@@ -276,7 +290,6 @@ export function CategoryClash() {
   const ignoredLobbyCodeRef = useRef<string | null>(null);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshVersionRef = useRef(0);
-  const heartbeatInFlightRef = useRef(false);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const viewRef = useRef<CategoryClashLobbyView | null>(null);
   const settingsDirtyRef = useRef(false);
@@ -390,14 +403,18 @@ export function CategoryClash() {
     }
   }, [lobbyId, serverLobbyDescription]);
 
-  const requestLobby = useCallback(async (path: string, options: RequestInit = {}) => {
+  const requestResponse = useCallback(async <T,>(path: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers);
     Object.entries(await getAuthHeaders()).forEach(([key, value]) => headers.set(key, value));
     if (options.body) {
       headers.set('Content-Type', 'application/json');
     }
     const response = await fetch(path, { ...options, headers });
-    const nextView = await readLobbyResponse(response);
+    return readLobbyResponse<T>(response);
+  }, []);
+
+  const requestLobby = useCallback(async (path: string, options: RequestInit = {}) => {
+    const nextView = await requestResponse<CategoryClashLobbyView>(path, options);
     if (isLeavingLobbyRef.current || ignoredLobbyCodeRef.current === nextView.lobby.code) {
       return nextView;
     }
@@ -408,6 +425,14 @@ export function CategoryClash() {
     window.localStorage.setItem(STORAGE_KEY, nextView.lobby.code);
     setMessage('');
     return nextView;
+  }, [requestResponse]);
+
+  const appendChatMessage = useCallback((chatMessage: CategoryClashChatMessage) => {
+    setView((current) => {
+      if (!current || current.lobby.id !== chatMessage.lobby_id) return current;
+      if (current.chatMessages.some((message) => message.id === chatMessage.id)) return current;
+      return { ...current, chatMessages: [...current.chatMessages, chatMessage] };
+    });
   }, []);
 
   const refreshView = useCallback(async () => {
@@ -514,29 +539,25 @@ export function CategoryClash() {
     return () => window.clearInterval(interval);
   }, [refreshView, view?.lobby.phase, view?.lobby.status, view?.phaseEndsAt]);
 
-  useEffect(() => {
-    if (!connectedLobbyCode || !clientId) return undefined;
-    const code = connectedLobbyCode;
-    const sendHeartbeat = async () => {
-      if (heartbeatInFlightRef.current) return;
-      heartbeatInFlightRef.current = true;
-      try {
-        const response = await fetch(`${API_BASE}/${code}/heartbeat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId, connected: true }),
-        });
-        if (!response.ok) await readLobbyResponse(response);
-      } catch {
-        // Realtime or the next heartbeat will retry transient failures.
-      } finally {
-        heartbeatInFlightRef.current = false;
-      }
-    };
-    void sendHeartbeat();
-    const interval = window.setInterval(() => void sendHeartbeat(), MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [clientId, connectedLobbyCode, requestLobby]);
+  const sendHeartbeat = useCallback(async () => {
+    if (!connectedLobbyCode || !clientId) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/${connectedLobbyCode}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, connected: true }),
+      });
+      if (!response.ok) await readLobbyResponse(response);
+    } catch {
+      // Realtime or the next heartbeat will retry transient failures.
+    }
+  }, [clientId, connectedLobbyCode]);
+
+  useMultiplayerHeartbeat({
+    enabled: Boolean(connectedLobbyCode && clientId),
+    onHeartbeat: sendHeartbeat,
+  });
 
   useEffect(() => {
     if (!activeLobbyId || !clientId) return undefined;
@@ -549,7 +570,15 @@ export function CategoryClash() {
         schema: 'public',
         table: 'category_clash_lobby_events',
         filter: `lobby_id=eq.${activeLobbyId}`,
-      }, () => {
+      }, (payload) => {
+        const event = payload.new as { event_type?: unknown; payload?: unknown };
+        if (event.event_type === 'answer_submitted') {
+          return;
+        }
+        if (event.event_type === 'chat_message_posted' && isCategoryClashChatResponse(event.payload)) {
+          appendChatMessage(event.payload.chatMessage);
+          return;
+        }
         if (realtimeRefreshTimeoutRef.current) window.clearTimeout(realtimeRefreshTimeoutRef.current);
         realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
           realtimeRefreshTimeoutRef.current = null;
@@ -564,7 +593,7 @@ export function CategoryClash() {
       }
       void supabase.removeChannel(channel);
     };
-  }, [activeLobbyId, clientId, refreshView]);
+  }, [activeLobbyId, appendChatMessage, clientId, refreshView]);
 
   useEffect(() => {
     const element = chatScrollRef.current;
@@ -819,7 +848,7 @@ export function CategoryClash() {
     const guess = answerDraft.trim();
     setAnswerDraft('');
     try {
-      await requestLobby(`${API_BASE}/${view.lobby.code}/submit`, {
+      await requestResponse<{ kind: 'answer_submitted' }>(`${API_BASE}/${view.lobby.code}/submit`, {
         method: 'POST',
         body: JSON.stringify({ clientId, guess }),
       });
@@ -836,10 +865,14 @@ export function CategoryClash() {
     const nextMessage = chatDraft.trim();
     setChatDraft('');
     try {
-      await requestLobby(`${API_BASE}/${view.lobby.code}/chat`, {
+      const data = await requestResponse<CategoryClashChatResponse>(`${API_BASE}/${view.lobby.code}/chat`, {
         method: 'POST',
         body: JSON.stringify({ clientId, message: nextMessage }),
       });
+      if (!isCategoryClashChatResponse(data)) {
+        throw new Error('Invalid chat response.');
+      }
+      appendChatMessage(data.chatMessage);
     } catch (error) {
       setChatDraft(nextMessage);
       setMessage(error instanceof Error ? error.message : 'Unable to send message.');

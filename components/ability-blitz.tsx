@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronDown, Flame, Play, SlidersHorizontal, ThumbsUp, Trophy } from 'lucide-react';
-import Image from 'next/image';
+import { GameIconImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import {
   clearDailyGameState,
@@ -314,12 +314,11 @@ function PixelatedIcon({
   }, [src, pixelated]);
 
   return (
-    <Image
+    <GameIconImage
       src={pixelated ? renderedSrc : src}
       alt={alt}
       width={96}
       height={96}
-      unoptimized={pixelated}
       className={className}
     />
   );

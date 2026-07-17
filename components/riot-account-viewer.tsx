@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, Play, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
 import { GameIconImage } from '@/components/game-asset-image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
-import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
+import type { RiotAccountViewerResponse, RiotLiveGameStatus } from '@/lib/riot-account-viewer';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
@@ -21,6 +21,7 @@ const lastSearchStorageKey = 'knowleague:riot-account-viewer:last-search';
 const recentSearchesStorageKey = 'knowleague:riot-account-viewer:recent-searches';
 const sessionProfileCachePrefix = 'knowleague:riot-account-viewer:profile-cache:';
 const maxRecentSearches = 5;
+const profileClientCacheTtlMs = 30 * 24 * 60 * 60_000;
 const globalRankingSampleThreshold = 1000;
 const globalRankingTooltip = 'Global ranking is based on our own data from searched accounts and does not reflect the true League of Legends data.';
 const showPlaceholderRankings = process.env.NODE_ENV !== 'production';
@@ -498,9 +499,25 @@ function readSessionProfileCache(riotId: string, platform: PlatformRoute) {
   try {
     const raw = window.sessionStorage.getItem(profileCacheKey(riotId, platform));
     if (!raw) return null;
-    return JSON.parse(raw) as RiotAccountViewerResponse;
+    const data = JSON.parse(raw) as RiotAccountViewerResponse;
+    if (!data.updatedAt || Date.now() - Date.parse(data.updatedAt) >= profileClientCacheTtlMs) {
+      window.sessionStorage.removeItem(profileCacheKey(riotId, platform));
+      return null;
+    }
+    return data;
   } catch {
     return null;
+  }
+}
+
+async function refreshCachedLiveGame(riotId: string, platform: PlatformRoute, data: RiotAccountViewerResponse) {
+  try {
+    const response = await fetch(`/api/riot-account/live-game?riotId=${encodeURIComponent(riotId)}&platform=${encodeURIComponent(platform)}`);
+    const result = await response.json() as Partial<RiotLiveGameStatus>;
+    if (!response.ok || !('currentGame' in result)) return data;
+    return { ...data, currentGame: result.currentGame ?? null };
+  } catch {
+    return data;
   }
 }
 
@@ -698,12 +715,17 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
                       const topPercent = useStoredPlacement ? placement?.topPercent ?? null : showPlaceholderRankings ? index === 0 ? 7.5 : 18.4 : null;
                       if (regionalRank === null || topPercent === null) return null;
                       return (
-                        <p className="group relative mt-3 w-fit text-sm font-bold text-amber-300">
-                          #{formatNumber(regionalRank)} regional - {formatTopPercent(topPercent)}
-                          <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] font-semibold leading-5 text-slate-200 shadow-xl group-hover:block">
-                            {globalRankingTooltip}
-                          </span>
-                        </p>
+                        <div className="mt-3">
+                          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            KnowLeague Sample Placement
+                          </p>
+                          <p className="group relative mt-1 w-fit text-sm font-bold text-amber-300">
+                            #{formatNumber(regionalRank)} regional - {formatTopPercent(topPercent)}
+                            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] font-semibold leading-5 text-slate-200 shadow-xl group-hover:block">
+                              {globalRankingTooltip}
+                            </span>
+                          </p>
+                        </div>
                       );
                     })()}
                   </>
@@ -1586,7 +1608,8 @@ export function RiotAccountViewer() {
       };
       const cachedData = options.refresh ? null : readSessionProfileCache(trimmedRiotId, nextPlatform);
       if (cachedData) {
-        applyLoadedData(cachedData);
+        const dataWithLiveGame = await refreshCachedLiveGame(trimmedRiotId, nextPlatform, cachedData);
+        applyLoadedData(dataWithLiveGame);
         return;
       }
 

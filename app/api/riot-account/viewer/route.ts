@@ -1,5 +1,15 @@
 import { NextResponse } from 'next/server';
-import { getRiotAccountViewerData, isRiotPlatformRoute, recordRiotAccountSearch } from '@/lib/riot-account-viewer';
+import {
+  getRiotAccountProfileSnapshot,
+  getRiotAccountViewerData,
+  getRiotLiveGameStatus,
+  isRiotAccountProfileSnapshotFresh,
+  isRiotPlatformRoute,
+  recordRiotAccountSearch,
+  saveRiotAccountProfileSnapshot,
+  touchRiotAccountProfileSnapshot,
+  updateRiotAccountProfileSnapshotLiveGame,
+} from '@/lib/riot-account-viewer';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { getServerCache, setServerCache } from '@/lib/server-memory-cache';
 import { logServerEvent } from '@/lib/server-log';
@@ -9,9 +19,35 @@ export const runtime = 'nodejs';
 const rateLimitWindowMs = Number(process.env.RIOT_VIEWER_RATE_LIMIT_WINDOW_MS ?? 60_000);
 const rateLimitRequests = Number(process.env.RIOT_VIEWER_RATE_LIMIT_REQUESTS ?? 12);
 const cacheTtlMs = Number(process.env.RIOT_VIEWER_CACHE_TTL_MS ?? 5 * 60_000);
+const profileSnapshotTtlMs = Number(process.env.RIOT_VIEWER_PROFILE_SNAPSHOT_TTL_MS ?? 30 * 24 * 60 * 60_000);
+const liveGameCacheTtlMs = Number(process.env.RIOT_VIEWER_LIVE_GAME_CACHE_TTL_MS ?? 90_000);
+const viewerMemoryCacheTtlMs = Math.min(cacheTtlMs, liveGameCacheTtlMs);
 type ViewerData = Awaited<ReturnType<typeof getRiotAccountViewerData>>;
+type LiveGameData = Awaited<ReturnType<typeof getRiotLiveGameStatus>>;
 
 const inFlightViewerRequests = new Map<string, Promise<ViewerData>>();
+const inFlightLiveGameRequests = new Map<string, Promise<LiveGameData>>();
+
+function loadAndCacheLiveGame(cacheKey: string, riotId: string, platform: Parameters<typeof getRiotLiveGameStatus>[1]) {
+  const cached = getServerCache<LiveGameData>(cacheKey);
+  if (cached) return Promise.resolve(cached);
+
+  const existingRequest = inFlightLiveGameRequests.get(cacheKey);
+  if (existingRequest) return existingRequest;
+
+  const request = getRiotLiveGameStatus(riotId, platform).then((data) => {
+    setServerCache(cacheKey, data, liveGameCacheTtlMs);
+    return data;
+  });
+  inFlightLiveGameRequests.set(cacheKey, request);
+  const clearRequest = () => {
+    if (inFlightLiveGameRequests.get(cacheKey) === request) {
+      inFlightLiveGameRequests.delete(cacheKey);
+    }
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
 
 function loadAndCacheAccount(cacheKey: string, riotId: string, platform: Parameters<typeof getRiotAccountViewerData>[1]) {
   const existingRequest = inFlightViewerRequests.get(cacheKey);
@@ -19,13 +55,16 @@ function loadAndCacheAccount(cacheKey: string, riotId: string, platform: Paramet
 
   const request = (async () => {
     const data = await getRiotAccountViewerData(riotId, platform);
-    setServerCache(cacheKey, data, cacheTtlMs);
-    await recordRiotAccountSearch({
-      riotId: `${data.account.gameName}#${data.account.tagLine}`,
-      gameName: data.account.gameName,
-      tagLine: data.account.tagLine,
-      platform: data.platform,
-    });
+    setServerCache(cacheKey, data, viewerMemoryCacheTtlMs);
+    await Promise.all([
+      saveRiotAccountProfileSnapshot(data, profileSnapshotTtlMs),
+      recordRiotAccountSearch({
+        riotId: `${data.account.gameName}#${data.account.tagLine}`,
+        gameName: data.account.gameName,
+        tagLine: data.account.tagLine,
+        platform: data.platform,
+      }),
+    ]);
     return data;
   })();
 
@@ -96,6 +135,35 @@ export async function GET(request: Request) {
         headers: {
           'Cache-Control': 'private, no-store',
           'X-KnowLeague-Cache': 'HIT',
+          'X-RateLimit-Limit': String(rateLimitRequests),
+          'X-RateLimit-Remaining': String(rateLimit.remaining),
+        },
+      });
+    }
+
+    const profileSnapshot = shouldRefresh ? null : await getRiotAccountProfileSnapshot(riotId, platform);
+    if (profileSnapshot && isRiotAccountProfileSnapshotFresh(profileSnapshot)) {
+      let currentGame = profileSnapshot.data.currentGame;
+      const liveGameIsFresh = profileSnapshot.currentGameFetchedAt
+        && Date.now() - Date.parse(profileSnapshot.currentGameFetchedAt) < liveGameCacheTtlMs;
+      if (!liveGameIsFresh) {
+        const liveGame = await loadAndCacheLiveGame(
+          `riot-account-viewer-live-game:${platform}:${riotId.toLowerCase()}`,
+          riotId,
+          platform,
+        );
+        currentGame = liveGame.currentGame;
+        await updateRiotAccountProfileSnapshotLiveGame(profileSnapshot, currentGame, liveGame.updatedAt);
+      }
+      const data = { ...profileSnapshot.data, currentGame };
+      setServerCache(cacheKey, data, viewerMemoryCacheTtlMs);
+      if (Date.now() - Date.parse(profileSnapshot.lastAccessedAt) >= 6 * 60 * 60_000) {
+        await touchRiotAccountProfileSnapshot(profileSnapshot);
+      }
+      return NextResponse.json(data, {
+        headers: {
+          'Cache-Control': 'private, no-store',
+          'X-KnowLeague-Cache': 'PERSISTED_HIT',
           'X-RateLimit-Limit': String(rateLimitRequests),
           'X-RateLimit-Remaining': String(rateLimit.remaining),
         },

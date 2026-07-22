@@ -320,7 +320,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
       >
         <GameSplashImage
           src={game.imageUrl}
-          alt=""
+          alt={`${game.title} game preview`}
           fill
           sizes="(min-width: 1024px) 560px, 100vw"
           className="object-cover transition duration-700 ease-out will-change-transform group-hover:scale-[1.04]"
@@ -379,7 +379,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
       <div className="relative h-40 overflow-hidden border-b border-white/10 bg-slate-950">
         <GameSplashImage
           src={game.imageUrl}
-          alt=""
+          alt={`${game.title} game preview`}
           fill
           sizes="(min-width: 1024px) 280px, 100vw"
           className={`transition duration-700 ease-out will-change-transform ${

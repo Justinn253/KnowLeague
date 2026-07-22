@@ -1,6 +1,14 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
+import { createPageMetadata } from '@/lib/seo';
 
 export const revalidate = 86400;
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'Terms of Service',
+  description: 'Read the terms for using KnowLeague’s League of Legends games and account tools.',
+  path: '/terms',
+});
 
 const sections = [
   {

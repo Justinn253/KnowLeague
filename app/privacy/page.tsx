@@ -1,6 +1,14 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
+import { createPageMetadata } from '@/lib/seo';
 
 export const revalidate = 86400;
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'Privacy Policy',
+  description: 'Read how KnowLeague handles account, Riot account, gameplay, and contact information.',
+  path: '/privacy',
+});
 
 const sections = [
   {

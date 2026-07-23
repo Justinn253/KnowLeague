@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { GameSplashImage } from '@/components/game-asset-image';
+import { AppNavigationDrawer } from '@/components/app-navigation-drawer';
 import Link from 'next/link';
 import { MultiplayerPlayerCountBadge } from '@/components/multiplayer-player-count-badge';
 import {
@@ -470,18 +471,21 @@ export default function Home() {
           <div className="relative min-w-0">
             <h1 className="text-5xl font-black tracking-tight text-white sm:text-6xl">KnowLeague Trivia</h1>
           </div>
-          <Link
-            href="/riot-account-viewer"
-            onMouseEnter={() => playUiSound('autocomplete-hover')}
-            onFocus={() => playUiSound('autocomplete-hover')}
-            onClick={() => playUiSound('autocomplete-select')}
-            className="group relative inline-flex min-h-14 shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-amber-200/40 bg-gradient-to-br from-amber-200 via-amber-300 to-yellow-500 px-5 text-sm font-black uppercase tracking-[0.12em] text-slate-950   transition hover:-translate-y-0.5  focus:outline-none focus:ring-2 focus:ring-amber-100"
-          >
-            <span className="absolute inset-y-0 left-0 w-1/3 bg-white/30 opacity-0 blur-xl transition group-hover:opacity-100" />
-            <BarChart3 size={20} />
-            League Account Viewer
-            <ArrowRight size={17} className="transition group-hover:translate-x-1" />
-          </Link>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <Link
+              href="/riot-account-viewer"
+              onMouseEnter={() => playUiSound('autocomplete-hover')}
+              onFocus={() => playUiSound('autocomplete-hover')}
+              onClick={() => playUiSound('autocomplete-select')}
+              className="group relative inline-flex min-h-14 shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-amber-200/40 bg-gradient-to-br from-amber-200 via-amber-300 to-yellow-500 px-5 text-sm font-black uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-100"
+            >
+              <span className="absolute inset-y-0 left-0 w-1/3 bg-white/30 opacity-0 blur-xl transition group-hover:opacity-100" />
+              <BarChart3 size={20} />
+              League Account Viewer
+              <ArrowRight size={17} className="transition group-hover:translate-x-1" />
+            </Link>
+            <AppNavigationDrawer />
+          </div>
         </header>
 
         <GameSection

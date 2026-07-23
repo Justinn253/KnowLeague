@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "data:generate": "node scripts/generate-catalogs.mjs",
+    "data:generate:riftbound": "node scripts/generate-riftbound-catalog.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

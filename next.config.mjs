@@ -20,6 +20,11 @@ const nextConfig = {
         hostname: 'raw.communitydragon.org',
         pathname: '/latest/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'cmsassets.rgpub.io',
+        pathname: '/sanity/images/**',
+      },
     ],
   },
 };

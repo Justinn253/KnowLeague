@@ -2,6 +2,12 @@ import riftboundCards from '@/data/catalogs/riftbound-cards.json';
 
 export type RiftboundFinish = 'normal' | 'foil';
 
+export type RiftboundMarketPrices = {
+  normal: number | null;
+  foil: number | null;
+  updatedAt: string | null;
+};
+
 export type RiftboundCard = {
   id: string;
   displayName: string;
@@ -28,6 +34,7 @@ export type RiftboundCard = {
   marketPrice: number | null;
   marketPriceUpdatedAt: string | null;
   marketPriceCurrency: string;
+  marketPrices: RiftboundMarketPrices;
   finishOptions: RiftboundFinish[];
   defaultFinish: RiftboundFinish;
 };

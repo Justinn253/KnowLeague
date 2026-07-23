@@ -62,7 +62,7 @@ const accentStyles: Record<Accent, {
 }> = {
   gold: {
     border: 'border-amber-300/60',
-    glow: 'shadow-[0_20px_70px_rgba(245,158,11,0.16)]',
+    glow: '',
     icon: 'border-amber-200/30 bg-amber-300 text-slate-950',
     pill: 'border-amber-200/40 bg-amber-300 text-slate-950',
     wash: 'from-amber-300/30 via-amber-500/10',
@@ -70,7 +70,7 @@ const accentStyles: Record<Accent, {
   },
   cyan: {
     border: 'border-cyan-300/40',
-    glow: 'shadow-[0_20px_70px_rgba(34,211,238,0.12)]',
+    glow: '',
     icon: 'border-cyan-200/30 bg-cyan-300 text-slate-950',
     pill: 'border-cyan-200/30 bg-cyan-300/15 text-cyan-100',
     wash: 'from-cyan-300/25 via-cyan-500/10',
@@ -78,7 +78,7 @@ const accentStyles: Record<Accent, {
   },
   rose: {
     border: 'border-rose-400/45',
-    glow: 'shadow-[0_20px_70px_rgba(244,63,94,0.13)]',
+    glow: '',
     icon: 'border-rose-200/30 bg-rose-400 text-white',
     pill: 'border-rose-200/30 bg-rose-400/15 text-rose-100',
     wash: 'from-rose-400/25 via-rose-500/10',
@@ -86,7 +86,7 @@ const accentStyles: Record<Accent, {
   },
   violet: {
     border: 'border-violet-300/45',
-    glow: 'shadow-[0_20px_70px_rgba(139,92,246,0.14)]',
+    glow: '',
     icon: 'border-violet-200/30 bg-violet-400 text-white',
     pill: 'border-violet-200/30 bg-violet-400/15 text-violet-100',
     wash: 'from-violet-400/25 via-violet-500/10',
@@ -94,7 +94,7 @@ const accentStyles: Record<Accent, {
   },
   emerald: {
     border: 'border-emerald-300/40',
-    glow: 'shadow-[0_20px_70px_rgba(52,211,153,0.12)]',
+    glow: '',
     icon: 'border-emerald-200/30 bg-emerald-300 text-slate-950',
     pill: 'border-emerald-200/30 bg-emerald-300/15 text-emerald-100',
     wash: 'from-emerald-300/25 via-emerald-500/10',
@@ -102,7 +102,7 @@ const accentStyles: Record<Accent, {
   },
   sky: {
     border: 'border-sky-300/40',
-    glow: 'shadow-[0_20px_70px_rgba(56,189,248,0.12)]',
+    glow: '',
     icon: 'border-sky-200/30 bg-sky-300 text-slate-950',
     pill: 'border-sky-200/30 bg-sky-300/15 text-sky-100',
     wash: 'from-sky-300/25 via-sky-500/10',
@@ -304,9 +304,9 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
     : 'bg-[linear-gradient(90deg,rgba(2,6,23,0.96)_0%,rgba(2,6,23,0.78)_42%,rgba(2,6,23,0.28)_100%)]';
   const featuredBorder = game.title === 'Skindle' ? 'gradient-border' : `border ${accent.border}`;
   const featuredGlow = game.title === 'Skindle'
-    ? 'shadow-[0_12px_34px_rgba(250,204,21,0.10)]'
+    ? ''
     : game.title === 'Skincognito'
-      ? 'shadow-[0_12px_34px_rgba(244,63,94,0.09)]'
+      ? ''
       : accent.glow;
 
   if (game.feature) {
@@ -316,7 +316,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         onMouseEnter={() => playUiSound('autocomplete-hover')}
         onFocus={() => playUiSound('autocomplete-hover')}
         onClick={() => playUiSound('autocomplete-select')}
-        className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl bg-slate-950 bg-clip-padding ${featuredBorder} ${featuredGlow} transition-[transform,border-color,box-shadow] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:shadow-[0_10px_28px_rgba(15,23,42,0.24)] focus:outline-none focus:ring-2 focus:ring-amber-200 lg:col-span-2`}
+        className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl bg-slate-950 bg-clip-padding ${featuredBorder} ${featuredGlow} transition-[transform,border-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1  focus:outline-none focus:ring-2 focus:ring-amber-200 lg:col-span-2`}
       >
         <GameSplashImage
           src={game.imageUrl}
@@ -358,7 +358,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
             <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">{game.kicker}</p>
             <h3 className="mt-3 text-4xl font-black tracking-tight text-white">{game.title}</h3>
             <p className="mt-4 text-sm leading-6 text-slate-200">{game.description}</p>
-            <div className="game-card-cta mt-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color,box-shadow] duration-300">
+            <div className="game-card-cta mt-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color] duration-300">
               <span className="relative z-10">Open game</span>
               <ArrowRight size={16} className="game-card-arrow relative z-10" />
             </div>
@@ -374,7 +374,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
       onClick={() => playUiSound('autocomplete-select')}
-      className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl border bg-slate-900/80 bg-clip-padding transition-[transform,border-color,background-color,box-shadow] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:border-white/35 hover:bg-slate-900 hover:shadow-[0_12px_34px_rgba(15,23,42,0.26)] focus:outline-none focus:ring-2 focus:ring-amber-200 ${accent.border}`}
+      className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl border bg-slate-900/80 bg-clip-padding transition-[transform,border-color,background-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:border-white/35 hover:bg-slate-900  focus:outline-none focus:ring-2 focus:ring-amber-200 ${accent.border}`}
     >
       <div className="relative h-40 overflow-hidden border-b border-white/10 bg-slate-950">
         <GameSplashImage
@@ -405,7 +405,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{game.kicker}</p>
         <h3 className="mt-2 text-2xl font-black tracking-tight text-white transition-colors duration-300 group-hover:text-amber-100">{game.title}</h3>
         <p className="mt-3 text-sm leading-6 text-slate-300">{game.description}</p>
-        <div className="game-card-cta mt-auto inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color,box-shadow] duration-300">
+        <div className="game-card-cta mt-auto inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color] duration-300">
           <span className="relative z-10">Open game</span>
           <ArrowRight size={16} className="game-card-arrow relative z-10" />
         </div>
@@ -475,7 +475,7 @@ export default function Home() {
             onMouseEnter={() => playUiSound('autocomplete-hover')}
             onFocus={() => playUiSound('autocomplete-hover')}
             onClick={() => playUiSound('autocomplete-select')}
-            className="group relative inline-flex min-h-14 shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-amber-200/40 bg-gradient-to-br from-amber-200 via-amber-300 to-yellow-500 px-5 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-lg shadow-amber-950/30 transition hover:-translate-y-0.5 hover:shadow-amber-900/40 focus:outline-none focus:ring-2 focus:ring-amber-100"
+            className="group relative inline-flex min-h-14 shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-amber-200/40 bg-gradient-to-br from-amber-200 via-amber-300 to-yellow-500 px-5 text-sm font-black uppercase tracking-[0.12em] text-slate-950   transition hover:-translate-y-0.5  focus:outline-none focus:ring-2 focus:ring-amber-100"
           >
             <span className="absolute inset-y-0 left-0 w-1/3 bg-white/30 opacity-0 blur-xl transition group-hover:opacity-100" />
             <BarChart3 size={20} />

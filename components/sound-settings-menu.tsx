@@ -17,7 +17,7 @@ function ToggleSwitch({ enabled }: { enabled: boolean }) {
       }`}
     >
       <span
-        className={`h-5 w-5 rounded-full bg-white shadow transition-transform ${
+        className={`h-5 w-5 rounded-full bg-white  transition-transform ${
           enabled ? 'translate-x-5' : 'translate-x-0.5'
         }`}
       />

@@ -108,7 +108,7 @@ export function MultiplayerPlayerCountBadge({ gameId, className }: MultiplayerPl
   return (
     <span
       className={[
-        'inline-flex h-9 items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/75 px-3 text-xs font-black text-slate-100 shadow-lg shadow-slate-950/25 backdrop-blur',
+        'inline-flex h-9 items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/75 px-3 text-xs font-black text-slate-100   backdrop-blur',
         className,
       ].filter(Boolean).join(' ')}
       title={currentSnapshot.placeholder ? 'Preview player count placeholder' : 'Players currently in matches'}

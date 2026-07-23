@@ -898,7 +898,7 @@ export function CategoryClash() {
     return (
       <main className="min-h-screen bg-slate-950 px-4 py-6 text-white">
         <div className="mx-auto max-w-6xl">
-          <header className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
+          <header className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-5  backdrop-blur-xl">
             <div className="flex items-center gap-4">
               <button type="button" onClick={() => { window.location.href = '/'; }} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to home">
                 <ArrowLeft size={22} />
@@ -925,7 +925,7 @@ export function CategoryClash() {
             </div>
           </header>
 
-          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
             <MultiplayerCreateJoinPanel
               title="Set up a Category Clash lobby"
               joinCode={joinCode}
@@ -992,7 +992,7 @@ export function CategoryClash() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <section className={`mx-auto flex min-h-screen w-full flex-col gap-5 px-6 py-6 lg:px-12 ${view.lobby.status === 'waiting' ? 'max-w-6xl' : 'max-w-7xl'}`}>
-        <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+        <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
               <button type="button" onClick={() => void leaveLobby(view.lobby.status === 'active')} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900" aria-label="Leave lobby">
                 <ArrowLeft size={20} />
@@ -1045,7 +1045,7 @@ export function CategoryClash() {
         </header>
 
         {view.lobby.status === 'waiting' ? (
-          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
             <div className="grid gap-5">
               <div className="flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                 <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Lobby code</span>

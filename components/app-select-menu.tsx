@@ -99,7 +99,7 @@ export function AppSelectMenu<T extends string | number>({
           </div>
         </div>
       ) : null}
-      {disabled && disabledDescription ? <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-max max-w-72 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-semibold leading-5 text-slate-200 shadow-xl group-hover:block group-focus-within:block">{disabledDescription}</span> : null}
+      {disabled && disabledDescription ? <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-max max-w-72 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-semibold leading-5 text-slate-200  group-hover:block group-focus-within:block">{disabledDescription}</span> : null}
     </div>
   );
 }

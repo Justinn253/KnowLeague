@@ -182,7 +182,7 @@ function ShowcaseCard({ champion, revealed, selected, answerState, showMasteryLe
       onFocus={gridMode ? undefined : () => playUiSound('autocomplete-hover')}
       disabled={disabled}
       className={`group relative min-h-0 overflow-hidden ${gridMode ? 'rounded-lg' : 'rounded-2xl'} border-2 text-left transition duration-300 focus:outline-none disabled:cursor-not-allowed ${gridMode ? 'h-auto aspect-[1215/717] self-center bg-slate-950' : `h-full ${direction === 'right' ? 'grid grid-cols-[20%_80%]' : 'grid grid-cols-[80%_20%]'}`} ${
-        answerState === 'correct' ? 'border-emerald-300/75 bg-emerald-300/5' : answerState === 'incorrect' ? 'border-rose-400/75 bg-rose-400/5' : selected ? 'border-sky-300 bg-sky-300/10' : gridMode ? 'border-white/15 bg-slate-950 hover:-translate-y-1 hover:border-amber-200 hover:shadow-[0_0_0_1px_rgba(253,224,71,0.75),0_0_26px_rgba(245,158,11,0.22)] focus:border-amber-200' : 'border-white/15 bg-slate-950 hover:border-amber-200 focus:border-amber-200'
+        answerState === 'correct' ? 'border-emerald-300/75 bg-emerald-300/5' : answerState === 'incorrect' ? 'border-rose-400/75 bg-rose-400/5' : selected ? 'border-sky-300 bg-sky-300/10' : gridMode ? 'border-white/15 bg-slate-950 hover:-translate-y-1 hover:border-amber-200  focus:border-amber-200' : 'border-white/15 bg-slate-950 hover:border-amber-200 focus:border-amber-200'
       }`}
       aria-label={`Select ${champion.name}`}
     >

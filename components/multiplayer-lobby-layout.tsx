@@ -119,7 +119,7 @@ export function MultiplayerLobbyHeader({
   actions,
 }: MultiplayerLobbyHeaderProps) {
   return (
-    <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+    <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -150,7 +150,7 @@ export function MultiplayerLobbyHeader({
 
 export function MultiplayerLobbyCard({ children }: { children: ReactNode }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
       {children}
     </section>
   );
@@ -209,7 +209,7 @@ export function MultiplayerCreateJoinPanel({
                 soloAction();
               }
             }}
-            className="group relative inline-flex min-h-14 w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-6 text-slate-950 shadow-lg shadow-cyan-950/20 transition-[transform,border-color,box-shadow,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75 hover:shadow-cyan-900/30 hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+            className="group relative inline-flex min-h-14 w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-6 text-slate-950   transition-[transform,border-color,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75  hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100"
           >
             <span className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/25 opacity-0 blur-xl transition-[left,opacity] duration-700 ease-out group-hover:left-full group-hover:opacity-100" />
             <span className="relative grid text-center">

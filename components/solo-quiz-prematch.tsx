@@ -175,7 +175,7 @@ export function SoloQuizPrematch({
         disabled={disabled || countdown !== null}
         className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
           selected
-            ? 'border-amber-300/70 bg-amber-300/10 shadow-lg shadow-amber-500/10'
+            ? 'border-amber-300/70 bg-amber-300/10  '
             : 'border-white/10 bg-slate-950/70 hover:border-white/25 hover:bg-slate-950'
         }`}
       >
@@ -246,7 +246,7 @@ export function SoloQuizPrematch({
 
   return (
     <div className="grid gap-4">
-    <section className="grid gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:grid-cols-[1.05fr_0.95fr]">
+    <section className="grid gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl lg:grid-cols-[1.05fr_0.95fr]">
       <div className="flex flex-col gap-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Select Mode</p>

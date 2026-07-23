@@ -185,7 +185,7 @@ function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boole
         checked ? 'border-amber-300/50 bg-amber-300' : 'border-white/10 bg-slate-950'
       } ${disabled ? 'opacity-60' : ''}`}
     >
-      <span className={`h-4 w-4 rounded-full bg-white shadow transition ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
+      <span className={`h-4 w-4 rounded-full bg-white  transition ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
     </span>
   );
 }
@@ -407,7 +407,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
     return (
       <div
-        className={`relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 bg-slate-950/50 text-white shadow-2xl shadow-black/20 transition ${
+        className={`relative flex aspect-[1215/717] w-full items-center justify-center overflow-hidden border-2 bg-slate-950/50 text-white   transition ${
           isCurrent && successFlash
             ? 'border-emerald-400/70 ring-1 ring-emerald-400/40'
             : isCurrent
@@ -1222,7 +1222,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <section className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 lg:px-12">
-        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             {multiplayer ? (
               <button type="button" onClick={multiplayer.onExit} aria-label="Leave multiplayer game" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
@@ -1455,7 +1455,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
           />
         ) : null}
 
-        {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+        {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
           {!showEndState ? (
             <QuizItemCarousel
               slots={carouselSlots}
@@ -1470,7 +1470,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
           {!showEndState ? <form
             onSubmit={handleSubmit}
-            className={`relative z-30 mt-8 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-5 shadow-inner shadow-slate-950/40 transition ${
+            className={`relative z-30 mt-8 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-5   transition ${
               successFlash ? 'border-emerald-400/40 ring-1 ring-emerald-400/20' : 'border-white/10'
             }`}
           >

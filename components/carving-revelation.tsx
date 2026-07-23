@@ -379,8 +379,8 @@ function CarvingRevelationPowerUpMenu({
         onClick={onToggle}
         disabled={busy}
         className={`inline-flex min-h-12 items-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${open
-          ? 'border-amber-200 bg-amber-300 text-slate-950 shadow-lg shadow-amber-950/30'
-          : 'border-amber-300/50 bg-gradient-to-r from-amber-300/20 to-violet-400/20 text-amber-100 shadow-lg shadow-amber-950/20 hover:border-amber-200 hover:bg-amber-300/25'} disabled:cursor-not-allowed disabled:opacity-60`}
+          ? 'border-amber-200 bg-amber-300 text-slate-950  '
+          : 'border-amber-300/50 bg-gradient-to-r from-amber-300/20 to-violet-400/20 text-amber-100   hover:border-amber-200 hover:bg-amber-300/25'} disabled:cursor-not-allowed disabled:opacity-60`}
       >
         <Sparkles size={17} />
         <span>Power Ups</span>
@@ -394,7 +394,7 @@ function CarvingRevelationPowerUpMenu({
         <div
           role="menu"
           aria-label="Power ups"
-          className="absolute bottom-full right-0 z-50 mb-3 max-h-[min(70vh,34rem)] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-amber-200/30 bg-slate-950/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+          className="absolute bottom-full right-0 z-50 mb-3 max-h-[min(70vh,34rem)] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-amber-200/30 bg-slate-950/95 p-3   backdrop-blur-xl"
         >
           <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 px-1 pb-3">
             <div>
@@ -496,7 +496,7 @@ function SettingDropdown<T extends string | number | null>({
         <ChevronDown size={16} className="shrink-0 text-slate-500" />
       </button>
       {open && !disabled ? (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 grid overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1 shadow-lg shadow-slate-950/40">
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 grid overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1  ">
           {options.map((option) => (
             <button
               key={getSettingOptionKey(option.value)}
@@ -2337,10 +2337,10 @@ export function CarvingRevelation() {
           <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5">
             <div className="mb-4 grid gap-4 lg:grid-cols-[minmax(220px,300px)_minmax(180px,240px)_minmax(280px,420px)] lg:items-stretch lg:justify-between">
               {view.lobby.status === 'active' ? (
-                <div className={`flex min-h-24 flex-col justify-center rounded-2xl border px-6 py-4 shadow-lg ${
+                <div className={`flex min-h-24 flex-col justify-center rounded-2xl border px-6 py-4  ${
                   timerIsUrgent
-                    ? 'animate-pulse border-red-400/70 bg-red-500/10 shadow-red-950/40'
-                    : 'border-amber-300/50 bg-amber-300/10 shadow-amber-950/40'
+                    ? 'animate-pulse border-red-400/70 bg-red-500/10 '
+                    : 'border-amber-300/50 bg-amber-300/10 '
                 }`}>
                   <p className={`text-xs font-black uppercase tracking-[0.24em] ${timerIsUrgent ? 'text-red-200' : 'text-amber-300'}`}>Round {view.lobby.round_number}</p>
                   <p className={`text-xs font-black uppercase tracking-[0.26em] ${timerIsUrgent ? 'text-red-100' : 'text-amber-200'}`}>
@@ -2440,7 +2440,7 @@ export function CarvingRevelation() {
                 {acquiredPowerUpNotice ? (
                   <div
                     aria-live="polite"
-                    className="pointer-events-none absolute left-1/2 top-4 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-300 px-4 py-2 text-sm font-black text-slate-950 shadow-xl shadow-emerald-950/40 animate-pulse"
+                    className="pointer-events-none absolute left-1/2 top-4 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-300 px-4 py-2 text-sm font-black text-slate-950   animate-pulse"
                   >
                     <Sparkles size={16} />
                     <span>Acquired: {acquiredPowerUpNotice.names.join(' + ')}</span>

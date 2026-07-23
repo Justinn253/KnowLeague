@@ -240,10 +240,10 @@ function compareGuess(item: QuizItem, target: QuizItem): GuessResult {
 function QuestionPingMark() {
   return (
     <span className="relative inline-flex h-14 w-14 items-center justify-center" aria-hidden="true">
-      <span className="absolute -top-1 text-6xl font-black leading-none text-amber-300 drop-shadow-[0_2px_0_rgba(0,0,0,0.7)] [-webkit-text-stroke:1px_#7c5a13]">
+      <span className="absolute -top-1 text-6xl font-black leading-none text-amber-300  [-webkit-text-stroke:1px_#7c5a13]">
         ?
       </span>
-      <span className="absolute bottom-0 h-4 w-4 rotate-45 border border-amber-900/80 bg-gradient-to-br from-amber-300 to-yellow-700 shadow-lg shadow-black/50" />
+      <span className="absolute bottom-0 h-4 w-4 rotate-45 border border-amber-900/80 bg-gradient-to-br from-amber-300 to-yellow-700  " />
     </span>
   );
 }
@@ -333,14 +333,14 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
   const renderCategoryCell = (categoryId: CategoryId, compact = false) => (
     <div
       key={categoryId}
-      className={`relative flex items-center justify-center overflow-hidden rounded-lg border text-center shadow-inner ${
+      className={`relative flex items-center justify-center overflow-hidden rounded-lg border text-center  ${
         compact ? 'min-h-0 px-2 py-2' : 'min-h-28 px-2 py-3'
       } ${
         guess.matches[categoryId]
-          ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
+          ? 'border-slate-300/70 bg-[#00c800] text-white '
           : guess.partialMatches[categoryId]
-          ? 'border-slate-300/70 bg-orange-500/90 text-white shadow-orange-950/30'
-          : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
+          ? 'border-slate-300/70 bg-orange-500/90 text-white '
+          : 'border-slate-300/70 bg-red-500/85 text-white '
       }`}
     >
       <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold leading-5 ${compact ? 'text-sm' : 'text-base'}`}>
@@ -359,7 +359,7 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
   return (
     <div
       className={`relative overflow-hidden rounded-xl ${isLatestGuess ? 'animate-slide-in' : ''} ${
-        isCorrectGuess && revealed ? 'skindle-gradient-border shadow-lg shadow-violet-950/30' : ''
+        isCorrectGuess && revealed ? 'skindle-gradient-border  ' : ''
       }`}
     >
       <div
@@ -368,10 +368,10 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
         }`}
       >
         <div
-          className={`relative flex min-h-28 flex-col items-center justify-between overflow-hidden rounded-lg border px-2 py-3 text-center shadow-inner ${
+          className={`relative flex min-h-28 flex-col items-center justify-between overflow-hidden rounded-lg border px-2 py-3 text-center  ${
             isCorrectGuess
-              ? 'border-slate-300/70 bg-[#00c800] text-white shadow-lime-950/30'
-              : 'border-slate-300/70 bg-red-500/85 text-white shadow-red-950/30'
+              ? 'border-slate-300/70 bg-[#00c800] text-white '
+              : 'border-slate-300/70 bg-red-500/85 text-white '
           }`}
         >
           <span className="line-clamp-2 text-base font-semibold leading-5">{guess.item.answer}</span>
@@ -825,7 +825,7 @@ export function Skindle() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <section className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 lg:px-12">
-        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <Link
               href="/"
@@ -981,7 +981,7 @@ export function Skindle() {
           </div>
         </header>
 
-        <section className="relative z-20 grid gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl md:grid-cols-4">
+        <section className="relative z-20 grid gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl md:grid-cols-4">
           <div className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3">
             <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Global Guesses</p>
             <p className="mt-2 text-2xl font-semibold text-white">{dailyStats?.totalGuesses ?? 0}</p>
@@ -1057,7 +1057,7 @@ export function Skindle() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
+        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl">
           <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
             <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -1067,7 +1067,7 @@ export function Skindle() {
                 </h2>
               </div>
               {target && revealedSolvedGuessId === target.id ? (
-                <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-right shadow-lg shadow-emerald-950/30">
+                <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-right  ">
                   <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">Congratulations</p>
                   <p className="mt-1 text-sm font-semibold text-white">Solved in {guesses.length} guesses</p>
                 </div>
@@ -1142,8 +1142,8 @@ export function Skindle() {
 
           {!solved ? <form
             onSubmit={handleSubmit}
-            className={`mt-6 rounded-3xl border bg-slate-950/80 p-5 shadow-inner shadow-slate-950/40 transition ${
-              guesses.length === 0 ? 'border-amber-300 bg-amber-300/5 ring-2 ring-amber-300/25 shadow-amber-950/30' : 'border-white/10'
+            className={`mt-6 rounded-3xl border bg-slate-950/80 p-5   transition ${
+              guesses.length === 0 ? 'border-amber-300 bg-amber-300/5 ring-2 ring-amber-300/25 ' : 'border-white/10'
             }`}
           >
             <div ref={inputAreaRef} className="relative flex flex-col gap-3 sm:flex-row">
@@ -1234,7 +1234,7 @@ export function Skindle() {
           onMouseDown={() => setPreviewSkin(null)}
         >
           <div
-            className="relative w-full max-w-6xl overflow-hidden rounded-2xl border border-white/15 bg-slate-950 shadow-2xl shadow-black/60"
+            className="relative w-full max-w-6xl overflow-hidden rounded-2xl border border-white/15 bg-slate-950  "
             onMouseDown={(event) => event.stopPropagation()}
           >
             <button
@@ -1263,7 +1263,7 @@ export function Skindle() {
       {activeCategoryNote ? (
         <div
           role="tooltip"
-          className="pointer-events-none fixed z-[70] w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-left text-xs font-semibold leading-5 normal-case tracking-normal text-slate-200 shadow-2xl shadow-black/40"
+          className="pointer-events-none fixed z-[70] w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-left text-xs font-semibold leading-5 normal-case tracking-normal text-slate-200  "
           style={{
             left: activeCategoryNote.x,
             top: activeCategoryNote.y,

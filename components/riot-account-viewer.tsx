@@ -555,7 +555,7 @@ function StatTile({
         <p className="group relative mt-2 w-fit text-xs font-bold uppercase tracking-[0.14em] text-amber-300">
           {topPercent}
           {topPercentTitle ? (
-            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] normal-case leading-5 tracking-normal text-slate-200 shadow-xl group-hover:block">
+            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] normal-case leading-5 tracking-normal text-slate-200  group-hover:block">
               {topPercentTitle}
             </span>
           ) : null}
@@ -606,7 +606,7 @@ function RankIcon({ tier }: { tier: string }) {
       alt=""
       width={96}
       height={96}
-      className="h-20 w-20 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(251,191,36,0.18)]"
+      className="h-20 w-20 shrink-0 object-contain "
     />
   );
 }
@@ -621,7 +621,7 @@ function MasteryCrest({ championLevel }: { championLevel: number }) {
       <img
         src={src}
         alt=""
-        className="h-12 w-14 object-contain drop-shadow-[0_0_14px_rgba(251,191,36,0.2)]"
+        className="h-12 w-14 object-contain "
       />
     </div>
   );
@@ -721,7 +721,7 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
                           </p>
                           <p className="group relative mt-1 w-fit text-sm font-bold text-amber-300">
                             #{formatNumber(regionalRank)} regional - {formatTopPercent(topPercent)}
-                            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] font-semibold leading-5 text-slate-200 shadow-xl group-hover:block">
+                            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] font-semibold leading-5 text-slate-200  group-hover:block">
                               {globalRankingTooltip}
                             </span>
                           </p>
@@ -740,7 +740,7 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
-            <a href={buildMasteryMasterUrl(data)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 py-2 text-xs font-black text-slate-950 shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+            <a href={buildMasteryMasterUrl(data)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 py-2 text-xs font-black text-slate-950   transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
               <Play size={14} fill="currentColor" />
               Play Mastery Master
             </a>
@@ -935,7 +935,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-3">
-          <a href={buildMasteryMasterUrl(data)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+          <a href={buildMasteryMasterUrl(data)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 text-sm font-black text-slate-950   transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
             <Play size={15} fill="currentColor" />
             Play Mastery Master
           </a>
@@ -998,12 +998,12 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
                     </div>
                     <div className="flex h-[300px] items-end justify-center">
                       <div
-                        className={`animate-mastery-bar-rise group relative z-30 w-10 rounded-t-xl border shadow-lg shadow-amber-950/30 hover:z-[140] ${masteryBarClass(mastery.championLevel)}`}
+                        className={`animate-mastery-bar-rise group relative z-30 w-10 rounded-t-xl border   hover:z-[140] ${masteryBarClass(mastery.championLevel)}`}
                         style={{ height }}
                         aria-label={`${mastery.champion.name}: ${mastery.championPoints} mastery points`}
                       >
                         <div className={`h-full rounded-t-xl ${masteryBarFillClass(mastery.championLevel)}`} />
-                        <div className={`absolute top-4 z-[150] hidden w-52 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-center text-xs text-slate-200 shadow-xl group-hover:block ${hoverPositionClass}`}>
+                        <div className={`absolute top-4 z-[150] hidden w-52 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-center text-xs text-slate-200  group-hover:block ${hoverPositionClass}`}>
                           <span className="font-bold text-white">{mastery.champion.name}</span>
                           <br />
                           Level {mastery.championLevel} - {formatNumber(mastery.championPoints)} points
@@ -1168,7 +1168,7 @@ const MatchParticipantRow = memo(function MatchParticipantRow({ participant, max
     ['T', 'Triple kills', participant.multikills.triple, 'gold'],
     ['Q', 'Quadra kills', participant.multikills.quadra, 'master'],
     ['P', 'Penta kills', participant.multikills.penta, 'challenger'],
-  ].filter(([, , count]) => Number(count) > 0);
+  ].filter(([ count]) => Number(count) > 0);
 
   return (
     <div className={`grid gap-3 rounded-xl border p-2.5 text-sm lg:grid-cols-[minmax(15rem,1.45fr)_0.55fr_0.8fr_0.8fr_0.7fr_0.9fr_7rem_2.75rem] lg:items-center ${
@@ -1735,7 +1735,7 @@ export function RiotAccountViewer() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-10">
-        <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 shadow-glow sm:p-6">
+        <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-5  sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-3">

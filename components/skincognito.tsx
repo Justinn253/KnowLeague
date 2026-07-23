@@ -1684,7 +1684,7 @@ export function Skincognito() {
           {lobbyView && lobbyView.lobby.status !== 'waiting' ? (
             <div className="mt-4">
               {displayedStartCountdownSeconds ? (
-                <section className="mb-4 rounded-3xl border border-red-400/60 bg-red-500/10 p-5 text-center shadow-lg shadow-red-950/30 animate-pulse">
+                <section className="mb-4 rounded-3xl border border-red-400/60 bg-red-500/10 p-5 text-center   animate-pulse">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-200">Starting in</p>
                   <p className="mt-2 text-4xl font-black text-red-100">{displayedStartCountdownSeconds}</p>
                 </section>
@@ -1870,10 +1870,10 @@ export function Skincognito() {
               {lobbyView.lobby.status === 'finished' ? (
                 <section className={`relative isolate mt-4 rounded-2xl ${
                   isFinishedWinner
-                    ? 'skindle-gradient-border shadow-lg shadow-violet-950/30'
+                    ? 'skindle-gradient-border  '
                     : isFinishedLoser
-                      ? 'border border-red-400/60 bg-red-500/10 shadow-lg shadow-red-950/30'
-                      : 'border border-amber-300/40 bg-amber-300/10 shadow-lg shadow-amber-950/20'
+                      ? 'border border-red-400/60 bg-red-500/10  '
+                      : 'border border-amber-300/40 bg-amber-300/10  '
                 }`}>
                   <div className={isFinishedWinner ? 'relative z-10 rounded-2xl bg-slate-950 p-4' : 'rounded-2xl p-4'}>
                     <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
@@ -1981,7 +1981,7 @@ export function Skincognito() {
                 </section>
 
                 <section className={`rounded-3xl border bg-slate-950/70 p-4 transition ${
-                  canSubmitAction ? 'border-amber-400/70 shadow-[0_0_28px_rgba(251,191,36,0.18)]' : 'border-white/10'
+                  canSubmitAction ? 'border-amber-400/70 ' : 'border-white/10'
                 }`}>
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Submit a guess</p>

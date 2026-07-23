@@ -313,7 +313,7 @@ export function AuthScreen() {
           </div>
         </header>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
+        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl">
           <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1">
             {[
               ['login', 'Login'],

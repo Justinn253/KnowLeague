@@ -5,6 +5,7 @@ import {
   canReconnect,
   getReconnectDeadline,
   resolveMultiplayerLifecycle,
+  shouldUpdateMultiplayerPresence,
 } from '@/lib/multiplayer-lifecycle';
 import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 import { ALL_ABILITY_SLOT_IDS, filterItemsByAbilitySlots, type AbilitySlotId } from '@/lib/ability-slots';
@@ -22,7 +23,7 @@ import {
   sanitizeMultiplayerLobbyDescription,
 } from '@/lib/multiplayer-session';
 import { normalizeChatColor, type ChatColor } from '@/lib/chat-colors';
-import { toSkinThemeQuizItem } from '@/lib/skin-themes';
+import { getSkinThemeQuizItems } from '@/lib/skin-themes';
 
 export type MultiplayerQuizGameMode = 'ability_blitz' | 'skin_champion';
 export type MultiplayerQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
@@ -74,6 +75,21 @@ export type MultiplayerQuizPublicPlayer = Omit<MultiplayerQuizPlayerRecord, 'cli
   avatar_url: string | null;
   chat_color: ChatColor;
 };
+
+export type MultiplayerQuizProgressDelta = Pick<
+  MultiplayerQuizPublicPlayer,
+  | 'id'
+  | 'progress'
+  | 'elapsed_seconds'
+  | 'finished_at'
+  | 'result'
+  | 'connected'
+  | 'last_seen_at'
+  | 'disconnected_at'
+  | 'record_wins'
+  | 'record_losses'
+  | 'updated_at'
+>;
 
 export type MultiplayerQuizLobbyView = {
   lobby: MultiplayerQuizLobby;
@@ -198,8 +214,8 @@ async function fetchBannedClientIds(lobbyId: string) {
   return new Set(data.map((ban) => ban.client_id));
 }
 
-async function addLobbyEvent(lobbyId: string, eventType: string) {
-  await addMultiplayerLobbyEvent('multiplayer_quiz_lobby_events', lobbyId, eventType);
+async function addLobbyEvent(lobbyId: string, eventType: string, payload?: Record<string, unknown>) {
+  await addMultiplayerLobbyEvent('multiplayer_quiz_lobby_events', lobbyId, eventType, payload);
 }
 
 function getGameCatalog(gameMode: MultiplayerQuizGameMode) {
@@ -207,17 +223,15 @@ function getGameCatalog(gameMode: MultiplayerQuizGameMode) {
     return getAbilityCatalog();
   }
 
-  return getSkinCatalog()
-    .map(toSkinThemeQuizItem)
-    .filter((item): item is QuizItem => Boolean(item));
+  return getSkinThemeQuizItems(getSkinCatalog());
 }
 
-async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby) {
+async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby, initialPlayers?: MultiplayerQuizPlayerRecord[]) {
   if (lobby.status === 'finished' || lobby.status === 'terminated') {
     return lobby;
   }
   let nextLobby = lobby;
-  let players = await fetchPlayers(lobby.id);
+  let players = initialPlayers ?? await fetchPlayers(lobby.id);
   const nowMs = Date.now();
   const now = new Date(nowMs).toISOString();
   const stalePlayers = getStaleConnectedMembers(players, nowMs);
@@ -693,8 +707,21 @@ export async function updateMultiplayerQuizProgress(
   if (error) {
     throw error;
   }
-  await addLobbyEvent(lobby.id, 'progress_updated');
-  return getLobbyView(lobby, clientId);
+  const progressDelta: MultiplayerQuizProgressDelta = {
+    id: player.id,
+    progress: nextProgress,
+    elapsed_seconds: Math.max(player.elapsed_seconds, Math.floor(elapsedSeconds)),
+    finished_at: shouldFinish ? player.finished_at ?? now : null,
+    result: nextResult,
+    connected: true,
+    last_seen_at: now,
+    disconnected_at: null,
+    record_wins: sanitizedRecord?.wins ?? player.record_wins,
+    record_losses: sanitizedRecord?.losses ?? player.record_losses,
+    updated_at: now,
+  };
+  await addLobbyEvent(lobby.id, 'progress_updated', { kind: 'player_progress', player: progressDelta });
+  return { kind: 'player_progress' as const, player: progressDelta };
 }
 
 export async function heartbeatMultiplayerQuizPlayer(
@@ -710,29 +737,46 @@ export async function heartbeatMultiplayerQuizPlayer(
   const players = await fetchPlayers(lobby.id);
   const player = players.find((candidate) => candidate.client_id === clientId);
   if (!player) throw new Error('Player not found.');
+  const connectionChanged = player.connected !== connected;
   if (connected && lobby.status === 'active' && !player.connected && !canReconnect(player.disconnected_at)) {
     await reconcileMultiplayerQuizLobby(lobby);
     throw new Error('The reconnect window has expired.');
   }
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
   const sanitizedRecord = recordSnapshot ? sanitizeRecordSnapshot(recordSnapshot) : null;
+  const recordChanged = Boolean(sanitizedRecord && (
+    sanitizedRecord.wins !== player.record_wins || sanitizedRecord.losses !== player.record_losses
+  ));
+  const presenceUpdated = shouldUpdateMultiplayerPresence(player.last_seen_at, player.connected, connected, nowMs);
   const disconnectedAt = connected ? null : player.disconnected_at ?? now;
-  const { error } = await getSupabaseServiceClient()
-    .from('multiplayer_quiz_players')
-    .update({
-      connected,
-      last_seen_at: now,
-      disconnected_at: disconnectedAt,
-      ...(sanitizedRecord ? { record_wins: sanitizedRecord.wins, record_losses: sanitizedRecord.losses } : {}),
-      updated_at: now,
-    })
-    .eq('lobby_id', lobby.id)
-    .eq('client_id', clientId);
-  if (error) {
-    throw error;
+
+  if (presenceUpdated || recordChanged) {
+    const { error } = await getSupabaseServiceClient()
+      .from('multiplayer_quiz_players')
+      .update({
+        ...(presenceUpdated ? { connected, last_seen_at: now, disconnected_at: disconnectedAt } : {}),
+        ...(recordChanged && sanitizedRecord ? { record_wins: sanitizedRecord.wins, record_losses: sanitizedRecord.losses } : {}),
+        updated_at: now,
+      })
+      .eq('lobby_id', lobby.id)
+      .eq('client_id', clientId);
+    if (error) {
+      throw error;
+    }
   }
-  await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
-  return getLobbyView(lobby, clientId);
+
+  if (connectionChanged) {
+    await addLobbyEvent(lobby.id, connected ? 'player_reconnected' : 'player_disconnected');
+  }
+
+  const updatedPlayers = presenceUpdated
+    ? players.map((candidate) => candidate.id === player.id
+      ? { ...candidate, connected, last_seen_at: now, disconnected_at: disconnectedAt, updated_at: now }
+      : candidate)
+    : players;
+  const reconciledLobby = await reconcileMultiplayerQuizLobby(lobby, updatedPlayers);
+  return { connected, status: reconciledLobby.status, presenceUpdated };
 }
 
 export async function updateMultiplayerQuizSettings(

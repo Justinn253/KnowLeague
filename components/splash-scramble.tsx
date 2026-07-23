@@ -22,7 +22,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import Image from 'next/image';
+import { GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { SplashScrambleDailyLeaderboard } from '@/components/splash-scramble-daily-leaderboard';
@@ -565,7 +565,7 @@ function SettingButton({
       disabled={disabled}
       className={`group flex gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
         selected
-          ? 'border-amber-300/70 bg-amber-300/10 shadow-lg shadow-amber-500/10'
+          ? 'border-amber-300/70 bg-amber-300/10  '
           : 'border-white/10 bg-slate-950/70 hover:border-white/25 hover:bg-slate-950'
       } ${description ? 'min-h-20 items-start' : 'min-h-14 items-center'}`}
     >
@@ -611,7 +611,7 @@ function EndStateSettingsCard({
 }: SplashScrambleSettings & { daily: boolean }) {
   if (daily) {
     return (
-      <aside className="flex w-full shrink-0 items-center justify-center self-end rounded-2xl border border-amber-300/35 bg-slate-950/80 px-6 py-5 shadow-xl backdrop-blur-md sm:w-52" aria-label="Daily puzzle">
+      <aside className="flex w-full shrink-0 items-center justify-center self-end rounded-2xl border border-amber-300/35 bg-slate-950/80 px-6 py-5  backdrop-blur-md sm:w-52" aria-label="Daily puzzle">
         <div className="flex items-center gap-3 text-amber-100">
           <CalendarDays size={26} className="text-amber-300" />
           <span className="text-2xl font-black tracking-tight">Daily</span>
@@ -629,7 +629,7 @@ function EndStateSettingsCard({
   ];
 
   return (
-    <aside className="w-full shrink-0 self-end rounded-2xl border border-white/10 bg-slate-950/80 p-4 shadow-xl backdrop-blur-md sm:w-60" aria-label="Puzzle settings">
+    <aside className="w-full shrink-0 self-end rounded-2xl border border-white/10 bg-slate-950/80 p-4  backdrop-blur-md sm:w-60" aria-label="Puzzle settings">
       <div className="space-y-3">
         {settings.map((setting) => (
           <div key={setting.label} className="flex items-center gap-2.5">
@@ -706,11 +706,11 @@ const PuzzleBoard = memo(function PuzzleBoard({
             disabled={locked}
             className={`relative min-h-0 overflow-hidden border bg-slate-950 transition focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-default ${
               flashing
-                ? 'z-20 border-emerald-300 ring-2 ring-inset ring-emerald-300 shadow-[0_0_22px_rgba(52,211,153,0.55)] brightness-125'
+                ? 'z-20 border-emerald-300 ring-2 ring-inset ring-emerald-300  brightness-125'
                 : selected
-                  ? 'z-20 scale-[0.98] border-amber-300 ring-2 ring-inset ring-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.4)]'
+                  ? 'z-20 scale-[0.98] border-amber-300 ring-2 ring-inset ring-amber-300 '
                   : misplacedHint
-                    ? 'z-10 border-sky-300 ring-2 ring-inset ring-sky-300 shadow-[0_0_22px_rgba(125,211,252,0.6)] brightness-125'
+                    ? 'z-10 border-sky-300 ring-2 ring-inset ring-sky-300  brightness-125'
                     : locked
                       ? 'border-emerald-400/40 brightness-105'
                       : 'border-slate-950/60 hover:brightness-110'
@@ -731,10 +731,10 @@ const PuzzleBoard = memo(function PuzzleBoard({
               <span
                 className={`pointer-events-none absolute inset-0 z-10 ${
                   flashing
-                    ? 'ring-4 ring-inset ring-emerald-300 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.95),0_0_20px_rgba(52,211,153,0.75)]'
+                    ? 'ring-4 ring-inset ring-emerald-300 '
                     : selected
-                      ? 'ring-4 ring-inset ring-amber-300 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.95),0_0_18px_rgba(251,191,36,0.55)]'
-                      : 'ring-4 ring-inset ring-sky-300 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.95),0_0_20px_rgba(125,211,252,0.75)]'
+                      ? 'ring-4 ring-inset ring-amber-300 '
+                      : 'ring-4 ring-inset ring-sky-300 '
                 }`}
               />
             ) : null}
@@ -1950,7 +1950,7 @@ export function SplashScramble() {
                       }}
                     >
                       <span className="relative h-10 overflow-hidden rounded-xl bg-slate-900">
-                        <Image src={skin.imageUrl} alt="" fill sizes="48px" loading="lazy" className="object-cover" />
+                        <GameSplashImage src={skin.imageUrl} alt="" fill sizes="48px" className="object-cover" />
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-white">{skin.answer}</span>
@@ -2007,7 +2007,7 @@ export function SplashScramble() {
         void startRound({ mode: 'daily' });
       }}
       disabled={!clientStateReady || dailyCompletionStatus === null}
-      className="group relative inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-4 text-sm font-black text-slate-950 shadow-lg shadow-cyan-950/20 transition-[transform,border-color,box-shadow,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75 hover:shadow-cyan-900/30 hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-800 disabled:bg-none disabled:text-slate-400 disabled:opacity-100 disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:border-white/10 disabled:hover:ring-0 disabled:hover:brightness-100"
+      className="group relative inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-2xl border border-emerald-200/40 bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-4 text-sm font-black text-slate-950   transition-[transform,border-color,filter] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-50/75  hover:ring-2 hover:ring-inset hover:ring-cyan-50/45 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-800 disabled:bg-none disabled:text-slate-400 disabled:opacity-100  disabled:hover:translate-y-0 disabled:hover:border-white/10 disabled:hover:ring-0 disabled:hover:brightness-100"
     >
       {dailyCompletionStatus === null ? <RefreshCw size={16} className="animate-spin" /> : dailyCompletedToday ? <Check size={16} /> : dailyResumeRound ? <RefreshCw size={16} /> : <Play size={16} />}
       {dailyCompletionStatus === null ? 'Checking Daily' : dailyCompletedToday ? 'Daily Completed' : dailyResumeRound ? 'Resume Daily' : 'Play Daily'}
@@ -2032,7 +2032,7 @@ export function SplashScramble() {
         <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
           {selectedSkin ? (
             <div className="relative aspect-[16/4] max-h-28">
-              <Image src={selectedSkin.imageUrl} alt={`${selectedSkin.answer} selected splash art`} fill sizes="(min-width: 1024px) 420px, 100vw" className="object-cover" />
+              <GameSplashImage src={selectedSkin.imageUrl} alt={`${selectedSkin.answer} selected splash art`} fill sizes="(min-width: 1024px) 420px, 100vw" className="object-cover" />
             </div>
           ) : (
             <div className="grid aspect-[16/4] max-h-28 place-items-center bg-slate-950/70">
@@ -2099,7 +2099,7 @@ export function SplashScramble() {
   );
 
   const renderPrematch = () => (
-    <section className="grid gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl sm:p-6 lg:grid-cols-[1fr_0.82fr]">
+    <section className="grid gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl sm:p-6 lg:grid-cols-[1fr_0.82fr]">
       <div className="grid gap-5">
         {error ? (
           <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">{error}</div>
@@ -2239,7 +2239,7 @@ export function SplashScramble() {
   );
 
   const renderLoading = () => (
-    <section className="grid min-h-[28rem] place-items-center rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
+    <section className="grid min-h-[28rem] place-items-center rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl">
       <div className="text-center">
         <RefreshCw size={34} className="mx-auto animate-spin text-amber-300" />
         <h2 className="mt-5 text-2xl font-black text-white">Preparing puzzle</h2>
@@ -2250,7 +2250,7 @@ export function SplashScramble() {
 
   const renderBoard = () => (
     <section className="grid gap-4">
-      <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 shadow-glow backdrop-blur-xl sm:p-5">
+      <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-3  backdrop-blur-xl sm:p-5">
         <div className="mb-3 grid gap-2 sm:mb-4 sm:gap-3 lg:grid-cols-[1fr_auto]">
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <StatPill label={timeLimit === null ? 'Elapsed' : 'Time'} value={activeTimeValue} valueClassName={timerValueClassName} />
@@ -2342,7 +2342,7 @@ export function SplashScramble() {
             <div className={`relative overflow-hidden bg-slate-950 ${boardUsesRotatedMobileView ? 'aspect-[9/16] sm:aspect-video' : 'aspect-video'}`}>
               {boardUsesRotatedMobileView ? (
                 <div className="absolute left-1/2 top-1/2 aspect-video w-[177.777%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:static sm:h-full sm:w-full sm:translate-x-0 sm:translate-y-0 sm:rotate-0">
-                  <Image
+                  <GameSplashImage
                     src={targetSkin.imageUrl}
                     alt={`${targetSkin.answer} splash art reference`}
                     fill
@@ -2351,7 +2351,7 @@ export function SplashScramble() {
                   />
                 </div>
               ) : (
-                <Image
+                <GameSplashImage
                   src={targetSkin.imageUrl}
                   alt={`${targetSkin.answer} splash art reference`}
                   fill
@@ -2383,9 +2383,9 @@ export function SplashScramble() {
         : `You placed ${correctPositions} of ${tileCount} pieces correctly before time expired.`;
 
     return (
-      <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 shadow-glow backdrop-blur-xl">
+      <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80  backdrop-blur-xl">
         <div className="relative min-h-[38rem] lg:aspect-video lg:min-h-[18rem]">
-          <Image
+          <GameSplashImage
             src={targetSkin.imageUrl}
             alt={`${targetSkin.answer} full splash art`}
             fill
@@ -2479,7 +2479,7 @@ export function SplashScramble() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#030712] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-7xl gap-5 sm:gap-6">
-        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             {renderBackControl()}
             <div className="min-w-0">

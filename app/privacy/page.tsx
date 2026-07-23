@@ -1,4 +1,14 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
+import { createPageMetadata } from '@/lib/seo';
+
+export const revalidate = 86400;
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'Privacy Policy',
+  description: 'Read how KnowLeague handles account, Riot account, gameplay, and contact information.',
+  path: '/privacy',
+});
 
 const sections = [
   {
@@ -31,7 +41,7 @@ const sections = [
     title: 'Storage and Retention',
     body: [
       'Some preferences, game progress, recent searches, and lobby pointers are stored in browser localStorage. Riot profile lookup responses may be cached in browser sessionStorage until the browser session closes.',
-      'Server-side Riot lookup responses may be cached briefly to reduce API calls and rate-limit pressure.',
+      'Server-side Riot profile snapshots may be stored in compressed form for up to 30 days after their last access to reduce API calls and rate-limit pressure. Live-game status is cached separately for approximately 90 seconds, and inactive profile snapshots are pruned.',
       'Account, profile, friend, message, lobby, contact, and aggregate metric records may remain in Supabase until deleted or cleaned up through future retention tooling.',
     ],
   },

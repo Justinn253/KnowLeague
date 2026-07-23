@@ -2,7 +2,7 @@
 
 import { forwardRef, memo, type CSSProperties, FormEvent, type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, Shuffle } from 'lucide-react';
-import Image from 'next/image';
+import { GameSplashImage } from '@/components/game-asset-image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import {
@@ -21,12 +21,12 @@ import {
   MultiplayerVisibilityToggle,
 } from '@/components/multiplayer-lobby-layout';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
+import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { getOrCreateClientId, loadDetailedGameStats, recordSkincognitoStats, type DetailedGameStats } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
 import { normalizeAnswer } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import type { SkincognitoCategoryId, SkincognitoLobbyView, SkincognitoPublicLobby, SkincognitoPublicPlayer } from '@/lib/skincognito';
 import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
@@ -61,6 +61,20 @@ type ChatGroup = {
   chatBorder: string;
   messages: string[];
 };
+
+type SkincognitoChatMessage = SkincognitoLobbyView['chatMessages'][number];
+type SkincognitoChatResponse = {
+  kind: 'chat_message';
+  chatMessage: SkincognitoChatMessage;
+};
+
+function isSkincognitoChatResponse(value: unknown): value is SkincognitoChatResponse {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { kind?: unknown; chatMessage?: { id?: unknown; lobby_id?: unknown } };
+  return candidate.kind === 'chat_message'
+    && typeof candidate.chatMessage?.id === 'string'
+    && typeof candidate.chatMessage.lobby_id === 'string';
+}
 
 type NormalizedAnswer<T> = {
   value: T;
@@ -424,7 +438,6 @@ export function Skincognito() {
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const lobbyRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const lobbyRefreshVersionRef = useRef(0);
-  const heartbeatInFlightRef = useRef(false);
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
@@ -729,6 +742,14 @@ export function Skincognito() {
       setBusy(false);
     }
   }, [updateLobbyView]);
+
+  const appendChatMessage = useCallback((chatMessage: SkincognitoChatMessage) => {
+    setLobbyView((current) => {
+      if (!current || current.lobby.id !== chatMessage.lobby_id) return current;
+      if (current.chatMessages.some((message) => message.id === chatMessage.id)) return current;
+      return { ...current, chatMessages: [...current.chatMessages, chatMessage] };
+    });
+  }, []);
 
   const refreshLobbyView = useCallback(async (code: string, nextClientId: string) => {
     if (isLeavingLobbyRef.current) return;
@@ -1067,12 +1088,28 @@ export function Skincognito() {
 
     const code = lobbyView.lobby.code;
     const nextClientId = clientId;
-    const lobbyAuthUserIds = new Set(lobbyProfileSubscriptionKey ? lobbyProfileSubscriptionKey.split('|') : []);
+    const lobbyAuthUserIds = lobbyProfileSubscriptionKey ? lobbyProfileSubscriptionKey.split('|') : [];
     const supabase = getOptionalSupabaseClient();
     if (!supabase) {
       console.warn('Supabase realtime is not available because public Supabase environment variables are not loaded.');
       return undefined;
     }
+
+    const refreshFromRealtimeEvent = (payload: { new: unknown }) => {
+      const event = payload.new as { event_type?: unknown; payload?: unknown };
+      if (event.event_type === 'chat_message_posted' && isSkincognitoChatResponse(event.payload)) {
+        appendChatMessage(event.payload.chatMessage);
+        return;
+      }
+      if (realtimeRefreshTimeoutRef.current) {
+        window.clearTimeout(realtimeRefreshTimeoutRef.current);
+      }
+
+      realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+        realtimeRefreshTimeoutRef.current = null;
+        void refreshLobbyView(code, nextClientId);
+      }, 100);
+    };
 
     const channel = supabase
       .channel(`skincognito-lobby-events:${lobbyView.lobby.id}`)
@@ -1084,41 +1121,23 @@ export function Skincognito() {
           table: 'skincognito_lobby_events',
           filter: `lobby_id=eq.${lobbyView.lobby.id}`,
         },
-        () => {
-          if (realtimeRefreshTimeoutRef.current) {
-            window.clearTimeout(realtimeRefreshTimeoutRef.current);
-          }
+        refreshFromRealtimeEvent,
+      );
 
-          realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
-            realtimeRefreshTimeoutRef.current = null;
-            void refreshLobbyView(code, nextClientId);
-          }, 100);
-        },
-      )
-      .on(
+    if (lobbyAuthUserIds.length > 0) {
+      channel.on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'profiles',
+          filter: `id=in.(${lobbyAuthUserIds.join(',')})`,
         },
-        (payload) => {
-          const profileId = (payload.new as { id?: string }).id;
-          if (!profileId || !lobbyAuthUserIds.has(profileId)) {
-            return;
-          }
+        refreshFromRealtimeEvent,
+      );
+    }
 
-          if (realtimeRefreshTimeoutRef.current) {
-            window.clearTimeout(realtimeRefreshTimeoutRef.current);
-          }
-
-          realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
-            realtimeRefreshTimeoutRef.current = null;
-            void refreshLobbyView(code, nextClientId);
-          }, 100);
-        },
-      )
-      .subscribe();
+    channel.subscribe();
 
     return () => {
       if (realtimeRefreshTimeoutRef.current) {
@@ -1128,7 +1147,7 @@ export function Skincognito() {
 
       void supabase.removeChannel(channel);
     };
-  }, [clientId, lobbyProfileSubscriptionKey, lobbyView?.lobby.code, lobbyView?.lobby.id, lobbyView?.lobby.status, refreshLobbyView]);
+  }, [appendChatMessage, clientId, lobbyProfileSubscriptionKey, lobbyView?.lobby.code, lobbyView?.lobby.id, lobbyView?.lobby.status, refreshLobbyView]);
 
   const loadPublicLobbies = useCallback(async () => {
     try {
@@ -1144,28 +1163,24 @@ export function Skincognito() {
     return undefined;
   }, [loadPublicLobbies, lobbyView]);
 
-  useEffect(() => {
-    if (!clientId || !lobbyView?.lobby.code) {
-      return;
-    }
+  const sendHeartbeat = useCallback(async () => {
+    if (!clientId || !lobbyView?.lobby.code) return;
 
-    const code = lobbyView.lobby.code;
-    const sendHeartbeat = () => {
-      if (heartbeatInFlightRef.current) return;
-      heartbeatInFlightRef.current = true;
-      fetch(`/api/skincognito/lobbies/${code}/heartbeat`, {
+    try {
+      await fetch(`/api/skincognito/lobbies/${lobbyView.lobby.code}/heartbeat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, connected: true }),
-      }).catch(() => undefined).finally(() => {
-        heartbeatInFlightRef.current = false;
       });
-    };
-
-    sendHeartbeat();
-    const interval = window.setInterval(sendHeartbeat, MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
-    return () => window.clearInterval(interval);
+    } catch {
+      // Realtime or the next heartbeat will retry transient failures.
+    }
   }, [clientId, lobbyView?.lobby.code]);
+
+  useMultiplayerHeartbeat({
+    enabled: Boolean(clientId && lobbyView?.lobby.code),
+    onHeartbeat: sendHeartbeat,
+  });
 
   const createLobby = () => {
     if (!clientId) {
@@ -1394,14 +1409,30 @@ export function Skincognito() {
       return;
     }
 
-    void requestLobby(`/api/skincognito/lobbies/${lobbyView.lobby.code}/chat`, {
-      clientId,
-      message: cleanMessage,
-    }).then((view) => {
-      if (view) {
+    setBusy(true);
+    setMessage('');
+    void (async () => {
+      try {
+        const { data: authData } = await getOptionalSupabaseClient()?.auth.getSession() ?? { data: { session: null } };
+        const response = await fetch(`/api/skincognito/lobbies/${lobbyView.lobby.code}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authData.session ? { Authorization: `Bearer ${authData.session.access_token}` } : {}),
+          },
+          body: JSON.stringify({ clientId, message: cleanMessage }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to send chat message.');
+        if (!isSkincognitoChatResponse(data)) throw new Error('Invalid chat response.');
+        appendChatMessage(data.chatMessage);
         setChatDraft('');
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Unable to send chat message.');
+      } finally {
+        setBusy(false);
       }
-    });
+    })();
   };
 
   const scheduleReturnToLobby = () => {
@@ -1551,11 +1582,12 @@ export function Skincognito() {
                   <div className="mt-5 grid gap-5 md:grid-cols-[14rem_1fr]">
                     <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
                       {selectedSkinPreview ? (
-                        <Image
+                        <GameSplashImage
                           src={selectedSkinPreview.imageUrl}
                           alt={selectedSkinPreview.label}
                           width={360}
                           height={213}
+                          sizes="(min-width: 768px) 224px, 100vw"
                           className="aspect-[1215/717] w-full object-cover"
                         />
                       ) : (
@@ -1616,11 +1648,12 @@ export function Skincognito() {
                                 onClick={() => chooseSkin(skin)}
                                 className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
                               >
-                                <Image
+                                <GameSplashImage
                                   src={skin.imageUrl}
                                   alt=""
                                   width={72}
                                   height={42}
+                                  sizes="64px"
                                   className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
                                 />
                                 <span className="min-w-0 truncate">{skin.label}</span>
@@ -1651,7 +1684,7 @@ export function Skincognito() {
           {lobbyView && lobbyView.lobby.status !== 'waiting' ? (
             <div className="mt-4">
               {displayedStartCountdownSeconds ? (
-                <section className="mb-4 rounded-3xl border border-red-400/60 bg-red-500/10 p-5 text-center shadow-lg shadow-red-950/30 animate-pulse">
+                <section className="mb-4 rounded-3xl border border-red-400/60 bg-red-500/10 p-5 text-center   animate-pulse">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-200">Starting in</p>
                   <p className="mt-2 text-4xl font-black text-red-100">{displayedStartCountdownSeconds}</p>
                 </section>
@@ -1837,20 +1870,21 @@ export function Skincognito() {
               {lobbyView.lobby.status === 'finished' ? (
                 <section className={`relative isolate mt-4 rounded-2xl ${
                   isFinishedWinner
-                    ? 'skindle-gradient-border shadow-lg shadow-violet-950/30'
+                    ? 'skindle-gradient-border  '
                     : isFinishedLoser
-                      ? 'border border-red-400/60 bg-red-500/10 shadow-lg shadow-red-950/30'
-                      : 'border border-amber-300/40 bg-amber-300/10 shadow-lg shadow-amber-950/20'
+                      ? 'border border-red-400/60 bg-red-500/10  '
+                      : 'border border-amber-300/40 bg-amber-300/10  '
                 }`}>
                   <div className={isFinishedWinner ? 'relative z-10 rounded-2xl bg-slate-950 p-4' : 'rounded-2xl p-4'}>
                     <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
                       <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
                         {finishedTargetSkin ? (
-                          <Image
+                          <GameSplashImage
                             src={finishedTargetSkin.imageUrl}
                             alt={finishedTargetSkin.answer}
                             width={729}
                             height={430}
+                            sizes="(min-width: 1024px) 480px, 100vw"
                             className="aspect-[1215/717] w-full object-cover"
                           />
                         ) : (
@@ -1925,11 +1959,12 @@ export function Skincognito() {
               <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
                 <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70">
                   {selectedSkinPreview ? (
-                    <Image
+                    <GameSplashImage
                       src={selectedSkinPreview.imageUrl}
                       alt={selectedSkinPreview.label}
                       width={729}
                       height={430}
+                      sizes="(min-width: 1024px) 420px, 100vw"
                       className="h-40 w-full object-cover"
                     />
                   ) : (
@@ -1946,7 +1981,7 @@ export function Skincognito() {
                 </section>
 
                 <section className={`rounded-3xl border bg-slate-950/70 p-4 transition ${
-                  canSubmitAction ? 'border-amber-400/70 shadow-[0_0_28px_rgba(251,191,36,0.18)]' : 'border-white/10'
+                  canSubmitAction ? 'border-amber-400/70 ' : 'border-white/10'
                 }`}>
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Submit a guess</p>
@@ -2029,11 +2064,12 @@ export function Skincognito() {
                                 className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
                               >
                                 {suggestion.imageUrl ? (
-                                  <Image
+                                  <GameSplashImage
                                     src={suggestion.imageUrl}
                                     alt=""
                                     width={72}
                                     height={42}
+                                    sizes="64px"
                                     className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
                                   />
                                 ) : null}

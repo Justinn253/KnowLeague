@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/riftbound-price-snapshot",
+      "schedule": "15 21 * * *"
+    }
+  ]
+}

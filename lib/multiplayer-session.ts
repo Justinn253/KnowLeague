@@ -32,6 +32,8 @@ type MultiplayerLobbyEventTable =
   | 'carving_revelation_lobby_events'
   | 'category_clash_lobby_events';
 
+type MultiplayerLobbyEventPayload = Record<string, unknown>;
+
 export function assertSupabaseConfigured() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
@@ -114,10 +116,29 @@ export async function addMultiplayerLobbyEvent(
   table: MultiplayerLobbyEventTable,
   lobbyId: string,
   eventType: string,
+  payload?: MultiplayerLobbyEventPayload,
 ) {
-  const { error } = await getSupabaseServiceClient()
+  const supabase = getSupabaseServiceClient();
+  const event = {
+    lobby_id: lobbyId,
+    event_type: eventType,
+    ...(payload ? { payload } : {}),
+  };
+  const { error } = await supabase
     .from(table)
-    .insert({ lobby_id: lobbyId, event_type: eventType });
+    .insert(event);
+
+  // Keep existing deployments usable until the accompanying migration has been
+  // applied. Those deployments fall back to the normal full-view refresh path.
+  if ((error?.code === '42703' || error?.code === 'PGRST204') && payload) {
+    const { error: fallbackError } = await supabase
+      .from(table)
+      .insert({ lobby_id: lobbyId, event_type: eventType });
+    if (fallbackError) {
+      throw fallbackError;
+    }
+    return;
+  }
   if (error) {
     throw error;
   }

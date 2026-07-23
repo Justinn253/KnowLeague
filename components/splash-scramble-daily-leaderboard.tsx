@@ -129,7 +129,7 @@ export function SplashScrambleDailyLeaderboard({ open, onClose, snapshot, loadin
       <div
         key={entry.id}
         onContextMenu={(event) => openContextMenu(event, entry)}
-        className={`grid min-w-[42rem] cursor-context-menu grid-cols-[4rem_minmax(12rem,1fr)_5rem_6rem_7rem] items-center gap-3 border px-3 py-3 text-sm transition hover:border-white/35 hover:bg-slate-800/90 hover:shadow-lg ${rowTone} ${sticky ? 'rounded-2xl' : 'rounded-xl'}`}
+        className={`grid min-w-[42rem] cursor-context-menu grid-cols-[4rem_minmax(12rem,1fr)_5rem_6rem_7rem] items-center gap-3 border px-3 py-3 text-sm transition hover:border-white/35 hover:bg-slate-800/90  ${rowTone} ${sticky ? 'rounded-2xl' : 'rounded-xl'}`}
       >
         <span className="font-black text-amber-200">#{entry.position}</span>
         <span className="min-w-0 truncate font-bold" style={getChatNameStyle(entry.chatColor)}>
@@ -152,7 +152,7 @@ export function SplashScrambleDailyLeaderboard({ open, onClose, snapshot, loadin
         role="dialog"
         aria-modal="true"
         aria-labelledby="splash-scramble-daily-leaderboard-title"
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-2xl"
+        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 "
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-4 border-b border-white/10 p-5 sm:p-6">
@@ -178,7 +178,7 @@ export function SplashScrambleDailyLeaderboard({ open, onClose, snapshot, loadin
               <span className="flex items-center justify-end gap-1.5 text-right"><Clock3 size={14} />Time</span>
               <span className="group relative flex items-center justify-end gap-1.5 text-right" title="Score = 250,000 - 250 per move - 25 per second.">
                 <Trophy size={14} />Score<Info size={13} />
-                <span role="tooltip" className="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-[0.68rem] font-semibold normal-case leading-5 tracking-normal text-slate-200 shadow-xl group-hover:block">
+                <span role="tooltip" className="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-[0.68rem] font-semibold normal-case leading-5 tracking-normal text-slate-200  group-hover:block">
                   Score = 250,000 - 250 per move - 25 per second.
                 </span>
               </span>
@@ -206,7 +206,7 @@ export function SplashScrambleDailyLeaderboard({ open, onClose, snapshot, loadin
       </section>
 
       {contextMenu ? createPortal(
-        <div ref={contextMenuRef} onMouseDown={(event) => event.stopPropagation()} className="fixed z-[110] min-w-48 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-xl" style={{ left: contextMenu.x, top: contextMenu.y }}>
+        <div ref={contextMenuRef} onMouseDown={(event) => event.stopPropagation()} className="fixed z-[110] min-w-48 rounded-2xl border border-white/10 bg-slate-950 p-2 " style={{ left: contextMenu.x, top: contextMenu.y }}>
           <button type="button" onClick={() => { setContextMenu(null); onClose(); window.setTimeout(() => openPublicProfileOverlay(contextMenu.entry.username), 0); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</button>
           {contextMenu.entry.userId !== currentUserId ? (
             <button type="button" onClick={() => void sendFriendRequest(contextMenu.entry)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10">

@@ -154,7 +154,7 @@ function DiscordPublicCard({ profile }: { profile: PublicProfileRecord }) {
   const discordName = getLinkedValue(profile.discord_username);
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-[#5865F2]/40 bg-[#111a3a]/80 shadow-[0_0_28px_rgba(88,101,242,0.14)]">
+    <article className="overflow-hidden rounded-2xl border border-[#5865F2]/40 bg-[#111a3a]/80 ">
       <div
         className="h-20 bg-gradient-to-r from-[#5865F2] via-[#4752C4] to-[#2b2d63] bg-cover bg-center"
         style={profile.discord_banner_url ? { backgroundImage: `url(${profile.discord_banner_url})` } : undefined}
@@ -228,7 +228,7 @@ function RiotPublicCard({ profile }: { profile: PublicProfileRecord }) {
     return (
       <Link
         href={`/riot-account-viewer?riotId=${encodeURIComponent(riotAccount)}`}
-        className="block rounded-2xl border border-[#d13639]/35 bg-gradient-to-br from-[#180b10] via-[#111827] to-[#05070b] p-4 shadow-[0_0_28px_rgba(209,54,57,0.12)] transition hover:border-[#c89b3c]/60"
+        className="block rounded-2xl border border-[#d13639]/35 bg-gradient-to-br from-[#180b10] via-[#111827] to-[#05070b] p-4  transition hover:border-[#c89b3c]/60"
       >
         {cardContent}
       </Link>
@@ -236,7 +236,7 @@ function RiotPublicCard({ profile }: { profile: PublicProfileRecord }) {
   }
 
   return (
-    <article className="rounded-2xl border border-[#d13639]/35 bg-gradient-to-br from-[#180b10] via-[#111827] to-[#05070b] p-4 shadow-[0_0_28px_rgba(209,54,57,0.12)]">
+    <article className="rounded-2xl border border-[#d13639]/35 bg-gradient-to-br from-[#180b10] via-[#111827] to-[#05070b] p-4 ">
       {cardContent}
     </article>
   );
@@ -397,7 +397,7 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
           </header>
         )}
 
-        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-glow backdrop-blur-xl">
+        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-5  backdrop-blur-xl">
           {busy ? (
             <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
               <Loader2 size={18} className="animate-spin text-amber-300" />
@@ -529,7 +529,7 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
                       {displayedBadgeRewards.slice(0, 8).map((badge) => (
                         <div key={badge.id} className="group relative flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300/35 bg-amber-300/10 text-amber-100">
                           <BadgeCheck size={16} />
-                          <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200 shadow-xl group-hover:block">
+                          <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200  group-hover:block">
                             {badge.name}
                           </span>
                         </div>
@@ -567,7 +567,7 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
           ) : null}
           {allBadgesOpen ? (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm" onMouseDown={() => setAllBadgesOpen(false)}>
-              <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+              <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 " onMouseDown={(event) => event.stopPropagation()}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Badges</p>

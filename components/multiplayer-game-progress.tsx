@@ -132,7 +132,7 @@ export function MultiplayerGameProgress({
   const winnerId = rankedPlayers[0]?.id;
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 shadow-glow backdrop-blur-xl">
+    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Player Progress</p>

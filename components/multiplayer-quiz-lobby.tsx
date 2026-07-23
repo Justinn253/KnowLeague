@@ -28,17 +28,18 @@ import {
   MultiplayerVisibilityToggle,
 } from '@/components/multiplayer-lobby-layout';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
+import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
 import type {
   MultiplayerQuizDifficulty,
   MultiplayerQuizGameMode,
   MultiplayerQuizLobbyView,
+  MultiplayerQuizProgressDelta,
   MultiplayerQuizPlayerResult,
   MultiplayerQuizPublicLobby,
 } from '@/lib/multiplayer-quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-import { MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
 import { CHAT_COLOR_NAME_HEX, getChatNameStyle } from '@/lib/chat-colors';
 import { playUiSound } from '@/lib/ui-sounds';
 
@@ -110,12 +111,25 @@ const configs: Record<MultiplayerQuizGameMode, MultiplayerQuizConfig> = {
   },
 };
 
-async function readResponse(response: Response) {
+type MultiplayerQuizProgressResponse = {
+  kind: 'player_progress';
+  player: MultiplayerQuizProgressDelta;
+};
+
+function isProgressResponse(value: unknown): value is MultiplayerQuizProgressResponse {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { kind?: unknown; player?: { id?: unknown; progress?: unknown } };
+  return candidate.kind === 'player_progress'
+    && typeof candidate.player?.id === 'string'
+    && typeof candidate.player.progress === 'number';
+}
+
+async function readResponse<T = MultiplayerQuizLobbyView>(response: Response) {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.error || 'Multiplayer lobby request failed.');
   }
-  return data as MultiplayerQuizLobbyView;
+  return data as T;
 }
 
 function compareRacePlayers(
@@ -368,6 +382,19 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     window.history.replaceState(null, '', `${config.route}?code=${nextView.lobby.code}`);
   }, [config.route, gameMode, router]);
 
+  const applyProgressDelta = useCallback((delta: MultiplayerQuizProgressDelta) => {
+    setView((current) => {
+      if (!current) return current;
+      const nextPlayers = current.players.map((player) => (
+        player.id === delta.id ? { ...player, ...delta } : player
+      ));
+      const nextRequestingPlayer = current.requestingPlayer?.id === delta.id
+        ? { ...current.requestingPlayer, ...delta }
+        : current.requestingPlayer;
+      return { ...current, players: nextPlayers, requestingPlayer: nextRequestingPlayer };
+    });
+  }, []);
+
   const refreshLobby = useCallback(async (code: string, activeClientId: string) => {
     if (isLeavingLobbyRef.current) return;
     try {
@@ -486,34 +513,39 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         schema: 'public',
         table: 'multiplayer_quiz_lobby_events',
         filter: `lobby_id=eq.${view.lobby.id}`,
-      }, () => void refreshLobby(view.lobby.code, clientId))
+      }, (payload) => {
+        const event = payload.new as { event_type?: unknown; payload?: unknown };
+        if (event.event_type === 'progress_updated' && isProgressResponse(event.payload)) {
+          applyProgressDelta(event.payload.player);
+          return;
+        }
+        void refreshLobby(view.lobby.code, clientId);
+      })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [clientId, refreshLobby, view?.lobby.code, view?.lobby.id]);
+  }, [applyProgressDelta, clientId, refreshLobby, view?.lobby.code, view?.lobby.id]);
 
-  useEffect(() => {
-    if (!connectedLobbyCode || !clientId) {
-      return undefined;
+  const sendHeartbeat = useCallback(async () => {
+    if (!connectedLobbyCode || !clientId) return;
+
+    try {
+      const response = await fetch(`/api/multiplayer/lobbies/${connectedLobbyCode}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, record: getLocalRecordSnapshot(gameMode) }),
+      });
+      if (!response.ok) await readResponse(response);
+    } catch {
+      // Realtime or the next heartbeat will retry transient failures.
     }
-    const code = connectedLobbyCode;
-    const sendHeartbeat = async () => {
-      try {
-        const response = await fetch(`/api/multiplayer/lobbies/${code}/heartbeat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId, record: getLocalRecordSnapshot(gameMode) }),
-        });
-        applyView(await readResponse(response));
-      } catch {
-        // Realtime or the next heartbeat will retry transient failures.
-      }
-    };
-    void sendHeartbeat();
-    const interval = window.setInterval(sendHeartbeat, MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [connectedLobbyCode, applyView, clientId, gameMode]);
+  }, [clientId, connectedLobbyCode, gameMode]);
+
+  useMultiplayerHeartbeat({
+    enabled: Boolean(connectedLobbyCode && clientId),
+    onHeartbeat: sendHeartbeat,
+  });
 
   useEffect(() => {
     if (!view || !clientId || view.lobby.status !== 'active') return undefined;
@@ -734,11 +766,15 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, progress, elapsedSeconds, result, record: getLocalRecordSnapshot(gameMode) }),
       });
-      applyView(await readResponse(response));
+      const data = await readResponse<MultiplayerQuizProgressResponse>(response);
+      if (!isProgressResponse(data)) {
+        throw new Error('Invalid multiplayer progress response.');
+      }
+      applyProgressDelta(data.player);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to update multiplayer progress.');
     }
-  }, [applyView, clientId, gameMode, view]);
+  }, [applyProgressDelta, clientId, gameMode, view]);
 
   const returnToLobby = async () => {
     if (!view || !clientId || !isHost) {

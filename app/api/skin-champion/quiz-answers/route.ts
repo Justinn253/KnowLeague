@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { GENERATED_CATALOG_CACHE_CONTROL } from '@/lib/cache-control';
 import { getAnswerList, getSkinCatalog } from '@/lib/catalogs';
 import { getSkinThemeAnswerList } from '@/lib/skin-themes';
 
@@ -8,11 +9,11 @@ export async function GET(request: NextRequest) {
 
   if (answerMode === 'skin-line') {
     return NextResponse.json(getSkinThemeAnswerList(catalog), {
-      headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' },
+      headers: { 'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL },
     });
   }
 
   return NextResponse.json(getAnswerList(catalog), {
-    headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' },
+    headers: { 'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL },
   });
 }

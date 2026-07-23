@@ -192,7 +192,7 @@ select {
   background: rgba(255, 255, 255, 0.08);
   color: #facc15;
   backdrop-filter: blur(10px);
-  transition: border-color 180ms ease, box-shadow 280ms ease;
+  transition: border-color 180ms ease;
 }
 
 .game-card-cta::before,
@@ -219,7 +219,6 @@ select {
 
 .group:hover .game-card-cta {
   border-color: transparent;
-  box-shadow: 0 12px 28px rgba(113, 63, 18, 0.22);
 }
 
 .group:hover .game-card-cta::before,

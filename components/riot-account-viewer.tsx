@@ -2,9 +2,9 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, Play, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
-import Image from 'next/image';
+import { GameIconImage } from '@/components/game-asset-image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
-import type { RiotAccountViewerResponse } from '@/lib/riot-account-viewer';
+import type { RiotAccountViewerResponse, RiotLiveGameStatus } from '@/lib/riot-account-viewer';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
@@ -21,6 +21,7 @@ const lastSearchStorageKey = 'knowleague:riot-account-viewer:last-search';
 const recentSearchesStorageKey = 'knowleague:riot-account-viewer:recent-searches';
 const sessionProfileCachePrefix = 'knowleague:riot-account-viewer:profile-cache:';
 const maxRecentSearches = 5;
+const profileClientCacheTtlMs = 30 * 24 * 60 * 60_000;
 const globalRankingSampleThreshold = 1000;
 const globalRankingTooltip = 'Global ranking is based on our own data from searched accounts and does not reflect the true League of Legends data.';
 const showPlaceholderRankings = process.env.NODE_ENV !== 'production';
@@ -306,7 +307,7 @@ function AverageEnemyRankBadge({ averageRank }: { averageRank: AverageRankSummar
       title={`Average Enemy Rank: ${averageRank.label}`}
     >
       <span>AER: {abbreviatedRank}</span>
-      {averageRank.tier ? <Image src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={18} height={18} className="h-4 w-4 object-contain" /> : null}
+      {averageRank.tier ? <GameIconImage src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={18} height={18} className="h-4 w-4 object-contain" /> : null}
     </span>
   );
 }
@@ -315,7 +316,7 @@ function AverageEnemyRankSummary({ averageRank }: { averageRank: AverageRankSumm
   return (
     <span className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-300" title={`Average Enemy Rank: ${averageRank.label}`}>
       <span>Average Enemy Rank: {averageRank.label}</span>
-      {averageRank.tier ? <Image src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={20} height={20} className="h-5 w-5 object-contain" /> : null}
+      {averageRank.tier ? <GameIconImage src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={20} height={20} className="h-5 w-5 object-contain" /> : null}
     </span>
   );
 }
@@ -345,7 +346,7 @@ function MatchRole({ position }: { position: string }) {
   return (
     <span className="inline-flex items-center gap-1">
       <span>{label}</span>
-      {icon ? <Image src={icon} alt="" width={16} height={16} className="h-4 w-4 object-contain" /> : null}
+      {icon ? <GameIconImage src={icon} alt="" width={16} height={16} className="h-4 w-4 object-contain" /> : null}
     </span>
   );
 }
@@ -498,9 +499,25 @@ function readSessionProfileCache(riotId: string, platform: PlatformRoute) {
   try {
     const raw = window.sessionStorage.getItem(profileCacheKey(riotId, platform));
     if (!raw) return null;
-    return JSON.parse(raw) as RiotAccountViewerResponse;
+    const data = JSON.parse(raw) as RiotAccountViewerResponse;
+    if (!data.updatedAt || Date.now() - Date.parse(data.updatedAt) >= profileClientCacheTtlMs) {
+      window.sessionStorage.removeItem(profileCacheKey(riotId, platform));
+      return null;
+    }
+    return data;
   } catch {
     return null;
+  }
+}
+
+async function refreshCachedLiveGame(riotId: string, platform: PlatformRoute, data: RiotAccountViewerResponse) {
+  try {
+    const response = await fetch(`/api/riot-account/live-game?riotId=${encodeURIComponent(riotId)}&platform=${encodeURIComponent(platform)}`);
+    const result = await response.json() as Partial<RiotLiveGameStatus>;
+    if (!response.ok || !('currentGame' in result)) return data;
+    return { ...data, currentGame: result.currentGame ?? null };
+  } catch {
+    return data;
   }
 }
 
@@ -538,7 +555,7 @@ function StatTile({
         <p className="group relative mt-2 w-fit text-xs font-bold uppercase tracking-[0.14em] text-amber-300">
           {topPercent}
           {topPercentTitle ? (
-            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] normal-case leading-5 tracking-normal text-slate-200 shadow-xl group-hover:block">
+            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] normal-case leading-5 tracking-normal text-slate-200  group-hover:block">
               {topPercentTitle}
             </span>
           ) : null}
@@ -578,18 +595,18 @@ function ChampionIcon({ src, name, size = 'md' }: { src: string; name: string; s
     );
   }
 
-  return <Image src={src} alt="" width={dimension} height={dimension} className={`${className} shrink-0 object-cover ring-1 ring-white/10`} />;
+  return <GameIconImage src={src} alt="" width={dimension} height={dimension} className={`${className} shrink-0 object-cover ring-1 ring-white/10`} />;
 }
 
 function RankIcon({ tier }: { tier: string }) {
   const rank = rankTierKey(tier);
   return (
-    <Image
+    <GameIconImage
       src={getLeagueRankIconUrl(rank)}
       alt=""
       width={96}
       height={96}
-      className="h-20 w-20 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(251,191,36,0.18)]"
+      className="h-20 w-20 shrink-0 object-contain "
     />
   );
 }
@@ -604,7 +621,7 @@ function MasteryCrest({ championLevel }: { championLevel: number }) {
       <img
         src={src}
         alt=""
-        className="h-12 w-14 object-contain drop-shadow-[0_0_14px_rgba(251,191,36,0.2)]"
+        className="h-12 w-14 object-contain "
       />
     </div>
   );
@@ -698,12 +715,17 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
                       const topPercent = useStoredPlacement ? placement?.topPercent ?? null : showPlaceholderRankings ? index === 0 ? 7.5 : 18.4 : null;
                       if (regionalRank === null || topPercent === null) return null;
                       return (
-                        <p className="group relative mt-3 w-fit text-sm font-bold text-amber-300">
-                          #{formatNumber(regionalRank)} regional - {formatTopPercent(topPercent)}
-                          <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] font-semibold leading-5 text-slate-200 shadow-xl group-hover:block">
-                            {globalRankingTooltip}
-                          </span>
-                        </p>
+                        <div className="mt-3">
+                          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            KnowLeague Sample Placement
+                          </p>
+                          <p className="group relative mt-1 w-fit text-sm font-bold text-amber-300">
+                            #{formatNumber(regionalRank)} regional - {formatTopPercent(topPercent)}
+                            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] font-semibold leading-5 text-slate-200  group-hover:block">
+                              {globalRankingTooltip}
+                            </span>
+                          </p>
+                        </div>
                       );
                     })()}
                   </>
@@ -718,7 +740,7 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
-            <a href={buildMasteryMasterUrl(data)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 py-2 text-xs font-black text-slate-950 shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+            <a href={buildMasteryMasterUrl(data)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 py-2 text-xs font-black text-slate-950   transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
               <Play size={14} fill="currentColor" />
               Play Mastery Master
             </a>
@@ -913,7 +935,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-3">
-          <a href={buildMasteryMasterUrl(data)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+          <a href={buildMasteryMasterUrl(data)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 text-sm font-black text-slate-950   transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
             <Play size={15} fill="currentColor" />
             Play Mastery Master
           </a>
@@ -976,12 +998,12 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
                     </div>
                     <div className="flex h-[300px] items-end justify-center">
                       <div
-                        className={`animate-mastery-bar-rise group relative z-30 w-10 rounded-t-xl border shadow-lg shadow-amber-950/30 hover:z-[140] ${masteryBarClass(mastery.championLevel)}`}
+                        className={`animate-mastery-bar-rise group relative z-30 w-10 rounded-t-xl border   hover:z-[140] ${masteryBarClass(mastery.championLevel)}`}
                         style={{ height }}
                         aria-label={`${mastery.champion.name}: ${mastery.championPoints} mastery points`}
                       >
                         <div className={`h-full rounded-t-xl ${masteryBarFillClass(mastery.championLevel)}`} />
-                        <div className={`absolute top-4 z-[150] hidden w-52 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-center text-xs text-slate-200 shadow-xl group-hover:block ${hoverPositionClass}`}>
+                        <div className={`absolute top-4 z-[150] hidden w-52 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-center text-xs text-slate-200  group-hover:block ${hoverPositionClass}`}>
                           <span className="font-bold text-white">{mastery.champion.name}</span>
                           <br />
                           Level {mastery.championLevel} - {formatNumber(mastery.championPoints)} points
@@ -1054,7 +1076,7 @@ function SmallGameIcon({ src, label, size = 'sm' }: { src: string; label: string
     return <span className={`${className} border border-white/10 bg-slate-800`} aria-label={label} title={label} />;
   }
 
-  return <Image src={src} alt={label} title={label} width={pixels} height={pixels} className={`${className} object-cover ring-1 ring-white/10`} />;
+  return <GameIconImage src={src} alt={label} title={label} width={pixels} height={pixels} className={`${className} object-cover ring-1 ring-white/10`} />;
 }
 
 function MatchMetricLabel({ icon: Icon, label }: { icon: typeof Swords; label: string }) {
@@ -1146,7 +1168,7 @@ const MatchParticipantRow = memo(function MatchParticipantRow({ participant, max
     ['T', 'Triple kills', participant.multikills.triple, 'gold'],
     ['Q', 'Quadra kills', participant.multikills.quadra, 'master'],
     ['P', 'Penta kills', participant.multikills.penta, 'challenger'],
-  ].filter(([, , count]) => Number(count) > 0);
+  ].filter(([ count]) => Number(count) > 0);
 
   return (
     <div className={`grid gap-3 rounded-xl border p-2.5 text-sm lg:grid-cols-[minmax(15rem,1.45fr)_0.55fr_0.8fr_0.8fr_0.7fr_0.9fr_7rem_2.75rem] lg:items-center ${
@@ -1179,7 +1201,7 @@ const MatchParticipantRow = memo(function MatchParticipantRow({ participant, max
           <div className="mt-1 flex items-center gap-2">
             {participant.rank && rankTier ? (
               <>
-                <Image src={getLeagueRankIconUrl(rankTier)} alt="" title={`${participant.rank.tier} ${participant.rank.rank}`} width={22} height={22} className="h-5 w-5 object-contain" />
+                <GameIconImage src={getLeagueRankIconUrl(rankTier)} alt="" title={`${participant.rank.tier} ${participant.rank.rank}`} width={22} height={22} className="h-5 w-5 object-contain" />
                 <span className={`truncate text-xs font-bold ${getLeagueRankStyle(rankTier).text}`}>
                   {formatRankedDivision(participant.rank.tier, participant.rank.rank)}
                 </span>
@@ -1586,7 +1608,8 @@ export function RiotAccountViewer() {
       };
       const cachedData = options.refresh ? null : readSessionProfileCache(trimmedRiotId, nextPlatform);
       if (cachedData) {
-        applyLoadedData(cachedData);
+        const dataWithLiveGame = await refreshCachedLiveGame(trimmedRiotId, nextPlatform, cachedData);
+        applyLoadedData(dataWithLiveGame);
         return;
       }
 
@@ -1712,7 +1735,7 @@ export function RiotAccountViewer() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-10">
-        <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 shadow-glow sm:p-6">
+        <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-5  sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-3">
@@ -1730,7 +1753,7 @@ export function RiotAccountViewer() {
 
             {data ? (
               <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                <Image src={data.summoner.profileIconUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10" />
+                <GameIconImage src={data.summoner.profileIconUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10" />
                 <div>
                   <p className="font-bold text-white">Level {formatNumber(data.summoner.summonerLevel)}</p>
                   <p className="text-sm text-slate-400">{data.platform} - {data.regionalRoute.toUpperCase()}</p>

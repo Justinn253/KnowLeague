@@ -65,7 +65,7 @@ export function AchievementToasts() {
   }
 
   return (
-    <div className="fixed right-5 top-5 z-[120] w-[min(calc(100vw-2rem),24rem)] rounded-2xl border border-amber-300/40 bg-slate-950/95 p-4 text-slate-100 shadow-2xl shadow-black/50 backdrop-blur">
+    <div className="fixed right-5 top-5 z-[120] w-[min(calc(100vw-2rem),24rem)] rounded-2xl border border-amber-300/40 bg-slate-950/95 p-4 text-slate-100   backdrop-blur">
       <div className="flex items-start gap-3">
         <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-300/40 bg-amber-300/15 text-amber-200">
           <Trophy size={20} />

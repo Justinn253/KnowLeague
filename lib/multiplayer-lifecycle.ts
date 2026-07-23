@@ -8,8 +8,11 @@ export type MultiplayerAccountMember = {
   auth_user_id: string | null;
 };
 
-export const MULTIPLAYER_HEARTBEAT_INTERVAL_MS = 15_000;
-export const MULTIPLAYER_STALE_AFTER_MS = 45_000;
+// Keep the client cadence comfortably below the stale threshold so a delayed
+// browser timer does not incorrectly disconnect an active player.
+export const MULTIPLAYER_HEARTBEAT_INTERVAL_MS = 25_000;
+export const MULTIPLAYER_STALE_AFTER_MS = 90_000;
+export const MULTIPLAYER_PRESENCE_WRITE_INTERVAL_MS = 45_000;
 export const MULTIPLAYER_RECONNECT_GRACE_MS = 60_000;
 
 export function getMultiplayerGuestDisplayName(clientId: string) {
@@ -32,6 +35,18 @@ export function getReconnectDeadline(disconnectedAt: string) {
 
 export function canReconnect(disconnectedAt: string | null, now = Date.now()) {
   return Boolean(disconnectedAt && now < getReconnectDeadline(disconnectedAt));
+}
+
+export function shouldUpdateMultiplayerPresence(
+  lastSeenAt: string,
+  currentConnected: boolean,
+  nextConnected: boolean,
+  now = Date.now(),
+) {
+  if (currentConnected !== nextConnected) return true;
+
+  const lastSeenAtMs = new Date(lastSeenAt).getTime();
+  return !Number.isFinite(lastSeenAtMs) || now - lastSeenAtMs >= MULTIPLAYER_PRESENCE_WRITE_INTERVAL_MS;
 }
 
 export type MultiplayerLifecycleResolution = {

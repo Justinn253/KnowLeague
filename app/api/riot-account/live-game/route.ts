@@ -35,21 +35,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'platform is invalid.' }, { status: 400 });
     }
 
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: `riot-live-game:${clientIp}`,
       limit: rateLimitRequests,
       windowMs: rateLimitWindowMs,
     });
 
     if (!rateLimit.allowed) {
+      const unavailable = rateLimit.source === 'unavailable';
       logServerEvent('warn', 'riot_live_game_rate_limited', {
         clientIp,
         retryAfterSeconds: rateLimit.retryAfterSeconds,
       });
       return NextResponse.json(
-        { error: `Too many live game lookups. Try again in ${rateLimit.retryAfterSeconds} seconds.` },
+        { error: unavailable ? 'Request protection is temporarily unavailable. Please try again shortly.' : `Too many live game lookups. Try again in ${rateLimit.retryAfterSeconds} seconds.` },
         {
-          status: 429,
+          status: unavailable ? 503 : 429,
           headers: {
             'Retry-After': String(rateLimit.retryAfterSeconds),
             'X-RateLimit-Limit': String(rateLimitRequests),

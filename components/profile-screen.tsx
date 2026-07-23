@@ -6,7 +6,6 @@ import {
   Award,
   BadgeCheck,
   Check,
-  ChevronDown,
   Eye,
   EyeOff,
   Filter,
@@ -29,6 +28,10 @@ import { useRouter } from 'next/navigation';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getEarnedRewards, type AchievementListItem } from '@/lib/achievements';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import {
+  EMAIL_DELIVERY_COOLDOWN_MS,
+  getEmailDeliveryCooldownSeconds,
+} from '@/lib/email-delivery-policy';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
 import { loadDetailedGameStats, loadPlayerGameStats, type DetailedGameStats, type PlayerGameStats, type QuizGameDetailedStats, type QuizModeStats, type SkincognitoDetailedStats } from '@/lib/game-storage';
 import {
@@ -37,6 +40,7 @@ import {
   DEFAULT_CHAT_BORDER,
   getChatBorderSwatchStyle,
   getChatBubbleStyle,
+  getChatNameStyle,
   getChatSwatchStyle,
   normalizeChatBorder,
   normalizeChatColor,
@@ -301,43 +305,52 @@ function DiscordConnectionCard({
 }) {
   const isLinked = Boolean(profile?.discord_username);
   const discordName = getLinkedValue(profile?.discord_username);
+  const discordAvatarUrl = profile?.discord_avatar_url ?? null;
+  const [discordAvatarFailed, setDiscordAvatarFailed] = useState(false);
+
+  useEffect(() => {
+    setDiscordAvatarFailed(false);
+  }, [discordAvatarUrl]);
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-[#5865F2]/40 bg-[#111a3a]/80 shadow-[0_0_28px_rgba(88,101,242,0.14)]">
+    <article className="overflow-hidden rounded-2xl border border-[#5865F2]/40 bg-[#111a3a]/80">
       <div
-        className="h-20 bg-gradient-to-r from-[#5865F2] via-[#4752C4] to-[#2b2d63] bg-cover bg-center"
+        className="flex h-20 items-center justify-between gap-3 bg-gradient-to-r from-[#5865F2] via-[#4752C4] to-[#2b2d63] bg-cover bg-center px-4"
         style={profile?.discord_banner_url ? { backgroundImage: `url(${profile.discord_banner_url})` } : undefined}
-      />
-      <div className="relative p-4 pt-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 pt-3">
-              <DiscordMark className="h-4 w-4 text-[#5865F2]" />
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8EA1E1]">Discord</p>
-            </div>
-            <div className="mt-3 flex min-w-0 items-center gap-3">
-              <span
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-4 border-[#111a3a] bg-[#232946] bg-cover bg-center text-lg font-black text-white"
-                style={profile?.discord_avatar_url ? { backgroundImage: `url(${profile.discord_avatar_url})` } : undefined}
-                aria-hidden="true"
-              >
-                {profile?.discord_avatar_url ? null : discordName.slice(0, 1).toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-lg font-bold text-white">{discordName}</p>
-                <p className="mt-1 text-xs font-semibold text-[#b8c1ff]">
-                  {isLinked ? 'Discord account linked' : 'Link Discord to show your account here.'}
-                </p>
-              </div>
-            </div>
-          </div>
+      >
+        <div className="flex items-center gap-2">
+          <DiscordMark className="h-4 w-4 text-white" />
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-white">Discord Account</p>
+        </div>
+        <span
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+            isLinked ? 'border-emerald-300/30 bg-emerald-400/15 text-emerald-200' : 'border-[#5865F2]/35 bg-[#5865F2]/15 text-[#b8c1ff]'
+          }`}
+        >
+          {isLinked ? <Check size={17} /> : <LinkIcon size={17} />}
+        </span>
+      </div>
+      <div className="p-4">
+        <div className="flex min-w-0 items-center gap-3">
           <span
-            className={`mt-4 inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
-              isLinked ? 'border-emerald-300/30 bg-emerald-400/15 text-emerald-200' : 'border-[#5865F2]/35 bg-[#5865F2]/15 text-[#b8c1ff]'
-            }`}
+            className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-[#111a3a] bg-[#232946] text-lg font-black text-white"
+            aria-hidden="true"
           >
-            {isLinked ? <Check size={17} /> : <LinkIcon size={17} />}
+            {discordAvatarUrl && !discordAvatarFailed ? (
+              <img
+                src={discordAvatarUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={() => setDiscordAvatarFailed(true)}
+              />
+            ) : discordName.slice(0, 1).toUpperCase()}
           </span>
+          <div className="min-w-0">
+            <p className="truncate text-lg font-bold text-white">{discordName}</p>
+            <p className="mt-1 text-xs font-semibold text-[#b8c1ff]">
+              {isLinked ? 'Discord account linked' : 'Link Discord to show your account here.'}
+            </p>
+          </div>
         </div>
         <button
           type="button"
@@ -355,33 +368,40 @@ function RiotConnectionCard({ value }: { value: string }) {
   const isLinked = value !== 'Not linked';
 
   return (
-    <article className="rounded-2xl border border-[#d13639]/35 bg-gradient-to-br from-[#180b10] via-[#111827] to-[#05070b] p-4 shadow-[0_0_28px_rgba(209,54,57,0.12)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-md border border-[#d13639]/40 bg-[#d13639]/15 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.16em] text-[#f87171]">
-              Riot
-            </span>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#c89b3c]">Riot Account</p>
-          </div>
-          <p className="mt-2 text-lg font-bold text-white">{value}</p>
+    <article className="overflow-hidden rounded-2xl border border-[#d13639]/35 bg-[#17121b]/90">
+      <div className="flex h-20 items-center justify-between gap-3 bg-gradient-to-r from-[#d13639] via-[#7f2635] to-[#25131d] px-4">
+        <div className="flex items-center gap-2">
+          <img src="/Icons/riot_icon.png" alt="" className="h-4 w-4 rounded-sm object-cover" />
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-white">Riot Account</p>
         </div>
         <span
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
-            isLinked ? 'border-[#c89b3c]/40 bg-[#c89b3c]/15 text-[#f0d178]' : 'border-[#d13639]/30 bg-black/30 text-[#c89b3c]'
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+            isLinked ? 'border-emerald-300/30 bg-emerald-400/15 text-emerald-200' : 'border-[#d13639]/30 bg-black/30 text-[#c89b3c]'
           }`}
         >
           {isLinked ? <Check size={17} /> : <LinkIcon size={17} />}
         </span>
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-300">Riot linking will connect to the future masteries page and account-specific League data.</p>
-      <button
-        type="button"
-        disabled
-        className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-[#d13639]/35 bg-[#d13639]/10 px-4 text-sm font-bold text-[#fca5a5] disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        Link Riot Soon
-      </button>
+      <div className="p-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-[#17121b] bg-[#2b1821] text-[#f0d178]">
+            <img src="/Icons/riot_icon.png" alt="" className="h-full w-full object-cover" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-lg font-bold text-white">{value}</p>
+            <p className="mt-1 text-xs font-semibold text-slate-300">
+              Riot linking not implemented yet
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled
+          className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-[#d13639]/35 bg-[#d13639]/10 px-4 text-sm font-bold text-[#fca5a5] disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          Link Riot Soon
+        </button>
+      </div>
     </article>
   );
 }
@@ -434,6 +454,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [achievementFiltersOpen, setAchievementFiltersOpen] = useState(false);
   const addFriendPanelRef = useRef<HTMLDivElement | null>(null);
   const cosmeticsMenuRef = useRef<HTMLDivElement | null>(null);
+  const titleMenuRef = useRef<HTMLDivElement | null>(null);
   const achievementFiltersRef = useRef<HTMLDivElement | null>(null);
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -442,6 +463,9 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [passwordResetSending, setPasswordResetSending] = useState(false);
+  const [passwordResetCooldownEndsAt, setPasswordResetCooldownEndsAt] = useState(0);
+  const [passwordResetCooldownNow, setPasswordResetCooldownNow] = useState(() => Date.now());
   const cleanUsernameDraft = usernameDraft.trim();
   const cleanAboutDraft = aboutDraft.trim();
   const hasAvatarChanges = avatarAction !== 'unchanged';
@@ -460,6 +484,10 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   ) : false;
   const hasPreferenceChanges = profile ? friendRequestsOpen !== profile.friend_requests_open : false;
   const hasAnySaveChanges = hasProfileChanges || hasPreferenceChanges || hasAvatarChanges;
+  const passwordResetCooldownSeconds = getEmailDeliveryCooldownSeconds(
+    passwordResetCooldownEndsAt,
+    passwordResetCooldownNow,
+  );
   const previewChatColor = normalizeChatColor(cosmeticsPreviewColor ?? pendingChatColor);
   const previewChatBorder = normalizeChatBorder(cosmeticsPreviewBorder ?? pendingChatBorder);
   const previewBubbleStyle = getChatBubbleStyle(previewChatColor, previewChatBorder);
@@ -467,6 +495,19 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    const remainingMs = passwordResetCooldownEndsAt - passwordResetCooldownNow;
+    if (!passwordResetCooldownEndsAt || remainingMs <= 0) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setPasswordResetCooldownNow(Date.now());
+    }, Math.min(1_000, remainingMs));
+
+    return () => window.clearTimeout(timeout);
+  }, [passwordResetCooldownEndsAt, passwordResetCooldownNow]);
 
   const hydrateFromCache = useCallback((cachedState: CachedProfileScreenState) => {
     setUserId(cachedState.userId);
@@ -715,19 +756,37 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
 
     const channel = supabase.channel(`profile-friends:${userId}`);
     channel
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests' }, (payload) => {
-        const row = { ...(payload.old as Record<string, unknown>), ...(payload.new as Record<string, unknown>) };
-        if (row.requester_id === userId || row.addressee_id === userId) {
-          void refreshFriendDashboard();
-        }
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'friend_requests',
+        filter: `addressee_id=eq.${userId}`,
+      }, () => {
+        void refreshFriendDashboard();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, (payload) => {
-        const row = { ...(payload.old as Record<string, unknown>), ...(payload.new as Record<string, unknown>) };
-        if (row.user_one_id === userId || row.user_two_id === userId) {
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'friend_requests',
+        filter: `addressee_id=eq.${userId}`,
+      }, () => {
+        void refreshFriendDashboard();
+      });
+
+    (['user_one_id', 'user_two_id'] as const).forEach((column) => {
+      (['INSERT', 'UPDATE'] as const).forEach((event) => {
+        channel.on('postgres_changes', {
+          event,
+          schema: 'public',
+          table: 'friendships',
+          filter: `${column}=eq.${userId}`,
+        }, () => {
           void refreshFriendDashboard();
-        }
-      })
-      .subscribe();
+        });
+      });
+    });
+
+    channel.subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
@@ -1144,7 +1203,13 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
 
     const closeCosmeticsMenus = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && cosmeticsMenuRef.current?.contains(target)) {
+      if (
+        target instanceof Node &&
+        (cosmeticsMenuRef.current?.contains(target) || titleMenuRef.current?.contains(target))
+      ) {
+        return;
+      }
+      if (target instanceof Element && target.closest('[data-profile-cosmetics-toggle="true"], [data-profile-title-toggle="true"]')) {
         return;
       }
 
@@ -1218,17 +1283,38 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   };
 
   const sendPasswordReset = async () => {
+    if (passwordResetSending || passwordResetCooldownSeconds > 0) {
+      return;
+    }
+
     const supabase = getOptionalSupabaseClient();
-    if (!supabase || !email) {
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!supabase || !data.session) {
+      setMessage('Login required.');
       return;
     }
 
     setMessage('');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-
-    setMessage(error ? error.message : 'Password reset email sent.');
+    setPasswordResetSending(true);
+    try {
+      const response = await fetch('/api/auth/password-reset/authenticated', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${data.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
+      });
+      const body = await response.json() as { error?: string };
+      if (response.ok) {
+        setPasswordResetCooldownEndsAt(Date.now() + EMAIL_DELIVERY_COOLDOWN_MS);
+        setMessage('Password reset email sent.');
+      } else {
+        setMessage(body.error ?? 'Unable to send password reset email.');
+      }
+    } finally {
+      setPasswordResetSending(false);
+    }
   };
 
   const connectDiscord = async () => {
@@ -1392,12 +1478,11 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
             </Link>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold text-white">Profile</h1>
-                {selectedTitleReward ? (
-                  <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
-                    {selectedTitleReward.name}
-                  </span>
-                ) : null}
+                <h1 className="text-xl font-semibold text-white">
+                  Profile{profile?.username || usernameDraft ? (
+                    <> - <span style={getChatNameStyle(chatColorDraft)}>{profile?.username || usernameDraft}</span></>
+                  ) : ''}
+                </h1>
               </div>
             </div>
           </div>
@@ -1548,7 +1633,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           ) : null}
         </header>
 
-        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-glow backdrop-blur-xl">
+        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-6 backdrop-blur-xl">
           {busy ? (
             <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
               <Loader2 size={18} className="animate-spin text-amber-300" />
@@ -1596,20 +1681,88 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                           <X size={14} />
                         </button>
                       ) : null}
-                      <div
-                        className="group relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-slate-900 bg-cover bg-center text-3xl font-black text-amber-200"
-                        style={avatarPreviewUrl ? { backgroundImage: `url(${avatarPreviewUrl})` } : undefined}
-                      >
-                        {avatarPreviewUrl ? null : (profile?.display_name || profile?.username || '?').slice(0, 1).toUpperCase()}
+                      <div className="group relative h-28 w-28 rounded-full border-2 border-white/15 bg-slate-950 p-1">
+                        <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-slate-900 text-3xl font-black text-amber-200">
+                          {avatarPreviewUrl ? (
+                            <img
+                              src={avatarPreviewUrl}
+                              alt=""
+                              draggable={false}
+                              className="absolute inset-0 h-full w-full object-cover"
+                            />
+                          ) : (
+                            (profile?.display_name || profile?.username || '?').slice(0, 1).toUpperCase()
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => avatarInputRef.current?.click()}
+                            disabled={avatarUploading || saving}
+                            aria-label="Upload profile picture"
+                            className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-950 text-white opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100 disabled:cursor-not-allowed"
+                          >
+                            <Upload size={24} className="transition-transform duration-200 ease-out group-hover:scale-110" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="relative mt-2 flex w-28 justify-center">
                         <button
                           type="button"
-                          onClick={() => avatarInputRef.current?.click()}
-                          disabled={avatarUploading || saving}
-                          aria-label="Upload profile picture"
-                          className="absolute inset-0 flex items-center justify-center bg-slate-950/70 text-white opacity-0 transition group-hover:opacity-100 disabled:cursor-not-allowed"
+                          data-profile-title-toggle="true"
+                          onClick={() => {
+                            setCosmeticsMenuOpen(false);
+                            setTitleMenuOpen((open) => !open);
+                          }}
+                          aria-label="Edit active title"
+                          aria-expanded={titleMenuOpen}
+                          className="inline-flex max-w-28 items-center gap-1 rounded-md px-1 py-0.5 text-center text-xs font-semibold text-slate-300 transition hover:bg-slate-900 hover:text-white"
                         >
-                          <Upload size={24} />
+                          <span className="truncate">{selectedTitleReward?.name ?? 'No title'}</span>
+                          <Pencil size={12} className="shrink-0 text-slate-500" />
                         </button>
+                        {titleMenuOpen ? (
+                          <div
+                            ref={titleMenuRef}
+                            className="absolute left-0 top-full z-40 mt-2 w-[min(42rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950/95 p-3 backdrop-blur-xl"
+                          >
+                            <div className="mb-3 flex items-start justify-between gap-3 px-1">
+                              <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-300">Title selection</p>
+                                <p className="mt-1 text-xs font-medium text-slate-500">Choose an earned title to display on your profile.</p>
+                              </div>
+                              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-slate-900 px-2 py-1 text-[0.68rem] font-bold text-slate-400">
+                                <Award size={13} className="text-amber-300" />
+                                {earnedTitleRewards.length}
+                              </span>
+                            </div>
+                            <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                              {[
+                                { id: '', name: 'No title' },
+                                ...earnedTitleRewards,
+                              ].map((reward) => {
+                                const selected = selectedTitleRewardId === reward.id;
+                                return (
+                                  <button
+                                    key={reward.id || 'no-title'}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedTitleRewardId(reward.id);
+                                      setTitleMenuOpen(false);
+                                    }}
+                                    aria-pressed={selected}
+                                    className={`flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition hover:-translate-y-0.5 hover:border-amber-300/45 hover:bg-slate-900 ${
+                                      selected
+                                        ? 'border-amber-300/60 bg-amber-300/10 text-amber-100'
+                                        : 'border-white/10 bg-slate-900/70 text-slate-300'
+                                    }`}
+                                  >
+                                    <span className="min-w-0 flex-1 truncate">{reward.name}</span>
+                                    {selected ? <Check size={16} className="shrink-0 text-amber-300" /> : null}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                     <input
@@ -1626,15 +1779,17 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       }}
                     />
                     <div className="h-28 w-px shrink-0 bg-white/10" />
-                    <div ref={cosmeticsMenuRef} className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Profile Cosmetics</p>
                       <div className="mt-3 flex flex-wrap gap-3">
                         <div className="relative">
                           <button
                             type="button"
+                            data-profile-cosmetics-toggle="true"
                             onClick={() => {
                               setPendingChatColor(chatColorDraft);
                               setPendingChatBorder(chatBorderDraft);
+                              setTitleMenuOpen(false);
                               setCosmeticsMenuOpen((current) => !current);
                             }}
                             className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-full border border-white/10 bg-slate-900 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-slate-800"
@@ -1658,7 +1813,10 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                             />
                           </button>
                           {cosmeticsMenuOpen ? (
-                            <div className="absolute left-0 top-11 z-30 grid w-[42rem] grid-cols-[12rem_1px_12rem_minmax(12rem,1fr)] gap-3 rounded-2xl border border-white/10 bg-slate-950 p-3">
+                            <div
+                              ref={cosmeticsMenuRef}
+                              className="absolute left-0 top-11 z-30 grid w-[42rem] grid-cols-[12rem_1px_12rem_minmax(12rem,1fr)] gap-3 rounded-2xl border border-white/10 bg-slate-950 p-3 "
+                            >
                               <div>
                                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Chat color</p>
                                 <div className="grid grid-cols-5 gap-2">
@@ -1709,17 +1867,6 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                               </div>
 
                               <div className="grid min-w-0 gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setChatColorDraft(pendingChatColor);
-                                    setChatBorderDraft(pendingChatBorder);
-                                    setCosmeticsMenuOpen(false);
-                                  }}
-                                  className="min-h-9 rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200"
-                                >
-                                  Apply
-                                </button>
                                 <div className="flex min-w-0 items-center justify-center rounded-xl border border-white/10 bg-slate-900/70 p-3">
                                   <div
                                     className="w-full rounded-xl px-3 py-2 text-center text-sm font-medium"
@@ -1728,49 +1875,22 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                                     Sample message
                                   </div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setChatColorDraft(pendingChatColor);
+                                    setChatBorderDraft(pendingChatBorder);
+                                    setCosmeticsMenuOpen(false);
+                                  }}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200"
+                                >
+                                  <Check size={16} />
+                                  Apply
+                                </button>
                               </div>
                             </div>
                           ) : null}
                         </div>
-                      </div>
-                      <div className="relative mt-3 w-fit">
-                        <button
-                          type="button"
-                          onClick={() => setTitleMenuOpen((open) => !open)}
-                          className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/10 bg-slate-900 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-slate-800"
-                          aria-expanded={titleMenuOpen}
-                        >
-                          Title
-                          <span className="max-w-36 truncate font-bold normal-case tracking-normal text-white">{selectedTitleReward?.name ?? 'No title'}</span>
-                          <ChevronDown size={14} className={`text-slate-400 transition ${titleMenuOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                        {titleMenuOpen ? (
-                          <div className="absolute left-0 top-11 z-30 grid min-w-52 gap-1 rounded-2xl border border-white/10 bg-slate-950 p-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedTitleRewardId('');
-                                setTitleMenuOpen(false);
-                              }}
-                              className={`rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${selectedTitleRewardId ? 'text-slate-300 hover:bg-slate-900' : 'bg-amber-300 text-slate-950'}`}
-                            >
-                              No title
-                            </button>
-                            {earnedTitleRewards.map((reward) => (
-                              <button
-                                key={reward.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedTitleRewardId(reward.id);
-                                  setTitleMenuOpen(false);
-                                }}
-                                className={`rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${selectedTitleRewardId === reward.id ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900'}`}
-                              >
-                                {reward.name}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                     <div className="hidden min-h-28 w-px shrink-0 bg-white/10 lg:block" />
@@ -1793,7 +1913,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                             className="group relative flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300/35 bg-amber-300/10 text-amber-100"
                           >
                             <BadgeCheck size={16} />
-                            <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200 shadow-xl group-hover:block">
+                            <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200  group-hover:block">
                               {badge.name}
                             </span>
                           </div>
@@ -2058,10 +2178,15 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                     <button
                       type="button"
                       onClick={sendPasswordReset}
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-slate-900"
+                      disabled={passwordResetSending || passwordResetCooldownSeconds > 0}
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <KeyRound size={18} />
-                      Reset Password
+                      {passwordResetCooldownSeconds > 0
+                        ? `Reset Password in ${passwordResetCooldownSeconds}s`
+                        : passwordResetSending
+                          ? 'Sending Reset Email'
+                          : 'Reset Password'}
                     </button>
                     <button
                       type="button"
@@ -2086,7 +2211,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       </section>
       {avatarCropSource ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Profile Picture</p>
@@ -2181,8 +2306,11 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
         </div>
       ) : null}
       {badgeEditorOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm"
+          onPointerDown={() => setBadgeEditorOpen(false)}
+        >
+          <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5" onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Displayed Badges</p>
@@ -2223,6 +2351,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                   >
                     <BadgeCheck size={18} className="shrink-0" />
                     <span className="truncate text-sm font-semibold">{badge.name}</span>
+                    {selected ? <Check size={16} className="ml-auto shrink-0 text-amber-300" /> : null}
                   </button>
                 );
               })}

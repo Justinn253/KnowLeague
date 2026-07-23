@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Search, ShieldAlert, ShieldCheck, UserCog, X } from 'lucide-react';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -115,6 +115,10 @@ export function ModerationWidget({ role }: ModerationWidgetProps) {
       const rightTime = new Date(right.createdAt).getTime();
       return contactSortDirection === 'newest' ? rightTime - leftTime : leftTime - rightTime;
     });
+  const searchedUserPresenceKey = useMemo(() => users
+    .map((user) => user.id)
+    .sort()
+    .join('|'), [users]);
 
   useEffect(() => {
     if (!hasModerationAccess && isOpen) {
@@ -194,25 +198,43 @@ export function ModerationWidget({ role }: ModerationWidgetProps) {
   }, [contactSubmissions.length, isOpen, loadContactSubmissions, loadTeamMembers, teamMembers.length]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || activeTab !== 'users' || !searchedUserPresenceKey) {
       setOnlineUserIds(new Set());
       return undefined;
     }
 
-    const initialIds = (window as Window & { __knowleagueOnlineUserIds?: string[] }).__knowleagueOnlineUserIds ?? [];
-    setOnlineUserIds(new Set(initialIds));
+    const supabase = getOptionalSupabaseClient();
+    if (!supabase) {
+      return undefined;
+    }
 
-    const handleOnlineUsers = (event: Event) => {
-      const ids = event instanceof CustomEvent && Array.isArray(event.detail) ? event.detail as string[] : [];
-      setOnlineUserIds(new Set(ids));
+    const presenceChannels = searchedUserPresenceKey.split('|').map((userId) => ({
+      userId,
+      channel: supabase.channel(`knowleague-user-presence:${userId}`),
+    }));
+    const syncPresence = () => {
+      const nextOnlineUserIds = new Set<string>();
+      presenceChannels.forEach(({ userId, channel }) => {
+        const state = channel.presenceState<{ userId?: string }>();
+        if (Object.values(state).flat().some((presence) => presence.userId === userId)) {
+          nextOnlineUserIds.add(userId);
+        }
+      });
+      setOnlineUserIds(nextOnlineUserIds);
     };
 
-    window.addEventListener('knowleague:online-users', handleOnlineUsers);
+    presenceChannels.forEach(({ channel }) => {
+      channel
+        .on('presence', { event: 'sync' }, syncPresence)
+        .subscribe();
+    });
 
     return () => {
-      window.removeEventListener('knowleague:online-users', handleOnlineUsers);
+      presenceChannels.forEach(({ channel }) => {
+        void supabase.removeChannel(channel);
+      });
     };
-  }, [isOpen]);
+  }, [activeTab, isOpen, searchedUserPresenceKey]);
 
   const submitUserSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

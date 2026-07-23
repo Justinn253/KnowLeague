@@ -23,11 +23,12 @@ import {
 } from '@/components/multiplayer-lobby-layout';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
+import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
-import { getReconnectDeadline, MULTIPLAYER_HEARTBEAT_INTERVAL_MS } from '@/lib/multiplayer-lifecycle';
+import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { normalizeAnswer } from '@/lib/quiz';
-import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevelationModifier, CarvingRevelationPowerUpState, CarvingRevelationPublicLobby, CarvingRevelationWinCondition } from '@/lib/carving-revelation';
+import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevelationModifier, CarvingRevelationPowerUpState, CarvingRevelationPublicLobby, CarvingRevelationRoutineActionResponse, CarvingRevelationWinCondition } from '@/lib/carving-revelation';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
@@ -157,12 +158,25 @@ function shapeClaimsPowerUp(points: RevealPoint[], powerUp: CarvingRevelationPow
   });
 }
 
-async function readLobbyResponse(response: Response) {
+function isCarvingRoutineActionResponse(value: unknown): value is CarvingRevelationRoutineActionResponse {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { kind?: unknown; playerId?: unknown; actionId?: unknown; actionType?: unknown; roundNumber?: unknown };
+  if (candidate.kind === 'next_round_vote') {
+    return typeof candidate.playerId === 'string';
+  }
+  return candidate.kind === 'submission_status'
+    && typeof candidate.playerId === 'string'
+    && typeof candidate.actionId === 'number'
+    && (candidate.actionType === 'draw' || candidate.actionType === 'guess')
+    && typeof candidate.roundNumber === 'number';
+}
+
+async function readLobbyResponse<T = CarvingRevelationLobbyView>(response: Response) {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.error || 'Carving Revelation request failed.');
   }
-  return data as CarvingRevelationLobbyView;
+  return data as T;
 }
 
 async function readPublicLobbiesResponse(response: Response) {
@@ -365,8 +379,8 @@ function CarvingRevelationPowerUpMenu({
         onClick={onToggle}
         disabled={busy}
         className={`inline-flex min-h-12 items-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${open
-          ? 'border-amber-200 bg-amber-300 text-slate-950 shadow-lg shadow-amber-950/30'
-          : 'border-amber-300/50 bg-gradient-to-r from-amber-300/20 to-violet-400/20 text-amber-100 shadow-lg shadow-amber-950/20 hover:border-amber-200 hover:bg-amber-300/25'} disabled:cursor-not-allowed disabled:opacity-60`}
+          ? 'border-amber-200 bg-amber-300 text-slate-950  '
+          : 'border-amber-300/50 bg-gradient-to-r from-amber-300/20 to-violet-400/20 text-amber-100   hover:border-amber-200 hover:bg-amber-300/25'} disabled:cursor-not-allowed disabled:opacity-60`}
       >
         <Sparkles size={17} />
         <span>Power Ups</span>
@@ -380,7 +394,7 @@ function CarvingRevelationPowerUpMenu({
         <div
           role="menu"
           aria-label="Power ups"
-          className="absolute bottom-full right-0 z-50 mb-3 max-h-[min(70vh,34rem)] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-amber-200/30 bg-slate-950/95 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl"
+          className="absolute bottom-full right-0 z-50 mb-3 max-h-[min(70vh,34rem)] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-amber-200/30 bg-slate-950/95 p-3   backdrop-blur-xl"
         >
           <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 px-1 pb-3">
             <div>
@@ -482,7 +496,7 @@ function SettingDropdown<T extends string | number | null>({
         <ChevronDown size={16} className="shrink-0 text-slate-500" />
       </button>
       {open && !disabled ? (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 grid overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1 shadow-lg shadow-slate-950/40">
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 grid overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1  ">
           {options.map((option) => (
             <button
               key={getSettingOptionKey(option.value)}
@@ -805,7 +819,6 @@ export function CarvingRevelation() {
   const previousRosterSnapshotRef = useRef<{ hostId: string | null; roles: Map<string, string>; playerIds: Set<string> } | null>(null);
   const lobbyRefreshInFlightRef = useRef<Promise<CarvingRevelationLobbyView> | null>(null);
   const lobbyRefreshVersionRef = useRef(0);
-  const heartbeatInFlightRef = useRef(false);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [view, setView] = useState<CarvingRevelationLobbyView | null>(null);
@@ -1192,6 +1205,47 @@ export function CarvingRevelation() {
     }
   }, [clearTransientState, router]);
 
+  const applyRoutineAction = useCallback((actionResponse: CarvingRevelationRoutineActionResponse) => {
+    setView((current) => {
+      if (!current) return current;
+      if (actionResponse.kind === 'next_round_vote') {
+        if (current.nextRoundVotes.includes(actionResponse.playerId)) return current;
+        return { ...current, nextRoundVotes: [...current.nextRoundVotes, actionResponse.playerId] };
+      }
+
+      const fallbackAction: CarvingRevelationAction = {
+        id: actionResponse.actionId,
+        lobby_id: current.lobby.id,
+        player_id: actionResponse.playerId,
+        action_type: actionResponse.actionType,
+        turn_index: 0,
+        round_number: actionResponse.roundNumber,
+        payload: { submitted: true },
+        created_at: new Date().toISOString(),
+      };
+      const nextAction = actionResponse.action ?? fallbackAction;
+      const existingAction = current.actions.find((action) => action.id === nextAction.id);
+      if (existingAction && !actionResponse.action) return current;
+
+      const withoutReplacedDraw = actionResponse.actionType === 'draw' && actionResponse.replacesPreviousDraw
+        ? current.actions.filter((action) => !(
+          action.action_type === 'draw' &&
+          action.player_id === actionResponse.playerId &&
+          action.round_number === actionResponse.roundNumber
+        ))
+        : current.actions.filter((action) => action.id !== nextAction.id);
+      return { ...current, actions: [...withoutReplacedDraw, nextAction] };
+    });
+  }, []);
+
+  const applyActionResponse = useCallback((response: CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse) => {
+    if (isCarvingRoutineActionResponse(response)) {
+      applyRoutineAction(response);
+      return;
+    }
+    applyView(response);
+  }, [applyRoutineAction, applyView]);
+
   const getAuthHeaders = useCallback(async () => {
     const { data } = await getOptionalSupabaseClient()?.auth.getSession() ?? { data: { session: null } };
     const headers: HeadersInit = {};
@@ -1219,7 +1273,7 @@ export function CarvingRevelation() {
       while (handledVersion !== lobbyRefreshVersionRef.current && !isLeavingLobbyRef.current) {
         handledVersion = lobbyRefreshVersionRef.current;
         const response = await fetch(`${API_BASE}/${code}?clientId=${encodeURIComponent(activeClientId)}`);
-        latestView = await readLobbyResponse(response);
+        latestView = await readLobbyResponse<CarvingRevelationLobbyView>(response);
         applyView(latestView);
       }
       if (!latestView) throw new Error('Lobby refresh was cancelled.');
@@ -1357,36 +1411,34 @@ export function CarvingRevelation() {
       .map((player) => getReconnectDeadline(player.disconnected_at as string))
     : [], [view?.lobby.status, view?.players]);
 
-  useEffect(() => {
-    if (!heartbeatLobbyCode || !clientId) return undefined;
-    const heartbeat = async () => {
-      if (heartbeatInFlightRef.current) return;
-      heartbeatInFlightRef.current = true;
-      try {
-        const response = await fetch(`${API_BASE}/${heartbeatLobbyCode}/heartbeat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId }),
-        });
-        if (!response.ok) {
-          await readLobbyResponse(response);
-        }
-      } catch (error) {
-        if (error instanceof Error && (error.message.includes('cannot rejoin') || error.message.includes('Player not found'))) {
-          clearTransientState();
-          window.localStorage.removeItem(STORAGE_KEY);
-          setView(null);
-          router.replace('/');
-          return;
-        }
-        setMessage(error instanceof Error ? error.message : 'Unable to update lobby presence.');
-      } finally {
-        heartbeatInFlightRef.current = false;
+  const sendHeartbeat = useCallback(async () => {
+    if (!heartbeatLobbyCode || !clientId) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/${heartbeatLobbyCode}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      });
+      if (!response.ok) {
+        await readLobbyResponse(response);
       }
-    };
-    const interval = window.setInterval(() => void heartbeat(), MULTIPLAYER_HEARTBEAT_INTERVAL_MS);
-    return () => window.clearInterval(interval);
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('cannot rejoin') || error.message.includes('Player not found'))) {
+        clearTransientState();
+        window.localStorage.removeItem(STORAGE_KEY);
+        setView(null);
+        router.replace('/');
+        return;
+      }
+      setMessage(error instanceof Error ? error.message : 'Unable to update lobby presence.');
+    }
   }, [clearTransientState, clientId, heartbeatLobbyCode, router]);
+
+  useMultiplayerHeartbeat({
+    enabled: Boolean(heartbeatLobbyCode && clientId),
+    onHeartbeat: sendHeartbeat,
+  });
 
   useEffect(() => {
     if (!heartbeatLobbyCode || !clientId || reconnectDeadlines.length === 0) return undefined;
@@ -1549,7 +1601,15 @@ export function CarvingRevelation() {
         schema: 'public',
         table: 'carving_revelation_lobby_events',
         filter: `lobby_id=eq.${lobbyId}`,
-      }, () => {
+      }, (payload) => {
+        const event = payload.new as { event_type?: unknown; payload?: unknown };
+        if (
+          (event.event_type === 'carve_submitted' || event.event_type === 'guess_submitted' || event.event_type === 'next_round_vote') &&
+          isCarvingRoutineActionResponse(event.payload)
+        ) {
+          applyRoutineAction(event.payload);
+          return;
+        }
         if (realtimeRefreshTimeoutRef.current) window.clearTimeout(realtimeRefreshTimeoutRef.current);
         realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
           realtimeRefreshTimeoutRef.current = null;
@@ -1565,7 +1625,7 @@ export function CarvingRevelation() {
       }
       void supabase.removeChannel(channel);
     };
-  }, [clientId, refreshLobby, view?.lobby.code, view?.lobby.id]);
+  }, [applyRoutineAction, clientId, refreshLobby, view?.lobby.code, view?.lobby.id]);
 
   const createLobby = async () => {
     if (!clientId) return;
@@ -1757,7 +1817,7 @@ export function CarvingRevelation() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId }),
       });
-      applyView(await readLobbyResponse(response));
+      applyActionResponse(await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to vote for the next round.');
     } finally {
@@ -1834,7 +1894,7 @@ export function CarvingRevelation() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, guess: guessValue }),
       });
-      applyView(await readLobbyResponse(response));
+      applyActionResponse(await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response));
       setGuess('');
       setSuggestions([]);
     } catch (error) {
@@ -1868,7 +1928,7 @@ export function CarvingRevelation() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, points }),
       });
-      applyView(await readLobbyResponse(response));
+      applyActionResponse(await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response));
       setConfirmedCarvePath(points);
       setDraftPath([]);
       setIsDrawing(false);
@@ -1878,7 +1938,7 @@ export function CarvingRevelation() {
     } finally {
       setBusy(false);
     }
-  }, [applyView, canCarve, clientId, view]);
+  }, [applyActionResponse, canCarve, clientId, view]);
 
   const activatePowerUp = async (powerUpId: string) => {
     if (!clientId || !view || !activatablePowerUps.some((powerUp) => powerUp.id === powerUpId)) return;
@@ -2277,10 +2337,10 @@ export function CarvingRevelation() {
           <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5">
             <div className="mb-4 grid gap-4 lg:grid-cols-[minmax(220px,300px)_minmax(180px,240px)_minmax(280px,420px)] lg:items-stretch lg:justify-between">
               {view.lobby.status === 'active' ? (
-                <div className={`flex min-h-24 flex-col justify-center rounded-2xl border px-6 py-4 shadow-lg ${
+                <div className={`flex min-h-24 flex-col justify-center rounded-2xl border px-6 py-4  ${
                   timerIsUrgent
-                    ? 'animate-pulse border-red-400/70 bg-red-500/10 shadow-red-950/40'
-                    : 'border-amber-300/50 bg-amber-300/10 shadow-amber-950/40'
+                    ? 'animate-pulse border-red-400/70 bg-red-500/10 '
+                    : 'border-amber-300/50 bg-amber-300/10 '
                 }`}>
                   <p className={`text-xs font-black uppercase tracking-[0.24em] ${timerIsUrgent ? 'text-red-200' : 'text-amber-300'}`}>Round {view.lobby.round_number}</p>
                   <p className={`text-xs font-black uppercase tracking-[0.26em] ${timerIsUrgent ? 'text-red-100' : 'text-amber-200'}`}>
@@ -2380,7 +2440,7 @@ export function CarvingRevelation() {
                 {acquiredPowerUpNotice ? (
                   <div
                     aria-live="polite"
-                    className="pointer-events-none absolute left-1/2 top-4 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-300 px-4 py-2 text-sm font-black text-slate-950 shadow-xl shadow-emerald-950/40 animate-pulse"
+                    className="pointer-events-none absolute left-1/2 top-4 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-300 px-4 py-2 text-sm font-black text-slate-950   animate-pulse"
                   >
                     <Sparkles size={16} />
                     <span>Acquired: {acquiredPowerUpNotice.names.join(' + ')}</span>

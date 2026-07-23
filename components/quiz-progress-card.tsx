@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, memo } from 'react';
-import Image from 'next/image';
+import { GameSplashImage } from '@/components/game-asset-image';
 import type { QuizItem } from '@/lib/quiz';
 
 type QuizProgressCardProps = {
@@ -41,7 +41,7 @@ export const QuizProgressCard = memo(forwardRef<HTMLDivElement, QuizProgressCard
       <div className={`text-sm font-semibold ${titleClassName}`}>{title}</div>
       <p className="mt-2 text-sm leading-5 text-slate-400">{detail}</p>
       {item.imageUrl ? (
-        <Image
+        <GameSplashImage
           src={item.imageUrl}
           alt=""
           width={40}

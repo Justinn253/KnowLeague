@@ -23,6 +23,9 @@ const WORLD_CHAMPION_TEAMS_BY_SKIN_LINE: Record<string, string> = {
   'World Champions: 2024': 'T1',
 };
 
+const skinThemeAnswerListCache = new WeakMap<readonly QuizItem[], string[]>();
+const skinThemeQuizItemCache = new WeakMap<readonly QuizItem[], QuizItem[]>();
+
 function inferWorldChampionTeam(item: QuizItem) {
   const normalizedAnswer = item.answer.replace(/^Prestige\s+/i, '').trim();
   if (normalizedAnswer.endsWith(item.champion)) {
@@ -62,5 +65,31 @@ export function toSkinThemeQuizItem(item: QuizItem) {
 }
 
 export function getSkinThemeAnswerList(items: readonly QuizItem[]) {
-  return Array.from(new Set(items.map(getSkinThemeAnswer).filter((answer): answer is string => Boolean(answer)))).sort();
+  const cachedAnswers = skinThemeAnswerListCache.get(items);
+
+  if (cachedAnswers) {
+    return cachedAnswers;
+  }
+
+  const answers = Array.from(
+    new Set(items.map(getSkinThemeAnswer).filter((answer): answer is string => Boolean(answer))),
+  ).sort();
+
+  skinThemeAnswerListCache.set(items, answers);
+  return answers;
+}
+
+export function getSkinThemeQuizItems(items: readonly QuizItem[]): QuizItem[] {
+  const cachedItems = skinThemeQuizItemCache.get(items);
+
+  if (cachedItems) {
+    return cachedItems;
+  }
+
+  const themeItems = items
+    .map(toSkinThemeQuizItem)
+    .filter((item): item is QuizItem => item !== null);
+
+  skinThemeQuizItemCache.set(items, themeItems);
+  return themeItems;
 }

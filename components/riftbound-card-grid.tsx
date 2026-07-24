@@ -83,6 +83,20 @@ type RiftboundCollectionValueHistoryResponse = {
   error?: string;
 };
 
+type RiftboundLatestPrice = {
+  normal: number | null;
+  foil: number | null;
+  updatedAt: string | null;
+};
+
+type RiftboundLatestPricesResponse = {
+  prices?: Record<string, RiftboundLatestPrice>;
+  snapshotDate?: string | null;
+  sourceSnapshotAt?: string | null;
+  capturedAt?: string | null;
+  error?: string;
+};
+
 type SortMode =
   | 'none'
   | 'market-asc'
@@ -127,6 +141,7 @@ const PRICE_HISTORY_DAYS = 30;
 const PRICE_HISTORY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PRICE_HISTORY_STORAGE_PREFIX = 'knowleague:riftbound-price-history:v1:';
 const PRICE_HISTORY_STORAGE_LIMIT = 100;
+const RIFTBOUND_MARKET_VALUE_REFRESH_NOTE = 'Daily refresh at 6:00 AM EST.';
 const priceHistoryMemoryCache = new Map<string, CachedRiftboundPriceHistory>();
 const priceHistoryRequests = new Map<string, Promise<RiftboundPriceHistoryEntry[]>>();
 const collectionValueHistoryMemoryCache = new Map<string, CachedRiftboundCollectionValueHistory>();
@@ -150,17 +165,22 @@ function parsePriceHistory(value: unknown): RiftboundPriceHistoryEntry[] | null 
   });
 }
 
-function getPriceHistoryStorageKey(cardId: string) {
-  return `${PRICE_HISTORY_STORAGE_PREFIX}${cardId}`;
+function getPriceHistoryCacheKey(cardId: string, snapshotDate?: string | null) {
+  return `${cardId}:${snapshotDate || 'latest'}`;
 }
 
-function getCachedPriceHistory(cardId: string) {
+function getPriceHistoryStorageKey(cardId: string, snapshotDate?: string | null) {
+  return `${PRICE_HISTORY_STORAGE_PREFIX}${getPriceHistoryCacheKey(cardId, snapshotDate)}`;
+}
+
+function getCachedPriceHistory(cardId: string, snapshotDate?: string | null) {
+  const cacheKey = getPriceHistoryCacheKey(cardId, snapshotDate);
   const now = Date.now();
-  const memoryEntry = priceHistoryMemoryCache.get(cardId);
+  const memoryEntry = priceHistoryMemoryCache.get(cacheKey);
   if (memoryEntry && now - memoryEntry.fetchedAt < PRICE_HISTORY_CACHE_TTL_MS) {
     return memoryEntry.history;
   }
-  if (memoryEntry) priceHistoryMemoryCache.delete(cardId);
+  if (memoryEntry) priceHistoryMemoryCache.delete(cacheKey);
 
   if (typeof window === 'undefined') return null;
 
@@ -174,7 +194,7 @@ function getCachedPriceHistory(cardId: string) {
       return null;
     }
 
-    priceHistoryMemoryCache.set(cardId, { fetchedAt: parsedValue.fetchedAt, history });
+    priceHistoryMemoryCache.set(cacheKey, { fetchedAt: parsedValue.fetchedAt, history });
     return history;
   } catch {
     return null;
@@ -209,42 +229,44 @@ function prunePriceHistoryStorage() {
   }
 }
 
-function cachePriceHistory(cardId: string, history: RiftboundPriceHistoryEntry[]) {
+function cachePriceHistory(cardId: string, snapshotDate: string | null | undefined, history: RiftboundPriceHistoryEntry[]) {
   const cachedEntry = { fetchedAt: Date.now(), history };
-  priceHistoryMemoryCache.set(cardId, cachedEntry);
+  priceHistoryMemoryCache.set(getPriceHistoryCacheKey(cardId, snapshotDate), cachedEntry);
 
   if (typeof window === 'undefined') return;
 
   try {
-    window.localStorage.setItem(getPriceHistoryStorageKey(cardId), JSON.stringify(cachedEntry));
+    window.localStorage.setItem(getPriceHistoryStorageKey(cardId, snapshotDate), JSON.stringify(cachedEntry));
     prunePriceHistoryStorage();
   } catch {
     // Browser storage is an optimization; the in-memory cache remains available.
   }
 }
 
-function loadPriceHistory(cardId: string) {
-  const cachedHistory = getCachedPriceHistory(cardId);
+function loadPriceHistory(cardId: string, snapshotDate?: string | null) {
+  const cacheKey = getPriceHistoryCacheKey(cardId, snapshotDate);
+  const cachedHistory = getCachedPriceHistory(cardId, snapshotDate);
   if (cachedHistory) return Promise.resolve(cachedHistory);
 
-  const existingRequest = priceHistoryRequests.get(cardId);
+  const existingRequest = priceHistoryRequests.get(cacheKey);
   if (existingRequest) return existingRequest;
 
-  const request = fetch(`/api/riftbound/prices/${encodeURIComponent(cardId)}?days=${PRICE_HISTORY_DAYS}`, {
-    cache: 'force-cache',
+  const snapshotQuery = snapshotDate ? `&snapshot=${encodeURIComponent(snapshotDate)}` : '';
+  const request = fetch(`/api/riftbound/prices/${encodeURIComponent(cardId)}?days=${PRICE_HISTORY_DAYS}${snapshotQuery}`, {
+    cache: 'no-store',
   })
     .then(async (response) => {
       const data = await response.json() as RiftboundPriceHistoryResponse;
       if (!response.ok) throw new Error(data.error || 'Unable to load market value history.');
       const history = data.history ?? [];
-      cachePriceHistory(cardId, history);
+      cachePriceHistory(cardId, snapshotDate, history);
       return history;
     })
     .finally(() => {
-      priceHistoryRequests.delete(cardId);
+      priceHistoryRequests.delete(cacheKey);
     });
 
-  priceHistoryRequests.set(cardId, request);
+  priceHistoryRequests.set(cacheKey, request);
   return request;
 }
 
@@ -373,6 +395,10 @@ function compareRiftboundCards(left: RiftboundCard, right: RiftboundCard, mode: 
 
 function getMarketPriceUpdatedAt(card: RiftboundCard) {
   return card.marketPrices ? card.marketPrices.updatedAt : card.marketPriceUpdatedAt;
+}
+
+function getMarketValueRefreshNote() {
+  return RIFTBOUND_MARKET_VALUE_REFRESH_NOTE;
 }
 
 function formatMarketPriceOrUnavailable(value: number | null) {
@@ -606,17 +632,17 @@ function updateSetBuilderRows(rows: Record<string, number>, cardId: string, delt
   return nextRows;
 }
 
-function expandSetCards(set: RiftboundSet) {
+function expandSetCards(set: RiftboundSet, cards: RiftboundCard[] = RIFTBOUND_CARDS) {
   return set.cards.flatMap((entry) => {
-    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === entry.card_id);
+    const card = cards.find((candidate) => candidate.id === entry.card_id);
     if (!card) return [];
     return Array.from({ length: entry.quantity }, (_, index) => ({ card, copyIndex: index, key: `${set.id}:${entry.card_id}:${index}` }));
   });
 }
 
-function getSetShareRows(set: RiftboundSet): InventoryItem[] {
+function getSetShareRows(set: RiftboundSet, cards: RiftboundCard[] = RIFTBOUND_CARDS): InventoryItem[] {
   return set.cards.flatMap((entry) => {
-    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === entry.card_id);
+    const card = cards.find((candidate) => candidate.id === entry.card_id);
     if (!card) return [];
     return [{
       card_id: card.id,
@@ -754,10 +780,14 @@ function MarketValueSourceInfo() {
         className="text-slate-500 outline-none transition group-hover:text-amber-200 group-focus-within:text-amber-200"
       />
       <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-[120] mb-2 hidden w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-200 shadow-xl group-hover:block group-focus-within:block">
-        Estimated from captured market prices provided by our pricing source. It is not a guaranteed sale price.
+        Estimated from captured market prices provided by our pricing source. It is not a guaranteed sale price. {getMarketValueRefreshNote()}
       </span>
     </span>
   );
+}
+
+function MarketValueRefreshNote() {
+  return <p className="mt-2 text-[0.65rem] font-semibold text-slate-500">{getMarketValueRefreshNote()}</p>;
 }
 
 function RiftboundCollectionValueHistoryChart({ history }: { history: RiftboundCollectionValueHistoryEntry[] }) {
@@ -988,6 +1018,7 @@ function RiftboundCardDetailsModal({
   card,
   normalQuantity,
   foilQuantity,
+  latestSnapshotDate,
   pending,
   onClose,
   onAdjust,
@@ -995,6 +1026,7 @@ function RiftboundCardDetailsModal({
   card: RiftboundCard;
   normalQuantity: number;
   foilQuantity: number;
+  latestSnapshotDate: string | null;
   pending: boolean;
   onClose: () => void;
   onAdjust: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
@@ -1011,7 +1043,7 @@ function RiftboundCardDetailsModal({
     setPriceHistoryError('');
     setPriceHistoryLoading(true);
 
-    void loadPriceHistory(card.id)
+    void loadPriceHistory(card.id, latestSnapshotDate)
       .then((history) => {
         if (!cancelled) setPriceHistory(history);
       })
@@ -1025,7 +1057,7 @@ function RiftboundCardDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [card.id]);
+  }, [card.id, latestSnapshotDate]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
@@ -1081,6 +1113,7 @@ function RiftboundCardDetailsModal({
                     </div>
                     <p className="mt-1 text-2xl font-black text-emerald-300">{formatMarketPriceOrUnavailable(price)}</p>
                     <p className="mt-2 text-xs text-slate-500">{getMarketPriceUpdatedAt(card) ? 'Latest daily snapshot' : 'No price available'}</p>
+                    <MarketValueRefreshNote />
                   </div>
                 );
               })}
@@ -1266,6 +1299,53 @@ export function RiftboundCardGrid() {
   const [setSaving, setSetSaving] = useState(false);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [setOwnershipFilter, setSetOwnershipFilter] = useState<SetOwnershipFilter>('all');
+  const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
+  const [latestSnapshotDate, setLatestSnapshotDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch('/api/riftbound/prices/latest', { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await response.json() as RiftboundLatestPricesResponse;
+        if (!response.ok) throw new Error(data.error || 'Unable to load the latest Riftbound market values.');
+        if (!cancelled) {
+          setLatestPrices(data.prices ?? {});
+          setLatestSnapshotDate(data.snapshotDate ?? null);
+        }
+      })
+      .catch(() => {
+        // The generated catalogue remains a safe fallback when snapshots are unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cards = useMemo(() => RIFTBOUND_CARDS.map((card) => {
+    const latest = latestPrices[card.id];
+    if (!latest) return card;
+
+    return {
+      ...card,
+      marketPrice: latest.normal,
+      marketPriceUpdatedAt: latest.updatedAt,
+      marketPrices: {
+        ...card.marketPrices,
+        normal: latest.normal,
+        foil: latest.foil,
+        updatedAt: latest.updatedAt,
+      },
+    };
+  }), [latestPrices]);
+
+  useEffect(() => {
+    setSelectedCard((current) => {
+      if (!current) return current;
+      return cards.find((card) => card.id === current.id) ?? current;
+    });
+  }, [cards]);
 
   const loadInventory = useCallback(async (nextSession: Session) => {
     const storageKey = getInventoryDraftStorageKey(nextSession.user.id);
@@ -1360,7 +1440,7 @@ export function RiftboundCardGrid() {
 
   const deferredQuery = useDeferredValue(query);
   const deferredTagQuery = useDeferredValue(tagQuery);
-  const cardSearchIndex = useMemo(() => RIFTBOUND_CARDS.map((card) => ({
+  const cardSearchIndex = useMemo(() => cards.map((card) => ({
     card,
     searchableText: normalizeSearchText([
       card.displayName,
@@ -1380,28 +1460,28 @@ export function RiftboundCardGrid() {
       String(card.powerCost),
       String(card.might),
     ].join(' ')),
-  })), []);
+  })), [cards]);
 
   const filterOptionsByField = useMemo(() => {
-    const setNames = new Map(RIFTBOUND_CARDS.map((card) => [card.setCode, card.setName]));
+    const setNames = new Map(cards.map((card) => [card.setCode, card.setName]));
 
     return {
     setCode: filterOptions(
-      jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => card.setCode))),
+      jumbledValues(uniqueSorted(cards.map((card) => card.setCode))),
       'All Sets',
       (setCode) => `${setCode} - ${setNames.get(setCode) ?? setCode}`,
     ),
-    rarity: filterOptions(rarityOrder.filter((rarity) => RIFTBOUND_CARDS.some((card) => card.rarity === rarity)), 'All Rarities'),
-    cardType: filterOptions(jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => card.cardType))), 'All Card Types'),
+    rarity: filterOptions(rarityOrder.filter((rarity) => cards.some((card) => card.rarity === rarity)), 'All Rarities'),
+    cardType: filterOptions(jumbledValues(uniqueSorted(cards.map((card) => card.cardType))), 'All Card Types'),
     domain: filterOptions(
-      ['Colorless', 'Body', 'Mind', 'Order', 'Chaos', 'Calm', 'Fury'].filter((domain) => RIFTBOUND_CARDS.some((card) => card.domains.includes(domain))),
+      ['Colorless', 'Body', 'Mind', 'Order', 'Chaos', 'Calm', 'Fury'].filter((domain) => cards.some((card) => card.domains.includes(domain))),
       'All Domains',
     ),
-    energyCost: filterOptions(jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => String(card.energyCost)))), 'All Energy Costs'),
-    powerCost: filterOptions(jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => String(card.powerCost)))), 'All Power Costs'),
-    might: filterOptions(jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => String(card.might)))), 'All Might Values'),
+    energyCost: filterOptions(jumbledValues(uniqueSorted(cards.map((card) => String(card.energyCost)))), 'All Energy Costs'),
+    powerCost: filterOptions(jumbledValues(uniqueSorted(cards.map((card) => String(card.powerCost)))), 'All Power Costs'),
+    might: filterOptions(jumbledValues(uniqueSorted(cards.map((card) => String(card.might)))), 'All Might Values'),
     };
-  }, []);
+  }, [cards]);
 
   const filteredCards = useMemo(() => {
     const normalizedQuery = normalizeSearchText(deferredQuery);
@@ -1431,23 +1511,23 @@ export function RiftboundCardGrid() {
   const ownedUniqueCount = inventoryByCard.size;
   const ownedCopyCount = Array.from(inventoryByCard.values()).reduce((total, quantity) => total + quantity, 0);
   const unpricedCopyCount = inventoryRows.reduce((total, row) => {
-    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === row.card_id);
+    const card = cards.find((candidate) => candidate.id === row.card_id);
     return total + (card && getMarketPriceForFinish(card, row.finish) === null ? row.quantity : 0);
   }, 0);
   const totalMarketValue = inventoryRows.reduce((total, row) => {
-    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === row.card_id);
+    const card = cards.find((candidate) => candidate.id === row.card_id);
     return total + (card ? (getMarketPriceForFinish(card, row.finish) ?? 0) * row.quantity : 0);
   }, 0);
   const inventoryRarityCounts = useMemo(() => {
     const counts = new Map(inventoryRarityOrder.map((rarity) => [rarity, 0]));
     inventoryRows.forEach((row) => {
-      const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === row.card_id);
+      const card = cards.find((candidate) => candidate.id === row.card_id);
       if (card && counts.has(card.rarity)) {
         counts.set(card.rarity, (counts.get(card.rarity) ?? 0) + row.quantity);
       }
     });
     return counts;
-  }, [inventoryRows]);
+  }, [cards, inventoryRows]);
   const activeFilterCount = Object.values(filters).reduce(
     (total, values) => total + values.filter((value) => value !== ALL_FILTER_VALUE).length,
     0,
@@ -1458,7 +1538,7 @@ export function RiftboundCardGrid() {
   );
   const hasUnsavedInventoryChanges = inventoryChanges.length > 0;
   const selectedSet = sets.find((set) => set.id === selectedSetId) ?? null;
-  const selectedSetCards = selectedSet ? expandSetCards(selectedSet) : [];
+  const selectedSetCards = selectedSet ? expandSetCards(selectedSet, cards) : [];
   const selectedSetCardsWithOwnership = selectedSetCards.map((entry) => ({
     ...entry,
     owned: getCardQuantity(inventoryByCard, entry.card.id) > entry.copyIndex,
@@ -1467,13 +1547,13 @@ export function RiftboundCardGrid() {
   const selectedSetRarityCounts = useMemo(() => {
     const counts = new Map(inventoryRarityOrder.map((rarity) => [rarity, 0]));
     selectedSet?.cards.forEach((entry) => {
-      const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === entry.card_id);
+      const card = cards.find((candidate) => candidate.id === entry.card_id);
       if (card && counts.has(card.rarity)) counts.set(card.rarity, (counts.get(card.rarity) ?? 0) + entry.quantity);
     });
     return counts;
-  }, [selectedSet]);
+  }, [cards, selectedSet]);
   const selectedSetValue = selectedSet?.cards.reduce((total, entry) => {
-    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === entry.card_id);
+    const card = cards.find((candidate) => candidate.id === entry.card_id);
     return total + (card ? (getMarketPriceForFinish(card, card.defaultFinish) ?? 0) * entry.quantity : 0);
   }, 0) ?? 0;
   const setBuilderTotalCopies = Object.values(setBuilderRows).reduce((total, quantity) => total + quantity, 0);
@@ -1682,7 +1762,7 @@ export function RiftboundCardGrid() {
             {(['global', 'inventory', 'sets'] as InventoryTab[]).map((tab) => {
               const active = activeTab === tab;
               const label = tab === 'global' ? 'Global' : tab === 'inventory' ? 'Inventory' : 'Sets';
-              const count = tab === 'global' ? RIFTBOUND_CARDS.length : tab === 'inventory' ? ownedUniqueCount : sets.length;
+              const count = tab === 'global' ? cards.length : tab === 'inventory' ? ownedUniqueCount : sets.length;
               return (
                 <button
                   key={tab}
@@ -1819,6 +1899,7 @@ export function RiftboundCardGrid() {
                   <MarketValueSourceInfo />
                 </div>
                 <p className="mt-1 text-2xl font-black text-emerald-300">{formatMarketPrice(totalMarketValue)}</p>
+                <MarketValueRefreshNote />
               </div>
               <button type="button" onClick={() => setCollectionHistoryOpen(true)} className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-emerald-200 transition hover:border-emerald-200/50 hover:bg-emerald-300/15 focus:outline-none focus:ring-2 focus:ring-amber-200">
                 <TrendingUp size={16} />
@@ -2005,6 +2086,7 @@ export function RiftboundCardGrid() {
           card={selectedCard}
           normalQuantity={getFinishQuantity(inventoryByFinish, selectedCard.id, 'normal')}
           foilQuantity={getFinishQuantity(inventoryByFinish, selectedCard.id, 'foil')}
+          latestSnapshotDate={latestSnapshotDate}
           pending={inventorySaving}
           onClose={() => setSelectedCard(null)}
           onAdjust={adjustInventory}

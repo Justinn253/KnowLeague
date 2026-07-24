@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/riftbound-price-snapshot",
-      "schedule": "15 21 * * *"
+      "schedule": "0 11 * * *"
     }
   ]
 }

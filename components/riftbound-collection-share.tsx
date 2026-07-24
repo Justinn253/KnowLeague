@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, FileDown, PackageOpen } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RIFTBOUND_CARDS, type RiftboundCard, type RiftboundFinish } from '@/lib/riftbound';
 
 type SharedInventoryRow = {
@@ -16,6 +16,12 @@ type SharedCard = {
   card: RiftboundCard;
   normal: number;
   foil: number;
+};
+
+type SharedSnapshot = {
+  rows: SharedInventoryRow[];
+  kind: 'collection' | 'set';
+  title: string;
 };
 
 const cardById = new Map(RIFTBOUND_CARDS.map((card) => [card.id, card]));
@@ -42,33 +48,41 @@ async function printCollection() {
   window.print();
 }
 
-function decodeRows(value: string): SharedInventoryRow[] {
+function decodeRows(value: string): SharedSnapshot {
   try {
     const normalizedValue = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4);
     const binary = window.atob(normalizedValue);
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    if (!Array.isArray(parsed)) return [];
+    const payload = Array.isArray(parsed) ? { rows: parsed, kind: 'collection' as const, title: '' } : parsed && typeof parsed === 'object' ? parsed as { rows?: unknown; kind?: unknown; title?: unknown } : null;
+    if (!payload || !Array.isArray(payload.rows)) return { rows: [], kind: 'collection', title: '' };
 
-    return parsed.flatMap((item): SharedInventoryRow[] => {
+    const rows = payload.rows.flatMap((item): SharedInventoryRow[] => {
       if (!item || typeof item !== 'object') return [];
       const candidate = item as Partial<SharedInventoryRow>;
       const card = typeof candidate.card_id === 'string' ? cardById.get(candidate.card_id) : null;
       if (!card || (candidate.finish !== 'normal' && candidate.finish !== 'foil') || !card.finishOptions.includes(candidate.finish) || typeof candidate.quantity !== 'number' || !Number.isInteger(candidate.quantity) || candidate.quantity <= 0 || candidate.quantity > 100000) return [];
       return [{ card_id: card.id, finish: candidate.finish, quantity: candidate.quantity }];
     });
+    return {
+      rows,
+      kind: payload.kind === 'set' ? 'set' : 'collection',
+      title: typeof payload.title === 'string' ? payload.title : '',
+    };
   } catch {
-    return [];
+    return { rows: [], kind: 'collection', title: '' };
   }
 }
 
 export function RiftboundCollectionShare() {
-  const [rows, setRows] = useState<SharedInventoryRow[]>([]);
+  const [snapshot, setSnapshot] = useState<SharedSnapshot>({ rows: [], kind: 'collection', title: '' });
 
   useEffect(() => {
     const data = new URLSearchParams(window.location.search).get('data');
-    setRows(data ? decodeRows(data) : []);
+    setSnapshot(data ? decodeRows(data) : { rows: [], kind: 'collection', title: '' });
   }, []);
+
+  const { rows } = snapshot;
 
   const cards = useMemo(() => {
     const quantities = new Map<string, { normal: number; foil: number }>();
@@ -97,8 +111,8 @@ export function RiftboundCollectionShare() {
         <header className="rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-7 print:rounded-lg print:border-slate-300 print:bg-white print:p-3">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300 print:text-amber-700">Riftbound collection</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-white print:text-lg print:text-black">Shared collection snapshot</h1>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300 print:text-amber-700">Riftbound {snapshot.kind}</p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-white print:text-lg print:text-black">{snapshot.title || (snapshot.kind === 'set' ? 'Shared set snapshot' : 'Shared collection snapshot')}</h1>
               <p className="mt-2 text-sm text-slate-400 print:mt-1 print:text-[9px] print:text-slate-600">{cards.length} unique cards · {totalCopies} total cards · known value {formatMarketPrice(totalValue)}</p>
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
@@ -121,7 +135,7 @@ export function RiftboundCollectionShare() {
                 <h2 className="truncate text-center text-lg font-black text-white print:text-[10px] print:leading-tight print:text-black" title={card.displayName}>{card.displayName}</h2>
                 <p className="mt-1 text-center text-xs font-bold uppercase tracking-[0.1em] text-slate-500 print:mt-0.5 print:text-[8px] print:text-slate-600">{card.setCode} · {card.numberLabel}</p>
                 <div className="relative mx-auto mt-3 aspect-[744/1039] w-full max-w-[11rem] overflow-hidden rounded-xl bg-slate-900 print:mt-1 print:max-w-[4.5rem] print:rounded print:bg-slate-100">
-                  <Image src={card.imageUrl} alt={`${card.displayName} card artwork`} fill sizes="176px" loading="eager" className="riftbound-print-card-image object-cover" />
+                  <RiftboundCardImage card={card} sizes="176px" loading="eager" className="riftbound-print-card-image object-cover" />
                 </div>
                 <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-400 print:mt-1 print:gap-0.5 print:text-[8px] print:text-slate-600">
                   {card.finishOptions.includes('normal') ? <p className="flex justify-between gap-2"><span>Normal · {normal}</span><span>{formatMarketPrice(card.marketPrices.normal)}</span></p> : null}

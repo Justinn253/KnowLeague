@@ -17,6 +17,7 @@ import {
 } from '@/lib/game-storage';
 import { getNextUtcResetLabel, normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { ViewportPopover } from '@/components/viewport-popover';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound, type SoundName } from '@/lib/ui-sounds';
@@ -578,6 +579,8 @@ export function Skindle() {
   const mobileGuessesPanelRef = useRef<HTMLDivElement>(null);
   const topGuessesMenuRef = useRef<HTMLDivElement>(null);
   const playerStatsMenuRef = useRef<HTMLDivElement>(null);
+  const playerStatsButtonRef = useRef<HTMLButtonElement>(null);
+  const topGuessesButtonRef = useRef<HTMLButtonElement>(null);
   const soundTimeoutsRef = useRef<number[]>([]);
   const hoveredSuggestionIdRef = useRef<string | null>(null);
   const hasRestoredStateRef = useRef(false);
@@ -985,6 +988,7 @@ export function Skindle() {
             <div ref={playerStatsMenuRef} className="relative">
               <button
                 type="button"
+                ref={playerStatsButtonRef}
                 onClick={() => setPlayerStatsMenuOpen((open) => !open)}
                 className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200 transition hover:bg-slate-900"
               >
@@ -997,8 +1001,13 @@ export function Skindle() {
                 />
               </button>
 
-              {playerStatsMenuOpen ? (
-                <div className="absolute right-0 top-14 z-50 w-[min(30rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
+              <ViewportPopover
+                anchorRef={playerStatsButtonRef}
+                open={playerStatsMenuOpen}
+                width={480}
+                estimatedHeight={680}
+                className="z-50 rounded-2xl border border-white/10 bg-slate-950 p-4"
+              >
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
                       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Completed</p>
@@ -1098,8 +1107,7 @@ export function Skindle() {
                     </div>
 
                   </div>
-                </div>
-              ) : null}
+              </ViewportPopover>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-300">
@@ -1124,6 +1132,7 @@ export function Skindle() {
           <div ref={topGuessesMenuRef} className="relative">
             <button
               type="button"
+              ref={topGuessesButtonRef}
               onClick={() => {
                 if (solved) {
                   setStatsMenuOpen((open) => !open);
@@ -1145,8 +1154,13 @@ export function Skindle() {
               />
             </button>
 
-            {statsMenuOpen ? (
-              <div className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950 p-2">
+            <ViewportPopover
+              anchorRef={topGuessesButtonRef}
+              open={statsMenuOpen}
+              width={352}
+              estimatedHeight={480}
+              className="z-50 rounded-2xl border border-white/10 bg-slate-950 p-2"
+            >
                 {dailyStats?.topGuesses.length ? (
                   dailyStats.topGuesses.map((guess, index) => {
                     const skin = skinsById.get(guess.skinId);
@@ -1179,8 +1193,7 @@ export function Skindle() {
                 ) : (
                   <p className="px-3 py-2 text-sm text-slate-500">No global guesses yet.</p>
                 )}
-              </div>
-            ) : null}
+            </ViewportPopover>
           </div>
         </section>
 

@@ -31,6 +31,7 @@ import {
 } from '@/lib/quiz';
 import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { ViewportPopover } from '@/components/viewport-popover';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { ABILITY_SLOTS as abilitySlots, filterItemsByAbilitySlots, type AbilitySlotId, type AbilitySlotState } from '@/lib/ability-slots';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -383,6 +384,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const currentProgressItemRef = useRef<HTMLDivElement | null>(null);
   const difficultyMenuRef = useRef<HTMLDivElement | null>(null);
   const modifiersMenuRef = useRef<HTMLDivElement | null>(null);
+  const difficultyButtonRef = useRef<HTMLButtonElement | null>(null);
+  const modifiersButtonRef = useRef<HTMLButtonElement | null>(null);
   const answerInputAreaRef = useRef<HTMLDivElement | null>(null);
   const hasRestoredStateRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
@@ -1485,6 +1488,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               <div ref={difficultyMenuRef} className="relative">
                 <button
                   type="button"
+                  ref={difficultyButtonRef}
                   onClick={() => {
                     if (configurationLocked || soloMode === 'chaos') return;
                     setOpenMenu((current) => (current === 'difficulty' ? null : 'difficulty'));
@@ -1499,8 +1503,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   <ChevronDown size={16} className={openMenu === 'difficulty' ? 'rotate-180 transition' : 'transition'} />
                 </button>
 
-                {openMenu === 'difficulty' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
+                <ViewportPopover
+                  anchorRef={difficultyButtonRef}
+                  open={openMenu === 'difficulty'}
+                  width={352}
+                  estimatedHeight={420}
+                  className="z-40 rounded-2xl border border-white/10 bg-slate-950 p-4"
+                >
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Difficulty</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1537,13 +1546,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     {configurationLocked ? (
                       <p className="mt-3 text-xs text-slate-500">Difficulty is locked while a round is active.</p>
                     ) : null}
-                  </div>
-                ) : null}
+                </ViewportPopover>
               </div>
 
               <div ref={modifiersMenuRef} className="relative">
                 <button
                   type="button"
+                  ref={modifiersButtonRef}
                   onClick={() => {
                     if (configurationLocked || !casualSettingsAvailable) return;
                     setOpenMenu((current) => (current === 'modifiers' ? null : 'modifiers'));
@@ -1560,8 +1569,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   <ChevronDown size={16} className={openMenu === 'modifiers' ? 'rotate-180 transition' : 'transition'} />
                 </button>
 
-                {openMenu === 'modifiers' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
+                <ViewportPopover
+                  anchorRef={modifiersButtonRef}
+                  open={openMenu === 'modifiers'}
+                  width={384}
+                  estimatedHeight={620}
+                  className="z-40 rounded-2xl border border-white/10 bg-slate-950 p-4"
+                >
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Modifiers</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1654,8 +1668,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     {configurationLocked ? (
                       <p className="mt-3 text-xs text-slate-500">Modifiers are locked while a round is active.</p>
                     ) : null}
-                  </div>
-                ) : null}
+                </ViewportPopover>
               </div>
             </div>
 

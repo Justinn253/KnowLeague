@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Info, X } from 'lucide-react';
+import { ViewportPopover } from '@/components/viewport-popover';
 
 export function GameInfoMenu({ title, steps }: { title: string; steps: string[] }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -20,6 +22,7 @@ export function GameInfoMenu({ title, steps }: { title: string; steps: string[] 
     <div ref={menuRef} className="relative">
       <button
         type="button"
+        ref={buttonRef}
         onClick={() => setOpen((value) => !value)}
         aria-label={`How to play ${title}`}
         aria-expanded={open}
@@ -28,8 +31,13 @@ export function GameInfoMenu({ title, steps }: { title: string; steps: string[] 
       >
         <Info size={18} />
       </button>
-      {open ? (
-        <div className="absolute right-0 top-14 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 sm:p-5">
+      <ViewportPopover
+        anchorRef={buttonRef}
+        open={open}
+        width={352}
+        estimatedHeight={420}
+        className="z-50 rounded-2xl border border-white/10 bg-slate-950 p-4 sm:p-5"
+      >
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">How to Play</p>
@@ -42,8 +50,7 @@ export function GameInfoMenu({ title, steps }: { title: string; steps: string[] 
           <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-300">
             {steps.map((step, index) => <li key={step}><span className="mr-2 font-semibold text-amber-300">{index + 1}.</span>{step}</li>)}
           </ol>
-        </div>
-      ) : null}
+      </ViewportPopover>
     </div>
   );
 }

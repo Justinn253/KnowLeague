@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FileDown, Home, Info, Link2, LoaderCircle, Minus, PackageOpen, Pencil, Plus, RotateCcw, Save, Search, Share2, SlidersHorizontal, TrendingUp, X } from 'lucide-react';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FileDown, Home, Info, LoaderCircle, Minus, PackageOpen, Pencil, Plus, RotateCcw, Save, Search, Share2, SlidersHorizontal, Trash2, TrendingUp, Upload, X } from 'lucide-react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
@@ -440,6 +441,10 @@ function getInventoryKey(cardId: string, finish: InventoryItem['finish']) {
 const RIFTBOUND_DRAFT_STORAGE_PREFIX = 'knowleague:riftbound-inventory-draft:';
 const RIFTBOUND_CARD_IDS = new Set(RIFTBOUND_CARDS.map((card) => card.id));
 
+function parseInventoryTab(value: string | null): InventoryTab | null {
+  return value === 'global' || value === 'inventory' || value === 'sets' ? value : null;
+}
+
 function encodeCollectionRows(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string) {
   const payload = JSON.stringify({
     kind,
@@ -454,6 +459,132 @@ function encodeCollectionRows(rows: InventoryItem[], kind: CollectionShareKind =
 
 function getCollectionShareUrl(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string) {
   return `${window.location.origin}/inventory/share?data=${encodeURIComponent(encodeCollectionRows(rows, kind, title))}`;
+}
+
+const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
+
+function downloadCollectionJson(rows: InventoryItem[]) {
+  const payload = {
+    format: RIFTBOUND_COLLECTION_JSON_FORMAT,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    cards: rows.map((row) => ({
+      card_id: row.card_id,
+      finish: row.finish,
+      quantity: row.quantity,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `knowleague-riftbound-collection-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+const RIFTBOUND_SET_JSON_FORMAT = 'knowleague-riftbound-set';
+
+function downloadSetJson(rows: InventoryItem[], name?: string) {
+  const payload = {
+    format: RIFTBOUND_SET_JSON_FORMAT,
+    version: 1,
+    name: name?.trim() || 'Riftbound Set',
+    exportedAt: new Date().toISOString(),
+    cards: rows.map((row) => ({ card_id: row.card_id, quantity: row.quantity })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${(name?.trim() || 'riftbound-set').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'riftbound-set'}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function parseCollectionJson(value: unknown) {
+  const rawRows = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object' && Array.isArray((value as { cards?: unknown }).cards)
+      ? (value as { cards: unknown[] }).cards
+      : value && typeof value === 'object' && Array.isArray((value as { rows?: unknown }).rows)
+        ? (value as { rows: unknown[] }).rows
+        : null;
+
+  if (!rawRows) throw new Error('This file is not a valid KnowLeague Riftbound collection JSON file.');
+  if (rawRows.length > 5000) throw new Error('The collection JSON contains too many card entries.');
+
+  return rawRows.map((item, index): InventoryItem => {
+    if (!item || typeof item !== 'object') throw new Error(`Invalid card entry at index ${index}.`);
+    const candidate = item as Partial<InventoryItem>;
+    const card = typeof candidate.card_id === 'string'
+      ? RIFTBOUND_CARDS.find((entry) => entry.id === candidate.card_id)
+      : null;
+    if (!card || !RIFTBOUND_CARD_IDS.has(card.id)) throw new Error(`Unknown Riftbound card at index ${index}.`);
+    if (candidate.finish !== 'normal' && candidate.finish !== 'foil') throw new Error(`Invalid finish at index ${index}.`);
+    if (!getCardFinishOptions(card).includes(candidate.finish)) throw new Error(`The ${card.displayName} card does not support the ${candidate.finish} finish.`);
+    if (typeof candidate.quantity !== 'number' || !Number.isInteger(candidate.quantity) || candidate.quantity < 1 || candidate.quantity > 1000) {
+      throw new Error(`Invalid quantity at index ${index}; quantities must be whole numbers from 1 to 1000.`);
+    }
+
+    return {
+      card_id: card.id,
+      finish: candidate.finish,
+      quantity: candidate.quantity,
+      updated_at: new Date().toISOString(),
+    };
+  });
+}
+
+function parseSetJson(value: unknown) {
+  const source = value && typeof value === 'object' ? value as { name?: unknown; title?: unknown; cards?: unknown; rows?: unknown } : null;
+  const rawCards = Array.isArray(source?.cards) ? source.cards : Array.isArray(source?.rows) ? source.rows : null;
+  if (!rawCards) throw new Error('This file is not a valid KnowLeague Riftbound set JSON file.');
+  if (rawCards.length > 5000) throw new Error('The set JSON contains too many card entries.');
+
+  const quantities = new Map<string, number>();
+  rawCards.forEach((item, index) => {
+    if (!item || typeof item !== 'object') throw new Error(`Invalid set card entry at index ${index}.`);
+    const candidate = item as { card_id?: unknown; quantity?: unknown };
+    const card = typeof candidate.card_id === 'string'
+      ? RIFTBOUND_CARDS.find((entry) => entry.id === candidate.card_id)
+      : null;
+    if (!card || !RIFTBOUND_CARD_IDS.has(card.id)) throw new Error(`Unknown Riftbound card at index ${index}.`);
+    if (typeof candidate.quantity !== 'number' || !Number.isInteger(candidate.quantity) || candidate.quantity < 1 || candidate.quantity > 1000) {
+      throw new Error(`Invalid set quantity at index ${index}; quantities must be whole numbers from 1 to 1000.`);
+    }
+    quantities.set(card.id, (quantities.get(card.id) ?? 0) + candidate.quantity);
+  });
+
+  const cards = Array.from(quantities, ([card_id, quantity]) => ({ card_id, quantity }));
+  const totalCopies = cards.reduce((total, card) => total + card.quantity, 0);
+  if (cards.length === 0 || totalCopies > 5000) throw new Error('A set must contain between 1 and 5000 total card copies.');
+
+  const rawName = typeof source?.name === 'string' ? source.name : typeof source?.title === 'string' ? source.title : '';
+  const name = rawName.trim();
+  if (!name) throw new Error('The imported set is missing a name.');
+  if (name.length > 80) throw new Error('Set names cannot exceed 80 characters.');
+
+  return { name, cards };
+}
+
+function addInventoryRows(rows: InventoryItem[], additions: InventoryItem[]) {
+  const quantities = new Map(rows.map((row) => [getInventoryKey(row.card_id, row.finish), { ...row }]));
+  additions.forEach((addition) => {
+    const key = getInventoryKey(addition.card_id, addition.finish);
+    const current = quantities.get(key);
+    quantities.set(key, {
+      card_id: addition.card_id,
+      finish: addition.finish,
+      quantity: (current?.quantity ?? 0) + addition.quantity,
+      updated_at: addition.updated_at,
+    });
+  });
+  return Array.from(quantities.values());
 }
 
 type StoredInventoryDraft = {
@@ -1224,8 +1355,11 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
   );
 }
 
-function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClose }: { rows: InventoryItem[]; kind?: CollectionShareKind; title?: string; onClose: () => void }) {
+function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClose, onImport }: { rows: InventoryItem[]; kind?: CollectionShareKind; title?: string; onClose: () => void; onImport?: (file: File) => Promise<void> }) {
   const [copied, setCopied] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const shareUrl = useMemo(() => (typeof window === 'undefined' ? '' : getCollectionShareUrl(rows, kind, title)), [kind, rows, title]);
 
   const copyShareUrl = async () => {
@@ -1244,13 +1378,29 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClo
     window.open(shareUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !onImport) return;
+
+    setImporting(true);
+    setImportError('');
+    try {
+      await onImport(file);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Unable to import this collection JSON file.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Share or export collection" className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={`${kind === 'set' ? 'Share, export, or import' : 'Export or import'} ${kind === 'set' ? 'set' : 'collection'}`} className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
         <button type="button" aria-label="Close share collection dialog" onClick={onClose} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
         <div className="pr-14">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{kind === 'set' ? 'Set tools' : 'Collection tools'}</p>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Share or export {kind === 'set' ? 'this set' : 'your collection'}</h2>
+          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{kind === 'set' ? 'Share / Export this set' : 'Export / Import your collection'}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">The share link is a read-only snapshot. Anyone with the link can see the cards and quantities included in it.</p>
         </div>
         <div className="mt-6 grid gap-3">
@@ -1262,15 +1412,30 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClo
             <FileDown size={17} />
             Open print / Save as PDF view
           </button>
+          <button type="button" onClick={() => kind === 'collection' ? downloadCollectionJson(rows) : downloadSetJson(rows, title)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
+            <FileDown size={17} />
+            {kind === 'collection' ? 'Export collection JSON' : 'Export set JSON'}
+          </button>
+          {kind === 'collection' ? (
+            <>
+              <input ref={fileInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => void handleImport(event)} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={importing} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-wait disabled:opacity-60">
+                {importing ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} />}
+                {importing ? 'Importing collection...' : 'Import collection JSON'}
+              </button>
+              {importError ? <p className="text-sm font-semibold text-red-200">{importError}</p> : null}
+            </>
+          ) : null}
         </div>
-        <div className="mt-5 flex items-start gap-2 rounded-2xl border border-white/10 bg-slate-900/50 p-3 text-xs leading-5 text-slate-500"><Link2 size={15} className="mt-0.5 shrink-0 text-slate-400" /> The link contains a snapshot, so it will not change when your inventory changes later.</div>
       </div>
     </div>
   );
 }
 
 export function RiftboundCardGrid() {
-  const [activeTab, setActiveTab] = useState<InventoryTab>('global');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = parseInventoryTab(searchParams.get('tab')) ?? 'global';
   const [query, setQuery] = useState('');
   const [tagQuery, setTagQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>(defaultSortMode);
@@ -1297,8 +1462,18 @@ export function RiftboundCardGrid() {
   const [setBuilderName, setSetBuilderName] = useState('');
   const [setBuilderRows, setSetBuilderRows] = useState<Record<string, number>>({});
   const [setSaving, setSetSaving] = useState(false);
+  const [setDeleting, setSetDeleting] = useState(false);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [setOwnershipFilter, setSetOwnershipFilter] = useState<SetOwnershipFilter>('all');
+  const setImportInputRef = useRef<HTMLInputElement>(null);
+
+  const setActiveTab = useCallback((nextTab: InventoryTab) => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (nextTab === 'global') nextParams.delete('tab');
+    else nextParams.set('tab', nextTab);
+    const query = nextParams.toString();
+    router.replace(query ? `/inventory?${query}` : '/inventory', { scroll: false });
+  }, [router, searchParams]);
   const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
   const [latestSnapshotDate, setLatestSnapshotDate] = useState<string | null>(null);
 
@@ -1581,7 +1756,7 @@ export function RiftboundCardGrid() {
 
     setInventoryRows((rows) => updateInventoryRows(rows, card, finish, delta));
     setInventoryError('');
-  }, [session]);
+  }, [session, setActiveTab]);
 
   const saveInventory = async () => {
     if (!session) {
@@ -1672,6 +1847,97 @@ export function RiftboundCardGrid() {
     setCollectionShareKind(kind);
     setCollectionShareTitle(title);
     setCollectionShareOpen(true);
+  };
+
+  const importCollectionJson = async (file: File) => {
+    if (!session) throw new Error('Sign in to import a collection into your inventory.');
+
+    let parsedValue: unknown;
+    try {
+      parsedValue = JSON.parse(await file.text()) as unknown;
+    } catch {
+      throw new Error('The selected file is not valid JSON.');
+    }
+
+    const additions = parseCollectionJson(parsedValue);
+    setInventoryRows((rows) => addInventoryRows(rows, additions));
+    setInventoryError('');
+    setActiveTab('inventory');
+    setCollectionShareOpen(false);
+  };
+
+  const importSetJson = async (file: File) => {
+    if (!session) throw new Error('Sign in to import a set.');
+    if (sets.length >= 6) throw new Error('You can create up to 6 Riftbound sets.');
+
+    let parsedValue: unknown;
+    try {
+      parsedValue = JSON.parse(await file.text()) as unknown;
+    } catch {
+      throw new Error('The selected file is not valid JSON.');
+    }
+
+    const importedSet = parseSetJson(parsedValue);
+    const response = await fetch('/api/riftbound/sets', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: importedSet.name,
+        cards: importedSet.cards.map((card) => ({ cardId: card.card_id, quantity: card.quantity })),
+      }),
+    });
+    const data = await response.json() as SetMutationResponse;
+    if (!response.ok || !data.set) throw new Error(data.error || 'Unable to import this set.');
+
+    setSets((current) => [...current, data.set as RiftboundSet]);
+    setSelectedSetId(data.set.id);
+    setSetOwnershipFilter('all');
+    setActiveTab('sets');
+    setSetsError('');
+    setCollectionShareOpen(false);
+  };
+
+  const deleteSet = async (set: RiftboundSet) => {
+    if (!session || setDeleting) return;
+    if (!window.confirm(`Delete "${set.name}"? This cannot be undone.`)) return;
+
+    setSetDeleting(true);
+    setSetsError('');
+    try {
+      const response = await fetch('/api/riftbound/sets', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ setId: set.id }),
+      });
+      const data = await response.json() as { deletedSetId?: string; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to delete this set.');
+
+      setSets((current) => current.filter((candidate) => candidate.id !== set.id));
+      setSelectedSetId(null);
+      setSetOwnershipFilter('all');
+    } catch (error) {
+      setSetsError(error instanceof Error ? error.message : 'Unable to delete this set.');
+    } finally {
+      setSetDeleting(false);
+    }
+  };
+
+  const handleSetImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      await importSetJson(file);
+    } catch (error) {
+      setSetsError(error instanceof Error ? error.message : 'Unable to import this set.');
+    }
   };
 
   const adjustSetCard = (card: RiftboundCard, delta: 1 | -1) => {
@@ -1879,7 +2145,7 @@ export function RiftboundCardGrid() {
                 <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{ownedCopyCount} total cards</span>
                 <button type="button" onClick={() => openCollectionShare(inventoryRows)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
                   <Share2 size={14} />
-                  Share / Export
+                  Export / Import
                 </button>
               </div>
             </div>
@@ -1899,7 +2165,6 @@ export function RiftboundCardGrid() {
                   <MarketValueSourceInfo />
                 </div>
                 <p className="mt-1 text-2xl font-black text-emerald-300">{formatMarketPrice(totalMarketValue)}</p>
-                <MarketValueRefreshNote />
               </div>
               <button type="button" onClick={() => setCollectionHistoryOpen(true)} className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-emerald-200 transition hover:border-emerald-200/50 hover:bg-emerald-300/15 focus:outline-none focus:ring-2 focus:ring-amber-200">
                 <TrendingUp size={16} />
@@ -1976,8 +2241,10 @@ export function RiftboundCardGrid() {
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => editSet(selectedSet)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><Pencil size={14} /> Edit Set</button>
                     <button type="button" onClick={() => openCollectionShare(getSetShareRows(selectedSet), 'set', selectedSet.name)} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Share / Export</button>
+                    <button type="button" onClick={() => void deleteSet(selectedSet)} disabled={setDeleting} className="inline-flex items-center gap-2 rounded-xl border border-red-300/30 bg-red-950/30 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-red-200 transition hover:border-red-200/60 hover:bg-red-950/50 disabled:cursor-wait disabled:opacity-60"><Trash2 size={14} /> {setDeleting ? 'Deleting...' : 'Delete Set'}</button>
                   </div>
                 </div>
+                {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_1px_14rem] lg:items-stretch">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {inventoryRarityOrder.map((rarity) => (
@@ -2015,7 +2282,11 @@ export function RiftboundCardGrid() {
                   <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Your sets</p>
                   <p className="mt-1 text-sm text-slate-400">Create up to 6 card sets.</p>
                 </div>
-                <button type="button" onClick={startSetBuilder} disabled={sets.length >= 6} className="rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Create Set</button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input ref={setImportInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => void handleSetImportFile(event)} />
+                  <button type="button" onClick={() => setImportInputRef.current?.click()} disabled={sets.length >= 6} className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">Import Set</button>
+                  <button type="button" onClick={startSetBuilder} disabled={sets.length >= 6} className="rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Create Set</button>
+                </div>
               </div>
               {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
               {sets.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">You have not created any sets yet.</p> : (
@@ -2030,7 +2301,7 @@ export function RiftboundCardGrid() {
             <PackageOpen size={38} className="text-amber-200" />
             <div>
               <h2 className="text-2xl font-black text-white">Sign in to view your inventory</h2>
-              <p className="mt-2 text-sm text-slate-400">Your card counts are saved to your KnowLeague account.</p>
+              <p className="mt-2 text-sm text-slate-400">Your card collection is saved to your KnowLeague account.</p>
             </div>
             <Link href="/login" className="rounded-xl border border-amber-200/40 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200">Sign in</Link>
           </section>
@@ -2096,7 +2367,13 @@ export function RiftboundCardGrid() {
         <RiftboundCollectionValueHistoryModal session={session} onClose={() => setCollectionHistoryOpen(false)} />
       ) : null}
       {collectionShareOpen ? (
-        <RiftboundCollectionShareModal rows={collectionShareRows} kind={collectionShareKind} title={collectionShareTitle} onClose={() => setCollectionShareOpen(false)} />
+        <RiftboundCollectionShareModal
+          rows={collectionShareRows}
+          kind={collectionShareKind}
+          title={collectionShareTitle}
+          onClose={() => setCollectionShareOpen(false)}
+          onImport={collectionShareKind === 'collection' ? importCollectionJson : importSetJson}
+        />
       ) : null}
       {hasUnsavedInventoryChanges ? (
         <button

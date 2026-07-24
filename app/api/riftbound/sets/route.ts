@@ -136,3 +136,25 @@ export async function PATCH(request: Request) {
     return getRouteErrorResponse(error);
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const userId = await getAuthenticatedUserId(request);
+    const body = await readJsonBody<{ setId?: unknown }>(request);
+    const setId = requireString(body.setId, 'setId');
+    const { data, error } = await getSupabaseServiceClient()
+      .from('riftbound_sets')
+      .delete()
+      .eq('id', setId)
+      .eq('user_id', userId)
+      .select('id')
+      .maybeSingle<{ id: string }>();
+
+    if (error) throw error;
+    if (!data) return NextResponse.json({ error: 'Riftbound set not found.' }, { status: 404 });
+
+    return NextResponse.json({ deletedSetId: data.id });
+  } catch (error) {
+    return getRouteErrorResponse(error);
+  }
+}

@@ -119,24 +119,24 @@ export function MultiplayerLobbyHeader({
   actions,
 }: MultiplayerLobbyHeaderProps) {
   return (
-    <header className="relative z-30 flex min-w-0 flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="relative z-30 flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-4 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={onBack}
           aria-label={backLabel}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900 sm:h-12 sm:w-12"
         >
           <ArrowLeft size={20} />
         </button>
         <div className="min-w-0">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{eyebrow}</p>
-          <h1 className="truncate text-xl font-semibold text-white">{title}</h1>
+          <p className="text-[0.68rem] uppercase tracking-[0.2em] text-slate-500 sm:text-xs sm:tracking-[0.24em]">{eyebrow}</p>
+          <h1 className="truncate text-lg font-semibold text-white sm:text-xl">{title}</h1>
           <p className="mt-1 truncate text-xs text-slate-400">{subtitle}</p>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2 border-t border-white/10 pt-3 sm:w-auto sm:border-t-0 sm:pt-0">
         <GameInfoMenu title={title} steps={infoSteps} />
         {actions}
         {!hideStatus ? <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm font-semibold text-slate-200 sm:px-4">

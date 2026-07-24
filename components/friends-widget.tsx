@@ -1016,7 +1016,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       {isOpen ? (
         <div
           ref={panelRef}
-          className="absolute bottom-full right-0 mb-3 flex max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2.5rem),42rem)] max-w-[calc(100vw-2.5rem)] flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4"
+          className="fixed bottom-2 left-2 right-2 z-[60] mb-0 flex max-h-[calc(100dvh-1rem)] w-auto max-w-none flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:z-auto sm:mb-3 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(calc(100vw-2.5rem),42rem)] sm:max-w-[calc(100vw-2.5rem)] sm:p-4"
         >
           {activeFriendView ? (
             <>
@@ -1154,20 +1154,20 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
             </>
           ) : null}
 
-          <div className="flex h-[min(34rem,calc(100dvh-12rem))] min-h-0 flex-col">
-            <div className="flex items-start justify-between gap-4">
-              <div>
+          <div className="flex h-[min(34rem,calc(100dvh-5rem))] min-h-0 flex-col sm:h-[min(34rem,calc(100dvh-12rem))]">
+            <div className="flex items-start justify-between gap-3 sm:gap-4">
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Friends</p>
-                <h2 className="mt-1 text-lg font-bold text-white">{totalFriendCount} friends · {onlineCount} online</h2>
+                <h2 className="mt-1 text-base font-bold text-white sm:text-lg">{totalFriendCount} friends · {onlineCount} online</h2>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setAddFriendOpen((value) => !value);
                     setStatus('');
                   }}
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 text-sm font-bold text-amber-100 transition hover:bg-amber-300/20"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 text-sm font-bold text-amber-100 transition hover:bg-amber-300/20"
                 >
                   <Users size={15} />
                   Add Friend
@@ -1184,7 +1184,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                   setContextFriend(null);
                   }}
                   aria-label="Close friends"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
                 >
                   <X size={18} />
                 </button>
@@ -1232,7 +1232,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
               </div>
             </div>
 
-            <div className="mt-4 grid min-h-0 flex-1 gap-4 md:grid-cols-[minmax(0,1fr)_13rem]">
+            <div className={`mt-4 grid min-h-0 flex-1 gap-4 md:grid-cols-[minmax(0,1fr)_13rem] md:grid-rows-1 ${activeFriendView ? 'grid-rows-[minmax(13rem,1fr)_minmax(10rem,14rem)]' : 'grid-rows-[1fr]'}`}>
               <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 p-3">
                 {activeFriendView ? (
                   <>

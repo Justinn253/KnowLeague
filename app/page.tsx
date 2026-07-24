@@ -189,7 +189,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         onMouseEnter={() => playUiSound('autocomplete-hover')}
         onFocus={() => playUiSound('autocomplete-hover')}
         onClick={() => playUiSound('autocomplete-select')}
-        className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl bg-slate-950 bg-clip-padding ${featuredBorder} ${featuredGlow} transition-[transform,border-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1  focus:outline-none focus:ring-2 focus:ring-amber-200 lg:col-span-2`}
+        className={`group relative isolate min-h-[18rem] transform-gpu overflow-hidden rounded-2xl bg-slate-950 bg-clip-padding ${featuredBorder} ${featuredGlow} transition-[transform,border-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:min-h-[24rem] lg:col-span-2`}
       >
         <GameSplashImage
           src={game.imageUrl}
@@ -203,14 +203,15 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         <div className={`absolute inset-0 ${featuredTextShade}`} />
         <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/10 opacity-0 blur-lg transition-all duration-700 group-hover:left-full group-hover:opacity-100" />
         <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/0 transition duration-300 group-hover:ring-white/15" />
-        <div className="relative flex min-h-[24rem] flex-col justify-between p-5 sm:p-6">
+        <div className="relative flex min-h-[18rem] flex-col justify-between p-4 sm:min-h-[24rem] sm:p-6">
           <div className="flex items-start justify-between gap-3">
-            <div className="relative flex items-center gap-2 pb-10">
-              <span className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 ${accent.icon}`}>
-                <GameIcon size={22} />
+            <div className="relative flex items-center gap-2 pb-8 sm:pb-10">
+              <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 sm:h-12 sm:w-12 ${accent.icon}`}>
+                <GameIcon size={20} className="sm:hidden" />
+                <GameIcon size={22} className="hidden sm:block" />
               </span>
               <GameModeBadge mode={game.mode} featured />
-              <span className="absolute left-0 top-14">
+              <span className="absolute left-0 top-12 sm:top-14">
                 <StreakBadge game={game} stats={stats} />
               </span>
             </div>
@@ -227,11 +228,11 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
           </div>
 
           <div className="max-w-md">
-            <div className={`mb-4 h-1 w-16 rounded-full transition-all duration-300 group-hover:w-24 ${accent.line}`} />
+            <div className={`mb-3 h-1 w-14 rounded-full transition-all duration-300 group-hover:w-24 sm:mb-4 sm:w-16 ${accent.line}`} />
             <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">{game.kicker}</p>
-            <h3 className="mt-3 text-4xl font-black tracking-tight text-white">{game.title}</h3>
-            <p className="mt-4 text-sm leading-6 text-slate-200">{game.description}</p>
-            <div className="game-card-cta mt-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color] duration-300">
+            <h3 className="mt-2 text-3xl font-black tracking-tight text-white sm:mt-3 sm:text-4xl">{game.title}</h3>
+            <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-200 sm:mt-4 sm:leading-6">{game.description}</p>
+            <div className="game-card-cta mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color] duration-300 sm:mt-6">
               <span className="relative z-10">Open game</span>
               <ArrowRight size={16} className="game-card-arrow relative z-10" />
             </div>
@@ -247,9 +248,9 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
       onClick={() => playUiSound('autocomplete-select')}
-      className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl border bg-slate-900/80 bg-clip-padding transition-[transform,border-color,background-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:border-white/35 hover:bg-slate-900  focus:outline-none focus:ring-2 focus:ring-amber-200 ${accent.border}`}
+      className={`group relative isolate min-h-[18rem] transform-gpu overflow-hidden rounded-2xl border bg-slate-900/80 bg-clip-padding transition-[transform,border-color,background-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:border-white/35 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:min-h-[24rem] ${accent.border}`}
     >
-      <div className="relative h-40 overflow-hidden border-b border-white/10 bg-slate-950">
+      <div className="relative h-28 overflow-hidden border-b border-white/10 bg-slate-950 sm:h-40">
         <GameSplashImage
           src={game.imageUrl}
           alt={`${game.title} game preview`}
@@ -261,23 +262,23 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         />
         <div className={`absolute inset-0 bg-gradient-to-t ${accent.wash} to-transparent`} />
         <div className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-white/10 opacity-0 blur-md transition-all duration-700 group-hover:left-full group-hover:opacity-100" />
-        <div className="absolute left-4 top-4 flex items-center gap-2">
-          <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 ${accent.icon}`}>
-            <GameIcon size={20} />
+        <div className="absolute left-3 top-3 flex items-center gap-2 sm:left-4 sm:top-4">
+          <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 sm:h-11 sm:w-11 ${accent.icon}`}>
+            <GameIcon size={18} />
           </span>
           <GameModeBadge mode={game.mode} />
-          <span className="absolute left-0 top-[3.25rem]">
+            <span className="absolute left-0 top-12 sm:top-[3.25rem]">
             <StreakBadge game={game} stats={stats} />
           </span>
         </div>
         {game.playerCountId ? (
-          <MultiplayerPlayerCountBadge gameId={game.playerCountId} className="absolute right-4 top-4" />
+          <MultiplayerPlayerCountBadge gameId={game.playerCountId} className="absolute right-3 top-3 sm:right-4 sm:top-4" />
         ) : null}
       </div>
-      <div className="relative z-10 flex min-h-[14rem] flex-col p-5">
+      <div className="relative z-10 flex min-h-[10rem] flex-col p-4 sm:min-h-[14rem] sm:p-5">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{game.kicker}</p>
-        <h3 className="mt-2 text-2xl font-black tracking-tight text-white transition-colors duration-300 group-hover:text-amber-100">{game.title}</h3>
-        <p className="mt-3 text-sm leading-6 text-slate-300">{game.description}</p>
+        <h3 className="mt-2 text-xl font-black tracking-tight text-white transition-colors duration-300 group-hover:text-amber-100 sm:text-2xl">{game.title}</h3>
+        <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-300 sm:mt-3 sm:leading-6">{game.description}</p>
         <div className="game-card-cta mt-auto inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color] duration-300">
           <span className="relative z-10">Open game</span>
           <ArrowRight size={16} className="game-card-arrow relative z-10" />

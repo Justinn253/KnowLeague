@@ -955,18 +955,18 @@ export function Skindle() {
   return (
     <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
       <section className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-10 lg:px-12">
-        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
+        <header className="relative z-30 flex flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link
               href="/"
               aria-label="Back to game hub"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900 sm:h-12 sm:w-12"
             >
               <ArrowLeft size={20} />
             </Link>
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Single Player Game</p>
-              <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-white">
+            <div className="min-w-0">
+              <p className="text-[0.68rem] uppercase tracking-[0.2em] text-slate-500 sm:text-xs sm:tracking-[0.24em]">Single Player Game</p>
+              <h1 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-white sm:text-xl">
                 Skindle
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-xs font-bold text-amber-100">
                   <Flame size={12} className="text-amber-300" />
@@ -979,7 +979,7 @@ export function Skindle() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:justify-end">
+          <div className="flex w-full flex-wrap items-center gap-2 border-t border-white/10 pt-3 sm:w-auto sm:gap-3 sm:border-t-0 sm:pt-0 lg:justify-end">
             <GameInfoMenu title="Skindle" steps={[
               'Guess the daily mystery League of Legends skin.',
               'Each guess compares champion, skin line, rarity, species, gender, role, lane, release year, and resource against the target.',

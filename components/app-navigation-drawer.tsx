@@ -28,7 +28,7 @@ export function AppNavigationDrawer() {
           <aside
             id="app-navigation-drawer"
             aria-label="App navigation"
-            className="relative ml-auto flex h-full w-[min(22rem,calc(100vw-1.5rem))] animate-[slide-in_180ms_ease-out] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/40"
+            className="relative ml-auto flex h-full w-[min(22rem,calc(100vw-1.5rem))] animate-[slide-in_180ms_ease-out] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="border-b border-white/10 p-6">

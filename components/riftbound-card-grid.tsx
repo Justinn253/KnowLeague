@@ -910,7 +910,7 @@ function MarketValueSourceInfo() {
         aria-label="Market value source information"
         className="text-slate-500 outline-none transition group-hover:text-amber-200 group-focus-within:text-amber-200"
       />
-      <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-[120] mb-2 hidden w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-200 shadow-xl group-hover:block group-focus-within:block">
+      <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-[120] mb-2 hidden w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-200 group-hover:block group-focus-within:block">
         Estimated from captured market prices provided by our pricing source. It is not a guaranteed sale price. {getMarketValueRefreshNote()}
       </span>
     </span>
@@ -1196,7 +1196,7 @@ function RiftboundCardDetailsModal({
         role="dialog"
         aria-modal="true"
         aria-label={`${card.displayName} details`}
-        className="relative max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/50"
+        className="relative max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <button
@@ -1325,7 +1325,7 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
         role="dialog"
         aria-modal="true"
         aria-label="Collection value history"
-        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-7"
+        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-5 sm:p-7"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <button
@@ -1396,7 +1396,7 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClo
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={`${kind === 'set' ? 'Share, export, or import' : 'Export or import'} ${kind === 'set' ? 'set' : 'collection'}`} className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={`${kind === 'set' ? 'Share, export, or import' : 'Export or import'} ${kind === 'set' ? 'set' : 'collection'}`} className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
         <button type="button" aria-label="Close share collection dialog" onClick={onClose} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
         <div className="pr-14">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{kind === 'set' ? 'Set tools' : 'Collection tools'}</p>

@@ -25,6 +25,7 @@
 - Use lucide icons for controls and include accessible labels on icon-only buttons.
 - Keep dropdown and overlay stacking behavior explicit; inspect parent overflow before changing z-index.
 - Settings menus must use the shared `AppSelectMenu`, not native browser selects or copied menu implementations. This component is the exact app-wide Ability Blitz/Skin Champion Difficulty/Modifiers style: dark rounded trigger with padded chevron, amber open/focus state, labeled popup description, spacing between bordered option cards, and matching toggle/button controls. Menus must have no background/drop shadow and must expand fully without an internal scrollbar. Make adjacent toggles match the menu control height and card styling.
+- Popup and modal panels, drawers, tooltips, and other overlay bubbles must not use decorative `shadow-*` classes. Use the existing border, background, and backdrop treatment without a floating shadow bubble.
 - Do not duplicate profile, friends, invite, or autocomplete behavior when a shared helper/component can own it.
 - Timed game displays should default to the Category Clash timer treatment: amber/yellow normally, red and pulsing during the urgent window, and one `timer-countdown` UI sound per displayed urgent second. Prefer a 10-second urgent window for new timers unless the game's established rules differ.
 - Avoid broad rewrites of large game components during a narrow UI fix.

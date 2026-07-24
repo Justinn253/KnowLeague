@@ -218,7 +218,7 @@ const games: GameLink[] = [
   {
     title: 'Mastery Master',
     href: '/mastery-master',
-    description: 'Put a League account&apos;s champion mastery knowledge to the test.',
+    description: 'Put a League account\'s champion mastery knowledge to the test.',
     imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Malzahar_0.jpg',
     gameIcon: Trophy,
     mode: 'solo',

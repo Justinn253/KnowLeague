@@ -1,15 +1,20 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
-import { Check, Copy, ExternalLink, FileDown, Home, Info, Link2, LoaderCircle, Minus, PackageOpen, Plus, RotateCcw, Save, Search, Share2, SlidersHorizontal, TrendingUp, X } from 'lucide-react';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FileDown, Home, Info, LoaderCircle, Minus, PackageOpen, Pencil, Plus, RotateCcw, Save, Search, Share2, SlidersHorizontal, Trash2, TrendingUp, Upload, X } from 'lucide-react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
+import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
 
-type InventoryTab = 'global' | 'inventory';
+type InventoryTab = 'global' | 'inventory' | 'sets';
+
+type SetSourceTab = 'global' | 'inventory';
+type CollectionShareKind = 'collection' | 'set';
+type SetOwnershipFilter = 'all' | 'owned' | 'missing';
 
 type InventoryItem = {
   card_id: string;
@@ -25,6 +30,28 @@ type InventoryResponse = {
 
 type InventoryMutationResponse = {
   items?: InventoryItem[];
+  error?: string;
+};
+
+type RiftboundSetCard = {
+  card_id: string;
+  quantity: number;
+};
+
+type RiftboundSet = {
+  id: string;
+  name: string;
+  created_at: string;
+  cards: RiftboundSetCard[];
+};
+
+type SetResponse = {
+  sets?: RiftboundSet[];
+  error?: string;
+};
+
+type SetMutationResponse = {
+  set?: RiftboundSet;
   error?: string;
 };
 
@@ -54,6 +81,20 @@ type RiftboundCollectionValueHistoryEntry = {
 
 type RiftboundCollectionValueHistoryResponse = {
   history?: RiftboundCollectionValueHistoryEntry[];
+  error?: string;
+};
+
+type RiftboundLatestPrice = {
+  normal: number | null;
+  foil: number | null;
+  updatedAt: string | null;
+};
+
+type RiftboundLatestPricesResponse = {
+  prices?: Record<string, RiftboundLatestPrice>;
+  snapshotDate?: string | null;
+  sourceSnapshotAt?: string | null;
+  capturedAt?: string | null;
   error?: string;
 };
 
@@ -101,6 +142,7 @@ const PRICE_HISTORY_DAYS = 30;
 const PRICE_HISTORY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PRICE_HISTORY_STORAGE_PREFIX = 'knowleague:riftbound-price-history:v1:';
 const PRICE_HISTORY_STORAGE_LIMIT = 100;
+const RIFTBOUND_MARKET_VALUE_REFRESH_NOTE = 'Daily refresh at 6:00 AM EST.';
 const priceHistoryMemoryCache = new Map<string, CachedRiftboundPriceHistory>();
 const priceHistoryRequests = new Map<string, Promise<RiftboundPriceHistoryEntry[]>>();
 const collectionValueHistoryMemoryCache = new Map<string, CachedRiftboundCollectionValueHistory>();
@@ -124,17 +166,22 @@ function parsePriceHistory(value: unknown): RiftboundPriceHistoryEntry[] | null 
   });
 }
 
-function getPriceHistoryStorageKey(cardId: string) {
-  return `${PRICE_HISTORY_STORAGE_PREFIX}${cardId}`;
+function getPriceHistoryCacheKey(cardId: string, snapshotDate?: string | null) {
+  return `${cardId}:${snapshotDate || 'latest'}`;
 }
 
-function getCachedPriceHistory(cardId: string) {
+function getPriceHistoryStorageKey(cardId: string, snapshotDate?: string | null) {
+  return `${PRICE_HISTORY_STORAGE_PREFIX}${getPriceHistoryCacheKey(cardId, snapshotDate)}`;
+}
+
+function getCachedPriceHistory(cardId: string, snapshotDate?: string | null) {
+  const cacheKey = getPriceHistoryCacheKey(cardId, snapshotDate);
   const now = Date.now();
-  const memoryEntry = priceHistoryMemoryCache.get(cardId);
+  const memoryEntry = priceHistoryMemoryCache.get(cacheKey);
   if (memoryEntry && now - memoryEntry.fetchedAt < PRICE_HISTORY_CACHE_TTL_MS) {
     return memoryEntry.history;
   }
-  if (memoryEntry) priceHistoryMemoryCache.delete(cardId);
+  if (memoryEntry) priceHistoryMemoryCache.delete(cacheKey);
 
   if (typeof window === 'undefined') return null;
 
@@ -148,7 +195,7 @@ function getCachedPriceHistory(cardId: string) {
       return null;
     }
 
-    priceHistoryMemoryCache.set(cardId, { fetchedAt: parsedValue.fetchedAt, history });
+    priceHistoryMemoryCache.set(cacheKey, { fetchedAt: parsedValue.fetchedAt, history });
     return history;
   } catch {
     return null;
@@ -183,42 +230,44 @@ function prunePriceHistoryStorage() {
   }
 }
 
-function cachePriceHistory(cardId: string, history: RiftboundPriceHistoryEntry[]) {
+function cachePriceHistory(cardId: string, snapshotDate: string | null | undefined, history: RiftboundPriceHistoryEntry[]) {
   const cachedEntry = { fetchedAt: Date.now(), history };
-  priceHistoryMemoryCache.set(cardId, cachedEntry);
+  priceHistoryMemoryCache.set(getPriceHistoryCacheKey(cardId, snapshotDate), cachedEntry);
 
   if (typeof window === 'undefined') return;
 
   try {
-    window.localStorage.setItem(getPriceHistoryStorageKey(cardId), JSON.stringify(cachedEntry));
+    window.localStorage.setItem(getPriceHistoryStorageKey(cardId, snapshotDate), JSON.stringify(cachedEntry));
     prunePriceHistoryStorage();
   } catch {
     // Browser storage is an optimization; the in-memory cache remains available.
   }
 }
 
-function loadPriceHistory(cardId: string) {
-  const cachedHistory = getCachedPriceHistory(cardId);
+function loadPriceHistory(cardId: string, snapshotDate?: string | null) {
+  const cacheKey = getPriceHistoryCacheKey(cardId, snapshotDate);
+  const cachedHistory = getCachedPriceHistory(cardId, snapshotDate);
   if (cachedHistory) return Promise.resolve(cachedHistory);
 
-  const existingRequest = priceHistoryRequests.get(cardId);
+  const existingRequest = priceHistoryRequests.get(cacheKey);
   if (existingRequest) return existingRequest;
 
-  const request = fetch(`/api/riftbound/prices/${encodeURIComponent(cardId)}?days=${PRICE_HISTORY_DAYS}`, {
-    cache: 'force-cache',
+  const snapshotQuery = snapshotDate ? `&snapshot=${encodeURIComponent(snapshotDate)}` : '';
+  const request = fetch(`/api/riftbound/prices/${encodeURIComponent(cardId)}?days=${PRICE_HISTORY_DAYS}${snapshotQuery}`, {
+    cache: 'no-store',
   })
     .then(async (response) => {
       const data = await response.json() as RiftboundPriceHistoryResponse;
       if (!response.ok) throw new Error(data.error || 'Unable to load market value history.');
       const history = data.history ?? [];
-      cachePriceHistory(cardId, history);
+      cachePriceHistory(cardId, snapshotDate, history);
       return history;
     })
     .finally(() => {
-      priceHistoryRequests.delete(cardId);
+      priceHistoryRequests.delete(cacheKey);
     });
 
-  priceHistoryRequests.set(cardId, request);
+  priceHistoryRequests.set(cacheKey, request);
   return request;
 }
 
@@ -349,8 +398,20 @@ function getMarketPriceUpdatedAt(card: RiftboundCard) {
   return card.marketPrices ? card.marketPrices.updatedAt : card.marketPriceUpdatedAt;
 }
 
+function getMarketValueRefreshNote() {
+  return RIFTBOUND_MARKET_VALUE_REFRESH_NOTE;
+}
+
 function formatMarketPriceOrUnavailable(value: number | null) {
   return value === null ? 'N/A' : currencyFormatter.format(value);
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
 }
 
 function uniqueSorted(values: string[]) {
@@ -380,16 +441,150 @@ function getInventoryKey(cardId: string, finish: InventoryItem['finish']) {
 const RIFTBOUND_DRAFT_STORAGE_PREFIX = 'knowleague:riftbound-inventory-draft:';
 const RIFTBOUND_CARD_IDS = new Set(RIFTBOUND_CARDS.map((card) => card.id));
 
-function encodeCollectionRows(rows: InventoryItem[]) {
-  const payload = JSON.stringify(rows.map((row) => ({ card_id: row.card_id, finish: row.finish, quantity: row.quantity })));
+function parseInventoryTab(value: string | null): InventoryTab | null {
+  return value === 'global' || value === 'inventory' || value === 'sets' ? value : null;
+}
+
+function encodeCollectionRows(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string) {
+  const payload = JSON.stringify({
+    kind,
+    title: title?.trim() || undefined,
+    rows: rows.map((row) => ({ card_id: row.card_id, finish: row.finish, quantity: row.quantity })),
+  });
   const bytes = new TextEncoder().encode(payload);
   let binary = '';
   bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
   return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-function getCollectionShareUrl(rows: InventoryItem[]) {
-  return `${window.location.origin}/inventory/share?data=${encodeURIComponent(encodeCollectionRows(rows))}`;
+function getCollectionShareUrl(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string) {
+  return `${window.location.origin}/inventory/share?data=${encodeURIComponent(encodeCollectionRows(rows, kind, title))}`;
+}
+
+const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
+
+function downloadCollectionJson(rows: InventoryItem[]) {
+  const payload = {
+    format: RIFTBOUND_COLLECTION_JSON_FORMAT,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    cards: rows.map((row) => ({
+      card_id: row.card_id,
+      finish: row.finish,
+      quantity: row.quantity,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `knowleague-riftbound-collection-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+const RIFTBOUND_SET_JSON_FORMAT = 'knowleague-riftbound-set';
+
+function downloadSetJson(rows: InventoryItem[], name?: string) {
+  const payload = {
+    format: RIFTBOUND_SET_JSON_FORMAT,
+    version: 1,
+    name: name?.trim() || 'Riftbound Set',
+    exportedAt: new Date().toISOString(),
+    cards: rows.map((row) => ({ card_id: row.card_id, quantity: row.quantity })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${(name?.trim() || 'riftbound-set').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'riftbound-set'}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function parseCollectionJson(value: unknown) {
+  const rawRows = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object' && Array.isArray((value as { cards?: unknown }).cards)
+      ? (value as { cards: unknown[] }).cards
+      : value && typeof value === 'object' && Array.isArray((value as { rows?: unknown }).rows)
+        ? (value as { rows: unknown[] }).rows
+        : null;
+
+  if (!rawRows) throw new Error('This file is not a valid KnowLeague Riftbound collection JSON file.');
+  if (rawRows.length > 5000) throw new Error('The collection JSON contains too many card entries.');
+
+  return rawRows.map((item, index): InventoryItem => {
+    if (!item || typeof item !== 'object') throw new Error(`Invalid card entry at index ${index}.`);
+    const candidate = item as Partial<InventoryItem>;
+    const card = typeof candidate.card_id === 'string'
+      ? RIFTBOUND_CARDS.find((entry) => entry.id === candidate.card_id)
+      : null;
+    if (!card || !RIFTBOUND_CARD_IDS.has(card.id)) throw new Error(`Unknown Riftbound card at index ${index}.`);
+    if (candidate.finish !== 'normal' && candidate.finish !== 'foil') throw new Error(`Invalid finish at index ${index}.`);
+    if (!getCardFinishOptions(card).includes(candidate.finish)) throw new Error(`The ${card.displayName} card does not support the ${candidate.finish} finish.`);
+    if (typeof candidate.quantity !== 'number' || !Number.isInteger(candidate.quantity) || candidate.quantity < 1 || candidate.quantity > 1000) {
+      throw new Error(`Invalid quantity at index ${index}; quantities must be whole numbers from 1 to 1000.`);
+    }
+
+    return {
+      card_id: card.id,
+      finish: candidate.finish,
+      quantity: candidate.quantity,
+      updated_at: new Date().toISOString(),
+    };
+  });
+}
+
+function parseSetJson(value: unknown) {
+  const source = value && typeof value === 'object' ? value as { name?: unknown; title?: unknown; cards?: unknown; rows?: unknown } : null;
+  const rawCards = Array.isArray(source?.cards) ? source.cards : Array.isArray(source?.rows) ? source.rows : null;
+  if (!rawCards) throw new Error('This file is not a valid KnowLeague Riftbound set JSON file.');
+  if (rawCards.length > 5000) throw new Error('The set JSON contains too many card entries.');
+
+  const quantities = new Map<string, number>();
+  rawCards.forEach((item, index) => {
+    if (!item || typeof item !== 'object') throw new Error(`Invalid set card entry at index ${index}.`);
+    const candidate = item as { card_id?: unknown; quantity?: unknown };
+    const card = typeof candidate.card_id === 'string'
+      ? RIFTBOUND_CARDS.find((entry) => entry.id === candidate.card_id)
+      : null;
+    if (!card || !RIFTBOUND_CARD_IDS.has(card.id)) throw new Error(`Unknown Riftbound card at index ${index}.`);
+    if (typeof candidate.quantity !== 'number' || !Number.isInteger(candidate.quantity) || candidate.quantity < 1 || candidate.quantity > 1000) {
+      throw new Error(`Invalid set quantity at index ${index}; quantities must be whole numbers from 1 to 1000.`);
+    }
+    quantities.set(card.id, (quantities.get(card.id) ?? 0) + candidate.quantity);
+  });
+
+  const cards = Array.from(quantities, ([card_id, quantity]) => ({ card_id, quantity }));
+  const totalCopies = cards.reduce((total, card) => total + card.quantity, 0);
+  if (cards.length === 0 || totalCopies > 5000) throw new Error('A set must contain between 1 and 5000 total card copies.');
+
+  const rawName = typeof source?.name === 'string' ? source.name : typeof source?.title === 'string' ? source.title : '';
+  const name = rawName.trim();
+  if (!name) throw new Error('The imported set is missing a name.');
+  if (name.length > 80) throw new Error('Set names cannot exceed 80 characters.');
+
+  return { name, cards };
+}
+
+function addInventoryRows(rows: InventoryItem[], additions: InventoryItem[]) {
+  const quantities = new Map(rows.map((row) => [getInventoryKey(row.card_id, row.finish), { ...row }]));
+  additions.forEach((addition) => {
+    const key = getInventoryKey(addition.card_id, addition.finish);
+    const current = quantities.get(key);
+    quantities.set(key, {
+      card_id: addition.card_id,
+      finish: addition.finish,
+      quantity: (current?.quantity ?? 0) + addition.quantity,
+      updated_at: addition.updated_at,
+    });
+  });
+  return Array.from(quantities.values());
 }
 
 type StoredInventoryDraft = {
@@ -560,6 +755,35 @@ function getInventoryChanges(savedRows: InventoryItem[], draftRows: InventoryIte
   });
 }
 
+function updateSetBuilderRows(rows: Record<string, number>, cardId: string, delta: 1 | -1) {
+  const nextQuantity = (rows[cardId] ?? 0) + delta;
+  const nextRows = { ...rows };
+  if (nextQuantity <= 0) delete nextRows[cardId];
+  else nextRows[cardId] = nextQuantity;
+  return nextRows;
+}
+
+function expandSetCards(set: RiftboundSet, cards: RiftboundCard[] = RIFTBOUND_CARDS) {
+  return set.cards.flatMap((entry) => {
+    const card = cards.find((candidate) => candidate.id === entry.card_id);
+    if (!card) return [];
+    return Array.from({ length: entry.quantity }, (_, index) => ({ card, copyIndex: index, key: `${set.id}:${entry.card_id}:${index}` }));
+  });
+}
+
+function getSetShareRows(set: RiftboundSet, cards: RiftboundCard[] = RIFTBOUND_CARDS): InventoryItem[] {
+  return set.cards.flatMap((entry) => {
+    const card = cards.find((candidate) => candidate.id === entry.card_id);
+    if (!card) return [];
+    return [{
+      card_id: card.id,
+      finish: card.defaultFinish,
+      quantity: entry.quantity,
+      updated_at: set.created_at,
+    }];
+  });
+}
+
 function DetailValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
@@ -687,10 +911,14 @@ function MarketValueSourceInfo() {
         className="text-slate-500 outline-none transition group-hover:text-amber-200 group-focus-within:text-amber-200"
       />
       <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-[120] mb-2 hidden w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-200 shadow-xl group-hover:block group-focus-within:block">
-        Estimated from captured market prices provided by our pricing source. It is not a guaranteed sale price.
+        Estimated from captured market prices provided by our pricing source. It is not a guaranteed sale price. {getMarketValueRefreshNote()}
       </span>
     </span>
   );
+}
+
+function MarketValueRefreshNote() {
+  return <p className="mt-2 text-[0.65rem] font-semibold text-slate-500">{getMarketValueRefreshNote()}</p>;
 }
 
 function RiftboundCollectionValueHistoryChart({ history }: { history: RiftboundCollectionValueHistoryEntry[] }) {
@@ -827,42 +1055,63 @@ function FinishInventoryControls({
   );
 }
 
+function SetCardControls({
+  card,
+  quantity,
+  onAdjust,
+}: {
+  card: RiftboundCard;
+  quantity: number;
+  onAdjust: (delta: 1 | -1) => void;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-0.5 rounded-xl border border-amber-200/30 bg-amber-300/10 p-0.5">
+      <InventoryAdjustButton label={`Remove ${card.displayName} from set`} disabled={quantity === 0} compact onAdjust={() => onAdjust(-1)}><Minus size={14} /></InventoryAdjustButton>
+      <span className="min-w-5 text-center text-sm font-black text-amber-200" aria-label={`${quantity} copies selected`}>{quantity}</span>
+      <InventoryAdjustButton label={`Add ${card.displayName} to set`} disabled={false} compact onAdjust={() => onAdjust(1)}><Plus size={14} /></InventoryAdjustButton>
+    </div>
+  );
+}
+
 const RiftboundCardRow = memo(function RiftboundCardRow({
   card,
   normalQuantity,
   foilQuantity,
+  mode = 'inventory',
+  setQuantity = 0,
+  ownership,
   pendingChange,
   pending,
   onOpen,
   onAdjust,
+  onSetAdjust,
 }: {
   card: RiftboundCard;
   normalQuantity: number;
   foilQuantity: number;
+  mode?: 'inventory' | 'set-selection' | 'set-view';
+  setQuantity?: number;
+  ownership?: 'owned' | 'missing';
   pendingChange: boolean;
   pending: boolean;
-  onOpen: (card: RiftboundCard) => void;
-  onAdjust: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
+  onOpen?: (card: RiftboundCard) => void;
+  onAdjust?: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
+  onSetAdjust?: (card: RiftboundCard, delta: 1 | -1) => void;
 }) {
   const finishOptions = getCardFinishOptions(card);
-
+  const isSelection = mode === 'set-selection';
+  const isInventory = mode === 'inventory';
   return (
-    <article className={`flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors hover:bg-slate-950 sm:p-4 ${pendingChange ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : 'border-white/10 hover:border-white/20'}`}>
+    <article className={`flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors hover:bg-slate-950 sm:p-4 ${pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'}`}>
+      {ownership ? <div className={`mb-2 inline-flex items-center gap-1 self-end text-[0.6rem] font-black uppercase tracking-[0.12em] ${ownership === 'owned' ? 'text-emerald-300' : 'text-red-300'}`}><CheckCircle2 size={12} /> {ownership}</div> : null}
       <button
         type="button"
-        onClick={() => onOpen(card)}
+        onClick={() => onOpen?.(card)}
+        disabled={!onOpen}
         className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"
       >
         <span className="relative order-2 mt-3 aspect-[744/1039] w-full max-w-[11rem] shrink-0 overflow-hidden rounded-xl bg-slate-900">
-          <Image
-            src={card.imageUrl}
-            alt={`${card.displayName} card artwork`}
-            fill
-            sizes="176px"
-            draggable={false}
-            className="object-cover"
-            loading="lazy"
-          />
+          <RiftboundCardImage card={card} sizes="176px" className="object-cover" loading="lazy" />
         </span>
         <span className="order-1 min-w-0 w-full">
           <span className="block truncate text-lg font-black tracking-tight text-white" title={card.displayName}>{card.displayName}</span>
@@ -870,6 +1119,7 @@ const RiftboundCardRow = memo(function RiftboundCardRow({
         </span>
       </button>
 
+      {isInventory ? (
       <div className={`mt-3 grid shrink-0 gap-2 ${finishOptions.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
         {finishOptions.map((finish) => (
           <div key={finish} className="flex min-w-0 flex-col items-center gap-1">
@@ -878,7 +1128,7 @@ const RiftboundCardRow = memo(function RiftboundCardRow({
               finish={finish}
               quantity={finish === 'foil' ? foilQuantity : normalQuantity}
               pending={pending}
-              onAdjust={(nextFinish, delta) => onAdjust(card, nextFinish, delta)}
+              onAdjust={(nextFinish, delta) => onAdjust?.(card, nextFinish, delta)}
             />
             <span className={`whitespace-nowrap text-[0.65rem] font-semibold ${finish === 'foil' ? 'text-amber-200/80' : 'text-slate-500'}`}>
               {getFinishLabel(finish)} {formatMarketPriceOrUnavailable(getMarketPriceForFinish(card, finish))}
@@ -886,6 +1136,11 @@ const RiftboundCardRow = memo(function RiftboundCardRow({
           </div>
         ))}
       </div>
+      ) : isSelection ? (
+        <div className="mt-3 shrink-0">
+          <SetCardControls card={card} quantity={setQuantity} onAdjust={(delta) => onSetAdjust?.(card, delta)} />
+        </div>
+      ) : null}
     </article>
   );
 });
@@ -894,6 +1149,7 @@ function RiftboundCardDetailsModal({
   card,
   normalQuantity,
   foilQuantity,
+  latestSnapshotDate,
   pending,
   onClose,
   onAdjust,
@@ -901,6 +1157,7 @@ function RiftboundCardDetailsModal({
   card: RiftboundCard;
   normalQuantity: number;
   foilQuantity: number;
+  latestSnapshotDate: string | null;
   pending: boolean;
   onClose: () => void;
   onAdjust: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
@@ -917,7 +1174,7 @@ function RiftboundCardDetailsModal({
     setPriceHistoryError('');
     setPriceHistoryLoading(true);
 
-    void loadPriceHistory(card.id)
+    void loadPriceHistory(card.id, latestSnapshotDate)
       .then((history) => {
         if (!cancelled) setPriceHistory(history);
       })
@@ -931,7 +1188,7 @@ function RiftboundCardDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [card.id]);
+  }, [card.id, latestSnapshotDate]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
@@ -965,7 +1222,7 @@ function RiftboundCardDetailsModal({
 
         <div className="grid gap-6 p-5 sm:grid-cols-[14rem_minmax(0,1fr)] sm:p-7">
           <div className="relative mx-auto aspect-[744/1039] w-56 overflow-hidden rounded-2xl bg-slate-900 sm:mx-0 sm:w-56">
-            <Image src={card.imageUrl} alt={`${card.displayName} card artwork`} fill sizes="224px" draggable={false} className="object-cover" />
+            <RiftboundCardImage card={card} sizes="224px" className="object-cover" />
           </div>
 
           <div className="grid min-w-0 gap-5">
@@ -987,6 +1244,7 @@ function RiftboundCardDetailsModal({
                     </div>
                     <p className="mt-1 text-2xl font-black text-emerald-300">{formatMarketPriceOrUnavailable(price)}</p>
                     <p className="mt-2 text-xs text-slate-500">{getMarketPriceUpdatedAt(card) ? 'Latest daily snapshot' : 'No price available'}</p>
+                    <MarketValueRefreshNote />
                   </div>
                 );
               })}
@@ -1097,9 +1355,12 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
   );
 }
 
-function RiftboundCollectionShareModal({ rows, onClose }: { rows: InventoryItem[]; onClose: () => void }) {
+function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClose, onImport }: { rows: InventoryItem[]; kind?: CollectionShareKind; title?: string; onClose: () => void; onImport?: (file: File) => Promise<void> }) {
   const [copied, setCopied] = useState(false);
-  const shareUrl = useMemo(() => (typeof window === 'undefined' ? '' : getCollectionShareUrl(rows)), [rows]);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const shareUrl = useMemo(() => (typeof window === 'undefined' ? '' : getCollectionShareUrl(rows, kind, title)), [kind, rows, title]);
 
   const copyShareUrl = async () => {
     if (!shareUrl) return;
@@ -1117,14 +1378,30 @@ function RiftboundCollectionShareModal({ rows, onClose }: { rows: InventoryItem[
     window.open(shareUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !onImport) return;
+
+    setImporting(true);
+    setImportError('');
+    try {
+      await onImport(file);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Unable to import this collection JSON file.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Share or export collection" className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={`${kind === 'set' ? 'Share, export, or import' : 'Export or import'} ${kind === 'set' ? 'set' : 'collection'}`} className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
         <button type="button" aria-label="Close share collection dialog" onClick={onClose} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
         <div className="pr-14">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Collection tools</p>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Share or export your collection</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">The share link is a read-only snapshot of your current inventory. Anyone with the link can see the cards and quantities included in it.</p>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{kind === 'set' ? 'Set tools' : 'Collection tools'}</p>
+          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{kind === 'set' ? 'Share / Export this set' : 'Export / Import your collection'}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">The share link is a read-only snapshot. Anyone with the link can see the cards and quantities included in it.</p>
         </div>
         <div className="mt-6 grid gap-3">
           <button type="button" onClick={() => void copyShareUrl()} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200/50 bg-amber-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200">
@@ -1135,15 +1412,30 @@ function RiftboundCollectionShareModal({ rows, onClose }: { rows: InventoryItem[
             <FileDown size={17} />
             Open print / Save as PDF view
           </button>
+          <button type="button" onClick={() => kind === 'collection' ? downloadCollectionJson(rows) : downloadSetJson(rows, title)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
+            <FileDown size={17} />
+            {kind === 'collection' ? 'Export collection JSON' : 'Export set JSON'}
+          </button>
+          {kind === 'collection' ? (
+            <>
+              <input ref={fileInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => void handleImport(event)} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={importing} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-wait disabled:opacity-60">
+                {importing ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} />}
+                {importing ? 'Importing collection...' : 'Import collection JSON'}
+              </button>
+              {importError ? <p className="text-sm font-semibold text-red-200">{importError}</p> : null}
+            </>
+          ) : null}
         </div>
-        <div className="mt-5 flex items-start gap-2 rounded-2xl border border-white/10 bg-slate-900/50 p-3 text-xs leading-5 text-slate-500"><Link2 size={15} className="mt-0.5 shrink-0 text-slate-400" /> The link contains a snapshot, so it will not change when your inventory changes later.</div>
       </div>
     </div>
   );
 }
 
 export function RiftboundCardGrid() {
-  const [activeTab, setActiveTab] = useState<InventoryTab>('global');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = parseInventoryTab(searchParams.get('tab')) ?? 'global';
   const [query, setQuery] = useState('');
   const [tagQuery, setTagQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>(defaultSortMode);
@@ -1158,6 +1450,77 @@ export function RiftboundCardGrid() {
   const [selectedCard, setSelectedCard] = useState<RiftboundCard | null>(null);
   const [collectionHistoryOpen, setCollectionHistoryOpen] = useState(false);
   const [collectionShareOpen, setCollectionShareOpen] = useState(false);
+  const [collectionShareRows, setCollectionShareRows] = useState<InventoryItem[]>([]);
+  const [collectionShareKind, setCollectionShareKind] = useState<CollectionShareKind>('collection');
+  const [collectionShareTitle, setCollectionShareTitle] = useState('');
+  const [sets, setSets] = useState<RiftboundSet[]>([]);
+  const [setsLoading, setSetsLoading] = useState(false);
+  const [setsError, setSetsError] = useState('');
+  const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
+  const [setBuilderOpen, setSetBuilderOpen] = useState(false);
+  const [setBuilderSource, setSetBuilderSource] = useState<SetSourceTab>('global');
+  const [setBuilderName, setSetBuilderName] = useState('');
+  const [setBuilderRows, setSetBuilderRows] = useState<Record<string, number>>({});
+  const [setSaving, setSetSaving] = useState(false);
+  const [setDeleting, setSetDeleting] = useState(false);
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
+  const [setOwnershipFilter, setSetOwnershipFilter] = useState<SetOwnershipFilter>('all');
+  const setImportInputRef = useRef<HTMLInputElement>(null);
+
+  const setActiveTab = useCallback((nextTab: InventoryTab) => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (nextTab === 'global') nextParams.delete('tab');
+    else nextParams.set('tab', nextTab);
+    const query = nextParams.toString();
+    router.replace(query ? `/inventory?${query}` : '/inventory', { scroll: false });
+  }, [router, searchParams]);
+  const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
+  const [latestSnapshotDate, setLatestSnapshotDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch('/api/riftbound/prices/latest', { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await response.json() as RiftboundLatestPricesResponse;
+        if (!response.ok) throw new Error(data.error || 'Unable to load the latest Riftbound market values.');
+        if (!cancelled) {
+          setLatestPrices(data.prices ?? {});
+          setLatestSnapshotDate(data.snapshotDate ?? null);
+        }
+      })
+      .catch(() => {
+        // The generated catalogue remains a safe fallback when snapshots are unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cards = useMemo(() => RIFTBOUND_CARDS.map((card) => {
+    const latest = latestPrices[card.id];
+    if (!latest) return card;
+
+    return {
+      ...card,
+      marketPrice: latest.normal,
+      marketPriceUpdatedAt: latest.updatedAt,
+      marketPrices: {
+        ...card.marketPrices,
+        normal: latest.normal,
+        foil: latest.foil,
+        updatedAt: latest.updatedAt,
+      },
+    };
+  }), [latestPrices]);
+
+  useEffect(() => {
+    setSelectedCard((current) => {
+      if (!current) return current;
+      return cards.find((card) => card.id === current.id) ?? current;
+    });
+  }, [cards]);
 
   const loadInventory = useCallback(async (nextSession: Session) => {
     const storageKey = getInventoryDraftStorageKey(nextSession.user.id);
@@ -1190,17 +1553,41 @@ export function RiftboundCardGrid() {
     }
   }, []);
 
+  const loadSets = useCallback(async (nextSession: Session) => {
+    setSetsLoading(true);
+    setSetsError('');
+
+    try {
+      const response = await fetch('/api/riftbound/sets', {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${nextSession.access_token}` },
+      });
+      const data = await response.json() as SetResponse;
+      if (!response.ok) throw new Error(data.error || 'Unable to load your Riftbound sets.');
+      setSets(data.sets ?? []);
+    } catch (error) {
+      setSetsError(error instanceof Error ? error.message : 'Unable to load your Riftbound sets.');
+      setSets([]);
+    } finally {
+      setSetsLoading(false);
+    }
+  }, []);
+
   useEffect(() => subscribeToAuthSession((nextSession) => {
     setSession(nextSession);
     if (nextSession) {
       void loadInventory(nextSession);
+      void loadSets(nextSession);
     } else {
       setInventoryRows([]);
       setSavedInventoryRows([]);
+      setSets([]);
       setInventoryLoading(false);
+      setSetsLoading(false);
       setInventoryError('');
+      setSetsError('');
     }
-  }), [loadInventory]);
+  }), [loadInventory, loadSets]);
 
   const inventoryByCard = useMemo(() => {
     const quantities = new Map<string, number>();
@@ -1228,9 +1615,9 @@ export function RiftboundCardGrid() {
 
   const deferredQuery = useDeferredValue(query);
   const deferredTagQuery = useDeferredValue(tagQuery);
-  const cardSearchIndex = useMemo(() => RIFTBOUND_CARDS.map((card) => ({
+  const cardSearchIndex = useMemo(() => cards.map((card) => ({
     card,
-    searchableText: [
+    searchableText: normalizeSearchText([
       card.displayName,
       card.name,
       card.fullName,
@@ -1247,38 +1634,39 @@ export function RiftboundCardGrid() {
       String(card.energyCost),
       String(card.powerCost),
       String(card.might),
-    ].join(' ').toLowerCase(),
-  })), []);
+    ].join(' ')),
+  })), [cards]);
 
   const filterOptionsByField = useMemo(() => {
-    const setNames = new Map(RIFTBOUND_CARDS.map((card) => [card.setCode, card.setName]));
+    const setNames = new Map(cards.map((card) => [card.setCode, card.setName]));
 
     return {
     setCode: filterOptions(
-      jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => card.setCode))),
+      jumbledValues(uniqueSorted(cards.map((card) => card.setCode))),
       'All Sets',
       (setCode) => `${setCode} - ${setNames.get(setCode) ?? setCode}`,
     ),
-    rarity: filterOptions(rarityOrder.filter((rarity) => RIFTBOUND_CARDS.some((card) => card.rarity === rarity)), 'All Rarities'),
-    cardType: filterOptions(jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => card.cardType))), 'All Card Types'),
+    rarity: filterOptions(rarityOrder.filter((rarity) => cards.some((card) => card.rarity === rarity)), 'All Rarities'),
+    cardType: filterOptions(jumbledValues(uniqueSorted(cards.map((card) => card.cardType))), 'All Card Types'),
     domain: filterOptions(
-      ['Colorless', 'Body', 'Mind', 'Order', 'Chaos', 'Calm', 'Fury'].filter((domain) => RIFTBOUND_CARDS.some((card) => card.domains.includes(domain))),
+      ['Colorless', 'Body', 'Mind', 'Order', 'Chaos', 'Calm', 'Fury'].filter((domain) => cards.some((card) => card.domains.includes(domain))),
       'All Domains',
     ),
-    energyCost: filterOptions(jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => String(card.energyCost)))), 'All Energy Costs'),
-    powerCost: filterOptions(jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => String(card.powerCost)))), 'All Power Costs'),
-    might: filterOptions(jumbledValues(uniqueSorted(RIFTBOUND_CARDS.map((card) => String(card.might)))), 'All Might Values'),
+    energyCost: filterOptions(jumbledValues(uniqueSorted(cards.map((card) => String(card.energyCost)))), 'All Energy Costs'),
+    powerCost: filterOptions(jumbledValues(uniqueSorted(cards.map((card) => String(card.powerCost)))), 'All Power Costs'),
+    might: filterOptions(jumbledValues(uniqueSorted(cards.map((card) => String(card.might)))), 'All Might Values'),
     };
-  }, []);
+  }, [cards]);
 
   const filteredCards = useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLowerCase();
-    const normalizedTagQuery = deferredTagQuery.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchText(deferredQuery);
+    const normalizedTagQuery = normalizeSearchText(deferredTagQuery);
 
     const matchingCards = cardSearchIndex.filter(({ card, searchableText }) => {
       const quantity = getCardQuantity(inventoryByCard, card.id);
       const savedQuantity = getCardQuantity(savedInventoryByCard, card.id);
-      if (activeTab === 'inventory' && quantity === 0 && savedQuantity === 0) return false;
+      const inventoryOnly = activeTab === 'inventory' || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory');
+      if (inventoryOnly && quantity === 0 && savedQuantity === 0) return false;
       if (!matchesFilter(filters.setCode, card.setCode)) return false;
       if (!matchesFilter(filters.rarity, card.rarity)) return false;
       if (!matchesFilter(filters.cardType, card.cardType)) return false;
@@ -1286,35 +1674,35 @@ export function RiftboundCardGrid() {
       if (!matchesFilter(filters.energyCost, String(card.energyCost))) return false;
       if (!matchesFilter(filters.powerCost, String(card.powerCost))) return false;
       if (!matchesFilter(filters.might, String(card.might))) return false;
-      if (normalizedTagQuery && !card.tags.some((tag) => tag.toLowerCase().includes(normalizedTagQuery))) return false;
+      if (normalizedTagQuery && !card.tags.some((tag) => normalizeSearchText(tag).includes(normalizedTagQuery))) return false;
 
       if (!normalizedQuery) return true;
       return searchableText.includes(normalizedQuery);
     }).map(({ card }) => card);
 
     return matchingCards.sort((left, right) => compareRiftboundCards(left, right, sortMode, inventoryByCard));
-  }, [activeTab, cardSearchIndex, deferredQuery, deferredTagQuery, filters, inventoryByCard, savedInventoryByCard, sortMode]);
+  }, [activeTab, cardSearchIndex, deferredQuery, deferredTagQuery, filters, inventoryByCard, savedInventoryByCard, setBuilderOpen, setBuilderSource, sortMode]);
 
   const ownedUniqueCount = inventoryByCard.size;
   const ownedCopyCount = Array.from(inventoryByCard.values()).reduce((total, quantity) => total + quantity, 0);
   const unpricedCopyCount = inventoryRows.reduce((total, row) => {
-    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === row.card_id);
+    const card = cards.find((candidate) => candidate.id === row.card_id);
     return total + (card && getMarketPriceForFinish(card, row.finish) === null ? row.quantity : 0);
   }, 0);
   const totalMarketValue = inventoryRows.reduce((total, row) => {
-    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === row.card_id);
+    const card = cards.find((candidate) => candidate.id === row.card_id);
     return total + (card ? (getMarketPriceForFinish(card, row.finish) ?? 0) * row.quantity : 0);
   }, 0);
   const inventoryRarityCounts = useMemo(() => {
     const counts = new Map(inventoryRarityOrder.map((rarity) => [rarity, 0]));
     inventoryRows.forEach((row) => {
-      const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === row.card_id);
+      const card = cards.find((candidate) => candidate.id === row.card_id);
       if (card && counts.has(card.rarity)) {
         counts.set(card.rarity, (counts.get(card.rarity) ?? 0) + row.quantity);
       }
     });
     return counts;
-  }, [inventoryRows]);
+  }, [cards, inventoryRows]);
   const activeFilterCount = Object.values(filters).reduce(
     (total, values) => total + values.filter((value) => value !== ALL_FILTER_VALUE).length,
     0,
@@ -1324,7 +1712,27 @@ export function RiftboundCardGrid() {
     [inventoryRows, savedInventoryRows],
   );
   const hasUnsavedInventoryChanges = inventoryChanges.length > 0;
-  const availableSortOptions = activeTab === 'inventory'
+  const selectedSet = sets.find((set) => set.id === selectedSetId) ?? null;
+  const selectedSetCards = selectedSet ? expandSetCards(selectedSet, cards) : [];
+  const selectedSetCardsWithOwnership = selectedSetCards.map((entry) => ({
+    ...entry,
+    owned: getCardQuantity(inventoryByCard, entry.card.id) > entry.copyIndex,
+  }));
+  const displayedSetCards = selectedSetCardsWithOwnership.filter((entry) => setOwnershipFilter === 'all' || (setOwnershipFilter === 'owned' ? entry.owned : !entry.owned));
+  const selectedSetRarityCounts = useMemo(() => {
+    const counts = new Map(inventoryRarityOrder.map((rarity) => [rarity, 0]));
+    selectedSet?.cards.forEach((entry) => {
+      const card = cards.find((candidate) => candidate.id === entry.card_id);
+      if (card && counts.has(card.rarity)) counts.set(card.rarity, (counts.get(card.rarity) ?? 0) + entry.quantity);
+    });
+    return counts;
+  }, [cards, selectedSet]);
+  const selectedSetValue = selectedSet?.cards.reduce((total, entry) => {
+    const card = cards.find((candidate) => candidate.id === entry.card_id);
+    return total + (card ? (getMarketPriceForFinish(card, card.defaultFinish) ?? 0) * entry.quantity : 0);
+  }, 0) ?? 0;
+  const setBuilderTotalCopies = Object.values(setBuilderRows).reduce((total, quantity) => total + quantity, 0);
+  const availableSortOptions = activeTab === 'inventory' || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory')
     ? sortOptions
     : sortOptions.filter((option) => !option.value.startsWith('quantity-'));
 
@@ -1348,7 +1756,7 @@ export function RiftboundCardGrid() {
 
     setInventoryRows((rows) => updateInventoryRows(rows, card, finish, delta));
     setInventoryError('');
-  }, [session]);
+  }, [session, setActiveTab]);
 
   const saveInventory = async () => {
     if (!session) {
@@ -1396,6 +1804,208 @@ export function RiftboundCardGrid() {
     setFilters((current) => ({ ...current, [field]: toggleFilterValue(current[field], value) }));
   };
 
+  const applyRarityFilter = (rarity: string) => {
+    setActiveTab('inventory');
+    setSetBuilderOpen(false);
+    setFilters((current) => ({ ...current, rarity: [rarity] }));
+    setFiltersOpen(true);
+  };
+
+  const startSetBuilder = () => {
+    if (!session) {
+      setSetsError('Sign in to create a Riftbound set.');
+      setActiveTab('sets');
+      return;
+    }
+    if (sets.length >= 6) {
+      setSetsError('You can create up to 6 Riftbound sets.');
+      return;
+    }
+    setSelectedSetId(null);
+    setEditingSetId(null);
+    setSetBuilderOpen(true);
+    setSetBuilderSource('global');
+    setSetBuilderName('');
+    setSetBuilderRows({});
+    setSetsError('');
+    resetFilters();
+  };
+
+  const editSet = (set: RiftboundSet) => {
+    setSelectedSetId(null);
+    setEditingSetId(set.id);
+    setSetBuilderOpen(true);
+    setSetBuilderSource('global');
+    setSetBuilderName(set.name);
+    setSetBuilderRows(Object.fromEntries(set.cards.map((card) => [card.card_id, card.quantity])));
+    setSetsError('');
+    resetFilters();
+  };
+
+  const openCollectionShare = (rows: InventoryItem[], kind: CollectionShareKind = 'collection', title = '') => {
+    setCollectionShareRows(rows);
+    setCollectionShareKind(kind);
+    setCollectionShareTitle(title);
+    setCollectionShareOpen(true);
+  };
+
+  const importCollectionJson = async (file: File) => {
+    if (!session) throw new Error('Sign in to import a collection into your inventory.');
+
+    let parsedValue: unknown;
+    try {
+      parsedValue = JSON.parse(await file.text()) as unknown;
+    } catch {
+      throw new Error('The selected file is not valid JSON.');
+    }
+
+    const additions = parseCollectionJson(parsedValue);
+    setInventoryRows((rows) => addInventoryRows(rows, additions));
+    setInventoryError('');
+    setActiveTab('inventory');
+    setCollectionShareOpen(false);
+  };
+
+  const importSetJson = async (file: File) => {
+    if (!session) throw new Error('Sign in to import a set.');
+    if (sets.length >= 6) throw new Error('You can create up to 6 Riftbound sets.');
+
+    let parsedValue: unknown;
+    try {
+      parsedValue = JSON.parse(await file.text()) as unknown;
+    } catch {
+      throw new Error('The selected file is not valid JSON.');
+    }
+
+    const importedSet = parseSetJson(parsedValue);
+    const response = await fetch('/api/riftbound/sets', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: importedSet.name,
+        cards: importedSet.cards.map((card) => ({ cardId: card.card_id, quantity: card.quantity })),
+      }),
+    });
+    const data = await response.json() as SetMutationResponse;
+    if (!response.ok || !data.set) throw new Error(data.error || 'Unable to import this set.');
+
+    setSets((current) => [...current, data.set as RiftboundSet]);
+    setSelectedSetId(data.set.id);
+    setSetOwnershipFilter('all');
+    setActiveTab('sets');
+    setSetsError('');
+    setCollectionShareOpen(false);
+  };
+
+  const deleteSet = async (set: RiftboundSet) => {
+    if (!session || setDeleting) return;
+    if (!window.confirm(`Delete "${set.name}"? This cannot be undone.`)) return;
+
+    setSetDeleting(true);
+    setSetsError('');
+    try {
+      const response = await fetch('/api/riftbound/sets', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ setId: set.id }),
+      });
+      const data = await response.json() as { deletedSetId?: string; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to delete this set.');
+
+      setSets((current) => current.filter((candidate) => candidate.id !== set.id));
+      setSelectedSetId(null);
+      setSetOwnershipFilter('all');
+    } catch (error) {
+      setSetsError(error instanceof Error ? error.message : 'Unable to delete this set.');
+    } finally {
+      setSetDeleting(false);
+    }
+  };
+
+  const handleSetImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      await importSetJson(file);
+    } catch (error) {
+      setSetsError(error instanceof Error ? error.message : 'Unable to import this set.');
+    }
+  };
+
+  const adjustSetCard = (card: RiftboundCard, delta: 1 | -1) => {
+    setSetBuilderRows((rows) => updateSetBuilderRows(rows, card.id, delta));
+  };
+
+  const addAllSetCards = () => {
+    setSetBuilderRows((rows) => {
+      const nextRows = { ...rows };
+      filteredCards.forEach((card) => {
+        nextRows[card.id] = (nextRows[card.id] ?? 0) + 1;
+      });
+      return nextRows;
+    });
+  };
+
+  const removeAllSetCards = () => {
+    setSetBuilderRows((rows) => {
+      const nextRows = { ...rows };
+      filteredCards.forEach((card) => delete nextRows[card.id]);
+      return nextRows;
+    });
+  };
+
+  const createSet = async () => {
+    if (!session) {
+      setSetsError('Sign in to create a Riftbound set.');
+      return;
+    }
+    const name = setBuilderName.trim();
+    const cards = Object.entries(setBuilderRows).map(([cardId, quantity]) => ({ cardId, quantity }));
+    if (!name || cards.length === 0) {
+      setSetsError('Enter a set name and select at least one card.');
+      return;
+    }
+    if (setBuilderTotalCopies > 5000) {
+      setSetsError('A set cannot contain more than 5000 total card copies.');
+      return;
+    }
+
+    setSetSaving(true);
+    setSetsError('');
+    try {
+      const response = await fetch('/api/riftbound/sets', {
+        method: editingSetId ? 'PATCH' : 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ setId: editingSetId ?? undefined, name, cards }),
+      });
+      const data = await response.json() as SetMutationResponse;
+      if (!response.ok || !data.set) throw new Error(data.error || 'Unable to create Riftbound set.');
+      setSets((current) => editingSetId
+        ? current.map((set) => set.id === editingSetId ? data.set as RiftboundSet : set)
+        : [...current, data.set as RiftboundSet]);
+      setSelectedSetId(data.set.id);
+      setSetBuilderOpen(false);
+      setSetBuilderRows({});
+      setSetBuilderName('');
+      setEditingSetId(null);
+    } catch (error) {
+      setSetsError(error instanceof Error ? error.message : 'Unable to create Riftbound set.');
+    } finally {
+      setSetSaving(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
       <section className="mx-auto grid w-full max-w-[1600px] gap-6">
@@ -1414,19 +2024,28 @@ export function RiftboundCardGrid() {
             <h1 className="mt-3 text-3xl font-black text-white sm:text-5xl">KnowLeague - Riftbound</h1>
           </div>
 
-          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
-            {(['global', 'inventory'] as InventoryTab[]).map((tab) => {
+          <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
+            {(['global', 'inventory', 'sets'] as InventoryTab[]).map((tab) => {
               const active = activeTab === tab;
-              const label = tab === 'global' ? 'Global' : 'Inventory';
-              const count = tab === 'global' ? RIFTBOUND_CARDS.length : ownedUniqueCount;
+              const label = tab === 'global' ? 'Global' : tab === 'inventory' ? 'Inventory' : 'Sets';
+              const count = tab === 'global' ? cards.length : tab === 'inventory' ? ownedUniqueCount : sets.length;
               return (
                 <button
                   key={tab}
                   type="button"
-                onClick={() => {
-                  setActiveTab(tab);
-                  if (tab === 'global' && sortMode.startsWith('quantity-')) setSortMode(defaultSortMode);
-                }}
+                  disabled={setBuilderOpen && tab !== 'sets'}
+                  onClick={() => {
+                    if (tab === 'sets') {
+                      setActiveTab('sets');
+                      setSetBuilderOpen(false);
+                      setEditingSetId(null);
+                      setSelectedSetId(null);
+                      return;
+                    }
+                    if (setBuilderOpen) return;
+                    setActiveTab(tab);
+                    if (tab === 'global' && sortMode.startsWith('quantity-')) setSortMode(defaultSortMode);
+                  }}
                   className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-black transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${active ? 'border-amber-200/50 bg-amber-300 text-slate-950 shadow-lg shadow-amber-950/20' : 'border-transparent text-slate-400 hover:border-white/15 hover:bg-slate-800/80 hover:text-white'}`}
                 >
                   {label}
@@ -1524,19 +2143,19 @@ export function RiftboundCardGrid() {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{ownedCopyCount} total cards</span>
-                <button type="button" onClick={() => setCollectionShareOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
+                <button type="button" onClick={() => openCollectionShare(inventoryRows)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
                   <Share2 size={14} />
-                  Share / Export
+                  Export / Import
                 </button>
               </div>
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_1px_14rem_auto] lg:items-stretch">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {inventoryRarityOrder.map((rarity) => (
-                  <div key={rarity} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center">
+                  <button key={rarity} type="button" onClick={() => applyRarityFilter(rarity)} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200">
                     <p className={`text-xs font-black uppercase tracking-[0.12em] ${rarityStyles[rarity] ?? 'text-slate-300'}`}>{rarity}</p>
                     <p className="mt-1 text-xl font-black text-white">{inventoryRarityCounts.get(rarity) ?? 0}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
               <div className="h-px bg-white/10 lg:h-full" aria-hidden="true" />
@@ -1555,12 +2174,134 @@ export function RiftboundCardGrid() {
           </section>
         ) : null}
 
-        {activeTab === 'inventory' && !session ? (
+        {activeTab === 'sets' && !session ? (
+          <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
+            <PackageOpen size={38} className="text-amber-200" />
+            <div>
+              <h2 className="text-2xl font-black text-white">Sign in to view your sets</h2>
+              <p className="mt-2 text-sm text-slate-400">Your Riftbound sets are saved to your KnowLeague account.</p>
+            </div>
+            <Link href="/login" className="rounded-xl border border-amber-200/40 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200">Sign in</Link>
+          </section>
+        ) : activeTab === 'sets' && session && setsLoading ? (
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading your sets...</section>
+        ) : activeTab === 'sets' && session ? (
+          setBuilderOpen ? (
+            <section className="grid gap-4 rounded-3xl border border-amber-200/20 bg-slate-950/80 p-5 sm:p-6" aria-label="Create Riftbound set">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Set builder</p>
+                  <h2 className="mt-2 text-2xl font-black text-white">{editingSetId ? 'Edit set' : 'Create a new set'}</h2>
+                  <p className="mt-1 text-sm text-slate-400">Select cards from the {setBuilderSource} catalogue. Filters apply to Add All and Remove All.</p>
+                </div>
+                <span className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-400">{setBuilderTotalCopies} selected cards</span>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <input value={setBuilderName} onChange={(event) => setSetBuilderName(event.target.value)} maxLength={80} placeholder="Set Name" aria-label="Set Name" className="h-12 rounded-2xl border border-white/10 bg-slate-900/80 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" />
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
+                  {(['global', 'inventory'] as SetSourceTab[]).map((source) => (
+                    <button key={source} type="button" onClick={() => setSetBuilderSource(source)} className={`rounded-xl px-4 py-2 text-xs font-black uppercase tracking-[0.1em] transition ${setBuilderSource === source ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{source}</button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button type="button" onClick={addAllSetCards} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white">Add All</button>
+                  <button type="button" onClick={removeAllSetCards} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white">Remove All</button>
+                </div>
+              </div>
+              {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="button" onClick={() => { setSetBuilderOpen(false); setSetBuilderRows({}); setSetBuilderName(''); setEditingSetId(null); setSetsError(''); }} className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-300 transition hover:border-white/25 hover:text-white">Cancel</button>
+                <button type="button" onClick={() => void createSet()} disabled={setSaving || setBuilderTotalCopies === 0} title={setBuilderTotalCopies === 0 ? 'Select at least one card first' : undefined} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">{setSaving ? <LoaderCircle size={16} className="animate-spin" /> : null} {editingSetId ? 'Save Changes' : 'Create Set'}</button>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {filteredCards.map((card) => (
+                  <RiftboundCardRow
+                    key={card.id}
+                    card={card}
+                    normalQuantity={0}
+                    foilQuantity={0}
+                    mode="set-selection"
+                    setQuantity={setBuilderRows[card.id] ?? 0}
+                    pendingChange={false}
+                    pending={false}
+                    onSetAdjust={adjustSetCard}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : selectedSet ? (
+            <>
+              <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <button type="button" onClick={() => { setSelectedSetId(null); setSetOwnershipFilter('all'); }} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"><ArrowLeft size={14} /> All Sets</button>
+                    <h2 className="mt-3 text-2xl font-black text-white">{selectedSet.name}</h2>
+                    <p className="mt-1 text-sm text-slate-400">{selectedSetCards.length} total cards</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => editSet(selectedSet)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><Pencil size={14} /> Edit Set</button>
+                    <button type="button" onClick={() => openCollectionShare(getSetShareRows(selectedSet), 'set', selectedSet.name)} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Share / Export</button>
+                    <button type="button" onClick={() => void deleteSet(selectedSet)} disabled={setDeleting} className="inline-flex items-center gap-2 rounded-xl border border-red-300/30 bg-red-950/30 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-red-200 transition hover:border-red-200/60 hover:bg-red-950/50 disabled:cursor-wait disabled:opacity-60"><Trash2 size={14} /> {setDeleting ? 'Deleting...' : 'Delete Set'}</button>
+                  </div>
+                </div>
+                {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_1px_14rem] lg:items-stretch">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {inventoryRarityOrder.map((rarity) => (
+                      <div key={rarity} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center">
+                        <p className={`text-xs font-black uppercase tracking-[0.12em] ${rarityStyles[rarity] ?? 'text-slate-300'}`}>{rarity}</p>
+                        <p className="mt-1 text-xl font-black text-white">{selectedSetRarityCounts.get(rarity) ?? 0}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="h-px bg-white/10 lg:h-full" aria-hidden="true" />
+                  <div className="flex flex-col justify-center rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3">
+                    <div className="flex items-center gap-2"><p className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-slate-500">Set value</p><MarketValueSourceInfo /></div>
+                    <p className="mt-1 text-2xl font-black text-emerald-300">{formatMarketPrice(selectedSetValue)}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Inventory ownership</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(['all', 'owned', 'missing'] as SetOwnershipFilter[]).map((ownershipFilter) => (
+                      <button key={ownershipFilter} type="button" onClick={() => setSetOwnershipFilter(ownershipFilter)} className={`rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition ${setOwnershipFilter === ownershipFilter ? 'border-amber-200/50 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}>{ownershipFilter === 'all' ? 'All cards' : ownershipFilter}</button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {displayedSetCards.map(({ card, key, owned }) => (
+                  <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" ownership={owned ? 'owned' : 'missing'} pendingChange={false} pending={false} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6" aria-label="Riftbound sets">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Your sets</p>
+                  <p className="mt-1 text-sm text-slate-400">Create up to 6 card sets.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input ref={setImportInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => void handleSetImportFile(event)} />
+                  <button type="button" onClick={() => setImportInputRef.current?.click()} disabled={sets.length >= 6} className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">Import Set</button>
+                  <button type="button" onClick={startSetBuilder} disabled={sets.length >= 6} className="rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Create Set</button>
+                </div>
+              </div>
+              {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
+              {sets.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">You have not created any sets yet.</p> : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {sets.map((set) => <button key={set.id} type="button" onClick={() => { setSelectedSetId(set.id); setSetOwnershipFilter('all'); }} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><p className="truncate text-lg font-black text-white">{set.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">{expandSetCards(set).length} cards</p></button>)}
+                </div>
+              )}
+            </section>
+          )
+        ) : activeTab === 'inventory' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
             <PackageOpen size={38} className="text-amber-200" />
             <div>
               <h2 className="text-2xl font-black text-white">Sign in to view your inventory</h2>
-              <p className="mt-2 text-sm text-slate-400">Your card counts are saved to your KnowLeague account.</p>
+              <p className="mt-2 text-sm text-slate-400">Your card collection is saved to your KnowLeague account.</p>
             </div>
             <Link href="/login" className="rounded-xl border border-amber-200/40 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200">Sign in</Link>
           </section>
@@ -1568,9 +2309,23 @@ export function RiftboundCardGrid() {
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading your inventory...</section>
         ) : activeTab === 'inventory' && inventoryError ? (
           <section className="rounded-3xl border border-red-300/20 bg-red-950/20 px-6 py-16 text-center text-sm font-semibold text-red-200">{inventoryError}</section>
+        ) : activeTab === 'sets' && selectedSet ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {selectedSetCards.map(({ card, key }) => (
+              <RiftboundCardRow
+                key={key}
+                card={card}
+                normalQuantity={0}
+                foilQuantity={0}
+                mode="set-view"
+                pendingChange={false}
+                pending={false}
+              />
+            ))}
+          </div>
         ) : filteredCards.length === 0 ? (
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">
-            {activeTab === 'inventory' ? 'Your inventory does not match these filters yet.' : 'No cards match these filters.'}
+            {activeTab === 'inventory' ? 'Your inventory does not match these filters yet.' : activeTab === 'sets' ? 'No cards match these filters.' : 'No cards match these filters.'}
           </section>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1580,13 +2335,18 @@ export function RiftboundCardGrid() {
                 card={card}
                 normalQuantity={getFinishQuantity(inventoryByFinish, card.id, 'normal')}
                 foilQuantity={getFinishQuantity(inventoryByFinish, card.id, 'foil')}
+                mode={activeTab === 'sets' && setBuilderOpen ? 'set-selection' : 'inventory'}
+                setQuantity={setBuilderRows[card.id] ?? 0}
                 pendingChange={
-                  getFinishQuantity(inventoryByFinish, card.id, 'normal') !== getFinishQuantity(savedInventoryByFinish, card.id, 'normal')
+                  activeTab !== 'sets'
+                  && (getFinishQuantity(inventoryByFinish, card.id, 'normal') !== getFinishQuantity(savedInventoryByFinish, card.id, 'normal')
                   || getFinishQuantity(inventoryByFinish, card.id, 'foil') !== getFinishQuantity(savedInventoryByFinish, card.id, 'foil')
+                  )
                 }
                 pending={inventorySaving}
-                onOpen={setSelectedCard}
-                onAdjust={adjustInventory}
+                onOpen={setBuilderOpen ? undefined : setSelectedCard}
+                onAdjust={setBuilderOpen ? undefined : adjustInventory}
+                onSetAdjust={setBuilderOpen ? adjustSetCard : undefined}
               />
             ))}
           </div>
@@ -1597,6 +2357,7 @@ export function RiftboundCardGrid() {
           card={selectedCard}
           normalQuantity={getFinishQuantity(inventoryByFinish, selectedCard.id, 'normal')}
           foilQuantity={getFinishQuantity(inventoryByFinish, selectedCard.id, 'foil')}
+          latestSnapshotDate={latestSnapshotDate}
           pending={inventorySaving}
           onClose={() => setSelectedCard(null)}
           onAdjust={adjustInventory}
@@ -1606,7 +2367,13 @@ export function RiftboundCardGrid() {
         <RiftboundCollectionValueHistoryModal session={session} onClose={() => setCollectionHistoryOpen(false)} />
       ) : null}
       {collectionShareOpen ? (
-        <RiftboundCollectionShareModal rows={inventoryRows} onClose={() => setCollectionShareOpen(false)} />
+        <RiftboundCollectionShareModal
+          rows={collectionShareRows}
+          kind={collectionShareKind}
+          title={collectionShareTitle}
+          onClose={() => setCollectionShareOpen(false)}
+          onImport={collectionShareKind === 'collection' ? importCollectionJson : importSetJson}
+        />
       ) : null}
       {hasUnsavedInventoryChanges ? (
         <button

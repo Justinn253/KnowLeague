@@ -147,13 +147,13 @@ export function SplashScrambleDailyLeaderboard({ open, onClose, snapshot, loadin
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="splash-scramble-daily-leaderboard-title"
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 "
-        onMouseDown={(event) => event.stopPropagation()}
+        className="flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)]"
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-4 border-b border-white/10 p-5 sm:p-6">
           <div>
@@ -206,10 +206,10 @@ export function SplashScrambleDailyLeaderboard({ open, onClose, snapshot, loadin
       </section>
 
       {contextMenu ? createPortal(
-        <div ref={contextMenuRef} onMouseDown={(event) => event.stopPropagation()} className="fixed z-[110] min-w-48 rounded-2xl border border-white/10 bg-slate-950 p-2 " style={{ left: contextMenu.x, top: contextMenu.y }}>
-          <button type="button" onClick={() => { setContextMenu(null); onClose(); window.setTimeout(() => openPublicProfileOverlay(contextMenu.entry.username), 0); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</button>
+        <div ref={contextMenuRef} onPointerDown={(event) => event.stopPropagation()} className="fixed z-[110] max-h-[calc(100dvh-1rem)] w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2" style={{ left: contextMenu.x, top: contextMenu.y }}>
+          <button type="button" onClick={() => { setContextMenu(null); onClose(); window.setTimeout(() => openPublicProfileOverlay(contextMenu.entry.username), 0); }} className="flex min-h-11 w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</button>
           {contextMenu.entry.userId !== currentUserId ? (
-            <button type="button" onClick={() => void sendFriendRequest(contextMenu.entry)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10">
+            <button type="button" onClick={() => void sendFriendRequest(contextMenu.entry)} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10">
               <UserPlus size={15} />
               Send Friend Request
             </button>

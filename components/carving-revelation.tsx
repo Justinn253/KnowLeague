@@ -2330,7 +2330,7 @@ export function CarvingRevelation() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-6 text-white">
+    <main className="min-h-[100dvh] bg-slate-950 px-4 py-4 text-white sm:py-6">
       <div className="mx-auto max-w-7xl">
         <div className="mb-5">{header}</div>
         <div className="grid gap-6">
@@ -2503,7 +2503,7 @@ export function CarvingRevelation() {
             ) : null}
 
             {shouldShowGuessForm ? (
-              <form id="carving-revelation-guess-form" onSubmit={submitGuess} className="relative mt-4 flex flex-wrap gap-3">
+              <form id="carving-revelation-guess-form" onSubmit={submitGuess} className="relative mt-4 flex flex-col gap-3 sm:flex-row">
                 <div ref={guessInputAreaRef} className="relative min-w-0 flex-1">
                   <input
                     value={guess}
@@ -2514,7 +2514,10 @@ export function CarvingRevelation() {
                     aria-autocomplete="list"
                     aria-controls="carving-revelation-guess-suggestions"
                     spellCheck={false}
-                    className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-amber-300/60 disabled:opacity-60"
+                    inputMode="search"
+                    enterKeyHint="done"
+                    aria-label="Carving guess"
+                    className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300 disabled:opacity-60"
                     placeholder={canGuess ? 'Type the skin line' : skipTurnBlockedByPowerUp ? 'Turn skipped by power up' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
                   />
                   {suggestions.length > 0 && canGuess ? (
@@ -2529,7 +2532,7 @@ export function CarvingRevelation() {
                           onMouseEnter={() => playUiSound('autocomplete-hover')}
                           onFocus={() => playUiSound('autocomplete-hover')}
                           onClick={() => handleSuggestionClick(suggestion)}
-                          className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                          className="min-h-11 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300"
                         >
                           {suggestion}
                         </button>
@@ -2537,7 +2540,7 @@ export function CarvingRevelation() {
                     </div>
                   ) : null}
                 </div>
-                <button type="submit" disabled={!canGuess || !guess.trim() || busy} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-violet-400 px-5 py-3 font-black text-white transition hover:bg-violet-300 disabled:opacity-60">
+                <button type="submit" disabled={!canGuess || !guess.trim() || busy} className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-violet-400 px-5 py-3 font-black text-white transition hover:bg-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-300 disabled:opacity-60 sm:w-auto">
                   <PencilLine size={18} /> Guess
                 </button>
                 {shouldShowPowerUpControls ? (
@@ -2576,7 +2579,7 @@ export function CarvingRevelation() {
               compactColumns
             />
 
-            <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5">
+            <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 sm:p-5">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">Recent Guesses</p>
               </div>

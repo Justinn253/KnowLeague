@@ -1191,13 +1191,13 @@ function RiftboundCardDetailsModal({
   }, [card.id, latestSnapshotDate]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`${card.displayName} details`}
-        className="relative max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950"
-        onMouseDown={(event) => event.stopPropagation()}
+        className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <button
           type="button"
@@ -1207,7 +1207,7 @@ function RiftboundCardDetailsModal({
         >
           <X size={18} />
         </button>
-        <div className="absolute right-20 top-4 z-10 flex items-center gap-2">
+        <div className="absolute right-3 top-16 z-10 flex max-w-[calc(100%-4.5rem)] flex-wrap justify-end gap-2 sm:right-20 sm:top-4 sm:max-w-none sm:flex-nowrap">
           {finishOptions.map((finish) => (
             <FinishInventoryControls
               key={finish}
@@ -1226,7 +1226,7 @@ function RiftboundCardDetailsModal({
           </div>
 
           <div className="grid min-w-0 gap-5">
-            <div className="min-w-0 pr-40 sm:pr-44">
+            <div className="min-w-0 pr-4 sm:pr-44">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p>
                 <h2 className="mt-2 text-3xl font-black tracking-tight text-white">{card.displayName}</h2>
@@ -1320,13 +1320,13 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
   }, [session.access_token, session.user.id]);
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Collection value history"
-        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-5 sm:p-7"
-        onMouseDown={(event) => event.stopPropagation()}
+        className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-4 sm:max-h-[calc(100dvh-2rem)] sm:p-7"
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <button
           type="button"
@@ -1395,8 +1395,8 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={`${kind === 'set' ? 'Share, export, or import' : 'Export or import'} ${kind === 'set' ? 'set' : 'collection'}`} className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={`${kind === 'set' ? 'Share, export, or import' : 'Export or import'} ${kind === 'set' ? 'set' : 'collection'}`} className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-4 sm:max-h-[calc(100dvh-2rem)] sm:p-7" onPointerDown={(event) => event.stopPropagation()}>
         <button type="button" aria-label="Close share collection dialog" onClick={onClose} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
         <div className="pr-14">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{kind === 'set' ? 'Set tools' : 'Collection tools'}</p>

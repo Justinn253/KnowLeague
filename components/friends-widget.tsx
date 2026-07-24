@@ -1016,7 +1016,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       {isOpen ? (
         <div
           ref={panelRef}
-          className="absolute bottom-full right-0 mb-3 flex w-[min(calc(100vw-2.5rem),42rem)] flex-col rounded-3xl border border-white/10 bg-slate-950 p-4"
+          className="absolute bottom-full right-0 mb-3 flex max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2.5rem),42rem)] max-w-[calc(100vw-2.5rem)] flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4"
         >
           {activeFriendView ? (
             <>
@@ -1062,7 +1062,11 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                                   setFriendNoteDraft(activeFriendView.friendNote);
                                   setFriendNoteEditing(true);
                                   setConfirmUnfriendFriendId(null);
-                                  setContextFriend({ friend: activeFriendView, x: rect.left, y: rect.bottom + 8 });
+                                  setContextFriend({
+                                    friend: activeFriendView,
+                                    x: Math.min(rect.left, Math.max(12, window.innerWidth - 300)),
+                                    y: Math.min(rect.bottom + 8, Math.max(12, window.innerHeight - 360)),
+                                  });
                                 }}
                                 aria-label="Edit friend note"
                                 className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-900 hover:text-white"
@@ -1150,7 +1154,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
             </>
           ) : null}
 
-          <div className="flex h-[min(34rem,calc(100vh-12rem))] flex-col">
+          <div className="flex h-[min(34rem,calc(100dvh-12rem))] min-h-0 flex-col">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Friends</p>
@@ -1344,7 +1348,11 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
                       setFriendNoteDraft(friend.friendNote);
                       setFriendNoteEditing(false);
                       setConfirmUnfriendFriendId(null);
-                      setContextFriend({ friend, x: event.clientX, y: event.clientY });
+                      setContextFriend({
+                        friend,
+                        x: Math.min(event.clientX, Math.max(12, window.innerWidth - 300)),
+                        y: Math.min(event.clientY, Math.max(12, window.innerHeight - 360)),
+                      });
                     }}
                     className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
                       activeFriend?.id === friend.id ? 'border-amber-300/80 bg-amber-300/10 text-slate-100' : 'border-transparent text-slate-200 hover:bg-slate-900'
@@ -1387,7 +1395,7 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
           {contextFriend ? (
             <div
               ref={contextMenuRef}
-              className="fixed z-[70] w-72 rounded-2xl border border-white/10 bg-slate-950 p-2"
+              className="fixed z-[70] max-h-[calc(100dvh-1rem)] w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2"
               style={{ left: contextFriend.x, top: contextFriend.y }}
             >
               <button

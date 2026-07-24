@@ -33,7 +33,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
       return undefined;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -45,10 +45,10 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
       }
     };
 
-    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
@@ -115,8 +115,8 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
         <div
           ref={panelRef}
           className={variant === 'drawer'
-            ? 'fixed left-1/2 top-1/2 z-[110] max-h-[90vh] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-4'
-            : 'absolute bottom-full right-0 mb-3 w-[min(calc(100vw-2.5rem),26rem)] rounded-3xl border border-white/10 bg-slate-950 p-4'}
+            ? 'fixed left-1/2 top-1/2 z-[110] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+            : 'absolute bottom-full right-0 mb-3 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2.5rem),26rem)] max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'}
         >
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -127,7 +127,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
               type="button"
               onClick={() => setIsOpen(false)}
               aria-label="Close contact form"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
             >
               <X size={18} />
             </button>

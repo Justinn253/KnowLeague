@@ -1220,10 +1220,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 lg:px-12">
-        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
+    <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
+      <section className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-10 lg:px-12">
+        <header className="relative z-30 flex min-w-0 flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
             {multiplayer ? (
               <button type="button" onClick={multiplayer.onExit} aria-label="Leave multiplayer game" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
                 <ArrowLeft size={20} />
@@ -1233,7 +1233,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 <ArrowLeft size={20} />
               </Link>
             )}
-            <div>
+            <div className="min-w-0">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{multiplayer ? 'Multiplayer Game' : 'Single Player Game'}</p>
               <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-white">
                 Skin Champion
@@ -1260,7 +1260,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:justify-end">
             <GameInfoMenu title="Skin Champion" steps={[
               'Identify the skin line shown by the splash art.',
               'Use hints and autocomplete when the selected difficulty allows them.',
@@ -1276,7 +1276,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
               </button>
             ) : null}
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <div ref={difficultyMenuRef} className="relative">
                 <button
                   type="button"
@@ -1285,7 +1285,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     setOpenMenu((current) => (current === 'difficulty' ? null : 'difficulty'));
                   }}
                   disabled={configurationLocked || soloMode === 'chaos'}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70 sm:px-4"
                   aria-expanded={openMenu === 'difficulty'}
                 >
                   <Trophy size={16} className="text-amber-300" />
@@ -1295,7 +1295,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 </button>
 
                 {openMenu === 'difficulty' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
+                  <div className="absolute right-0 top-14 z-40 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Difficulty</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1344,7 +1344,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     setOpenMenu((current) => (current === 'modifiers' ? null : 'modifiers'));
                   }}
                   disabled={configurationLocked || !casualSettingsAvailable}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70 sm:px-4"
                   aria-expanded={openMenu === 'modifiers'}
                 >
                   <SlidersHorizontal size={16} className="text-amber-300" />
@@ -1354,7 +1354,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 </button>
 
                 {openMenu === 'modifiers' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(24rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
+                  <div className="absolute right-0 top-14 z-40 w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Modifiers</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1455,7 +1455,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
           />
         ) : null}
 
-        {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
+        {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-4">
           {!showEndState ? (
             <QuizItemCarousel
               slots={carouselSlots}
@@ -1470,7 +1470,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
           {!showEndState ? <form
             onSubmit={handleSubmit}
-            className={`relative z-30 mt-8 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-5   transition ${
+            className={`relative z-30 mt-6 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-3 transition sm:mt-8 sm:p-5 ${
               successFlash ? 'border-emerald-400/40 ring-1 ring-emerald-400/20' : 'border-white/10'
             }`}
           >
@@ -1531,7 +1531,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       .map((entry) => entry.answer),
                   );
                 }}
-                className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/10 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                inputMode="search"
+                enterKeyHint="done"
+                aria-label={`Search for ${answerLabel}`}
+                className="min-h-14 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/10 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
               />
               {suggestions.length > 0 && autocompleteEnabled ? (
                 <div className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 sm:w-[calc(100%-8rem)]">
@@ -1546,7 +1549,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                         playUiSound('autocomplete-select');
                         handleSuggestionClick(suggestion);
                       }}
-                      className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                className="min-h-12 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300"
                     >
                       {suggestion}
                     </button>
@@ -1588,7 +1591,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
             </div>
           </form> : null}
 
-          <section className={`relative z-0 mt-8 rounded-3xl bg-slate-950/70 p-5 ${showEndState ? 'app-gradient-border' : 'border border-white/10'}`}>
+          <section className={`relative z-0 mt-6 rounded-3xl bg-slate-950/70 p-3 sm:mt-8 sm:p-5 ${showEndState ? 'app-gradient-border' : 'border border-white/10'}`}>
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
               <div className="flex items-center gap-3">

@@ -1,11 +1,12 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, MessageSquare, Play, RefreshCw, Send, SlidersHorizontal, Trophy, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, MessageSquare, Play, RefreshCw, Send, SlidersHorizontal, Trophy, Users, X } from 'lucide-react';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { GameSettingsSection } from '@/components/game-settings-section';
 import {
   MultiplayerCreateJoinPanel,
+  MultiplayerLobbyCodeStrip,
   MultiplayerLobbyDescriptionInput,
   MultiplayerPublicLobbyButton,
   MultiplayerPublicLobbyEmpty,
@@ -896,17 +897,17 @@ export function CategoryClash() {
 
   if (!view) {
     return (
-      <main className="min-h-screen bg-slate-950 px-4 py-6 text-white">
+      <main className="min-h-[100dvh] bg-slate-950 px-4 py-4 text-white sm:py-6">
         <div className="mx-auto max-w-6xl">
-          <header className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-5  backdrop-blur-xl">
-            <div className="flex items-center gap-4">
+          <header className="mb-5 flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl sm:p-5">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <button type="button" onClick={() => { window.location.href = '/'; }} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to home">
                 <ArrowLeft size={22} />
               </button>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
-                <h1 className="text-2xl font-black">Category Clash</h1>
-                <p className="mt-1 text-sm text-slate-400">Create or join a lobby</p>
+                <h1 className="truncate text-xl font-black sm:text-2xl">Category Clash</h1>
+                <p className="mt-1 truncate text-sm text-slate-400">Create or join a lobby</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -918,14 +919,14 @@ export function CategoryClash() {
                   'Three strikes eliminates a player. The last active player wins.',
                 ]}
               />
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
+              <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-3 py-3 text-sm font-semibold text-slate-200 sm:px-4">
                 <Users size={16} className="text-amber-300" />
                 Lobby
               </div>
             </div>
           </header>
 
-          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
+          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-4">
             <MultiplayerCreateJoinPanel
               title="Set up a Category Clash lobby"
               joinCode={joinCode}
@@ -990,20 +991,20 @@ export function CategoryClash() {
         : 'border-white/10 bg-slate-950/80';
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className={`mx-auto flex min-h-screen w-full flex-col gap-5 px-6 py-6 lg:px-12 ${view.lobby.status === 'waiting' ? 'max-w-6xl' : 'max-w-7xl'}`}>
-        <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
+    <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
+      <section className={`mx-auto flex min-h-[100dvh] w-full flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-12 ${view.lobby.status === 'waiting' ? 'max-w-6xl' : 'max-w-7xl'}`}>
+        <header className="relative z-30 flex min-w-0 flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               <button type="button" onClick={() => void leaveLobby(view.lobby.status === 'active')} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900" aria-label="Leave lobby">
                 <ArrowLeft size={20} />
               </button>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
-                <h1 className="text-xl font-semibold text-white">Category Clash</h1>
-                <p className="mt-1 text-xs text-slate-400">{view.lobby.status === 'waiting' ? 'Lobby' : getPhaseLabel(view)}</p>
+                <h1 className="truncate text-xl font-semibold text-white">Category Clash</h1>
+                <p className="mt-1 truncate text-xs text-slate-400">{view.lobby.status === 'waiting' ? 'Lobby' : getPhaseLabel(view)}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <GameInfoMenu
                 title="Category Clash"
                 steps={[
@@ -1014,7 +1015,7 @@ export function CategoryClash() {
                 ]}
               />
             {view.lobby.status !== 'finished' ? (
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-slate-200">
+              <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-3 py-3 text-sm font-semibold text-slate-200 sm:px-4">
                 <Users size={16} className="text-amber-300" />
                   {view.lobby.status === 'waiting'
                     ? `Lobby - ${connectedPlayers.length >= view.lobby.max_players ? 'Full' : connectedPlayers.length >= 2 ? 'Ready to start' : 'Waiting for players'}`
@@ -1045,18 +1046,15 @@ export function CategoryClash() {
         </header>
 
         {view.lobby.status === 'waiting' ? (
-          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
+          <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-4">
             <div className="grid gap-5">
-              <div className="flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Lobby code</span>
-                <span className="font-mono text-lg font-semibold tracking-[0.24em] text-white">{codeRevealed ? view.lobby.code : '******'}</span>
-                <button type="button" onClick={() => setCodeRevealed((value) => !value)} aria-label={codeRevealed ? 'Hide lobby code' : 'Reveal lobby code'} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800">
-                  {codeRevealed ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <button type="button" onClick={copyInvite} aria-label="Copy lobby invite" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800">
-                  {codeCopied ? <Check size={16} className="text-emerald-300" /> : <Copy size={16} />}
-                </button>
-              </div>
+              <MultiplayerLobbyCodeStrip
+                code={view.lobby.code}
+                revealed={codeRevealed}
+                copied={codeCopied}
+                onToggleReveal={() => setCodeRevealed((value) => !value)}
+                onCopy={copyInvite}
+              />
 
               <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)]">
                 <MultiplayerLobbyRoster
@@ -1077,7 +1075,7 @@ export function CategoryClash() {
                   onMakeHost={(playerId) => managePlayer('make-host', playerId)}
                 />
 
-                <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
+                <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-3 sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Game Settings</p>

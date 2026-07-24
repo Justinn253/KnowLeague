@@ -222,7 +222,7 @@ export function MultiplayerLobbyRoster({
   );
 
   return (
-    <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-5">
+    <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-3 sm:p-5">
       {showHeader ? (
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -281,7 +281,7 @@ export function MultiplayerLobbyRoster({
               <div className="flex shrink-0 items-center gap-2">
                 {player.status}
                 {showActionsButton ? (
-                  <button type="button" data-roster-menu-trigger onClick={(event) => openActionsMenu(event, player)} aria-label={`More actions for ${player.displayName}`} aria-expanded={contextMenu?.player.id === player.id} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent bg-transparent text-slate-400 transition hover:bg-white/5 hover:text-white">
+                  <button type="button" data-roster-menu-trigger onClick={(event) => openActionsMenu(event, player)} aria-label={`More actions for ${player.displayName}`} aria-expanded={contextMenu?.player.id === player.id} className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-transparent bg-transparent text-slate-400 transition hover:bg-white/5 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-300">
                     <MoreHorizontal size={14} />
                   </button>
                 ) : null}

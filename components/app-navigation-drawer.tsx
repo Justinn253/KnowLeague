@@ -70,7 +70,7 @@ export function AppNavigationDrawer({
       {isOpen ? (
         <div
           className="fixed inset-0 z-[100] bg-slate-950/75 p-3 backdrop-blur-sm"
-          onMouseDown={closeDrawer}
+          onPointerDown={closeDrawer}
         >
           <aside
             id="app-navigation-drawer"
@@ -78,7 +78,7 @@ export function AppNavigationDrawer({
             role="dialog"
             aria-modal="true"
             className="relative ml-auto flex h-full w-[min(36rem,calc(100vw-1.5rem))] animate-[slide-in_180ms_ease-out] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950"
-            onMouseDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
           >
             <div className="border-b border-white/10 p-4 sm:p-5">
               <div className="flex items-start justify-between gap-4">
@@ -97,7 +97,7 @@ export function AppNavigationDrawer({
               </div>
             </div>
 
-            <nav aria-label="Primary navigation" className="flex-1 p-4 sm:p-5">
+            <nav aria-label="Primary navigation" className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Games</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {GAME_NAVIGATION_ITEMS.map((game) => {

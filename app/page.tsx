@@ -337,11 +337,11 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#030712] text-slate-100">
-      <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-12 px-6 py-10 lg:px-12">
-        <header className="relative grid gap-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+    <main className="min-h-[100dvh] overflow-hidden bg-[#030712] text-slate-100">
+      <section className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:gap-12 sm:px-6 sm:py-10 lg:px-12">
+        <header className="relative grid gap-5 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-4 sm:gap-6 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="relative min-w-0">
-            <h1 className="text-5xl font-black tracking-tight text-white sm:text-6xl">KnowLeague Trivia</h1>
+            <h1 className="text-4xl font-black tracking-tight text-white sm:text-6xl">KnowLeague Trivia</h1>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
             <Link

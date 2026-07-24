@@ -232,7 +232,7 @@ export function GlobalActions() {
     <>
       <PlayerGameStatsSync />
 
-      <div className="fixed right-5 top-5 z-[90]">
+      <div className="fixed right-3 top-3 z-[90] sm:right-5 sm:top-5">
         <AppNavigationDrawer
           isLoggedIn={isLoggedIn}
           profileHref={profileHref}
@@ -247,25 +247,25 @@ export function GlobalActions() {
         />
       </div>
 
-      <div className="fixed bottom-5 right-5 z-50 flex items-end gap-3">
+      <div className="fixed bottom-3 right-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-end gap-2 sm:bottom-5 sm:right-5 sm:gap-3">
         {isLoggedIn ? <FriendsWidget onPendingRequestCountChange={setPendingFriendRequests} /> : null}
         <AchievementToasts />
       </div>
       {profileOpen ? (
         <div
           data-profile-overlay="true"
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-          onMouseDown={() => setProfileOpen(false)}
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4"
+          onPointerDown={() => setProfileOpen(false)}
         >
           <div
-            className="relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950"
-            onMouseDown={(event) => event.stopPropagation()}
+            className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
+            onPointerDown={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setProfileOpen(false)}
               aria-label="Close profile"
-              className="absolute right-4 top-[2.125rem] z-10 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+              className="absolute right-3 top-3 z-10 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:right-4 sm:top-[2.125rem]"
             >
               <X size={18} />
             </button>
@@ -276,12 +276,12 @@ export function GlobalActions() {
       {publicProfileUsername ? (
         <div
           data-profile-overlay="true"
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-          onMouseDown={() => setPublicProfileUsername(null)}
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4"
+          onPointerDown={() => setPublicProfileUsername(null)}
         >
           <div
-            className="relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950"
-            onMouseDown={(event) => event.stopPropagation()}
+            className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
+            onPointerDown={(event) => event.stopPropagation()}
           >
             <PublicProfileScreen
               username={publicProfileUsername}

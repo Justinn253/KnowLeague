@@ -24,18 +24,18 @@ export function GameInfoMenu({ title, steps }: { title: string; steps: string[] 
         aria-label={`How to play ${title}`}
         aria-expanded={open}
         title="How to play"
-        className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/90 text-slate-200 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300"
+        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/90 text-slate-200 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300"
       >
         <Info size={18} />
       </button>
       {open ? (
-        <div className="absolute right-0 top-14 z-50 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-5">
+        <div className="absolute right-0 top-14 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-slate-950 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">How to Play</p>
               <h2 className="mt-2 text-lg font-semibold text-white">{title}</h2>
             </div>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Close how to play" className="text-slate-400 transition hover:text-white">
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close how to play" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-300">
               <X size={18} />
             </button>
           </div>

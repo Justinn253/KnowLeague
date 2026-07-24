@@ -1464,8 +1464,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
       <section className={presentation === 'overlay'
-        ? 'mx-auto flex w-full max-w-5xl flex-col px-6 py-8'
-        : 'mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 py-10'}
+        ? 'mx-auto flex w-full max-w-5xl flex-col px-3 py-4 sm:px-6 sm:py-8'
+        : 'mx-auto flex min-h-[100dvh] w-full max-w-5xl flex-col justify-center px-4 py-6 sm:px-6 sm:py-10'}
       >
         <header className={`mb-5 flex min-h-12 items-center justify-between gap-3 ${presentation === 'overlay' ? 'pr-16' : ''}`}>
           <div className="flex items-center gap-3">
@@ -1514,7 +1514,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                 Add Friend
               </button>
               {requestsOpen ? (
-                <div className="absolute right-0 top-14 z-30 grid max-h-72 w-80 gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3">
+                <div className="absolute right-0 top-14 z-30 grid max-h-[calc(100dvh-8rem)] w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3">
                   {incomingRequests.map((request) => (
                     <div key={request.id} className="grid gap-2 rounded-xl bg-slate-900 p-3">
                       <p className="text-sm font-semibold text-white">{request.requester.displayName}</p>
@@ -1534,7 +1534,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                 </div>
               ) : null}
               {addFriendOpen ? (
-                <div ref={addFriendPanelRef} className="absolute right-0 top-14 z-30 w-96 rounded-2xl border border-white/10 bg-slate-950 p-3">
+                <div ref={addFriendPanelRef} className="absolute right-0 top-14 z-30 max-h-[calc(100dvh-8rem)] w-[min(24rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3">
                   <div className="relative">
                     <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
                     <input
@@ -1633,7 +1633,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           ) : null}
         </header>
 
-        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-6 backdrop-blur-xl">
+        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-6">
           {busy ? (
             <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
               <Loader2 size={18} className="animate-spin text-amber-300" />
@@ -1815,7 +1815,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                           {cosmeticsMenuOpen ? (
                             <div
                               ref={cosmeticsMenuRef}
-                              className="absolute left-0 top-11 z-30 grid w-[42rem] grid-cols-[12rem_1px_12rem_minmax(12rem,1fr)] gap-3 rounded-2xl border border-white/10 bg-slate-950 p-3 "
+                              className="absolute left-0 top-11 z-30 grid w-[min(42rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-slate-950 p-3 sm:grid-cols-[12rem_1px_12rem_minmax(12rem,1fr)]"
                             >
                               <div>
                                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Chat color</p>
@@ -1840,7 +1840,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                                 </div>
                               </div>
 
-                              <div className="bg-white/10" />
+                              <div className="hidden bg-white/10 sm:block" />
 
                               <div>
                                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Chat Border</p>
@@ -2027,7 +2027,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                         Filter
                       </button>
                       {achievementFiltersOpen ? (
-                        <div className="absolute right-0 top-12 z-30 grid w-52 gap-2 rounded-2xl border border-white/10 bg-slate-950 p-3">
+                        <div className="absolute right-0 top-12 z-30 grid w-[min(13rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] gap-2 rounded-2xl border border-white/10 bg-slate-950 p-3">
                           {[
                             ['general', 'General App'],
                             ['skindle', 'Skindle'],
@@ -2210,8 +2210,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
         </section>
       </section>
       {avatarCropSource ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-3 backdrop-blur-sm sm:p-4">
+          <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-4 sm:max-h-[calc(100dvh-2rem)] sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Profile Picture</p>
@@ -2229,7 +2229,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
 
             <div className="mt-5 flex justify-center">
               <div
-                className="relative h-72 w-72 touch-none overflow-hidden rounded-full border border-white/10 bg-slate-900"
+                className="relative size-[min(72vw,18rem)] touch-none overflow-hidden rounded-full border border-white/10 bg-slate-900"
                 onPointerDown={(event) => {
                   event.currentTarget.setPointerCapture(event.pointerId);
                   setAvatarDragStart({

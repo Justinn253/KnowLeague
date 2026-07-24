@@ -163,12 +163,12 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
         {variant === 'drawer' ? <span>Volume</span> : null}
       </button>
 
-      {open ? (
+          {open ? (
         <div className={variant === 'drawer'
-          ? 'absolute bottom-14 left-0 right-0 z-[105] rounded-2xl border border-white/10 bg-slate-950 p-4'
+          ? 'absolute bottom-14 left-0 right-0 z-[105] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
           : variant === 'drawer-icon'
-            ? 'absolute bottom-14 right-0 z-[105] w-80 rounded-2xl border border-white/10 bg-slate-950 p-4'
-          : 'absolute right-0 top-14 z-[95] w-80 rounded-2xl border border-white/10 bg-slate-950 p-4'}>
+            ? 'absolute bottom-14 right-0 z-[105] max-h-[calc(100dvh-2rem)] w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+          : 'absolute right-0 top-14 z-[95] max-h-[calc(100dvh-2rem)] w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Sound</p>

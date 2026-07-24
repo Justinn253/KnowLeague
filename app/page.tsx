@@ -4,21 +4,13 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   BarChart3,
-  Clock3,
-  Eye,
   Flame,
-  Search,
-  ShieldQuestion,
-  Sparkles,
-  Swords,
-  Trophy,
   User,
   UserPlus,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 import { GameSplashImage } from '@/components/game-asset-image';
-import { AppNavigationDrawer } from '@/components/app-navigation-drawer';
 import Link from 'next/link';
 import { MultiplayerPlayerCountBadge } from '@/components/multiplayer-player-count-badge';
 import {
@@ -28,30 +20,9 @@ import {
   PLAYER_GAME_STATS_CHANGED_EVENT,
   STREAK_GAME_IDS,
   type PlayerGameStatsByGame,
-  type StreakGameId,
 } from '@/lib/game-storage';
-import type { MultiplayerPlayerCountGameId } from '@/lib/multiplayer-player-counts';
+import { GAME_NAVIGATION_ITEMS, type Accent, type GameLink, type GameMode } from '@/lib/game-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
-
-type Accent = 'gold' | 'cyan' | 'rose' | 'violet' | 'emerald' | 'sky';
-type GameMode = 'solo' | 'multiplayer' | 'hybrid';
-
-type GameLink = {
-  title: string;
-  href: string;
-  description: string;
-  imageUrl: string;
-  imageFit?: 'cover' | 'contain';
-  gameIcon: LucideIcon;
-  mode: GameMode;
-  playerCountId?: MultiplayerPlayerCountGameId;
-  streakGameId?: StreakGameId;
-  streakStyle?: 'single' | 'daily-pair' | 'modes';
-  accent: Accent;
-  kicker: string;
-  feature?: boolean;
-  mostPlayed?: boolean;
-};
 
 const accentStyles: Record<Accent, {
   border: string;
@@ -126,106 +97,7 @@ const modeStyles: Record<GameMode, { label: string; icon: LucideIcon }> = {
   },
 };
 
-const games: GameLink[] = [
-  {
-    title: 'Skindle',
-    href: '/skindle',
-    description: 'Solve the daily League of Legends skin with each guess revealing more information.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
-    gameIcon: Search,
-    mode: 'solo',
-    streakGameId: 'skindle',
-    streakStyle: 'single',
-    accent: 'gold',
-    kicker: 'Daily Puzzle',
-    feature: true,
-    mostPlayed: true,
-  },
-  {
-    title: 'Splash Scramble',
-    href: '/splash-scramble',
-    description: 'Rebuild a scrambled League of Legends skin by swapping pieces.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ashe_0.jpg',
-    gameIcon: Eye,
-    mode: 'solo',
-    streakGameId: 'splash-scramble',
-    streakStyle: 'daily-pair',
-    accent: 'sky',
-    kicker: 'Tile Puzzle',
-  },
-  {
-    title: 'Ability Blitz',
-    href: '/multiplayer/ability-blitz',
-    description: 'Play solo or with friends through League of Legends ability icons.',
-    imageUrl: '/game-snapshots/ability_blitz_snapshot.png',
-    imageFit: 'contain',
-    gameIcon: Clock3,
-    mode: 'hybrid',
-    playerCountId: 'ability-blitz',
-    streakGameId: 'ability-blitz',
-    streakStyle: 'modes',
-    accent: 'cyan',
-    kicker: 'Solo or Race',
-  },
-  {
-    title: 'Skin Champion',
-    href: '/multiplayer/skin-champion',
-    description: 'Play solo or with friends to identify League of Legends skin lines.',
-    imageUrl: '/game-snapshots/skin_champion_snapshot.png',
-    imageFit: 'contain',
-    gameIcon: Sparkles,
-    mode: 'hybrid',
-    playerCountId: 'skin-champion',
-    streakGameId: 'skin-champion',
-    streakStyle: 'modes',
-    accent: 'sky',
-    kicker: 'Solo or Sprint',
-  },
-  {
-    title: 'Skincognito',
-    href: '/skincognito',
-    description: 'Try to guess your opponents League of Legends skin before they can guess yours.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shaco_0.jpg',
-    gameIcon: ShieldQuestion,
-    mode: 'multiplayer',
-    playerCountId: 'skincognito',
-    accent: 'rose',
-    kicker: 'Deduction Duel',
-    feature: true,
-  },
-  {
-    title: 'Carving Revelation',
-    href: '/carving-revelation',
-    description: 'Carve through a hidden League of Legends skin line and figure it out before your opponents do.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jhin_5.jpg',
-    gameIcon: Eye,
-    mode: 'multiplayer',
-    playerCountId: 'carving-revelation',
-    accent: 'gold',
-    kicker: 'Shared Canvas',
-  },
-  {
-    title: 'Category Clash',
-    href: '/category-clash',
-    description: 'Name unique League answers from rotating categories and be the last player standing.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sylas_0.jpg',
-    gameIcon: Swords,
-    mode: 'multiplayer',
-    playerCountId: 'category-clash',
-    accent: 'emerald',
-    kicker: 'Last Player Standing',
-  },
-  {
-    title: 'Mastery Master',
-    href: '/mastery-master',
-    description: 'Put a League account\'s champion mastery knowledge to the test.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Malzahar_0.jpg',
-    gameIcon: Trophy,
-    mode: 'solo',
-    accent: 'violet',
-    kicker: 'Mastery Challenge',
-  },
-];
+const games: GameLink[] = GAME_NAVIGATION_ITEMS;
 
 function GameModeBadge({ mode, featured = false }: { mode: GameMode; featured?: boolean }) {
   const modeStyle = modeStyles[mode];
@@ -484,7 +356,6 @@ export default function Home() {
               League Account Viewer
               <ArrowRight size={17} className="transition group-hover:translate-x-1" />
             </Link>
-            <AppNavigationDrawer />
           </div>
         </header>
 

@@ -8,6 +8,7 @@ import type { AppRole, ModerationContactSubmission, ModerationTeamMember, Modera
 
 type ModerationWidgetProps = {
   role?: AppRole | null;
+  variant?: 'floating' | 'drawer';
 };
 
 type ModerationTab = 'users' | 'contact' | 'team';
@@ -57,7 +58,7 @@ function getRoleBadgeClass(role: AppRole) {
   return 'border-white/10 bg-slate-900 text-slate-300';
 }
 
-export function ModerationWidget({ role }: ModerationWidgetProps) {
+export function ModerationWidget({ role, variant = 'floating' }: ModerationWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ModerationTab>('users');
   const [userQuery, setUserQuery] = useState('');
@@ -341,7 +342,7 @@ export function ModerationWidget({ role }: ModerationWidgetProps) {
     <div className="relative">
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+          className={`fixed inset-0 ${variant === 'drawer' ? 'z-[120]' : 'z-[80]'} flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm`}
           onMouseDown={() => setIsOpen(false)}
         >
           <div
@@ -716,9 +717,16 @@ export function ModerationWidget({ role }: ModerationWidgetProps) {
         }}
         aria-label="Open moderation menu"
         title="Moderation"
-        className="relative inline-flex min-h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/30 bg-slate-950 text-cyan-100 transition hover:border-cyan-200/70 hover:bg-slate-900"
+        className={variant === 'drawer'
+          ? 'group relative flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
+          : 'relative inline-flex min-h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/30 bg-slate-950 text-cyan-100 transition hover:border-cyan-200/70 hover:bg-slate-900'}
       >
-        {role === 'admin' ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}
+        {variant === 'drawer' ? (
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-950 text-slate-200">
+            {role === 'admin' ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}
+          </span>
+        ) : role === 'admin' ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}
+        {variant === 'drawer' ? <span>Moderation</span> : null}
       </button>
     </div>
   );

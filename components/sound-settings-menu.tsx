@@ -25,7 +25,11 @@ function ToggleSwitch({ enabled }: { enabled: boolean }) {
   );
 }
 
-export function SoundSettingsMenu() {
+type SoundSettingsMenuProps = {
+  variant?: 'floating' | 'drawer' | 'drawer-icon';
+};
+
+export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuProps) {
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<UiSoundSettings>(() => DEFAULT_UI_SOUND_SETTINGS);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -149,13 +153,22 @@ export function SoundSettingsMenu() {
         onClick={() => setOpen((value) => !value)}
         aria-label="Sound settings"
         title="Sound settings"
-        className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950 text-slate-100 transition hover:border-white/20 hover:bg-slate-900"
+        className={variant === 'drawer'
+          ? 'flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-800'
+          : variant === 'drawer-icon'
+            ? 'inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-800'
+          : 'inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950 text-slate-100 transition hover:border-white/20 hover:bg-slate-900'}
       >
         {settings.muted || settings.volume <= 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        {variant === 'drawer' ? <span>Volume</span> : null}
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-14 z-[95] w-80 rounded-2xl border border-white/10 bg-slate-950 p-4">
+        <div className={variant === 'drawer'
+          ? 'absolute bottom-14 left-0 right-0 z-[105] rounded-2xl border border-white/10 bg-slate-950 p-4'
+          : variant === 'drawer-icon'
+            ? 'absolute bottom-14 right-0 z-[105] w-80 rounded-2xl border border-white/10 bg-slate-950 p-4'
+          : 'absolute right-0 top-14 z-[95] w-80 rounded-2xl border border-white/10 bg-slate-950 p-4'}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Sound</p>

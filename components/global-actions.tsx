@@ -1,15 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { UserCircle, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { AchievementToasts } from '@/components/achievement-toasts';
-import { ContactUsWidget } from '@/components/contact-us-widget';
+import { AppNavigationDrawer } from '@/components/app-navigation-drawer';
 import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
-import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getAuthSessionId } from '@/lib/auth-session';
 import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
@@ -22,10 +20,6 @@ type ProfileOverlayTab = 'profile' | 'stats' | 'achievements' | 'account';
 
 const FriendsWidget = dynamic(
   () => import('@/components/friends-widget').then((module) => module.FriendsWidget),
-  { ssr: false },
-);
-const ModerationWidget = dynamic(
-  () => import('@/components/moderation-widget').then((module) => module.ModerationWidget),
   { ssr: false },
 );
 const ProfileScreen = dynamic(
@@ -239,46 +233,22 @@ export function GlobalActions() {
       <PlayerGameStatsSync />
 
       <div className="fixed right-5 top-5 z-[90]">
-        <SoundSettingsMenu />
+        <AppNavigationDrawer
+          isLoggedIn={isLoggedIn}
+          profileHref={profileHref}
+          profileLabel={profileLabel}
+          profileAvatarUrl={profileAvatarUrl}
+          pendingFriendRequests={pendingFriendRequests}
+          moderationRole={moderationRole}
+          onOpenProfile={() => {
+            setProfileInitialTab('profile');
+            setProfileOpen(true);
+          }}
+        />
       </div>
 
       <div className="fixed bottom-5 right-5 z-50 flex items-end gap-3">
-        {moderationRole ? <ModerationWidget role={moderationRole} /> : null}
         {isLoggedIn ? <FriendsWidget onPendingRequestCountChange={setPendingFriendRequests} /> : null}
-        {isLoggedIn ? (
-          <button
-            type="button"
-            onClick={() => {
-              setProfileInitialTab('profile');
-              setProfileOpen(true);
-            }}
-            className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900"
-          >
-            {profileAvatarUrl ? (
-              <span
-                className="h-5 w-5 rounded-full border border-white/10 bg-slate-900 bg-cover bg-center"
-                style={{ backgroundImage: `url(${profileAvatarUrl})` }}
-              />
-            ) : (
-              <UserCircle size={18} />
-            )}
-            <span className="max-w-32 truncate">{profileLabel}</span>
-            {pendingFriendRequests > 0 ? (
-              <span className="absolute -right-2 -top-2 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
-                {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
-              </span>
-            ) : null}
-          </button>
-        ) : (
-          <Link
-            href={profileHref}
-            className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900"
-          >
-            <UserCircle size={18} />
-            <span className="max-w-32 truncate">{profileLabel}</span>
-          </Link>
-        )}
-        <ContactUsWidget />
         <AchievementToasts />
       </div>
       {profileOpen ? (

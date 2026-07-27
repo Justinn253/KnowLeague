@@ -23,6 +23,7 @@ type AppSelectMenuProps<T extends string | number> = {
   disabledDescription?: string;
   className?: string;
   triggerClassName?: string;
+  hideLabel?: boolean;
 };
 
 export function AppSelectMenu<T extends string | number>({
@@ -38,6 +39,7 @@ export function AppSelectMenu<T extends string | number>({
   disabledDescription,
   className = '',
   triggerClassName = '',
+  hideLabel = false,
 }: AppSelectMenuProps<T>) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -56,12 +58,13 @@ export function AppSelectMenu<T extends string | number>({
 
   return (
     <div ref={rootRef} className={`relative grid gap-2 ${open ? 'z-[100]' : 'z-0'} ${disabledDescription ? 'group' : ''} ${className}`}>
-      <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span>
+      {!hideLabel ? <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span> : null}
       <div className="relative">
         <button
           type="button"
           disabled={disabled}
           onClick={() => setOpen((current) => !current)}
+          aria-label={hideLabel ? label : undefined}
           title={disabled ? disabledDescription : undefined}
           aria-haspopup="listbox"
           aria-expanded={open}

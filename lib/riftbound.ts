@@ -39,7 +39,11 @@ export type RiftboundCard = {
   defaultFinish: RiftboundFinish;
 };
 
-export const RIFTBOUND_CARDS = riftboundCards as RiftboundCard[];
+export const RIFTBOUND_CARDS = riftboundCards.map((card) => (
+  card.collectorNumber.toUpperCase().endsWith('A') && card.rarity !== 'Showcase'
+    ? { ...card, rarity: 'Showcase' }
+    : card
+)) as RiftboundCard[];
 
 const riftboundCardsById = new Map(RIFTBOUND_CARDS.map((card) => [card.id, card]));
 

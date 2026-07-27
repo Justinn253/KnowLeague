@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       throw new Error('At least one inventory change is required.');
     }
 
-    if (rawChanges.length > 500) {
+    if (rawChanges.length > 5000) {
       throw new Error('Too many inventory changes in one request.');
     }
 

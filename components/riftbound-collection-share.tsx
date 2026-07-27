@@ -8,6 +8,7 @@ import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-men
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { RIFTBOUND_CARDS, type RiftboundCard, type RiftboundFinish } from '@/lib/riftbound';
+import { getRiftboundLatestPrices, type RiftboundLatestPrice } from '@/lib/riftbound-client';
 
 type SharedInventoryRow = {
   card_id: string;
@@ -185,6 +186,13 @@ function formatSharedHistoryDate(value: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
 }
 
+function formatSharedHistoryTooltipDate(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  const day = date.getUTCDate();
+  const suffix = day % 100 >= 11 && day % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[day % 10] ?? 'th';
+  return `${new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(date)} ${day}${suffix}, ${date.getUTCFullYear()}`;
+}
+
 function buildSharedHistorySegments(values: Array<number | null>, getX: (index: number) => number, getY: (value: number) => number) {
   const segments: string[] = [];
   let points: string[] = [];
@@ -200,7 +208,40 @@ function buildSharedHistorySegments(values: Array<number | null>, getX: (index: 
   return segments;
 }
 
+type SharedHistoryTooltip = {
+  x: number;
+  y: number;
+  label: string;
+  value: string;
+  date: string;
+};
+
+function SharedHistoryChartTooltip({ point }: { point: SharedHistoryTooltip }) {
+  const placeBelow = point.y < 70;
+  const horizontalAlignment = point.x / 720 <= 0.18
+    ? 'start'
+    : point.x / 720 >= 0.82
+      ? 'end'
+      : 'center';
+  const horizontalClassName = horizontalAlignment === 'start'
+    ? 'translate-x-0'
+    : horizontalAlignment === 'end'
+      ? '-translate-x-full'
+      : '-translate-x-1/2';
+  return (
+    <div
+      className={`pointer-events-none absolute z-10 w-max max-w-[14rem] rounded-xl border border-amber-200/40 bg-slate-950 px-3 py-2 text-left text-xs text-slate-100 ${horizontalClassName} ${placeBelow ? '' : '-translate-y-full'}`}
+      style={{ left: `${(point.x / 720) * 100}%`, top: `${(point.y / 250) * 100}%`, marginTop: placeBelow ? '0.5rem' : '-0.5rem' }}
+      role="status"
+    >
+      <p className="whitespace-nowrap font-black text-amber-200">{point.value} - {point.date}</p>
+      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{point.label}</p>
+    </div>
+  );
+}
+
 function SharedPriceHistoryChart({ history }: { history: SharedPriceHistoryEntry[] }) {
+  const [hoveredPoint, setHoveredPoint] = useState<SharedHistoryTooltip | null>(null);
   const dates = Array.from(new Set(history.map((entry) => entry.date))).sort();
   const valuesByKey = new Map(history.map((entry) => [`${entry.date}:${entry.finish}`, entry.price]));
   const series = [
@@ -235,6 +276,7 @@ function SharedPriceHistoryChart({ history }: { history: SharedPriceHistoryEntry
         </div>
         <span className="text-[0.65rem] font-semibold text-slate-500">USD per card</span>
       </div>
+      <div className="relative">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Riftbound card market value history line graph" className="h-auto min-w-[36rem] w-full">
         {[maxPrice, maxPrice / 2, 0].map((value) => {
           const y = getY(value);
@@ -242,9 +284,35 @@ function SharedPriceHistoryChart({ history }: { history: SharedPriceHistoryEntry
         })}
         <line x1={plotLeft} x2={plotRight} y1={plotBottom} y2={plotBottom} stroke="rgba(148,163,184,0.3)" />
         {series.map((entry) => buildSharedHistorySegments(entry.values, getX, getY).map((points, index) => <polyline key={`${entry.finish}-${index}`} points={points} fill="none" stroke={entry.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />))}
-        {series.flatMap((entry) => entry.values.map((value, index) => value === null ? null : <circle key={`${entry.finish}-${dates[index]}`} cx={getX(index)} cy={getY(value)} r="4" fill="#030712" stroke={entry.color} strokeWidth="2"><title>{`${entry.label} · ${formatSharedHistoryDate(dates[index])} · ${formatMarketPrice(value)}`}</title></circle>))}
+        {series.flatMap((entry) => entry.values.map((value, index) => value === null ? null : (() => {
+          const point = {
+            x: getX(index),
+            y: getY(value),
+            label: entry.label,
+            value: formatMarketPrice(value),
+            date: formatSharedHistoryTooltipDate(dates[index]),
+          };
+          return <circle
+            key={`${entry.finish}-${dates[index]}`}
+            cx={point.x}
+            cy={point.y}
+            r="6"
+            fill="#030712"
+            stroke={entry.color}
+            strokeWidth="2"
+            tabIndex={0}
+            role="img"
+            aria-label={`${point.label}: ${point.value} - ${point.date}`}
+            onMouseEnter={() => setHoveredPoint(point)}
+            onMouseLeave={() => setHoveredPoint(null)}
+            onFocus={() => setHoveredPoint(point)}
+            onBlur={() => setHoveredPoint(null)}
+          />;
+        })()))}
         {labelIndexes.map((index) => <text key={index} x={getX(index)} y={plotBottom + 25} textAnchor="middle" fill="#64748b" fontSize="11">{formatSharedHistoryDate(dates[index])}</text>)}
       </svg>
+      {hoveredPoint ? <SharedHistoryChartTooltip point={hoveredPoint} /> : null}
+      </div>
     </div>
   );
 }
@@ -287,7 +355,10 @@ function SharedCardDetailsModal({ card, onClose }: { card: RiftboundCard; onClos
       <div role="dialog" aria-modal="true" aria-label={`${card.displayName} details`} className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]" onPointerDown={(event) => event.stopPropagation()}>
         <button type="button" aria-label="Close card details" onClick={onClose} className="absolute right-4 top-4 z-10 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
         <div className="grid gap-6 p-5 sm:grid-cols-[14rem_minmax(0,1fr)] sm:p-7">
-          <div className="relative mx-auto aspect-[744/1039] w-56 overflow-hidden rounded-2xl bg-slate-900 sm:mx-0 sm:w-56"><RiftboundCardImage card={card} sizes="224px" className="object-cover" /></div>
+          <div className="grid content-start justify-items-center gap-3 sm:justify-items-start">
+            <div className="relative aspect-[744/1039] w-56 overflow-hidden rounded-2xl bg-slate-900"><RiftboundCardImage card={card} sizes="224px" className="object-cover" /></div>
+            <a href={card.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 text-center text-xs font-black uppercase tracking-[0.12em] text-amber-200 transition hover:text-amber-100">View Official Card <ExternalLink size={14} /></a>
+          </div>
           <div className="grid min-w-0 gap-5">
             <div className="min-w-0 pr-14"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p><h2 className="mt-2 text-3xl font-black tracking-tight text-white">{card.displayName}</h2><p className={`mt-2 text-sm font-black ${rarityClassName}`}>{card.rarity}</p></div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -299,7 +370,6 @@ function SharedCardDetailsModal({ card, onClose }: { card: RiftboundCard; onClos
               <SharedDetailValue label="Domain" value={card.domains.join('; ') || 'Colorless'} /><SharedDetailValue label="Artist" value={card.artist || 'N/A'} /><SharedDetailValue label="Might" value={String(card.might)} />
             </dl>
             <div className="border-t border-white/10 pt-4"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Product Details</p><p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{card.productDetails}</p></div>
-            <a href={card.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-amber-200 transition hover:text-amber-100">View Official Card <ExternalLink size={14} /></a>
             <div className="border-t border-white/10 pt-5"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Value History</p><span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-600">Last 30 days</span></div><div className="mt-3">{historyLoading ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">Loading market history...</p> : historyError ? <p className="rounded-2xl border border-red-300/10 bg-red-950/20 px-4 py-5 text-sm text-red-200">{historyError}</p> : <SharedPriceHistoryChart history={history} />}</div></div>
           </div>
         </div>
@@ -403,12 +473,68 @@ function decodeShareBytes(value: string) {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
+function readShareVarUint(bytes: Uint8Array, cursor: { index: number }) {
+  let value = 0;
+  let multiplier = 1;
+  for (let count = 0; count < 6; count += 1) {
+    const nextByte = bytes[cursor.index++];
+    if (nextByte === undefined) throw new Error('Invalid compact share link.');
+    value += (nextByte & 0x7f) * multiplier;
+    if ((nextByte & 0x80) === 0) return value;
+    multiplier *= 128;
+  }
+  throw new Error('Invalid compact share link.');
+}
+
+function readShareString(bytes: Uint8Array, cursor: { index: number }) {
+  const length = readShareVarUint(bytes, cursor);
+  const end = cursor.index + length;
+  if (end > bytes.length) throw new Error('Invalid compact share link.');
+  const value = new TextDecoder().decode(bytes.slice(cursor.index, end));
+  cursor.index = end;
+  return value;
+}
+
+function decodeBinaryShareSnapshot(bytes: Uint8Array): SharedSnapshot {
+  const cursor = { index: 0 };
+  if (bytes[cursor.index++] !== 3) throw new Error('Unsupported compact share link.');
+  const kindByte = bytes[cursor.index++];
+  if (kindByte !== 0 && kindByte !== 1) throw new Error('Invalid compact share link.');
+  const title = readShareString(bytes, cursor);
+  const createdBy = readShareString(bytes, cursor);
+  const createdAtSeconds = readShareVarUint(bytes, cursor);
+  const rowCount = readShareVarUint(bytes, cursor);
+  if (rowCount > 5000) throw new Error('Invalid compact share link.');
+
+  let previousKey = 0;
+  const rows: SharedInventoryRow[] = [];
+  for (let index = 0; index < rowCount; index += 1) {
+    const key = previousKey + readShareVarUint(bytes, cursor);
+    const quantity = readShareVarUint(bytes, cursor);
+    const cardIndex = Math.floor(key / 2);
+    const card = RIFTBOUND_CARDS[cardIndex];
+    const finish: RiftboundFinish = key % 2 === 1 ? 'foil' : 'normal';
+    if (!card || !card.finishOptions.includes(finish) || quantity <= 0 || quantity > 100000) throw new Error('Invalid compact share link.');
+    rows.push({ card_id: card.id, finish, quantity });
+    previousKey = key;
+  }
+
+  return {
+    rows,
+    kind: kindByte === 1 ? 'set' : 'collection',
+    title,
+    createdBy,
+    createdAt: createdAtSeconds > 0 ? new Date(createdAtSeconds * 1000).toISOString() : '',
+  };
+}
+
 async function decodeRows(value: string): Promise<SharedSnapshot> {
   try {
     const separatorIndex = value.indexOf('.');
     const encoding = separatorIndex === -1 ? '' : value.slice(0, separatorIndex);
     const encodedValue = separatorIndex === -1 ? value : value.slice(separatorIndex + 1);
     let bytes = decodeShareBytes(encodedValue);
+    if (encoding === 'b') return decodeBinaryShareSnapshot(bytes);
     if (encoding === 'g') {
       if (typeof DecompressionStream === 'undefined') throw new Error('Compressed share links are not supported in this browser.');
       const decompressedStream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
@@ -465,9 +591,11 @@ export function RiftboundCollectionShare() {
   const [tagQuery, setTagQuery] = useState('');
   const [selectedCard, setSelectedCard] = useState<RiftboundCard | null>(null);
   const [inventoryError, setInventoryError] = useState('');
+  const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
 
   useEffect(() => {
-    const data = new URLSearchParams(window.location.search).get('data');
+    const params = new URLSearchParams(window.location.search);
+    const data = params.get('d') ?? params.get('data');
     void (data ? decodeRows(data) : Promise.resolve({ rows: [], kind: 'collection' as const, title: '', createdBy: '', createdAt: '' }))
       .then(setSnapshot);
   }, []);
@@ -476,6 +604,18 @@ export function RiftboundCollectionShare() {
     setSession(nextSession);
     setAuthResolved(true);
   }), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getRiftboundLatestPrices()
+      .then((data) => {
+        if (!cancelled) setLatestPrices(data.prices ?? {});
+      })
+      .catch(() => {
+        // The catalogue values remain a safe fallback if the latest snapshot is unavailable.
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const { rows } = snapshot;
 
@@ -490,10 +630,24 @@ export function RiftboundCollectionShare() {
     return Array.from(quantities.entries())
       .flatMap(([cardId, quantitiesForCard]): SharedCard[] => {
         const card = cardById.get(cardId);
-        return card ? [{ card, ...quantitiesForCard }] : [];
+        if (!card) return [];
+        const latest = latestPrices[card.id];
+        const currentCard = latest ? {
+          ...card,
+          marketPrice: latest.normal,
+          marketPriceUpdatedAt: latest.updatedAt,
+          marketPrices: { ...card.marketPrices, normal: latest.normal, foil: latest.foil, updatedAt: latest.updatedAt },
+        } : card;
+        return [{ card: currentCard, ...quantitiesForCard }];
       })
       .sort((left, right) => left.card.displayName.localeCompare(right.card.displayName));
-  }, [rows]);
+  }, [latestPrices, rows]);
+
+  useEffect(() => {
+    if (!selectedCard) return;
+    const currentCard = cards.find(({ card }) => card.id === selectedCard.id)?.card;
+    if (currentCard && currentCard !== selectedCard) setSelectedCard(currentCard);
+  }, [cards, selectedCard]);
 
   const totalCopies = cards.reduce((total, entry) => total + entry.normal + entry.foil, 0);
   const totalValue = cards.reduce((total, entry) => total
@@ -619,7 +773,12 @@ export function RiftboundCollectionShare() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search name, number, text, tag, domain, type, rarity, artist..."
-                  className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 pl-11 pr-11 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  inputMode="search"
+                  className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 pl-11 pr-11 text-base font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20 sm:text-sm"
                 />
                 {query ? (
                   <button type="button" aria-label="Clear shared collection search" onClick={() => setQuery('')} className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white">

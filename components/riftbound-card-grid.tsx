@@ -10,6 +10,7 @@ import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-men
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
+import { getRiftboundBootstrap } from '@/lib/riftbound-client';
 
 type InventoryTab = 'global' | 'inventory' | 'sets';
 
@@ -28,11 +29,6 @@ type InventoryItem = {
   updated_at: string;
 };
 
-type InventoryResponse = {
-  items?: InventoryItem[];
-  error?: string;
-};
-
 type InventoryMutationResponse = {
   items?: InventoryItem[];
   error?: string;
@@ -48,11 +44,6 @@ type RiftboundSet = {
   name: string;
   created_at: string;
   cards: RiftboundSetCard[];
-};
-
-type SetResponse = {
-  sets?: RiftboundSet[];
-  error?: string;
 };
 
 type SetMutationResponse = {
@@ -93,14 +84,6 @@ type RiftboundLatestPrice = {
   normal: number | null;
   foil: number | null;
   updatedAt: string | null;
-};
-
-type RiftboundLatestPricesResponse = {
-  prices?: Record<string, RiftboundLatestPrice>;
-  snapshotDate?: string | null;
-  sourceSnapshotAt?: string | null;
-  capturedAt?: string | null;
-  error?: string;
 };
 
 type RiftboundScanMatch = {
@@ -203,7 +186,7 @@ function getCachedPriceHistory(cardId: string, snapshotDate?: string | null) {
   if (typeof window === 'undefined') return null;
 
   try {
-    const rawValue = window.localStorage.getItem(getPriceHistoryStorageKey(cardId));
+    const rawValue = window.localStorage.getItem(getPriceHistoryStorageKey(cardId, snapshotDate));
     if (!rawValue) return null;
 
     const parsedValue = JSON.parse(rawValue) as Partial<CachedRiftboundPriceHistory>;
@@ -608,6 +591,7 @@ function getInventoryKey(cardId: string, finish: InventoryItem['finish']) {
 
 const RIFTBOUND_DRAFT_STORAGE_PREFIX = 'knowleague:riftbound-inventory-draft:';
 const RIFTBOUND_CARD_IDS = new Set(RIFTBOUND_CARDS.map((card) => card.id));
+const RIFTBOUND_CARD_INDEX_BY_ID = new Map(RIFTBOUND_CARDS.map((card, index) => [card.id, index]));
 
 function parseInventoryTab(value: string | null): InventoryTab | null {
   return value === 'global' || value === 'inventory' || value === 'sets' ? value : null;
@@ -619,38 +603,57 @@ function encodeShareBytes(bytes: Uint8Array) {
   return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-async function gzipSharePayload(payload: string) {
-  if (typeof CompressionStream === 'undefined') return null;
-
-  const compressedStream = new Blob([payload]).stream().pipeThrough(new CompressionStream('gzip'));
-  return encodeShareBytes(new Uint8Array(await new Response(compressedStream).arrayBuffer()));
+function appendShareVarUint(bytes: number[], value: number) {
+  let remaining = Math.max(0, Math.floor(value));
+  do {
+    let nextByte = remaining % 128;
+    remaining = Math.floor(remaining / 128);
+    if (remaining > 0) nextByte |= 128;
+    bytes.push(nextByte);
+  } while (remaining > 0);
 }
 
-function getCollectionSharePayload(rows: InventoryItem[], kind: CollectionShareKind, title?: string, metadata?: CollectionShareMetadata) {
-  return JSON.stringify({
-    v: 2,
-    k: kind === 'set' ? 's' : 'c',
-    t: title?.trim() || '',
-    u: metadata?.createdBy.trim() || '',
-    d: metadata?.createdAt || new Date().toISOString(),
-    r: rows.map((row) => [row.card_id, row.finish === 'foil' ? 1 : 0, row.quantity]),
+function appendShareString(bytes: number[], value: string) {
+  const encoded = new TextEncoder().encode(value);
+  appendShareVarUint(bytes, encoded.length);
+  encoded.forEach((byte) => bytes.push(byte));
+}
+
+function getCollectionShareBinary(rows: InventoryItem[], kind: CollectionShareKind, title?: string, metadata?: CollectionShareMetadata) {
+  const bytes = [3, kind === 'set' ? 1 : 0];
+  appendShareString(bytes, title?.trim() || '');
+  appendShareString(bytes, metadata?.createdBy.trim() || '');
+
+  const createdAtMilliseconds = Date.parse(metadata?.createdAt || '');
+  appendShareVarUint(bytes, Number.isFinite(createdAtMilliseconds) ? Math.floor(createdAtMilliseconds / 1000) : Math.floor(Date.now() / 1000));
+
+  const encodedRows = rows.flatMap((row) => {
+    const cardIndex = RIFTBOUND_CARD_INDEX_BY_ID.get(row.card_id);
+    return cardIndex === undefined ? [] : [{ cardIndex, finish: row.finish, quantity: row.quantity }];
+  }).sort((left, right) => (left.cardIndex * 2 + (left.finish === 'foil' ? 1 : 0)) - (right.cardIndex * 2 + (right.finish === 'foil' ? 1 : 0)));
+
+  appendShareVarUint(bytes, encodedRows.length);
+  let previousKey = 0;
+  encodedRows.forEach((row) => {
+    const key = (row.cardIndex * 2) + (row.finish === 'foil' ? 1 : 0);
+    appendShareVarUint(bytes, key - previousKey);
+    appendShareVarUint(bytes, row.quantity);
+    previousKey = key;
   });
+
+  return encodeShareBytes(Uint8Array.from(bytes));
 }
 
 function getCollectionShareUrlForData(data: string) {
-  return `${window.location.origin}/inventory/share?data=${encodeURIComponent(data)}`;
+  return `${window.location.origin}/inventory/share?d=${encodeURIComponent(data)}`;
 }
 
 function getCompactCollectionShareUrl(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string, metadata?: CollectionShareMetadata) {
-  const payload = getCollectionSharePayload(rows, kind, title, metadata);
-  return getCollectionShareUrlForData(`p.${encodeShareBytes(new TextEncoder().encode(payload))}`);
+  return getCollectionShareUrlForData(`b.${getCollectionShareBinary(rows, kind, title, metadata)}`);
 }
 
 async function getCollectionShareUrl(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string, metadata?: CollectionShareMetadata) {
-  const payload = getCollectionSharePayload(rows, kind, title, metadata);
-  const compressed = await gzipSharePayload(payload).catch(() => null);
-  const encoded = compressed ?? encodeShareBytes(new TextEncoder().encode(payload));
-  return getCollectionShareUrlForData(`${compressed ? 'g' : 'p'}.${encoded}`);
+  return getCompactCollectionShareUrl(rows, kind, title, metadata);
 }
 
 const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
@@ -1015,7 +1018,51 @@ function formatHistoryDate(value: string) {
   }).format(new Date(`${value}T00:00:00Z`));
 }
 
+function formatHistoryTooltipDate(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  const day = date.getUTCDate();
+  const suffix = day % 100 >= 11 && day % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[day % 10] ?? 'th';
+  return `${new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(date)} ${day}${suffix}, ${date.getUTCFullYear()}`;
+}
+
+type HistoryPointTooltip = {
+  chartWidth: number;
+  chartHeight: number;
+  x: number;
+  y: number;
+  label: string;
+  value: string;
+  date: string;
+  detail?: string;
+};
+
+function HistoryChartTooltip({ point }: { point: HistoryPointTooltip }) {
+  const placeBelow = point.y < 70;
+  const horizontalAlignment = point.x / point.chartWidth <= 0.18
+    ? 'start'
+    : point.x / point.chartWidth >= 0.82
+      ? 'end'
+      : 'center';
+  const horizontalClassName = horizontalAlignment === 'start'
+    ? 'translate-x-0'
+    : horizontalAlignment === 'end'
+      ? '-translate-x-full'
+      : '-translate-x-1/2';
+  return (
+    <div
+      className={`pointer-events-none absolute z-10 w-max max-w-[14rem] rounded-xl border border-amber-200/40 bg-slate-950 px-3 py-2 text-left text-xs text-slate-100 ${horizontalClassName} ${placeBelow ? '' : '-translate-y-full'}`}
+      style={{ left: `${(point.x / point.chartWidth) * 100}%`, top: `${(point.y / point.chartHeight) * 100}%`, marginTop: placeBelow ? '0.5rem' : '-0.5rem' }}
+      role="status"
+    >
+      <p className="whitespace-nowrap font-black text-amber-200">{point.value} - {point.date}</p>
+      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{point.label}</p>
+      {point.detail ? <p className="mt-1 text-[0.65rem] text-slate-400">{point.detail}</p> : null}
+    </div>
+  );
+}
+
 function RiftboundPriceHistoryChart({ history }: { history: RiftboundPriceHistoryEntry[] }) {
+  const [hoveredPoint, setHoveredPoint] = useState<HistoryPointTooltip | null>(null);
   const dates = useMemo(
     () => Array.from(new Set(history.map((entry) => entry.date))).sort(),
     [history],
@@ -1066,6 +1113,7 @@ function RiftboundPriceHistoryChart({ history }: { history: RiftboundPriceHistor
         </div>
         <span className="text-[0.65rem] font-semibold text-slate-500">USD per card</span>
       </div>
+      <div className="relative">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Riftbound card market value history line graph" className="h-auto min-w-[36rem] w-full">
         {yValues.map((value) => {
           const y = getY(value);
@@ -1080,15 +1128,39 @@ function RiftboundPriceHistoryChart({ history }: { history: RiftboundPriceHistor
         {series.map((entry) => buildHistoryLineSegments(entry.values, getX, getY).map((points, index) => (
           <polyline key={`${entry.finish}-${index}`} points={points} fill="none" stroke={entry.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         )))}
-        {series.flatMap((entry) => entry.values.map((value, index) => value === null ? null : (
-          <circle key={`${entry.finish}-${dates[index]}`} cx={getX(index)} cy={getY(value)} r="4" fill="#030712" stroke={entry.color} strokeWidth="2">
-            <title>{`${entry.label} · ${formatHistoryDate(dates[index])} · ${formatMarketPriceOrUnavailable(value)}`}</title>
-          </circle>
-        )))}
+        {series.flatMap((entry) => entry.values.map((value, index) => value === null ? null : (() => {
+          const point = {
+            chartWidth: width,
+            chartHeight: height,
+            x: getX(index),
+            y: getY(value),
+            label: entry.label,
+            value: formatMarketPriceOrUnavailable(value),
+            date: formatHistoryTooltipDate(dates[index]),
+          };
+          return <circle
+            key={`${entry.finish}-${dates[index]}`}
+            cx={point.x}
+            cy={point.y}
+            r="6"
+            fill="#030712"
+            stroke={entry.color}
+            strokeWidth="2"
+            tabIndex={0}
+            role="img"
+            aria-label={`${point.label}: ${point.value} - ${point.date}`}
+            onMouseEnter={() => setHoveredPoint(point)}
+            onMouseLeave={() => setHoveredPoint(null)}
+            onFocus={() => setHoveredPoint(point)}
+            onBlur={() => setHoveredPoint(null)}
+          />;
+        })()))}
         {labelIndexes.map((index) => (
           <text key={index} x={getX(index)} y={plotBottom + 25} textAnchor="middle" fill="#64748b" fontSize="11">{formatHistoryDate(dates[index])}</text>
         ))}
       </svg>
+      {hoveredPoint ? <HistoryChartTooltip point={hoveredPoint} /> : null}
+      </div>
     </div>
   );
 }
@@ -1114,6 +1186,7 @@ function MarketValueRefreshNote() {
 }
 
 function RiftboundCollectionValueHistoryChart({ history }: { history: RiftboundCollectionValueHistoryEntry[] }) {
+  const [hoveredPoint, setHoveredPoint] = useState<HistoryPointTooltip | null>(null);
   if (history.length === 0) {
     return <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">No collection value snapshots are available yet.</p>;
   }
@@ -1144,6 +1217,7 @@ function RiftboundCollectionValueHistoryChart({ history }: { history: RiftboundC
         </span>
         <span className="text-[0.65rem] font-semibold text-slate-500">USD · saved inventory</span>
       </div>
+      <div className="relative">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Riftbound collection market value history line graph" className="h-auto min-w-[36rem] w-full">
         {yValues.map((value) => {
           const y = getY(value);
@@ -1156,15 +1230,40 @@ function RiftboundCollectionValueHistoryChart({ history }: { history: RiftboundC
         })}
         <line x1={plotLeft} x2={plotRight} y1={plotBottom} y2={plotBottom} stroke="rgba(148,163,184,0.3)" />
         <polyline points={points} fill="none" stroke="#6ee7b7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        {history.map((entry, index) => (
-          <circle key={entry.date} cx={getX(index)} cy={getY(entry.value)} r="4" fill="#030712" stroke="#6ee7b7" strokeWidth="2">
-            <title>{`${formatHistoryDate(entry.date)} · ${formatMarketPrice(entry.value)} · ${entry.pricedCopies}/${entry.totalCopies} copies priced`}</title>
-          </circle>
-        ))}
+        {history.map((entry, index) => {
+          const point = {
+            chartWidth: width,
+            chartHeight: height,
+            x: getX(index),
+            y: getY(entry.value),
+            label: 'Collection value',
+            value: formatMarketPrice(entry.value),
+            date: formatHistoryTooltipDate(entry.date),
+            detail: `${entry.pricedCopies} cards priced`,
+          };
+          return <circle
+            key={entry.date}
+            cx={point.x}
+            cy={point.y}
+            r="6"
+            fill="#030712"
+            stroke="#6ee7b7"
+            strokeWidth="2"
+            tabIndex={0}
+            role="img"
+            aria-label={`${point.value} - ${point.date}; ${point.detail}`}
+            onMouseEnter={() => setHoveredPoint(point)}
+            onMouseLeave={() => setHoveredPoint(null)}
+            onFocus={() => setHoveredPoint(point)}
+            onBlur={() => setHoveredPoint(null)}
+          />;
+        })}
         {labelIndexes.map((index) => (
           <text key={index} x={getX(index)} y={plotBottom + 25} textAnchor="middle" fill="#64748b" fontSize="11">{formatHistoryDate(history[index].date)}</text>
         ))}
       </svg>
+      {hoveredPoint ? <HistoryChartTooltip point={hoveredPoint} /> : null}
+      </div>
     </div>
   );
 }
@@ -1413,8 +1512,14 @@ function RiftboundCardDetailsModal({
         </div>
 
         <div className="grid gap-6 p-5 sm:grid-cols-[14rem_minmax(0,1fr)] sm:p-7">
-          <div className="relative mx-auto aspect-[744/1039] w-56 overflow-hidden rounded-2xl bg-slate-900 sm:mx-0 sm:w-56">
-            <RiftboundCardImage card={card} sizes="224px" className="object-cover" />
+          <div className="grid content-start justify-items-center gap-3 sm:justify-items-start">
+            <div className="relative aspect-[744/1039] w-56 overflow-hidden rounded-2xl bg-slate-900">
+              <RiftboundCardImage card={card} sizes="224px" className="object-cover" />
+            </div>
+            <a href={card.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 text-center text-xs font-black uppercase tracking-[0.12em] text-amber-200 transition hover:text-amber-100">
+              View Official Card
+              <ExternalLink size={14} />
+            </a>
           </div>
 
           <div className="grid min-w-0 gap-5">
@@ -1458,11 +1563,6 @@ function RiftboundCardDetailsModal({
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Product Details</p>
               <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{card.productDetails}</p>
             </div>
-
-            <a href={card.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-amber-200 transition hover:text-amber-100">
-              View Official Card
-              <ExternalLink size={14} />
-            </a>
 
             <div className="border-t border-white/10 pt-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2110,27 +2210,6 @@ export function RiftboundCardGrid() {
   const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
   const [latestSnapshotDate, setLatestSnapshotDate] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    void fetch('/api/riftbound/prices/latest', { cache: 'no-store' })
-      .then(async (response) => {
-        const data = await response.json() as RiftboundLatestPricesResponse;
-        if (!response.ok) throw new Error(data.error || 'Unable to load the latest Riftbound market values.');
-        if (!cancelled) {
-          setLatestPrices(data.prices ?? {});
-          setLatestSnapshotDate(data.snapshotDate ?? null);
-        }
-      })
-      .catch(() => {
-        // The generated catalogue remains a safe fallback when snapshots are unavailable.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const cards = useMemo(() => RIFTBOUND_CARDS.map((card) => {
     const latest = latestPrices[card.id];
     if (!latest) return card;
@@ -2155,72 +2234,47 @@ export function RiftboundCardGrid() {
     });
   }, [cards]);
 
-  const loadInventory = useCallback(async (nextSession: Session) => {
-    const storageKey = getInventoryDraftStorageKey(nextSession.user.id);
-    const storedDraft = readStoredInventoryDraft(storageKey);
+  const loadRiftboundBootstrap = useCallback(async (nextSession: Session | null) => {
+    const storageKey = nextSession ? getInventoryDraftStorageKey(nextSession.user.id) : null;
+    const storedDraft = storageKey ? readStoredInventoryDraft(storageKey) : null;
+    const hasStoredDraft = Boolean(storedDraft);
+
     setInventoryRows(storedDraft?.rows ?? []);
     setSavedInventoryRows(storedDraft?.savedRows ?? []);
-    setInventoryLoading(true);
+    setInventoryLoading(Boolean(nextSession) && !hasStoredDraft);
+    setSetsLoading(Boolean(nextSession));
     setInventoryError('');
-    if (storedDraft) setInventoryLoading(false);
-
-    try {
-      const response = await fetch('/api/riftbound/inventory', {
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${nextSession.access_token}` },
-      });
-      const data = await response.json() as InventoryResponse;
-      if (!response.ok) {
-        throw new Error(data.error || 'Unable to load your Riftbound inventory.');
-      }
-      const savedRows = data.items ?? [];
-      const latestStoredDraft = readStoredInventoryDraft(storageKey);
-      setInventoryRows(latestStoredDraft?.rows ?? savedRows);
-      setSavedInventoryRows(savedRows);
-    } catch (error) {
-      setInventoryError(error instanceof Error ? error.message : 'Unable to load your Riftbound inventory.');
-      setInventoryRows(storedDraft?.rows ?? []);
-      setSavedInventoryRows(storedDraft?.savedRows ?? []);
-    } finally {
-      setInventoryLoading(false);
-    }
-  }, []);
-
-  const loadSets = useCallback(async (nextSession: Session) => {
-    setSetsLoading(true);
     setSetsError('');
 
     try {
-      const response = await fetch('/api/riftbound/sets', {
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${nextSession.access_token}` },
-      });
-      const data = await response.json() as SetResponse;
-      if (!response.ok) throw new Error(data.error || 'Unable to load your Riftbound sets.');
-      setSets(data.sets ?? []);
+      const data = await getRiftboundBootstrap(nextSession);
+      const savedRows = data.inventory?.items ?? [];
+      const latestStoredDraft = storageKey ? readStoredInventoryDraft(storageKey) : null;
+
+      setLatestPrices(data.prices ?? {});
+      setLatestSnapshotDate(data.snapshotDate ?? null);
+      setInventoryRows(latestStoredDraft?.rows ?? savedRows);
+      setSavedInventoryRows(savedRows);
+      setSets(data.sets?.sets ?? []);
     } catch (error) {
-      setSetsError(error instanceof Error ? error.message : 'Unable to load your Riftbound sets.');
+      const message = error instanceof Error ? error.message : 'Unable to load your Riftbound collection.';
+      if (nextSession) {
+        setInventoryError(message);
+        setSetsError(message);
+      }
+      setInventoryRows(storedDraft?.rows ?? []);
+      setSavedInventoryRows(storedDraft?.savedRows ?? []);
       setSets([]);
     } finally {
+      setInventoryLoading(false);
       setSetsLoading(false);
     }
   }, []);
 
   useEffect(() => subscribeToAuthSession((nextSession) => {
     setSession(nextSession);
-    if (nextSession) {
-      void loadInventory(nextSession);
-      void loadSets(nextSession);
-    } else {
-      setInventoryRows([]);
-      setSavedInventoryRows([]);
-      setSets([]);
-      setInventoryLoading(false);
-      setSetsLoading(false);
-      setInventoryError('');
-      setSetsError('');
-    }
-  }), [loadInventory, loadSets]);
+    void loadRiftboundBootstrap(nextSession);
+  }), [loadRiftboundBootstrap]);
 
   const inventoryByCard = useMemo(() => {
     const quantities = new Map<string, number>();
@@ -2322,7 +2376,7 @@ export function RiftboundCardGrid() {
     const card = cards.find((candidate) => candidate.id === row.card_id);
     return total + (card && getMarketPriceForFinish(card, row.finish) === null ? row.quantity : 0);
   }, 0);
-  const totalMarketValue = inventoryRows.reduce((total, row) => {
+  const savedMarketValue = savedInventoryRows.reduce((total, row) => {
     const card = cards.find((candidate) => candidate.id === row.card_id);
     return total + (card ? (getMarketPriceForFinish(card, row.finish) ?? 0) * row.quantity : 0);
   }, 0);
@@ -2344,6 +2398,11 @@ export function RiftboundCardGrid() {
     () => getInventoryChanges(savedInventoryRows, inventoryRows),
     [inventoryRows, savedInventoryRows],
   );
+  const pendingAddedMarketValue = useMemo(() => inventoryChanges.reduce((total, change) => {
+    if (change.delta <= 0) return total;
+    const card = cards.find((candidate) => candidate.id === change.cardId);
+    return total + (card ? (getMarketPriceForFinish(card, change.finish) ?? 0) * change.delta : 0);
+  }, 0), [cards, inventoryChanges]);
   const hasUnsavedInventoryChanges = inventoryChanges.length > 0;
   const selectedSet = sets.find((set) => set.id === selectedSetId) ?? null;
   const selectedSetCards = selectedSet ? expandSetCards(selectedSet, cards) : [];
@@ -2463,8 +2522,7 @@ export function RiftboundCardGrid() {
   const applyRarityFilter = (rarity: string) => {
     setActiveTab('inventory');
     setSetBuilderOpen(false);
-    setFilters((current) => ({ ...current, rarity: [rarity] }));
-    setFiltersOpen(true);
+    setFilters((current) => ({ ...current, rarity: toggleFilterValue(current.rarity, rarity) }));
   };
 
   const startSetBuilder = () => {
@@ -2717,11 +2775,17 @@ export function RiftboundCardGrid() {
               <div className="relative">
                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
+                  type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search name, number, text, tag, domain, type, rarity, artist..."
                   aria-label="Search Riftbound cards"
-                  className="h-14 w-full rounded-2xl border border-white/10 bg-slate-900/80 py-3 pl-11 pr-11 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  inputMode="search"
+                  className="h-14 w-full rounded-2xl border border-white/10 bg-slate-900/80 py-3 pl-11 pr-11 text-base font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20 sm:text-sm"
                 />
                 {query ? (
                   <button
@@ -2773,7 +2837,11 @@ export function RiftboundCardGrid() {
                     value={tagQuery}
                     onChange={(event) => setTagQuery(event.target.value)}
                     placeholder="Filter by tag"
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-base font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20 sm:text-sm"
                   />
                 </label>
               </div>
@@ -2821,7 +2889,7 @@ export function RiftboundCardGrid() {
             <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_1px_14rem_auto] lg:items-stretch">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {inventoryRarityOrder.map((rarity) => (
-                  <button key={rarity} type="button" onClick={() => applyRarityFilter(rarity)} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                  <button key={rarity} type="button" onClick={() => applyRarityFilter(rarity)} className={`rounded-2xl border px-3 py-3 text-center transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${filters.rarity.includes(rarity) ? 'border-amber-200/70 bg-amber-300/10' : 'border-white/10 bg-slate-900/70 hover:border-amber-200/50 hover:bg-slate-800'}`}>
                     <p className={`text-xs font-black uppercase tracking-[0.12em] ${rarityStyles[rarity] ?? 'text-slate-300'}`}>{rarity}</p>
                     <p className="mt-1 text-xl font-black text-white">{inventoryRarityCounts.get(rarity) ?? 0}</p>
                   </button>
@@ -2833,7 +2901,10 @@ export function RiftboundCardGrid() {
                   <p className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-slate-500">Known value</p>
                   <MarketValueSourceInfo />
                 </div>
-                <p className="mt-1 text-2xl font-black text-emerald-300">{formatMarketPrice(totalMarketValue)}</p>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <p className="text-2xl font-black text-emerald-300">{formatMarketPrice(savedMarketValue)}</p>
+                  {pendingAddedMarketValue > 0 ? <span className="text-xs font-black text-emerald-300">+{formatMarketPrice(pendingAddedMarketValue)} pending</span> : null}
+                </div>
               </div>
               <button type="button" onClick={() => setCollectionHistoryOpen(true)} className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-emerald-200 transition hover:border-emerald-200/50 hover:bg-emerald-300/15 focus:outline-none focus:ring-2 focus:ring-amber-200">
                 <TrendingUp size={16} />
@@ -2866,7 +2937,7 @@ export function RiftboundCardGrid() {
                 <span className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-400">{setBuilderTotalCopies} selected cards</span>
               </div>
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
-                <input value={setBuilderName} onChange={(event) => setSetBuilderName(event.target.value)} maxLength={80} placeholder="Set Name" aria-label="Set Name" className="h-12 rounded-2xl border border-white/10 bg-slate-900/80 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" />
+                <input value={setBuilderName} onChange={(event) => setSetBuilderName(event.target.value)} maxLength={80} placeholder="Set Name" aria-label="Set Name" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false} className="h-12 rounded-2xl border border-white/10 bg-slate-900/80 px-4 text-base font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20 sm:text-sm" />
                 <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
                   {(['global', 'inventory'] as SetSourceTab[]).map((source) => (
                     <button key={source} type="button" onClick={() => setSetBuilderSource(source)} className={`rounded-xl px-4 py-2 text-xs font-black uppercase tracking-[0.1em] transition ${setBuilderSource === source ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{source}</button>
@@ -2940,7 +3011,7 @@ export function RiftboundCardGrid() {
               </section>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {displayedSetCards.map(({ card, key, owned }) => (
-                  <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" ownership={owned ? 'owned' : 'missing'} pendingChange={false} pending={false} />
+                  <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" ownership={owned ? 'owned' : 'missing'} pendingChange={false} pending={false} onOpen={setSelectedCard} />
                 ))}
               </div>
             </>
@@ -2989,6 +3060,7 @@ export function RiftboundCardGrid() {
                 mode="set-view"
                 pendingChange={false}
                 pending={false}
+                onOpen={setSelectedCard}
               />
             ))}
           </div>

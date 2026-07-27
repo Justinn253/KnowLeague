@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getRiftboundCardById } from '@/lib/riftbound';
+import { loadRiftboundSets } from '@/lib/riftbound-server';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const runtime = 'nodejs';
@@ -62,26 +63,7 @@ function buildSet(set: SetRow, cards: SetCardRow[]) {
 export async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    const supabase = getSupabaseServiceClient();
-    const { data: setData, error: setError } = await supabase
-      .from('riftbound_sets')
-      .select('id, name, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .returns<SetRow[]>();
-
-    if (setError) throw setError;
-    const sets = setData ?? [];
-    if (sets.length === 0) return NextResponse.json({ sets: [] });
-
-    const { data: cardData, error: cardError } = await supabase
-      .from('riftbound_set_cards')
-      .select('set_id, card_id, quantity')
-      .in('set_id', sets.map((set) => set.id))
-      .returns<SetCardRow[]>();
-
-    if (cardError) throw cardError;
-    return NextResponse.json({ sets: sets.map((set) => buildSet(set, cardData ?? [])) });
+    return NextResponse.json({ sets: await loadRiftboundSets(userId) });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

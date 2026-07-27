@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getRiftboundCardById } from '@/lib/riftbound';
+import { loadRiftboundInventory } from '@/lib/riftbound-server';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const runtime = 'nodejs';
@@ -26,16 +27,7 @@ type InventoryBody = InventoryChangeInput & {
 export async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    const { data, error } = await getSupabaseServiceClient()
-      .from('riftbound_inventory')
-      .select('card_id, finish, quantity, updated_at')
-      .eq('user_id', userId)
-      .gt('quantity', 0)
-      .order('updated_at', { ascending: false })
-      .returns<InventoryRow[]>();
-
-    if (error) throw error;
-    return NextResponse.json({ items: data ?? [] });
+    return NextResponse.json({ items: await loadRiftboundInventory(userId) });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

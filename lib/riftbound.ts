@@ -39,11 +39,20 @@ export type RiftboundCard = {
   defaultFinish: RiftboundFinish;
 };
 
-export const RIFTBOUND_CARDS = riftboundCards.map((card) => (
-  card.collectorNumber.toUpperCase().endsWith('A') && card.rarity !== 'Showcase'
-    ? { ...card, rarity: 'Showcase' }
-    : card
-)) as RiftboundCard[];
+export function isRiftboundShowcasePrint(card: Pick<RiftboundCard, 'collectorNumber' | 'printedTotal'>) {
+  const collectorNumber = card.collectorNumber.trim().toUpperCase();
+  if (collectorNumber.endsWith('A') || collectorNumber.endsWith('-STAR') || /^SP\d+$/.test(collectorNumber)) return true;
+
+  const numericNumber = Number(collectorNumber.match(/^\d+/)?.[0]);
+  return Number.isFinite(numericNumber) && card.printedTotal !== null && numericNumber > card.printedTotal;
+}
+
+export const RIFTBOUND_CARDS = riftboundCards.map((card) => {
+  const isShowcase = card.rarity === 'Showcase' || isRiftboundShowcasePrint(card);
+  return isShowcase
+    ? { ...card, rarity: 'Showcase', finishOptions: ['foil' as RiftboundFinish], defaultFinish: 'foil' as RiftboundFinish }
+    : card;
+}) as RiftboundCard[];
 
 const riftboundCardsById = new Map(RIFTBOUND_CARDS.map((card) => [card.id, card]));
 

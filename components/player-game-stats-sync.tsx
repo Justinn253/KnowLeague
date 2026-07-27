@@ -20,6 +20,10 @@ function getLocalStatsByGame(): PlayerGameStatsByGame {
   return Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [gameId, loadPlayerGameStats(gameId)]));
 }
 
+function serializeStatsByGame(stats: PlayerGameStatsByGame) {
+  return JSON.stringify(STREAK_GAME_IDS.map((gameId) => [gameId, stats[gameId] ?? null]));
+}
+
 export function PlayerGameStatsSync() {
   const sessionRef = useRef<Session | null>(null);
   const hydratingRef = useRef(false);
@@ -71,7 +75,9 @@ export function PlayerGameStatsSync() {
           }
         });
         hydratingRef.current = false;
-        saveAccountStats(mergedStats);
+        if (serializeStatsByGame(mergedStats) !== serializeStatsByGame(serverStats)) {
+          saveAccountStats(mergedStats);
+        }
       } catch {
         hydratingRef.current = false;
       }

@@ -23,6 +23,7 @@ type AppSelectMenuProps<T extends string | number> = {
   disabledDescription?: string;
   className?: string;
   triggerClassName?: string;
+  hideLabel?: boolean;
 };
 
 export function AppSelectMenu<T extends string | number>({
@@ -38,6 +39,7 @@ export function AppSelectMenu<T extends string | number>({
   disabledDescription,
   className = '',
   triggerClassName = '',
+  hideLabel = false,
 }: AppSelectMenuProps<T>) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -56,12 +58,13 @@ export function AppSelectMenu<T extends string | number>({
 
   return (
     <div ref={rootRef} className={`relative grid gap-2 ${open ? 'z-[100]' : 'z-0'} ${disabledDescription ? 'group' : ''} ${className}`}>
-      <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span>
+      {!hideLabel ? <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span> : null}
       <div className="relative">
         <button
           type="button"
           disabled={disabled}
           onClick={() => setOpen((current) => !current)}
+          aria-label={hideLabel ? label : undefined}
           title={disabled ? disabledDescription : undefined}
           aria-haspopup="listbox"
           aria-expanded={open}
@@ -74,7 +77,7 @@ export function AppSelectMenu<T extends string | number>({
           role="listbox"
           aria-multiselectable={multiple || undefined}
           aria-hidden={!open}
-          className={`absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-4 transition-[opacity,transform] duration-100 ease-out ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
+          className={`absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 transition-[opacity,transform] duration-100 ease-out sm:p-4 ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
         >
           <div className="mb-3 border-b border-white/10 pb-3"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">{label}</p>{headerDescription ? <p className="mt-2 text-xs leading-5 text-slate-400">{headerDescription}</p> : null}</div>
           <div className="grid gap-2 py-1">
@@ -97,7 +100,7 @@ export function AppSelectMenu<T extends string | number>({
                       setOpen(false);
                     }
                   }}
-                  className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition ${selected ? 'border-amber-300/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900/80 text-slate-200 hover:border-white/25'}`}
+                  className={`flex min-h-12 w-full items-start gap-3 rounded-xl border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300 ${selected ? 'border-amber-300/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900/80 text-slate-200 hover:border-white/25'}`}
                 >
                   <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-amber-300 bg-amber-300 text-slate-950' : 'border-slate-600 text-transparent'}`}><Check size={13} /></span>
                   <span><span className="block text-sm font-bold">{option.label}</span>{option.description ? <span className="mt-0.5 block text-xs leading-5 text-slate-400">{option.description}</span> : null}</span>
@@ -107,7 +110,7 @@ export function AppSelectMenu<T extends string | number>({
           </div>
         </div>
       </div>
-      {disabled && disabledDescription ? <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-max max-w-72 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-semibold leading-5 text-slate-200  group-hover:block group-focus-within:block">{disabledDescription}</span> : null}
+      {disabled && disabledDescription ? <span role="tooltip" className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-max max-w-[calc(100vw-2rem)] whitespace-normal rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-semibold leading-5 text-slate-200 group-hover:block group-focus-within:block sm:left-0 sm:right-auto sm:max-w-72">{disabledDescription}</span> : null}
     </div>
   );
 }

@@ -55,7 +55,7 @@ function getNextDailyResetLabel(now = new Date()) {
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+    <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-3 sm:p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
       <p className="mt-2 text-xl font-black text-white">{value}</p>
     </div>
@@ -83,7 +83,7 @@ export function SoloQuizPrematch({
   const [playedCount, setPlayedCount] = useState(0);
   const [serverHasPlayed, setServerHasPlayed] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [resetLabel, setResetLabel] = useState(() => getNextDailyResetLabel());
+  const [resetLabel, setResetLabel] = useState('--:--:--');
   const leaderboardEnabled = isLeaderboardMode(selectedMode);
   const gameLabel = gameId === 'ability-blitz' ? 'Ability Blitz' : 'Skin Champion';
   const selectedModeName = useMemo(
@@ -108,6 +108,7 @@ export function SoloQuizPrematch({
   };
 
   useEffect(() => {
+    setResetLabel(getNextDailyResetLabel());
     const interval = window.setInterval(() => setResetLabel(getNextDailyResetLabel()), 1000);
     return () => window.clearInterval(interval);
   }, []);
@@ -173,7 +174,7 @@ export function SoloQuizPrematch({
           onModeSelect(mode.id);
         }}
         disabled={disabled || countdown !== null}
-        className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`group relative min-h-32 overflow-hidden rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-60 ${
           selected
             ? 'border-amber-300/70 bg-amber-300/10  '
             : 'border-white/10 bg-slate-950/70 hover:border-white/25 hover:bg-slate-950'
@@ -246,7 +247,7 @@ export function SoloQuizPrematch({
 
   return (
     <div className="grid gap-4">
-    <section className="grid gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl lg:grid-cols-[1.05fr_0.95fr]">
+    <section className="grid gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-6 sm:p-6 lg:grid-cols-[1.05fr_0.95fr]">
       <div className="flex flex-col gap-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Select Mode</p>
@@ -290,7 +291,7 @@ export function SoloQuizPrematch({
         </button>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
+      <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-3 sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">

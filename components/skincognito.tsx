@@ -1522,7 +1522,7 @@ export function Skincognito() {
           <MultiplayerLobbyMessage>{message}</MultiplayerLobbyMessage>
 
           {lobbyView && lobbyView.lobby.status === 'waiting' ? (
-            <div className="mt-5 grid gap-5">
+            <div className="mt-4 grid gap-4 sm:mt-5 sm:gap-5">
               <MultiplayerLobbyGrid>
                 <MultiplayerLobbyRoster
                   countLabel={`${activePlayers.length}/2 Players - ${spectatorCount}/8 Spectators`}
@@ -1646,7 +1646,7 @@ export function Skincognito() {
                                 onFocus={() => playUiSound('autocomplete-hover')}
                                 onMouseDown={(event) => event.preventDefault()}
                                 onClick={() => chooseSkin(skin)}
-                                className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                                className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300"
                               >
                                 <GameSplashImage
                                   src={skin.imageUrl}
@@ -1690,7 +1690,7 @@ export function Skincognito() {
                 </section>
               ) : null}
 
-              <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+              <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-3 sm:p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.22em] text-amber-300">
@@ -1828,12 +1828,12 @@ export function Skincognito() {
                       maxLength={CHAT_MESSAGE_MAX_LENGTH}
                       autoComplete="off"
                       placeholder={`Send a message (${chatDraft.length}/${CHAT_MESSAGE_MAX_LENGTH})`}
-                      className="min-h-10 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15"
+                      className="min-h-12 min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15 sm:px-4"
                     />
                     <button
                       type="submit"
                       disabled={busy || !chatDraft.trim()}
-                      className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-slate-800 px-5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-800 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
                     >
                       Send
                     </button>
@@ -2022,7 +2022,7 @@ export function Skincognito() {
                                   setCategoryMenuOpen(false);
                                   setGuessMenuOpen(true);
                                 }}
-                                className={`rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
+                                className={`flex min-h-11 items-center rounded-xl px-3 py-2 text-left text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300 ${
                                   category.id === selectedCategory ? 'bg-violet-500/20 text-violet-100' : 'text-slate-200 hover:bg-slate-800'
                                 }`}
                               >
@@ -2061,7 +2061,7 @@ export function Skincognito() {
                                 onFocus={() => playUiSound('autocomplete-hover')}
                                 onMouseDown={(event) => event.preventDefault()}
                                 onClick={() => chooseGuess(suggestion.label)}
-                                className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                                className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300"
                               >
                                 {suggestion.imageUrl ? (
                                   <GameSplashImage

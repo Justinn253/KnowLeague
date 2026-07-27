@@ -222,7 +222,7 @@ async function fetchTcgCsvMarketPrices(setCodes) {
 function normalizeCard(card, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey) {
   const setCode = card.setCode.toUpperCase();
   const number = parseCardNumber(card.cardNumber);
-  const rarity = card.rarity;
+  const rarity = number.collectorNumber.endsWith('A') ? 'Showcase' : card.rarity;
   const finishOptions = rarity === 'Rare' || rarity === 'Epic' || rarity === 'Showcase'
     ? ['foil']
     : ['normal', 'foil'];

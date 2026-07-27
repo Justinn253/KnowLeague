@@ -4,21 +4,13 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   BarChart3,
-  Clock3,
-  Eye,
   Flame,
-  Search,
-  ShieldQuestion,
-  Sparkles,
-  Swords,
-  Trophy,
   User,
   UserPlus,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 import { GameSplashImage } from '@/components/game-asset-image';
-import { AppNavigationDrawer } from '@/components/app-navigation-drawer';
 import Link from 'next/link';
 import { MultiplayerPlayerCountBadge } from '@/components/multiplayer-player-count-badge';
 import {
@@ -28,30 +20,9 @@ import {
   PLAYER_GAME_STATS_CHANGED_EVENT,
   STREAK_GAME_IDS,
   type PlayerGameStatsByGame,
-  type StreakGameId,
 } from '@/lib/game-storage';
-import type { MultiplayerPlayerCountGameId } from '@/lib/multiplayer-player-counts';
+import { GAME_NAVIGATION_ITEMS, type Accent, type GameLink, type GameMode } from '@/lib/game-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
-
-type Accent = 'gold' | 'cyan' | 'rose' | 'violet' | 'emerald' | 'sky';
-type GameMode = 'solo' | 'multiplayer' | 'hybrid';
-
-type GameLink = {
-  title: string;
-  href: string;
-  description: string;
-  imageUrl: string;
-  imageFit?: 'cover' | 'contain';
-  gameIcon: LucideIcon;
-  mode: GameMode;
-  playerCountId?: MultiplayerPlayerCountGameId;
-  streakGameId?: StreakGameId;
-  streakStyle?: 'single' | 'daily-pair' | 'modes';
-  accent: Accent;
-  kicker: string;
-  feature?: boolean;
-  mostPlayed?: boolean;
-};
 
 const accentStyles: Record<Accent, {
   border: string;
@@ -126,106 +97,7 @@ const modeStyles: Record<GameMode, { label: string; icon: LucideIcon }> = {
   },
 };
 
-const games: GameLink[] = [
-  {
-    title: 'Skindle',
-    href: '/skindle',
-    description: 'Solve the daily League of Legends skin with each guess revealing more information.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_7.jpg',
-    gameIcon: Search,
-    mode: 'solo',
-    streakGameId: 'skindle',
-    streakStyle: 'single',
-    accent: 'gold',
-    kicker: 'Daily Puzzle',
-    feature: true,
-    mostPlayed: true,
-  },
-  {
-    title: 'Splash Scramble',
-    href: '/splash-scramble',
-    description: 'Rebuild a scrambled League of Legends skin by swapping pieces.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ashe_0.jpg',
-    gameIcon: Eye,
-    mode: 'solo',
-    streakGameId: 'splash-scramble',
-    streakStyle: 'daily-pair',
-    accent: 'sky',
-    kicker: 'Tile Puzzle',
-  },
-  {
-    title: 'Ability Blitz',
-    href: '/multiplayer/ability-blitz',
-    description: 'Play solo or with friends through League of Legends ability icons.',
-    imageUrl: '/game-snapshots/ability_blitz_snapshot.png',
-    imageFit: 'contain',
-    gameIcon: Clock3,
-    mode: 'hybrid',
-    playerCountId: 'ability-blitz',
-    streakGameId: 'ability-blitz',
-    streakStyle: 'modes',
-    accent: 'cyan',
-    kicker: 'Solo or Race',
-  },
-  {
-    title: 'Skin Champion',
-    href: '/multiplayer/skin-champion',
-    description: 'Play solo or with friends to identify League of Legends skin lines.',
-    imageUrl: '/game-snapshots/skin_champion_snapshot.png',
-    imageFit: 'contain',
-    gameIcon: Sparkles,
-    mode: 'hybrid',
-    playerCountId: 'skin-champion',
-    streakGameId: 'skin-champion',
-    streakStyle: 'modes',
-    accent: 'sky',
-    kicker: 'Solo or Sprint',
-  },
-  {
-    title: 'Skincognito',
-    href: '/skincognito',
-    description: 'Try to guess your opponents League of Legends skin before they can guess yours.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shaco_0.jpg',
-    gameIcon: ShieldQuestion,
-    mode: 'multiplayer',
-    playerCountId: 'skincognito',
-    accent: 'rose',
-    kicker: 'Deduction Duel',
-    feature: true,
-  },
-  {
-    title: 'Carving Revelation',
-    href: '/carving-revelation',
-    description: 'Carve through a hidden League of Legends skin line and figure it out before your opponents do.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jhin_5.jpg',
-    gameIcon: Eye,
-    mode: 'multiplayer',
-    playerCountId: 'carving-revelation',
-    accent: 'gold',
-    kicker: 'Shared Canvas',
-  },
-  {
-    title: 'Category Clash',
-    href: '/category-clash',
-    description: 'Name unique League answers from rotating categories and be the last player standing.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sylas_0.jpg',
-    gameIcon: Swords,
-    mode: 'multiplayer',
-    playerCountId: 'category-clash',
-    accent: 'emerald',
-    kicker: 'Last Player Standing',
-  },
-  {
-    title: 'Mastery Master',
-    href: '/mastery-master',
-    description: 'Put a League account\'s champion mastery knowledge to the test.',
-    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Malzahar_0.jpg',
-    gameIcon: Trophy,
-    mode: 'solo',
-    accent: 'violet',
-    kicker: 'Mastery Challenge',
-  },
-];
+const games: GameLink[] = GAME_NAVIGATION_ITEMS;
 
 function GameModeBadge({ mode, featured = false }: { mode: GameMode; featured?: boolean }) {
   const modeStyle = modeStyles[mode];
@@ -317,7 +189,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         onMouseEnter={() => playUiSound('autocomplete-hover')}
         onFocus={() => playUiSound('autocomplete-hover')}
         onClick={() => playUiSound('autocomplete-select')}
-        className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl bg-slate-950 bg-clip-padding ${featuredBorder} ${featuredGlow} transition-[transform,border-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1  focus:outline-none focus:ring-2 focus:ring-amber-200 lg:col-span-2`}
+        className={`group relative isolate min-h-[18rem] transform-gpu overflow-hidden rounded-2xl bg-slate-950 bg-clip-padding ${featuredBorder} ${featuredGlow} transition-[transform,border-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:min-h-[24rem] lg:col-span-2`}
       >
         <GameSplashImage
           src={game.imageUrl}
@@ -331,14 +203,15 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         <div className={`absolute inset-0 ${featuredTextShade}`} />
         <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/10 opacity-0 blur-lg transition-all duration-700 group-hover:left-full group-hover:opacity-100" />
         <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/0 transition duration-300 group-hover:ring-white/15" />
-        <div className="relative flex min-h-[24rem] flex-col justify-between p-5 sm:p-6">
+        <div className="relative flex min-h-[18rem] flex-col justify-between p-4 sm:min-h-[24rem] sm:p-6">
           <div className="flex items-start justify-between gap-3">
-            <div className="relative flex items-center gap-2 pb-10">
-              <span className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 ${accent.icon}`}>
-                <GameIcon size={22} />
+            <div className="relative flex items-center gap-2 pb-8 sm:pb-10">
+              <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 sm:h-12 sm:w-12 ${accent.icon}`}>
+                <GameIcon size={20} className="sm:hidden" />
+                <GameIcon size={22} className="hidden sm:block" />
               </span>
               <GameModeBadge mode={game.mode} featured />
-              <span className="absolute left-0 top-14">
+              <span className="absolute left-0 top-12 sm:top-14">
                 <StreakBadge game={game} stats={stats} />
               </span>
             </div>
@@ -355,11 +228,11 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
           </div>
 
           <div className="max-w-md">
-            <div className={`mb-4 h-1 w-16 rounded-full transition-all duration-300 group-hover:w-24 ${accent.line}`} />
+            <div className={`mb-3 h-1 w-14 rounded-full transition-all duration-300 group-hover:w-24 sm:mb-4 sm:w-16 ${accent.line}`} />
             <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">{game.kicker}</p>
-            <h3 className="mt-3 text-4xl font-black tracking-tight text-white">{game.title}</h3>
-            <p className="mt-4 text-sm leading-6 text-slate-200">{game.description}</p>
-            <div className="game-card-cta mt-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color] duration-300">
+            <h3 className="mt-2 text-3xl font-black tracking-tight text-white sm:mt-3 sm:text-4xl">{game.title}</h3>
+            <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-200 sm:mt-4 sm:leading-6">{game.description}</p>
+            <div className="game-card-cta mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color] duration-300 sm:mt-6">
               <span className="relative z-10">Open game</span>
               <ArrowRight size={16} className="game-card-arrow relative z-10" />
             </div>
@@ -375,9 +248,9 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
       onClick={() => playUiSound('autocomplete-select')}
-      className={`group relative isolate min-h-[24rem] transform-gpu overflow-hidden rounded-2xl border bg-slate-900/80 bg-clip-padding transition-[transform,border-color,background-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:border-white/35 hover:bg-slate-900  focus:outline-none focus:ring-2 focus:ring-amber-200 ${accent.border}`}
+      className={`group relative isolate min-h-[18rem] transform-gpu overflow-hidden rounded-2xl border bg-slate-900/80 bg-clip-padding transition-[transform,border-color,background-color] duration-300 [backface-visibility:hidden] hover:-translate-y-1 hover:border-white/35 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:min-h-[24rem] ${accent.border}`}
     >
-      <div className="relative h-40 overflow-hidden border-b border-white/10 bg-slate-950">
+      <div className="relative h-28 overflow-hidden border-b border-white/10 bg-slate-950 sm:h-40">
         <GameSplashImage
           src={game.imageUrl}
           alt={`${game.title} game preview`}
@@ -389,23 +262,23 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
         />
         <div className={`absolute inset-0 bg-gradient-to-t ${accent.wash} to-transparent`} />
         <div className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-white/10 opacity-0 blur-md transition-all duration-700 group-hover:left-full group-hover:opacity-100" />
-        <div className="absolute left-4 top-4 flex items-center gap-2">
-          <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 ${accent.icon}`}>
-            <GameIcon size={20} />
+        <div className="absolute left-3 top-3 flex items-center gap-2 sm:left-4 sm:top-4">
+          <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition duration-300 group-hover:-translate-y-0.5 sm:h-11 sm:w-11 ${accent.icon}`}>
+            <GameIcon size={18} />
           </span>
           <GameModeBadge mode={game.mode} />
-          <span className="absolute left-0 top-[3.25rem]">
+            <span className="absolute left-0 top-12 sm:top-[3.25rem]">
             <StreakBadge game={game} stats={stats} />
           </span>
         </div>
         {game.playerCountId ? (
-          <MultiplayerPlayerCountBadge gameId={game.playerCountId} className="absolute right-4 top-4" />
+          <MultiplayerPlayerCountBadge gameId={game.playerCountId} className="absolute right-3 top-3 sm:right-4 sm:top-4" />
         ) : null}
       </div>
-      <div className="relative z-10 flex min-h-[14rem] flex-col p-5">
+      <div className="relative z-10 flex min-h-[10rem] flex-col p-4 sm:min-h-[14rem] sm:p-5">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{game.kicker}</p>
-        <h3 className="mt-2 text-2xl font-black tracking-tight text-white transition-colors duration-300 group-hover:text-amber-100">{game.title}</h3>
-        <p className="mt-3 text-sm leading-6 text-slate-300">{game.description}</p>
+        <h3 className="mt-2 text-xl font-black tracking-tight text-white transition-colors duration-300 group-hover:text-amber-100 sm:text-2xl">{game.title}</h3>
+        <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-300 sm:mt-3 sm:leading-6">{game.description}</p>
         <div className="game-card-cta mt-auto inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-[color] duration-300">
           <span className="relative z-10">Open game</span>
           <ArrowRight size={16} className="game-card-arrow relative z-10" />
@@ -465,11 +338,11 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#030712] text-slate-100">
-      <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-12 px-6 py-10 lg:px-12">
-        <header className="relative grid gap-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+    <main className="min-h-[100dvh] overflow-hidden bg-[#030712] text-slate-100">
+      <section className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:gap-12 sm:px-6 sm:py-10 lg:px-12">
+        <header className="relative grid gap-5 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-4 sm:gap-6 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="relative min-w-0">
-            <h1 className="text-5xl font-black tracking-tight text-white sm:text-6xl">KnowLeague Trivia</h1>
+            <h1 className="text-4xl font-black tracking-tight text-white sm:text-6xl">KnowLeague Trivia</h1>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
             <Link
@@ -484,7 +357,6 @@ export default function Home() {
               League Account Viewer
               <ArrowRight size={17} className="transition group-hover:translate-x-1" />
             </Link>
-            <AppNavigationDrawer />
           </div>
         </header>
 

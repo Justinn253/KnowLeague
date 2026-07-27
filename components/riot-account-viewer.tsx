@@ -871,7 +871,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
   }, [championDropdownOpen]);
 
   return (
-    <section className="overflow-visible rounded-2xl border border-white/10 bg-slate-950/70 p-5">
+    <section className="overflow-visible rounded-2xl border border-white/10 bg-slate-950/70 p-3 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="grid gap-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Top Champion mastery</p>
@@ -886,7 +886,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
                 <ChevronDown size={16} className="shrink-0 text-slate-400" />
               </button>
               {championDropdownOpen ? (
-                <div className="absolute left-0 top-full z-[95] mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 p-3">
+                <div className="absolute left-0 top-full z-[95] mt-2 max-h-[calc(100dvh-5rem)] w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3">
                   <label className="relative block">
                     <span className="sr-only">Search champions</span>
                     <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -899,7 +899,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
                   </label>
                   <div className="mt-3 max-h-64 overflow-y-auto pr-1">
                     {championOptions.map((mastery) => (
-                      <label key={mastery.champion.id} className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10">
+                      <label key={mastery.champion.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10">
                         <input
                           type="checkbox"
                           checked={selectedChampionIds.has(mastery.champion.id)}
@@ -1733,9 +1733,9 @@ export function RiotAccountViewer() {
   const title = data ? `${data.account.gameName}#${data.account.tagLine}` : 'KnowLeague - League Account Viewer';
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-10">
-        <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-5  sm:p-6">
+    <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
+      <section className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-8 lg:px-10">
+        <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-3">

@@ -382,8 +382,8 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
       <section className={presentation === 'overlay'
-        ? 'mx-auto flex w-full max-w-5xl flex-col px-6 py-4'
-        : 'mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 py-10'}
+        ? 'mx-auto flex w-full max-w-5xl flex-col px-3 py-3 sm:px-6 sm:py-4'
+        : 'mx-auto flex min-h-[100dvh] w-full max-w-5xl flex-col justify-center px-4 py-6 sm:px-6 sm:py-10'}
       >
         {presentation === 'overlay' ? null : (
           <header className="mb-4 flex min-h-12 items-center gap-3">
@@ -397,7 +397,7 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
           </header>
         )}
 
-        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-5  backdrop-blur-xl">
+        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-5">
           {busy ? (
             <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
               <Loader2 size={18} className="animate-spin text-amber-300" />
@@ -566,8 +566,8 @@ export function PublicProfileScreen({ username, presentation = 'page', onClose }
             </>
           ) : null}
           {allBadgesOpen ? (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm" onMouseDown={() => setAllBadgesOpen(false)}>
-              <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 " onMouseDown={(event) => event.stopPropagation()}>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-3 backdrop-blur-sm sm:p-4" onPointerDown={() => setAllBadgesOpen(false)}>
+              <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-4 sm:max-h-[calc(100dvh-2rem)] sm:p-5" onPointerDown={(event) => event.stopPropagation()}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Badges</p>

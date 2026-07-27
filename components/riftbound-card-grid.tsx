@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FileDown, Home, Info, LoaderCircle, Minus, PackageOpen, Pencil, Plus, RotateCcw, Save, Search, Share2, SlidersHorizontal, Trash2, TrendingUp, Upload, X } from 'lucide-react';
+import { ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, FileDown, Home, Info, LoaderCircle, Minus, PackageOpen, Pencil, Plus, RotateCcw, Save, Search, Share2, SlidersHorizontal, Trash2, TrendingUp, Upload, X } from 'lucide-react';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import type Tesseract from 'tesseract.js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
@@ -14,6 +15,10 @@ type InventoryTab = 'global' | 'inventory' | 'sets';
 
 type SetSourceTab = 'global' | 'inventory';
 type CollectionShareKind = 'collection' | 'set';
+type CollectionShareMetadata = {
+  createdBy: string;
+  createdAt: string;
+};
 type SetOwnershipFilter = 'all' | 'owned' | 'missing';
 
 type InventoryItem = {
@@ -97,6 +102,18 @@ type RiftboundLatestPricesResponse = {
   capturedAt?: string | null;
   error?: string;
 };
+
+type RiftboundScanMatch = {
+  card: RiftboundCard;
+  score: number;
+};
+
+const RIFTBOUND_SCAN_ASPECT_RATIO = 3 / 4;
+const RIFTBOUND_SCAN_CONFIDENCE_THRESHOLD = 0.5;
+const RIFTBOUND_SCAN_LOCAL_RETRY_THRESHOLD = 0.28;
+const RIFTBOUND_SCAN_AUTO_ADD_THRESHOLD = 0.8;
+const RIFTBOUND_OCR_SINGLE_LINE_MODE = '7' as Tesseract.PSM;
+const RIFTBOUND_OCR_SINGLE_BLOCK_MODE = '6' as Tesseract.PSM;
 
 type SortMode =
   | 'none'
@@ -414,6 +431,157 @@ function normalizeSearchText(value: string) {
     .replace(/[^a-z0-9]+/g, '');
 }
 
+function getScanTokenSimilarity(left: string, right: string) {
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  if (left.includes(right) || right.includes(left)) return Math.min(left.length, right.length) / Math.max(left.length, right.length);
+  if (left.length < 3 || right.length < 3) return 0;
+
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) {
+      current[column] = Math.min(
+        current[column - 1] + 1,
+        previous[column] + 1,
+        previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1),
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+
+  return 1 - previous[right.length] / Math.max(left.length, right.length);
+}
+
+function getScanCrop(video: HTMLVideoElement) {
+  const sourceWidth = video.videoWidth;
+  const sourceHeight = video.videoHeight;
+  const sourceAspectRatio = sourceWidth / sourceHeight;
+  let width = sourceWidth;
+  let height = sourceHeight;
+  let x = 0;
+  let y = 0;
+
+  if (sourceAspectRatio > RIFTBOUND_SCAN_ASPECT_RATIO) {
+    width = sourceHeight * RIFTBOUND_SCAN_ASPECT_RATIO;
+    x = (sourceWidth - width) / 2;
+  } else if (sourceAspectRatio < RIFTBOUND_SCAN_ASPECT_RATIO) {
+    height = sourceWidth / RIFTBOUND_SCAN_ASPECT_RATIO;
+    y = (sourceHeight - height) / 2;
+  }
+
+  return { x, y, width, height };
+}
+
+function drawRiftboundScanFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
+  const crop = getScanCrop(video);
+  const guideInset = 0.08;
+  crop.x += crop.width * guideInset;
+  crop.y += crop.height * guideInset;
+  crop.width *= 1 - (guideInset * 2);
+  crop.height *= 1 - (guideInset * 2);
+  const outputWidth = 960;
+  const outputHeight = Math.round(outputWidth / RIFTBOUND_SCAN_ASPECT_RATIO);
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return false;
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(video, crop.x, crop.y, crop.width, crop.height, 0, 0, outputWidth, outputHeight);
+  return true;
+}
+
+function preprocessRiftboundOcrCanvas(canvas: HTMLCanvasElement, mode: 'grayscale' | 'threshold') {
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return false;
+
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  for (let index = 0; index < image.data.length; index += 4) {
+    const luminance = (image.data[index] * 0.299) + (image.data[index + 1] * 0.587) + (image.data[index + 2] * 0.114);
+    const contrast = Math.max(0, Math.min(255, ((luminance - 128) * 1.55) + 128));
+    const value = mode === 'threshold' ? (contrast >= 150 ? 255 : 0) : contrast;
+    image.data[index] = value;
+    image.data[index + 1] = value;
+    image.data[index + 2] = value;
+  }
+  context.putImageData(image, 0, 0);
+  return true;
+}
+
+function drawRiftboundScanRegion(source: HTMLCanvasElement, target: HTMLCanvasElement, top: number, bottom: number, mode: 'grayscale' | 'threshold' = 'grayscale') {
+  const sourceHeight = source.height * (bottom - top);
+  const outputWidth = 960;
+  const outputHeight = Math.max(180, Math.round(outputWidth * (sourceHeight / source.width)));
+  target.width = outputWidth;
+  target.height = outputHeight;
+
+  const context = target.getContext('2d', { willReadFrequently: true });
+  if (!context) return false;
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(source, 0, source.height * top, source.width, sourceHeight, 0, 0, outputWidth, outputHeight);
+  return preprocessRiftboundOcrCanvas(target, mode);
+}
+
+function getVisibleRiftboundScanMatches(matches: RiftboundScanMatch[]) {
+  return matches.slice(0, 5);
+}
+
+async function requestRiftboundVisionText(canvas: HTMLCanvasElement, accessToken: string) {
+  const response = await fetch('/api/riftbound/scan', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.78) }),
+  });
+  const body = await response.json() as { text?: unknown; error?: unknown };
+  if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : 'Cloud card recognition failed.');
+  return typeof body.text === 'string' ? body.text.trim() : '';
+}
+
+function findRiftboundScanMatches(cards: RiftboundCard[], ocrText: string): RiftboundScanMatch[] {
+  const normalizedOcr = normalizeSearchText(ocrText);
+  const ocrWords = ocrText
+    .split(/\s+/)
+    .map((word) => normalizeSearchText(word))
+    .filter((word) => word.length >= 2);
+
+  if (!normalizedOcr) return [];
+
+  const rankedMatches = cards.map((card) => {
+    const name = normalizeSearchText(card.displayName);
+    const nameWords = card.displayName
+      .split(/\s+/)
+      .map((word) => normalizeSearchText(word))
+      .filter((word) => word.length >= 2);
+    const number = normalizeSearchText(card.numberLabel);
+    const collectorNumber = normalizeSearchText(card.collectorNumber);
+    const setCode = normalizeSearchText(card.setCode);
+    const nameSimilarity = nameWords.length > 0
+      ? nameWords.reduce((total, word) => total + Math.max(...ocrWords.map((ocrWord) => getScanTokenSimilarity(word, ocrWord)), 0), 0) / nameWords.length
+      : 0;
+    let score = 0;
+
+    if (name && normalizedOcr.includes(name)) score += 0.65;
+    score += nameSimilarity * 0.25;
+    if (number && normalizedOcr.includes(number)) score += 0.3;
+    else if (collectorNumber.length >= 2 && normalizedOcr.includes(collectorNumber)) score += 0.18;
+    if (setCode && normalizedOcr.includes(setCode)) score += 0.12;
+
+    return { card, score: Math.min(score, 1) };
+  })
+    .sort((left, right) => right.score - left.score || left.card.displayName.localeCompare(right.card.displayName));
+
+  const confidentMatches = rankedMatches.filter((match) => match.score >= 0.22);
+  return (confidentMatches.length > 0 ? confidentMatches : rankedMatches).slice(0, 5);
+}
+
 function uniqueSorted(values: string[]) {
   return Array.from(new Set(values.filter(Boolean))).sort((left, right) => left.localeCompare(right));
 }
@@ -445,20 +613,44 @@ function parseInventoryTab(value: string | null): InventoryTab | null {
   return value === 'global' || value === 'inventory' || value === 'sets' ? value : null;
 }
 
-function encodeCollectionRows(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string) {
-  const payload = JSON.stringify({
-    kind,
-    title: title?.trim() || undefined,
-    rows: rows.map((row) => ({ card_id: row.card_id, finish: row.finish, quantity: row.quantity })),
-  });
-  const bytes = new TextEncoder().encode(payload);
+function encodeShareBytes(bytes: Uint8Array) {
   let binary = '';
   bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
   return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-function getCollectionShareUrl(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string) {
-  return `${window.location.origin}/inventory/share?data=${encodeURIComponent(encodeCollectionRows(rows, kind, title))}`;
+async function gzipSharePayload(payload: string) {
+  if (typeof CompressionStream === 'undefined') return null;
+
+  const compressedStream = new Blob([payload]).stream().pipeThrough(new CompressionStream('gzip'));
+  return encodeShareBytes(new Uint8Array(await new Response(compressedStream).arrayBuffer()));
+}
+
+function getCollectionSharePayload(rows: InventoryItem[], kind: CollectionShareKind, title?: string, metadata?: CollectionShareMetadata) {
+  return JSON.stringify({
+    v: 2,
+    k: kind === 'set' ? 's' : 'c',
+    t: title?.trim() || '',
+    u: metadata?.createdBy.trim() || '',
+    d: metadata?.createdAt || new Date().toISOString(),
+    r: rows.map((row) => [row.card_id, row.finish === 'foil' ? 1 : 0, row.quantity]),
+  });
+}
+
+function getCollectionShareUrlForData(data: string) {
+  return `${window.location.origin}/inventory/share?data=${encodeURIComponent(data)}`;
+}
+
+function getCompactCollectionShareUrl(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string, metadata?: CollectionShareMetadata) {
+  const payload = getCollectionSharePayload(rows, kind, title, metadata);
+  return getCollectionShareUrlForData(`p.${encodeShareBytes(new TextEncoder().encode(payload))}`);
+}
+
+async function getCollectionShareUrl(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string, metadata?: CollectionShareMetadata) {
+  const payload = getCollectionSharePayload(rows, kind, title, metadata);
+  const compressed = await gzipSharePayload(payload).catch(() => null);
+  const encoded = compressed ?? encodeShareBytes(new TextEncoder().encode(payload));
+  return getCollectionShareUrlForData(`${compressed ? 'g' : 'p'}.${encoded}`);
 }
 
 const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
@@ -910,7 +1102,7 @@ function MarketValueSourceInfo() {
         aria-label="Market value source information"
         className="text-slate-500 outline-none transition group-hover:text-amber-200 group-focus-within:text-amber-200"
       />
-      <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-[120] mb-2 hidden w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-200 shadow-xl group-hover:block group-focus-within:block">
+      <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-[120] mb-2 hidden w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-200 group-hover:block group-focus-within:block">
         Estimated from captured market prices provided by our pricing source. It is not a guaranteed sale price. {getMarketValueRefreshNote()}
       </span>
     </span>
@@ -1140,7 +1332,7 @@ const RiftboundCardRow = memo(function RiftboundCardRow({
         <div className="mt-3 shrink-0">
           <SetCardControls card={card} quantity={setQuantity} onAdjust={(delta) => onSetAdjust?.(card, delta)} />
         </div>
-      ) : null}
+     ) : null}
     </article>
   );
 });
@@ -1191,13 +1383,13 @@ function RiftboundCardDetailsModal({
   }, [card.id, latestSnapshotDate]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`${card.displayName} details`}
-        className="relative max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/50"
-        onMouseDown={(event) => event.stopPropagation()}
+        className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <button
           type="button"
@@ -1207,7 +1399,7 @@ function RiftboundCardDetailsModal({
         >
           <X size={18} />
         </button>
-        <div className="absolute right-20 top-4 z-10 flex items-center gap-2">
+        <div className="absolute right-3 top-16 z-10 flex max-w-[calc(100%-4.5rem)] flex-wrap justify-end gap-2 sm:right-20 sm:top-4 sm:max-w-none sm:flex-nowrap">
           {finishOptions.map((finish) => (
             <FinishInventoryControls
               key={finish}
@@ -1226,7 +1418,7 @@ function RiftboundCardDetailsModal({
           </div>
 
           <div className="grid min-w-0 gap-5">
-            <div className="min-w-0 pr-40 sm:pr-44">
+            <div className="min-w-0 pr-4 sm:pr-44">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p>
                 <h2 className="mt-2 text-3xl font-black tracking-tight text-white">{card.displayName}</h2>
@@ -1320,13 +1512,13 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
   }, [session.access_token, session.user.id]);
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Collection value history"
-        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-7"
-        onMouseDown={(event) => event.stopPropagation()}
+        className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-4 sm:max-h-[calc(100dvh-2rem)] sm:p-7"
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <button
           type="button"
@@ -1355,12 +1547,41 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
   );
 }
 
-function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClose, onImport }: { rows: InventoryItem[]; kind?: CollectionShareKind; title?: string; onClose: () => void; onImport?: (file: File) => Promise<void> }) {
+function getShareCreatorName(currentSession: Session | null) {
+  const metadata = currentSession?.user.user_metadata;
+  const username = metadata && typeof metadata.username === 'string' ? metadata.username.trim() : '';
+  if (username) return username;
+
+  const displayName = metadata && typeof metadata.display_name === 'string' ? metadata.display_name.trim() : '';
+  if (displayName) return displayName;
+
+  const emailName = currentSession?.user.email?.split('@')[0]?.trim() || '';
+  return emailName || 'KnowLeague user';
+}
+
+function RiftboundCollectionShareModal({ rows, kind = 'collection', title, metadata, onClose, onImport }: { rows: InventoryItem[]; kind?: CollectionShareKind; title?: string; metadata: CollectionShareMetadata; onClose: () => void; onImport?: (file: File) => Promise<void> }) {
   const [copied, setCopied] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
+  const [shareUrl, setShareUrl] = useState('');
+  const [shareUrlLoading, setShareUrlLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const shareUrl = useMemo(() => (typeof window === 'undefined' ? '' : getCollectionShareUrl(rows, kind, title)), [kind, rows, title]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const compactUrl = getCompactCollectionShareUrl(rows, kind, title, metadata);
+    setShareUrl(compactUrl);
+    setShareUrlLoading(false);
+    setCopied(false);
+    void getCollectionShareUrl(rows, kind, title, metadata)
+      .then((url) => {
+        if (!cancelled) setShareUrl(url);
+      })
+
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, metadata, rows, title]);
 
   const copyShareUrl = async () => {
     if (!shareUrl) return;
@@ -1395,8 +1616,8 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={`${kind === 'set' ? 'Share, export, or import' : 'Export or import'} ${kind === 'set' ? 'set' : 'collection'}`} className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={`${kind === 'set' ? 'Share, export, or import' : 'Export or import'} ${kind === 'set' ? 'set' : 'collection'}`} className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-4 sm:max-h-[calc(100dvh-2rem)] sm:p-7" onPointerDown={(event) => event.stopPropagation()}>
         <button type="button" aria-label="Close share collection dialog" onClick={onClose} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
         <div className="pr-14">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{kind === 'set' ? 'Set tools' : 'Collection tools'}</p>
@@ -1404,11 +1625,12 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClo
           <p className="mt-2 text-sm leading-6 text-slate-400">The share link is a read-only snapshot. Anyone with the link can see the cards and quantities included in it.</p>
         </div>
         <div className="mt-6 grid gap-3">
-          <button type="button" onClick={() => void copyShareUrl()} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200/50 bg-amber-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200">
+          {shareUrlLoading ? <p className="text-center text-xs font-semibold text-slate-500">Preparing compact share link...</p> : null}
+          <button type="button" onClick={() => void copyShareUrl()} disabled={!shareUrl} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200/50 bg-amber-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-wait disabled:opacity-60">
             {copied ? <Check size={17} /> : <Copy size={17} />}
             {copied ? 'Link copied' : 'Copy share link'}
           </button>
-          <button type="button" onClick={openPrintView} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
+          <button type="button" onClick={openPrintView} disabled={!shareUrl} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-wait disabled:opacity-60">
             <FileDown size={17} />
             Open print / Save as PDF view
           </button>
@@ -1432,6 +1654,415 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, onClo
   );
 }
 
+type RiftboundOcrWorker = {
+  recognize: (image: HTMLCanvasElement) => Promise<{ data: { text: string; confidence?: number } }>;
+  setParameters: (parameters: { tessedit_pageseg_mode: Tesseract.PSM; preserve_interword_spaces?: string; user_defined_dpi?: string }) => Promise<unknown>;
+  terminate: () => Promise<unknown>;
+};
+
+type RiftboundPendingScan = {
+  card: RiftboundCard;
+  finish: InventoryItem['finish'];
+  quantity: number;
+};
+
+function RiftboundCardScannerModal({ cards, accessToken, onClose, onAdd }: { cards: RiftboundCard[]; accessToken: string; onClose: () => void; onAdd: (card: RiftboundCard, finish: InventoryItem['finish'], quantity: number) => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const nameCanvasRef = useRef<HTMLCanvasElement>(null);
+  const footerCanvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const workerRef = useRef<RiftboundOcrWorker | null>(null);
+  const scanInProgressRef = useRef(false);
+  const visionUnavailableRef = useRef(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [cameraAttempt, setCameraAttempt] = useState(0);
+  const [workerReady, setWorkerReady] = useState(false);
+  const [workerError, setWorkerError] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [alwaysRequireConfirmation, setAlwaysRequireConfirmation] = useState(false);
+  const [pendingScans, setPendingScans] = useState<RiftboundPendingScan[]>([]);
+  const [pendingMenuOpen, setPendingMenuOpen] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanError, setScanError] = useState('');
+  const [lowConfidenceMatch, setLowConfidenceMatch] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<RiftboundScanMatch | null>(null);
+  const [visionStatus, setVisionStatus] = useState<'idle' | 'checking' | 'ready' | 'unavailable'>('idle');
+  const [visionError, setVisionError] = useState('');
+  const [selectedFinish, setSelectedFinish] = useState<InventoryItem['finish']>('normal');
+  const [preferredFinish, setPreferredFinish] = useState<InventoryItem['finish']>('normal');
+  const [quantity, setQuantity] = useState(1);
+  const [addedMessage, setAddedMessage] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const videoElement = videoRef.current;
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera access is unavailable in this browser or requires HTTPS.');
+      return undefined;
+    }
+
+    void navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    }).then((stream) => {
+      if (cancelled) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      streamRef.current = stream;
+      if (videoElement) {
+        videoElement.srcObject = stream;
+        void videoElement.play().catch(() => undefined);
+      }
+      setCameraReady(true);
+      setCameraError('');
+    }).catch((error: unknown) => {
+      if (!cancelled) setCameraError(error instanceof DOMException && error.name === 'NotAllowedError' ? 'Camera permission was denied. Allow camera access and try again.' : 'No camera detected.');
+    });
+
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      if (videoElement) videoElement.srcObject = null;
+    };
+  }, [cameraAttempt]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !cameraReady) return;
+
+    if (pendingMenuOpen) {
+      video.pause();
+      streamRef.current?.getVideoTracks().forEach((track) => { track.enabled = false; });
+      return;
+    }
+
+    streamRef.current?.getVideoTracks().forEach((track) => { track.enabled = true; });
+    void video.play().catch(() => undefined);
+  }, [cameraReady, pendingMenuOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void import('tesseract.js')
+      .then(({ createWorker }) => createWorker('eng', 1, {
+        logger: (message) => setScanProgress(Math.round((message.progress ?? 0) * 100)),
+      }))
+      .then((worker) => {
+        if (cancelled) {
+          void worker.terminate();
+          return;
+        }
+        workerRef.current = worker;
+        setWorkerReady(true);
+        setWorkerError('');
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setWorkerError(error instanceof Error ? error.message : 'Unable to prepare the local card reader.');
+      });
+
+    return () => {
+      cancelled = true;
+      if (workerRef.current) void workerRef.current.terminate();
+      workerRef.current = null;
+      setWorkerReady(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedMatch) return;
+    const options = getCardFinishOptions(selectedMatch.card);
+    setSelectedFinish(options.includes(preferredFinish)
+      ? preferredFinish
+      : options.includes(selectedMatch.card.defaultFinish) ? selectedMatch.card.defaultFinish : options[0]);
+  }, [preferredFinish, selectedMatch]);
+
+  const addPendingScan = useCallback((card: RiftboundCard, finish: InventoryItem['finish'], amount: number) => {
+    if (amount <= 0) return;
+    setPendingScans((current) => {
+      const existingIndex = current.findIndex((entry) => entry.card.id === card.id && entry.finish === finish);
+      if (existingIndex < 0) return [...current, { card, finish, quantity: amount }];
+      return current.map((entry, index) => index === existingIndex ? { ...entry, quantity: entry.quantity + amount } : entry);
+    });
+    setAddedMessage(`${amount} ${getFinishLabel(finish).toLowerCase()} ${card.displayName} ${amount === 1 ? 'copy' : 'copies'} added to pending scans.`);
+  }, []);
+
+  const adjustPendingScan = (index: number, delta: 1 | -1) => {
+    setPendingScans((current) => current.flatMap((entry, entryIndex) => {
+      if (entryIndex !== index) return [entry];
+      return [{ ...entry, quantity: Math.max(0, entry.quantity + delta) }];
+    }));
+  };
+
+  const confirmPendingScans = () => {
+    const scansToConfirm = pendingScans.filter((entry) => entry.quantity > 0);
+    if (scansToConfirm.length === 0) return;
+    scansToConfirm.forEach((entry) => onAdd(entry.card, entry.finish, entry.quantity));
+    const totalCopies = scansToConfirm.reduce((total, entry) => total + entry.quantity, 0);
+    setPendingScans([]);
+    setPendingMenuOpen(false);
+    setAddedMessage(`${totalCopies} ${totalCopies === 1 ? 'card' : 'cards'} added to your pending inventory changes.`);
+  };
+
+  const scanCard = useCallback(async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const nameCanvas = nameCanvasRef.current;
+    const footerCanvas = footerCanvasRef.current;
+    const worker = workerRef.current;
+    if (!video || !canvas || !nameCanvas || !footerCanvas || !worker || !cameraReady || scanInProgressRef.current) return;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setScanError('The camera is not ready yet. Try again in a moment.');
+      return;
+    }
+
+    if (!drawRiftboundScanFrame(video, canvas)) {
+      setScanError('Unable to capture an image from the camera.');
+      return;
+    }
+
+    scanInProgressRef.current = true;
+    setScanning(true);
+    setScanProgress(0);
+    setScanError('');
+    setLowConfidenceMatch(false);
+    setVisionStatus('idle');
+    setVisionError('');
+    setSelectedMatch(null);
+    setAddedMessage('');
+
+    try {
+      if (!drawRiftboundScanRegion(canvas, nameCanvas, 0.48, 0.68) || !drawRiftboundScanRegion(canvas, footerCanvas, 0.9, 1)) {
+        setScanError('Unable to prepare the card text regions.');
+        return;
+      }
+
+      await worker.setParameters({ tessedit_pageseg_mode: RIFTBOUND_OCR_SINGLE_LINE_MODE, preserve_interword_spaces: '1', user_defined_dpi: '300' });
+      const nameResult = await worker.recognize(nameCanvas);
+      const footerResult = await worker.recognize(footerCanvas);
+      let detectedText = [nameResult.data.text, footerResult.data.text].filter(Boolean).join('\n').trim();
+      let localMatches = findRiftboundScanMatches(cards, detectedText);
+
+      if ((localMatches[0]?.score ?? 0) < RIFTBOUND_SCAN_LOCAL_RETRY_THRESHOLD) {
+        if (drawRiftboundScanRegion(canvas, nameCanvas, 0.48, 0.68, 'threshold') && drawRiftboundScanRegion(canvas, footerCanvas, 0.9, 1, 'threshold')) {
+          const thresholdNameResult = await worker.recognize(nameCanvas);
+          const thresholdFooterResult = await worker.recognize(footerCanvas);
+          detectedText = [detectedText, thresholdNameResult.data.text, thresholdFooterResult.data.text].filter(Boolean).join('\n').trim();
+          localMatches = findRiftboundScanMatches(cards, detectedText);
+        }
+      }
+
+      if ((localMatches[0]?.score ?? 0) < RIFTBOUND_SCAN_LOCAL_RETRY_THRESHOLD) {
+        await worker.setParameters({ tessedit_pageseg_mode: RIFTBOUND_OCR_SINGLE_BLOCK_MODE, preserve_interword_spaces: '1', user_defined_dpi: '300' });
+        const fullResult = await worker.recognize(canvas);
+        detectedText = [detectedText, fullResult.data.text].filter(Boolean).join('\n').trim();
+        localMatches = findRiftboundScanMatches(cards, detectedText);
+      }
+
+      const localVisibleMatches = getVisibleRiftboundScanMatches(localMatches);
+      let detectedMatches = localVisibleMatches;
+      let visionText = '';
+      const localConfidence = localMatches[0]?.score ?? 0;
+      const shouldUseVisionFallback = !visionUnavailableRef.current
+        && localConfidence < RIFTBOUND_SCAN_CONFIDENCE_THRESHOLD;
+
+      if (shouldUseVisionFallback) {
+        setVisionStatus('checking');
+        try {
+          visionText = await requestRiftboundVisionText(canvas, accessToken);
+          const visionMatches = findRiftboundScanMatches(cards, visionText);
+          const visionVisibleMatches = getVisibleRiftboundScanMatches(visionMatches);
+          if (visionVisibleMatches.length > 0 && visionVisibleMatches[0].score >= (localVisibleMatches[0]?.score ?? 0)) {
+            detectedMatches = visionVisibleMatches;
+          }
+          setVisionStatus('ready');
+          setVisionError('');
+        } catch (error: unknown) {
+          setVisionStatus('unavailable');
+          setVisionError(error instanceof Error ? error.message : 'Cloud card recognition is unavailable.');
+          if (error instanceof Error && error.message.includes('not configured')) visionUnavailableRef.current = true;
+        }
+      }
+
+      const bestMatch = detectedMatches[0] ?? null;
+      const shouldAutoAdd = Boolean(bestMatch && bestMatch.score >= RIFTBOUND_SCAN_AUTO_ADD_THRESHOLD && !alwaysRequireConfirmation);
+      setLowConfidenceMatch(!bestMatch || bestMatch.score < RIFTBOUND_SCAN_CONFIDENCE_THRESHOLD);
+      setSelectedMatch(shouldAutoAdd ? null : bestMatch && bestMatch.score >= RIFTBOUND_SCAN_CONFIDENCE_THRESHOLD ? bestMatch : null);
+      if (shouldAutoAdd && bestMatch) {
+        const finishOptions = getCardFinishOptions(bestMatch.card);
+        const finish = finishOptions.includes(preferredFinish) ? preferredFinish : finishOptions[0];
+        addPendingScan(bestMatch.card, finish, quantity);
+        setAddedMessage(`${quantity} ${getFinishLabel(finish).toLowerCase()} ${bestMatch.card.displayName} ${quantity === 1 ? 'copy' : 'copies'} added automatically to pending scans.`);
+      } else {
+        setAddedMessage('');
+      }
+      if (detectedMatches.length === 0) setScanError('No confident match yet. Center the card inside the guide and reduce glare.');
+      else if (detectedMatches[0].score < RIFTBOUND_SCAN_CONFIDENCE_THRESHOLD) setScanError('Low-confidence match. Keep the card flat, fill the guide, and reduce glare.');
+    } catch (error: unknown) {
+      setScanError(error instanceof Error ? error.message : 'Unable to read the card image.');
+    } finally {
+      scanInProgressRef.current = false;
+      setScanning(false);
+    }
+  }, [accessToken, addPendingScan, alwaysRequireConfirmation, cameraReady, cards, preferredFinish, quantity]);
+
+  useEffect(() => {
+    const handleScannerKeyDown = (event: KeyboardEvent) => {
+      if (pendingMenuOpen || scanning || !cameraReady || !workerReady || (event.key !== 'Enter' && event.key !== ' ')) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      void scanCard();
+    };
+
+    window.addEventListener('keydown', handleScannerKeyDown);
+    return () => window.removeEventListener('keydown', handleScannerKeyDown);
+  }, [cameraReady, pendingMenuOpen, scanCard, scanning, workerReady]);
+
+  const addSelectedCard = () => {
+    if (!selectedMatch || selectedMatch.score < RIFTBOUND_SCAN_CONFIDENCE_THRESHOLD) return;
+    addPendingScan(selectedMatch.card, selectedFinish, quantity);
+  };
+
+  const pendingMarketValue = pendingScans.reduce(
+    (total, entry) => total + (getMarketPriceForFinish(entry.card, entry.finish) ?? 0) * entry.quantity,
+    0,
+  );
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="Scan Riftbound cards" className="relative max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-5 sm:p-7" onMouseDown={(event) => event.stopPropagation()}>
+        <button type="button" aria-label="Close card scanner" onClick={onClose} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
+        <div className="pr-14">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Riftbound Card Scanner</p>
+        </div>
+
+        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
+          <div className="grid gap-3">
+            <div className={`relative mx-auto aspect-[3/4] w-full max-w-md overflow-hidden rounded-2xl border bg-slate-900 ${lowConfidenceMatch ? 'border-red-400/90' : 'border-white/10'}`}>
+              <video ref={videoRef} muted playsInline autoPlay aria-label="Riftbound card camera preview" className="h-full w-full object-cover" />
+              <div className={`pointer-events-none absolute inset-[10%] rounded-2xl border-2 ${lowConfidenceMatch ? 'border-red-400/90' : 'border-amber-300/80'}`} />
+              <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center"><span className="rounded-full border border-white/10 bg-slate-950/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">Fit card inside frame</span></div>
+              {!cameraError ? <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center"><span className="rounded-full border border-white/10 bg-slate-950/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300" aria-live="polite">{workerReady ? 'Ready to scan' : `Preparing local reader${scanProgress > 0 ? ` · ${scanProgress}%` : '...'}`}</span></div> : null}
+              {!cameraReady && !cameraError ? <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 text-sm font-semibold text-slate-300"><LoaderCircle size={18} className="mr-2 animate-spin" />Starting camera...</div> : null}
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+            <canvas ref={nameCanvasRef} className="hidden" />
+            <canvas ref={footerCanvasRef} className="hidden" />
+            {cameraError ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-300/20 bg-red-950/20 px-4 py-3">
+                <p className="text-sm font-semibold text-red-200">{cameraError}</p>
+                <button type="button" onClick={() => { setCameraError(''); setCameraReady(false); setLowConfidenceMatch(false); setCameraAttempt((attempt) => attempt + 1); }} className="rounded-xl border border-red-200/30 bg-red-950/30 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-red-100 transition hover:border-red-100/60 hover:bg-red-950/50">Try again</button>
+              </div>
+            ) : null}
+            {workerError ? <p className="rounded-2xl border border-red-300/20 bg-red-950/20 px-4 py-3 text-sm font-semibold text-red-200">{workerError}</p> : null}
+            <div className="grid gap-2 rounded-2xl border border-white/10 bg-slate-900/60 p-2">
+              <button type="button" title="Can be activated with Space key and Enter key" aria-label="Scan now. Can be activated with Space key and Enter key" onClick={() => void scanCard()} disabled={!cameraReady || !workerReady || scanning} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-200/60 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-wait disabled:opacity-50">
+                {scanning || !cameraReady || !workerReady ? <LoaderCircle size={17} className="animate-spin" /> : <Camera size={17} />}
+                {scanning ? 'Scanning...' : !cameraReady ? 'Starting camera...' : !workerReady ? 'Preparing scanner...' : 'Scan now'}
+              </button>
+              <div className="flex flex-wrap gap-2 rounded-xl border border-white/10 bg-slate-950 p-1">
+                <button type="button" aria-pressed={alwaysRequireConfirmation} title="Require Confirmation off will automatically add a high match card to the pending inventory" onClick={() => setAlwaysRequireConfirmation((enabled) => !enabled)} className={`inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-black transition ${alwaysRequireConfirmation ? 'border-amber-200/60 bg-amber-300/10 text-amber-200' : 'border-transparent text-slate-400 hover:border-white/25 hover:bg-slate-900 hover:text-white'}`}>
+                  <Check size={15} />
+                  {alwaysRequireConfirmation ? 'Require Confirmation: On' : 'Require Confirmation: Off'}
+                  <span className="group relative inline-flex">
+                    <Info size={13} aria-label="Require Confirmation help" />
+                    <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-[140] mb-2 hidden w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-200 group-hover:block group-focus-within:block">Require Confirmation off will automatically add a high match card to the pending inventory.</span>
+                  </span>
+                </button>
+                <div className="grid min-w-[9rem] grid-cols-2 rounded-lg border border-white/10 bg-slate-900 p-0.5" aria-label="Preferred scan finish">
+                  {(['normal', 'foil'] as const).map((finish) => (
+                    <button key={finish} type="button" aria-pressed={preferredFinish === finish} disabled={alwaysRequireConfirmation} onClick={() => setPreferredFinish(finish)} className={`rounded-md px-2 py-2 text-[0.65rem] font-black uppercase tracking-[0.08em] transition ${preferredFinish === finish ? finish === 'foil' ? 'bg-gradient-to-br from-amber-200/80 via-white/60 to-violet-300/80 text-slate-950' : 'bg-amber-300 text-slate-950' : 'text-slate-500 hover:bg-slate-800 hover:text-white'} disabled:cursor-not-allowed disabled:opacity-40`}>{getFinishLabel(finish)}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid content-start gap-4">
+            {scanError ? <p className="rounded-2xl border border-red-300/20 bg-red-950/20 px-4 py-3 text-sm font-semibold text-red-200">{scanError}</p> : null}
+            {addedMessage && !selectedMatch ? <p className="rounded-2xl border border-emerald-300/20 bg-emerald-950/20 px-4 py-3 text-sm font-semibold text-emerald-200">{addedMessage}</p> : null}
+            {visionStatus === 'unavailable' && visionError ? <p className="rounded-2xl border border-orange-200/20 bg-orange-950/20 px-4 py-3 text-sm font-semibold text-orange-200">Cloud recognition is unavailable, so local recognition is being used: {visionError}</p> : null}
+            {selectedMatch ? (
+              <div className="grid gap-3 rounded-2xl border border-amber-200/30 bg-slate-900/70 p-4">
+                <div><p className="text-xs font-black uppercase tracking-[0.16em] text-amber-300">{alwaysRequireConfirmation ? 'Detected card' : 'Selected card'}</p><p className="mt-1 text-lg font-black text-white">{selectedMatch.card.displayName}</p><p className="mt-1 text-xs font-semibold text-slate-500">{selectedMatch.card.setName} · {selectedMatch.card.setCode} {selectedMatch.card.numberLabel}</p></div>
+                {!alwaysRequireConfirmation && (getCardFinishOptions(selectedMatch.card).length > 1 ? (
+                  <div role="group" aria-label="Choose card finish" className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-slate-950 p-1">
+                    {getCardFinishOptions(selectedMatch.card).map((finish) => <button key={finish} type="button" onClick={() => setSelectedFinish(finish)} aria-pressed={selectedFinish === finish} className={`rounded-lg px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition ${selectedFinish === finish ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{getFinishLabel(finish)}</button>)}
+                  </div>
+                ) : <p className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2.5 text-center text-xs font-black uppercase tracking-[0.1em] text-slate-400">{getFinishLabel(getCardFinishOptions(selectedMatch.card)[0])}</p>)}
+                <div className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Quantity</span>
+                  <div className="flex h-11 items-center justify-between rounded-xl border border-white/10 bg-slate-950 px-2">
+                    <button type="button" aria-label="Decrease scan quantity" onClick={() => setQuantity((current) => Math.max(1, current - 1))} disabled={quantity <= 1} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><Minus size={15} /></button>
+                    <span className="text-sm font-black text-white" aria-live="polite">{quantity}</span>
+                    <button type="button" aria-label="Increase scan quantity" onClick={() => setQuantity((current) => Math.min(1000, current + 1))} disabled={quantity >= 1000} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><Plus size={15} /></button>
+                  </div>
+                </div>
+                {alwaysRequireConfirmation ? (
+                  <div className={`grid gap-2 ${getCardFinishOptions(selectedMatch.card).length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {getCardFinishOptions(selectedMatch.card).map((finish) => <button key={finish} type="button" onClick={() => addPendingScan(selectedMatch.card, finish, quantity)} className={`inline-flex min-h-11 items-center justify-center rounded-xl border px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition hover:brightness-110 ${finish === 'foil' ? 'border-amber-200/60 bg-gradient-to-br from-amber-200/80 via-white/60 to-violet-300/80 text-slate-950' : 'border-amber-200/50 bg-amber-300 text-slate-950'}`}>Add {getFinishLabel(finish)}</button>)}
+                  </div>
+                ) : <button type="button" onClick={addSelectedCard} disabled={selectedMatch.score < RIFTBOUND_SCAN_CONFIDENCE_THRESHOLD} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={16} /> Add to pending scans</button>}
+                {selectedMatch.score < RIFTBOUND_SCAN_CONFIDENCE_THRESHOLD ? <p className="text-xs font-semibold leading-5 text-amber-200">Confidence is still low. Keep the card flat, fill the guide, and reduce glare before adding it.</p> : null}
+                {addedMessage ? <p className="text-xs font-semibold leading-5 text-emerald-300">{addedMessage}</p> : null}
+              </div>
+            ) : null}
+            <button type="button" onClick={() => setPendingMenuOpen(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-200 transition hover:border-amber-200/50 hover:text-amber-200"><PackageOpen size={17} /> View Pending Inventory ({pendingScans.reduce((total, entry) => total + entry.quantity, 0)})</button>
+          </div>
+        </div>
+        {pendingMenuOpen ? (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onMouseDown={(event) => event.stopPropagation()}>
+            <div role="dialog" aria-modal="true" aria-label="Pending scanned inventory" className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-5 sm:p-6">
+              <button type="button" aria-label="Close pending inventory" onClick={() => setPendingMenuOpen(false)} className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"><X size={17} /></button>
+              <div className="pr-12">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">Pending Inventory Scans</p>
+                <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+                  <p className="text-sm font-black text-emerald-300">{formatMarketPrice(pendingMarketValue)} total value</p>
+                </div>
+              </div>
+              {pendingScans.length > 0 ? (
+                <div className="mt-5 grid gap-2">
+                  {pendingScans.map((entry, index) => (
+                    <article key={`${entry.card.id}:${entry.finish}`} className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
+                      <div className="relative aspect-[744/1039] overflow-hidden rounded-lg bg-slate-950">
+                        <RiftboundCardImage card={entry.card} sizes="56px" className="object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-white">{entry.card.displayName}</p>
+                        <div className="mt-1 flex min-w-0 flex-row-reverse items-center justify-between gap-2">
+                          <span className="shrink-0 text-xs font-black text-emerald-300">{formatMarketPriceOrUnavailable(getMarketPriceForFinish(entry.card, entry.finish))}</span>
+                          <p className={`truncate text-xs font-semibold ${entry.finish === 'foil' ? 'text-amber-200' : 'text-slate-500'}`}>{getFinishLabel(entry.finish)} · {entry.card.setCode} {entry.card.numberLabel}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-slate-950 p-1">
+                        <button type="button" aria-label={`Decrease pending quantity for ${entry.card.displayName}`} onClick={() => adjustPendingScan(index, -1)} disabled={entry.quantity === 0} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"><Minus size={14} /></button>
+                        <span className="min-w-6 text-center text-sm font-black text-amber-200" aria-live="polite">{entry.quantity}</span>
+                        <button type="button" aria-label={`Increase pending quantity for ${entry.card.displayName}`} onClick={() => adjustPendingScan(index, 1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"><Plus size={14} /></button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : <p className="mt-5 rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">No cards are pending from this scan session.</p>}
+              <div className="mt-5 border-t border-white/10 pt-4">
+                <button type="button" onClick={confirmPendingScans} disabled={!pendingScans.some((entry) => entry.quantity > 0)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"><Check size={17} /> Confirm and add to inventory</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function RiftboundCardGrid() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1448,11 +2079,13 @@ export function RiftboundCardGrid() {
   const [inventoryError, setInventoryError] = useState('');
   const [inventorySaving, setInventorySaving] = useState(false);
   const [selectedCard, setSelectedCard] = useState<RiftboundCard | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [collectionHistoryOpen, setCollectionHistoryOpen] = useState(false);
   const [collectionShareOpen, setCollectionShareOpen] = useState(false);
   const [collectionShareRows, setCollectionShareRows] = useState<InventoryItem[]>([]);
   const [collectionShareKind, setCollectionShareKind] = useState<CollectionShareKind>('collection');
   const [collectionShareTitle, setCollectionShareTitle] = useState('');
+  const [collectionShareMetadata, setCollectionShareMetadata] = useState<CollectionShareMetadata>({ createdBy: 'KnowLeague user', createdAt: '' });
   const [sets, setSets] = useState<RiftboundSet[]>([]);
   const [setsLoading, setSetsLoading] = useState(false);
   const [setsError, setSetsError] = useState('');
@@ -1758,6 +2391,22 @@ export function RiftboundCardGrid() {
     setInventoryError('');
   }, [session, setActiveTab]);
 
+  const addScannedCard = useCallback((card: RiftboundCard, finish: InventoryItem['finish'], quantity: number) => {
+    if (!session) {
+      setInventoryError('Sign in to track your Riftbound inventory.');
+      setActiveTab('inventory');
+      return;
+    }
+
+    setInventoryRows((rows) => addInventoryRows(rows, [{
+      card_id: card.id,
+      finish,
+      quantity,
+      updated_at: new Date().toISOString(),
+    }]));
+    setInventoryError('');
+  }, [session, setActiveTab]);
+
   const saveInventory = async () => {
     if (!session) {
       setInventoryError('Sign in to track your Riftbound inventory.');
@@ -1798,6 +2447,13 @@ export function RiftboundCardGrid() {
     setQuery('');
     setTagQuery('');
     setFilters(emptyFilters);
+  };
+
+  const clearPendingInventory = () => {
+    if (inventorySaving) return;
+    setInventoryRows(savedInventoryRows);
+    setInventoryError('');
+    if (session) clearInventoryDraft(getInventoryDraftStorageKey(session.user.id));
   };
 
   const toggleFilter = (field: keyof InventoryFilters, value: string) => {
@@ -1846,6 +2502,7 @@ export function RiftboundCardGrid() {
     setCollectionShareRows(rows);
     setCollectionShareKind(kind);
     setCollectionShareTitle(title);
+    setCollectionShareMetadata({ createdBy: getShareCreatorName(session), createdAt: new Date().toISOString() });
     setCollectionShareOpen(true);
   };
 
@@ -2127,10 +2784,18 @@ export function RiftboundCardGrid() {
                 Showing {filteredCards.length} {activeTab === 'inventory' ? 'owned ' : ''}cards
                 {activeTab === 'inventory' && unpricedCopyCount > 0 ? ` · ${unpricedCopyCount} copies have no market price yet` : ''}
               </p>
-              <button type="button" onClick={resetFilters} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-white/25 hover:text-white">
-                <RotateCcw size={14} />
-                Reset filters
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {hasUnsavedInventoryChanges ? (
+                  <button type="button" onClick={clearPendingInventory} disabled={inventorySaving} className="inline-flex items-center gap-2 rounded-xl border border-red-300/30 bg-red-950/30 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-red-200 transition hover:border-red-200/60 hover:bg-red-950/50 disabled:cursor-not-allowed disabled:opacity-60">
+                    <Trash2 size={14} />
+                    Clear Pending Inventory
+                  </button>
+                ) : null}
+                <button type="button" onClick={resetFilters} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-white/25 hover:text-white">
+                  <RotateCcw size={14} />
+                  Reset filters
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -2143,6 +2808,10 @@ export function RiftboundCardGrid() {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{ownedCopyCount} total cards</span>
+                <button type="button" onClick={() => setScannerOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                  <Camera size={14} />
+                  Scan Cards
+                </button>
                 <button type="button" onClick={() => openCollectionShare(inventoryRows)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
                   <Share2 size={14} />
                   Export / Import
@@ -2366,11 +3035,20 @@ export function RiftboundCardGrid() {
       {collectionHistoryOpen && session ? (
         <RiftboundCollectionValueHistoryModal session={session} onClose={() => setCollectionHistoryOpen(false)} />
       ) : null}
+      {scannerOpen && session ? (
+        <RiftboundCardScannerModal
+          cards={cards}
+          accessToken={session.access_token}
+          onClose={() => setScannerOpen(false)}
+          onAdd={addScannedCard}
+        />
+      ) : null}
       {collectionShareOpen ? (
         <RiftboundCollectionShareModal
           rows={collectionShareRows}
           kind={collectionShareKind}
           title={collectionShareTitle}
+          metadata={collectionShareMetadata}
           onClose={() => setCollectionShareOpen(false)}
           onImport={collectionShareKind === 'collection' ? importCollectionJson : importSetJson}
         />

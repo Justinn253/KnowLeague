@@ -15,7 +15,11 @@ const contactOptions: { value: ContactSubmissionCategory; label: string }[] = [
   { value: 'player_report', label: 'Report a player' },
 ];
 
-export function ContactUsWidget() {
+type ContactUsWidgetProps = {
+  variant?: 'floating' | 'drawer';
+};
+
+export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<ContactSubmissionCategory>('feedback');
   const [message, setMessage] = useState('');
@@ -29,7 +33,7 @@ export function ContactUsWidget() {
       return undefined;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -41,10 +45,10 @@ export function ContactUsWidget() {
       }
     };
 
-    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
@@ -110,7 +114,9 @@ export function ContactUsWidget() {
       {isOpen ? (
         <div
           ref={panelRef}
-          className="absolute bottom-full right-0 mb-3 w-[min(calc(100vw-2.5rem),26rem)] rounded-3xl border border-white/10 bg-slate-950 p-4"
+          className={variant === 'drawer'
+            ? 'fixed left-1/2 top-1/2 z-[110] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+            : 'absolute bottom-full right-0 mb-3 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2.5rem),26rem)] max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'}
         >
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -121,7 +127,7 @@ export function ContactUsWidget() {
               type="button"
               onClick={() => setIsOpen(false)}
               aria-label="Close contact form"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
             >
               <X size={18} />
             </button>
@@ -208,9 +214,15 @@ export function ContactUsWidget() {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-slate-950 px-4 text-sm font-bold text-amber-200 transition hover:border-amber-200 hover:bg-slate-900"
+          className={variant === 'drawer'
+            ? 'flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
+            : 'inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-slate-950 px-4 text-sm font-bold text-amber-200 transition hover:border-amber-200 hover:bg-slate-900'}
         >
-          <MessageSquare size={18} />
+          {variant === 'drawer' ? (
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-950 text-slate-200">
+              <MessageSquare size={18} />
+            </span>
+          ) : <MessageSquare size={18} />}
           Contact
         </button>
       )}

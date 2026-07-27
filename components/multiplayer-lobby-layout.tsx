@@ -99,8 +99,8 @@ type MultiplayerModifierToggleProps = {
 
 export function MultiplayerLobbyShell({ children, maxWidthClassName = 'max-w-6xl' }: MultiplayerLobbyShellProps) {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className={`mx-auto flex min-h-screen w-full ${maxWidthClassName} flex-col gap-5 px-6 py-6 lg:px-12`}>
+    <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
+      <section className={`mx-auto flex min-h-[100dvh] w-full ${maxWidthClassName} flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-12`}>
         {children}
       </section>
     </main>
@@ -119,27 +119,27 @@ export function MultiplayerLobbyHeader({
   actions,
 }: MultiplayerLobbyHeaderProps) {
   return (
-    <header className="relative z-30 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex items-center gap-3">
+    <header className="relative z-30 flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-4 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={onBack}
           aria-label={backLabel}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900 sm:h-12 sm:w-12"
         >
           <ArrowLeft size={20} />
         </button>
-        <div>
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{eyebrow}</p>
-          <h1 className="text-xl font-semibold text-white">{title}</h1>
-          <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
+        <div className="min-w-0">
+          <p className="text-[0.68rem] uppercase tracking-[0.2em] text-slate-500 sm:text-xs sm:tracking-[0.24em]">{eyebrow}</p>
+          <h1 className="truncate text-lg font-semibold text-white sm:text-xl">{title}</h1>
+          <p className="mt-1 truncate text-xs text-slate-400">{subtitle}</p>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2 border-t border-white/10 pt-3 sm:w-auto sm:border-t-0 sm:pt-0">
         <GameInfoMenu title={title} steps={infoSteps} />
         {actions}
-        {!hideStatus ? <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200">
+        {!hideStatus ? <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm font-semibold text-slate-200 sm:px-4">
           <Users size={16} className="text-amber-300" />
           {statusLabel}
         </div> : null}
@@ -150,7 +150,7 @@ export function MultiplayerLobbyHeader({
 
 export function MultiplayerLobbyCard({ children }: { children: ReactNode }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
+    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-4">
       {children}
     </section>
   );
@@ -195,11 +195,11 @@ export function MultiplayerCreateJoinPanel({
     <div className="mx-auto max-w-4xl py-1">
       <div className="text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Create or Join</p>
-        <h2 className="mt-3 text-3xl font-bold text-white">{title}</h2>
+        <h2 className="mt-3 text-2xl font-bold text-white sm:text-3xl">{title}</h2>
       </div>
 
       {soloHref || soloAction ? (
-        <div className="mt-7 flex justify-center">
+        <div className="mt-6 flex justify-center sm:mt-7">
           <Link
             href={soloHref ?? '#'}
             onClick={(event) => {
@@ -220,7 +220,7 @@ export function MultiplayerCreateJoinPanel({
         </div>
       ) : null}
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
+      <div className="mt-6 grid gap-4 sm:mt-8 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
         <button
           type="button"
           onClick={() => {
@@ -251,12 +251,15 @@ export function MultiplayerCreateJoinPanel({
               maxLength={6}
               autoComplete="off"
               placeholder="ABC123"
-              className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm uppercase tracking-[0.16em] text-white outline-none placeholder:text-slate-600 focus:border-white/20"
+              inputMode="text"
+              enterKeyHint="go"
+              aria-label="Lobby join code"
+              className="min-h-12 min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm uppercase tracking-[0.16em] text-white outline-none placeholder:text-slate-600 focus:border-white/20 focus:ring-2 focus:ring-amber-300"
             />
             <button
               type="submit"
               disabled={busy || !canJoin}
-              className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-violet-700 px-5 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-violet-700 px-4 text-sm font-semibold text-white transition hover:bg-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
             >
               Join
             </button>
@@ -319,7 +322,7 @@ export function MultiplayerPublicLobbyButton({
         onClick();
       }}
       disabled={disabled}
-      className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 disabled:opacity-60"
+      className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-3 text-left transition hover:border-amber-300/40 hover:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 sm:gap-4 sm:px-4"
     >
       <span className="min-w-0">
         <span className="block truncate text-sm font-semibold text-white"><span style={hostNameStyle}>{hostName}</span>&apos;s lobby</span>
@@ -347,14 +350,14 @@ export function MultiplayerLobbyCodeStrip({
   onCopy,
 }: MultiplayerLobbyCodeStripProps) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+    <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-3 sm:gap-3 sm:p-4">
       <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Lobby code</span>
       <span className="font-mono text-lg font-semibold tracking-[0.24em] text-white">{revealed ? code : '******'}</span>
       <button
         type="button"
         onClick={onToggleReveal}
         aria-label={revealed ? 'Hide lobby code' : 'Reveal lobby code'}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300"
       >
         {revealed ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>
@@ -362,7 +365,7 @@ export function MultiplayerLobbyCodeStrip({
         type="button"
         onClick={onCopy}
         aria-label="Copy lobby invite"
-        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300"
       >
         {copied ? <Check size={16} className="text-emerald-300" /> : <Copy size={16} />}
       </button>
@@ -386,7 +389,7 @@ export function MultiplayerLobbyPanel({
   lockedHint,
 }: MultiplayerLobbyPanelProps) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
+    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-3 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{title}</p>

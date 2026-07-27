@@ -31,6 +31,7 @@ import {
 } from '@/lib/quiz';
 import type { MultiplayerGameRuntime } from '@/components/multiplayer-game-progress';
 import { GameInfoMenu } from '@/components/game-info-menu';
+import { ViewportPopover } from '@/components/viewport-popover';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { ABILITY_SLOTS as abilitySlots, filterItemsByAbilitySlots, type AbilitySlotId, type AbilitySlotState } from '@/lib/ability-slots';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -383,6 +384,8 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const currentProgressItemRef = useRef<HTMLDivElement | null>(null);
   const difficultyMenuRef = useRef<HTMLDivElement | null>(null);
   const modifiersMenuRef = useRef<HTMLDivElement | null>(null);
+  const difficultyButtonRef = useRef<HTMLButtonElement | null>(null);
+  const modifiersButtonRef = useRef<HTMLButtonElement | null>(null);
   const answerInputAreaRef = useRef<HTMLDivElement | null>(null);
   const hasRestoredStateRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
@@ -1425,22 +1428,22 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   }, [completedDailyMode, getModeStatus, multiplayer, resumeAvailable, selectedDifficulty, showSoloPrematch, soloMode, storageReady]);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 lg:px-12">
-        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
+    <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
+      <section className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-10 lg:px-12">
+        <header className="relative z-30 flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             {multiplayer ? (
-              <button type="button" onClick={multiplayer.onExit} aria-label="Leave multiplayer game" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+              <button type="button" onClick={multiplayer.onExit} aria-label="Leave multiplayer game" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900 sm:h-12 sm:w-12">
                 <ArrowLeft size={20} />
               </button>
             ) : (
-              <Link href="/multiplayer/ability-blitz" aria-label="Back to Ability Blitz lobby setup" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900">
+              <Link href="/multiplayer/ability-blitz" aria-label="Back to Ability Blitz lobby setup" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900 sm:h-12 sm:w-12">
                 <ArrowLeft size={20} />
               </Link>
             )}
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{multiplayer ? 'Multiplayer Game' : 'Single Player Game'}</p>
-              <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-white">
+            <div className="min-w-0">
+              <p className="text-[0.68rem] uppercase tracking-[0.2em] text-slate-500 sm:text-xs sm:tracking-[0.24em]">{multiplayer ? 'Multiplayer Game' : 'Single Player Game'}</p>
+              <h1 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-white sm:text-xl">
                 Ability Blitz
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-xs font-bold text-amber-100">
                   <Flame size={12} className="text-amber-300" />
@@ -1465,7 +1468,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          <div className="flex w-full flex-wrap items-center gap-2 border-t border-white/10 pt-3 sm:w-auto sm:gap-3 sm:border-t-0 sm:pt-0 lg:justify-end">
             <GameInfoMenu title="Ability Blitz" steps={[
               'Identify the ability shown and submit its exact name.',
               'Correct answers advance through the randomized set; difficulty controls hints and penalties.',
@@ -1481,16 +1484,17 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               </button>
             ) : null}
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <div ref={difficultyMenuRef} className="relative">
                 <button
                   type="button"
+                  ref={difficultyButtonRef}
                   onClick={() => {
                     if (configurationLocked || soloMode === 'chaos') return;
                     setOpenMenu((current) => (current === 'difficulty' ? null : 'difficulty'));
                   }}
                   disabled={configurationLocked || soloMode === 'chaos'}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70 sm:px-4"
                   aria-expanded={openMenu === 'difficulty'}
                 >
                   <Trophy size={16} className="text-amber-300" />
@@ -1499,8 +1503,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   <ChevronDown size={16} className={openMenu === 'difficulty' ? 'rotate-180 transition' : 'transition'} />
                 </button>
 
-                {openMenu === 'difficulty' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
+                <ViewportPopover
+                  anchorRef={difficultyButtonRef}
+                  open={openMenu === 'difficulty'}
+                  width={352}
+                  estimatedHeight={420}
+                  className="z-40 rounded-2xl border border-white/10 bg-slate-950 p-4"
+                >
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Difficulty</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1537,19 +1546,19 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     {configurationLocked ? (
                       <p className="mt-3 text-xs text-slate-500">Difficulty is locked while a round is active.</p>
                     ) : null}
-                  </div>
-                ) : null}
+                </ViewportPopover>
               </div>
 
               <div ref={modifiersMenuRef} className="relative">
                 <button
                   type="button"
+                  ref={modifiersButtonRef}
                   onClick={() => {
                     if (configurationLocked || !casualSettingsAvailable) return;
                     setOpenMenu((current) => (current === 'modifiers' ? null : 'modifiers'));
                   }}
                   disabled={configurationLocked || !casualSettingsAvailable}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 px-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-70 sm:px-4"
                   aria-expanded={openMenu === 'modifiers'}
                 >
                   <SlidersHorizontal size={16} className="text-amber-300" />
@@ -1560,8 +1569,13 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                   <ChevronDown size={16} className={openMenu === 'modifiers' ? 'rotate-180 transition' : 'transition'} />
                 </button>
 
-                {openMenu === 'modifiers' ? (
-                  <div className="absolute right-0 top-14 z-40 w-[min(24rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-slate-950 p-4">
+                <ViewportPopover
+                  anchorRef={modifiersButtonRef}
+                  open={openMenu === 'modifiers'}
+                  width={384}
+                  estimatedHeight={620}
+                  className="z-40 rounded-2xl border border-white/10 bg-slate-950 p-4"
+                >
                     <div className="mb-4 border-b border-white/10 pb-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Modifiers</p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
@@ -1654,8 +1668,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     {configurationLocked ? (
                       <p className="mt-3 text-xs text-slate-500">Modifiers are locked while a round is active.</p>
                     ) : null}
-                  </div>
-                ) : null}
+                </ViewportPopover>
               </div>
             </div>
 
@@ -1699,7 +1712,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
           />
         ) : null}
 
-        {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl">
+        {!showSoloPrematch ? <section className="overflow-visible rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-4">
           {!showEndState ? (
             <QuizItemCarousel
               slots={carouselSlots}
@@ -1714,7 +1727,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
           {!showEndState ? <form
             onSubmit={handleSubmit}
-            className={`mt-8 flex flex-col gap-4 rounded-3xl border p-5 bg-slate-950/80   transition ${
+            className={`mt-6 flex flex-col gap-4 rounded-3xl border bg-slate-950/80 p-3 transition sm:mt-8 sm:p-5 ${
               successFlash
                 ? 'border-emerald-400/40 ring-1 ring-emerald-400/20 '
                 : 'border-white/10'
@@ -1725,7 +1738,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                 {failureReason === 'timeout' ? 'Time is up.' : 'Challenger rules: a wrong guess ended the round.'}
               </div>
             ) : started && showOptions && options.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {options.map((option) => (
                   <button
                     key={option}
@@ -1784,7 +1797,10 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     );
                   }}
                   disabled={!started}
-                  className={`w-full rounded-3xl border px-5 py-4 text-lg text-slate-100 outline-none transition duration-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  inputMode="search"
+                  enterKeyHint="done"
+                  aria-label="Ability answer"
+                  className={`w-full rounded-3xl border px-4 py-4 text-lg text-slate-100 outline-none transition duration-500 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 ${
                     status === 'incorrect'
                       ? 'border-red-500 bg-slate-950/90 text-white  animate-shake'
                       : status === 'correct'
@@ -1805,7 +1821,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                           playUiSound('autocomplete-select');
                           handleSuggestionSelect(suggestion);
                         }}
-                        className="w-full px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-900"
+                        className="min-h-12 w-full px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300"
                       >
                         {suggestion}
                       </button>
@@ -1844,7 +1860,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
             ) : null}
           </form> : null}
 
-          <div className={`${showEndState ? 'app-gradient-border' : 'border border-white/10'} mt-8 overflow-hidden rounded-3xl bg-slate-950/70 p-5`}>
+          <div className={`${showEndState ? 'app-gradient-border' : 'border border-white/10'} mt-6 overflow-hidden rounded-3xl bg-slate-950/70 p-3 sm:mt-8 sm:p-5`}>
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-sm uppercase tracking-[0.24em] text-slate-500">Round progress</h2>
               <div className="flex items-center gap-3">

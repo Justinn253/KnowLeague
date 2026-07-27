@@ -563,7 +563,7 @@ function SettingButton({
         onClick();
       }}
       disabled={disabled}
-      className={`group flex gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`group flex gap-3 rounded-2xl border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-60 ${
         selected
           ? 'border-amber-300/70 bg-amber-300/10  '
           : 'border-white/10 bg-slate-950/70 hover:border-white/25 hover:bg-slate-950'
@@ -1943,7 +1943,7 @@ export function SplashScramble() {
                         setSelectedSkin(skin);
                         setSkinSearch('');
                       }}
-                      className="absolute left-0 grid w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 border-b border-white/5 p-2 text-left transition last:border-b-0 hover:bg-white/5"
+                      className="absolute left-0 grid min-h-12 w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 border-b border-white/5 p-2 text-left transition last:border-b-0 hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300"
                       style={{
                         top: (skinSearchStartIndex + index) * SKIN_SEARCH_ROW_HEIGHT,
                         height: SKIN_SEARCH_ROW_HEIGHT,
@@ -2083,12 +2083,12 @@ export function SplashScramble() {
           <Trophy size={20} className="text-amber-300" />
         </div>
         <div className="mt-4 grid gap-2">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {pieceStats.map((entry) => (
               <StatPill key={entry.label} label={entry.label} value={entry.count} />
             ))}
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <StatPill label="Reference On" value={stats.solvesWithReference} />
             <StatPill label="Reference Off" value={stats.solvesWithoutReference} />
             <StatPill label="Locking Solves" value={stats.solvesWithLocking} />
@@ -2099,7 +2099,7 @@ export function SplashScramble() {
   );
 
   const renderPrematch = () => (
-    <section className="grid gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-4  backdrop-blur-xl sm:p-6 lg:grid-cols-[1fr_0.82fr]">
+    <section className="grid gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-6 sm:p-6 lg:grid-cols-[1fr_0.82fr]">
       <div className="grid gap-5">
         {error ? (
           <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">{error}</div>
@@ -2457,7 +2457,7 @@ export function SplashScramble() {
         <Link
           href="/"
           aria-label="Back to games"
-          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-12 sm:w-12"
         >
           <ArrowLeft size={18} />
         </Link>
@@ -2469,7 +2469,7 @@ export function SplashScramble() {
         type="button"
         onClick={returnToPrematch}
         aria-label="Back to lobby"
-        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-12 sm:w-12"
       >
         <ArrowLeft size={18} />
       </button>
@@ -2477,14 +2477,14 @@ export function SplashScramble() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#030712] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+    <main className="min-h-[100dvh] overflow-hidden bg-[#030712] px-4 py-4 text-slate-100 sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-7xl gap-5 sm:gap-6">
-        <header className="relative z-30 flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
+        <header className="relative z-30 flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             {renderBackControl()}
             <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Single Player Game</p>
-              <h1 className="mt-1 flex flex-wrap items-center gap-2 text-xl font-semibold text-white">
+              <p className="text-[0.68rem] uppercase tracking-[0.2em] text-slate-500 sm:text-xs sm:tracking-[0.24em]">Single Player Game</p>
+              <h1 className="mt-1 flex flex-wrap items-center gap-2 text-lg font-semibold text-white sm:text-xl">
                 Splash Scramble
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-xs font-bold text-amber-100">
                   <Flame size={12} className="text-amber-300" />
@@ -2496,7 +2496,7 @@ export function SplashScramble() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          <div className="flex w-full flex-wrap items-center gap-2 border-t border-white/10 pt-3 sm:w-auto sm:gap-3 sm:border-t-0 sm:pt-0 lg:justify-end">
             <GameInfoMenu
               title="Splash Scramble"
               steps={[

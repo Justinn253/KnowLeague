@@ -62,7 +62,7 @@ export function ResetPasswordScreen() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center px-6 py-10">
+      <section className="mx-auto flex min-h-[100dvh] w-full max-w-2xl flex-col justify-center px-4 py-6 sm:px-6 sm:py-10">
         <header className="mb-5 flex items-center gap-3">
           <Link
             href="/login"
@@ -77,7 +77,7 @@ export function ResetPasswordScreen() {
           </div>
         </header>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6  backdrop-blur-xl">
+        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl sm:p-6">
           <form onSubmit={submitNewPassword} className="grid gap-4">
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">New Password</span>
@@ -96,7 +96,7 @@ export function ResetPasswordScreen() {
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-900 hover:text-white"
+                  className="absolute right-1 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200 sm:right-2"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>

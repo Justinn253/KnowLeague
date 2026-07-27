@@ -2,6 +2,30 @@ import riftboundCards from '@/data/catalogs/riftbound-cards.json';
 
 export type RiftboundFinish = 'normal' | 'foil';
 
+const RIFTBOUND_DOMAIN_TEXT_CLASSES: Record<string, string> = {
+  Colorless: 'text-slate-300',
+  Body: 'text-orange-300',
+  Mind: 'text-blue-300',
+  Order: 'text-yellow-200',
+  Chaos: 'text-violet-300',
+  Calm: 'text-green-500',
+  Fury: 'text-red-400',
+};
+
+export function getRiftboundDomainTextClass(domain: string | undefined) {
+  return RIFTBOUND_DOMAIN_TEXT_CLASSES[domain ?? ''] ?? 'text-slate-300';
+}
+
+export function getRiftboundCardDomainTextClass(card: Pick<RiftboundCard, 'domains'>) {
+  return getRiftboundDomainTextClass(card.domains.find((domain) => domain !== 'Colorless') ?? card.domains[0]);
+}
+
+export function getRiftboundDeckTypeLabel(card: Pick<RiftboundCard, 'cardType' | 'cardTypeLabels'>) {
+  if (card.cardType === 'Unit') return 'Unit';
+  if (card.cardType !== 'Spell') return null;
+  return card.cardTypeLabels.some((label) => label.toLowerCase().includes('signature')) ? 'Signature Spell' : 'Spell';
+}
+
 export type RiftboundMarketPrices = {
   normal: number | null;
   foil: number | null;

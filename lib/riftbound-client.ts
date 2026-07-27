@@ -1,6 +1,7 @@
 'use client';
 
 import type { Session } from '@supabase/supabase-js';
+import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
 
 export type RiftboundLatestPrice = {
   normal: number | null;
@@ -27,6 +28,23 @@ export type RiftboundSet = {
   cards: RiftboundSetCard[];
 };
 
+export type RiftboundDeckCard = {
+  card_id: string;
+  category: RiftboundDeckCategory;
+  quantity: number;
+};
+
+export type RiftboundDeck = {
+  id: string;
+  name: string;
+  description: string;
+  legend_card_id: string;
+  chosen_champion_card_id: string;
+  created_at: string;
+  updated_at: string;
+  cards: RiftboundDeckCard[];
+};
+
 export type RiftboundLatestPricesResponse = {
   prices?: Record<string, RiftboundLatestPrice>;
   snapshotDate?: string | null;
@@ -38,6 +56,7 @@ export type RiftboundLatestPricesResponse = {
 export type RiftboundBootstrapResponse = RiftboundLatestPricesResponse & {
   inventory?: { items?: RiftboundInventoryItem[] };
   sets?: { sets?: RiftboundSet[] };
+  decks?: { decks?: RiftboundDeck[] };
 };
 
 type CachedResponse<T> = {
@@ -87,6 +106,11 @@ async function requestRiftboundData<T>(
 export function getRiftboundBootstrap(session: Session | null) {
   const key = session ? `bootstrap:${session.user.id}:${session.access_token}` : 'bootstrap:guest';
   return requestRiftboundData<RiftboundBootstrapResponse>(key, '/api/riftbound/bootstrap', session);
+}
+
+export function invalidateRiftboundBootstrap(session: Session | null) {
+  const key = session ? `bootstrap:${session.user.id}:${session.access_token}` : 'bootstrap:guest';
+  responseCache.delete(key);
 }
 
 export function getRiftboundLatestPrices() {

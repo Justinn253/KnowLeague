@@ -104,11 +104,17 @@ export async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const input = parseDeckInput(await readJsonBody<DeckBody>(request));
-    const existingDecks = await loadRiftboundDecks(userId);
-    if (existingDecks.length >= RIFTBOUND_DECK_MAX_COUNT) {
+    const supabase = getSupabaseServiceClient();
+    const { count, error: countError } = await supabase
+      .from('riftbound_decks')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    if (countError) throw countError;
+    if ((count ?? 0) >= RIFTBOUND_DECK_MAX_COUNT) {
       throw new Error(`You can create up to ${RIFTBOUND_DECK_MAX_COUNT} Riftbound game decks.`);
     }
-    const { data, error } = await getSupabaseServiceClient().rpc('create_riftbound_deck', {
+
+    const { data, error } = await supabase.rpc('create_riftbound_deck', {
       p_user_id: userId,
       p_name: input.name,
       p_description: input.description,

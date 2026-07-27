@@ -3,6 +3,7 @@ import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-ut
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getRiftboundCardById } from '@/lib/riftbound';
 import { loadRiftboundInventory } from '@/lib/riftbound-server';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const runtime = 'nodejs';
@@ -24,6 +25,13 @@ type InventoryBody = InventoryChangeInput & {
   changes?: unknown;
 };
 
+function isMissingInventoryBatchFunction(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return candidate.code === '42883' || candidate.code === 'PGRST202'
+    || (typeof candidate.message === 'string' && /apply_riftbound_inventory_changes|could not find the function|does not exist/i.test(candidate.message));
+}
+
 export async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
@@ -36,6 +44,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'riftbound:inventory-write',
+      ip: { limit: 60, windowMs: 60_000 },
+      subject: { id: userId, limit: 120, windowMs: 60_000 },
+      errorMessage: 'Too many inventory updates. Please wait a moment before trying again.',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await readJsonBody<InventoryBody>(request);
     const rawChanges = Array.isArray(body.changes)
       ? body.changes
@@ -76,6 +92,21 @@ export async function POST(request: Request) {
     });
 
     const supabase = getSupabaseServiceClient();
+    const { data: batchRows, error: batchError } = await supabase
+      .rpc('apply_riftbound_inventory_changes', {
+        p_user_id: userId,
+        p_changes: changes.map(({ cardId: card_id, finish, delta }) => ({ card_id, finish, delta })),
+      })
+      .returns<InventoryRow[]>();
+
+    if (!batchError) {
+      return NextResponse.json({ items: batchRows ?? [] });
+    }
+
+    if (!isMissingInventoryBatchFunction(batchError)) throw batchError;
+
+    // Compatibility path for environments that have not applied the batch
+    // update migration yet. New environments use the atomic RPC above.
     const { data: currentRows, error: currentRowsError } = await supabase
       .from('riftbound_inventory')
       .select('card_id, finish, quantity, updated_at')

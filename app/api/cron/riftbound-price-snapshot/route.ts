@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { buildRiftboundPriceSnapshotRows, fetchRiftboundPriceSnapshot } from '@/lib/riftbound-price-source';
 import { RIFTBOUND_CARDS } from '@/lib/riftbound';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { invalidateLatestRiftboundPrices } from '@/lib/riftbound-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,7 @@ async function captureSnapshot(request: Request) {
     }).returns<number>();
 
     if (error) throw error;
+    invalidateLatestRiftboundPrices();
 
     const liveCount = rows.filter((row) => row.capture_status === 'live').length;
     const fallbackCount = rows.filter((row) => row.capture_status === 'catalog_fallback').length;

@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-memory-cache';
 import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
 
 export type RiftboundLatestPrice = {
@@ -57,6 +58,7 @@ type LatestSnapshotDateRow = {
 type LatestSnapshotRow = {
   card_id: string;
   finish: 'normal' | 'foil';
+  snapshot_date?: string;
   price_cents: number | null;
   source_snapshot_at: string | null;
   captured_at: string;
@@ -93,6 +95,36 @@ type DeckCardRow = {
 
 type RiftboundSupabaseClient = ReturnType<typeof getSupabaseServiceClient>;
 
+const RIFTBOUND_LATEST_PRICES_CACHE_KEY = 'riftbound:latest-prices:tcgcsv';
+const RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS = 60_000;
+const latestPricesInFlight = new Map<string, Promise<RiftboundLatestPricesPayload>>();
+let latestPricesCacheGeneration = 0;
+
+export function invalidateLatestRiftboundPrices() {
+  latestPricesCacheGeneration += 1;
+  latestPricesInFlight.clear();
+  deleteServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY);
+}
+
+function buildLatestPricesPayload(rows: LatestSnapshotRow[], snapshotDate: string | null = null): RiftboundLatestPricesPayload {
+  const prices: Record<string, RiftboundLatestPrice> = {};
+  let resolvedSnapshotDate = snapshotDate;
+  let sourceSnapshotAt: string | null = null;
+  let capturedAt: string | null = null;
+
+  rows.forEach((row) => {
+    const current = prices[row.card_id] ?? { normal: null, foil: null, updatedAt: null };
+    current[row.finish] = row.price_cents === null ? null : row.price_cents / 100;
+    current.updatedAt = row.source_snapshot_at ?? row.captured_at;
+    prices[row.card_id] = current;
+    if (!resolvedSnapshotDate && row.snapshot_date) resolvedSnapshotDate = row.snapshot_date;
+    if (!sourceSnapshotAt && row.source_snapshot_at) sourceSnapshotAt = row.source_snapshot_at;
+    if (!capturedAt || row.captured_at > capturedAt) capturedAt = row.captured_at;
+  });
+
+  return { snapshotDate: resolvedSnapshotDate, sourceSnapshotAt, capturedAt, prices };
+}
+
 function isMissingRiftboundDeckStorage(error: unknown) {
   if (!error || typeof error !== 'object') return false;
   const candidate = error as { code?: unknown; message?: unknown };
@@ -103,6 +135,40 @@ function isMissingRiftboundDeckStorage(error: unknown) {
 export async function loadLatestRiftboundPrices(
   supabase: RiftboundSupabaseClient = getSupabaseServiceClient(),
 ): Promise<RiftboundLatestPricesPayload> {
+  const cached = getServerCache<RiftboundLatestPricesPayload>(RIFTBOUND_LATEST_PRICES_CACHE_KEY);
+  if (cached) return cached;
+
+  const existingRequest = latestPricesInFlight.get(RIFTBOUND_LATEST_PRICES_CACHE_KEY);
+  if (existingRequest) return existingRequest;
+
+  const requestGeneration = latestPricesCacheGeneration;
+  const request = (async () => {
+
+  // This function is read-only and identical for every user. Once the read
+  // RPC migration is installed, this is one indexed database round trip
+  // instead of a max-date query followed by a second table scan.
+  const latestRowsResult = await supabase
+    .rpc('get_riftbound_latest_price_snapshots', { p_source: 'tcgcsv' })
+    .returns<LatestSnapshotRow[]>();
+
+  if (!latestRowsResult.error) {
+    const latestRows = Array.isArray(latestRowsResult.data)
+      ? latestRowsResult.data as LatestSnapshotRow[]
+      : [];
+    const payload = buildLatestPricesPayload(latestRows);
+    if (latestPricesCacheGeneration === requestGeneration) {
+      setServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY, payload, RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS);
+    }
+    return payload;
+  }
+
+  // The fallback keeps a deployment usable while the append-only migration
+  // is being applied across environments.
+  const rpcError = latestRowsResult.error as { code?: string; message?: string };
+  const functionMissing = rpcError.code === '42883' || rpcError.code === 'PGRST202'
+    || Boolean(rpcError.message && /get_riftbound_latest_price_snapshots|could not find the function|does not exist/i.test(rpcError.message));
+  if (!functionMissing) throw latestRowsResult.error;
+
   const { data: latestDateRow, error: latestDateError } = await supabase
     .from('riftbound_card_price_snapshots')
     .select('snapshot_date')
@@ -114,12 +180,16 @@ export async function loadLatestRiftboundPrices(
   if (latestDateError) throw latestDateError;
 
   if (!latestDateRow) {
-    return {
+    const payload = {
       snapshotDate: null,
       sourceSnapshotAt: null,
       capturedAt: null,
       prices: {},
     };
+    if (latestPricesCacheGeneration === requestGeneration) {
+      setServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY, payload, RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS);
+    }
+    return payload;
   }
 
   const { data, error } = await supabase
@@ -131,25 +201,23 @@ export async function loadLatestRiftboundPrices(
 
   if (error) throw error;
 
-  const prices: Record<string, RiftboundLatestPrice> = {};
-  let sourceSnapshotAt: string | null = null;
-  let capturedAt: string | null = null;
-
-  (data ?? []).forEach((row) => {
-    const current = prices[row.card_id] ?? { normal: null, foil: null, updatedAt: null };
-    current[row.finish] = row.price_cents === null ? null : row.price_cents / 100;
-    current.updatedAt = row.source_snapshot_at ?? row.captured_at;
-    prices[row.card_id] = current;
-    if (!sourceSnapshotAt && row.source_snapshot_at) sourceSnapshotAt = row.source_snapshot_at;
-    if (!capturedAt || row.captured_at > capturedAt) capturedAt = row.captured_at;
+  const payload = buildLatestPricesPayload(data ?? [], latestDateRow.snapshot_date);
+  if (latestPricesCacheGeneration === requestGeneration) {
+    setServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY, payload, RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS);
+  }
+  return payload;
+  })();
+  latestPricesInFlight.set(RIFTBOUND_LATEST_PRICES_CACHE_KEY, request);
+  void request.then(() => {
+    if (latestPricesInFlight.get(RIFTBOUND_LATEST_PRICES_CACHE_KEY) === request) {
+      latestPricesInFlight.delete(RIFTBOUND_LATEST_PRICES_CACHE_KEY);
+    }
+  }, () => {
+    if (latestPricesInFlight.get(RIFTBOUND_LATEST_PRICES_CACHE_KEY) === request) {
+      latestPricesInFlight.delete(RIFTBOUND_LATEST_PRICES_CACHE_KEY);
+    }
   });
-
-  return {
-    snapshotDate: latestDateRow.snapshot_date,
-    sourceSnapshotAt,
-    capturedAt,
-    prices,
-  };
+  return request;
 }
 
 export async function loadRiftboundInventory(
@@ -191,12 +259,18 @@ export async function loadRiftboundSets(
 
   if (cardError) throw cardError;
 
+  const cardsBySetId = new Map<string, SetCardRow[]>();
+  (cardData ?? []).forEach((card) => {
+    const rows = cardsBySetId.get(card.set_id) ?? [];
+    rows.push(card);
+    cardsBySetId.set(card.set_id, rows);
+  });
+
   return sets.map((set) => ({
     id: set.id,
     name: set.name,
     created_at: set.created_at,
-    cards: (cardData ?? [])
-      .filter((card) => card.set_id === set.id)
+    cards: (cardsBySetId.get(set.id) ?? [])
       .map(({ card_id, quantity }) => ({ card_id, quantity })),
   }));
 }
@@ -224,6 +298,13 @@ export async function loadRiftboundDecks(
 
   if (cardError) throw cardError;
 
+  const cardsByDeckId = new Map<string, DeckCardRow[]>();
+  (cardData ?? []).forEach((card) => {
+    const rows = cardsByDeckId.get(card.deck_id) ?? [];
+    rows.push(card);
+    cardsByDeckId.set(card.deck_id, rows);
+  });
+
   return decks.map((deck) => ({
     id: deck.id,
     name: deck.name,
@@ -232,8 +313,7 @@ export async function loadRiftboundDecks(
     chosen_champion_card_id: deck.chosen_champion_card_id,
     created_at: deck.created_at,
     updated_at: deck.updated_at,
-    cards: (cardData ?? [])
-      .filter((card) => card.deck_id === deck.id)
+    cards: (cardsByDeckId.get(deck.id) ?? [])
       .map(({ card_id, category, quantity }) => ({ card_id, category, quantity })),
   }));
 }

@@ -8,7 +8,7 @@ import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-men
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardDomainTextClass, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundFinish } from '@/lib/riftbound';
-import { getRiftboundLatestPrices, type RiftboundLatestPrice } from '@/lib/riftbound-client';
+import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, type RiftboundLatestPrice } from '@/lib/riftbound-client';
 
 type SharedInventoryRow = {
   card_id: string;
@@ -20,6 +20,8 @@ type SharedCard = {
   card: RiftboundCard;
   normal: number;
   foil: number;
+  searchableText: string;
+  normalizedTags: string[];
 };
 
 type SharedDeckCategory = 'legend' | 'runes' | 'battlefields' | 'main' | 'sideboard';
@@ -362,11 +364,9 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true }: { c
     let cancelled = false;
     setHistoryLoading(true);
     setHistoryError('');
-    void fetch(`/api/riftbound/prices/${encodeURIComponent(card.id)}?days=30`, { cache: 'no-store' })
-      .then(async (response) => {
-        const data = await response.json() as { history?: SharedPriceHistoryEntry[]; error?: string };
-        if (!response.ok) throw new Error(data.error || 'Unable to load market value history.');
-        if (!cancelled) setHistory(data.history ?? []);
+    void getRiftboundCardPriceHistory(card.id)
+      .then((nextHistory) => {
+        if (!cancelled) setHistory(nextHistory);
       })
       .catch((error: unknown) => {
         if (!cancelled) setHistoryError(error instanceof Error ? error.message : 'Unable to load market value history.');
@@ -681,7 +681,7 @@ function SharedDeckListRow({ card, onOpen, highlighted = false }: { card: Riftbo
 function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4', highlightCardId }: { entries: Array<{ card: RiftboundCard; key: string }>; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string }) {
   if (entries.length === 0) return null;
   if (listView) return <div className={gridClassName.replace('gap-4', 'gap-2')}>{entries.map(({ card, key }) => <SharedDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
-  return <div className={gridClassName}>{entries.map(({ card, key }) => <article key={key} className={`flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-4 ${card.id === highlightCardId ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10'}`}><button type="button" onClick={() => onOpen(card)} className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"><h3 className={`w-full truncate text-center text-lg font-black ${getRiftboundCardDomainTextClass(card)}`} title={card.displayName}>{card.displayName}</h3><p className="mt-1 text-center text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</p><div className="relative mx-auto mt-3 aspect-[744/1039] w-full max-w-[11rem] overflow-hidden rounded-xl bg-slate-900"><RiftboundCardImage card={card} sizes="176px" loading="lazy" className="object-cover" /></div></button>{getRiftboundDeckTypeLabel(card) ? <span className="mt-2 self-end text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{getRiftboundDeckTypeLabel(card)}</span> : null}</article>)}</div>;
+  return <div className={gridClassName}>{entries.map(({ card, key }) => <article key={key} className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-4 ${card.id === highlightCardId ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10'}`}><button type="button" onClick={() => onOpen(card)} className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"><h3 className={`w-full truncate text-center text-lg font-black ${getRiftboundCardDomainTextClass(card)}`} title={card.displayName}>{card.displayName}</h3><p className="mt-1 text-center text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</p><div className="relative mx-auto mt-3 aspect-[744/1039] w-full max-w-[11rem] overflow-hidden rounded-xl bg-slate-900"><RiftboundCardImage card={card} sizes="176px" loading="lazy" className="object-cover" /></div></button>{getRiftboundDeckTypeLabel(card) ? <span className="mt-2 self-end text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{getRiftboundDeckTypeLabel(card)}</span> : null}</article>)}</div>;
 }
 
 function SharedDeckSection({ deck, category, label, entries: providedEntries, className = '', entriesClassName, highlightCardId, listView, onOpen }: { deck: SharedDeck; category: SharedDeckCategory; label?: string; entries?: Array<{ card: RiftboundCard; key: string }>; className?: string; entriesClassName?: string; highlightCardId?: string; listView: boolean; onOpen: (card: RiftboundCard) => void }) {
@@ -749,7 +749,29 @@ export function RiftboundCollectionShare() {
           marketPriceUpdatedAt: latest.updatedAt,
           marketPrices: { ...card.marketPrices, normal: latest.normal, foil: latest.foil, updatedAt: latest.updatedAt },
         } : card;
-        return [{ card: currentCard, ...quantitiesForCard }];
+        return [{
+          card: currentCard,
+          ...quantitiesForCard,
+          searchableText: normalizeSearchText([
+            currentCard.displayName,
+            currentCard.name,
+            currentCard.fullName,
+            currentCard.setCode,
+            currentCard.setName,
+            currentCard.numberLabel,
+            currentCard.rarity,
+            currentCard.cardType,
+            currentCard.cardTypeLabels.join(' '),
+            currentCard.tags.join(' '),
+            currentCard.domains.join(' '),
+            currentCard.productDetails,
+            currentCard.artist ?? '',
+            String(currentCard.energyCost),
+            String(currentCard.powerCost),
+            String(currentCard.might),
+          ].join(' ')),
+          normalizedTags: currentCard.tags.map((tag) => normalizeSearchText(tag)),
+        }];
       })
       .sort((left, right) => left.card.displayName.localeCompare(right.card.displayName));
   }, [latestPrices, rows]);
@@ -760,10 +782,10 @@ export function RiftboundCollectionShare() {
     if (currentCard && currentCard !== selectedCard) setSelectedCard(currentCard);
   }, [cards, selectedCard]);
 
-  const totalCopies = cards.reduce((total, entry) => total + entry.normal + entry.foil, 0);
-  const totalValue = cards.reduce((total, entry) => total
+  const totalCopies = useMemo(() => cards.reduce((total, entry) => total + entry.normal + entry.foil, 0), [cards]);
+  const totalValue = useMemo(() => cards.reduce((total, entry) => total
     + ((entry.card.marketPrices.normal ?? 0) * entry.normal)
-    + ((entry.card.marketPrices.foil ?? 0) * entry.foil), 0);
+    + ((entry.card.marketPrices.foil ?? 0) * entry.foil), 0), [cards]);
   const filterOptionsByField = useMemo(() => {
     const setNames = new Map(cards.map(({ card }) => [card.setCode, card.setName]));
     return {
@@ -786,7 +808,7 @@ export function RiftboundCollectionShare() {
     const normalizedQuery = normalizeSearchText(deferredQuery);
     const normalizedTagQuery = normalizeSearchText(deferredTagQuery);
     return cards
-      .filter(({ card }) => {
+      .filter(({ card, searchableText, normalizedTags }) => {
         if (!matchesSharedFilter(filters.setCode, card.setCode)) return false;
         if (!matchesSharedFilter(filters.rarity, card.rarity)) return false;
         if (!matchesSharedFilter(filters.cardType, card.cardType)) return false;
@@ -794,26 +816,9 @@ export function RiftboundCollectionShare() {
         if (!matchesSharedFilter(filters.energyCost, String(card.energyCost))) return false;
         if (!matchesSharedFilter(filters.powerCost, String(card.powerCost))) return false;
         if (!matchesSharedFilter(filters.might, String(card.might))) return false;
-        if (normalizedTagQuery && !card.tags.some((tag) => normalizeSearchText(tag).includes(normalizedTagQuery))) return false;
+        if (normalizedTagQuery && !normalizedTags.some((tag) => tag.includes(normalizedTagQuery))) return false;
         if (!normalizedQuery) return true;
-        return normalizeSearchText([
-          card.displayName,
-          card.name,
-          card.fullName,
-          card.setCode,
-          card.setName,
-          card.numberLabel,
-          card.rarity,
-          card.cardType,
-          card.cardTypeLabels.join(' '),
-          card.tags.join(' '),
-          card.domains.join(' '),
-          card.productDetails,
-          card.artist ?? '',
-          String(card.energyCost),
-          String(card.powerCost),
-          String(card.might),
-        ].join(' ')).includes(normalizedQuery);
+        return searchableText.includes(normalizedQuery);
       })
       .sort((left, right) => compareSharedCards(left, right, sortMode));
   }, [cards, deferredQuery, deferredTagQuery, filters, sortMode]);

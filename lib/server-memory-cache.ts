@@ -31,3 +31,7 @@ export function setServerCache<T>(key: string, value: T, ttlMs: number) {
     expiresAt: Date.now() + ttlMs,
   });
 }
+
+export function deleteServerCache(key: string) {
+  cache.delete(key);
+}

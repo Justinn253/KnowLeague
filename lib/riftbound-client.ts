@@ -53,6 +53,17 @@ export type RiftboundLatestPricesResponse = {
   error?: string;
 };
 
+export type RiftboundPriceHistoryEntry = {
+  date: string;
+  finish: 'normal' | 'foil';
+  price: number | null;
+};
+
+type RiftboundPriceHistoryResponse = {
+  history?: RiftboundPriceHistoryEntry[];
+  error?: string;
+};
+
 export type RiftboundBootstrapResponse = RiftboundLatestPricesResponse & {
   inventory?: { items?: RiftboundInventoryItem[] };
   sets?: { sets?: RiftboundSet[] };
@@ -67,11 +78,17 @@ type CachedResponse<T> = {
 const REQUEST_CACHE_TTL_MS = 30_000;
 const responseCache = new Map<string, CachedResponse<unknown>>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
+const cacheGenerations = new Map<string, number>();
+
+function getCacheGeneration(key: string) {
+  return cacheGenerations.get(key) ?? 0;
+}
 
 async function requestRiftboundData<T>(
   key: string,
   url: string,
   session?: Session | null,
+  requestInit: { cache?: RequestCache } = {},
 ): Promise<T> {
   const cached = responseCache.get(key);
   if (cached && cached.expiresAt > Date.now()) {
@@ -83,14 +100,18 @@ async function requestRiftboundData<T>(
     return existingRequest as Promise<T>;
   }
 
+  const requestGeneration = getCacheGeneration(key);
+
   const headers: HeadersInit = session
     ? { Authorization: `Bearer ${session.access_token}` }
     : {};
-  const request = fetch(url, { cache: 'no-store', headers })
+  const request = fetch(url, { cache: requestInit.cache ?? 'no-store', headers })
     .then(async (response) => {
       const data = await response.json() as T & { error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to load Riftbound data.');
-      responseCache.set(key, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: data });
+      if (getCacheGeneration(key) === requestGeneration) {
+        responseCache.set(key, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: data });
+      }
       return data;
     })
     .finally(() => {
@@ -104,15 +125,29 @@ async function requestRiftboundData<T>(
 }
 
 export function getRiftboundBootstrap(session: Session | null) {
-  const key = session ? `bootstrap:${session.user.id}:${session.access_token}` : 'bootstrap:guest';
+  // Access tokens rotate during a normal session. The response is already
+  // scoped by user on the server, so keying by token would defeat request
+  // deduplication and retain one cache entry for every token refresh.
+  const key = session ? `bootstrap:${session.user.id}` : 'bootstrap:guest';
   return requestRiftboundData<RiftboundBootstrapResponse>(key, '/api/riftbound/bootstrap', session);
 }
 
 export function invalidateRiftboundBootstrap(session: Session | null) {
-  const key = session ? `bootstrap:${session.user.id}:${session.access_token}` : 'bootstrap:guest';
+  const key = session ? `bootstrap:${session.user.id}` : 'bootstrap:guest';
+  cacheGenerations.set(key, getCacheGeneration(key) + 1);
   responseCache.delete(key);
 }
 
 export function getRiftboundLatestPrices() {
-  return requestRiftboundData<RiftboundLatestPricesResponse>('latest-prices', '/api/riftbound/prices/latest');
+  return requestRiftboundData<RiftboundLatestPricesResponse>('latest-prices', '/api/riftbound/prices/latest', null, { cache: 'force-cache' });
+}
+
+export function getRiftboundCardPriceHistory(cardId: string, days = 30) {
+  const safeDays = Math.max(1, Math.min(30, Math.floor(days)));
+  return requestRiftboundData<RiftboundPriceHistoryResponse>(
+    `card-history:${cardId}:${safeDays}`,
+    `/api/riftbound/prices/${encodeURIComponent(cardId)}?days=${safeDays}`,
+    null,
+    { cache: 'force-cache' },
+  ).then((data) => data.history ?? []);
 }

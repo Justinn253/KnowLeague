@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowRight, BarChart3, Menu, Package, UserCircle, X } from 'lucide-react';
+import { ArrowRight, BarChart3, Menu, Package, UserCircle, Users, X } from 'lucide-react';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { GAME_NAVIGATION_ITEMS } from '@/lib/game-navigation';
@@ -137,13 +137,33 @@ export function AppNavigationDrawer({
               <div className="mt-4 border-t border-white/10 pt-4">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Riftbound</p>
                 <div className="mt-2 grid gap-2">
-                  <Link href="/inventory" onClick={closeDrawer} className={menuItemClass}>
+                  <Link href="/riftbound/community" onClick={closeDrawer} className={menuItemClass}>
                     <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200/25 bg-amber-300 text-slate-950">
-                      <Package size={18} />
+                      <Users size={18} />
                     </span>
-                    <span className="min-w-0 flex-1 text-sm font-black">Inventory</span>
+                    <span className="min-w-0 flex-1 text-sm font-black">Community</span>
                     <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
                   </Link>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link href="/riftbound/profile" onClick={closeDrawer} className={gameMenuItemClass}>
+                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${gameAccentClasses.gold}`}>
+                        <UserCircle size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black">Riftbound Profile</span>
+                        <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">Profile</span>
+                      </span>
+                    </Link>
+                    <Link href="/inventory" onClick={closeDrawer} className={gameMenuItemClass}>
+                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${gameAccentClasses.gold}`}>
+                        <Package size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black">Inventory</span>
+                        <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">Cards</span>
+                      </span>
+                    </Link>
+                  </div>
                 </div>
               </div>
 

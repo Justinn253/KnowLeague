@@ -1841,7 +1841,7 @@ const RiftboundCardRow = memo(function RiftboundCardRow({
   );
 });
 
-function RiftboundCardDetailsModal({
+export function RiftboundCardDetailsModal({
   card,
   normalQuantity,
   foilQuantity,
@@ -1849,6 +1849,7 @@ function RiftboundCardDetailsModal({
   pending,
   showInventoryControls = true,
   showMarketDetails = true,
+  actions,
   onClose,
   onAdjust,
 }: {
@@ -1859,6 +1860,7 @@ function RiftboundCardDetailsModal({
   pending: boolean;
   showInventoryControls?: boolean;
   showMarketDetails?: boolean;
+  actions?: ReactNode;
   onClose: () => void;
   onAdjust: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
 }) {
@@ -1947,6 +1949,7 @@ function RiftboundCardDetailsModal({
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p>
                 <h2 className="mt-2 text-3xl font-black tracking-tight text-white">{card.displayName}</h2>
                 <p className={`mt-2 text-sm font-black ${rarityClassName}`}>{card.rarity}</p>
+                {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
               </div>
             </div>
             {showMarketDetails ? <div className="grid gap-3 sm:grid-cols-2">

@@ -615,14 +615,20 @@ export async function getRiftboundProfileUsername(userId: string) {
 
 export async function loadRiftboundCardPreferences(userId: string): Promise<import('@/lib/riftbound-community-types').RiftboundCardPreferences> {
   const supabase = getSupabaseServiceClient();
-  const [favoriteCardsResult, wishlistResult] = await Promise.all([
+  const [favoriteCardsResult, favoriteSetsResult, favoriteDecksResult, wishlistResult] = await Promise.all([
     supabase.from('riftbound_profile_favorite_cards').select('card_id').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ card_id: string }>>(),
+    supabase.from('riftbound_profile_favorite_sets').select('set_id').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ set_id: string }>>(),
+    supabase.from('riftbound_profile_favorite_decks').select('deck_id').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ deck_id: string }>>(),
     supabase.from('riftbound_profile_wishlist_cards').select('card_id, desired_quantity, note, created_at, updated_at').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ card_id: string; desired_quantity: number; note: string; created_at: string; updated_at: string }>>(),
   ]);
   if (favoriteCardsResult.error) throw favoriteCardsResult.error;
+  if (favoriteSetsResult.error) throw favoriteSetsResult.error;
+  if (favoriteDecksResult.error) throw favoriteDecksResult.error;
   if (wishlistResult.error) throw wishlistResult.error;
   return {
     favoriteCardIds: (favoriteCardsResult.data ?? []).map((row) => row.card_id),
+    favoriteSetIds: (favoriteSetsResult.data ?? []).map((row) => row.set_id),
+    favoriteDeckIds: (favoriteDecksResult.data ?? []).map((row) => row.deck_id),
     wishlist: (wishlistResult.data ?? []).map((row) => ({
       cardId: row.card_id,
       desiredQuantity: 1,

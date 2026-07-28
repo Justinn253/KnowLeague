@@ -39,15 +39,6 @@ body {
   gap: 1rem;
 }
 
-/* Keep the main catalogue cards at the same width when a search returns only
-   a few results. The remaining columns stay empty on larger screens instead
-   of stretching the visible cards. */
-@media (min-width: 64rem) {
-  .riftbound-catalog-card-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
 button,
 input,
 textarea,

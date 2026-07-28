@@ -1,14 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, FileDown, Info, PackageOpen, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, FileDown, Grid2X2, Info, LayoutList, PackageOpen, Plus, QrCode, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
+import { getRiftboundCardFilterCount, matchesRiftboundPriceRange, RiftboundCardRow } from '@/components/riftbound-card-grid';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
+import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
-import { getRiftboundCardDomainTextClass, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundFinish } from '@/lib/riftbound';
+import { getRiftboundCardDomainTextClass, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundFinish } from '@/lib/riftbound';
 import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, type RiftboundLatestPrice } from '@/lib/riftbound-client';
 
 type SharedInventoryRow = {
@@ -22,7 +24,6 @@ type SharedCard = {
   normal: number;
   foil: number;
   searchableText: string;
-  normalizedTags: string[];
 };
 
 type SharedDeckCategory = 'legend' | 'runes' | 'battlefields' | 'main' | 'sideboard';
@@ -61,6 +62,8 @@ type SharedSortMode =
   | 'quantity-asc'
   | 'quantity-desc';
 
+type SharedDeckViewMode = 'card' | 'list' | 'compact';
+
 type SharedFilters = {
   setCode: string[];
   rarity: string[];
@@ -69,7 +72,11 @@ type SharedFilters = {
   energyCost: string[];
   powerCost: string[];
   might: string[];
+  minPrice: string;
+  maxPrice: string;
 };
+
+type SharedCategoricalFilterField = Exclude<keyof SharedFilters, 'minPrice' | 'maxPrice'>;
 
 type SharedSnapshot = {
   rows: SharedInventoryRow[];
@@ -98,6 +105,8 @@ const emptySharedFilters: SharedFilters = {
   energyCost: [ALL_FILTER_VALUE],
   powerCost: [ALL_FILTER_VALUE],
   might: [ALL_FILTER_VALUE],
+  minPrice: '',
+  maxPrice: '',
 };
 const sharedRarityOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase'];
 const sharedSortOptions: AppSelectOption<SharedSortMode>[] = [
@@ -668,7 +677,16 @@ function expandSharedDeckEntries(deck: SharedDeck, category: SharedDeckCategory)
       const card = cardById.get(entry.card_id);
       if (!card) return [];
       return Array.from({ length: entry.quantity }, (_, index) => ({ card, key: `${category}:${entry.card_id}:${index}` }));
-    });
+  });
+}
+
+function collapseSharedDeckEntries(entries: Array<{ card: RiftboundCard; key: string }>): RiftboundCompactDeckEntry[] {
+  const collapsed = new Map<string, RiftboundCompactDeckEntry>();
+  entries.forEach(({ card }) => {
+    const current = collapsed.get(card.id);
+    collapsed.set(card.id, current ? { ...current, quantity: current.quantity + 1 } : { card, quantity: 1 });
+  });
+  return Array.from(collapsed.values());
 }
 
 function isSharedChampionUnit(card: RiftboundCard) {
@@ -676,13 +694,18 @@ function isSharedChampionUnit(card: RiftboundCard) {
 }
 
 function SharedDeckListRow({ card, onOpen, highlighted = false }: { card: RiftboundCard; onOpen: (card: RiftboundCard) => void; highlighted?: boolean }) {
-  return <button type="button" onClick={() => onOpen(card)} className={`min-w-0 rounded-xl border px-3 py-2 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}><span className={`block truncate text-sm font-bold ${getRiftboundCardDomainTextClass(card)}`}>{card.displayName}</span><span className="mt-1 block truncate text-xs font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</span>{getRiftboundDeckTypeLabel(card) ? <span className="mt-1 block text-right text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{getRiftboundDeckTypeLabel(card)}</span> : null}</button>;
+  return <button type="button" onClick={() => onOpen(card)} className={`w-full max-w-[18rem] justify-self-center min-w-0 rounded-xl border px-2.5 py-1.5 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}><span className={`block truncate text-xs font-bold ${getRiftboundCardDomainTextClass(card)}`}>{card.displayName}</span><span className="mt-0.5 block truncate text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</span></button>;
 }
 
-function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4', highlightCardId }: { entries: Array<{ card: RiftboundCard; key: string }>; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string }) {
+function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId }: { entries: Array<{ card: RiftboundCard; key: string }>; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string }) {
   if (entries.length === 0) return null;
-  if (listView) return <div className={gridClassName.replace('gap-4', 'gap-2')}>{entries.map(({ card, key }) => <SharedDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
-  return <div className={gridClassName}>{entries.map(({ card, key }) => <article key={key} className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-4 ${card.id === highlightCardId ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10'}`}><button type="button" onClick={() => onOpen(card)} className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"><h3 className={`w-full truncate text-center text-lg font-black ${getRiftboundCardDomainTextClass(card)}`} title={card.displayName}>{card.displayName}</h3><p className="mt-1 text-center text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</p><div className="relative mx-auto mt-3 aspect-[744/1039] w-full max-w-[11rem] overflow-hidden rounded-xl bg-slate-900"><RiftboundCardImage card={card} sizes="176px" loading="lazy" className="object-cover" /></div></button>{getRiftboundDeckTypeLabel(card) ? <span className="mt-2 self-end text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{getRiftboundDeckTypeLabel(card)}</span> : null}</article>)}</div>;
+  if (listView) {
+    const listGridClassName = gridClassName === 'riftbound-card-grid'
+      ? 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2'
+      : gridClassName.replace('gap-4', 'gap-2');
+    return <div className={listGridClassName}>{entries.map(({ card, key }) => <SharedDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
+  }
+  return <div className={gridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored className="w-full max-w-[18rem] justify-self-center" />)}</div>;
 }
 
 function SharedDeckSection({ deck, category, label, entries: providedEntries, className = '', entriesClassName, highlightCardId, listView, onOpen }: { deck: SharedDeck; category: SharedDeckCategory; label?: string; entries?: Array<{ card: RiftboundCard; key: string }>; className?: string; entriesClassName?: string; highlightCardId?: string; listView: boolean; onOpen: (card: RiftboundCard) => void }) {
@@ -699,17 +722,18 @@ export function RiftboundCollectionShare() {
   const [sortMode, setSortMode] = useState<SharedSortMode>('value-desc');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<SharedFilters>(emptySharedFilters);
-  const [tagQuery, setTagQuery] = useState('');
   const [selectedCard, setSelectedCard] = useState<RiftboundCard | null>(null);
   const [inventoryError, setInventoryError] = useState('');
   const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
-  const [deckListView, setDeckListView] = useState(false);
+  const [deckViewMode, setDeckViewMode] = useState<SharedDeckViewMode>('compact');
+  const [sharePageUrl, setSharePageUrl] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const data = params.get('d') ?? params.get('data');
     void (data ? decodeRows(data) : Promise.resolve({ rows: [], kind: 'collection' as const, title: '', createdBy: '', createdAt: '' }))
       .then(setSnapshot);
+    setSharePageUrl(window.location.href);
   }, []);
 
   useEffect(() => subscribeToAuthSession((nextSession) => {
@@ -730,6 +754,7 @@ export function RiftboundCollectionShare() {
   }, []);
 
   const { rows } = snapshot;
+  const deckListView = deckViewMode === 'list';
 
   const cards = useMemo(() => {
     const quantities = new Map<string, { normal: number; foil: number }>();
@@ -771,7 +796,6 @@ export function RiftboundCollectionShare() {
             String(currentCard.powerCost),
             String(currentCard.might),
           ].join(' ')),
-          normalizedTags: currentCard.tags.map((tag) => normalizeSearchText(tag)),
         }];
       })
       .sort((left, right) => left.card.displayName.localeCompare(right.card.displayName));
@@ -800,16 +824,11 @@ export function RiftboundCollectionShare() {
     };
   }, [cards]);
   const deferredQuery = useDeferredValue(query);
-  const deferredTagQuery = useDeferredValue(tagQuery);
-  const activeFilterCount = Object.values(filters).reduce(
-    (total, values) => total + values.filter((value) => value !== ALL_FILTER_VALUE).length,
-    0,
-  ) + (tagQuery.trim() ? 1 : 0);
+  const activeFilterCount = getRiftboundCardFilterCount(filters);
   const filteredCards = useMemo(() => {
     const normalizedQuery = normalizeSearchText(deferredQuery);
-    const normalizedTagQuery = normalizeSearchText(deferredTagQuery);
     return cards
-      .filter(({ card, searchableText, normalizedTags }) => {
+      .filter(({ card, searchableText }) => {
         if (!matchesSharedFilter(filters.setCode, card.setCode)) return false;
         if (!matchesSharedFilter(filters.rarity, card.rarity)) return false;
         if (!matchesSharedFilter(filters.cardType, card.cardType)) return false;
@@ -817,20 +836,19 @@ export function RiftboundCollectionShare() {
         if (!matchesSharedFilter(filters.energyCost, String(card.energyCost))) return false;
         if (!matchesSharedFilter(filters.powerCost, String(card.powerCost))) return false;
         if (!matchesSharedFilter(filters.might, String(card.might))) return false;
-        if (normalizedTagQuery && !normalizedTags.some((tag) => tag.includes(normalizedTagQuery))) return false;
+        if (!matchesRiftboundPriceRange(card, filters.minPrice, filters.maxPrice)) return false;
         if (!normalizedQuery) return true;
         return searchableText.includes(normalizedQuery);
       })
       .sort((left, right) => compareSharedCards(left, right, sortMode));
-  }, [cards, deferredQuery, deferredTagQuery, filters, sortMode]);
+  }, [cards, deferredQuery, filters, sortMode]);
 
-  const toggleFilter = (field: keyof SharedFilters, value: string) => {
+  const toggleFilter = (field: SharedCategoricalFilterField, value: string) => {
     setFilters((current) => ({ ...current, [field]: toggleSharedFilterValue(current[field], value) }));
   };
 
   const resetFilters = () => {
     setFilters(emptySharedFilters);
-    setTagQuery('');
   };
 
   const addToInventory = () => {
@@ -853,7 +871,7 @@ export function RiftboundCollectionShare() {
             <div>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300 print:text-amber-700">Riftbound {snapshot.kind === 'deck' ? 'game deck' : snapshot.kind}</p>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-white print:text-lg print:text-black">{snapshot.title || (snapshot.kind === 'deck' ? 'Shared game deck' : snapshot.kind === 'set' ? 'Shared set' : 'Shared collection')}</h1>
-              {snapshot.kind === 'deck' && snapshot.deck?.description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400 print:mt-1 print:text-[9px] print:text-slate-600">{snapshot.deck.description}</p> : null}
+              {snapshot.kind === 'deck' && snapshot.deck?.description ? <p className="mt-2 w-full max-w-full text-sm leading-6 text-slate-400 sm:max-w-[70%] print:mt-1 print:text-[9px] print:text-slate-600">{snapshot.deck.description}</p> : null}
               {snapshot.kind !== 'deck' ? <p className="mt-2 text-sm text-slate-400 print:mt-1 print:text-[9px] print:text-slate-600">{cards.length} unique cards · {totalCopies} total cards · known value {formatMarketPrice(totalValue)}</p> : null}
               {snapshot.kind !== 'deck' ? <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-slate-500 print:mt-1 print:text-[8px] print:text-slate-600">
                 <span>Shared by <strong className="text-slate-300 print:text-slate-700">{snapshot.createdBy || 'Unknown user'}</strong></span>
@@ -861,7 +879,7 @@ export function RiftboundCollectionShare() {
               </div> : null}
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
-              <Link href={snapshot.kind === 'deck' ? '/inventory?tab=sets' : '/inventory'} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> {snapshot.kind === 'deck' ? 'Sets' : 'Inventory'}</Link>
+              <Link href={snapshot.kind === 'deck' ? '/inventory?tab=sets' : '/inventory'} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> {snapshot.kind === 'deck' ? 'Decks' : 'Inventory'}</Link>
               <button type="button" onClick={() => void printCollection()} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Print / Save PDF</button>
             </div>
           </div>
@@ -871,7 +889,15 @@ export function RiftboundCollectionShare() {
                 <span>Created {formatShareCreatedAt(snapshot.deck.createdAt || snapshot.createdAt)}</span>
                 <span>Shared by <strong className="text-slate-300">{snapshot.createdBy || 'Unknown user'}</strong></span>
               </div>
-              <button type="button" role="switch" aria-checked={deckListView} onClick={() => setDeckListView((current) => !current)} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${deckListView ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}>{deckListView ? 'List view' : 'Card view'}</button>
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Deck view options">
+                {([
+                  { value: 'card' as const, label: 'Card view', icon: Grid2X2 },
+                  { value: 'list' as const, label: 'List view', icon: LayoutList },
+                  { value: 'compact' as const, label: 'Compact view', icon: QrCode },
+                ]).map(({ value, label, icon: Icon }) => (
+                  <button key={value} type="button" aria-pressed={deckViewMode === value} onClick={() => setDeckViewMode(value)} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${deckViewMode === value ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}><Icon size={14} />{label}</button>
+                ))}
+              </div>
             </div>
           ) : null}
           {snapshot.kind !== 'deck' && cards.length > 0 ? (
@@ -890,16 +916,30 @@ export function RiftboundCollectionShare() {
         </header>
 
         {snapshot.kind === 'deck' && snapshot.deck ? (
-          <>
-            <div className="grid gap-5 lg:grid-cols-4">
-              <SharedDeckSection deck={snapshot.deck} category="legend" entriesClassName="grid gap-4" highlightCardId={snapshot.deck.legendCardId} listView={deckListView} onOpen={setSelectedCard} />
-              <SharedDeckSection deck={snapshot.deck} category="main" label="Champion Units" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => isSharedChampionUnit(card))} className="lg:col-span-3" entriesClassName="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" listView={deckListView} onOpen={setSelectedCard} />
-            </div>
-            <SharedDeckSection deck={snapshot.deck} category="main" label="Main Deck" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => !isSharedChampionUnit(card))} listView={deckListView} onOpen={setSelectedCard} />
-            <SharedDeckSection deck={snapshot.deck} category="runes" listView={deckListView} onOpen={setSelectedCard} />
-            <SharedDeckSection deck={snapshot.deck} category="battlefields" listView={deckListView} onOpen={setSelectedCard} />
-            <SharedDeckSection deck={snapshot.deck} category="sideboard" listView={deckListView} onOpen={setSelectedCard} />
-          </>
+          deckViewMode === 'compact' ? <RiftboundCompactDeckView
+            shareUrl={sharePageUrl}
+            creatorName={snapshot.createdBy || 'Unknown user'}
+            deckName={snapshot.deck.name}
+            createdAt={snapshot.deck.createdAt || snapshot.createdAt}
+            legendEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'legend'))}
+            championEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => isSharedChampionUnit(card)))}
+            mainEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => !isSharedChampionUnit(card)))}
+            runeEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'runes'))}
+            battlefieldEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'battlefields'))}
+            sideboardEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'sideboard'))}
+            onOpen={setSelectedCard}
+          /> : (
+            <>
+              <div className="grid gap-5 lg:grid-cols-4">
+                <SharedDeckSection deck={snapshot.deck} category="legend" entriesClassName="riftbound-card-grid" highlightCardId={snapshot.deck.legendCardId} listView={deckListView} onOpen={setSelectedCard} />
+                <SharedDeckSection deck={snapshot.deck} category="main" label="Champion Units" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => isSharedChampionUnit(card))} className="lg:col-span-3" entriesClassName="riftbound-card-grid" listView={deckListView} onOpen={setSelectedCard} />
+              </div>
+              <SharedDeckSection deck={snapshot.deck} category="main" label="Main Deck" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => !isSharedChampionUnit(card))} listView={deckListView} onOpen={setSelectedCard} />
+              <SharedDeckSection deck={snapshot.deck} category="runes" listView={deckListView} onOpen={setSelectedCard} />
+              <SharedDeckSection deck={snapshot.deck} category="battlefields" listView={deckListView} onOpen={setSelectedCard} />
+              <SharedDeckSection deck={snapshot.deck} category="sideboard" listView={deckListView} onOpen={setSelectedCard} />
+            </>
+          )
         ) : null}
 
         {snapshot.kind !== 'deck' && cards.length > 0 ? (
@@ -956,13 +996,12 @@ export function RiftboundCollectionShare() {
                 <AppSelectMenu label="Power Cost" value={filters.powerCost[0] ?? ALL_FILTER_VALUE} options={filterOptionsByField.powerCost} selectedValues={filters.powerCost} multiple onToggle={(value) => toggleFilter('powerCost', value)} />
                 <AppSelectMenu label="Might" value={filters.might[0] ?? ALL_FILTER_VALUE} options={filterOptionsByField.might} selectedValues={filters.might} multiple onToggle={(value) => toggleFilter('might', value)} />
                 <label className="grid gap-2">
-                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Tag</span>
-                  <input
-                    value={tagQuery}
-                    onChange={(event) => setTagQuery(event.target.value)}
-                    placeholder="Filter by tag"
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20"
-                  />
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Minimum price</span>
+                  <input type="number" min="0" step="0.01" inputMode="decimal" value={filters.minPrice} onChange={(event) => setFilters((current) => ({ ...current, minPrice: event.target.value }))} placeholder="No minimum" aria-label="Minimum price" className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Maximum price</span>
+                  <input type="number" min="0" step="0.01" inputMode="decimal" value={filters.maxPrice} onChange={(event) => setFilters((current) => ({ ...current, maxPrice: event.target.value }))} placeholder="No maximum" aria-label="Maximum price" className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" />
                 </label>
                 <div className="flex items-end justify-end md:col-span-3">
                   <button type="button" onClick={resetFilters} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-white/25 hover:text-white">Reset Filters</button>
@@ -984,6 +1023,10 @@ export function RiftboundCollectionShare() {
             <p className="text-sm font-semibold text-slate-400">No cards match your search.</p>
             <button type="button" onClick={() => setQuery('')} className="rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200">Clear search</button>
           </section>
+        ) : snapshot.kind === 'set' ? (
+          <div className="riftbound-card-grid">
+            {filteredCards.map(({ card, normal, foil }) => <RiftboundCardRow key={card.id} card={card} normalQuantity={normal} foilQuantity={foil} mode="collection-view" pendingChange={false} pending={false} onOpen={setSelectedCard} />)}
+          </div>
         ) : snapshot.kind !== 'deck' ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
             {filteredCards.map(({ card, normal, foil }) => (

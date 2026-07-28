@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, FileDown, Grid2X2, Home, Info, LayoutList, LoaderCircle, Minus, PackageOpen, Pencil, Plus, RotateCcw, Save, Search, Share2, SlidersHorizontal, Trash2, TrendingUp, Upload, X } from 'lucide-react';
+import { ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, FileDown, Grid2X2, Home, Info, LayoutList, LoaderCircle, Minus, PackageOpen, Pencil, Plus, QrCode, RotateCcw, Save, Search, Share2, SlidersHorizontal, Star, Trash2, TrendingUp, Upload, X } from 'lucide-react';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type Tesseract from 'tesseract.js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
+import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-view';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
+import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import { getRiftboundCardDomainTextClass, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
 import { getRiftboundBootstrap, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
 import {
@@ -33,6 +35,7 @@ import {
 } from '@/lib/riftbound-decks';
 
 type InventoryTab = 'global' | 'inventory' | 'sets';
+type RiftboundDeckViewMode = 'card' | 'list' | 'compact';
 
 type SetSourceTab = 'global' | 'inventory';
 type CollectionShareKind = 'collection' | 'set' | 'deck';
@@ -123,7 +126,7 @@ const RIFTBOUND_SCAN_AUTO_ADD_THRESHOLD = 0.8;
 const RIFTBOUND_OCR_SINGLE_LINE_MODE = '7' as Tesseract.PSM;
 const RIFTBOUND_OCR_SINGLE_BLOCK_MODE = '6' as Tesseract.PSM;
 
-type SortMode =
+export type RiftboundSortMode =
   | 'none'
   | 'market-asc'
   | 'market-desc'
@@ -152,7 +155,7 @@ type CachedRiftboundCollectionValueHistory = {
   history: RiftboundCollectionValueHistoryEntry[];
 };
 
-type InventoryFilters = {
+export type RiftboundCardFilters = {
   setCode: string[];
   rarity: string[];
   cardType: string[];
@@ -160,7 +163,11 @@ type InventoryFilters = {
   energyCost: string[];
   powerCost: string[];
   might: string[];
+  minPrice: string;
+  maxPrice: string;
 };
+
+export type RiftboundCategoricalFilterField = Exclude<keyof RiftboundCardFilters, 'minPrice' | 'maxPrice'>;
 
 const ALL_FILTER_VALUE = 'all';
 const PRICE_HISTORY_DAYS = 30;
@@ -324,7 +331,7 @@ function loadCollectionValueHistory(userId: string, accessToken: string) {
   return request;
 }
 
-const emptyFilters: InventoryFilters = {
+const emptyFilters: RiftboundCardFilters = {
   setCode: [ALL_FILTER_VALUE],
   rarity: [ALL_FILTER_VALUE],
   cardType: [ALL_FILTER_VALUE],
@@ -332,13 +339,15 @@ const emptyFilters: InventoryFilters = {
   energyCost: [ALL_FILTER_VALUE],
   powerCost: [ALL_FILTER_VALUE],
   might: [ALL_FILTER_VALUE],
+  minPrice: '',
+  maxPrice: '',
 };
 
 const rarityOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase'];
 const inventoryRarityOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase'];
-const defaultSortMode: SortMode = 'none';
+const defaultSortMode: RiftboundSortMode = 'none';
 
-const sortOptions: AppSelectOption<SortMode>[] = [
+const sortOptions: AppSelectOption<RiftboundSortMode>[] = [
   { value: 'none', label: 'No sort' },
   { value: 'market-asc', label: 'Value · Low to High' },
   { value: 'market-desc', label: 'Value · High to Low' },
@@ -357,6 +366,23 @@ const sortOptions: AppSelectOption<SortMode>[] = [
   { value: 'quantity-asc', label: 'Quantity · Low to High' },
   { value: 'quantity-desc', label: 'Quantity · High to Low' },
 ];
+
+export const RIFTBOUND_SORT_OPTIONS = sortOptions;
+export const RIFTBOUND_RARITY_ORDER = rarityOrder;
+
+export function createRiftboundCardFilters(): RiftboundCardFilters {
+  return {
+    setCode: [ALL_FILTER_VALUE],
+    rarity: [ALL_FILTER_VALUE],
+    cardType: [ALL_FILTER_VALUE],
+    domain: [ALL_FILTER_VALUE],
+    energyCost: [ALL_FILTER_VALUE],
+    powerCost: [ALL_FILTER_VALUE],
+    might: [ALL_FILTER_VALUE],
+    minPrice: '',
+    maxPrice: '',
+  };
+}
 
 const rarityStyles: Record<string, string> = {
   Common: 'text-slate-300',
@@ -381,6 +407,31 @@ function getMarketPriceForFinish(card: RiftboundCard, finish: InventoryItem['fin
   return card.marketPrices ? card.marketPrices[finish] : card.marketPrice;
 }
 
+function parseRiftboundFilterPrice(value: string) {
+  const parsed = Number(value);
+  return value.trim() && Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+export function matchesRiftboundPriceRange(card: RiftboundCard, minPrice: string, maxPrice: string) {
+  const minimum = parseRiftboundFilterPrice(minPrice);
+  const maximum = parseRiftboundFilterPrice(maxPrice);
+  if (minimum === null && maximum === null) return true;
+  if (minimum !== null && maximum !== null && minimum > maximum) return false;
+
+  const prices = [getMarketPriceForFinish(card, 'normal'), getMarketPriceForFinish(card, 'foil')]
+    .filter((price): price is number => price !== null && Number.isFinite(price));
+  return prices.some((price) => (minimum === null || price >= minimum) && (maximum === null || price <= maximum));
+}
+
+const categoricalFilterFields: RiftboundCategoricalFilterField[] = ['setCode', 'rarity', 'cardType', 'domain', 'energyCost', 'powerCost', 'might'];
+
+export function getRiftboundCardFilterCount(filters: RiftboundCardFilters) {
+  return categoricalFilterFields.reduce(
+    (total, field) => total + filters[field].filter((value) => value !== ALL_FILTER_VALUE).length,
+    0,
+  ) + (filters.minPrice.trim() ? 1 : 0) + (filters.maxPrice.trim() ? 1 : 0);
+}
+
 function getSortMarketValue(card: RiftboundCard) {
   return getMarketPriceForFinish(card, 'foil');
 }
@@ -392,7 +443,7 @@ function compareNullableNumbers(left: number | null, right: number | null, direc
   return (left - right) * direction;
 }
 
-function compareRiftboundCards(left: RiftboundCard, right: RiftboundCard, mode: SortMode, inventoryByCard: Map<string, number>) {
+export function compareRiftboundCards(left: RiftboundCard, right: RiftboundCard, mode: RiftboundSortMode, inventoryByCard: Map<string, number>) {
   if (mode === 'none') return 0;
   const direction: 1 | -1 = mode.endsWith('-desc') ? -1 : 1;
   const [field] = mode.split('-');
@@ -437,6 +488,31 @@ function normalizeSearchText(value: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '');
+}
+
+export function normalizeRiftboundSearchText(value: string) {
+  return normalizeSearchText(value);
+}
+
+export function getRiftboundCardSearchText(card: RiftboundCard) {
+  return normalizeSearchText([
+    card.displayName,
+    card.name,
+    card.fullName,
+    card.setCode,
+    card.setName,
+    card.numberLabel,
+    card.rarity,
+    card.cardType,
+    card.cardTypeLabels.join(' '),
+    card.tags.join(' '),
+    card.domains.join(' '),
+    card.productDetails,
+    card.artist ?? '',
+    String(card.energyCost),
+    String(card.powerCost),
+    String(card.might),
+  ].join(' '));
 }
 
 function getScanTokenSimilarity(left: string, right: string) {
@@ -590,16 +666,16 @@ function findRiftboundScanMatches(cards: RiftboundCard[], ocrText: string): Rift
   return (confidentMatches.length > 0 ? confidentMatches : rankedMatches).slice(0, 5);
 }
 
-function uniqueSorted(values: string[]) {
+export function uniqueSorted(values: string[]) {
   return Array.from(new Set(values.filter(Boolean))).sort((left, right) => left.localeCompare(right));
 }
 
-function jumbledValues(values: string[]) {
+export function jumbledValues(values: string[]) {
   const getSortValue = (value: string) => value.split('').reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) % 100003, 17);
   return [...values].sort((left, right) => getSortValue(left) - getSortValue(right) || left.localeCompare(right));
 }
 
-function filterOptions(
+export function filterOptions(
   values: string[],
   allLabel: string,
   getLabel: (value: string) => string = (value) => value,
@@ -1033,7 +1109,7 @@ function updateInventoryRows(rows: InventoryItem[], card: RiftboundCard, finish:
   return rows.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: nextQuantity } : row);
 }
 
-function toggleFilterValue(values: string[], nextValue: string) {
+export function toggleFilterValue(values: string[], nextValue: string) {
   if (nextValue === ALL_FILTER_VALUE) return [ALL_FILTER_VALUE];
 
   const selectedValues = values.filter((value) => value !== ALL_FILTER_VALUE);
@@ -1044,7 +1120,7 @@ function toggleFilterValue(values: string[], nextValue: string) {
   return nextValues.length > 0 ? nextValues : [ALL_FILTER_VALUE];
 }
 
-function matchesFilter(values: string[], candidates: string | string[]) {
+export function matchesFilter(values: string[], candidates: string | string[]) {
   if (values.includes(ALL_FILTER_VALUE)) return true;
   const candidateValues = Array.isArray(candidates) ? candidates : [candidates];
   return candidateValues.some((candidate) => values.includes(candidate));
@@ -1709,60 +1785,74 @@ function SetCardControls({
   );
 }
 
-const DeckCardPicker = memo(function DeckCardPicker({
-  card,
-  category,
-  quantity,
-  onAdjust,
-  onOpen,
-}: {
-  card: RiftboundCard;
-  category: RiftboundDeckCategory;
-  quantity: number;
-  onAdjust: (card: RiftboundCard, delta: 1 | -1) => void;
-  onOpen?: (card: RiftboundCard) => void;
-}) {
-  return (
-    <article className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors ${quantity > 0 ? 'border-amber-300/80 bg-amber-300/5' : 'border-white/10 hover:border-white/20'}`}>
-      <button type="button" onClick={() => onOpen?.(card)} disabled={!onOpen} className="flex min-w-0 items-start justify-between gap-2 text-left focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-black text-white" title={card.displayName}>{card.displayName}</p>
-          <p className="mt-1 truncate text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</p>
-        </div>
-        {quantity > 0 ? <span className="shrink-0 rounded-md bg-amber-300 px-1.5 py-0.5 text-[0.65rem] font-black text-slate-950">{quantity}</span> : null}
-      </button>
-      <button type="button" onClick={() => onOpen?.(card)} disabled={!onOpen} className="mt-3 flex justify-center rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950">
-        <span className="relative aspect-[744/1039] w-full max-w-[8rem] overflow-hidden rounded-xl bg-slate-900">
-          <RiftboundCardImage card={card} sizes="128px" className="object-cover" loading="lazy" />
-        </span>
-      </button>
-      <div className="mt-3 flex items-center justify-center gap-1 rounded-xl border border-amber-200/30 bg-amber-300/10 p-0.5">
-        <InventoryAdjustButton label={`Remove ${card.displayName} from ${RIFTBOUND_DECK_CATEGORY_LABELS[category]}`} disabled={quantity === 0} compact onAdjust={() => onAdjust(card, -1)}><Minus size={14} /></InventoryAdjustButton>
-        <span className="min-w-6 text-center text-sm font-black text-amber-200" aria-label={`${quantity} copies selected`}>{quantity}</span>
-        <InventoryAdjustButton label={`Add ${card.displayName} to ${RIFTBOUND_DECK_CATEGORY_LABELS[category]}`} disabled={false} compact onAdjust={() => onAdjust(card, 1)}><Plus size={14} /></InventoryAdjustButton>
-      </div>
-    </article>
-  );
-});
+function RiftboundDeckFavoriteButton({ deckId, session }: { deckId: string; session: Session | null }) {
+  const [favoriteDeckIds, setFavoriteDeckIds] = useState<string[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!session) {
+      setFavoriteDeckIds(null);
+      return;
+    }
+    let cancelled = false;
+    void getRiftboundCardPreferences(session)
+      .then((preferences) => { if (!cancelled) setFavoriteDeckIds(preferences.favoriteDeckIds ?? []); })
+      .catch(() => { if (!cancelled) setFavoriteDeckIds([]); });
+    return () => { cancelled = true; };
+  }, [session]);
+
+  if (!session) return null;
+
+  const favorite = Boolean(favoriteDeckIds?.includes(deckId));
+  const atLimit = !favorite && (favoriteDeckIds?.length ?? 4) >= 4;
+  const label = favorite ? 'Remove from favorites' : atLimit ? 'Favorite deck limit reached' : 'Add to favorites';
+  const toggleFavorite = async () => {
+    if (favoriteDeckIds === null || saving || atLimit) return;
+    const enabled = !favorite;
+    setSaving(true);
+    try {
+      await updateRiftboundProfilePreference({ action: 'favorite-deck', sourceId: deckId, enabled }, session);
+      setFavoriteDeckIds(enabled ? [...favoriteDeckIds, deckId] : favoriteDeckIds.filter((id) => id !== deckId));
+    } catch {
+      // Keep the current preference visible when the request fails.
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <button type="button" onClick={() => void toggleFavorite()} disabled={favoriteDeckIds === null || saving || atLimit} aria-label={label} title={label} className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-70 ${favorite ? 'border-amber-200/60 bg-amber-300 text-slate-950 hover:bg-amber-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-amber-200/50 hover:text-amber-200'}`}>{saving || favoriteDeckIds === null ? <LoaderCircle size={15} className="animate-spin" /> : <Star size={15} className={favorite ? 'fill-current' : ''} />}</button>;
+}
 
 function RiftboundDeckListRow({ card, onOpen, highlighted = false }: { card: RiftboundCard; onOpen: (card: RiftboundCard) => void; highlighted?: boolean }) {
   return (
-    <button type="button" onClick={() => onOpen(card)} className={`min-w-0 rounded-xl border px-3 py-2 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}>
+    <button type="button" onClick={() => onOpen(card)} className={`w-full max-w-[18rem] justify-self-center min-w-0 rounded-xl border px-3 py-2 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}>
       <span className={`truncate text-sm font-bold ${getRiftboundCardDomainTextClass(card)}`}>{card.displayName}</span>
       <span className="mt-1 block truncate text-xs font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</span>
     </button>
   );
 }
 
-function RiftboundDeckEntries({ entries, listView, onOpen, gridClassName = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4', highlightCardId }: { entries: ExpandedRiftboundDeckCard[]; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string }) {
-  if (entries.length === 0) return null;
-  if (listView) {
-    return <div className={gridClassName.replace('gap-4', 'gap-2')}>{entries.map(({ card, key }) => <RiftboundDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
-  }
-  return <div className={gridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored showDeckMetadata />)}</div>;
+function collapseRiftboundDeckEntries(entries: Array<{ card: RiftboundCard }>) {
+  const collapsed = new Map<string, { card: RiftboundCard; quantity: number }>();
+  entries.forEach(({ card }) => {
+    const current = collapsed.get(card.id);
+    collapsed.set(card.id, current ? { ...current, quantity: current.quantity + 1 } : { card, quantity: 1 });
+  });
+  return Array.from(collapsed.values());
 }
 
-const RiftboundCardRow = memo(function RiftboundCardRow({
+function RiftboundDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId }: { entries: ExpandedRiftboundDeckCard[]; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string }) {
+  if (entries.length === 0) return null;
+  if (listView) {
+    const listGridClassName = gridClassName === 'riftbound-card-grid'
+      ? 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2'
+      : gridClassName.replace('gap-4', 'gap-2');
+    return <div className={listGridClassName}>{entries.map(({ card, key }) => <RiftboundDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
+  }
+  return <div className={gridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored showDeckMetadata className="w-full max-w-[18rem] justify-self-center" />)}</div>;
+}
+
+export const RiftboundCardRow = memo(function RiftboundCardRow({
   card,
   normalQuantity,
   foilQuantity,
@@ -1777,11 +1867,12 @@ const RiftboundCardRow = memo(function RiftboundCardRow({
   highlighted = false,
   domainNameColored = false,
   showDeckMetadata = false,
+  className = '',
 }: {
   card: RiftboundCard;
   normalQuantity: number;
   foilQuantity: number;
-  mode?: 'inventory' | 'set-selection' | 'set-view';
+  mode?: 'inventory' | 'set-selection' | 'set-view' | 'collection-view';
   setQuantity?: number;
   ownership?: 'owned' | 'missing';
   pendingChange: boolean;
@@ -1792,12 +1883,14 @@ const RiftboundCardRow = memo(function RiftboundCardRow({
   highlighted?: boolean;
   domainNameColored?: boolean;
   showDeckMetadata?: boolean;
+  className?: string;
 }) {
   const finishOptions = getCardFinishOptions(card);
   const isSelection = mode === 'set-selection';
   const isInventory = mode === 'inventory';
+  const isCollection = mode === 'collection-view';
   return (
-    <article className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors hover:bg-slate-950 sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'}`}>
+    <article className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors hover:bg-slate-950 sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
       {ownership ? <div className={`mb-2 inline-flex items-center gap-1 self-end text-[0.6rem] font-black uppercase tracking-[0.12em] ${ownership === 'owned' ? 'text-emerald-300' : 'text-red-300'}`}><CheckCircle2 size={12} /> {ownership}</div> : null}
       <button
         type="button"
@@ -1837,7 +1930,15 @@ const RiftboundCardRow = memo(function RiftboundCardRow({
         <div className="mt-3 shrink-0">
           <SetCardControls card={card} quantity={setQuantity} onAdjust={(delta) => onSetAdjust?.(card, delta)} />
         </div>
-     ) : null}
+      ) : isCollection ? (
+        <div className="mt-3 flex min-h-8 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900/70 px-2 py-1.5">
+          {finishOptions.map((finish) => (
+            <span key={finish} className={`whitespace-nowrap text-[0.65rem] font-semibold ${finish === 'foil' ? 'text-amber-200/80' : 'text-slate-400'}`}>
+              <span className="font-black text-white">{finish === 'foil' ? foilQuantity : normalQuantity}</span> {getFinishLabel(finish)}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </article>
   );
 });
@@ -2596,10 +2697,9 @@ export function RiftboundCardGrid() {
   const searchParams = useSearchParams();
   const activeTab = parseInventoryTab(searchParams.get('tab')) ?? 'global';
   const [query, setQuery] = useState('');
-  const [tagQuery, setTagQuery] = useState('');
-  const [sortMode, setSortMode] = useState<SortMode>(defaultSortMode);
+  const [sortMode, setSortMode] = useState<RiftboundSortMode>(defaultSortMode);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<InventoryFilters>(emptyFilters);
+  const [filters, setFilters] = useState<RiftboundCardFilters>(emptyFilters);
   const [inventoryRows, setInventoryRows] = useState<InventoryItem[]>([]);
   const [savedInventoryRows, setSavedInventoryRows] = useState<InventoryItem[]>([]);
   const [session, setSession] = useState<Session | null>(null);
@@ -2627,6 +2727,7 @@ export function RiftboundCardGrid() {
   const [setBuilderSource, setSetBuilderSource] = useState<SetSourceTab>('global');
   const [setBuilderName, setSetBuilderName] = useState('');
   const [setBuilderRows, setSetBuilderRows] = useState<Record<string, number>>({});
+  const [setBuilderShowSelectedCards, setSetBuilderShowSelectedCards] = useState(false);
   const [setSaving, setSetSaving] = useState(false);
   const [setDeleting, setSetDeleting] = useState(false);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
@@ -2634,6 +2735,7 @@ export function RiftboundCardGrid() {
   const [deckBuilderOpen, setDeckBuilderOpen] = useState(false);
   const [deckBuilderName, setDeckBuilderName] = useState('');
   const [deckBuilderDescription, setDeckBuilderDescription] = useState('');
+  const [deckBuilderSource, setDeckBuilderSource] = useState<SetSourceTab>('global');
   const [deckBuilderCategory, setDeckBuilderCategory] = useState<RiftboundDeckCategory>('legend');
   const [deckBuilderRows, setDeckBuilderRows] = useState<DeckBuilderRows>(() => createEmptyDeckBuilderRows());
   const [deckBuilderShowSelectedCards, setDeckBuilderShowSelectedCards] = useState(false);
@@ -2644,7 +2746,7 @@ export function RiftboundCardGrid() {
   const setImportInputRef = useRef<HTMLInputElement>(null);
   const deckImportInputRef = useRef<HTMLInputElement>(null);
   const bootstrapLoadIdRef = useRef(0);
-  const [deckListView, setDeckListView] = useState(false);
+  const [deckViewMode, setDeckViewMode] = useState<RiftboundDeckViewMode>('compact');
 
   const setActiveTab = useCallback((nextTab: InventoryTab) => {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -2764,7 +2866,6 @@ export function RiftboundCardGrid() {
   }, [savedInventoryRows]);
 
   const deferredQuery = useDeferredValue(query);
-  const deferredTagQuery = useDeferredValue(tagQuery);
   const cardSearchIndex = useMemo(() => cards.map((card) => ({
     card,
     searchableText: normalizeSearchText([
@@ -2785,7 +2886,6 @@ export function RiftboundCardGrid() {
       String(card.powerCost),
       String(card.might),
     ].join(' ')),
-    normalizedTags: card.tags.map((tag) => normalizeSearchText(tag)),
   })), [cards]);
 
   const filterOptionsByField = useMemo(() => {
@@ -2811,12 +2911,13 @@ export function RiftboundCardGrid() {
 
   const filteredCards = useMemo(() => {
     const normalizedQuery = normalizeSearchText(deferredQuery);
-    const normalizedTagQuery = normalizeSearchText(deferredTagQuery);
 
-    const matchingCards = cardSearchIndex.filter(({ card, searchableText, normalizedTags }) => {
+    const matchingCards = cardSearchIndex.filter(({ card, searchableText }) => {
       const quantity = getCardQuantity(inventoryByCard, card.id);
       const savedQuantity = getCardQuantity(savedInventoryByCard, card.id);
-      const inventoryOnly = activeTab === 'inventory' || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory');
+    const inventoryOnly = activeTab === 'inventory'
+      || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory')
+      || (activeTab === 'sets' && deckBuilderOpen && deckBuilderSource === 'inventory');
       if (inventoryOnly && quantity === 0 && savedQuantity === 0) return false;
       if (!matchesFilter(filters.setCode, card.setCode)) return false;
       if (!matchesFilter(filters.rarity, card.rarity)) return false;
@@ -2825,14 +2926,13 @@ export function RiftboundCardGrid() {
       if (!matchesFilter(filters.energyCost, String(card.energyCost))) return false;
       if (!matchesFilter(filters.powerCost, String(card.powerCost))) return false;
       if (!matchesFilter(filters.might, String(card.might))) return false;
-      if (normalizedTagQuery && !normalizedTags.some((tag) => tag.includes(normalizedTagQuery))) return false;
-
+      if (!matchesRiftboundPriceRange(card, filters.minPrice, filters.maxPrice)) return false;
       if (!normalizedQuery) return true;
       return searchableText.includes(normalizedQuery);
     }).map(({ card }) => card);
 
     return matchingCards.sort((left, right) => compareRiftboundCards(left, right, sortMode, inventoryByCard));
-  }, [activeTab, cardSearchIndex, deferredQuery, deferredTagQuery, filters, inventoryByCard, savedInventoryByCard, setBuilderOpen, setBuilderSource, sortMode]);
+  }, [activeTab, cardSearchIndex, deckBuilderOpen, deckBuilderSource, deferredQuery, filters, inventoryByCard, savedInventoryByCard, setBuilderOpen, setBuilderSource, sortMode]);
 
   const ownedUniqueCount = inventoryByCard.size;
   const ownedCopyCount = useMemo(() => Array.from(inventoryByCard.values()).reduce((total, quantity) => total + quantity, 0), [inventoryByCard]);
@@ -2854,10 +2954,7 @@ export function RiftboundCardGrid() {
     });
     return counts;
   }, [cardsById, inventoryRows]);
-  const activeFilterCount = Object.values(filters).reduce(
-    (total, values) => total + values.filter((value) => value !== ALL_FILTER_VALUE).length,
-    0,
-  ) + (tagQuery.trim() ? 1 : 0);
+  const activeFilterCount = getRiftboundCardFilterCount(filters);
   const inventoryChanges = useMemo(
     () => getInventoryChanges(savedInventoryRows, inventoryRows),
     [inventoryRows, savedInventoryRows],
@@ -2867,6 +2964,21 @@ export function RiftboundCardGrid() {
     const card = cardsById.get(change.cardId);
     return total + (card ? (getMarketPriceForFinish(card, change.finish) ?? 0) * change.delta : 0);
   }, 0), [cardsById, inventoryChanges]);
+  const filteredCardIds = useMemo(() => new Set(filteredCards.map((card) => card.id)), [filteredCards]);
+  const inventoryFilterActive = activeTab === 'inventory'
+    && Boolean(deferredQuery.trim() || activeFilterCount > 0);
+  const filteredSavedMarketValue = useMemo(() => savedInventoryRows.reduce((total, row) => {
+    if (!filteredCardIds.has(row.card_id)) return total;
+    const card = cardsById.get(row.card_id);
+    return total + (card ? (getMarketPriceForFinish(card, row.finish) ?? 0) * row.quantity : 0);
+  }, 0), [cardsById, filteredCardIds, savedInventoryRows]);
+  const filteredPendingAddedMarketValue = useMemo(() => inventoryChanges.reduce((total, change) => {
+    if (change.delta <= 0 || !filteredCardIds.has(change.cardId)) return total;
+    const card = cardsById.get(change.cardId);
+    return total + (card ? (getMarketPriceForFinish(card, change.finish) ?? 0) * change.delta : 0);
+  }, 0), [cardsById, filteredCardIds, inventoryChanges]);
+  const displayedInventoryValue = inventoryFilterActive ? filteredSavedMarketValue : savedMarketValue;
+  const displayedPendingAddedMarketValue = inventoryFilterActive ? filteredPendingAddedMarketValue : pendingAddedMarketValue;
   const hasUnsavedInventoryChanges = inventoryChanges.length > 0;
   const selectedSet = sets.find((set) => set.id === selectedSetId) ?? null;
   const selectedSetCards = selectedSet ? expandSetCards(selectedSet, cards) : [];
@@ -2895,6 +3007,12 @@ export function RiftboundCardGrid() {
   const selectedDeckRuneCards = selectedDeckCards.filter(({ category }) => category === 'runes');
   const selectedDeckBattlefieldCards = selectedDeckCards.filter(({ category }) => category === 'battlefields');
   const selectedDeckSideboardCards = selectedDeckCards.filter(({ category }) => category === 'sideboard');
+  const selectedDeckCompactShareUrl = useMemo(() => selectedDeck
+    ? getCompactDeckShareUrl(selectedDeck, { createdBy: getShareCreatorName(session), createdAt: selectedDeck.created_at })
+    : '', [selectedDeck, session]);
+  const selectedSetCompactShareUrl = useMemo(() => selectedSet
+    ? getCompactCollectionShareUrl(getSetShareRows(selectedSet), 'set', selectedSet.name, { createdBy: getShareCreatorName(session), createdAt: selectedSet.created_at })
+    : '', [selectedSet, session]);
   const deckBuilderSelections = useMemo(() => flattenDeckBuilderRows(deckBuilderRows), [deckBuilderRows]);
   const deckBuilderLegendCardId = Object.keys(deckBuilderRows.legend)[0] ?? null;
   const deckBuilderChampionCardId = useMemo(() => getDeckBuilderChampionCardId(deckBuilderRows, cardsById), [cardsById, deckBuilderRows]);
@@ -2914,7 +3032,15 @@ export function RiftboundCardGrid() {
     [deckBuilderCards, deckBuilderCategory, deckBuilderRows, deckBuilderShowSelectedCards],
   );
   const setBuilderTotalCopies = useMemo(() => Object.values(setBuilderRows).reduce((total, quantity) => total + quantity, 0), [setBuilderRows]);
-  const availableSortOptions = activeTab === 'inventory' || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory')
+  const setBuilderVisibleCards = useMemo(
+    () => setBuilderShowSelectedCards
+      ? filteredCards.filter((card) => (setBuilderRows[card.id] ?? 0) > 0)
+      : filteredCards,
+    [filteredCards, setBuilderRows, setBuilderShowSelectedCards],
+  );
+  const availableSortOptions = activeTab === 'inventory'
+    || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory')
+    || (activeTab === 'sets' && deckBuilderOpen && deckBuilderSource === 'inventory')
     ? sortOptions
     : sortOptions.filter((option) => !option.value.startsWith('quantity-'));
 
@@ -2995,7 +3121,6 @@ export function RiftboundCardGrid() {
 
   const resetFilters = () => {
     setQuery('');
-    setTagQuery('');
     setFilters(emptyFilters);
   };
 
@@ -3006,7 +3131,7 @@ export function RiftboundCardGrid() {
     if (session) clearInventoryDraft(getInventoryDraftStorageKey(session.user.id));
   };
 
-  const toggleFilter = (field: keyof InventoryFilters, value: string) => {
+  const toggleFilter = (field: RiftboundCategoricalFilterField, value: string) => {
     setFilters((current) => ({ ...current, [field]: toggleFilterValue(current[field], value) }));
   };
 
@@ -3025,11 +3150,12 @@ export function RiftboundCardGrid() {
 
     setSelectedDeckId(null);
     setSelectedSetId(null);
-    setDeckListView(false);
+    setDeckViewMode('compact');
     setEditingDeckId(null);
     setDeckBuilderOpen(true);
     setDeckBuilderName('');
     setDeckBuilderDescription('');
+    setDeckBuilderSource('global');
     setDeckBuilderCategory('legend');
     setDeckBuilderRows(createEmptyDeckBuilderRows());
     setDeckBuilderShowSelectedCards(false);
@@ -3040,11 +3166,12 @@ export function RiftboundCardGrid() {
   const editDeck = (deck: RiftboundDeck) => {
     setSelectedDeckId(null);
     setSelectedSetId(null);
-    setDeckListView(false);
+    setDeckViewMode('compact');
     setEditingDeckId(deck.id);
     setDeckBuilderOpen(true);
     setDeckBuilderName(deck.name);
     setDeckBuilderDescription(deck.description ?? '');
+    setDeckBuilderSource('global');
     setDeckBuilderCategory('legend');
     setDeckBuilderRows(getDeckBuilderRows(deck));
     setDeckBuilderShowSelectedCards(false);
@@ -3151,6 +3278,7 @@ export function RiftboundCardGrid() {
     setSetBuilderSource('global');
     setSetBuilderName('');
     setSetBuilderRows({});
+    setSetBuilderShowSelectedCards(false);
     setSetsError('');
     resetFilters();
   };
@@ -3162,6 +3290,7 @@ export function RiftboundCardGrid() {
     setSetBuilderSource('global');
     setSetBuilderName(set.name);
     setSetBuilderRows(Object.fromEntries(set.cards.map((card) => [card.card_id, card.quantity])));
+    setSetBuilderShowSelectedCards(false);
     setSetsError('');
     resetFilters();
   };
@@ -3268,7 +3397,7 @@ export function RiftboundCardGrid() {
     invalidateRiftboundBootstrap(session);
     setSelectedDeckId(data.deck.id);
     setSelectedSetId(null);
-    setDeckListView(false);
+    setDeckViewMode('compact');
     setActiveTab('sets');
     setDecksError('');
   };
@@ -3385,6 +3514,7 @@ export function RiftboundCardGrid() {
       setSetBuilderOpen(false);
       setSetBuilderRows({});
       setSetBuilderName('');
+      setSetBuilderShowSelectedCards(false);
       setEditingSetId(null);
     } catch (error) {
       setSetsError(error instanceof Error ? error.message : 'Unable to create Riftbound set.');
@@ -3414,7 +3544,7 @@ export function RiftboundCardGrid() {
           <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
             {(['global', 'inventory', 'sets'] as InventoryTab[]).map((tab) => {
               const active = activeTab === tab;
-              const label = tab === 'global' ? 'Global' : tab === 'inventory' ? 'Inventory' : 'Sets';
+              const label = tab === 'global' ? 'Global' : tab === 'inventory' ? 'Inventory' : 'Decks';
               const count = tab === 'global' ? cards.length : tab === 'inventory' ? ownedUniqueCount : sets.length;
               return (
                 <button
@@ -3504,15 +3634,30 @@ export function RiftboundCardGrid() {
                 <AppSelectMenu label="Power Cost" value={filters.powerCost[0] ?? ALL_FILTER_VALUE} options={filterOptionsByField.powerCost} selectedValues={filters.powerCost} multiple onToggle={(value) => toggleFilter('powerCost', value)} />
                 <AppSelectMenu label="Might" value={filters.might[0] ?? ALL_FILTER_VALUE} options={filterOptionsByField.might} selectedValues={filters.might} multiple onToggle={(value) => toggleFilter('might', value)} />
                 <label className="grid gap-2">
-                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Tag</span>
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Minimum price</span>
                   <input
-                    value={tagQuery}
-                    onChange={(event) => setTagQuery(event.target.value)}
-                    placeholder="Filter by tag"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="none"
-                    spellCheck={false}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={filters.minPrice}
+                    onChange={(event) => setFilters((current) => ({ ...current, minPrice: event.target.value }))}
+                    placeholder="No minimum"
+                    aria-label="Minimum price"
+                    className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-base font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20 sm:text-sm"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Maximum price</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={filters.maxPrice}
+                    onChange={(event) => setFilters((current) => ({ ...current, maxPrice: event.target.value }))}
+                    placeholder="No maximum"
+                    aria-label="Maximum price"
                     className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 text-base font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20 sm:text-sm"
                   />
                 </label>
@@ -3570,12 +3715,12 @@ export function RiftboundCardGrid() {
               <div className="h-px bg-white/10 lg:h-full" aria-hidden="true" />
               <div className="flex flex-col justify-center rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <p className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-slate-500">Known value</p>
+                  <p className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-slate-500">{inventoryFilterActive ? 'Filtered Value' : 'Collection Value'}</p>
                   <MarketValueSourceInfo />
                 </div>
                 <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <p className="text-2xl font-black text-emerald-300">{formatMarketPrice(savedMarketValue)}</p>
-                  {pendingAddedMarketValue > 0 ? <span className="text-xs font-black text-emerald-300">+{formatMarketPrice(pendingAddedMarketValue)} pending</span> : null}
+                  <p className="text-2xl font-black text-emerald-300">{formatMarketPrice(displayedInventoryValue)}</p>
+                  {displayedPendingAddedMarketValue > 0 ? <span className="text-xs font-black text-emerald-300">+{formatMarketPrice(displayedPendingAddedMarketValue)} pending</span> : null}
                 </div>
               </div>
               <button type="button" onClick={() => setCollectionHistoryOpen(true)} className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-emerald-200 transition hover:border-emerald-200/50 hover:bg-emerald-300/15 focus:outline-none focus:ring-2 focus:ring-amber-200">
@@ -3635,28 +3780,39 @@ export function RiftboundCardGrid() {
                 <div>
                   <p className="text-sm font-black text-white">{RIFTBOUND_DECK_CATEGORY_LABELS[deckBuilderCategory]}</p>
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={deckBuilderShowSelectedCards}
-                  onClick={() => setDeckBuilderShowSelectedCards((current) => !current)}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${deckBuilderShowSelectedCards ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}
-                >
-                  <span>Selected cards</span>
-                  <span className={`relative h-5 w-9 rounded-full border transition ${deckBuilderShowSelectedCards ? 'border-amber-200 bg-amber-300' : 'border-white/20 bg-slate-950'}`} aria-hidden="true">
-                    <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition ${deckBuilderShowSelectedCards ? 'left-[1.05rem] bg-slate-950' : 'left-0.5 bg-slate-500'}`} />
-                  </span>
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-slate-900/70 p-1">
+                    {(['global', 'inventory'] as SetSourceTab[]).map((source) => (
+                      <button key={source} type="button" onClick={() => setDeckBuilderSource(source)} className={`rounded-lg px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition ${deckBuilderSource === source ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{source}</button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={deckBuilderShowSelectedCards}
+                    onClick={() => setDeckBuilderShowSelectedCards((current) => !current)}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${deckBuilderShowSelectedCards ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}
+                  >
+                    <span>Selected cards</span>
+                    <span className={`relative h-5 w-9 rounded-full border transition ${deckBuilderShowSelectedCards ? 'border-amber-200 bg-amber-300' : 'border-white/20 bg-slate-950'}`} aria-hidden="true">
+                      <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition ${deckBuilderShowSelectedCards ? 'left-[1.05rem] bg-slate-950' : 'left-0.5 bg-slate-500'}`} />
+                    </span>
+                  </button>
+                </div>
               </div>
               <div className="riftbound-card-grid">
                 {deckBuilderVisibleCards.map((card) => (
-                  <DeckCardPicker
+                  <RiftboundCardRow
                     key={`${deckBuilderCategory}:${card.id}`}
                     card={card}
-                    category={deckBuilderCategory}
-                    quantity={deckBuilderRows[deckBuilderCategory][card.id] ?? 0}
-                    onAdjust={adjustDeckCard}
+                    normalQuantity={0}
+                    foilQuantity={0}
+                    mode="set-selection"
+                    setQuantity={deckBuilderRows[deckBuilderCategory][card.id] ?? 0}
+                    pendingChange={false}
+                    pending={false}
                     onOpen={openDeckCardDetails}
+                    onSetAdjust={adjustDeckCard}
                   />
                 ))}
               </div>
@@ -3670,7 +3826,10 @@ export function RiftboundCardGrid() {
                   <h2 className="mt-2 text-2xl font-black text-white">{editingSetId ? 'Edit set' : 'Create a new set'}</h2>
                   <p className="mt-1 text-sm text-slate-400">Select cards from the {setBuilderSource} catalogue. Filters apply to Add All and Remove All.</p>
                 </div>
-                <span className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-400">{setBuilderTotalCopies} selected cards</span>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button type="button" onClick={() => { setSetBuilderOpen(false); setSetBuilderRows({}); setSetBuilderName(''); setSetBuilderShowSelectedCards(false); setEditingSetId(null); setSetsError(''); }} className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-300 transition hover:border-white/25 hover:text-white">Cancel</button>
+                  <button type="button" onClick={() => void createSet()} disabled={setSaving || setBuilderTotalCopies === 0} title={setBuilderTotalCopies === 0 ? 'Select at least one card first' : undefined} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">{setSaving ? <LoaderCircle size={16} className="animate-spin" /> : null} {editingSetId ? 'Save Changes' : 'Create Set'}</button>
+                </div>
               </div>
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
                 <input value={setBuilderName} onChange={(event) => setSetBuilderName(event.target.value)} maxLength={80} placeholder="Set Name" aria-label="Set Name" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false} className="h-12 rounded-2xl border border-white/10 bg-slate-900/80 px-4 text-base font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20 sm:text-sm" />
@@ -3685,12 +3844,23 @@ export function RiftboundCardGrid() {
                 </div>
               </div>
               {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
-              <div className="flex flex-wrap justify-end gap-2">
-                <button type="button" onClick={() => { setSetBuilderOpen(false); setSetBuilderRows({}); setSetBuilderName(''); setEditingSetId(null); setSetsError(''); }} className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-300 transition hover:border-white/25 hover:text-white">Cancel</button>
-                <button type="button" onClick={() => void createSet()} disabled={setSaving || setBuilderTotalCopies === 0} title={setBuilderTotalCopies === 0 ? 'Select at least one card first' : undefined} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">{setSaving ? <LoaderCircle size={16} className="animate-spin" /> : null} {editingSetId ? 'Save Changes' : 'Create Set'}</button>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+                <p className="text-sm font-black text-white">Card selection</p>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={setBuilderShowSelectedCards}
+                  onClick={() => setSetBuilderShowSelectedCards((current) => !current)}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${setBuilderShowSelectedCards ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}
+                >
+                  <span>Selected cards</span>
+                  <span className={`relative h-5 w-9 rounded-full border transition ${setBuilderShowSelectedCards ? 'border-amber-200 bg-amber-300' : 'border-white/20 bg-slate-950'}`} aria-hidden="true">
+                    <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition ${setBuilderShowSelectedCards ? 'left-[1.05rem] bg-slate-950' : 'left-0.5 bg-slate-500'}`} />
+                  </span>
+                </button>
               </div>
               <div className="riftbound-card-grid">
-                {filteredCards.map((card) => (
+                {setBuilderVisibleCards.map((card) => (
                   <RiftboundCardRow
                     key={card.id}
                     card={card}
@@ -3700,10 +3870,12 @@ export function RiftboundCardGrid() {
                     setQuantity={setBuilderRows[card.id] ?? 0}
                     pendingChange={false}
                     pending={false}
+                    onOpen={(card) => openCardDetails(card, false, true)}
                     onSetAdjust={adjustSetCard}
                   />
                 ))}
               </div>
+              {setBuilderVisibleCards.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">{setBuilderShowSelectedCards ? 'No cards are selected in this view.' : 'No catalogue cards match your current filters.'}</p> : null}
             </section>
           ) : selectedDeck ? (
             <>
@@ -3712,9 +3884,10 @@ export function RiftboundCardGrid() {
                   <div>
                     <button type="button" onClick={() => setSelectedDeckId(null)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"><ArrowLeft size={14} /> All Game Decks</button>
                     <h2 className="mt-3 text-2xl font-black text-white">{selectedDeck.name}</h2>
-                    {selectedDeck.description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{selectedDeck.description}</p> : null}
+                    {selectedDeck.description ? <p className="mt-2 w-full max-w-full text-sm leading-6 text-slate-400 sm:max-w-[70%]">{selectedDeck.description}</p> : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <RiftboundDeckFavoriteButton deckId={selectedDeck.id} session={session} />
                     <button type="button" onClick={() => openDeckShare(selectedDeck)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><Share2 size={14} /> Share / Export</button>
                     <button type="button" onClick={() => editDeck(selectedDeck)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><Pencil size={14} /> Edit Deck</button>
                     <button type="button" onClick={() => void deleteDeck(selectedDeck)} disabled={deckDeleting} className="inline-flex items-center gap-2 rounded-xl border border-red-300/30 bg-red-950/30 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-red-200 transition hover:border-red-200/60 hover:bg-red-950/50 disabled:cursor-wait disabled:opacity-60"><Trash2 size={14} /> {deckDeleting ? 'Deleting...' : 'Delete Deck'}</button>
@@ -3722,21 +3895,44 @@ export function RiftboundCardGrid() {
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Created {formatDeckCreatedDate(selectedDeck.created_at)}</p>
-                  <button type="button" role="switch" aria-checked={deckListView} onClick={() => setDeckListView((current) => !current)} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${deckListView ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}>
-                    {deckListView ? <LayoutList size={15} /> : <Grid2X2 size={15} />}
-                    {deckListView ? 'List view' : 'Card view'}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Deck view options">
+                    {([
+                      { value: 'card' as const, label: 'Card view', icon: Grid2X2 },
+                      { value: 'list' as const, label: 'List view', icon: LayoutList },
+                      { value: 'compact' as const, label: 'Compact view', icon: QrCode },
+                    ]).map(({ value, label, icon: Icon }) => (
+                      <button key={value} type="button" aria-pressed={deckViewMode === value} onClick={() => setDeckViewMode(value)} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${deckViewMode === value ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}><Icon size={14} />{label}</button>
+                    ))}
+                  </div>
                 </div>
                 {decksError ? <p className="text-sm font-semibold text-red-200">{decksError}</p> : null}
               </section>
-              <div className="grid gap-5 lg:grid-cols-4">
-                <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Legend</h3><RiftboundDeckEntries entries={selectedDeckLegendCards} listView={deckListView} onOpen={openDeckCardDetails} gridClassName="grid gap-4" highlightCardId={selectedDeck.legend_card_id} /></section>
-                <section className="grid content-start gap-3 lg:col-span-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Champion Units</h3><RiftboundDeckEntries entries={selectedDeckChampionCards} listView={deckListView} onOpen={openDeckCardDetails} gridClassName="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" /></section>
-              </div>
-              <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Main Deck</h3><RiftboundDeckEntries entries={selectedDeckMainCards} listView={deckListView} onOpen={openDeckCardDetails} /></section>
-              <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Runes</h3><RiftboundDeckEntries entries={selectedDeckRuneCards} listView={deckListView} onOpen={openDeckCardDetails} /></section>
-              <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Battlefields</h3><RiftboundDeckEntries entries={selectedDeckBattlefieldCards} listView={deckListView} onOpen={openDeckCardDetails} /></section>
-              {selectedDeckSideboardCards.length > 0 ? <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Sideboard</h3><RiftboundDeckEntries entries={selectedDeckSideboardCards} listView={deckListView} onOpen={openDeckCardDetails} /></section> : null}
+              {deckViewMode === 'compact' ? (
+                <RiftboundCompactDeckView
+                  shareUrl={selectedDeckCompactShareUrl}
+                  creatorName={getShareCreatorName(session)}
+                  deckName={selectedDeck.name}
+                  createdAt={selectedDeck.created_at}
+                  legendEntries={collapseRiftboundDeckEntries(selectedDeckLegendCards)}
+                  championEntries={collapseRiftboundDeckEntries(selectedDeckChampionCards)}
+                  mainEntries={collapseRiftboundDeckEntries(selectedDeckMainCards)}
+                  runeEntries={collapseRiftboundDeckEntries(selectedDeckRuneCards)}
+                  battlefieldEntries={collapseRiftboundDeckEntries(selectedDeckBattlefieldCards)}
+                  sideboardEntries={collapseRiftboundDeckEntries(selectedDeckSideboardCards)}
+                  onOpen={openDeckCardDetails}
+                />
+              ) : (
+                <>
+                  <div className="grid gap-5 lg:grid-cols-4">
+                    <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Legend</h3><RiftboundDeckEntries entries={selectedDeckLegendCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" highlightCardId={selectedDeck.legend_card_id} /></section>
+                    <section className="grid content-start gap-3 lg:col-span-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Champion Units</h3><RiftboundDeckEntries entries={selectedDeckChampionCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" /></section>
+                  </div>
+                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Main Deck</h3><RiftboundDeckEntries entries={selectedDeckMainCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section>
+                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Runes</h3><RiftboundDeckEntries entries={selectedDeckRuneCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section>
+                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Battlefields</h3><RiftboundDeckEntries entries={selectedDeckBattlefieldCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section>
+                  {selectedDeckSideboardCards.length > 0 ? <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Sideboard</h3><RiftboundDeckEntries entries={selectedDeckSideboardCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section> : null}
+                </>
+              )}
             </>
           ) : selectedSet ? (
             <>
@@ -3745,11 +3941,12 @@ export function RiftboundCardGrid() {
                   <div>
                     <button type="button" onClick={() => { setSelectedSetId(null); setSetOwnershipFilter('all'); }} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"><ArrowLeft size={14} /> All Sets</button>
                     <h2 className="mt-3 text-2xl font-black text-white">{selectedSet.name}</h2>
+                    <p className="mt-1 text-xs italic text-slate-500">Created {formatDeckCreatedDate(selectedSet.created_at)}</p>
                     <p className="mt-1 text-sm text-slate-400">{selectedSetCards.length} total cards</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => openCollectionShare(getSetShareRows(selectedSet), 'set', selectedSet.name)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><Share2 size={14} /> Share / Export</button>
                     <button type="button" onClick={() => editSet(selectedSet)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><Pencil size={14} /> Edit Set</button>
-                    <button type="button" onClick={() => openCollectionShare(getSetShareRows(selectedSet), 'set', selectedSet.name)} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Share / Export</button>
                     <button type="button" onClick={() => void deleteSet(selectedSet)} disabled={setDeleting} className="inline-flex items-center gap-2 rounded-xl border border-red-300/30 bg-red-950/30 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-red-200 transition hover:border-red-200/60 hover:bg-red-950/50 disabled:cursor-wait disabled:opacity-60"><Trash2 size={14} /> {setDeleting ? 'Deleting...' : 'Delete Set'}</button>
                   </div>
                 </div>
@@ -3777,12 +3974,44 @@ export function RiftboundCardGrid() {
                     ))}
                   </div>
                 </div>
+                <div className="flex justify-end border-t border-white/10 pt-4">
+                  <div className="flex flex-wrap items-center justify-end gap-2" role="group" aria-label="Set view options">
+                    {([
+                      { value: 'card' as const, label: 'Card view', icon: Grid2X2 },
+                      { value: 'list' as const, label: 'List view', icon: LayoutList },
+                      { value: 'compact' as const, label: 'Compact view', icon: QrCode },
+                    ]).map(({ value, label, icon: Icon }) => (
+                      <button key={value} type="button" aria-pressed={deckViewMode === value} onClick={() => setDeckViewMode(value)} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${deckViewMode === value ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}><Icon size={14} />{label}</button>
+                    ))}
+                  </div>
+                </div>
               </section>
-              <div className="riftbound-card-grid">
-                {displayedSetCards.map(({ card, key, owned }) => (
-                  <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" ownership={owned ? 'owned' : 'missing'} pendingChange={false} pending={false} onOpen={openCardDetails} />
-                ))}
-              </div>
+              {deckViewMode === 'compact' ? (
+                <RiftboundCompactDeckView
+                  shareUrl={selectedSetCompactShareUrl}
+                  creatorName={getShareCreatorName(session)}
+                  deckName={selectedSet.name}
+                  createdAt={selectedSet.created_at}
+                  legendEntries={[]}
+                  championEntries={[]}
+                  mainEntries={collapseRiftboundDeckEntries(displayedSetCards)}
+                  runeEntries={[]}
+                  battlefieldEntries={[]}
+                  sideboardEntries={[]}
+                  mainLabel="Set Cards"
+                  onOpen={openCardDetails}
+                />
+              ) : deckViewMode === 'list' ? (
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2">
+                  {displayedSetCards.map(({ card, key }) => <RiftboundDeckListRow key={key} card={card} onOpen={openCardDetails} />)}
+                </div>
+              ) : (
+                <div className="riftbound-card-grid">
+                  {displayedSetCards.map(({ card, key, owned }) => (
+                    <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" ownership={owned ? 'owned' : 'missing'} pendingChange={false} pending={false} onOpen={openCardDetails} className="w-full max-w-[18rem] justify-self-center" />
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <div className="grid gap-5">
@@ -3803,7 +4032,7 @@ export function RiftboundCardGrid() {
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {decks.map((deck) => {
                       const legend = cardsById.get(deck.legend_card_id);
-                      return <button key={deck.id} type="button" onClick={() => { setSelectedDeckId(deck.id); setSelectedSetId(null); setDeckListView(false); setDecksError(''); }} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><p className="truncate text-lg font-black text-white">{deck.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Legend: {legend?.displayName ?? 'Unknown'}</p><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-300">{deck.description || 'No description'}</p><p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Created {formatDeckCreatedDate(deck.created_at)}</p></button>;
+                      return <article key={deck.id} className="relative rounded-2xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => { setSelectedDeckId(deck.id); setSelectedSetId(null); setDeckViewMode('compact'); setDecksError(''); }} className="block w-full rounded-xl p-1 text-left focus:outline-none focus:ring-2 focus:ring-amber-200"><p className="truncate pr-12 text-lg font-black text-white">{deck.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Legend: {legend?.displayName ?? 'Unknown'}</p><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-300">{deck.description || 'No description'}</p><p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Created {formatDeckCreatedDate(deck.created_at)}</p></button><div className="absolute right-4 top-4"><RiftboundDeckFavoriteButton deckId={deck.id} session={session} /></div></article>;
                     })}
                   </div>
                 )}
@@ -3823,7 +4052,7 @@ export function RiftboundCardGrid() {
                 {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
                 {sets.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">You have not created any sets yet.</p> : (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {sets.map((set) => <button key={set.id} type="button" onClick={() => { setSelectedSetId(set.id); setSelectedDeckId(null); setSetOwnershipFilter('all'); }} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><p className="truncate text-lg font-black text-white">{set.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">{expandSetCards(set).length} cards</p></button>)}
+                    {sets.map((set) => <button key={set.id} type="button" onClick={() => { setSelectedSetId(set.id); setSelectedDeckId(null); setDeckViewMode('compact'); setSetOwnershipFilter('all'); }} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><p className="truncate text-lg font-black text-white">{set.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">{expandSetCards(set).length} cards</p></button>)}
                   </div>
                 )}
               </section>
@@ -3862,7 +4091,7 @@ export function RiftboundCardGrid() {
             {activeTab === 'inventory' ? 'Your inventory does not match these filters yet.' : activeTab === 'sets' ? 'No cards match these filters.' : 'No cards match these filters.'}
           </section>
         ) : (
-          <div className="riftbound-card-grid riftbound-catalog-card-grid">
+          <div className="riftbound-card-grid">
             {filteredCards.map((card) => (
               <RiftboundCardRow
                 key={card.id}
@@ -3878,7 +4107,7 @@ export function RiftboundCardGrid() {
                   )
                 }
                 pending={inventorySaving}
-                onOpen={setBuilderOpen ? undefined : openCardDetails}
+                onOpen={setBuilderOpen ? (card) => openCardDetails(card, false, true) : openCardDetails}
                 onAdjust={setBuilderOpen ? undefined : adjustInventory}
                 onSetAdjust={setBuilderOpen ? adjustSetCard : undefined}
               />

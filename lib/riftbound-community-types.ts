@@ -88,6 +88,8 @@ export type RiftboundWishlistCard = {
 export type RiftboundCardPreferences = {
   favoriteCardIds: string[];
   wishlist: RiftboundWishlistCard[];
+  favoriteSetIds?: string[];
+  favoriteDeckIds?: string[];
 };
 
 export type RiftboundProfileSourceSummary = {

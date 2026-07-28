@@ -8,6 +8,7 @@ import type { Session } from '@supabase/supabase-js';
 import type Tesseract from 'tesseract.js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
+import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardDomainTextClass, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
 import { getRiftboundBootstrap, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
@@ -702,7 +703,7 @@ function getCompactCollectionShareUrl(rows: InventoryItem[], kind: CollectionSha
   return getCollectionShareUrlForData(`b.${getCollectionShareBinary(rows, kind, title, metadata)}`);
 }
 
-function getCompactDeckShareUrl(deck: RiftboundDeck, metadata?: CollectionShareMetadata) {
+export function getCompactDeckShareUrl(deck: RiftboundDeck, metadata?: CollectionShareMetadata) {
   return getCollectionShareUrlForData(`b.${getDeckShareBinary(deck, metadata)}`);
 }
 
@@ -1850,6 +1851,8 @@ export function RiftboundCardDetailsModal({
   showInventoryControls = true,
   showMarketDetails = true,
   actions,
+  preferenceSession,
+  onPreferenceChange,
   onClose,
   onAdjust,
 }: {
@@ -1861,6 +1864,8 @@ export function RiftboundCardDetailsModal({
   showInventoryControls?: boolean;
   showMarketDetails?: boolean;
   actions?: ReactNode;
+  preferenceSession?: Session | null;
+  onPreferenceChange?: (change: { favorite: boolean; wishlist: boolean }) => void;
   onClose: () => void;
   onAdjust: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
 }) {
@@ -1947,7 +1952,7 @@ export function RiftboundCardDetailsModal({
             <div className="min-w-0 pr-4 sm:pr-44">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p>
-                <h2 className="mt-2 text-3xl font-black tracking-tight text-white">{card.displayName}</h2>
+                <div className="mt-2 flex flex-wrap items-center justify-start gap-2"><h2 className="min-w-0 text-3xl font-black tracking-tight text-white">{card.displayName}</h2>{preferenceSession ? <RiftboundCardPreferenceActions cardId={card.id} session={preferenceSession} onChange={onPreferenceChange} /> : null}</div>
                 <p className={`mt-2 text-sm font-black ${rarityClassName}`}>{card.rarity}</p>
                 {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
               </div>
@@ -3857,7 +3862,7 @@ export function RiftboundCardGrid() {
             {activeTab === 'inventory' ? 'Your inventory does not match these filters yet.' : activeTab === 'sets' ? 'No cards match these filters.' : 'No cards match these filters.'}
           </section>
         ) : (
-          <div className="riftbound-card-grid">
+          <div className="riftbound-card-grid riftbound-catalog-card-grid">
             {filteredCards.map((card) => (
               <RiftboundCardRow
                 key={card.id}
@@ -3890,6 +3895,7 @@ export function RiftboundCardGrid() {
           pending={inventorySaving}
           showInventoryControls={selectedCardCanAdjustInventory}
           showMarketDetails={selectedCardShowMarketDetails}
+          preferenceSession={session}
           onClose={() => setSelectedCard(null)}
           onAdjust={adjustInventory}
         />

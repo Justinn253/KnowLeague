@@ -174,6 +174,14 @@ function getTcgFinishName(value) {
   return null;
 }
 
+function isShowcasePrint(number) {
+  const collectorNumber = number.collectorNumber.toUpperCase();
+  if (collectorNumber.endsWith('A') || collectorNumber.endsWith('-STAR') || /^SP\d+$/.test(collectorNumber)) return true;
+
+  const numericNumber = Number(collectorNumber.match(/^\d+/)?.[0]);
+  return Number.isFinite(numericNumber) && number.printedTotal !== null && numericNumber > number.printedTotal;
+}
+
 async function fetchTcgCsvMarketPrices(setCodes) {
   const groupResponse = await fetchJson(`${TCGCSV_BASE_URL}/groups`);
   const requestedSetCodes = new Set(setCodes.map((setCode) => setCode.toUpperCase()));
@@ -222,7 +230,7 @@ async function fetchTcgCsvMarketPrices(setCodes) {
 function normalizeCard(card, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey) {
   const setCode = card.setCode.toUpperCase();
   const number = parseCardNumber(card.cardNumber);
-  const rarity = number.collectorNumber.endsWith('A') ? 'Showcase' : card.rarity;
+  const rarity = isShowcasePrint(number) ? 'Showcase' : card.rarity;
   const finishOptions = rarity === 'Rare' || rarity === 'Epic' || rarity === 'Showcase'
     ? ['foil']
     : ['normal', 'foil'];

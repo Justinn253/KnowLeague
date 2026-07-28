@@ -22,6 +22,23 @@ body {
   box-sizing: border-box;
 }
 
+/* The Riftbound catalogue can contain more than a thousand cards. Let the
+   browser skip layout/paint work for off-screen cards while preserving the
+   full searchable DOM and grid behavior. */
+.riftbound-card-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 520px;
+}
+
+/* Keep Riftbound card collections fluid across the available parent width.
+   The minimum is large enough to preserve readable card controls while
+   allowing each grid to add another column whenever the container permits. */
+.riftbound-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 1rem;
+}
+
 button,
 input,
 textarea,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -30,7 +31,15 @@ function readImageContent(value: unknown) {
 
 export async function POST(request: Request) {
   try {
-    await getAuthenticatedUserId(request);
+    const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'riftbound:scan',
+      ip: { limit: 30, windowMs: 60_000 },
+      subject: { id: userId, limit: 20, windowMs: 60_000 },
+      errorMessage: 'Too many card scans. Please wait a moment before trying again.',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'Cloud card recognition is not configured.' }, { status: 503 });
@@ -38,20 +47,28 @@ export async function POST(request: Request) {
 
     const body = await readJsonBody<ScanBody>(request);
     const imageContent = readImageContent(body.image);
-    const visionResponse = await fetch('https://vision.googleapis.com/v1/images:annotate', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        requests: [{
-          image: { content: imageContent },
-          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
-        }],
-      }),
-      cache: 'no-store',
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    let visionResponse: Response;
+    try {
+      visionResponse = await fetch('https://vision.googleapis.com/v1/images:annotate', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          requests: [{
+            image: { content: imageContent },
+            features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+          }],
+        }),
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const responseBody = await visionResponse.json() as VisionResponse;
     const serviceError = responseBody.responses?.[0]?.error?.message;

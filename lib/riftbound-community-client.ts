@@ -6,12 +6,15 @@ import type {
   RiftboundCommunityCommentsResponse,
   RiftboundCommunityFeedResponse,
   RiftboundCommunityPostDetail,
+  RiftboundCardPreferences,
   RiftboundProfileData,
 } from '@/lib/riftbound-community-types';
 
 type ErrorPayload = { error?: string };
 
 const inFlightGets = new Map<string, Promise<unknown>>();
+const preferenceCache = new Map<string, { value: RiftboundCardPreferences; expiresAt: number }>();
+const RIFTBOUND_PREFERENCE_CACHE_TTL_MS = 15_000;
 
 async function getCurrentSession() {
   const supabase = getOptionalSupabaseClient();
@@ -58,6 +61,17 @@ export function getRiftboundOwnerProfile(session: Session) {
   return getJson<{ profile: RiftboundProfileData }>('/api/riftbound/profile', session);
 }
 
+export function getRiftboundCardPreferences(session: Session) {
+  const key = `riftbound-card-preferences:${session.user.id}`;
+  const cached = preferenceCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.value);
+  if (cached) preferenceCache.delete(key);
+  return getJson<RiftboundCardPreferences>('/api/riftbound/profile/preferences', session).then((value) => {
+    preferenceCache.set(key, { value, expiresAt: Date.now() + RIFTBOUND_PREFERENCE_CACHE_TTL_MS });
+    return value;
+  });
+}
+
 export function getRiftboundPublicProfile(username: string, session?: Session | null) {
   return getJson<{ profile: RiftboundProfileData }>(`/api/riftbound/profiles/${encodeURIComponent(username)}`, session);
 }
@@ -66,7 +80,10 @@ export function updateRiftboundProfilePreference(body: Record<string, unknown>, 
   return requestJson<{ saved: boolean }>('/api/riftbound/profile', {
     method: 'PATCH',
     body: JSON.stringify(body),
-  }, session);
+  }, session).then((result) => {
+    preferenceCache.delete(`riftbound-card-preferences:${session.user.id}`);
+    return result;
+  });
 }
 
 export function createRiftboundCommunityPost(body: Record<string, unknown>, session: Session) {

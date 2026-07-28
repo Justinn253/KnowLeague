@@ -129,9 +129,9 @@ type BuiltSnapshot = {
 
 const RIFTBOUND_FREE_POST_LIMIT = 10;
 const RIFTBOUND_PREMIUM_POST_LIMIT = 100;
-const RIFTBOUND_FREE_FAVORITE_CARD_LIMIT = 12;
-const RIFTBOUND_FREE_FAVORITE_SOURCE_LIMIT = 6;
-const RIFTBOUND_FREE_WISHLIST_LIMIT = 25;
+const RIFTBOUND_FAVORITE_CARD_LIMIT = 4;
+const RIFTBOUND_FAVORITE_SOURCE_LIMIT = 4;
+const RIFTBOUND_WISHLIST_LIMIT = 8;
 
 function asNumber(value: number | string | null | undefined) {
   const parsed = typeof value === 'number' ? value : Number(value ?? 0);
@@ -305,9 +305,9 @@ export async function getRiftboundEntitlement(userId: string) {
     plan: premium ? 'premium' as const : 'free' as const,
     status: data?.status ?? 'inactive' as const,
     postLimit: premium ? RIFTBOUND_PREMIUM_POST_LIMIT : RIFTBOUND_FREE_POST_LIMIT,
-    favoriteCardLimit: premium ? 1000 : RIFTBOUND_FREE_FAVORITE_CARD_LIMIT,
-    favoriteSourceLimit: premium ? 100 : RIFTBOUND_FREE_FAVORITE_SOURCE_LIMIT,
-    wishlistLimit: premium ? 1000 : RIFTBOUND_FREE_WISHLIST_LIMIT,
+    favoriteCardLimit: RIFTBOUND_FAVORITE_CARD_LIMIT,
+    favoriteSourceLimit: RIFTBOUND_FAVORITE_SOURCE_LIMIT,
+    wishlistLimit: RIFTBOUND_WISHLIST_LIMIT,
   };
 }
 
@@ -613,6 +613,32 @@ export async function getRiftboundProfileUsername(userId: string) {
   return data.username;
 }
 
+export async function loadRiftboundCardPreferences(userId: string): Promise<import('@/lib/riftbound-community-types').RiftboundCardPreferences> {
+  const supabase = getSupabaseServiceClient();
+  const [favoriteCardsResult, favoriteSetsResult, favoriteDecksResult, wishlistResult] = await Promise.all([
+    supabase.from('riftbound_profile_favorite_cards').select('card_id').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ card_id: string }>>(),
+    supabase.from('riftbound_profile_favorite_sets').select('set_id').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ set_id: string }>>(),
+    supabase.from('riftbound_profile_favorite_decks').select('deck_id').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ deck_id: string }>>(),
+    supabase.from('riftbound_profile_wishlist_cards').select('card_id, desired_quantity, note, created_at, updated_at').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ card_id: string; desired_quantity: number; note: string; created_at: string; updated_at: string }>>(),
+  ]);
+  if (favoriteCardsResult.error) throw favoriteCardsResult.error;
+  if (favoriteSetsResult.error) throw favoriteSetsResult.error;
+  if (favoriteDecksResult.error) throw favoriteDecksResult.error;
+  if (wishlistResult.error) throw wishlistResult.error;
+  return {
+    favoriteCardIds: (favoriteCardsResult.data ?? []).map((row) => row.card_id),
+    favoriteSetIds: (favoriteSetsResult.data ?? []).map((row) => row.set_id),
+    favoriteDeckIds: (favoriteDecksResult.data ?? []).map((row) => row.deck_id),
+    wishlist: (wishlistResult.data ?? []).map((row) => ({
+      cardId: row.card_id,
+      desiredQuantity: 1,
+      note: row.note,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })),
+  };
+}
+
 function buildProfileSourceSummary<T extends { id: string; name: string; created_at: string; updated_at?: string; description?: string; cards: Array<{ card_id: string; quantity: number }> }>(source: T): T & { cardCount: number; copyCount: number; previewCardIds: string[] } {
   return {
     ...source,
@@ -680,7 +706,7 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
     favoriteDeckIds: (favoriteDecksResult.data ?? []).map((row) => row.deck_id),
     wishlist: (wishlistResult.data ?? []).map((row): RiftboundWishlistCard => ({
       cardId: row.card_id,
-      desiredQuantity: row.desired_quantity,
+      desiredQuantity: 1,
       note: row.note,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -730,7 +756,7 @@ export async function updateRiftboundProfilePreference(userId: string, input: {
     if (enabled) {
       const { count, error: countError } = await supabase.from('riftbound_profile_favorite_cards').select('card_id', { count: 'exact', head: true }).eq('user_id', userId);
       if (countError) throw countError;
-      if ((count ?? 0) >= entitlement.favoriteCardLimit) throw new Error('You have reached your favorite card limit. Premium accounts can save more favorites.');
+      if ((count ?? 0) >= entitlement.favoriteCardLimit) throw new Error('You have reached your limit of 4 favorite cards.');
       const { error } = await supabase.from('riftbound_profile_favorite_cards').upsert({ user_id: userId, card_id: cardId }, { onConflict: 'user_id,card_id' });
       if (error) throw error;
     } else {
@@ -750,7 +776,7 @@ export async function updateRiftboundProfilePreference(userId: string, input: {
     if (input.enabled === true) {
       const { count, error: countError } = await supabase.from(table).select(column, { count: 'exact', head: true }).eq('user_id', userId);
       if (countError) throw countError;
-      if ((count ?? 0) >= entitlement.favoriteSourceLimit) throw new Error('You have reached your favorite source limit. Premium accounts can save more.');
+      if ((count ?? 0) >= entitlement.favoriteSourceLimit) throw new Error(`You have reached your limit of 4 favorite ${kind}s.`);
       const { error } = await supabase.from(table).upsert({ user_id: userId, [column]: sourceId }, { onConflict: `user_id,${column}` });
       if (error) throw error;
     } else {
@@ -773,9 +799,9 @@ export async function updateRiftboundProfilePreference(userId: string, input: {
     if (!existing) {
       const { count, error: countError } = await supabase.from('riftbound_profile_wishlist_cards').select('card_id', { count: 'exact', head: true }).eq('user_id', userId);
       if (countError) throw countError;
-      if ((count ?? 0) >= entitlement.wishlistLimit) throw new Error('You have reached your wishlist limit. Premium accounts can save more wishlist cards.');
+      if ((count ?? 0) >= entitlement.wishlistLimit) throw new Error('You have reached your limit of 8 wishlist cards.');
     }
-    const desiredQuantity = typeof input.desiredQuantity === 'number' && Number.isInteger(input.desiredQuantity) ? Math.max(1, Math.min(1000, input.desiredQuantity)) : 1;
+    const desiredQuantity = 1;
     const note = typeof input.note === 'string' ? sanitizeChatMessage(input.note.trim().slice(0, 200)) : '';
     const { error } = await supabase.from('riftbound_profile_wishlist_cards').upsert({ user_id: userId, card_id: cardId, desired_quantity: desiredQuantity, note, updated_at: new Date().toISOString() }, { onConflict: 'user_id,card_id' });
     if (error) throw error;

@@ -249,11 +249,11 @@ export function GlobalActions() {
       {profileOpen ? (
         <div
           data-profile-overlay="true"
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4"
           onPointerDown={() => setProfileOpen(false)}
         >
           <div
-            className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
+            className="relative min-w-0 max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-x-hidden overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
             onPointerDown={(event) => event.stopPropagation()}
           >
             <button

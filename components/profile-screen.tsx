@@ -1454,11 +1454,11 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   return (
     <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
       <section className={presentation === 'overlay'
-        ? 'mx-auto flex w-full max-w-5xl flex-col px-3 py-4 sm:px-6 sm:py-8'
+        ? 'mx-auto flex min-w-0 w-full max-w-5xl flex-col px-3 py-4 sm:px-6 sm:py-8'
         : 'mx-auto flex min-h-[100dvh] w-full max-w-5xl flex-col justify-center px-4 py-6 sm:px-6 sm:py-10'}
       >
-        <header className={`mb-5 flex min-h-12 items-center justify-between gap-3 ${presentation === 'overlay' ? 'pr-16' : ''}`}>
-          <div className="flex items-center gap-3">
+        <header className={`mb-5 flex min-h-12 min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between ${presentation === 'overlay' ? 'pr-12 sm:pr-16' : ''}`}>
+          <div className="flex min-w-0 items-center gap-3">
             <Link
               href="/"
               aria-label="Back to game hub"
@@ -1468,7 +1468,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
             </Link>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold text-white">
+                <h1 className="min-w-0 text-xl font-semibold text-white">
                   Profile{profile?.username || usernameDraft ? (
                     <> - <span style={getChatNameStyle(chatColorDraft)}>{profile?.username || usernameDraft}</span></>
                   ) : ''}
@@ -1477,7 +1477,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
             </div>
           </div>
           {!busy ? (
-            <div className="relative flex min-h-11 flex-wrap items-center justify-end gap-2">
+            <div className="relative flex min-h-11 w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
               <div className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-300">
                 <Users size={16} className="text-amber-300" />
                 {profile?.friends_count ?? 0} friends
@@ -1623,7 +1623,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           ) : null}
         </header>
 
-        <section className="min-h-[34rem] rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-6">
+        <section className="min-h-[34rem] min-w-0 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-6">
           {busy ? (
             <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
               <Loader2 size={18} className="animate-spin text-amber-300" />
@@ -1631,7 +1631,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1 sm:grid-cols-4">
                 {[
                   ['profile', 'Profile'],
                   ['stats', 'Stats'],
@@ -1645,7 +1645,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       setActiveTab(tab as ProfileTab);
                       setMessage('');
                     }}
-                    className={`min-h-10 rounded-xl px-3 text-sm font-semibold transition ${
+                    className={`min-h-10 rounded-xl px-2 text-xs font-semibold transition sm:px-3 sm:text-sm ${
                       activeTab === tab ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900'
                     }`}
                   >
@@ -1656,8 +1656,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
 
 
               {activeTab === 'profile' ? (
-                <form onSubmit={saveProfile} className="mt-6 grid gap-4">
-                  <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-slate-950/80 p-4">
+                <form onSubmit={saveProfile} className="mt-6 grid min-w-0 gap-4">
+                  <div className="flex min-w-0 flex-col items-start gap-4 rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:flex-row sm:p-4">
                     <div className="relative shrink-0">
                       {avatarPreviewUrl ? (
                         <button
@@ -1768,7 +1768,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                         event.target.value = '';
                       }}
                     />
-                    <div className="h-28 w-px shrink-0 bg-white/10" />
+                    <div className="hidden h-28 w-px shrink-0 bg-white/10 sm:block" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Profile Cosmetics</p>
                       <div className="mt-3 flex flex-wrap gap-3">
@@ -1782,7 +1782,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                               setTitleMenuOpen(false);
                               setCosmeticsMenuOpen((current) => !current);
                             }}
-                            className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-full border border-white/10 bg-slate-900 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-slate-800"
+                            className="flex min-h-9 max-w-full flex-wrap cursor-pointer list-none items-center gap-2 rounded-full border border-white/10 bg-slate-900 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-slate-800"
                             aria-label="Choose chat cosmetics"
                             aria-expanded={cosmeticsMenuOpen}
                           >
@@ -1944,7 +1944,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       rows={6}
                       maxLength={500}
                       placeholder="Tell other players a little about yourself."
-                      className="min-h-36 resize-none rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 focus:ring-1 focus:ring-white/15"
+                      className="min-h-36 w-full max-w-full resize-none rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 focus:ring-1 focus:ring-white/15"
                     />
                     <span className="text-xs text-slate-500">{aboutDraft.length}/500</span>
                   </label>

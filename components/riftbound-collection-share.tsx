@@ -9,6 +9,14 @@ import { getRiftboundCardFilterCount, matchesRiftboundPriceRange, RiftboundCardR
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
+import {
+  getRiftboundHistoryRangeDays,
+  RiftboundHistoryChartLoading,
+  RiftboundHistoryRangeSelector,
+  RiftboundPriceHistoryChart,
+  type RiftboundHistoryRangeKey,
+  type RiftboundPriceHistoryEntry,
+} from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardDomainTextClass, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundFinish } from '@/lib/riftbound';
 import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundLatestPrice } from '@/lib/riftbound-client';
@@ -85,12 +93,6 @@ type SharedSnapshot = {
   createdBy: string;
   createdAt: string;
   deck?: SharedDeck;
-};
-
-type SharedPriceHistoryEntry = {
-  date: string;
-  finish: RiftboundFinish;
-  price: number | null;
 };
 
 const cardById = new Map(RIFTBOUND_CARDS.map((card) => [card.id, card]));
@@ -212,141 +214,6 @@ function matchesSharedFilter(values: string[], candidates: string | string[]) {
   return values.some((value) => candidateValues.includes(value));
 }
 
-function formatSharedHistoryDate(value: string) {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
-}
-
-function formatSharedHistoryTooltipDate(value: string) {
-  const date = new Date(`${value}T00:00:00Z`);
-  const day = date.getUTCDate();
-  const suffix = day % 100 >= 11 && day % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[day % 10] ?? 'th';
-  return `${new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(date)} ${day}${suffix}, ${date.getUTCFullYear()}`;
-}
-
-function buildSharedHistorySegments(values: Array<number | null>, getX: (index: number) => number, getY: (value: number) => number) {
-  const segments: string[] = [];
-  let points: string[] = [];
-  values.forEach((value, index) => {
-    if (value === null) {
-      if (points.length > 0) segments.push(points.join(' '));
-      points = [];
-      return;
-    }
-    points.push(`${getX(index)},${getY(value)}`);
-  });
-  if (points.length > 0) segments.push(points.join(' '));
-  return segments;
-}
-
-type SharedHistoryTooltip = {
-  x: number;
-  y: number;
-  label: string;
-  value: string;
-  date: string;
-};
-
-function SharedHistoryChartTooltip({ point }: { point: SharedHistoryTooltip }) {
-  const placeBelow = point.y < 70;
-  const horizontalAlignment = point.x / 720 <= 0.18
-    ? 'start'
-    : point.x / 720 >= 0.82
-      ? 'end'
-      : 'center';
-  const horizontalClassName = horizontalAlignment === 'start'
-    ? 'translate-x-0'
-    : horizontalAlignment === 'end'
-      ? '-translate-x-full'
-      : '-translate-x-1/2';
-  return (
-    <div
-      className={`pointer-events-none absolute z-10 w-max max-w-[14rem] rounded-xl border border-amber-200/40 bg-slate-950 px-3 py-2 text-left text-xs text-slate-100 ${horizontalClassName} ${placeBelow ? '' : '-translate-y-full'}`}
-      style={{ left: `${(point.x / 720) * 100}%`, top: `${(point.y / 250) * 100}%`, marginTop: placeBelow ? '0.5rem' : '-0.5rem' }}
-      role="status"
-    >
-      <p className="whitespace-nowrap font-black text-amber-200">{point.value} - {point.date}</p>
-      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{point.label}</p>
-    </div>
-  );
-}
-
-function SharedPriceHistoryChart({ history }: { history: SharedPriceHistoryEntry[] }) {
-  const [hoveredPoint, setHoveredPoint] = useState<SharedHistoryTooltip | null>(null);
-  const dates = Array.from(new Set(history.map((entry) => entry.date))).sort();
-  const valuesByKey = new Map(history.map((entry) => [`${entry.date}:${entry.finish}`, entry.price]));
-  const series = [
-    { finish: 'normal' as const, label: 'Normal', color: '#7dd3fc' },
-    { finish: 'foil' as const, label: 'Foil', color: '#fcd34d' },
-  ].map((entry) => ({
-    ...entry,
-    values: dates.map((date) => valuesByKey.get(`${date}:${entry.finish}`) ?? null),
-  })).filter((entry) => entry.values.some((value) => value !== null));
-  const prices = history.flatMap((entry) => entry.price === null ? [] : [entry.price]);
-
-  if (dates.length === 0 || prices.length === 0 || series.length === 0) {
-    return <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">No captured market values yet.</p>;
-  }
-
-  const width = 720;
-  const height = 250;
-  const plotLeft = 52;
-  const plotRight = 704;
-  const plotTop = 20;
-  const plotBottom = 188;
-  const maxPrice = Math.max(...prices, 0.01);
-  const getX = (index: number) => dates.length === 1 ? plotLeft + ((plotRight - plotLeft) / 2) : plotLeft + ((index / (dates.length - 1)) * (plotRight - plotLeft));
-  const getY = (value: number) => plotBottom - ((value / maxPrice) * (plotBottom - plotTop));
-  const labelIndexes = Array.from(new Set([0, Math.floor((dates.length - 1) / 2), dates.length - 1]));
-
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/50 p-2 sm:p-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-2">
-        <div className="flex flex-wrap items-center gap-3">
-          {series.map((entry) => <span key={entry.finish} className="inline-flex items-center gap-1.5 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-400"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />{entry.label}</span>)}
-        </div>
-        <span className="text-[0.65rem] font-semibold text-slate-500">USD per card</span>
-      </div>
-      <div className="relative">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Riftbound card market value history line graph" className="h-auto min-w-[36rem] w-full">
-        {[maxPrice, maxPrice / 2, 0].map((value) => {
-          const y = getY(value);
-          return <g key={value}><line x1={plotLeft} x2={plotRight} y1={y} y2={y} stroke="rgba(148,163,184,0.16)" strokeDasharray="4 6" /><text x={plotLeft - 10} y={y + 4} textAnchor="end" fill="#64748b" fontSize="11">{formatMarketPrice(value)}</text></g>;
-        })}
-        <line x1={plotLeft} x2={plotRight} y1={plotBottom} y2={plotBottom} stroke="rgba(148,163,184,0.3)" />
-        {series.map((entry) => buildSharedHistorySegments(entry.values, getX, getY).map((points, index) => <polyline key={`${entry.finish}-${index}`} points={points} fill="none" stroke={entry.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />))}
-        {series.flatMap((entry) => entry.values.map((value, index) => value === null ? null : (() => {
-          const point = {
-            x: getX(index),
-            y: getY(value),
-            label: entry.label,
-            value: formatMarketPrice(value),
-            date: formatSharedHistoryTooltipDate(dates[index]),
-          };
-          return <circle
-            key={`${entry.finish}-${dates[index]}`}
-            cx={point.x}
-            cy={point.y}
-            r="6"
-            fill="#030712"
-            stroke={entry.color}
-            strokeWidth="2"
-            tabIndex={0}
-            role="img"
-            aria-label={`${point.label}: ${point.value} - ${point.date}`}
-            onMouseEnter={() => setHoveredPoint(point)}
-            onMouseLeave={() => setHoveredPoint(null)}
-            onFocus={() => setHoveredPoint(point)}
-            onBlur={() => setHoveredPoint(null)}
-          />;
-        })()))}
-        {labelIndexes.map((index) => <text key={index} x={getX(index)} y={plotBottom + 25} textAnchor="middle" fill="#64748b" fontSize="11">{formatSharedHistoryDate(dates[index])}</text>)}
-      </svg>
-      {hoveredPoint ? <SharedHistoryChartTooltip point={hoveredPoint} /> : null}
-      </div>
-    </div>
-  );
-}
-
 function SharedDetailValue({ label, value }: { label: string; value: string }) {
   return <div className="min-w-0"><dt className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-slate-500">{label}</dt><dd className="mt-1 truncate text-xs font-bold text-slate-200" title={value}>{value}</dd></div>;
 }
@@ -361,9 +228,10 @@ function SharedMarketValueSourceInfo() {
 }
 
 function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, preferenceSession }: { card: RiftboundCard; onClose: () => void; showMarketDetails?: boolean; preferenceSession?: Session | null }) {
-  const [history, setHistory] = useState<SharedPriceHistoryEntry[]>([]);
+  const [history, setHistory] = useState<RiftboundPriceHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
+  const [historyRange, setHistoryRange] = useState<RiftboundHistoryRangeKey>('30d');
   const rarityClassName = ({ Common: 'text-slate-300', Uncommon: 'text-blue-300', Rare: 'text-violet-300', Epic: 'text-amber-300', Showcase: 'text-yellow-200' } as Record<string, string>)[card.rarity] ?? 'text-slate-300';
 
   useEffect(() => {
@@ -374,7 +242,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
     let cancelled = false;
     setHistoryLoading(true);
     setHistoryError('');
-    void getRiftboundCardPriceHistory(card.id)
+    void getRiftboundCardPriceHistory(card.id, getRiftboundHistoryRangeDays(historyRange))
       .then((nextHistory) => {
         if (!cancelled) setHistory(nextHistory);
       })
@@ -385,7 +253,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
         if (!cancelled) setHistoryLoading(false);
       });
     return () => { cancelled = true; };
-  }, [card.id, showMarketDetails]);
+  }, [card.id, historyRange, showMarketDetails]);
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
@@ -409,7 +277,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
               <SharedDomainDetailValue domains={card.domains} /><SharedDetailValue label="Artist" value={card.artist || 'N/A'} /><SharedDetailValue label="Might" value={String(card.might)} />
             </dl>
             <div className="border-t border-white/10 pt-4"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Product Details</p><p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{card.productDetails}</p></div>
-            {showMarketDetails ? <div className="border-t border-white/10 pt-5"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Value History</p><span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-600">Last 30 days</span></div><div className="mt-3">{historyLoading ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">Loading market history...</p> : historyError ? <p className="rounded-2xl border border-red-300/10 bg-red-950/20 px-4 py-5 text-sm text-red-200">{historyError}</p> : <SharedPriceHistoryChart history={history} />}</div></div> : null}
+            {showMarketDetails ? <div className="border-t border-white/10 pt-5"><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Value History</p><RiftboundHistoryRangeSelector value={historyRange} onChange={setHistoryRange} /></div><div className="mt-3">{historyLoading ? <RiftboundHistoryChartLoading kind="card" message="Loading market history..." /> : historyError ? <p className="rounded-2xl border border-red-300/10 bg-red-950/20 px-4 py-5 text-sm text-red-200">{historyError}</p> : <RiftboundPriceHistoryChart history={history} />}</div></div> : null}
           </div>
         </div>
       </div>

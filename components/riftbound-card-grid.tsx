@@ -10,6 +10,16 @@ import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-men
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-view';
+import {
+  getRiftboundHistoryRangeDays,
+  RiftboundCollectionValueHistoryChart,
+  RiftboundHistoryChartLoading,
+  RiftboundHistoryRangeSelector,
+  RiftboundPriceHistoryChart,
+  type RiftboundCollectionValueHistoryEntry,
+  type RiftboundHistoryRangeKey,
+  type RiftboundPriceHistoryEntry,
+} from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import { getRiftboundCardDomainTextClass, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
@@ -85,22 +95,9 @@ type InventoryChange = {
   delta: number;
 };
 
-type RiftboundPriceHistoryEntry = {
-  date: string;
-  finish: InventoryItem['finish'];
-  price: number | null;
-};
-
 type RiftboundPriceHistoryResponse = {
   history?: RiftboundPriceHistoryEntry[];
   error?: string;
-};
-
-type RiftboundCollectionValueHistoryEntry = {
-  date: string;
-  value: number;
-  pricedCopies: number;
-  totalCopies: number;
 };
 
 type RiftboundCollectionValueHistoryResponse = {
@@ -170,7 +167,6 @@ export type RiftboundCardFilters = {
 export type RiftboundCategoricalFilterField = Exclude<keyof RiftboundCardFilters, 'minPrice' | 'maxPrice'>;
 
 const ALL_FILTER_VALUE = 'all';
-const PRICE_HISTORY_DAYS = 30;
 const PRICE_HISTORY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PRICE_HISTORY_STORAGE_PREFIX = 'knowleague:riftbound-price-history:v1:';
 const PRICE_HISTORY_STORAGE_LIMIT = 100;
@@ -190,24 +186,25 @@ function parsePriceHistory(value: unknown): RiftboundPriceHistoryEntry[] | null 
       typeof candidate.date !== 'string'
       || (candidate.finish !== 'normal' && candidate.finish !== 'foil')
       || (candidate.price !== null && (typeof candidate.price !== 'number' || !Number.isFinite(candidate.price)))
+      || (candidate.granularity !== undefined && candidate.granularity !== 'month')
     ) {
       return [];
     }
 
-    return [{ date: candidate.date, finish: candidate.finish, price: candidate.price }];
+    return [{ date: candidate.date, finish: candidate.finish, price: candidate.price, granularity: candidate.granularity }];
   });
 }
 
-function getPriceHistoryCacheKey(cardId: string, snapshotDate?: string | null) {
-  return `${cardId}:${snapshotDate || 'latest'}`;
+function getPriceHistoryCacheKey(cardId: string, snapshotDate: string | null | undefined, days: number) {
+  return `${cardId}:${snapshotDate || 'latest'}:${days}`;
 }
 
-function getPriceHistoryStorageKey(cardId: string, snapshotDate?: string | null) {
-  return `${PRICE_HISTORY_STORAGE_PREFIX}${getPriceHistoryCacheKey(cardId, snapshotDate)}`;
+function getPriceHistoryStorageKey(cardId: string, snapshotDate: string | null | undefined, days: number) {
+  return `${PRICE_HISTORY_STORAGE_PREFIX}${getPriceHistoryCacheKey(cardId, snapshotDate, days)}`;
 }
 
-function getCachedPriceHistory(cardId: string, snapshotDate?: string | null) {
-  const cacheKey = getPriceHistoryCacheKey(cardId, snapshotDate);
+function getCachedPriceHistory(cardId: string, snapshotDate: string | null | undefined, days: number) {
+  const cacheKey = getPriceHistoryCacheKey(cardId, snapshotDate, days);
   const now = Date.now();
   const memoryEntry = priceHistoryMemoryCache.get(cacheKey);
   if (memoryEntry && now - memoryEntry.fetchedAt < PRICE_HISTORY_CACHE_TTL_MS) {
@@ -218,7 +215,7 @@ function getCachedPriceHistory(cardId: string, snapshotDate?: string | null) {
   if (typeof window === 'undefined') return null;
 
   try {
-    const rawValue = window.localStorage.getItem(getPriceHistoryStorageKey(cardId, snapshotDate));
+    const rawValue = window.localStorage.getItem(getPriceHistoryStorageKey(cardId, snapshotDate, days));
     if (!rawValue) return null;
 
     const parsedValue = JSON.parse(rawValue) as Partial<CachedRiftboundPriceHistory>;
@@ -262,37 +259,37 @@ function prunePriceHistoryStorage() {
   }
 }
 
-function cachePriceHistory(cardId: string, snapshotDate: string | null | undefined, history: RiftboundPriceHistoryEntry[]) {
+function cachePriceHistory(cardId: string, snapshotDate: string | null | undefined, days: number, history: RiftboundPriceHistoryEntry[]) {
   const cachedEntry = { fetchedAt: Date.now(), history };
-  priceHistoryMemoryCache.set(getPriceHistoryCacheKey(cardId, snapshotDate), cachedEntry);
+  priceHistoryMemoryCache.set(getPriceHistoryCacheKey(cardId, snapshotDate, days), cachedEntry);
 
   if (typeof window === 'undefined') return;
 
   try {
-    window.localStorage.setItem(getPriceHistoryStorageKey(cardId, snapshotDate), JSON.stringify(cachedEntry));
+    window.localStorage.setItem(getPriceHistoryStorageKey(cardId, snapshotDate, days), JSON.stringify(cachedEntry));
     prunePriceHistoryStorage();
   } catch {
     // Browser storage is an optimization; the in-memory cache remains available.
   }
 }
 
-function loadPriceHistory(cardId: string, snapshotDate?: string | null) {
-  const cacheKey = getPriceHistoryCacheKey(cardId, snapshotDate);
-  const cachedHistory = getCachedPriceHistory(cardId, snapshotDate);
+function loadPriceHistory(cardId: string, snapshotDate: string | null | undefined, days: number) {
+  const cacheKey = getPriceHistoryCacheKey(cardId, snapshotDate, days);
+  const cachedHistory = getCachedPriceHistory(cardId, snapshotDate, days);
   if (cachedHistory) return Promise.resolve(cachedHistory);
 
   const existingRequest = priceHistoryRequests.get(cacheKey);
   if (existingRequest) return existingRequest;
 
   const snapshotQuery = snapshotDate ? `&snapshot=${encodeURIComponent(snapshotDate)}` : '';
-  const request = fetch(`/api/riftbound/prices/${encodeURIComponent(cardId)}?days=${PRICE_HISTORY_DAYS}${snapshotQuery}`, {
+  const request = fetch(`/api/riftbound/prices/${encodeURIComponent(cardId)}?days=${days}${snapshotQuery}`, {
     cache: 'no-store',
   })
     .then(async (response) => {
       const data = await response.json() as RiftboundPriceHistoryResponse;
       if (!response.ok) throw new Error(data.error || 'Unable to load market value history.');
       const history = data.history ?? [];
-      cachePriceHistory(cardId, snapshotDate, history);
+      cachePriceHistory(cardId, snapshotDate, days, history);
       return history;
     })
     .finally(() => {
@@ -303,16 +300,17 @@ function loadPriceHistory(cardId: string, snapshotDate?: string | null) {
   return request;
 }
 
-function loadCollectionValueHistory(userId: string, accessToken: string) {
-  const cachedEntry = collectionValueHistoryMemoryCache.get(userId);
+function loadCollectionValueHistory(userId: string, accessToken: string, days: number) {
+  const cacheKey = `${userId}:${days}`;
+  const cachedEntry = collectionValueHistoryMemoryCache.get(cacheKey);
   if (cachedEntry && Date.now() - cachedEntry.fetchedAt < 5 * 60 * 1000) {
     return Promise.resolve(cachedEntry.history);
   }
 
-  const existingRequest = collectionValueHistoryRequests.get(userId);
+  const existingRequest = collectionValueHistoryRequests.get(cacheKey);
   if (existingRequest) return existingRequest;
 
-  const request = fetch('/api/riftbound/collection/value-history?days=365', {
+  const request = fetch(`/api/riftbound/collection/value-history?days=${days}`, {
     cache: 'no-store',
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -320,14 +318,14 @@ function loadCollectionValueHistory(userId: string, accessToken: string) {
       const data = await response.json() as RiftboundCollectionValueHistoryResponse;
       if (!response.ok) throw new Error(data.error || 'Unable to load collection value history.');
       const history = data.history ?? [];
-      collectionValueHistoryMemoryCache.set(userId, { fetchedAt: Date.now(), history });
+      collectionValueHistoryMemoryCache.set(cacheKey, { fetchedAt: Date.now(), history });
       return history;
     })
     .finally(() => {
-      collectionValueHistoryRequests.delete(userId);
+      collectionValueHistoryRequests.delete(cacheKey);
     });
 
-  collectionValueHistoryRequests.set(userId, request);
+  collectionValueHistoryRequests.set(cacheKey, request);
   return request;
 }
 
@@ -1403,187 +1401,10 @@ function DomainDetailValue({ domains }: { domains: string[] }) {
   );
 }
 
-function buildHistoryLineSegments(
-  values: Array<number | null>,
-  getX: (index: number) => number,
-  getY: (value: number) => number,
-) {
-  const segments: string[] = [];
-  let points: string[] = [];
-
-  values.forEach((value, index) => {
-    if (value === null) {
-      if (points.length > 0) segments.push(points.join(' '));
-      points = [];
-      return;
-    }
-
-    points.push(`${getX(index)},${getY(value)}`);
-  });
-
-  if (points.length > 0) segments.push(points.join(' '));
-  return segments;
-}
-
-function formatHistoryDate(value: string) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${value}T00:00:00Z`));
-}
-
-function formatHistoryTooltipDate(value: string) {
-  const date = new Date(`${value}T00:00:00Z`);
-  const day = date.getUTCDate();
-  const suffix = day % 100 >= 11 && day % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[day % 10] ?? 'th';
-  return `${new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(date)} ${day}${suffix}, ${date.getUTCFullYear()}`;
-}
-
 function formatDeckCreatedDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Unknown date';
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
-}
-
-type HistoryPointTooltip = {
-  chartWidth: number;
-  chartHeight: number;
-  x: number;
-  y: number;
-  label: string;
-  value: string;
-  date: string;
-  detail?: string;
-};
-
-function HistoryChartTooltip({ point }: { point: HistoryPointTooltip }) {
-  const placeBelow = point.y < 70;
-  const horizontalAlignment = point.x / point.chartWidth <= 0.18
-    ? 'start'
-    : point.x / point.chartWidth >= 0.82
-      ? 'end'
-      : 'center';
-  const horizontalClassName = horizontalAlignment === 'start'
-    ? 'translate-x-0'
-    : horizontalAlignment === 'end'
-      ? '-translate-x-full'
-      : '-translate-x-1/2';
-  return (
-    <div
-      className={`pointer-events-none absolute z-10 w-max max-w-[14rem] rounded-xl border border-amber-200/40 bg-slate-950 px-3 py-2 text-left text-xs text-slate-100 ${horizontalClassName} ${placeBelow ? '' : '-translate-y-full'}`}
-      style={{ left: `${(point.x / point.chartWidth) * 100}%`, top: `${(point.y / point.chartHeight) * 100}%`, marginTop: placeBelow ? '0.5rem' : '-0.5rem' }}
-      role="status"
-    >
-      <p className="whitespace-nowrap font-black text-amber-200">{point.value} - {point.date}</p>
-      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{point.label}</p>
-      {point.detail ? <p className="mt-1 text-[0.65rem] text-slate-400">{point.detail}</p> : null}
-    </div>
-  );
-}
-
-function RiftboundPriceHistoryChart({ history }: { history: RiftboundPriceHistoryEntry[] }) {
-  const [hoveredPoint, setHoveredPoint] = useState<HistoryPointTooltip | null>(null);
-  const dates = useMemo(
-    () => Array.from(new Set(history.map((entry) => entry.date))).sort(),
-    [history],
-  );
-  const valuesByKey = useMemo(
-    () => new Map(history.map((entry) => [`${entry.date}:${entry.finish}`, entry.price])),
-    [history],
-  );
-  const series = [
-    { finish: 'normal' as const, label: 'Normal', color: '#7dd3fc' },
-    { finish: 'foil' as const, label: 'Foil', color: '#fcd34d' },
-  ].map((entry) => ({
-    ...entry,
-    values: dates.map((date) => valuesByKey.get(`${date}:${entry.finish}`) ?? null),
-  })).filter((entry) => entry.values.some((value) => value !== null));
-
-  const prices = history.flatMap((entry) => entry.price === null ? [] : [entry.price]);
-  if (dates.length === 0 || prices.length === 0 || series.length === 0) {
-    return <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">No captured market values yet.</p>;
-  }
-
-  const width = 720;
-  const height = 250;
-  const plotLeft = 52;
-  const plotRight = 704;
-  const plotTop = 20;
-  const plotBottom = 188;
-  const plotWidth = plotRight - plotLeft;
-  const plotHeight = plotBottom - plotTop;
-  const maxPrice = Math.max(...prices, 0.01);
-  const getX = (index: number) => dates.length === 1
-    ? plotLeft + (plotWidth / 2)
-    : plotLeft + ((index / (dates.length - 1)) * plotWidth);
-  const getY = (value: number) => plotBottom - ((value / maxPrice) * plotHeight);
-  const labelIndexes = Array.from(new Set([0, Math.floor((dates.length - 1) / 2), dates.length - 1]));
-  const yValues = [maxPrice, maxPrice / 2, 0];
-
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/50 p-2 sm:p-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-2">
-        <div className="flex flex-wrap items-center gap-3">
-          {series.map((entry) => (
-            <span key={entry.finish} className="inline-flex items-center gap-1.5 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-400">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-              {entry.label}
-            </span>
-          ))}
-        </div>
-        <span className="text-[0.65rem] font-semibold text-slate-500">USD per card</span>
-      </div>
-      <div className="relative">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Riftbound card market value history line graph" className="h-auto min-w-[36rem] w-full">
-        {yValues.map((value) => {
-          const y = getY(value);
-          return (
-            <g key={value}>
-              <line x1={plotLeft} x2={plotRight} y1={y} y2={y} stroke="rgba(148,163,184,0.16)" strokeDasharray="4 6" />
-              <text x={plotLeft - 10} y={y + 4} textAnchor="end" fill="#64748b" fontSize="11">{formatMarketPriceOrUnavailable(value)}</text>
-            </g>
-          );
-        })}
-        <line x1={plotLeft} x2={plotRight} y1={plotBottom} y2={plotBottom} stroke="rgba(148,163,184,0.3)" />
-        {series.map((entry) => buildHistoryLineSegments(entry.values, getX, getY).map((points, index) => (
-          <polyline key={`${entry.finish}-${index}`} points={points} fill="none" stroke={entry.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        )))}
-        {series.flatMap((entry) => entry.values.map((value, index) => value === null ? null : (() => {
-          const point = {
-            chartWidth: width,
-            chartHeight: height,
-            x: getX(index),
-            y: getY(value),
-            label: entry.label,
-            value: formatMarketPriceOrUnavailable(value),
-            date: formatHistoryTooltipDate(dates[index]),
-          };
-          return <circle
-            key={`${entry.finish}-${dates[index]}`}
-            cx={point.x}
-            cy={point.y}
-            r="6"
-            fill="#030712"
-            stroke={entry.color}
-            strokeWidth="2"
-            tabIndex={0}
-            role="img"
-            aria-label={`${point.label}: ${point.value} - ${point.date}`}
-            onMouseEnter={() => setHoveredPoint(point)}
-            onMouseLeave={() => setHoveredPoint(null)}
-            onFocus={() => setHoveredPoint(point)}
-            onBlur={() => setHoveredPoint(null)}
-          />;
-        })()))}
-        {labelIndexes.map((index) => (
-          <text key={index} x={getX(index)} y={plotBottom + 25} textAnchor="middle" fill="#64748b" fontSize="11">{formatHistoryDate(dates[index])}</text>
-        ))}
-      </svg>
-      {hoveredPoint ? <HistoryChartTooltip point={hoveredPoint} /> : null}
-      </div>
-    </div>
-  );
 }
 
 function MarketValueSourceInfo() {
@@ -1604,89 +1425,6 @@ function MarketValueSourceInfo() {
 
 function MarketValueRefreshNote() {
   return <p className="mt-2 text-[0.65rem] font-semibold text-slate-500">{getMarketValueRefreshNote()}</p>;
-}
-
-function RiftboundCollectionValueHistoryChart({ history }: { history: RiftboundCollectionValueHistoryEntry[] }) {
-  const [hoveredPoint, setHoveredPoint] = useState<HistoryPointTooltip | null>(null);
-  if (history.length === 0) {
-    return <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">No collection value snapshots are available yet.</p>;
-  }
-
-  const width = 760;
-  const height = 270;
-  const plotLeft = 58;
-  const plotRight = 728;
-  const plotTop = 22;
-  const plotBottom = 198;
-  const plotWidth = plotRight - plotLeft;
-  const plotHeight = plotBottom - plotTop;
-  const maxValue = Math.max(...history.map((entry) => entry.value), 0.01);
-  const getX = (index: number) => history.length === 1
-    ? plotLeft + (plotWidth / 2)
-    : plotLeft + ((index / (history.length - 1)) * plotWidth);
-  const getY = (value: number) => plotBottom - ((value / maxValue) * plotHeight);
-  const points = history.map((entry, index) => `${getX(index)},${getY(entry.value)}`).join(' ');
-  const labelIndexes = Array.from(new Set([0, Math.floor((history.length - 1) / 2), history.length - 1]));
-  const yValues = [maxValue, maxValue / 2, 0];
-
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/50 p-2 sm:p-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-2">
-        <span className="inline-flex items-center gap-2 text-[0.65rem] font-black uppercase tracking-[0.12em] text-emerald-300">
-          <span className="h-2 w-2 rounded-full bg-emerald-300" />
-          Collection value
-        </span>
-        <span className="text-[0.65rem] font-semibold text-slate-500">USD · saved inventory</span>
-      </div>
-      <div className="relative">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Riftbound collection market value history line graph" className="h-auto min-w-[36rem] w-full">
-        {yValues.map((value) => {
-          const y = getY(value);
-          return (
-            <g key={value}>
-              <line x1={plotLeft} x2={plotRight} y1={y} y2={y} stroke="rgba(148,163,184,0.16)" strokeDasharray="4 6" />
-              <text x={plotLeft - 10} y={y + 4} textAnchor="end" fill="#64748b" fontSize="11">{formatMarketPrice(value)}</text>
-            </g>
-          );
-        })}
-        <line x1={plotLeft} x2={plotRight} y1={plotBottom} y2={plotBottom} stroke="rgba(148,163,184,0.3)" />
-        <polyline points={points} fill="none" stroke="#6ee7b7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        {history.map((entry, index) => {
-          const point = {
-            chartWidth: width,
-            chartHeight: height,
-            x: getX(index),
-            y: getY(entry.value),
-            label: 'Collection value',
-            value: formatMarketPrice(entry.value),
-            date: formatHistoryTooltipDate(entry.date),
-            detail: `${entry.pricedCopies} cards priced`,
-          };
-          return <circle
-            key={entry.date}
-            cx={point.x}
-            cy={point.y}
-            r="6"
-            fill="#030712"
-            stroke="#6ee7b7"
-            strokeWidth="2"
-            tabIndex={0}
-            role="img"
-            aria-label={`${point.value} - ${point.date}; ${point.detail}`}
-            onMouseEnter={() => setHoveredPoint(point)}
-            onMouseLeave={() => setHoveredPoint(null)}
-            onFocus={() => setHoveredPoint(point)}
-            onBlur={() => setHoveredPoint(null)}
-          />;
-        })}
-        {labelIndexes.map((index) => (
-          <text key={index} x={getX(index)} y={plotBottom + 25} textAnchor="middle" fill="#64748b" fontSize="11">{formatHistoryDate(history[index].date)}</text>
-        ))}
-      </svg>
-      {hoveredPoint ? <HistoryChartTooltip point={hoveredPoint} /> : null}
-      </div>
-    </div>
-  );
 }
 
 function InventoryAdjustButton({
@@ -1978,6 +1716,7 @@ export function RiftboundCardDetailsModal({
   const [priceHistory, setPriceHistory] = useState<RiftboundPriceHistoryEntry[]>([]);
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(true);
   const [priceHistoryError, setPriceHistoryError] = useState('');
+  const [priceHistoryRange, setPriceHistoryRange] = useState<RiftboundHistoryRangeKey>('30d');
 
   useEffect(() => {
     let cancelled = false;
@@ -1991,7 +1730,7 @@ export function RiftboundCardDetailsModal({
       };
     }
 
-    void loadPriceHistory(card.id, latestSnapshotDate)
+    void loadPriceHistory(card.id, latestSnapshotDate, getRiftboundHistoryRangeDays(priceHistoryRange))
       .then((history) => {
         if (!cancelled) setPriceHistory(history);
       })
@@ -2005,7 +1744,7 @@ export function RiftboundCardDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [card.id, latestSnapshotDate, showMarketDetails]);
+  }, [card.id, latestSnapshotDate, priceHistoryRange, showMarketDetails]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
@@ -2098,11 +1837,11 @@ export function RiftboundCardDetailsModal({
             {showMarketDetails ? <div className="border-t border-white/10 pt-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Value History</p>
-                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-600">Last 30 days</span>
+                <RiftboundHistoryRangeSelector value={priceHistoryRange} onChange={setPriceHistoryRange} />
               </div>
               <div className="mt-3">
                 {priceHistoryLoading ? (
-                  <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">Loading market history...</p>
+                  <RiftboundHistoryChartLoading kind="card" message="Loading market history..." />
                 ) : priceHistoryError ? (
                   <p className="rounded-2xl border border-red-300/10 bg-red-950/20 px-4 py-5 text-sm text-red-200">{priceHistoryError}</p>
                 ) : (
@@ -2121,12 +1860,13 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
   const [history, setHistory] = useState<RiftboundCollectionValueHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [historyRange, setHistoryRange] = useState<RiftboundHistoryRangeKey>('30d');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError('');
-    void loadCollectionValueHistory(session.user.id, session.access_token)
+    void loadCollectionValueHistory(session.user.id, session.access_token, getRiftboundHistoryRangeDays(historyRange))
       .then((nextHistory) => {
         if (!cancelled) setHistory(nextHistory);
       })
@@ -2140,7 +1880,7 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
     return () => {
       cancelled = true;
     };
-  }, [session.access_token, session.user.id]);
+  }, [historyRange, session.access_token, session.user.id]);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
@@ -2161,12 +1901,16 @@ function RiftboundCollectionValueHistoryModal({ session, onClose }: { session: S
         </button>
         <div className="pr-14">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Collection history</p>
-          <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Market value over the past year</h2>
+          <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Market value history</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">This view uses your saved inventory and daily captured market prices. Update your inventory first if you have pending changes.</p>
         </div>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">History range</p>
+          <RiftboundHistoryRangeSelector value={historyRange} onChange={setHistoryRange} />
+        </div>
+        <div className="mt-3">
           {loading ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-400"><LoaderCircle size={17} className="animate-spin" /> Loading collection history...</div>
+            <RiftboundHistoryChartLoading kind="collection" message="Loading collection history..." />
           ) : error ? (
             <p className="rounded-2xl border border-red-300/10 bg-red-950/20 px-4 py-5 text-sm text-red-200">{error}</p>
           ) : (

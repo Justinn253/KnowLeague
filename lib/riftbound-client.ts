@@ -57,6 +57,7 @@ export type RiftboundPriceHistoryEntry = {
   date: string;
   finish: 'normal' | 'foil';
   price: number | null;
+  granularity?: 'month';
 };
 
 type RiftboundPriceHistoryResponse = {
@@ -143,7 +144,7 @@ export function getRiftboundLatestPrices() {
 }
 
 export function getRiftboundCardPriceHistory(cardId: string, days = 30) {
-  const safeDays = Math.max(1, Math.min(30, Math.floor(days)));
+  const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
   return requestRiftboundData<RiftboundPriceHistoryResponse>(
     `card-history:${cardId}:${safeDays}`,
     `/api/riftbound/prices/${encodeURIComponent(cardId)}?days=${safeDays}`,

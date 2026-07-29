@@ -16,6 +16,19 @@ type PriceSnapshotRow = {
   captured_at: string;
 };
 
+type PriceHistoryEntry = {
+  date: string;
+  finish: 'normal' | 'foil';
+  price: number | null;
+  priceCents: number | null;
+  currency: string;
+  source: string;
+  sourceSnapshotAt: string | null;
+  captureStatus: string;
+  capturedAt: string;
+  granularity?: 'month';
+};
+
 function getEasternCaptureDate(value: string, fallback: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return fallback;
@@ -35,11 +48,35 @@ function getDays(searchParams: URLSearchParams) {
   if (rawDays === null) return 30;
 
   const days = Number(rawDays);
-  if (!Number.isInteger(days) || days < 1 || days > 30) {
-    throw new Error('days must be a whole number between 1 and 30.');
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    throw new Error('days must be a whole number between 1 and 365.');
   }
 
   return days;
+}
+
+function getHistoryGranularity(days: number) {
+  return days > 90 ? 'month' as const : 'day' as const;
+}
+
+function getMonthlyPricePeaks(history: PriceHistoryEntry[]) {
+  const monthlyPeaks = new Map<string, PriceHistoryEntry>();
+
+  history.forEach((entry) => {
+    const month = `${entry.date.slice(0, 7)}-01`;
+    const key = `${month}:${entry.finish}`;
+    const existing = monthlyPeaks.get(key);
+    if (
+      !existing
+      || (entry.price !== null && (existing.price === null || entry.price > existing.price))
+    ) {
+      monthlyPeaks.set(key, { ...entry, date: month, granularity: 'month' });
+    }
+  });
+
+  return Array.from(monthlyPeaks.values()).sort((left, right) => (
+    left.date.localeCompare(right.date) || left.finish.localeCompare(right.finish)
+  ));
 }
 
 export async function GET(request: Request, { params }: { params: { cardId: string } }) {
@@ -73,20 +110,24 @@ export async function GET(request: Request, { params }: { params: { cardId: stri
     const { data, error } = await query.returns<PriceSnapshotRow[]>();
     if (error) throw error;
 
+    const granularity = getHistoryGranularity(days);
+    const dailyHistory: PriceHistoryEntry[] = (data ?? []).map((row) => ({
+      date: getEasternCaptureDate(row.captured_at, row.snapshot_date),
+      finish: row.finish,
+      price: row.price_cents === null ? null : row.price_cents / 100,
+      priceCents: row.price_cents,
+      currency: row.currency,
+      source: row.source,
+      sourceSnapshotAt: row.source_snapshot_at,
+      captureStatus: row.capture_status,
+      capturedAt: row.captured_at,
+    }));
+    const history = granularity === 'month' ? getMonthlyPricePeaks(dailyHistory) : dailyHistory;
     const response = NextResponse.json({
       cardId: card.id,
       days,
-      history: (data ?? []).map((row) => ({
-        date: getEasternCaptureDate(row.captured_at, row.snapshot_date),
-        finish: row.finish,
-        price: row.price_cents === null ? null : row.price_cents / 100,
-        priceCents: row.price_cents,
-        currency: row.currency,
-        source: row.source,
-        sourceSnapshotAt: row.source_snapshot_at,
-        captureStatus: row.capture_status,
-        capturedAt: row.captured_at,
-      })),
+      granularity,
+      history,
     });
     response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
     return response;

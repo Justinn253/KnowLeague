@@ -5,10 +5,11 @@ import { Loader2, Search, ShieldAlert, ShieldCheck, UserCog, X } from 'lucide-re
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { AppRole, ModerationContactSubmission, ModerationTeamMember, ModerationUserResult, StoredAppRole } from '@/lib/moderation';
+import { playUiSound } from '@/lib/ui-sounds';
 
 type ModerationWidgetProps = {
   role?: AppRole | null;
-  variant?: 'floating' | 'drawer';
+  variant?: 'floating' | 'drawer' | 'header-icon';
 };
 
 type ModerationTab = 'users' | 'contact' | 'team';
@@ -342,7 +343,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
     <div className="relative">
       {isOpen ? (
         <div
-          className={`fixed inset-0 ${variant === 'drawer' ? 'z-[120]' : 'z-[80]'} flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4`}
+          className={`fixed ${variant === 'header-icon' ? 'left-0 right-0 top-0 z-[120] h-[100dvh] w-auto' : variant === 'floating' ? 'inset-0 z-[80]' : 'inset-0 z-[120]'} flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4`}
           onPointerDown={() => setIsOpen(false)}
         >
           <div
@@ -711,14 +712,19 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
 
       <button
         type="button"
+        onMouseEnter={() => playUiSound('autocomplete-hover')}
+        onFocus={() => playUiSound('autocomplete-hover')}
         onClick={() => {
           if (!hasModerationAccess) return;
+          playUiSound('autocomplete-select');
           setIsOpen((value) => !value);
         }}
         aria-label="Open moderation menu"
         title="Moderation"
         className={variant === 'drawer'
           ? 'group relative flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
+          : variant === 'header-icon'
+            ? 'group relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/30 bg-slate-950 text-cyan-100 transition hover:border-cyan-200/70 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-10 sm:w-10'
           : 'relative inline-flex min-h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/30 bg-slate-950 text-cyan-100 transition hover:border-cyan-200/70 hover:bg-slate-900'}
       >
         {variant === 'drawer' ? (

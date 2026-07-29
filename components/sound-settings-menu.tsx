@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MessageCircle, Volume2, VolumeX, UserPlus } from 'lucide-react';
+import { MessageCircle, MousePointer2, Volume2, VolumeX, UserPlus } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getProfileBootstrap } from '@/lib/profile-bootstrap-client';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-import { DEFAULT_UI_SOUND_SETTINGS, readUiSoundSettings, saveUiSoundSettings, type UiSoundSettings } from '@/lib/ui-sounds';
+import { DEFAULT_UI_SOUND_SETTINGS, playUiSound, readUiSoundSettings, saveUiSoundSettings, type UiSoundSettings } from '@/lib/ui-sounds';
 
 function ToggleSwitch({ enabled }: { enabled: boolean }) {
   return (
@@ -26,7 +26,7 @@ function ToggleSwitch({ enabled }: { enabled: boolean }) {
 }
 
 type SoundSettingsMenuProps = {
-  variant?: 'floating' | 'drawer' | 'drawer-icon';
+  variant?: 'floating' | 'drawer' | 'mobile' | 'drawer-icon' | 'header-icon';
 };
 
 export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuProps) {
@@ -150,24 +150,35 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
     <div ref={menuRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onMouseEnter={() => playUiSound('autocomplete-hover')}
+        onFocus={() => playUiSound('autocomplete-hover')}
+        onClick={() => {
+          playUiSound('autocomplete-select');
+          setOpen((value) => !value);
+        }}
         aria-label="Sound settings"
         title="Sound settings"
-        className={variant === 'drawer'
+        className={variant === 'drawer' || variant === 'mobile'
           ? 'flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-800'
           : variant === 'drawer-icon'
             ? 'inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-800'
+            : variant === 'header-icon'
+              ? 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-10 sm:w-10'
           : 'inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950 text-slate-100 transition hover:border-white/20 hover:bg-slate-900'}
       >
         {settings.muted || settings.volume <= 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-        {variant === 'drawer' ? <span>Volume</span> : null}
+        {variant === 'drawer' || variant === 'mobile' ? <span>Volume</span> : null}
       </button>
 
           {open ? (
-        <div className={variant === 'drawer'
+        <div className={variant === 'mobile'
+          ? 'fixed left-2 right-2 top-14 z-[105] max-h-[calc(100dvh-4.5rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+          : variant === 'drawer'
           ? 'absolute bottom-14 left-0 right-0 z-[105] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
           : variant === 'drawer-icon'
             ? 'absolute bottom-14 right-0 z-[105] max-h-[calc(100dvh-2rem)] w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+            : variant === 'header-icon'
+              ? 'absolute right-0 top-full z-[105] mt-2 w-[min(20rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
           : 'absolute right-0 top-14 z-[95] max-h-[calc(100dvh-2rem)] w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'}>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -190,7 +201,12 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
           <div className="mt-4 grid gap-2">
             <button
               type="button"
-              onClick={toggleMuteAll}
+              onMouseEnter={() => playUiSound('autocomplete-hover')}
+              onFocus={() => playUiSound('autocomplete-hover')}
+              onClick={() => {
+                playUiSound('setting-select');
+                toggleMuteAll();
+              }}
               className={settingRowClass}
             >
               <span className="inline-flex items-center gap-2">
@@ -202,7 +218,12 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
 
             <button
               type="button"
-              onClick={() => updateSettings({ chatMuted: !settings.chatMuted })}
+              onMouseEnter={() => playUiSound('autocomplete-hover')}
+              onFocus={() => playUiSound('autocomplete-hover')}
+              onClick={() => {
+                playUiSound('setting-select');
+                updateSettings({ chatMuted: !settings.chatMuted });
+              }}
               className={settingRowClass}
             >
               <span className="inline-flex items-center gap-2">
@@ -214,7 +235,12 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
 
             <button
               type="button"
-              onClick={() => updateSettings({ friendRequestMuted: !settings.friendRequestMuted })}
+              onMouseEnter={() => playUiSound('autocomplete-hover')}
+              onFocus={() => playUiSound('autocomplete-hover')}
+              onClick={() => {
+                playUiSound('setting-select');
+                updateSettings({ friendRequestMuted: !settings.friendRequestMuted });
+              }}
               className={settingRowClass}
             >
               <span className="inline-flex items-center gap-2">
@@ -222,6 +248,23 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
                 Mute friend request sounds
               </span>
               <ToggleSwitch enabled={settings.friendRequestMuted} />
+            </button>
+
+            <button
+              type="button"
+              onMouseEnter={() => playUiSound('autocomplete-hover')}
+              onFocus={() => playUiSound('autocomplete-hover')}
+              onClick={() => {
+                playUiSound('setting-select');
+                updateSettings({ hoverMuted: !settings.hoverMuted });
+              }}
+              className={settingRowClass}
+            >
+              <span className="inline-flex items-center gap-2">
+                <MousePointer2 size={16} />
+                Mute hover effects
+              </span>
+              <ToggleSwitch enabled={settings.hoverMuted} />
             </button>
           </div>
         </div>

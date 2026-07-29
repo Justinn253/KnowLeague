@@ -25,6 +25,7 @@ type SoundCategory = 'chat' | 'friend-request' | 'game';
 export type UiSoundSettings = {
   volume: number;
   muted: boolean;
+  hoverMuted: boolean;
   chatMuted: boolean;
   friendRequestMuted: boolean;
 };
@@ -158,6 +159,7 @@ const SOUND_SETTINGS_KEY = 'knowleague:v1:ui-sound-settings';
 export const DEFAULT_UI_SOUND_SETTINGS: UiSoundSettings = {
   volume: 0.7,
   muted: false,
+  hoverMuted: true,
   chatMuted: false,
   friendRequestMuted: false,
 };
@@ -179,6 +181,9 @@ export function normalizeUiSoundSettings(settings: unknown): UiSoundSettings {
   return {
     volume: clampVolume(parsed.volume),
     muted: Boolean(parsed.muted),
+    hoverMuted: typeof parsed.hoverMuted === 'boolean'
+      ? parsed.hoverMuted
+      : DEFAULT_UI_SOUND_SETTINGS.hoverMuted,
     chatMuted: Boolean(parsed.chatMuted),
     friendRequestMuted: Boolean(parsed.friendRequestMuted),
   };
@@ -209,6 +214,10 @@ export function saveUiSoundSettings(settings: UiSoundSettings) {
 function canPlaySound(sound: SoundName, settings: UiSoundSettings) {
   if (settings.muted || settings.volume <= 0) {
     return false;
+  }
+
+  if (sound === 'autocomplete-hover') {
+    return !settings.hoverMuted;
   }
 
   const category = soundCategories[sound];

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, FileDown, Grid2X2, Info, LayoutList, PackageOpen, Plus, QrCode, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, FileDown, Grid2X2, Info, LayoutList, LoaderCircle, PackageOpen, Plus, QrCode, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
@@ -9,9 +9,17 @@ import { getRiftboundCardFilterCount, matchesRiftboundPriceRange, RiftboundCardR
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
+import {
+  getRiftboundHistoryRangeDays,
+  RiftboundHistoryChartLoading,
+  RiftboundHistoryRangeSelector,
+  RiftboundPriceHistoryChart,
+  type RiftboundHistoryRangeKey,
+  type RiftboundPriceHistoryEntry,
+} from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardDomainTextClass, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundFinish } from '@/lib/riftbound';
-import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, type RiftboundLatestPrice } from '@/lib/riftbound-client';
+import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundLatestPrice } from '@/lib/riftbound-client';
 
 type SharedInventoryRow = {
   card_id: string;
@@ -85,12 +93,6 @@ type SharedSnapshot = {
   createdBy: string;
   createdAt: string;
   deck?: SharedDeck;
-};
-
-type SharedPriceHistoryEntry = {
-  date: string;
-  finish: RiftboundFinish;
-  price: number | null;
 };
 
 const cardById = new Map(RIFTBOUND_CARDS.map((card) => [card.id, card]));
@@ -212,141 +214,6 @@ function matchesSharedFilter(values: string[], candidates: string | string[]) {
   return values.some((value) => candidateValues.includes(value));
 }
 
-function formatSharedHistoryDate(value: string) {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
-}
-
-function formatSharedHistoryTooltipDate(value: string) {
-  const date = new Date(`${value}T00:00:00Z`);
-  const day = date.getUTCDate();
-  const suffix = day % 100 >= 11 && day % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[day % 10] ?? 'th';
-  return `${new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(date)} ${day}${suffix}, ${date.getUTCFullYear()}`;
-}
-
-function buildSharedHistorySegments(values: Array<number | null>, getX: (index: number) => number, getY: (value: number) => number) {
-  const segments: string[] = [];
-  let points: string[] = [];
-  values.forEach((value, index) => {
-    if (value === null) {
-      if (points.length > 0) segments.push(points.join(' '));
-      points = [];
-      return;
-    }
-    points.push(`${getX(index)},${getY(value)}`);
-  });
-  if (points.length > 0) segments.push(points.join(' '));
-  return segments;
-}
-
-type SharedHistoryTooltip = {
-  x: number;
-  y: number;
-  label: string;
-  value: string;
-  date: string;
-};
-
-function SharedHistoryChartTooltip({ point }: { point: SharedHistoryTooltip }) {
-  const placeBelow = point.y < 70;
-  const horizontalAlignment = point.x / 720 <= 0.18
-    ? 'start'
-    : point.x / 720 >= 0.82
-      ? 'end'
-      : 'center';
-  const horizontalClassName = horizontalAlignment === 'start'
-    ? 'translate-x-0'
-    : horizontalAlignment === 'end'
-      ? '-translate-x-full'
-      : '-translate-x-1/2';
-  return (
-    <div
-      className={`pointer-events-none absolute z-10 w-max max-w-[14rem] rounded-xl border border-amber-200/40 bg-slate-950 px-3 py-2 text-left text-xs text-slate-100 ${horizontalClassName} ${placeBelow ? '' : '-translate-y-full'}`}
-      style={{ left: `${(point.x / 720) * 100}%`, top: `${(point.y / 250) * 100}%`, marginTop: placeBelow ? '0.5rem' : '-0.5rem' }}
-      role="status"
-    >
-      <p className="whitespace-nowrap font-black text-amber-200">{point.value} - {point.date}</p>
-      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{point.label}</p>
-    </div>
-  );
-}
-
-function SharedPriceHistoryChart({ history }: { history: SharedPriceHistoryEntry[] }) {
-  const [hoveredPoint, setHoveredPoint] = useState<SharedHistoryTooltip | null>(null);
-  const dates = Array.from(new Set(history.map((entry) => entry.date))).sort();
-  const valuesByKey = new Map(history.map((entry) => [`${entry.date}:${entry.finish}`, entry.price]));
-  const series = [
-    { finish: 'normal' as const, label: 'Normal', color: '#7dd3fc' },
-    { finish: 'foil' as const, label: 'Foil', color: '#fcd34d' },
-  ].map((entry) => ({
-    ...entry,
-    values: dates.map((date) => valuesByKey.get(`${date}:${entry.finish}`) ?? null),
-  })).filter((entry) => entry.values.some((value) => value !== null));
-  const prices = history.flatMap((entry) => entry.price === null ? [] : [entry.price]);
-
-  if (dates.length === 0 || prices.length === 0 || series.length === 0) {
-    return <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">No captured market values yet.</p>;
-  }
-
-  const width = 720;
-  const height = 250;
-  const plotLeft = 52;
-  const plotRight = 704;
-  const plotTop = 20;
-  const plotBottom = 188;
-  const maxPrice = Math.max(...prices, 0.01);
-  const getX = (index: number) => dates.length === 1 ? plotLeft + ((plotRight - plotLeft) / 2) : plotLeft + ((index / (dates.length - 1)) * (plotRight - plotLeft));
-  const getY = (value: number) => plotBottom - ((value / maxPrice) * (plotBottom - plotTop));
-  const labelIndexes = Array.from(new Set([0, Math.floor((dates.length - 1) / 2), dates.length - 1]));
-
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/50 p-2 sm:p-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-2">
-        <div className="flex flex-wrap items-center gap-3">
-          {series.map((entry) => <span key={entry.finish} className="inline-flex items-center gap-1.5 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-400"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />{entry.label}</span>)}
-        </div>
-        <span className="text-[0.65rem] font-semibold text-slate-500">USD per card</span>
-      </div>
-      <div className="relative">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Riftbound card market value history line graph" className="h-auto min-w-[36rem] w-full">
-        {[maxPrice, maxPrice / 2, 0].map((value) => {
-          const y = getY(value);
-          return <g key={value}><line x1={plotLeft} x2={plotRight} y1={y} y2={y} stroke="rgba(148,163,184,0.16)" strokeDasharray="4 6" /><text x={plotLeft - 10} y={y + 4} textAnchor="end" fill="#64748b" fontSize="11">{formatMarketPrice(value)}</text></g>;
-        })}
-        <line x1={plotLeft} x2={plotRight} y1={plotBottom} y2={plotBottom} stroke="rgba(148,163,184,0.3)" />
-        {series.map((entry) => buildSharedHistorySegments(entry.values, getX, getY).map((points, index) => <polyline key={`${entry.finish}-${index}`} points={points} fill="none" stroke={entry.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />))}
-        {series.flatMap((entry) => entry.values.map((value, index) => value === null ? null : (() => {
-          const point = {
-            x: getX(index),
-            y: getY(value),
-            label: entry.label,
-            value: formatMarketPrice(value),
-            date: formatSharedHistoryTooltipDate(dates[index]),
-          };
-          return <circle
-            key={`${entry.finish}-${dates[index]}`}
-            cx={point.x}
-            cy={point.y}
-            r="6"
-            fill="#030712"
-            stroke={entry.color}
-            strokeWidth="2"
-            tabIndex={0}
-            role="img"
-            aria-label={`${point.label}: ${point.value} - ${point.date}`}
-            onMouseEnter={() => setHoveredPoint(point)}
-            onMouseLeave={() => setHoveredPoint(null)}
-            onFocus={() => setHoveredPoint(point)}
-            onBlur={() => setHoveredPoint(null)}
-          />;
-        })()))}
-        {labelIndexes.map((index) => <text key={index} x={getX(index)} y={plotBottom + 25} textAnchor="middle" fill="#64748b" fontSize="11">{formatSharedHistoryDate(dates[index])}</text>)}
-      </svg>
-      {hoveredPoint ? <SharedHistoryChartTooltip point={hoveredPoint} /> : null}
-      </div>
-    </div>
-  );
-}
-
 function SharedDetailValue({ label, value }: { label: string; value: string }) {
   return <div className="min-w-0"><dt className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-slate-500">{label}</dt><dd className="mt-1 truncate text-xs font-bold text-slate-200" title={value}>{value}</dd></div>;
 }
@@ -361,9 +228,10 @@ function SharedMarketValueSourceInfo() {
 }
 
 function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, preferenceSession }: { card: RiftboundCard; onClose: () => void; showMarketDetails?: boolean; preferenceSession?: Session | null }) {
-  const [history, setHistory] = useState<SharedPriceHistoryEntry[]>([]);
+  const [history, setHistory] = useState<RiftboundPriceHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
+  const [historyRange, setHistoryRange] = useState<RiftboundHistoryRangeKey>('30d');
   const rarityClassName = ({ Common: 'text-slate-300', Uncommon: 'text-blue-300', Rare: 'text-violet-300', Epic: 'text-amber-300', Showcase: 'text-yellow-200' } as Record<string, string>)[card.rarity] ?? 'text-slate-300';
 
   useEffect(() => {
@@ -374,7 +242,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
     let cancelled = false;
     setHistoryLoading(true);
     setHistoryError('');
-    void getRiftboundCardPriceHistory(card.id)
+    void getRiftboundCardPriceHistory(card.id, getRiftboundHistoryRangeDays(historyRange))
       .then((nextHistory) => {
         if (!cancelled) setHistory(nextHistory);
       })
@@ -385,7 +253,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
         if (!cancelled) setHistoryLoading(false);
       });
     return () => { cancelled = true; };
-  }, [card.id, showMarketDetails]);
+  }, [card.id, historyRange, showMarketDetails]);
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4" onPointerDown={onClose}>
@@ -409,7 +277,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
               <SharedDomainDetailValue domains={card.domains} /><SharedDetailValue label="Artist" value={card.artist || 'N/A'} /><SharedDetailValue label="Might" value={String(card.might)} />
             </dl>
             <div className="border-t border-white/10 pt-4"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Product Details</p><p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{card.productDetails}</p></div>
-            {showMarketDetails ? <div className="border-t border-white/10 pt-5"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Value History</p><span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-600">Last 30 days</span></div><div className="mt-3">{historyLoading ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-500">Loading market history...</p> : historyError ? <p className="rounded-2xl border border-red-300/10 bg-red-950/20 px-4 py-5 text-sm text-red-200">{historyError}</p> : <SharedPriceHistoryChart history={history} />}</div></div> : null}
+            {showMarketDetails ? <div className="border-t border-white/10 pt-5"><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Value History</p><RiftboundHistoryRangeSelector value={historyRange} onChange={setHistoryRange} /></div><div className="mt-3">{historyLoading ? <RiftboundHistoryChartLoading kind="card" message="Loading market history..." /> : historyError ? <p className="rounded-2xl border border-red-300/10 bg-red-950/20 px-4 py-5 text-sm text-red-200">{historyError}</p> : <RiftboundPriceHistoryChart history={history} />}</div></div> : null}
           </div>
         </div>
       </div>
@@ -697,21 +565,22 @@ function SharedDeckListRow({ card, onOpen, highlighted = false }: { card: Riftbo
   return <button type="button" onClick={() => onOpen(card)} className={`w-full max-w-[18rem] justify-self-center min-w-0 rounded-xl border px-2.5 py-1.5 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}><span className={`block truncate text-xs font-bold ${getRiftboundCardDomainTextClass(card)}`}>{card.displayName}</span><span className="mt-0.5 block truncate text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</span></button>;
 }
 
-function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId }: { entries: Array<{ card: RiftboundCard; key: string }>; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string }) {
+function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId, landscapeImages = false }: { entries: Array<{ card: RiftboundCard; key: string }>; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string; landscapeImages?: boolean }) {
   if (entries.length === 0) return null;
   if (listView) {
     const listGridClassName = gridClassName === 'riftbound-card-grid'
-      ? 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2'
+      ? 'riftbound-deck-list-grid'
       : gridClassName.replace('gap-4', 'gap-2');
     return <div className={listGridClassName}>{entries.map(({ card, key }) => <SharedDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
   }
-  return <div className={gridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored className="w-full max-w-[18rem] justify-self-center" />)}</div>;
+  const cardGridClassName = gridClassName === 'riftbound-card-grid' ? 'riftbound-deck-card-grid' : gridClassName;
+  return <div className={cardGridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored landscapeImage={landscapeImages} className="w-full max-w-[18rem]" />)}</div>;
 }
 
 function SharedDeckSection({ deck, category, label, entries: providedEntries, className = '', entriesClassName, highlightCardId, listView, onOpen }: { deck: SharedDeck; category: SharedDeckCategory; label?: string; entries?: Array<{ card: RiftboundCard; key: string }>; className?: string; entriesClassName?: string; highlightCardId?: string; listView: boolean; onOpen: (card: RiftboundCard) => void }) {
   const entries = providedEntries ?? expandSharedDeckEntries(deck, category);
   if (entries.length === 0) return null;
-  return <section className={`grid content-start gap-3 ${className}`}><h2 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{label ?? sharedDeckCategoryLabels[category]}</h2><SharedDeckEntries entries={entries} listView={listView} onOpen={onOpen} gridClassName={entriesClassName} highlightCardId={highlightCardId} /></section>;
+  return <section className={`grid content-start gap-3 ${className}`}><h2 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{label ?? sharedDeckCategoryLabels[category]}</h2><SharedDeckEntries entries={entries} listView={listView} onOpen={onOpen} gridClassName={entriesClassName} highlightCardId={highlightCardId} landscapeImages={category === 'battlefields'} /></section>;
 }
 
 export function RiftboundCollectionShare() {
@@ -727,6 +596,8 @@ export function RiftboundCollectionShare() {
   const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
   const [deckViewMode, setDeckViewMode] = useState<SharedDeckViewMode>('compact');
   const [sharePageUrl, setSharePageUrl] = useState('');
+  const [deckSaveState, setDeckSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [deckSaveError, setDeckSaveError] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -863,6 +734,36 @@ export function RiftboundCollectionShare() {
     }
   };
 
+  const saveSharedDeck = async () => {
+    if (!session || !snapshot.deck || deckSaveState !== 'idle') return;
+
+    setDeckSaveState('saving');
+    setDeckSaveError('');
+    try {
+      const response = await fetch('/api/riftbound/decks', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: snapshot.deck.name || snapshot.title || 'Saved Riftbound deck',
+          description: snapshot.deck.description || '',
+          legendCardId: snapshot.deck.legendCardId,
+          chosenChampionCardId: snapshot.deck.chosenChampionCardId,
+          cards: snapshot.deck.cards.map(({ card_id, category, quantity }) => ({ cardId: card_id, category, quantity })),
+        }),
+      });
+      const data = await response.json() as { error?: string; deck?: unknown };
+      if (!response.ok || !data.deck) throw new Error(data.error || 'Unable to save this Riftbound deck.');
+      invalidateRiftboundBootstrap(session);
+      setDeckSaveState('saved');
+    } catch (error) {
+      setDeckSaveError(error instanceof Error ? error.message : 'Unable to save this Riftbound deck.');
+      setDeckSaveState('idle');
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10 print:bg-white print:px-2 print:py-2 print:text-black">
       <div className="mx-auto grid w-full max-w-[1600px] gap-6 print:max-w-none print:gap-2">
@@ -880,9 +781,12 @@ export function RiftboundCollectionShare() {
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
               <Link href={snapshot.kind === 'deck' ? '/inventory?tab=sets' : '/inventory'} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> {snapshot.kind === 'deck' ? 'Decks' : 'Inventory'}</Link>
+              {snapshot.kind === 'deck' && snapshot.deck && authResolved && session ? <button type="button" onClick={() => void saveSharedDeck()} disabled={deckSaveState !== 'idle'} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition disabled:cursor-wait disabled:opacity-70 ${deckSaveState === 'saved' ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-amber-200/50 bg-amber-300 text-slate-950 hover:bg-amber-200'}`}>{deckSaveState === 'saving' ? <LoaderCircle size={14} className="animate-spin" /> : deckSaveState === 'saved' ? <Check size={14} /> : <Plus size={14} />} {deckSaveState === 'saved' ? 'Saved to Decks' : 'Save Deck'}</button> : null}
+              {snapshot.kind === 'deck' && snapshot.deck && authResolved && !session ? <Link href="/login" className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><Plus size={14} /> Log in to Save</Link> : null}
               <button type="button" onClick={() => void printCollection()} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Print / Save PDF</button>
             </div>
           </div>
+          {snapshot.kind === 'deck' && deckSaveError ? <p role="alert" className="mt-3 text-sm font-semibold text-red-200 print:hidden">{deckSaveError}</p> : null}
           {snapshot.kind === 'deck' && snapshot.deck ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
@@ -930,9 +834,9 @@ export function RiftboundCollectionShare() {
             onOpen={setSelectedCard}
           /> : (
             <>
-              <div className="grid gap-5 lg:grid-cols-4">
+              <div className={`grid ${deckListView ? 'gap-2' : 'gap-4'} lg:grid-cols-[18rem_minmax(0,1fr)]`}>
                 <SharedDeckSection deck={snapshot.deck} category="legend" entriesClassName="riftbound-card-grid" highlightCardId={snapshot.deck.legendCardId} listView={deckListView} onOpen={setSelectedCard} />
-                <SharedDeckSection deck={snapshot.deck} category="main" label="Champion Units" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => isSharedChampionUnit(card))} className="lg:col-span-3" entriesClassName="riftbound-card-grid" listView={deckListView} onOpen={setSelectedCard} />
+                <SharedDeckSection deck={snapshot.deck} category="main" label="Champion Units" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => isSharedChampionUnit(card))} entriesClassName="riftbound-card-grid" listView={deckListView} onOpen={setSelectedCard} />
               </div>
               <SharedDeckSection deck={snapshot.deck} category="main" label="Main Deck" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => !isSharedChampionUnit(card))} listView={deckListView} onOpen={setSelectedCard} />
               <SharedDeckSection deck={snapshot.deck} category="runes" listView={deckListView} onOpen={setSelectedCard} />

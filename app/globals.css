@@ -39,6 +39,21 @@ body {
   gap: 1rem;
 }
 
+.riftbound-deck-card-grid,
+.riftbound-deck-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 18rem));
+  justify-content: start;
+}
+
+.riftbound-deck-card-grid {
+  gap: 1rem;
+}
+
+.riftbound-deck-list-grid {
+  gap: 0.5rem;
+}
+
 button,
 input,
 textarea,

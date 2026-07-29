@@ -6,6 +6,7 @@
     "dev": "next dev",
     "data:generate": "node scripts/generate-catalogs.mjs",
     "data:generate:riftbound": "node scripts/generate-riftbound-catalog.mjs",
+    "data:import:riftbound-price-history": "node --env-file=.env.local scripts/import-riftbound-price-history.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

@@ -29,20 +29,6 @@ type PriceHistoryEntry = {
   granularity?: 'month';
 };
 
-function getEasternCaptureDate(value: string, fallback: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return fallback;
-
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return values.year && values.month && values.day ? `${values.year}-${values.month}-${values.day}` : fallback;
-}
-
 function getDays(searchParams: URLSearchParams) {
   const rawDays = searchParams.get('days');
   if (rawDays === null) return 30;
@@ -96,13 +82,14 @@ export async function GET(request: Request, { params }: { params: { cardId: stri
       return NextResponse.json({ error: 'finish must be normal or foil.' }, { status: 400 });
     }
 
-    const cutoff = new Date(Date.now() - ((days - 1) * 24 * 60 * 60 * 1000)).toISOString();
+    const cutoffDate = new Date(Date.now() - ((days - 1) * 24 * 60 * 60 * 1000));
+    const cutoff = cutoffDate.toISOString().slice(0, 10);
     let query = getSupabaseServiceClient()
       .from('riftbound_card_price_snapshots')
       .select('snapshot_date, finish, price_cents, currency, source, source_snapshot_at, capture_status, captured_at')
       .eq('card_id', card.id)
-      .gte('captured_at', cutoff)
-      .order('captured_at', { ascending: true })
+      .gte('snapshot_date', cutoff)
+      .order('snapshot_date', { ascending: true })
       .order('finish', { ascending: true });
 
     if (finish) query = query.eq('finish', finish);
@@ -112,7 +99,7 @@ export async function GET(request: Request, { params }: { params: { cardId: stri
 
     const granularity = getHistoryGranularity(days);
     const dailyHistory: PriceHistoryEntry[] = (data ?? []).map((row) => ({
-      date: getEasternCaptureDate(row.captured_at, row.snapshot_date),
+      date: row.snapshot_date,
       finish: row.finish,
       price: row.price_cents === null ? null : row.price_cents / 100,
       priceCents: row.price_cents,
@@ -121,6 +108,7 @@ export async function GET(request: Request, { params }: { params: { cardId: stri
       sourceSnapshotAt: row.source_snapshot_at,
       captureStatus: row.capture_status,
       capturedAt: row.captured_at,
+      ...(row.source === 'tcgcsv_archive_monthly' ? { granularity: 'month' as const } : {}),
     }));
     const history = granularity === 'month' ? getMonthlyPricePeaks(dailyHistory) : dailyHistory;
     const response = NextResponse.json({

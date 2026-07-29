@@ -77,7 +77,7 @@ type CachedResponse<T> = {
 };
 
 const REQUEST_CACHE_TTL_MS = 30_000;
-const RIFTBOUND_PRICE_HISTORY_CACHE_VERSION = 'v2';
+const RIFTBOUND_PRICE_HISTORY_CACHE_VERSION = 'v3';
 const responseCache = new Map<string, CachedResponse<unknown>>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
 const cacheGenerations = new Map<string, number>();

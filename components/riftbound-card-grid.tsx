@@ -168,7 +168,7 @@ export type RiftboundCategoricalFilterField = Exclude<keyof RiftboundCardFilters
 
 const ALL_FILTER_VALUE = 'all';
 const PRICE_HISTORY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const PRICE_HISTORY_CACHE_VERSION = 'v2';
+const PRICE_HISTORY_CACHE_VERSION = 'v3';
 const PRICE_HISTORY_STORAGE_PREFIX = `knowleague:riftbound-price-history:${PRICE_HISTORY_CACHE_VERSION}:`;
 const PRICE_HISTORY_STORAGE_LIMIT = 100;
 const RIFTBOUND_MARKET_VALUE_REFRESH_NOTE = 'Daily refresh at 6:00 AM EST.';

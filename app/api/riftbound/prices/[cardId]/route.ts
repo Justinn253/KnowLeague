@@ -108,7 +108,7 @@ export async function GET(request: Request, { params }: { params: { cardId: stri
       sourceSnapshotAt: row.source_snapshot_at,
       captureStatus: row.capture_status,
       capturedAt: row.captured_at,
-      ...(row.source === 'tcgcsv_archive_monthly' ? { granularity: 'month' as const } : {}),
+      ...(granularity === 'month' ? { granularity: 'month' as const } : {}),
     }));
     const history = granularity === 'month' ? getMonthlyPricePeaks(dailyHistory) : dailyHistory;
     const response = NextResponse.json({

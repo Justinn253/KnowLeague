@@ -159,26 +159,24 @@ type ProfileSourceCardProps =
   | {
     sourceType: 'set';
     source: ProfileSetSource;
-    favorite: boolean;
-    owner: boolean;
-    pending?: boolean;
-    onFavorite: () => void;
     onOpen: () => void;
   };
 
-function ProfileSourceCard({ sourceType, source, favorite, owner, pending = false, onFavorite, onOpen }: ProfileSourceCardProps) {
+function ProfileSourceCard(props: ProfileSourceCardProps) {
+  const { sourceType, source, onOpen } = props;
   const previewCards = sourceType === 'deck' ? getDeckPreviewCards(source) : getSetPreviewCards(source);
-  const favoriteLabel = favorite ? 'Remove from favorites' : 'Add to favorites';
-  const favoriteControl = owner
-    ? <OverviewPreferenceButton label={favoriteLabel} onClick={onFavorite} active={favorite} pending={pending}><Star size={15} className={favorite ? 'fill-current' : ''} /></OverviewPreferenceButton>
-    : favorite ? <span title="Favorite source" aria-label="Favorite source" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-amber-200/50 bg-amber-300/10 text-amber-200"><Star size={15} className="fill-current" /></span> : null;
+  const favoriteControl = sourceType === 'deck'
+    ? props.owner
+      ? <OverviewPreferenceButton label={props.favorite ? 'Remove from favorites' : 'Add to favorites'} onClick={props.onFavorite} active={props.favorite} pending={props.pending ?? false}><Star size={15} className={props.favorite ? 'fill-current' : ''} /></OverviewPreferenceButton>
+      : props.favorite ? <span title="Favorite source" aria-label="Favorite source" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-amber-200/50 bg-amber-300/10 text-amber-200"><Star size={15} className="fill-current" /></span> : null
+    : null;
 
   return (
     <article className="relative grid gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-amber-200/40">
       <button type="button" onClick={onOpen} className="grid min-w-0 gap-3 text-left focus:outline-none focus:ring-2 focus:ring-amber-200">
         <div className="min-w-0 pr-10">
           <h3 className="truncate text-lg font-black text-white" title={source.name}>{source.name}</h3>
-          <p className="mt-1 line-clamp-2 min-h-10 text-sm leading-5 text-slate-400" title={source.description || 'No description'}>{source.description || 'No description'}</p>
+          <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-400" title={source.description || 'No description'}>{source.description || 'No description'}</p>
         </div>
         {previewCards.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {previewCards.map((card) => (
@@ -411,8 +409,8 @@ export function RiftboundProfile({ username }: { username?: string }) {
         </header>
 
         {section === 'overview' ? <div className="grid gap-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Favorite Cards</p>{favoriteCards.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{favoriteCards.map((cardId) => { const favorite = profile.favoriteCardIds.includes(cardId); const pending = savingAction === `card:${cardId}`; return <OverviewCardTile key={cardId} cardId={cardId} onOpen={setSelectedCard} action={profile.isOwner ? <OverviewPreferenceButton label={favorite ? 'Remove from favorites' : 'Add to favorites'} onClick={() => toggleFavoriteCard(cardId)} active={favorite} pending={pending}><Star size={14} className={favorite ? 'fill-current' : ''} /></OverviewPreferenceButton> : undefined} />; })}</div> : <p className="text-sm text-slate-500">No favorite cards selected yet.</p>}</section>
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+            <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Favorite Cards</p>{favoriteCards.length > 0 ? <div className="grid gap-3"><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{favoriteCards.map((cardId) => { const favorite = profile.favoriteCardIds.includes(cardId); const pending = savingAction === `card:${cardId}`; return <OverviewCardTile key={cardId} cardId={cardId} onOpen={setSelectedCard} action={profile.isOwner ? <OverviewPreferenceButton label={favorite ? 'Remove from favorites' : 'Add to favorites'} onClick={() => toggleFavoriteCard(cardId)} active={favorite} pending={pending}><Star size={14} className={favorite ? 'fill-current' : ''} /></OverviewPreferenceButton> : undefined} />; })}</div>{favoriteCards.length === 4 ? <p className="text-center text-xs font-semibold text-slate-500">Premium users can have up to 8 favorites</p> : null}</div> : <p className="text-sm text-slate-500">No favorite cards selected yet.</p>}</section>
             <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Wishlist</p>{visibleWishlist.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{visibleWishlist.map((entry) => { const wishlisted = profile.wishlist.some((current) => current.cardId === entry.cardId); const pending = savingAction === `wishlist:${entry.cardId}`; return <OverviewCardTile key={entry.cardId} cardId={entry.cardId} onOpen={setSelectedCard} action={profile.isOwner ? <OverviewPreferenceButton label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'} onClick={() => toggleWishlist(entry.cardId)} active={wishlisted} pending={pending}>{wishlisted ? <Minus size={14} /> : <Plus size={14} />}</OverviewPreferenceButton> : undefined} />; })}</div> : <p className="text-sm text-slate-500">No wishlist cards yet.</p>}</section>
           </div>
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Favorite Decks</p></div>{favoriteDecks.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{favoriteDecks.map((source) => { const favorite = profile.favoriteDeckIds.includes(source.id); return <ProfileSourceCard key={source.id} sourceType="deck" source={source} favorite={favorite} owner={profile.isOwner} pending={savingAction === `deck:${source.id}`} onFavorite={() => toggleFavoriteSource('deck', source.id)} onOpen={() => { const shareUrl = getCompactDeckShareUrl(source, { createdBy: profile.profile.displayName || profile.profile.username, createdAt: source.updated_at || source.created_at }); window.open(shareUrl, '_blank', 'noopener,noreferrer'); }} />; })}</div> : <p className="text-sm text-slate-500">No favorite decks selected yet.</p>}</section>
@@ -489,12 +487,12 @@ export function RiftboundProfile({ username }: { username?: string }) {
         {section === 'sources' ? (
           <div className="grid gap-6">
             <section className="order-1 grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5">
-              <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Game Decks</p><p className="mt-1 text-sm text-slate-500">Saved constructed decks.</p></div>
+              <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Game Decks</p></div>
               {profile.decks.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{profile.decks.map((source) => <ProfileSourceCard key={source.id} sourceType="deck" source={source} favorite={profile.favoriteDeckIds.includes(source.id)} owner={profile.isOwner} pending={savingAction === `deck:${source.id}`} onFavorite={() => toggleFavoriteSource('deck', source.id)} onOpen={() => { const shareUrl = getCompactDeckShareUrl(source, { createdBy: profile.profile.displayName || profile.profile.username, createdAt: source.updated_at || source.created_at }); window.open(shareUrl, '_blank', 'noopener,noreferrer'); }} />)}</div> : <p className="text-sm text-slate-500">No decks saved yet.</p>}
             </section>
             <section className="order-2 grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5">
-              <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Sets</p><p className="mt-1 text-sm text-slate-500">Saved Riftbound sets.</p></div>
-              {profile.sets.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{profile.sets.map((source) => <ProfileSourceCard key={source.id} sourceType="set" source={source} favorite={profile.favoriteSetIds.includes(source.id)} owner={profile.isOwner} pending={savingAction === `set:${source.id}`} onFavorite={() => toggleFavoriteSource('set', source.id)} onOpen={() => setSelectedSource({ type: 'set', id: source.id })} />)}</div> : <p className="text-sm text-slate-500">No sets saved yet.</p>}
+              <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Sets</p></div>
+              {profile.sets.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{profile.sets.map((source) => <ProfileSourceCard key={source.id} sourceType="set" source={source} onOpen={() => setSelectedSource({ type: 'set', id: source.id })} />)}</div> : <p className="text-sm text-slate-500">No sets saved yet.</p>}
             </section>
             {activeSource && selectedSource?.type !== 'deck' ? <section className="order-3 grid gap-4 rounded-3xl border border-amber-200/20 bg-slate-950/80 p-5"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Set Details</p><h2 className="mt-1 text-xl font-black text-white">{activeSource.name}</h2></div><button type="button" onClick={() => setSelectedSource(null)} aria-label="Close source details" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-400"><X size={15} /></button></div><div className="riftbound-card-grid">{activeSource.cards.map((entry) => <CardPreview key={`${entry.card_id}:${entry.quantity}`} cardId={entry.card_id} quantity={entry.quantity} />)}</div></section> : null}
           </div>

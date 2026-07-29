@@ -1845,11 +1845,12 @@ function RiftboundDeckEntries({ entries, listView, onOpen, gridClassName = 'rift
   if (entries.length === 0) return null;
   if (listView) {
     const listGridClassName = gridClassName === 'riftbound-card-grid'
-      ? 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2'
+      ? 'riftbound-deck-list-grid'
       : gridClassName.replace('gap-4', 'gap-2');
     return <div className={listGridClassName}>{entries.map(({ card, key }) => <RiftboundDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
   }
-  return <div className={gridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored showDeckMetadata className="w-full max-w-[18rem] justify-self-center" />)}</div>;
+  const cardGridClassName = gridClassName === 'riftbound-card-grid' ? 'riftbound-deck-card-grid' : gridClassName;
+  return <div className={cardGridClassName}>{entries.map(({ card, category, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored showDeckMetadata landscapeImage={category === 'battlefields'} className="w-full max-w-[18rem]" />)}</div>;
 }
 
 export const RiftboundCardRow = memo(function RiftboundCardRow({
@@ -1867,6 +1868,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   highlighted = false,
   domainNameColored = false,
   showDeckMetadata = false,
+  landscapeImage = false,
   className = '',
 }: {
   card: RiftboundCard;
@@ -1883,6 +1885,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   highlighted?: boolean;
   domainNameColored?: boolean;
   showDeckMetadata?: boolean;
+  landscapeImage?: boolean;
   className?: string;
 }) {
   const finishOptions = getCardFinishOptions(card);
@@ -1898,8 +1901,8 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
         disabled={!onOpen}
         className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"
       >
-        <span className="relative order-2 mt-3 aspect-[744/1039] w-full max-w-[11rem] shrink-0 overflow-hidden rounded-xl bg-slate-900">
-          <RiftboundCardImage card={card} sizes="176px" className="object-cover" loading="lazy" />
+        <span className={`relative order-2 mt-3 w-full shrink-0 overflow-hidden rounded-xl bg-slate-900 ${landscapeImage ? 'aspect-[1038/744] max-w-[16rem]' : 'aspect-[744/1039] max-w-[11rem]'}`}>
+          <RiftboundCardImage card={card} sizes="176px" orientation={landscapeImage ? 'landscape' : 'portrait'} className="object-cover" loading="lazy" />
         </span>
         <span className="order-1 min-w-0 w-full">
           <span className={`block truncate text-lg font-black tracking-tight ${domainNameColored ? getRiftboundCardDomainTextClass(card) : 'text-white'}`} title={card.displayName}>{card.displayName}</span>
@@ -3545,7 +3548,7 @@ export function RiftboundCardGrid() {
             {(['global', 'inventory', 'sets'] as InventoryTab[]).map((tab) => {
               const active = activeTab === tab;
               const label = tab === 'global' ? 'Global' : tab === 'inventory' ? 'Inventory' : 'Decks';
-              const count = tab === 'global' ? cards.length : tab === 'inventory' ? ownedUniqueCount : sets.length;
+              const count = tab === 'global' ? cards.length : tab === 'inventory' ? ownedUniqueCount : decks.length;
               return (
                 <button
                   key={tab}
@@ -3923,9 +3926,9 @@ export function RiftboundCardGrid() {
                 />
               ) : (
                 <>
-                  <div className="grid gap-5 lg:grid-cols-4">
+                  <div className={`grid ${deckViewMode === 'list' ? 'gap-2' : 'gap-4'} lg:grid-cols-[18rem_minmax(0,1fr)]`}>
                     <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Legend</h3><RiftboundDeckEntries entries={selectedDeckLegendCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" highlightCardId={selectedDeck.legend_card_id} /></section>
-                    <section className="grid content-start gap-3 lg:col-span-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Champion Units</h3><RiftboundDeckEntries entries={selectedDeckChampionCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" /></section>
+                    <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Champion Units</h3><RiftboundDeckEntries entries={selectedDeckChampionCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" /></section>
                   </div>
                   <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Main Deck</h3><RiftboundDeckEntries entries={selectedDeckMainCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section>
                   <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Runes</h3><RiftboundDeckEntries entries={selectedDeckRuneCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section>

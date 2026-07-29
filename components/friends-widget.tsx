@@ -58,6 +58,7 @@ type FriendDashboard = {
 
 type FriendsWidgetProps = {
   onPendingRequestCountChange?: (count: number) => void;
+  variant?: 'floating' | 'header' | 'responsive';
 };
 
 function openPublicProfileOverlay(username: string) {
@@ -205,7 +206,7 @@ async function broadcastFriendMessageNotification(friendId: string) {
   });
 }
 
-export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProps) {
+export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating' }: FriendsWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [dashboard, setDashboard] = useState<FriendDashboard | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -273,6 +274,12 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
   useEffect(() => {
     isOpenRef.current = isOpen;
   }, [isOpen]);
+
+  useEffect(() => {
+    const openFromMobileMenu = () => setIsOpen(true);
+    window.addEventListener('knowleague:open-friends', openFromMobileMenu);
+    return () => window.removeEventListener('knowleague:open-friends', openFromMobileMenu);
+  }, []);
 
   useEffect(() => () => {
     if (markReadTimeoutRef.current) {
@@ -1016,7 +1023,11 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
       {isOpen ? (
         <div
           ref={panelRef}
-          className="fixed bottom-2 left-2 right-2 z-[60] mb-0 flex max-h-[calc(100dvh-1rem)] w-auto max-w-none flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:z-auto sm:mb-3 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(calc(100vw-2.5rem),42rem)] sm:max-w-[calc(100vw-2.5rem)] sm:p-4"
+          className={variant === 'responsive'
+            ? 'fixed left-2 right-2 top-14 z-[110] flex max-h-[calc(100dvh-4.5rem)] w-auto max-w-none flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4 xl:absolute xl:left-auto xl:right-0 xl:top-full xl:mt-2 xl:max-h-[calc(100dvh-1rem)] xl:w-[min(calc(100vw-1rem),42rem)] xl:max-w-[calc(100vw-1rem)]'
+            : variant === 'header'
+            ? 'absolute right-0 top-full z-[110] mt-2 flex max-h-[calc(100dvh-1rem)] w-[min(calc(100vw-1rem),42rem)] max-w-[calc(100vw-1rem)] flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(calc(100vw-2.5rem),42rem)] sm:max-w-[calc(100vw-2.5rem)] sm:p-4'
+            : 'fixed bottom-2 left-2 right-2 z-[60] mb-0 flex max-h-[calc(100dvh-1rem)] w-auto max-w-none flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:z-auto sm:mb-3 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(calc(100vw-2.5rem),42rem)] sm:max-w-[calc(100vw-2.5rem)] sm:p-4'}
         >
           {activeFriendView ? (
             <>
@@ -1513,7 +1524,12 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
 
       <button
         type="button"
+        aria-label="Friends"
+        title="Friends"
+        onMouseEnter={() => playUiSound('autocomplete-hover')}
+        onFocus={() => playUiSound('autocomplete-hover')}
         onClick={() => {
+          playUiSound('autocomplete-select');
           setIsOpen((value) => {
             if (value) {
               setAddFriendOpen(false);
@@ -1526,10 +1542,14 @@ export function FriendsWidget({ onPendingRequestCountChange }: FriendsWidgetProp
             return !value;
           });
         }}
-        className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900"
+        className={variant === 'responsive'
+          ? 'relative hidden h-9 items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 xl:inline-flex xl:h-10 xl:px-3'
+          : variant === 'header'
+          ? 'relative inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-10 sm:px-3'
+          : 'relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900'}
       >
         <Users size={18} />
-        Friends
+        <span className={variant === 'header' || variant === 'responsive' ? 'hidden xl:inline' : ''}>Friends</span>
         <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-100">
           {onlineCount}
         </span>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, FileDown, Grid2X2, Info, LayoutList, PackageOpen, Plus, QrCode, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, FileDown, Grid2X2, Info, LayoutList, LoaderCircle, PackageOpen, Plus, QrCode, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
@@ -11,7 +11,7 @@ import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-pref
 import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardDomainTextClass, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundFinish } from '@/lib/riftbound';
-import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, type RiftboundLatestPrice } from '@/lib/riftbound-client';
+import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundLatestPrice } from '@/lib/riftbound-client';
 
 type SharedInventoryRow = {
   card_id: string;
@@ -697,21 +697,22 @@ function SharedDeckListRow({ card, onOpen, highlighted = false }: { card: Riftbo
   return <button type="button" onClick={() => onOpen(card)} className={`w-full max-w-[18rem] justify-self-center min-w-0 rounded-xl border px-2.5 py-1.5 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}><span className={`block truncate text-xs font-bold ${getRiftboundCardDomainTextClass(card)}`}>{card.displayName}</span><span className="mt-0.5 block truncate text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</span></button>;
 }
 
-function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId }: { entries: Array<{ card: RiftboundCard; key: string }>; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string }) {
+function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId, landscapeImages = false }: { entries: Array<{ card: RiftboundCard; key: string }>; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string; landscapeImages?: boolean }) {
   if (entries.length === 0) return null;
   if (listView) {
     const listGridClassName = gridClassName === 'riftbound-card-grid'
-      ? 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2'
+      ? 'riftbound-deck-list-grid'
       : gridClassName.replace('gap-4', 'gap-2');
     return <div className={listGridClassName}>{entries.map(({ card, key }) => <SharedDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
   }
-  return <div className={gridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored className="w-full max-w-[18rem] justify-self-center" />)}</div>;
+  const cardGridClassName = gridClassName === 'riftbound-card-grid' ? 'riftbound-deck-card-grid' : gridClassName;
+  return <div className={cardGridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored landscapeImage={landscapeImages} className="w-full max-w-[18rem]" />)}</div>;
 }
 
 function SharedDeckSection({ deck, category, label, entries: providedEntries, className = '', entriesClassName, highlightCardId, listView, onOpen }: { deck: SharedDeck; category: SharedDeckCategory; label?: string; entries?: Array<{ card: RiftboundCard; key: string }>; className?: string; entriesClassName?: string; highlightCardId?: string; listView: boolean; onOpen: (card: RiftboundCard) => void }) {
   const entries = providedEntries ?? expandSharedDeckEntries(deck, category);
   if (entries.length === 0) return null;
-  return <section className={`grid content-start gap-3 ${className}`}><h2 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{label ?? sharedDeckCategoryLabels[category]}</h2><SharedDeckEntries entries={entries} listView={listView} onOpen={onOpen} gridClassName={entriesClassName} highlightCardId={highlightCardId} /></section>;
+  return <section className={`grid content-start gap-3 ${className}`}><h2 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{label ?? sharedDeckCategoryLabels[category]}</h2><SharedDeckEntries entries={entries} listView={listView} onOpen={onOpen} gridClassName={entriesClassName} highlightCardId={highlightCardId} landscapeImages={category === 'battlefields'} /></section>;
 }
 
 export function RiftboundCollectionShare() {
@@ -727,6 +728,8 @@ export function RiftboundCollectionShare() {
   const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
   const [deckViewMode, setDeckViewMode] = useState<SharedDeckViewMode>('compact');
   const [sharePageUrl, setSharePageUrl] = useState('');
+  const [deckSaveState, setDeckSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [deckSaveError, setDeckSaveError] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -863,6 +866,36 @@ export function RiftboundCollectionShare() {
     }
   };
 
+  const saveSharedDeck = async () => {
+    if (!session || !snapshot.deck || deckSaveState !== 'idle') return;
+
+    setDeckSaveState('saving');
+    setDeckSaveError('');
+    try {
+      const response = await fetch('/api/riftbound/decks', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: snapshot.deck.name || snapshot.title || 'Saved Riftbound deck',
+          description: snapshot.deck.description || '',
+          legendCardId: snapshot.deck.legendCardId,
+          chosenChampionCardId: snapshot.deck.chosenChampionCardId,
+          cards: snapshot.deck.cards.map(({ card_id, category, quantity }) => ({ cardId: card_id, category, quantity })),
+        }),
+      });
+      const data = await response.json() as { error?: string; deck?: unknown };
+      if (!response.ok || !data.deck) throw new Error(data.error || 'Unable to save this Riftbound deck.');
+      invalidateRiftboundBootstrap(session);
+      setDeckSaveState('saved');
+    } catch (error) {
+      setDeckSaveError(error instanceof Error ? error.message : 'Unable to save this Riftbound deck.');
+      setDeckSaveState('idle');
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10 print:bg-white print:px-2 print:py-2 print:text-black">
       <div className="mx-auto grid w-full max-w-[1600px] gap-6 print:max-w-none print:gap-2">
@@ -880,9 +913,12 @@ export function RiftboundCollectionShare() {
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
               <Link href={snapshot.kind === 'deck' ? '/inventory?tab=sets' : '/inventory'} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> {snapshot.kind === 'deck' ? 'Decks' : 'Inventory'}</Link>
+              {snapshot.kind === 'deck' && snapshot.deck && authResolved && session ? <button type="button" onClick={() => void saveSharedDeck()} disabled={deckSaveState !== 'idle'} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition disabled:cursor-wait disabled:opacity-70 ${deckSaveState === 'saved' ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-amber-200/50 bg-amber-300 text-slate-950 hover:bg-amber-200'}`}>{deckSaveState === 'saving' ? <LoaderCircle size={14} className="animate-spin" /> : deckSaveState === 'saved' ? <Check size={14} /> : <Plus size={14} />} {deckSaveState === 'saved' ? 'Saved to Decks' : 'Save Deck'}</button> : null}
+              {snapshot.kind === 'deck' && snapshot.deck && authResolved && !session ? <Link href="/login" className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><Plus size={14} /> Log in to Save</Link> : null}
               <button type="button" onClick={() => void printCollection()} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Print / Save PDF</button>
             </div>
           </div>
+          {snapshot.kind === 'deck' && deckSaveError ? <p role="alert" className="mt-3 text-sm font-semibold text-red-200 print:hidden">{deckSaveError}</p> : null}
           {snapshot.kind === 'deck' && snapshot.deck ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
@@ -930,9 +966,9 @@ export function RiftboundCollectionShare() {
             onOpen={setSelectedCard}
           /> : (
             <>
-              <div className="grid gap-5 lg:grid-cols-4">
+              <div className={`grid ${deckListView ? 'gap-2' : 'gap-4'} lg:grid-cols-[18rem_minmax(0,1fr)]`}>
                 <SharedDeckSection deck={snapshot.deck} category="legend" entriesClassName="riftbound-card-grid" highlightCardId={snapshot.deck.legendCardId} listView={deckListView} onOpen={setSelectedCard} />
-                <SharedDeckSection deck={snapshot.deck} category="main" label="Champion Units" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => isSharedChampionUnit(card))} className="lg:col-span-3" entriesClassName="riftbound-card-grid" listView={deckListView} onOpen={setSelectedCard} />
+                <SharedDeckSection deck={snapshot.deck} category="main" label="Champion Units" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => isSharedChampionUnit(card))} entriesClassName="riftbound-card-grid" listView={deckListView} onOpen={setSelectedCard} />
               </div>
               <SharedDeckSection deck={snapshot.deck} category="main" label="Main Deck" entries={expandSharedDeckEntries(snapshot.deck, 'main').filter(({ card }) => !isSharedChampionUnit(card))} listView={deckListView} onOpen={setSelectedCard} />
               <SharedDeckSection deck={snapshot.deck} category="runes" listView={deckListView} onOpen={setSelectedCard} />

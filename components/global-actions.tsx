@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { AchievementToasts } from '@/components/achievement-toasts';
-import { AppNavigationDrawer } from '@/components/app-navigation-drawer';
+import { AppHeader } from '@/components/app-header';
 import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
 import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getAuthSessionId } from '@/lib/auth-session';
@@ -18,10 +18,6 @@ import type { AppRole } from '@/lib/moderation';
 
 type ProfileOverlayTab = 'profile' | 'stats' | 'achievements' | 'account';
 
-const FriendsWidget = dynamic(
-  () => import('@/components/friends-widget').then((module) => module.FriendsWidget),
-  { ssr: false },
-);
 const ProfileScreen = dynamic(
   () => import('@/components/profile-screen').then((module) => module.ProfileScreen),
   { ssr: false },
@@ -34,8 +30,6 @@ const PublicProfileScreen = dynamic(
 export function GlobalActions() {
   const pathname = usePathname();
   const router = useRouter();
-  const [profileHref, setProfileHref] = useState('/login');
-  const [profileLabel, setProfileLabel] = useState('Profile');
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -46,6 +40,19 @@ export function GlobalActions() {
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
   const activeSessionRef = useRef<Session | null>(null);
   const profileAppRoleRef = useRef<string | null>(null);
+
+  const openProfile = (tab: ProfileOverlayTab = 'profile') => {
+    setProfileInitialTab(tab);
+    setProfileOpen(true);
+  };
+
+  const logOut = async () => {
+    await forfeitStoredMultiplayerSessions();
+    const supabase = getOptionalSupabaseClient();
+    await supabase?.auth.signOut();
+    setProfileOpen(false);
+    router.push('/login');
+  };
 
   useEffect(() => {
     void reconcileStoredMultiplayerSessionsAwayFromGame(pathname);
@@ -78,8 +85,6 @@ export function GlobalActions() {
       activeSessionRef.current = session ?? null;
       if (!session) {
         profileAppRoleRef.current = null;
-        setProfileHref('/login');
-        setProfileLabel('Profile');
         setProfileAvatarUrl(null);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
@@ -101,7 +106,6 @@ export function GlobalActions() {
           }
         });
       }
-      setProfileHref('/profile');
       const profileResult = await getSessionScopedRequest('global-profile', session, async () => supabase
         .from('profiles')
         .select('username, display_name, active_session_id, avatar_url, app_role')
@@ -122,8 +126,6 @@ export function GlobalActions() {
         await forfeitStoredMultiplayerSessions();
         await supabase.auth.signOut({ scope: 'local' });
         activeSessionRef.current = null;
-        setProfileHref('/login');
-        setProfileLabel('Profile');
         setProfileAvatarUrl(null);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
@@ -137,7 +139,6 @@ export function GlobalActions() {
         window.clearTimeout(signInCheckTimeout);
         signInCheckTimeout = null;
       }
-      setProfileLabel(data?.display_name || data?.username || 'Profile');
       setProfileAvatarUrl(data?.avatar_url ?? null);
     };
 
@@ -232,23 +233,17 @@ export function GlobalActions() {
     <>
       <PlayerGameStatsSync />
 
-      <div className="fixed right-3 top-3 z-[90] sm:right-5 sm:top-5">
-        <AppNavigationDrawer
-          isLoggedIn={isLoggedIn}
-          profileHref={profileHref}
-          profileLabel={profileLabel}
-          profileAvatarUrl={profileAvatarUrl}
-          pendingFriendRequests={pendingFriendRequests}
-          moderationRole={moderationRole}
-          onOpenProfile={() => {
-            setProfileInitialTab('profile');
-            setProfileOpen(true);
-          }}
-        />
-      </div>
+      <AppHeader
+        isLoggedIn={isLoggedIn}
+        profileAvatarUrl={profileAvatarUrl}
+        pendingFriendRequests={pendingFriendRequests}
+        moderationRole={moderationRole}
+        onOpenProfile={() => openProfile()}
+        onPendingFriendRequestsChange={setPendingFriendRequests}
+        onLogOut={() => void logOut()}
+      />
 
       <div className="fixed bottom-3 right-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-end gap-2 sm:bottom-5 sm:right-5 sm:gap-3">
-        {isLoggedIn ? <FriendsWidget onPendingRequestCountChange={setPendingFriendRequests} /> : null}
         <AchievementToasts />
       </div>
       {profileOpen ? (

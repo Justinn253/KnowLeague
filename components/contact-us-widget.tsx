@@ -5,6 +5,7 @@ import { MessageSquare, Send, X } from 'lucide-react';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { ContactSubmissionCategory } from '@/lib/contact';
+import { playUiSound } from '@/lib/ui-sounds';
 
 const CONTACT_MESSAGE_MAX_LENGTH = 2000;
 
@@ -12,11 +13,11 @@ const contactOptions: { value: ContactSubmissionCategory; label: string }[] = [
   { value: 'feedback', label: 'Feedback' },
   { value: 'bug_report', label: 'Report a bug' },
   { value: 'suggestion', label: 'Suggestion' },
-  { value: 'player_report', label: 'Report a player' },
+  { value: 'player_report', label: 'Report a user' },
 ];
 
 type ContactUsWidgetProps = {
-  variant?: 'floating' | 'drawer';
+  variant?: 'floating' | 'drawer' | 'header-icon';
 };
 
 export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) {
@@ -26,7 +27,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
   const [reportedUsername, setReportedUsername] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -34,7 +35,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
     }
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -64,7 +65,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
 
     if (category === 'player_report' && cleanReportedUsername.length < 3) {
       setStatus('error');
-      setErrorMessage('Enter the player username you are reporting.');
+      setErrorMessage('Enter the username you are reporting.');
       return;
     }
 
@@ -110,12 +111,13 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
   };
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       {isOpen ? (
         <div
-          ref={panelRef}
           className={variant === 'drawer'
             ? 'fixed left-1/2 top-1/2 z-[110] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+            : variant === 'header-icon'
+              ? 'absolute right-0 top-full z-[110] mt-2 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),26rem)] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
             : 'absolute bottom-full right-0 mb-3 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2.5rem),26rem)] max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'}
         >
           <div className="flex items-start justify-between gap-4">
@@ -160,7 +162,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
 
             {category === 'player_report' ? (
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Player Username</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Reported Username</span>
                 <input
                   value={reportedUsername}
                   onChange={(event) => setReportedUsername(event.target.value.slice(0, 100))}
@@ -210,12 +212,21 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
             ) : null}
           </form>
         </div>
-      ) : (
-        <button
+      ) : null}
+      <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onMouseEnter={() => playUiSound('autocomplete-hover')}
+          onFocus={() => playUiSound('autocomplete-hover')}
+          onClick={() => {
+            playUiSound('autocomplete-select');
+            setIsOpen((value) => !value);
+          }}
+          aria-label="Contact"
+          title="Contact"
           className={variant === 'drawer'
             ? 'flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
+            : variant === 'header-icon'
+              ? 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-10 sm:w-10'
             : 'inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-slate-950 px-4 text-sm font-bold text-amber-200 transition hover:border-amber-200 hover:bg-slate-900'}
         >
           {variant === 'drawer' ? (
@@ -223,9 +234,8 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
               <MessageSquare size={18} />
             </span>
           ) : <MessageSquare size={18} />}
-          Contact
-        </button>
-      )}
+          {variant !== 'header-icon' ? 'Contact' : null}
+      </button>
     </div>
   );
 }

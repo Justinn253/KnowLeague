@@ -276,9 +276,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   }, [isOpen]);
 
   useEffect(() => {
-    const openFromMobileMenu = () => setIsOpen(true);
-    window.addEventListener('knowleague:open-friends', openFromMobileMenu);
-    return () => window.removeEventListener('knowleague:open-friends', openFromMobileMenu);
+    const toggleFromHeader = () => setIsOpen((value) => !value);
+    window.addEventListener('knowleague:toggle-friends', toggleFromHeader);
+    return () => window.removeEventListener('knowleague:toggle-friends', toggleFromHeader);
   }, []);
 
   useEffect(() => () => {
@@ -685,6 +685,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (target.closest('[data-profile-overlay="true"]')) {
+        return;
+      }
+      if (target.closest('[data-friends-trigger="true"]')) {
         return;
       }
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {

@@ -97,7 +97,7 @@ function getProfileCollectionFilterOptions() {
 function OverviewCardTile({ cardId, onOpen, action }: { cardId: string; onOpen: (card: RiftboundCard) => void; action?: ReactNode }) {
   const card = getRiftboundCardById(cardId);
   if (!card) return null;
-  return <article className="group relative min-w-0 rounded-xl border border-white/10 bg-slate-900/60 p-2 transition hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => onOpen(card)} className="block w-full min-w-0 text-center focus:outline-none focus:ring-2 focus:ring-amber-200"><div className="relative mx-auto aspect-[744/1039] w-full max-w-[8rem] overflow-hidden rounded-lg bg-slate-950"><RiftboundCardImage card={card} sizes="128px" className="object-cover" /></div><p className="mt-2 truncate text-center text-sm font-black text-slate-200" title={card.displayName}>{card.displayName}</p><p className="mt-1 truncate text-center text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</p></button>{action ? <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">{action}</div> : null}</article>;
+  return <article className="group relative min-w-0 rounded-xl border border-white/10 bg-slate-900/60 p-2 transition focus-within:border-amber-200 hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => onOpen(card)} className="block w-full min-w-0 text-center focus:outline-none"><div className="relative mx-auto aspect-[744/1039] w-full max-w-[8rem] overflow-hidden rounded-lg bg-slate-950"><RiftboundCardImage card={card} sizes="128px" className="object-cover" /></div><p className="mt-2 truncate text-center text-sm font-black text-slate-200" title={card.displayName}>{card.displayName}</p><p className="mt-1 truncate text-center text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</p></button>{action ? <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">{action}</div> : null}</article>;
 }
 
 function ReorderableOverviewCardTile({ cardId, onOpen, action, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: { cardId: string; onOpen: (card: RiftboundCard) => void; action?: ReactNode; draggable: boolean; dragging: boolean; onDragStart: (event: DragEvent<HTMLDivElement>) => void; onDragOver: (event: DragEvent<HTMLDivElement>) => void; onDrop: (event: DragEvent<HTMLDivElement>) => void; onDragEnd: () => void }) {
@@ -179,8 +179,8 @@ function ProfileSourceCard(props: ProfileSourceCardProps) {
     : null;
 
   return (
-    <article className="relative grid gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-amber-200/40">
-      <button type="button" onClick={onOpen} className="grid min-w-0 gap-3 text-left focus:outline-none focus:ring-2 focus:ring-amber-200">
+    <article className="relative grid gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition focus-within:border-amber-200/70 hover:border-amber-200/40">
+      <button type="button" onClick={onOpen} className="grid min-w-0 gap-3 text-left focus:outline-none">
         <div className="min-w-0 pr-10">
           <h3 className="truncate text-lg font-black text-white" title={source.name}>{source.name}</h3>
           <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-400" title={source.description || 'No description'}>{source.description || 'No description'}</p>

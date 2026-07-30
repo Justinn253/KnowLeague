@@ -1632,13 +1632,13 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   const isInventory = mode === 'inventory';
   const isCollection = mode === 'collection-view';
   return (
-    <article className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors hover:bg-slate-950 sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
+    <article className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors focus-within:border-amber-200/80 hover:bg-slate-950 sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
       {ownership ? <div className={`mb-2 inline-flex items-center gap-1 self-end text-[0.6rem] font-black uppercase tracking-[0.12em] ${ownership === 'owned' ? 'text-emerald-300' : 'text-red-300'}`}><CheckCircle2 size={12} /> {ownership}</div> : null}
       <button
         type="button"
         onClick={() => onOpen?.(card)}
         disabled={!onOpen}
-        className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"
+        className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none"
       >
         <span className={`relative order-2 mt-3 w-full shrink-0 overflow-hidden rounded-xl bg-slate-900 ${landscapeImage ? 'aspect-[1038/744] max-w-[16rem]' : 'aspect-[744/1039] max-w-[11rem]'}`}>
           <RiftboundCardImage card={card} sizes="176px" orientation={landscapeImage ? 'landscape' : 'portrait'} className="object-cover" loading="lazy" />
@@ -3766,7 +3766,7 @@ export function RiftboundCardGrid() {
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {decks.map((deck) => {
                       const legend = cardsById.get(deck.legend_card_id);
-                      return <article key={deck.id} className="relative rounded-2xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => { setSelectedDeckId(deck.id); setSelectedSetId(null); setDeckViewMode('compact'); setDecksError(''); }} className="block w-full rounded-xl p-1 text-left focus:outline-none focus:ring-2 focus:ring-amber-200"><p className="truncate pr-12 text-lg font-black text-white">{deck.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Legend: {legend?.displayName ?? 'Unknown'}</p><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-300">{deck.description || 'No description'}</p><p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Created {formatDeckCreatedDate(deck.created_at)}</p></button><div className="absolute right-4 top-4"><RiftboundDeckFavoriteButton deckId={deck.id} session={session} /></div></article>;
+                      return <article key={deck.id} className="relative rounded-2xl border border-white/10 bg-slate-900/70 p-4 transition focus-within:border-amber-200/70 hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => { setSelectedDeckId(deck.id); setSelectedSetId(null); setDeckViewMode('compact'); setDecksError(''); }} className="block w-full rounded-xl p-1 text-left focus:outline-none"><p className="truncate pr-12 text-lg font-black text-white">{deck.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Legend: {legend?.displayName ?? 'Unknown'}</p><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-300">{deck.description || 'No description'}</p><p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Created {formatDeckCreatedDate(deck.created_at)}</p></button><div className="absolute right-4 top-4"><RiftboundDeckFavoriteButton deckId={deck.id} session={session} /></div></article>;
                     })}
                   </div>
                 )}

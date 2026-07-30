@@ -1,7 +1,8 @@
 'use client';
 
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
-import { getRiftboundCardDomainTextClass, type RiftboundCard } from '@/lib/riftbound';
+import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, type RiftboundCard } from '@/lib/riftbound';
+import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
 
 export type RiftboundCompactDeckEntry = {
   card: RiftboundCard;
@@ -14,6 +15,7 @@ type RiftboundCompactSectionProps = {
   onOpen: (card: RiftboundCard) => void;
   tone: 'green' | 'blue' | 'amber' | 'violet' | 'cyan' | 'rose' | 'red';
   highlighted?: boolean;
+  tierRatings?: Record<string, RiftboundCardTierRating>;
   className?: string;
 };
 
@@ -33,7 +35,7 @@ const sectionToneClasses: Record<RiftboundCompactSectionProps['tone'], string> =
   red: 'border-red-300/35 bg-red-300/[0.04]',
 };
 
-function RiftboundCompactCardTile({ card, quantity, onOpen, highlighted = false }: { card: RiftboundCard; quantity: number; onOpen: (card: RiftboundCard) => void; highlighted?: boolean }) {
+function RiftboundCompactCardTile({ card, quantity, onOpen, highlighted = false, tier }: { card: RiftboundCard; quantity: number; onOpen: (card: RiftboundCard) => void; highlighted?: boolean; tier?: string | null }) {
   const isBattlefield = card.cardType === 'Battlefield' || card.cardTypeLabels.includes('Battlefield');
 
   return (
@@ -47,25 +49,25 @@ function RiftboundCompactCardTile({ card, quantity, onOpen, highlighted = false 
         <span className="absolute bottom-1 right-1 rounded-md border border-amber-200/40 bg-slate-950/95 px-1.5 py-0.5 text-[0.6rem] font-black text-amber-200">×{quantity}</span>
       </span>
       <span className={`mt-1 w-full truncate text-[0.65rem] font-black ${getRiftboundCardDomainTextClass(card)}`} title={card.displayName}>{card.displayName}</span>
-      <span className="mt-0.5 w-full truncate text-[0.55rem] font-black uppercase tracking-[0.08em] text-slate-500">{card.setCode} · {card.numberLabel}</span>
+      <span className="mt-0.5 w-full truncate text-[0.55rem] font-black uppercase tracking-[0.08em] text-slate-500">{card.setCode} · {card.numberLabel}{tier ? ` · ${tier}` : ''}</span>
     </button>
   );
 }
 
-function RiftboundCompactSection({ label, entries, onOpen, tone, highlighted = false, className = '' }: RiftboundCompactSectionProps) {
+function RiftboundCompactSection({ label, entries, onOpen, tone, highlighted = false, tierRatings = {}, className = '' }: RiftboundCompactSectionProps) {
   if (entries.length === 0) return null;
 
   return (
     <section className={`h-fit grid content-start gap-1.5 rounded-2xl border p-2.5 ${sectionToneClasses[tone]} ${className}`}>
       <h2 className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-amber-300">{label}</h2>
       <div className="flex flex-wrap items-start gap-1.5">
-        {entries.map(({ card, quantity }) => <RiftboundCompactCardTile key={card.id} card={card} quantity={quantity} onOpen={onOpen} highlighted={highlighted} />)}
+        {entries.map(({ card, quantity }) => <RiftboundCompactCardTile key={card.id} card={card} quantity={quantity} onOpen={onOpen} highlighted={highlighted} tier={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} />)}
       </div>
     </section>
   );
 }
 
-export function RiftboundCompactDeckView({ shareUrl, creatorName, deckName, createdAt, legendEntries, championEntries, mainEntries, runeEntries, battlefieldEntries, sideboardEntries, onOpen, mainLabel = 'Main Deck', showHeader = true, className = '' }: { shareUrl: string; creatorName: string; deckName: string; createdAt: string; legendEntries: RiftboundCompactDeckEntry[]; championEntries: RiftboundCompactDeckEntry[]; mainEntries: RiftboundCompactDeckEntry[]; runeEntries: RiftboundCompactDeckEntry[]; battlefieldEntries: RiftboundCompactDeckEntry[]; sideboardEntries: RiftboundCompactDeckEntry[]; onOpen: (card: RiftboundCard) => void; mainLabel?: string; showHeader?: boolean; className?: string }) {
+export function RiftboundCompactDeckView({ shareUrl, creatorName, deckName, createdAt, legendEntries, championEntries, mainEntries, runeEntries, battlefieldEntries, sideboardEntries, onOpen, tierRatings = {}, mainLabel = 'Main Deck', showHeader = true, className = '' }: { shareUrl: string; creatorName: string; deckName: string; createdAt: string; legendEntries: RiftboundCompactDeckEntry[]; championEntries: RiftboundCompactDeckEntry[]; mainEntries: RiftboundCompactDeckEntry[]; runeEntries: RiftboundCompactDeckEntry[]; battlefieldEntries: RiftboundCompactDeckEntry[]; sideboardEntries: RiftboundCompactDeckEntry[]; onOpen: (card: RiftboundCard) => void; tierRatings?: Record<string, RiftboundCardTierRating>; mainLabel?: string; showHeader?: boolean; className?: string }) {
   return (
     <section className={`grid gap-3 rounded-3xl border border-amber-200/20 bg-slate-950/90 p-3 sm:p-4 ${className}`}>
       {showHeader ? <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -76,19 +78,19 @@ export function RiftboundCompactDeckView({ shareUrl, creatorName, deckName, crea
       </div> : null}
       <div className="grid gap-3 lg:grid-cols-[13.2rem_minmax(0,1fr)]">
         <div className="grid content-start gap-3">
-          <RiftboundCompactSection label="Legend" entries={legendEntries} onOpen={onOpen} tone="amber" highlighted />
+          <RiftboundCompactSection label="Legend" entries={legendEntries} onOpen={onOpen} tone="amber" highlighted tierRatings={tierRatings} />
         </div>
         <div className="grid items-start gap-3">
           <div className="flex flex-wrap items-start gap-3 lg:flex-nowrap">
-            <RiftboundCompactSection label="Champion Units" entries={championEntries} onOpen={onOpen} tone="rose" className="w-fit max-w-full" />
-            <RiftboundCompactSection label="Runes" entries={runeEntries} onOpen={onOpen} tone="green" className="w-fit max-w-full" />
-            <RiftboundCompactSection label="Battlefields" entries={battlefieldEntries} onOpen={onOpen} tone="cyan" className="w-fit max-w-full" />
+            <RiftboundCompactSection label="Champion Units" entries={championEntries} onOpen={onOpen} tone="rose" tierRatings={tierRatings} className="w-fit max-w-full" />
+            <RiftboundCompactSection label="Runes" entries={runeEntries} onOpen={onOpen} tone="green" tierRatings={tierRatings} className="w-fit max-w-full" />
+            <RiftboundCompactSection label="Battlefields" entries={battlefieldEntries} onOpen={onOpen} tone="cyan" tierRatings={tierRatings} className="w-fit max-w-full" />
             <div className="ml-auto grid h-[12.25rem] w-[12.25rem] max-w-full flex-none place-items-center p-0">
               {shareUrl ? <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&ecc=L&data=${encodeURIComponent(shareUrl)}`} alt="QR code for this Riftbound deck share link" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full rounded-lg" /> : <span className="text-center text-xs text-slate-500">Preparing QR code...</span>}
             </div>
           </div>
-          <RiftboundCompactSection label={mainLabel} entries={mainEntries} onOpen={onOpen} tone="red" />
-          <RiftboundCompactSection label="Sideboard" entries={sideboardEntries} onOpen={onOpen} tone="violet" className="w-fit max-w-full" />
+          <RiftboundCompactSection label={mainLabel} entries={mainEntries} onOpen={onOpen} tone="red" tierRatings={tierRatings} />
+          <RiftboundCompactSection label="Sideboard" entries={sideboardEntries} onOpen={onOpen} tone="violet" tierRatings={tierRatings} className="w-fit max-w-full" />
         </div>
       </div>
     </section>

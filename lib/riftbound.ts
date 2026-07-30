@@ -2,6 +2,17 @@ import riftboundCards from '@/data/catalogs/riftbound-cards.json';
 
 export type RiftboundFinish = 'normal' | 'foil';
 
+export const RIFTBOUND_CARD_TIERS = ['S', 'A', 'B', 'C', 'D'] as const;
+export type RiftboundCardTier = typeof RIFTBOUND_CARD_TIERS[number];
+
+export type RiftboundCardTierRating = {
+  groupId: string;
+  tier: RiftboundCardTier | null;
+  averageValue: number | null;
+  voteCount: number;
+  viewerTier: RiftboundCardTier | null;
+};
+
 const RIFTBOUND_DOMAIN_TEXT_CLASSES: Record<string, string> = {
   Colorless: 'text-slate-300',
   Body: 'text-orange-300',
@@ -62,6 +73,36 @@ export type RiftboundCard = {
   finishOptions: RiftboundFinish[];
   defaultFinish: RiftboundFinish;
 };
+
+export function getRiftboundCardTierGroupId(card: Pick<RiftboundCard, 'fullName' | 'productDetails' | 'cardType' | 'cardTypeLabels' | 'energyCost' | 'powerCost' | 'might'>) {
+  const identity = [
+    card.fullName,
+    card.productDetails,
+    card.cardType,
+    card.cardTypeLabels.join('|'),
+    card.energyCost,
+    card.powerCost,
+    card.might,
+  ].map((value) => String(value).replace(/\s+/g, ' ').trim().toLowerCase()).join('|');
+  let hash = 2166136261;
+  for (let index = 0; index < identity.length; index += 1) {
+    hash ^= identity.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const nameKey = card.fullName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'card';
+  return `content:${(hash >>> 0).toString(16)}:${nameKey}`;
+}
+
+export function getRiftboundCardTierFromValue(value: unknown): RiftboundCardTier | null {
+  const numericValue = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(numericValue) && numericValue >= 0 && numericValue < RIFTBOUND_CARD_TIERS.length
+    ? RIFTBOUND_CARD_TIERS[numericValue]
+    : null;
+}
+
+export function getRiftboundCardTierValue(tier: RiftboundCardTier) {
+  return RIFTBOUND_CARD_TIERS.indexOf(tier);
+}
 
 export function isRiftboundShowcasePrint(card: Pick<RiftboundCard, 'collectorNumber' | 'printedTotal'>) {
   const collectorNumber = card.collectorNumber.trim().toUpperCase();

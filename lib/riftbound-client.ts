@@ -2,6 +2,7 @@
 
 import type { Session } from '@supabase/supabase-js';
 import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
+import type { RiftboundCardTierRating } from '@/lib/riftbound';
 
 export type RiftboundLatestPrice = {
   normal: number | null;
@@ -50,6 +51,7 @@ export type RiftboundLatestPricesResponse = {
   snapshotDate?: string | null;
   sourceSnapshotAt?: string | null;
   capturedAt?: string | null;
+  cardTiers?: Record<string, RiftboundCardTierRating>;
   error?: string;
 };
 
@@ -140,8 +142,15 @@ export function invalidateRiftboundBootstrap(session: Session | null) {
   responseCache.delete(key);
 }
 
-export function getRiftboundLatestPrices() {
-  return requestRiftboundData<RiftboundLatestPricesResponse>('latest-prices', '/api/riftbound/prices/latest', null, { cache: 'force-cache' });
+export function invalidateRiftboundLatestPrices(session?: Session | null) {
+  const key = `latest-prices:${session?.user.id ?? 'guest'}`;
+  cacheGenerations.set(key, getCacheGeneration(key) + 1);
+  responseCache.delete(key);
+}
+
+export function getRiftboundLatestPrices(session?: Session | null) {
+  const key = `latest-prices:${session?.user.id ?? 'guest'}`;
+  return requestRiftboundData<RiftboundLatestPricesResponse>(key, '/api/riftbound/prices/latest', session, { cache: 'force-cache' });
 }
 
 export function getRiftboundCardPriceHistory(cardId: string, days = 30) {

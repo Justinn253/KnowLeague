@@ -10,7 +10,7 @@ import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
-import { getRiftboundCardById } from '@/lib/riftbound';
+import { getRiftboundCardById, getRiftboundCardTierGroupId, type RiftboundCardTier } from '@/lib/riftbound';
 import { isRiftboundChampionUnit } from '@/lib/riftbound-decks';
 import {
   createRiftboundComment,
@@ -22,7 +22,7 @@ import {
   updateRiftboundCommunityPost,
   updateRiftboundPostReaction,
 } from '@/lib/riftbound-community-client';
-import { RIFTBOUND_POST_BODY_MAX_LENGTH, type RiftboundCommunityComment, type RiftboundCommunityPostDetail, type RiftboundPostReaction, type RiftboundPostSnapshotCard } from '@/lib/riftbound-community-types';
+import { RIFTBOUND_POST_BODY_MAX_LENGTH, type RiftboundCardTierRating, type RiftboundCommunityComment, type RiftboundCommunityPostDetail, type RiftboundPostReaction, type RiftboundPostSnapshotCard } from '@/lib/riftbound-community-types';
 
 const categoryLabels: Record<RiftboundPostSnapshotCard['category'], string> = {
   collection: 'Collection',
@@ -78,14 +78,14 @@ function RiftboundCommunityPostHeader({ post }: { post: RiftboundCommunityPostDe
   );
 }
 
-function RiftboundPostCardRow({ entry }: { entry: RiftboundPostSnapshotCard }) {
+function RiftboundPostCardRow({ entry, tierVote }: { entry: RiftboundPostSnapshotCard; tierVote?: RiftboundCardTier }) {
   const card = getRiftboundCardById(entry.card_id);
   if (!card) return null;
   return (
     <article className="riftbound-card-item min-w-0 rounded-2xl border border-white/10 bg-slate-950/80 p-3">
       <div className="relative aspect-[744/1039] overflow-hidden rounded-xl bg-slate-900"><RiftboundCardImage card={card} sizes="220px" loading="lazy" className="object-cover" /></div>
       <p className="mt-2 truncate text-sm font-black text-white" title={card.displayName}>{card.displayName}</p>
-      <p className="mt-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</p>
+      <p className="mt-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-400">
         <span>{entry.category === 'collection' ? entry.finish : categoryLabels[entry.category]}</span>
         <span className="rounded-md border border-amber-200/20 bg-amber-300/10 px-1.5 py-0.5 text-amber-200">×{entry.quantity}</span>
@@ -144,6 +144,7 @@ function ReportMenu({
 export function RiftboundCommunityPost({ postId }: { postId: string }) {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
+  const [tierRatings, setTierRatings] = useState<Record<string, RiftboundCardTierRating>>({});
   const [post, setPost] = useState<RiftboundCommunityPostDetail | null>(null);
   const [comments, setComments] = useState<RiftboundCommunityComment[]>([]);
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
@@ -217,6 +218,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       .then((data) => {
         if (cancelled) return;
         setPost(data.post);
+        setTierRatings(data.post.cardTiers ?? {});
         setLocalReaction(data.post.viewerReaction);
         localReactionRef.current = data.post.viewerReaction;
         setLikeCount(data.post.likeCount);
@@ -439,11 +441,11 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
               <div className="border-t border-white/10 pt-4">
                 <h2 className="text-xl font-black text-white">{post.snapshotTitle || 'Untitled deck'}</h2>
               </div>
-              {compactDeckEntries ? <RiftboundCompactDeckView shareUrl={shareUrl} creatorName={post.author.displayName || post.author.username} deckName={post.snapshotTitle || 'Untitled deck'} createdAt={post.createdAt} {...compactDeckEntries} onOpen={setSelectedCard} showHeader={false} className="-mx-5 rounded-none border-x-0 border-b-0 border-t-0 bg-transparent p-0 sm:-mx-6 sm:px-6" /> : null}
+              {compactDeckEntries ? <RiftboundCompactDeckView shareUrl={shareUrl} creatorName={post.author.displayName || post.author.username} deckName={post.snapshotTitle || 'Untitled deck'} createdAt={post.createdAt} {...compactDeckEntries} tierRatings={tierRatings} onOpen={setSelectedCard} showHeader={false} className="-mx-5 rounded-none border-x-0 border-b-0 border-t-0 bg-transparent p-0 sm:-mx-6 sm:px-6" /> : null}
             </div>
           ) : groupedCards.length > 0 ? (
             <div className="grid gap-5 border-t border-white/10 pt-5">
-              {groupedCards.map(([category, entries]) => <section key={category} className="grid gap-3"><h2 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{categoryLabels[category]}</h2><div className="riftbound-card-grid">{entries.map((entry) => <RiftboundPostCardRow key={`${entry.card_id}:${entry.finish}:${entry.category}`} entry={entry} />)}</div></section>)}
+              {groupedCards.map(([category, entries]) => <section key={category} className="grid gap-3"><h2 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{categoryLabels[category]}</h2><div className="riftbound-card-grid">{entries.map((entry) => { const card = getRiftboundCardById(entry.card_id); return <RiftboundPostCardRow key={`${entry.card_id}:${entry.finish}:${entry.category}`} entry={entry} tierVote={card ? tierRatings[getRiftboundCardTierGroupId(card)]?.tier ?? undefined : undefined} />; })}</div></section>)}
             </div>
           ) : null}
 
@@ -461,7 +463,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
           {commentsCursor ? <button type="button" onClick={() => void loadComments(true)} disabled={commentsMoreLoading} className="mx-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200 disabled:opacity-50">{commentsMoreLoading ? <LoaderCircle size={14} className="animate-spin" /> : null} Load More Comments</button> : null}
           </div>
         </section>
-        {selectedCard ? <RiftboundCardDetailsModal card={selectedCard} normalQuantity={0} foilQuantity={0} latestSnapshotDate={null} pending={false} showInventoryControls={false} showMarketDetails={false} preferenceSession={session} onClose={() => setSelectedCard(null)} onAdjust={() => undefined} /> : null}
+        {selectedCard ? <RiftboundCardDetailsModal card={selectedCard} normalQuantity={0} foilQuantity={0} latestSnapshotDate={null} pending={false} showInventoryControls={false} showMarketDetails={false} preferenceSession={session} tierRating={tierRatings[getRiftboundCardTierGroupId(selectedCard)]} onTierChange={(rating) => setTierRatings((current) => { const next = { ...current }; const groupId = getRiftboundCardTierGroupId(selectedCard); if (rating) next[groupId] = rating; else delete next[groupId]; return next; })} onClose={() => setSelectedCard(null)} onAdjust={() => undefined} /> : null}
       </section>
     </main>
   );

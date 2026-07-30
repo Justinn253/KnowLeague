@@ -7,8 +7,11 @@ import type {
   RiftboundCommunityFeedResponse,
   RiftboundCommunityPostDetail,
   RiftboundCardPreferences,
+  RiftboundCardTierRating,
   RiftboundProfileData,
 } from '@/lib/riftbound-community-types';
+import type { RiftboundCardTier } from '@/lib/riftbound';
+import { invalidateRiftboundBootstrap, invalidateRiftboundLatestPrices } from '@/lib/riftbound-client';
 
 type ErrorPayload = { error?: string };
 
@@ -49,6 +52,18 @@ function invalidateCommunityCache(postId?: string) {
   const postPath = postId ? `/api/riftbound/community/posts/${encodeURIComponent(postId)}` : null;
   responseCache.forEach((_entry, key) => {
     if (key.includes('/api/riftbound/community/feed') || (postPath && key.includes(postPath))) {
+      responseCache.delete(key);
+    }
+  });
+}
+
+function invalidateRiftboundCardTierPayloads() {
+  responseCache.forEach((_entry, key) => {
+    if (
+      key.includes('/api/riftbound/profile')
+      || key.includes('/api/riftbound/profiles/')
+      || key.includes('/api/riftbound/community/posts/')
+    ) {
       responseCache.delete(key);
     }
   });
@@ -108,6 +123,18 @@ export function getRiftboundCardPreferences(session: Session) {
   return getJson<RiftboundCardPreferences>('/api/riftbound/profile/preferences', session).then((value) => {
     preferenceCache.set(key, { value, expiresAt: Date.now() + RIFTBOUND_PREFERENCE_CACHE_TTL_MS });
     return value;
+  });
+}
+
+export function submitRiftboundCardTierVote(cardId: string, tier: RiftboundCardTier, session: Session) {
+  return requestJson<{ rating: RiftboundCardTierRating }>(`/api/riftbound/cards/${encodeURIComponent(cardId)}/tier`, {
+    method: 'POST',
+    body: JSON.stringify({ cardId, tier }),
+  }, session).then((result) => {
+    invalidateRiftboundBootstrap(session);
+    invalidateRiftboundLatestPrices(session);
+    invalidateRiftboundCardTierPayloads();
+    return result;
   });
 }
 

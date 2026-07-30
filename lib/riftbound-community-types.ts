@@ -1,4 +1,5 @@
 import type { RiftboundDeck, RiftboundInventoryItem, RiftboundSet } from '@/lib/riftbound-client';
+export type { RiftboundCardTierRating } from '@/lib/riftbound';
 
 export const RIFTBOUND_POST_TYPES = ['general', 'question', 'deck_build', 'collection', 'set', 'deck'] as const;
 export type RiftboundCommunityPostType = typeof RIFTBOUND_POST_TYPES[number];
@@ -70,6 +71,7 @@ export type RiftboundCommunityPostDetail = RiftboundCommunityPostSummary & {
   snapshotTitle: string;
   snapshotDescription: string;
   cards: RiftboundPostSnapshotCard[];
+  cardTiers: Record<string, import('@/lib/riftbound').RiftboundCardTierRating>;
 };
 
 export type RiftboundCommunityComment = {
@@ -136,6 +138,7 @@ export type RiftboundProfileData = {
   favoriteDeckIds: string[];
   wishlist: RiftboundWishlistCard[];
   posts: RiftboundCommunityPostSummary[];
+  cardTiers: Record<string, import('@/lib/riftbound').RiftboundCardTierRating>;
   entitlement: {
     plan: 'free' | 'premium';
     status: 'active' | 'inactive' | 'past_due' | 'canceled';

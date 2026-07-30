@@ -9,6 +9,7 @@ import type Tesseract from 'tesseract.js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
+import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-view';
 import {
   getRiftboundHistoryRangeDays,
@@ -22,7 +23,8 @@ import {
 } from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
-import { getRiftboundCardDomainTextClass, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
+import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
+import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
 import { getRiftboundBootstrap, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
 import {
   RIFTBOUND_DECK_BATTLEFIELD_SIZE,
@@ -1562,11 +1564,11 @@ function RiftboundDeckFavoriteButton({ deckId, session }: { deckId: string; sess
   return <button type="button" onClick={() => void toggleFavorite()} disabled={favoriteDeckIds === null || saving || atLimit} aria-label={label} title={label} className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-70 ${favorite ? 'border-amber-200/60 bg-amber-300 text-slate-950 hover:bg-amber-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-amber-200/50 hover:text-amber-200'}`}>{saving || favoriteDeckIds === null ? <LoaderCircle size={15} className="animate-spin" /> : <Star size={15} className={favorite ? 'fill-current' : ''} />}</button>;
 }
 
-function RiftboundDeckListRow({ card, onOpen, highlighted = false }: { card: RiftboundCard; onOpen: (card: RiftboundCard) => void; highlighted?: boolean }) {
+function RiftboundDeckListRow({ card, onOpen, highlighted = false, tierVote }: { card: RiftboundCard; onOpen: (card: RiftboundCard) => void; highlighted?: boolean; tierVote?: RiftboundCardTier }) {
   return (
     <button type="button" onClick={() => onOpen(card)} className={`w-full max-w-[18rem] justify-self-center min-w-0 rounded-xl border px-3 py-2 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}>
       <span className={`truncate text-sm font-bold ${getRiftboundCardDomainTextClass(card)}`}>{card.displayName}</span>
-      <span className="mt-1 block truncate text-xs font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</span>
+      <span className="mt-1 block truncate text-xs font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</span>
     </button>
   );
 }
@@ -1580,16 +1582,16 @@ function collapseRiftboundDeckEntries(entries: Array<{ card: RiftboundCard }>) {
   return Array.from(collapsed.values());
 }
 
-function RiftboundDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId }: { entries: ExpandedRiftboundDeckCard[]; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string }) {
+function RiftboundDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId, tierRatings = {} }: { entries: ExpandedRiftboundDeckCard[]; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string; tierRatings?: Record<string, RiftboundCardTierRating> }) {
   if (entries.length === 0) return null;
   if (listView) {
     const listGridClassName = gridClassName === 'riftbound-card-grid'
       ? 'riftbound-deck-list-grid'
       : gridClassName.replace('gap-4', 'gap-2');
-    return <div className={listGridClassName}>{entries.map(({ card, key }) => <RiftboundDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} />)}</div>;
+    return <div className={listGridClassName}>{entries.map(({ card, key }) => <RiftboundDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier ?? undefined} />)}</div>;
   }
   const cardGridClassName = gridClassName === 'riftbound-card-grid' ? 'riftbound-deck-card-grid' : gridClassName;
-  return <div className={cardGridClassName}>{entries.map(({ card, category, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored showDeckMetadata landscapeImage={category === 'battlefields'} className="w-full max-w-[18rem]" />)}</div>;
+  return <div className={cardGridClassName}>{entries.map(({ card, category, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored showDeckMetadata landscapeImage={category === 'battlefields'} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
 }
 
 export const RiftboundCardRow = memo(function RiftboundCardRow({
@@ -1608,6 +1610,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   domainNameColored = false,
   showDeckMetadata = false,
   landscapeImage = false,
+  tierVote,
   className = '',
 }: {
   card: RiftboundCard;
@@ -1625,6 +1628,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   domainNameColored?: boolean;
   showDeckMetadata?: boolean;
   landscapeImage?: boolean;
+  tierVote?: RiftboundCardTier | null;
   className?: string;
 }) {
   const finishOptions = getCardFinishOptions(card);
@@ -1645,7 +1649,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
         </span>
         <span className="order-1 min-w-0 w-full">
           <span className={`block truncate text-lg font-black tracking-tight ${domainNameColored ? getRiftboundCardDomainTextClass(card) : 'text-white'}`} title={card.displayName}>{card.displayName}</span>
-          <span className="mt-1 block text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}</span>
+          <span className="mt-1 flex items-center justify-center gap-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500"><span>{card.setCode} · {card.numberLabel}</span>{tierVote ? <span>· {tierVote}</span> : null}</span>
         </span>
       </button>
 
@@ -1696,6 +1700,8 @@ export function RiftboundCardDetailsModal({
   actions,
   preferenceSession,
   onPreferenceChange,
+  onTierChange,
+  tierRating: initialTierRating,
   onClose,
   onAdjust,
 }: {
@@ -1709,6 +1715,8 @@ export function RiftboundCardDetailsModal({
   actions?: ReactNode;
   preferenceSession?: Session | null;
   onPreferenceChange?: (change: { favorite: boolean; wishlist: boolean }) => void;
+  tierRating?: RiftboundCardTierRating | null;
+  onTierChange?: (rating: RiftboundCardTierRating | null) => void;
   onClose: () => void;
   onAdjust: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
 }) {
@@ -1718,6 +1726,15 @@ export function RiftboundCardDetailsModal({
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(true);
   const [priceHistoryError, setPriceHistoryError] = useState('');
   const [priceHistoryRange, setPriceHistoryRange] = useState<RiftboundHistoryRangeKey>('30d');
+  const [tierRating, setTierRating] = useState<RiftboundCardTierRating | null>(initialTierRating ?? null);
+  const handleTierChange = useCallback((nextRating: RiftboundCardTierRating | null) => {
+    setTierRating(nextRating);
+    onTierChange?.(nextRating);
+  }, [onTierChange]);
+
+  useEffect(() => {
+    setTierRating(initialTierRating ?? null);
+  }, [card.id, initialTierRating]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1790,12 +1807,13 @@ export function RiftboundCardDetailsModal({
               View Official Card
               <ExternalLink size={14} />
             </a>
+            {preferenceSession ? <RiftboundCardTierVote card={card} session={preferenceSession} initialRating={tierRating} onChange={handleTierChange} /> : null}
           </div>
 
           <div className="grid min-w-0 gap-5">
             <div className="min-w-0 pr-4 sm:pr-44">
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p>
+                <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p><span className="rounded-lg border border-amber-200/20 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-amber-200">Tier {tierRating?.tier ?? '—'}</span></div>
                 <div className="mt-2 flex flex-wrap items-center justify-start gap-2"><h2 className="min-w-0 text-3xl font-black tracking-tight text-white">{card.displayName}</h2>{preferenceSession ? <RiftboundCardPreferenceActions cardId={card.id} session={preferenceSession} onChange={onPreferenceChange} /> : null}</div>
                 <p className={`mt-2 text-sm font-black ${rarityClassName}`}>{card.rarity}</p>
                 {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
@@ -2451,6 +2469,7 @@ export function RiftboundCardGrid() {
   const [inventoryRows, setInventoryRows] = useState<InventoryItem[]>([]);
   const [savedInventoryRows, setSavedInventoryRows] = useState<InventoryItem[]>([]);
   const [session, setSession] = useState<Session | null>(null);
+  const [tierRatings, setTierRatings] = useState<Record<string, RiftboundCardTierRating>>({});
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState('');
   const [inventorySaving, setInventorySaving] = useState(false);
@@ -2561,6 +2580,7 @@ export function RiftboundCardGrid() {
 
       setLatestPrices(data.prices ?? {});
       setLatestSnapshotDate(data.snapshotDate ?? null);
+      setTierRatings(data.cardTiers ?? {});
       setInventoryRows(latestStoredDraft?.rows ?? savedRows);
       setSavedInventoryRows(savedRows);
       setSets(data.sets?.sets ?? []);
@@ -3547,6 +3567,7 @@ export function RiftboundCardGrid() {
                     pending={false}
                     onOpen={openDeckCardDetails}
                     onSetAdjust={adjustDeckCard}
+                    tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier}
                   />
                 ))}
               </div>
@@ -3606,6 +3627,7 @@ export function RiftboundCardGrid() {
                     pending={false}
                     onOpen={(card) => openCardDetails(card, false, true)}
                     onSetAdjust={adjustSetCard}
+                    tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier}
                   />
                 ))}
               </div>
@@ -3653,18 +3675,19 @@ export function RiftboundCardGrid() {
                   runeEntries={collapseRiftboundDeckEntries(selectedDeckRuneCards)}
                   battlefieldEntries={collapseRiftboundDeckEntries(selectedDeckBattlefieldCards)}
                   sideboardEntries={collapseRiftboundDeckEntries(selectedDeckSideboardCards)}
+                  tierRatings={tierRatings}
                   onOpen={openDeckCardDetails}
                 />
               ) : (
                 <>
                   <div className={`grid ${deckViewMode === 'list' ? 'gap-2' : 'gap-4'} lg:grid-cols-[18rem_minmax(0,1fr)]`}>
-                    <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Legend</h3><RiftboundDeckEntries entries={selectedDeckLegendCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" highlightCardId={selectedDeck.legend_card_id} /></section>
-                    <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Champion Units</h3><RiftboundDeckEntries entries={selectedDeckChampionCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" /></section>
+                    <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Legend</h3><RiftboundDeckEntries entries={selectedDeckLegendCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" highlightCardId={selectedDeck.legend_card_id} /></section>
+                    <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Champion Units</h3><RiftboundDeckEntries entries={selectedDeckChampionCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" /></section>
                   </div>
-                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Main Deck</h3><RiftboundDeckEntries entries={selectedDeckMainCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section>
-                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Runes</h3><RiftboundDeckEntries entries={selectedDeckRuneCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section>
-                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Battlefields</h3><RiftboundDeckEntries entries={selectedDeckBattlefieldCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section>
-                  {selectedDeckSideboardCards.length > 0 ? <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Sideboard</h3><RiftboundDeckEntries entries={selectedDeckSideboardCards} listView={deckViewMode === 'list'} onOpen={openDeckCardDetails} /></section> : null}
+                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Main Deck</h3><RiftboundDeckEntries entries={selectedDeckMainCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} /></section>
+                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Runes</h3><RiftboundDeckEntries entries={selectedDeckRuneCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} /></section>
+                  <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Battlefields</h3><RiftboundDeckEntries entries={selectedDeckBattlefieldCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} /></section>
+                  {selectedDeckSideboardCards.length > 0 ? <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Sideboard</h3><RiftboundDeckEntries entries={selectedDeckSideboardCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} /></section> : null}
                 </>
               )}
             </>
@@ -3732,6 +3755,7 @@ export function RiftboundCardGrid() {
                   runeEntries={[]}
                   battlefieldEntries={[]}
                   sideboardEntries={[]}
+                  tierRatings={tierRatings}
                   mainLabel="Set Cards"
                   onOpen={openCardDetails}
                 />
@@ -3817,6 +3841,7 @@ export function RiftboundCardGrid() {
                 pendingChange={false}
                 pending={false}
                 onOpen={openCardDetails}
+                tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier}
               />
             ))}
           </div>
@@ -3844,6 +3869,7 @@ export function RiftboundCardGrid() {
                 onOpen={setBuilderOpen ? (card) => openCardDetails(card, false, true) : openCardDetails}
                 onAdjust={setBuilderOpen ? undefined : adjustInventory}
                 onSetAdjust={setBuilderOpen ? adjustSetCard : undefined}
+                tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier}
               />
             ))}
           </div>
@@ -3859,6 +3885,14 @@ export function RiftboundCardGrid() {
           showInventoryControls={selectedCardCanAdjustInventory}
           showMarketDetails={selectedCardShowMarketDetails}
           preferenceSession={session}
+          tierRating={tierRatings[getRiftboundCardTierGroupId(selectedCard)]}
+          onTierChange={(rating) => setTierRatings((current) => {
+            const next = { ...current };
+            const groupId = getRiftboundCardTierGroupId(selectedCard);
+            if (rating) next[groupId] = rating;
+            else delete next[groupId];
+            return next;
+          })}
           onClose={() => setSelectedCard(null)}
           onAdjust={adjustInventory}
         />

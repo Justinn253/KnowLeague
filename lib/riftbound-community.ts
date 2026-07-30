@@ -4,6 +4,7 @@ import { getRiftboundCardById, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib
 import { sanitizeChatMessage } from '@/lib/chat-filter';
 import { loadLatestRiftboundPrices, loadRiftboundDecks, loadRiftboundInventory, loadRiftboundSets } from '@/lib/riftbound-server';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { loadRiftboundCardTierRatingMap } from '@/lib/riftbound-card-tiers';
 import {
   RIFTBOUND_POST_SORTS,
   RIFTBOUND_POST_BODY_MAX_LENGTH,
@@ -518,13 +519,14 @@ export async function loadRiftboundPost(postId: string, viewerId: string | null 
   if (!post) throw new Error('Riftbound post not found.');
   if (!(await canViewRiftboundPost(post, viewerId))) throw new Error('Riftbound post not found.');
 
-  const [author, snapshotResult, cardsResult, reactionResult] = await Promise.all([
+  const [author, snapshotResult, cardsResult, reactionResult, cardTiers] = await Promise.all([
     loadAuthor(post.author_id, supabase),
     supabase.from('riftbound_post_snapshots').select('id, source_id, title, description').eq('id', post.snapshot_id).maybeSingle<SnapshotRow>(),
     supabase.from('riftbound_post_snapshot_cards').select('snapshot_id, card_id, finish, category, quantity').eq('snapshot_id', post.snapshot_id).order('category', { ascending: true }).order('card_id', { ascending: true }).returns<SnapshotCardRow[]>(),
     viewerId
       ? supabase.from('riftbound_post_reactions').select('reaction_type').eq('post_id', post.id).eq('user_id', viewerId).maybeSingle<{ reaction_type: RiftboundPostReaction }>()
       : Promise.resolve({ data: null, error: null }),
+    loadRiftboundCardTierRatingMap(viewerId),
   ]);
   if (snapshotResult.error) throw snapshotResult.error;
   if (cardsResult.error) throw cardsResult.error;
@@ -538,6 +540,7 @@ export async function loadRiftboundPost(postId: string, viewerId: string | null 
     snapshotTitle: snapshotResult.data.title,
     snapshotDescription: snapshotResult.data.description,
     cards: (cardsResult.data ?? []).map(({ snapshot_id: _snapshotId, ...card }) => card),
+    cardTiers,
   };
 }
 
@@ -780,7 +783,7 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
     supabase.from('riftbound_profile_favorite_decks').select('deck_id').eq('user_id', profile.id).order('created_at', { ascending: true }),
     supabase.from('riftbound_profile_wishlist_cards').select('card_id, desired_quantity, note, display_order, created_at, updated_at').eq('user_id', profile.id).order('display_order', { ascending: true }).order('created_at', { ascending: true }).returns<Array<{ card_id: string; desired_quantity: number; note: string; display_order: number; created_at: string; updated_at: string }>>(),
     loadRecentRiftboundPosts(profile.id, 12, isOwner, viewerId),
-    loadLatestRiftboundPrices(),
+    loadLatestRiftboundPrices(supabase, viewerId),
   ]);
   if (favoriteCardsResult.error) throw favoriteCardsResult.error;
   if (favoriteSetsResult.error) throw favoriteSetsResult.error;
@@ -827,6 +830,7 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
       updatedAt: row.updated_at,
     })),
     posts,
+    cardTiers: prices.cardTiers ?? {},
     entitlement: {
       plan: entitlement.plan,
       status: entitlement.status,
@@ -898,7 +902,6 @@ export async function updateRiftboundProfilePreference(userId: string, input: {
 }) {
   const supabase = getSupabaseServiceClient();
   const action = typeof input.action === 'string' ? input.action : '';
-  const entitlement = await getRiftboundEntitlement(userId);
 
   if (action === 'reorder-favorite-cards' || action === 'reorder-wishlist') {
     await reorderRiftboundCardList(
@@ -908,6 +911,8 @@ export async function updateRiftboundProfilePreference(userId: string, input: {
     );
     return;
   }
+
+  const entitlement = await getRiftboundEntitlement(userId);
 
   if (action === 'settings') {
     const visibility = input.visibility === 'private' ? 'private' : 'public';

@@ -1549,7 +1549,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
           : 'relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900'}
       >
         <Users size={18} />
-        <span className={variant === 'header' || variant === 'responsive' ? 'hidden xl:inline' : ''}>Friends</span>
+        <span className={variant === 'header' || variant === 'responsive' ? 'hidden 2xl:inline' : ''}>Friends</span>
         <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-100">
           {onlineCount}
         </span>

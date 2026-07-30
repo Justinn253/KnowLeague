@@ -4,18 +4,20 @@ import Link from 'next/link';
 import { ArrowLeft, LoaderCircle, MessageCircle, Send, ShieldAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { RiftboundCardDetailsModal } from '@/components/riftbound-card-grid';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
-import { RiftboundCommunityPostCard } from '@/components/riftbound-community-post-card';
+import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardById } from '@/lib/riftbound';
+import { isRiftboundChampionUnit } from '@/lib/riftbound-decks';
 import {
   createRiftboundComment,
   getRiftboundCommunityComments,
   getRiftboundCommunityPost,
   reportRiftboundContent,
 } from '@/lib/riftbound-community-client';
-import type { RiftboundCommunityComment, RiftboundCommunityPostDetail, RiftboundCommunityPostSummary, RiftboundPostSnapshotCard } from '@/lib/riftbound-community-types';
+import type { RiftboundCommunityComment, RiftboundCommunityPostDetail, RiftboundPostSnapshotCard } from '@/lib/riftbound-community-types';
 
 const categoryLabels: Record<RiftboundPostSnapshotCard['category'], string> = {
   collection: 'Collection',
@@ -41,8 +43,34 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? 'Unknown date' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
-function snapshotToSummary(post: RiftboundCommunityPostDetail): RiftboundCommunityPostSummary {
-  return post;
+function postTypeLabel(type: RiftboundCommunityPostDetail['postType']) {
+  if (type === 'general') return 'General';
+  if (type === 'question') return 'Question';
+  if (type === 'deck_build') return 'Deck Build';
+  return type === 'collection' ? 'Collection' : type === 'set' ? 'Set' : 'Deck';
+}
+
+function RiftboundCommunityPostHeader({ post }: { post: RiftboundCommunityPostDetail }) {
+  return (
+    <div className="grid gap-4">
+      <div className="flex items-start gap-4">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900 text-lg font-black text-amber-200" style={post.author.avatarUrl ? { backgroundImage: `url(${post.author.avatarUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+          {post.author.avatarUrl ? null : post.author.displayName.slice(0, 1).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-black text-white sm:text-3xl">{post.title}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+            <Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} className="font-black hover:underline" style={getChatNameStyle(post.author.chatColor)}>@{post.author.username}</Link>
+            <span aria-hidden="true">·</span>
+            <span>{formatDate(post.createdAt)}</span>
+            <span aria-hidden="true">·</span>
+            <span className="font-black uppercase tracking-[0.1em] text-amber-200">{postTypeLabel(post.postType)}</span>
+          </div>
+        </div>
+      </div>
+      {post.body ? <p className="whitespace-pre-line text-sm leading-6 text-slate-300">{post.body}</p> : null}
+    </div>
+  );
 }
 
 function RiftboundPostCardRow({ entry }: { entry: RiftboundPostSnapshotCard }) {
@@ -94,8 +122,14 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
   const [reportDetails, setReportDetails] = useState('');
   const [reportSaving, setReportSaving] = useState(false);
   const [reportMessage, setReportMessage] = useState('');
+  const [selectedCard, setSelectedCard] = useState<import('@/lib/riftbound').RiftboundCard | null>(null);
+  const [shareUrl, setShareUrl] = useState('');
 
   useEffect(() => subscribeToAuthSession((nextSession) => setSession(nextSession)), []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') setShareUrl(`${window.location.origin}/riftbound/community/${encodeURIComponent(postId)}`);
+  }, [postId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +176,32 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
     return Array.from(groups.entries());
   }, [post]);
 
+  const compactDeckEntries = useMemo(() => {
+    if (!post) return null;
+    const collapse = (entries: RiftboundPostSnapshotCard[]) => {
+      const collapsed = new Map<string, RiftboundCompactDeckEntry>();
+      entries.forEach((entry) => {
+        const card = getRiftboundCardById(entry.card_id);
+        if (!card) return;
+        const existing = collapsed.get(card.id);
+        collapsed.set(card.id, { card, quantity: (existing?.quantity ?? 0) + entry.quantity });
+      });
+      return Array.from(collapsed.values());
+    };
+    const isChampionEntry = (entry: RiftboundPostSnapshotCard) => {
+      const card = getRiftboundCardById(entry.card_id);
+      return Boolean(card && isRiftboundChampionUnit(card));
+    };
+    return {
+      legendEntries: collapse(post.cards.filter((entry) => entry.category === 'legend')),
+      championEntries: collapse(post.cards.filter((entry) => entry.category === 'main' && isChampionEntry(entry))),
+      mainEntries: collapse(post.cards.filter((entry) => entry.category === 'main' && !isChampionEntry(entry))),
+      runeEntries: collapse(post.cards.filter((entry) => entry.category === 'runes')),
+      battlefieldEntries: collapse(post.cards.filter((entry) => entry.category === 'battlefields')),
+      sideboardEntries: collapse(post.cards.filter((entry) => entry.category === 'sideboard')),
+    };
+  }, [post]);
+
   const addComment = async () => {
     if (!session || commentSaving || !commentBody.trim()) return;
     setCommentSaving(true);
@@ -174,26 +234,36 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
     }
   };
 
-  if (loading) return <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100"><div className="mx-auto max-w-[1200px] rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading Riftbound post...</div></main>;
-  if (error || !post) return <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100"><div className="mx-auto grid max-w-[1200px] gap-4 rounded-3xl border border-red-300/20 bg-red-950/20 px-6 py-16 text-center text-sm font-semibold text-red-200"><p>{error || 'Riftbound post not found.'}</p><Link href="/riftbound/community" className="mx-auto rounded-xl border border-red-200/30 px-4 py-2 text-xs font-black uppercase tracking-[0.1em]">Back to Community</Link></div></main>;
+  if (loading) return <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100"><div className="mx-auto max-w-[1600px] rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading Riftbound post...</div></main>;
+  if (error || !post) return <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100"><div className="mx-auto grid max-w-[1600px] gap-4 rounded-3xl border border-red-300/20 bg-red-950/20 px-6 py-16 text-center text-sm font-semibold text-red-200"><p>{error || 'Riftbound post not found.'}</p><Link href="/riftbound/community" className="mx-auto rounded-xl border border-red-200/30 px-4 py-2 text-xs font-black uppercase tracking-[0.1em]">Back to Community</Link></div></main>;
+  const isDeckPost = post.postType === 'deck_build' || post.postType === 'deck';
 
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10">
-      <section className="mx-auto grid w-full max-w-[1200px] gap-6">
+      <section className="mx-auto grid w-full max-w-[1600px] gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/riftbound/community" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200"><ArrowLeft size={15} /> Community</Link>
           <div className="flex flex-wrap gap-2"><Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200">View Profile</Link>{session ? <button type="button" onClick={() => setReportOpen((current) => !current)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-400 transition hover:border-red-200/50 hover:text-red-200"><ShieldAlert size={14} /> Report</button> : null}</div>
         </div>
 
-        <RiftboundCommunityPostCard post={snapshotToSummary(post)} session={session} onPostChange={(nextPost) => setPost((current) => current ? { ...current, ...nextPost } : current)} />
-
         {reportOpen ? <section className="grid gap-3 rounded-3xl border border-red-300/20 bg-red-950/10 p-4"><p className="text-xs font-black uppercase tracking-[0.16em] text-red-200">Report post</p><select value={reportReason} onChange={(event) => setReportReason(event.target.value as (typeof reportOptions)[number]['value'])} className="h-11 rounded-xl border border-red-200/20 bg-slate-950 px-3 text-sm font-semibold text-white outline-none focus:border-red-200"><option value="spam">Spam</option><option value="harassment">Harassment</option><option value="hate">Hate or abuse</option><option value="misinformation">Misinformation</option><option value="other">Other</option></select><textarea value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={500} rows={3} placeholder="Optional details" className="resize-y rounded-xl border border-red-200/20 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-red-200" /><div className="flex justify-end"><button type="button" onClick={() => void submitReport()} disabled={reportSaving} className="inline-flex items-center gap-2 rounded-xl border border-red-200/30 bg-red-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-red-200 disabled:opacity-50">{reportSaving ? <LoaderCircle size={14} className="animate-spin" /> : null} Submit Report</button></div></section> : null}
         {reportMessage ? <p className="rounded-2xl border border-amber-200/20 bg-amber-300/10 px-4 py-3 text-sm font-semibold text-amber-100">{reportMessage}</p> : null}
 
-        <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-6">
-          <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Shared details</p><h2 className="mt-2 text-2xl font-black text-white">{post.snapshotTitle}</h2><p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-400">{post.snapshotDescription || 'No source description was provided.'}</p><p className="mt-2 text-xs font-semibold text-slate-600">Snapshot published {formatDate(post.createdAt)}</p></div>
-          {groupedCards.map(([category, entries]) => <section key={category} className="grid gap-3 border-t border-white/10 pt-5"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{categoryLabels[category]}</h3><div className="riftbound-card-grid">{entries.map((entry) => <RiftboundPostCardRow key={`${entry.card_id}:${entry.finish}:${entry.category}`} entry={entry} />)}</div></section>)}
-        </section>
+        {isDeckPost ? (
+          <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
+            <RiftboundCommunityPostHeader post={post} />
+            {compactDeckEntries ? <RiftboundCompactDeckView shareUrl={shareUrl} creatorName={post.author.displayName || post.author.username} deckName={post.snapshotTitle || post.title} createdAt={post.createdAt} {...compactDeckEntries} onOpen={setSelectedCard} showHeader={false} className="-mx-5 rounded-none border-x-0 border-b-0 border-t border-white/10 bg-transparent p-0 pt-5 sm:-mx-6 sm:px-6 sm:pt-6" /> : null}
+          </section>
+        ) : groupedCards.length > 0 ? (
+          <>
+            <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6"><RiftboundCommunityPostHeader post={post} /></section>
+            <section className="grid gap-3 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-6">
+            {groupedCards.map(([category, entries]) => <section key={category} className="grid gap-3"><h2 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{categoryLabels[category]}</h2><div className="riftbound-card-grid">{entries.map((entry) => <RiftboundPostCardRow key={`${entry.card_id}:${entry.finish}:${entry.category}`} entry={entry} />)}</div></section>)}
+            </section>
+          </>
+        ) : (
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6"><RiftboundCommunityPostHeader post={post} /></section>
+        )}
 
         <section id="comments" className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-6">
           <div className="flex items-center gap-2"><MessageCircle size={18} className="text-amber-300" /><h2 className="text-xl font-black text-white">Comments</h2><span className="text-sm font-bold text-slate-500">{post.commentCount}</span></div>
@@ -202,6 +272,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
           {commentsLoading ? <p className="text-sm text-slate-500">Loading comments...</p> : comments.length === 0 ? <p className="text-sm text-slate-500">No comments yet.</p> : <div className="grid gap-2">{comments.map((comment) => <CommentItem key={comment.id} comment={comment} />)}</div>}
           {commentsCursor ? <button type="button" onClick={() => void loadComments(true)} disabled={commentsMoreLoading} className="mx-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200 disabled:opacity-50">{commentsMoreLoading ? <LoaderCircle size={14} className="animate-spin" /> : null} Load More Comments</button> : null}
         </section>
+        {selectedCard ? <RiftboundCardDetailsModal card={selectedCard} normalQuantity={0} foilQuantity={0} latestSnapshotDate={null} pending={false} showInventoryControls={false} showMarketDetails={false} preferenceSession={session} onClose={() => setSelectedCard(null)} onAdjust={() => undefined} /> : null}
       </section>
     </main>
   );

@@ -728,7 +728,7 @@ export function RiftboundCollectionShare() {
     setInventoryError('');
     try {
       stageSharedRowsInInventoryDraft(session.user.id, rows);
-      window.location.assign('/inventory?tab=inventory');
+      window.location.assign('/riftbound/inventory?tab=inventory');
     } catch (error) {
       setInventoryError(error instanceof Error ? error.message : 'Unable to add these cards to your pending inventory.');
     }
@@ -780,7 +780,7 @@ export function RiftboundCollectionShare() {
               </div> : null}
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
-              <Link href={snapshot.kind === 'deck' ? '/inventory?tab=sets' : '/inventory'} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> {snapshot.kind === 'deck' ? 'Decks' : 'Inventory'}</Link>
+              <Link href={snapshot.kind === 'deck' ? '/riftbound/inventory?tab=sets' : '/riftbound/inventory'} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> {snapshot.kind === 'deck' ? 'Decks' : 'Inventory'}</Link>
               {snapshot.kind === 'deck' && snapshot.deck && authResolved && session ? <button type="button" onClick={() => void saveSharedDeck()} disabled={deckSaveState !== 'idle'} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition disabled:cursor-wait disabled:opacity-70 ${deckSaveState === 'saved' ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-amber-200/50 bg-amber-300 text-slate-950 hover:bg-amber-200'}`}>{deckSaveState === 'saving' ? <LoaderCircle size={14} className="animate-spin" /> : deckSaveState === 'saved' ? <Check size={14} /> : <Plus size={14} />} {deckSaveState === 'saved' ? 'Saved to Decks' : 'Save Deck'}</button> : null}
               {snapshot.kind === 'deck' && snapshot.deck && authResolved && !session ? <Link href="/login" className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><Plus size={14} /> Log in to Save</Link> : null}
               <button type="button" onClick={() => void printCollection()} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Print / Save PDF</button>

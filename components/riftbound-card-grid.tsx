@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, FileDown, Grid2X2, Home, Info, LayoutList, LoaderCircle, Minus, PackageOpen, Pencil, Plus, QrCode, RotateCcw, Save, Search, Share2, SlidersHorizontal, Star, Trash2, TrendingUp, Upload, X } from 'lucide-react';
+import { ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, FileDown, Grid2X2, Info, LayoutList, LoaderCircle, Minus, PackageOpen, Pencil, Plus, QrCode, RotateCcw, Save, Search, Share2, SlidersHorizontal, Star, Trash2, TrendingUp, Upload, X } from 'lucide-react';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type Tesseract from 'tesseract.js';
@@ -771,7 +771,7 @@ function getDeckShareBinary(deck: RiftboundDeck, metadata?: CollectionShareMetad
 }
 
 function getCollectionShareUrlForData(data: string) {
-  return `${window.location.origin}/inventory/share?d=${encodeURIComponent(data)}`;
+  return `${window.location.origin}/riftbound/inventory/share?d=${encodeURIComponent(data)}`;
 }
 
 function getCompactCollectionShareUrl(rows: InventoryItem[], kind: CollectionShareKind = 'collection', title?: string, metadata?: CollectionShareMetadata) {
@@ -2501,7 +2501,7 @@ export function RiftboundCardGrid() {
     if (nextTab === 'global') nextParams.delete('tab');
     else nextParams.set('tab', nextTab);
     const query = nextParams.toString();
-    router.replace(query ? `/inventory?${query}` : '/inventory', { scroll: false });
+    router.replace(query ? `/riftbound/inventory?${query}` : '/riftbound/inventory', { scroll: false });
   }, [router, searchParams]);
   const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
   const [latestSnapshotDate, setLatestSnapshotDate] = useState<string | null>(null);
@@ -3275,20 +3275,6 @@ export function RiftboundCardGrid() {
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
       <section className="mx-auto grid w-full max-w-[1600px] gap-6">
         <header className="relative z-40 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-7">
-          <div className="mb-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href="/"
-                className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200"
-              >
-                <Home size={14} />
-                Home
-              </Link>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">Riftbound Collection</p>
-            </div>
-            <h1 className="mt-3 text-3xl font-black text-white sm:text-5xl">KnowLeague - Riftbound</h1>
-          </div>
-
           <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
             {(['global', 'inventory', 'sets'] as InventoryTab[]).map((tab) => {
               const active = activeTab === tab;

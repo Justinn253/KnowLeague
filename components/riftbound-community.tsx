@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { Home, LoaderCircle, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { ChevronDown, LoaderCircle, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
@@ -9,14 +8,12 @@ import { RiftboundCommunityPostCard } from '@/components/riftbound-community-pos
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundBootstrap, type RiftboundBootstrapResponse } from '@/lib/riftbound-client';
 import { RIFTBOUND_CARDS } from '@/lib/riftbound';
+import { createRiftboundCommunityPost, getRiftboundCommunityFeed } from '@/lib/riftbound-community-client';
 import {
-  createRiftboundCommunityPost,
-  getRiftboundCommunityFeed,
-} from '@/lib/riftbound-community-client';
-import {
-  RIFTBOUND_POST_TYPES,
+  RIFTBOUND_NEW_POST_TYPES,
   type RiftboundCommunityPostSort,
   type RiftboundCommunityPostSummary,
+  type RiftboundNewPostType,
 } from '@/lib/riftbound-community-types';
 
 const sortOptions: AppSelectOption<RiftboundCommunityPostSort>[] = [
@@ -29,9 +26,15 @@ const sortOptions: AppSelectOption<RiftboundCommunityPostSort>[] = [
   { value: 'price-desc', label: 'Price · High to Low' },
 ];
 
+const postTypeLabels: Record<RiftboundNewPostType, string> = {
+  general: 'General',
+  question: 'Question',
+  deck_build: 'Deck Build',
+};
+
 const typeOptions: AppSelectOption<string>[] = [
   { value: 'all', label: 'All Post Types' },
-  ...RIFTBOUND_POST_TYPES.map((type) => ({ value: type, label: type === 'collection' ? 'Collections' : type === 'set' ? 'Sets' : 'Decks' })),
+  ...RIFTBOUND_NEW_POST_TYPES.map((type) => ({ value: type, label: postTypeLabels[type] })),
 ];
 
 const sideboardOptions: AppSelectOption<string>[] = [
@@ -40,14 +43,6 @@ const sideboardOptions: AppSelectOption<string>[] = [
   { value: 'false', label: 'No Sideboard' },
 ];
 
-function getSetOptions() {
-  const names = new Map(RIFTBOUND_CARDS.map((card) => [card.setCode, card.setName]));
-  return [
-    { value: 'all', label: 'All Sets' },
-    ...Array.from(names.entries()).sort(([left], [right]) => left.localeCompare(right)).map(([value, name]) => ({ value, label: `${value} · ${name}` })),
-  ];
-}
-
 function resolveCardFilter(value: string) {
   const cleanValue = value.trim().toLowerCase();
   if (!cleanValue) return null;
@@ -55,11 +50,9 @@ function resolveCardFilter(value: string) {
   return card?.id ?? null;
 }
 
-function formatSourceLabel(data: RiftboundBootstrapResponse | null, value: string) {
-  if (value === 'collection') return 'My Collection';
-  const [type, id] = value.split(':');
-  if (type === 'set') return data?.sets?.sets?.find((set) => set.id === id)?.name ?? 'Selected Set';
-  return data?.decks?.decks?.find((deck) => deck.id === id)?.name ?? 'Selected Deck';
+function getRiftboundCardByFilter(value: string) {
+  const cardId = resolveCardFilter(value);
+  return cardId ? RIFTBOUND_CARDS.find((card) => card.id === cardId) ?? null : null;
 }
 
 export function RiftboundCommunity() {
@@ -67,10 +60,8 @@ export function RiftboundCommunity() {
   const [posts, setPosts] = useState<RiftboundCommunityPostSummary[]>([]);
   const [sort, setSort] = useState<RiftboundCommunityPostSort>('recent');
   const [postType, setPostType] = useState('all');
-  const [setCode, setSetCode] = useState('all');
   const [sideboard, setSideboard] = useState('all');
   const [legendFilter, setLegendFilter] = useState('');
-  const [championFilter, setChampionFilter] = useState('');
   const [battlefieldFilter, setBattlefieldFilter] = useState('');
   const [unitFilter, setUnitFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -81,35 +72,30 @@ export function RiftboundCommunity() {
   const [createOpen, setCreateOpen] = useState(false);
   const [sourceData, setSourceData] = useState<RiftboundBootstrapResponse | null>(null);
   const [sourceLoading, setSourceLoading] = useState(false);
-  const [sourceType, setSourceType] = useState('collection');
+  const [composerType, setComposerType] = useState<RiftboundNewPostType>('general');
+  const [selectedDeckId, setSelectedDeckId] = useState('');
   const [postTitle, setPostTitle] = useState('');
   const [postBody, setPostBody] = useState('');
-  const [postVisibility, setPostVisibility] = useState('public');
+  const [postVisibility, setPostVisibility] = useState<'public' | 'friends'>('public');
   const [postSaving, setPostSaving] = useState(false);
   const [postError, setPostError] = useState('');
   const requestIdRef = useRef(0);
   const nextCursorRef = useRef<string | null>(null);
-  const setOptions = useMemo(() => getSetOptions(), []);
+  const sourceLoadUserIdRef = useRef<string | null>(null);
 
   useEffect(() => subscribeToAuthSession((nextSession) => setSession(nextSession)), []);
 
   const feedUrl = useMemo(() => {
     const params = new URLSearchParams({ sort, limit: '20' });
     if (postType !== 'all') params.set('type', postType);
-    if (setCode !== 'all') params.set('set', setCode);
     if (sideboard !== 'all') params.set('sideboard', sideboard);
-    const filters: Array<[string, string]> = [
-      ['legend', legendFilter],
-      ['champion', championFilter],
-      ['battlefield', battlefieldFilter],
-      ['unit', unitFilter],
-    ];
-    filters.forEach(([key, value]) => {
-      const cardId = resolveCardFilter(value);
-      if (cardId) params.set(key, cardId);
-    });
+    if (postType === 'deck_build' && legendFilter) params.set('legend', legendFilter);
+    const unitCard = getRiftboundCardByFilter(unitFilter);
+    if (unitCard) params.set(unitCard.cardTypeLabels.includes('Champion') ? 'champion' : 'unit', unitCard.id);
+    const battlefieldCardId = resolveCardFilter(battlefieldFilter);
+    if (battlefieldCardId) params.set('battlefield', battlefieldCardId);
     return `/api/riftbound/community/feed?${params.toString()}`;
-  }, [battlefieldFilter, championFilter, legendFilter, postType, setCode, sideboard, sort, unitFilter]);
+  }, [battlefieldFilter, legendFilter, postType, sideboard, sort, unitFilter]);
 
   const loadFeed = useCallback(async (append = false) => {
     const requestId = requestIdRef.current + 1;
@@ -141,39 +127,56 @@ export function RiftboundCommunity() {
     void loadFeed(false);
   }, [feedUrl, loadFeed]);
 
-  const loadSourceData = async () => {
-    if (!session || sourceData || sourceLoading) return;
-    setSourceLoading(true);
-    try {
-      setSourceData(await getRiftboundBootstrap(session));
-    } catch (loadError) {
-      setPostError(loadError instanceof Error ? loadError.message : 'Unable to load your Riftbound sources.');
-    } finally {
-      setSourceLoading(false);
+  useEffect(() => {
+    if (!session) {
+      sourceLoadUserIdRef.current = null;
+      setSourceData(null);
+      return;
     }
-  };
+    if (!createOpen || composerType !== 'deck_build' || sourceLoadUserIdRef.current === session.user.id) return;
 
-  const openCreatePost = () => {
-    setCreateOpen(true);
-    setPostError('');
-    void loadSourceData();
-  };
+    sourceLoadUserIdRef.current = session.user.id;
+    setSourceData(null);
+    setSourceLoading(true);
+    void getRiftboundBootstrap(session)
+      .then((data) => setSourceData(data))
+      .catch((loadError: unknown) => setPostError(loadError instanceof Error ? loadError.message : 'Unable to load your Riftbound decks.'))
+      .finally(() => setSourceLoading(false));
+  }, [composerType, createOpen, session]);
+
+  const deckOptions = useMemo<AppSelectOption<string>[]>(() => [
+    { value: '', label: 'Select a deck' },
+    ...(sourceData?.decks?.decks ?? []).map((deck) => ({ value: deck.id, label: deck.name })),
+  ], [sourceData]);
+
+  const legendOptions = useMemo<AppSelectOption<string>[]>(() => [
+    { value: '', label: 'All Legends' },
+    ...RIFTBOUND_CARDS
+      .filter((card) => card.cardType === 'Legend')
+      .sort((left, right) => left.displayName.localeCompare(right.displayName))
+      .map((card) => ({ value: card.id, label: card.displayName })),
+  ], []);
 
   const publishPost = async () => {
     if (!session || postSaving) return;
-    const [selectedType, selectedId] = sourceType.split(':');
+    if (composerType === 'deck_build' && !selectedDeckId) {
+      setPostError('Select a deck before publishing a Deck Build post.');
+      return;
+    }
     setPostSaving(true);
     setPostError('');
     try {
       const data = await createRiftboundCommunityPost({
-        sourceType: selectedType,
-        sourceId: selectedId || null,
+        postType: composerType,
+        sourceId: composerType === 'deck_build' ? selectedDeckId : null,
         title: postTitle,
         body: postBody,
         visibility: postVisibility,
       }, session);
       setPosts((current) => [data.post, ...current]);
       setCreateOpen(false);
+      setComposerType('general');
+      setSelectedDeckId('');
       setPostTitle('');
       setPostBody('');
       setPostVisibility('public');
@@ -188,78 +191,60 @@ export function RiftboundCommunity() {
     setPosts((current) => current.map((post) => post.id === nextPost.id ? nextPost : post));
   };
 
-  const activeFilterCount = [postType !== 'all', setCode !== 'all', sideboard !== 'all', legendFilter.trim(), championFilter.trim(), battlefieldFilter.trim(), unitFilter.trim()].filter(Boolean).length;
-  const sourceOptions: AppSelectOption<string>[] = [
-    { value: 'collection', label: 'My Collection' },
-    ...(sourceData?.sets?.sets ?? []).map((set) => ({ value: `set:${set.id}`, label: `Set · ${set.name}` })),
-    ...(sourceData?.decks?.decks ?? []).map((deck) => ({ value: `deck:${deck.id}`, label: `Deck · ${deck.name}` })),
-  ];
+  const activeFilterCount = [postType !== 'all', sideboard !== 'all', postType === 'deck_build' && Boolean(legendFilter), battlefieldFilter.trim(), unitFilter.trim()].filter(Boolean).length;
 
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound community">
-      <section className="mx-auto grid w-full max-w-[1200px] gap-6">
-        <header className="grid gap-5 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Link href="/" className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200"><Home size={14} /> Home</Link>
-                <span className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">Riftbound Community</span>
-              </div>
-              <h1 className="mt-3 text-3xl font-black text-white sm:text-5xl">Discover Riftbound</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Browse shared collections, sets, and game decks from the KnowLeague community.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/inventory" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white">Inventory</Link>
-              <Link href="/riftbound/profile" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white">Riftbound Profile</Link>
-              {session ? <button type="button" onClick={openCreatePost} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><Plus size={15} /> Create Post</button> : null}
-            </div>
-          </div>
+      <section className="mx-auto grid w-full max-w-[1600px] gap-5">
+        <section className="overflow-visible rounded-3xl border border-amber-200/20 bg-slate-950/80" aria-label="Create a new community post">
+          <button
+            type="button"
+            aria-expanded={createOpen}
+            aria-controls="riftbound-post-composer"
+            onClick={() => { setCreateOpen((current) => !current); setPostError(''); }}
+            className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-900/60 sm:px-6"
+          >
+            <span className="flex min-w-0 items-center gap-3"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-200/30 bg-amber-300/10 text-amber-200"><Plus size={18} /></span><span className="text-xl font-black text-white">Create a new post</span></span>
+            <ChevronDown size={20} className={`shrink-0 text-slate-400 transition ${createOpen ? 'rotate-180 text-amber-200' : ''}`} />
+          </button>
 
-          <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/50 p-3 lg:grid-cols-[minmax(0,1fr)_16rem_11rem]">
-            <div className="flex min-w-0 flex-wrap gap-2">
-              <AppSelectMenu label="Sort" value={sort} options={sortOptions} onChange={setSort} triggerClassName="min-h-12" />
-              <AppSelectMenu label="Post Type" value={postType} options={typeOptions} onChange={setPostType} triggerClassName="min-h-12" />
+          {createOpen ? (
+            <div id="riftbound-post-composer" className="grid gap-4 border-t border-white/10 p-5 sm:p-6">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                <label className="grid gap-2"><span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Title</span><input value={postTitle} onChange={(event) => setPostTitle(event.target.value)} maxLength={80} placeholder="Give your post a title" className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" /></label>
+                <fieldset className="grid gap-2"><legend className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Visibility</legend><div className="inline-flex h-12 rounded-2xl border border-white/10 bg-slate-900 p-1"><button type="button" onClick={() => setPostVisibility('public')} className={`rounded-xl px-3 text-xs font-black transition ${postVisibility === 'public' ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:text-white'}`}>Public</button><button type="button" onClick={() => setPostVisibility('friends')} className={`rounded-xl px-3 text-xs font-black transition ${postVisibility === 'friends' ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:text-white'}`}>Friends Only</button></div></fieldset>
+              </div>
+              <label className="grid gap-2"><span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Body</span><textarea value={postBody} onChange={(event) => setPostBody(event.target.value)} maxLength={1000} rows={4} placeholder="Share something with the Riftbound community" className="resize-y rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-semibold leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" /></label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <AppSelectMenu label="Post Type" value={composerType} options={RIFTBOUND_NEW_POST_TYPES.map((type) => ({ value: type, label: postTypeLabels[type] }))} onChange={(value) => { setComposerType(value); setSelectedDeckId(''); setPostTitle(''); }} menuClassName="min-w-[16rem] max-w-[calc(100vw-2rem)]" />
+                {composerType === 'deck_build' ? <AppSelectMenu label="Select a Deck" value={selectedDeckId} options={deckOptions} onChange={(value) => { setSelectedDeckId(value); if (value) setPostTitle(sourceData?.decks?.decks?.find((deck) => deck.id === value)?.name ?? ''); }} disabled={sourceLoading || deckOptions.length <= 1} disabledDescription={sourceLoading ? 'Loading your decks...' : 'Create a deck before publishing a Deck Build post.'} menuClassName="min-w-[16rem] max-w-[calc(100vw-2rem)]" /> : <div aria-hidden="true" />}
+              </div>
+              {sourceLoading ? <p className="text-sm text-slate-500">Loading your decks...</p> : null}
+              {postError ? <p className="rounded-2xl border border-red-300/20 bg-red-950/20 px-4 py-3 text-sm font-semibold text-red-200">{postError}</p> : null}
+              <div className="flex justify-end"><button type="button" onClick={() => void publishPost()} disabled={!session || postSaving || sourceLoading || (composerType === 'deck_build' && !selectedDeckId)} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{postSaving ? <LoaderCircle size={16} className="animate-spin" /> : <Plus size={16} />} {session ? 'Publish Post' : 'Sign in to post'}</button></div>
             </div>
-            <AppSelectMenu label="Set" value={setCode} options={setOptions} onChange={setSetCode} triggerClassName="min-h-12" />
-            <button type="button" onClick={() => setFiltersOpen((current) => !current)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200">
-              <Search size={16} /> Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}
-            </button>
+          ) : null}
+        </section>
+
+        <section className="grid gap-2" aria-label="Community feed controls">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/40 p-2">
+            <AppSelectMenu label="Sort" hideLabel value={sort} options={sortOptions} onChange={setSort} className="min-w-[10rem] flex-1 sm:flex-none" triggerClassName="h-10 min-h-10 rounded-xl px-3 pr-3" menuClassName="min-w-[16rem] max-w-[calc(100vw-1rem)]" />
+            <AppSelectMenu label="Post Type" hideLabel value={postType} options={typeOptions} onChange={(value) => { setPostType(value); if (value !== 'deck_build') setLegendFilter(''); }} className="min-w-[10rem] flex-1 sm:flex-none" triggerClassName="h-10 min-h-10 rounded-xl px-3 pr-3" menuPlacement="right" menuClassName="min-w-[16rem] max-w-[calc(100vw-1rem)]" />
+            {postType === 'deck_build' ? <AppSelectMenu label="Legend" hideLabel value={legendFilter} options={legendOptions} onChange={setLegendFilter} optionsClassName="grid-cols-1 sm:grid-cols-3" className="min-w-[11rem] flex-1 sm:flex-none" triggerClassName="h-10 min-h-10 rounded-xl px-3 pr-3" menuClassName="min-w-[18rem] max-w-[calc(100vw-1rem)]" /> : null}
+            <button type="button" onClick={() => setFiltersOpen((current) => !current)} aria-label={filtersOpen ? 'Close community filters' : 'Open community filters'} aria-expanded={filtersOpen} title={filtersOpen ? 'Close filters' : 'Open filters'} className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${filtersOpen ? 'border-amber-300 bg-amber-300/10 text-amber-200' : 'border-white/10 bg-slate-950 text-slate-400 hover:border-amber-200/50 hover:text-amber-200'}`}><SlidersHorizontal size={17} />{activeFilterCount > 0 ? <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-300 px-1 text-[0.58rem] font-black text-slate-950">{activeFilterCount}</span> : null}</button>
           </div>
           {filtersOpen ? (
-            <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/50 p-4 md:grid-cols-2">
-              <AppSelectMenu label="Sideboard" value={sideboard} options={sideboardOptions} onChange={setSideboard} />
+            <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/40 p-3 md:grid-cols-3">
+              <AppSelectMenu label="Sideboard" value={sideboard} options={sideboardOptions} onChange={setSideboard} triggerClassName="h-10 min-h-10 rounded-xl" />
               {[
-                ['Legend', legendFilter, setLegendFilter],
-                ['Champion Unit', championFilter, setChampionFilter],
                 ['Battlefield', battlefieldFilter, setBattlefieldFilter],
                 ['Unit', unitFilter, setUnitFilter],
               ].map(([label, value, setter]) => (
-                <label key={label as string} className="grid gap-2">
-                  <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{label as string}</span>
-                  <input value={value as string} onChange={(event) => (setter as (value: string) => void)(event.target.value)} placeholder="Exact card name or id" className="h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" />
-                </label>
+                <label key={label as string} className="grid gap-2"><span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{label as string}</span><input value={value as string} onChange={(event) => (setter as (value: string) => void)(event.target.value)} placeholder="Exact card name or id" className="h-10 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" /></label>
               ))}
             </div>
           ) : null}
-        </header>
-
-        {createOpen ? (
-          <section className="grid gap-4 rounded-3xl border border-amber-200/20 bg-slate-950/80 p-5 sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">New community post</p><h2 className="mt-2 text-2xl font-black text-white">Share a Riftbound source</h2></div>
-              <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close create post" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-300 transition hover:bg-slate-800"><X size={17} /></button>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <AppSelectMenu label="Source" value={sourceType} options={sourceOptions} onChange={(value) => { setSourceType(value); setPostTitle(value === 'collection' ? 'My Riftbound Collection' : formatSourceLabel(sourceData, value)); }} />
-              <AppSelectMenu label="Visibility" value={postVisibility} options={[{ value: 'public', label: 'Public · Discoverable' }, { value: 'unlisted', label: 'Unlisted · Link only' }]} onChange={setPostVisibility} />
-            </div>
-            {sourceLoading ? <p className="text-sm text-slate-500">Loading your collections, sets, and decks...</p> : null}
-            <label className="grid gap-2"><span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Post title</span><input value={postTitle} onChange={(event) => setPostTitle(event.target.value)} maxLength={80} placeholder="Post title" className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" /></label>
-            <label className="grid gap-2"><span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Description</span><textarea value={postBody} onChange={(event) => setPostBody(event.target.value)} maxLength={1000} rows={4} placeholder="Tell the community about this collection or deck" className="resize-y rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-semibold leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" /></label>
-            {postError ? <p className="rounded-2xl border border-red-300/20 bg-red-950/20 px-4 py-3 text-sm font-semibold text-red-200">{postError}</p> : null}
-            <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setCreateOpen(false)} className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-300 transition hover:border-white/25 hover:text-white">Cancel</button><button type="button" onClick={() => void publishPost()} disabled={postSaving || sourceLoading} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-wait disabled:opacity-60">{postSaving ? <LoaderCircle size={16} className="animate-spin" /> : <Plus size={16} />} Publish Post</button></div>
-          </section>
-        ) : null}
+        </section>
 
         {loading ? <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading the community feed...</section> : error ? <section className="grid gap-3 rounded-3xl border border-red-300/20 bg-red-950/20 px-6 py-16 text-center text-sm font-semibold text-red-200"><p>{error}</p><button type="button" onClick={() => void loadFeed(false)} className="mx-auto inline-flex items-center gap-2 rounded-xl border border-red-200/30 px-3 py-2 text-xs font-black uppercase tracking-[0.1em]"><RefreshCw size={14} /> Try Again</button></section> : posts.length === 0 ? <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">No community posts match these filters yet.</section> : <div className="grid gap-4">{posts.map((post) => <RiftboundCommunityPostCard key={post.id} post={post} session={session} onPostChange={updatePost} />)}</div>}
 

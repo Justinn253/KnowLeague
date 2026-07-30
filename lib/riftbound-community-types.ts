@@ -1,7 +1,13 @@
 import type { RiftboundDeck, RiftboundInventoryItem, RiftboundSet } from '@/lib/riftbound-client';
 
-export const RIFTBOUND_POST_TYPES = ['collection', 'set', 'deck'] as const;
+export const RIFTBOUND_POST_TYPES = ['general', 'question', 'deck_build', 'collection', 'set', 'deck'] as const;
 export type RiftboundCommunityPostType = typeof RIFTBOUND_POST_TYPES[number];
+
+export const RIFTBOUND_NEW_POST_TYPES = ['general', 'question', 'deck_build'] as const;
+export type RiftboundNewPostType = typeof RIFTBOUND_NEW_POST_TYPES[number];
+
+export const RIFTBOUND_SOURCE_TYPES = ['collection', 'set', 'deck'] as const;
+export type RiftboundPostSourceType = typeof RIFTBOUND_SOURCE_TYPES[number];
 
 export const RIFTBOUND_POST_SORTS = [
   'recent',
@@ -14,7 +20,7 @@ export const RIFTBOUND_POST_SORTS = [
 ] as const;
 export type RiftboundCommunityPostSort = typeof RIFTBOUND_POST_SORTS[number];
 
-export type RiftboundPostVisibility = 'public' | 'unlisted';
+export type RiftboundPostVisibility = 'public' | 'friends' | 'unlisted';
 export type RiftboundPostReaction = 'like' | 'dislike';
 
 export type RiftboundCommunityAuthor = {

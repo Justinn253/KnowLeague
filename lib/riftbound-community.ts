@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { getFriendRelationship } from '@/lib/friends';
 import { getRiftboundCardById, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
 import { sanitizeChatMessage } from '@/lib/chat-filter';
 import { loadLatestRiftboundPrices, loadRiftboundDecks, loadRiftboundInventory, loadRiftboundSets } from '@/lib/riftbound-server';
@@ -6,12 +7,14 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import {
   RIFTBOUND_POST_SORTS,
   RIFTBOUND_POST_TYPES,
+  RIFTBOUND_SOURCE_TYPES,
   type RiftboundCommunityAuthor,
   type RiftboundCommunityComment,
   type RiftboundCommunityPostDetail,
   type RiftboundCommunityPostSort,
   type RiftboundCommunityPostSummary,
   type RiftboundCommunityPostType,
+  type RiftboundPostSourceType,
   type RiftboundPostReaction,
   type RiftboundPostSnapshotCard,
   type RiftboundProfileData,
@@ -27,7 +30,7 @@ type PostRow = {
   post_type: RiftboundCommunityPostType;
   title: string;
   body: string;
-  visibility: 'public' | 'unlisted' | 'removed';
+  visibility: 'public' | 'friends' | 'unlisted' | 'removed';
   total_card_count: number;
   total_copy_count: number;
   total_value_cents: number | string;
@@ -105,7 +108,7 @@ type BuildRow = {
 };
 
 type BuiltSnapshot = {
-  sourceType: RiftboundCommunityPostType;
+  sourceType: RiftboundPostSourceType;
   sourceId: string | null;
   title: string;
   description: string;
@@ -179,6 +182,13 @@ function normalizePostType(value: unknown): RiftboundCommunityPostType {
   return value as RiftboundCommunityPostType;
 }
 
+function normalizeSourceType(value: unknown): RiftboundPostSourceType {
+  if (typeof value !== 'string' || !RIFTBOUND_SOURCE_TYPES.includes(value as RiftboundPostSourceType)) {
+    throw new Error('Invalid Riftbound post source.');
+  }
+  return value as RiftboundPostSourceType;
+}
+
 export function normalizeRiftboundPostSort(value: string | null): RiftboundCommunityPostSort {
   return RIFTBOUND_POST_SORTS.includes(value as RiftboundCommunityPostSort)
     ? value as RiftboundCommunityPostSort
@@ -222,7 +232,7 @@ function buildSnapshotSummary(rows: BuildRow[], title: string, description: stri
 }
 
 async function buildPostSnapshot(userId: string, sourceTypeValue: unknown, sourceIdValue: unknown, titleValue: unknown): Promise<BuiltSnapshot> {
-  const sourceType = normalizePostType(sourceTypeValue);
+  const sourceType = normalizeSourceType(sourceTypeValue);
   const sourceId = sourceType === 'collection'
     ? null
     : typeof sourceIdValue === 'string' && sourceIdValue.trim() ? sourceIdValue.trim() : null;
@@ -290,6 +300,37 @@ async function buildPostSnapshot(userId: string, sourceTypeValue: unknown, sourc
   };
 }
 
+function buildTextPostSnapshot(userId: string, titleValue: unknown, body: string): BuiltSnapshot {
+  const title = typeof titleValue === 'string' ? titleValue.trim().slice(0, 80) : '';
+  if (!title) throw new Error('Enter a post title.');
+  if (title.length > 80) throw new Error('Post titles must be 80 characters or fewer.');
+  const contentHash = createHash('sha256')
+    .update(JSON.stringify({ userId, title, body }))
+    .digest('hex');
+  return {
+    sourceType: 'collection',
+    sourceId: null,
+    title,
+    description: '',
+    rows: [],
+    snapshot: {
+      title,
+      description: '',
+      totalCardCount: 0,
+      totalCopyCount: 0,
+      totalValueCents: 0,
+      setCodes: [],
+      legendCardId: null,
+      championCardIds: [],
+      battlefieldCardIds: [],
+      unitCardIds: [],
+      hasSideboard: false,
+      previewCardIds: [],
+    },
+    contentHash,
+  };
+}
+
 export async function getRiftboundEntitlement(userId: string) {
   const { data, error } = await getSupabaseServiceClient()
     .from('riftbound_entitlements')
@@ -313,25 +354,45 @@ export async function getRiftboundEntitlement(userId: string) {
 
 export async function createRiftboundPost(input: {
   userId: string;
-  sourceType: unknown;
-  sourceId: unknown;
+  postType?: unknown;
+  sourceType?: unknown;
+  sourceId?: unknown;
   title: unknown;
   body: unknown;
   visibility: unknown;
 }) {
-  const visibility = input.visibility === 'unlisted' ? 'unlisted' : 'public';
-  const built = await buildPostSnapshot(input.userId, input.sourceType, input.sourceId, input.title);
-  const { data, error } = await getSupabaseServiceClient()
-    .rpc('create_riftbound_post', {
+  const postType = normalizePostType(input.postType ?? input.sourceType);
+  const sourceType = postType === 'general' || postType === 'question'
+    ? 'collection'
+    : postType === 'deck_build'
+      ? 'deck'
+      : normalizeSourceType(input.sourceType);
+  const visibility = input.visibility === 'friends' ? 'friends' : input.visibility === 'unlisted' ? 'unlisted' : 'public';
+  const body = typeof input.body === 'string' ? sanitizeChatMessage(input.body.trim().slice(0, 1000)) : '';
+  const built = postType === 'general' || postType === 'question'
+    ? buildTextPostSnapshot(input.userId, input.title, body)
+    : await buildPostSnapshot(input.userId, sourceType, input.sourceId, input.title);
+  const { data, error } = postType === 'general' || postType === 'question'
+    ? await getSupabaseServiceClient().rpc('create_riftbound_text_post', {
+      p_author_id: input.userId,
+      p_post_type: postType,
+      p_title: built.title,
+      p_body: body,
+      p_content_hash: built.contentHash,
+      p_snapshot: built.snapshot,
+      p_visibility: visibility,
+    })
+    : await getSupabaseServiceClient().rpc('create_riftbound_post', {
       p_author_id: input.userId,
       p_source_type: built.sourceType,
       p_source_id: built.sourceId,
       p_title: built.title,
-      p_body: typeof input.body === 'string' ? sanitizeChatMessage(input.body.trim().slice(0, 1000)) : '',
+      p_body: body,
       p_content_hash: built.contentHash,
       p_snapshot: built.snapshot,
       p_cards: built.rows.map((row) => ({ card_id: row.cardId, finish: row.finish, category: row.category, quantity: row.quantity })),
       p_visibility: visibility,
+      p_post_type: postType,
     });
   if (error) throw error;
   const postRows = Array.isArray(data) ? data as unknown as Array<{ post_id: string }> : [];
@@ -357,7 +418,7 @@ function mapSummary(row: FeedRow, author?: RiftboundCommunityAuthor): RiftboundC
     postType: row.post_type,
     title: row.title,
     body: row.body,
-    visibility: row.visibility === 'unlisted' ? 'unlisted' : 'public',
+    visibility: row.visibility === 'friends' ? 'friends' : row.visibility === 'unlisted' ? 'unlisted' : 'public',
     totalCardCount: row.total_card_count,
     totalCopyCount: row.total_copy_count,
     totalValueCents: asNumber(row.total_value_cents),
@@ -380,6 +441,13 @@ function mapSummary(row: FeedRow, author?: RiftboundCommunityAuthor): RiftboundC
 
 function mapPostRow(row: PostRow, author: RiftboundCommunityAuthor, viewerReaction: RiftboundPostReaction | null = null): RiftboundCommunityPostSummary {
   return mapSummary({ ...row, username: author.username, display_name: author.displayName, avatar_url: author.avatarUrl, chat_color: author.chatColor, viewer_reaction: viewerReaction, sort_value: 0 }, author);
+}
+
+async function canViewRiftboundPost(post: Pick<PostRow, 'author_id' | 'visibility'>, viewerId: string | null) {
+  if (post.visibility === 'public' || post.visibility === 'unlisted') return true;
+  if (post.visibility !== 'friends' || !viewerId) return false;
+  if (post.author_id === viewerId) return true;
+  return (await getFriendRelationship(viewerId, post.author_id)) === 'friend';
 }
 
 export async function loadRiftboundCommunityFeed(input: {
@@ -409,6 +477,7 @@ export async function loadRiftboundCommunityFeed(input: {
       p_battlefield_card_id: input.battlefieldCardId,
       p_unit_card_id: input.unitCardId,
       p_has_sideboard: input.hasSideboard,
+      p_allow_friends: true,
     });
   if (error) throw error;
 
@@ -442,6 +511,7 @@ export async function loadRiftboundPost(postId: string, viewerId: string | null 
     .maybeSingle<PostRow>();
   if (postError) throw postError;
   if (!post) throw new Error('Riftbound post not found.');
+  if (!(await canViewRiftboundPost(post, viewerId))) throw new Error('Riftbound post not found.');
 
   const [author, snapshotResult, cardsResult, reactionResult] = await Promise.all([
     loadAuthor(post.author_id, supabase),
@@ -466,24 +536,33 @@ export async function loadRiftboundPost(postId: string, viewerId: string | null 
   };
 }
 
-export async function loadRecentRiftboundPosts(authorId: string, limit = 12, includeUnlisted = false) {
+export async function loadRecentRiftboundPosts(authorId: string, limit = 12, includeUnlisted = false, viewerId: string | null = null) {
   const supabase = getSupabaseServiceClient();
+  const canSeeFriendsPosts = includeUnlisted || (viewerId ? (await getFriendRelationship(viewerId, authorId)) === 'friend' : false);
   const { data, error } = await supabase
     .from('riftbound_posts')
     .select('id, author_id, snapshot_id, post_type, title, body, visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at')
     .eq('author_id', authorId)
-    .in('visibility', includeUnlisted ? ['public', 'unlisted'] : ['public'])
+    .in('visibility', includeUnlisted ? ['public', 'friends', 'unlisted'] : ['public', 'friends'])
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(Math.max(1, Math.min(limit, 25)))
     .returns<PostRow[]>();
   if (error) throw error;
   const author = await loadAuthor(authorId, supabase);
-  return (data ?? []).map((row) => mapPostRow(row, author));
+  return (data ?? []).filter((row) => row.visibility !== 'friends' || canSeeFriendsPosts).map((row) => mapPostRow(row, author));
 }
 
-export async function loadRiftboundComments(postId: string, cursor: CommentCursor | null, limit = 20) {
+export async function loadRiftboundComments(postId: string, cursor: CommentCursor | null, limit = 20, viewerId: string | null = null) {
   const supabase = getSupabaseServiceClient();
+  const { data: post, error: postError } = await supabase
+    .from('riftbound_posts')
+    .select('author_id, visibility')
+    .eq('id', postId)
+    .neq('visibility', 'removed')
+    .maybeSingle<Pick<PostRow, 'author_id' | 'visibility'>>();
+  if (postError) throw postError;
+  if (!post || !(await canViewRiftboundPost(post, viewerId))) throw new Error('Riftbound post not found.');
   let query = supabase
     .from('riftbound_post_comments')
     .select('id, post_id, author_id, parent_id, body, status, created_at, updated_at')
@@ -527,9 +606,9 @@ export async function createRiftboundComment(postId: string, userId: string, bod
   if (!body) throw new Error('Comment is required.');
   const parentId = typeof parentIdValue === 'string' && parentIdValue.trim() ? parentIdValue.trim() : null;
   const supabase = getSupabaseServiceClient();
-  const { data: post, error: postError } = await supabase.from('riftbound_posts').select('id').eq('id', postId).in('visibility', ['public', 'unlisted']).maybeSingle<{ id: string }>();
+  const { data: post, error: postError } = await supabase.from('riftbound_posts').select('id, author_id, visibility').eq('id', postId).neq('visibility', 'removed').maybeSingle<Pick<PostRow, 'id' | 'author_id' | 'visibility'>>();
   if (postError) throw postError;
-  if (!post) throw new Error('Riftbound post not found.');
+  if (!post || !(await canViewRiftboundPost(post, userId))) throw new Error('Riftbound post not found.');
   if (parentId) {
     const { data: parent, error: parentError } = await supabase.from('riftbound_post_comments').select('id').eq('id', parentId).eq('post_id', postId).eq('status', 'visible').maybeSingle<{ id: string }>();
     if (parentError) throw parentError;
@@ -664,7 +743,7 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
     supabase.from('riftbound_profile_favorite_sets').select('set_id').eq('user_id', profile.id).order('created_at', { ascending: true }),
     supabase.from('riftbound_profile_favorite_decks').select('deck_id').eq('user_id', profile.id).order('created_at', { ascending: true }),
     supabase.from('riftbound_profile_wishlist_cards').select('card_id, desired_quantity, note, created_at, updated_at').eq('user_id', profile.id).order('created_at', { ascending: true }).returns<Array<{ card_id: string; desired_quantity: number; note: string; created_at: string; updated_at: string }>>(),
-    loadRecentRiftboundPosts(profile.id, 12, isOwner),
+    loadRecentRiftboundPosts(profile.id, 12, isOwner, viewerId),
     loadLatestRiftboundPrices(),
   ]);
   if (favoriteCardsResult.error) throw favoriteCardsResult.error;

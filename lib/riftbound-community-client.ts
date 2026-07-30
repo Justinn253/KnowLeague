@@ -13,8 +13,13 @@ import type {
 type ErrorPayload = { error?: string };
 
 const inFlightGets = new Map<string, Promise<unknown>>();
+const responseCache = new Map<string, { value: unknown; expiresAt: number }>();
 const preferenceCache = new Map<string, { value: RiftboundCardPreferences; expiresAt: number }>();
 const RIFTBOUND_PREFERENCE_CACHE_TTL_MS = 15_000;
+const RIFTBOUND_FEED_CACHE_TTL_MS = 45_000;
+const RIFTBOUND_POST_CACHE_TTL_MS = 45_000;
+const RIFTBOUND_COMMENTS_CACHE_TTL_MS = 20_000;
+const RIFTBOUND_RESPONSE_CACHE_MAX_ENTRIES = 100;
 
 async function getCurrentSession() {
   const supabase = getOptionalSupabaseClient();
@@ -33,13 +38,47 @@ async function requestJson<T>(url: string, init: RequestInit = {}, session?: Ses
   return data;
 }
 
+function getCommunityCacheTtl(url: string) {
+  if (url.includes('/comments')) return RIFTBOUND_COMMENTS_CACHE_TTL_MS;
+  if (url.includes('/posts/')) return RIFTBOUND_POST_CACHE_TTL_MS;
+  if (url.includes('/feed')) return RIFTBOUND_FEED_CACHE_TTL_MS;
+  return 0;
+}
+
+function invalidateCommunityCache(postId?: string) {
+  const postPath = postId ? `/api/riftbound/community/posts/${encodeURIComponent(postId)}` : null;
+  responseCache.forEach((_entry, key) => {
+    if (key.includes('/api/riftbound/community/feed') || (postPath && key.includes(postPath))) {
+      responseCache.delete(key);
+    }
+  });
+}
+
+function setResponseCache(key: string, value: unknown, ttlMs: number) {
+  if (responseCache.size >= RIFTBOUND_RESPONSE_CACHE_MAX_ENTRIES && !responseCache.has(key)) {
+    const oldestKey = Array.from(responseCache.entries())
+      .sort(([, left], [, right]) => left.expiresAt - right.expiresAt)[0]?.[0];
+    if (oldestKey) responseCache.delete(oldestKey);
+  }
+  responseCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
 async function getJson<T>(url: string, session?: Session | null) {
   const key = `${url}:${session?.user.id ?? 'guest'}`;
+  const cached = responseCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value as T;
+  if (cached) responseCache.delete(key);
   const existing = inFlightGets.get(key);
   if (existing) return existing as Promise<T>;
-  const request = requestJson<T>(url, {}, session).finally(() => {
-    if (inFlightGets.get(key) === request) inFlightGets.delete(key);
-  });
+  const cacheTtl = getCommunityCacheTtl(url);
+  const request = requestJson<T>(url, {}, session)
+    .then((value) => {
+      if (cacheTtl > 0) setResponseCache(key, value, cacheTtl);
+      return value;
+    })
+    .finally(() => {
+      if (inFlightGets.get(key) === request) inFlightGets.delete(key);
+    });
   inFlightGets.set(key, request);
   return request;
 }
@@ -90,24 +129,67 @@ export function createRiftboundCommunityPost(body: Record<string, unknown>, sess
   return requestJson<{ post: RiftboundCommunityPostDetail }>('/api/riftbound/community/posts', {
     method: 'POST',
     body: JSON.stringify(body),
-  }, session);
+  }, session).then((result) => {
+    invalidateCommunityCache();
+    return result;
+  });
+}
+
+export function updateRiftboundCommunityPost(postId: string, body: { title: string; body: string }, session: Session) {
+  return requestJson<{ post: RiftboundCommunityPostDetail }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  }, session).then((result) => {
+    invalidateCommunityCache(postId);
+    return result;
+  });
+}
+
+export function deleteRiftboundCommunityPost(postId: string, session: Session) {
+  return requestJson<{ deleted: true }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}`, {
+    method: 'DELETE',
+  }, session).then((result) => {
+    invalidateCommunityCache(postId);
+    return result;
+  });
 }
 
 export function updateRiftboundPostReaction(postId: string, reaction: 'like' | 'dislike' | null, session: Session) {
   return requestJson<{ likeCount: number; dislikeCount: number; reaction: 'like' | 'dislike' | null }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/reaction`, {
     method: 'POST',
     body: JSON.stringify({ reaction }),
-  }, session);
+  }, session).then((result) => {
+    invalidateCommunityCache(postId);
+    return result;
+  });
 }
 
 export function recordRiftboundPostShare(postId: string) {
-  return requestJson<{ shareCount: number }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/share`, { method: 'POST' }, null);
+  return requestJson<{ shareCount: number }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/share`, { method: 'POST' }, null).then((result) => {
+    invalidateCommunityCache(postId);
+    return result;
+  });
 }
 
 export function createRiftboundComment(postId: string, body: string, session: Session, parentId?: string | null) {
   return requestJson<{ comment: RiftboundCommunityCommentsResponse['comments'][number] }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/comments`, {
     method: 'POST',
     body: JSON.stringify({ body, parentId: parentId ?? null }),
+  }, session).then((result) => {
+    invalidateCommunityCache(postId);
+    return result;
+  });
+}
+
+export function submitRiftboundPostReport(input: { message: string; reportedUsername: string; pagePath: string }, session: Session) {
+  return requestJson<{ ok: true }>('/api/contact', {
+    method: 'POST',
+    body: JSON.stringify({
+      category: 'player_report',
+      message: input.message,
+      reportedUsername: input.reportedUsername,
+      pagePath: input.pagePath,
+    }),
   }, session);
 }
 

@@ -6,6 +6,8 @@ export type RiftboundCommunityPostType = typeof RIFTBOUND_POST_TYPES[number];
 export const RIFTBOUND_NEW_POST_TYPES = ['general', 'question', 'deck_build'] as const;
 export type RiftboundNewPostType = typeof RIFTBOUND_NEW_POST_TYPES[number];
 
+export const RIFTBOUND_POST_BODY_MAX_LENGTH = 2000;
+
 export const RIFTBOUND_SOURCE_TYPES = ['collection', 'set', 'deck'] as const;
 export type RiftboundPostSourceType = typeof RIFTBOUND_SOURCE_TYPES[number];
 
@@ -15,8 +17,6 @@ export const RIFTBOUND_POST_SORTS = [
   'liked-week',
   'liked-month',
   'liked-all',
-  'price-asc',
-  'price-desc',
 ] as const;
 export type RiftboundCommunityPostSort = typeof RIFTBOUND_POST_SORTS[number];
 

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { MessageCircle, Share2, ThumbsDown, ThumbsUp } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { getChatNameStyle } from '@/lib/chat-colors';
@@ -31,31 +31,51 @@ type RiftboundCommunityPostCardProps = {
 
 export function RiftboundCommunityPostCard({ post, session, onPostChange }: RiftboundCommunityPostCardProps) {
   const router = useRouter();
-  const [reactionBusy, setReactionBusy] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const [localReaction, setLocalReaction] = useState<RiftboundPostReaction | null>(post.viewerReaction);
+  const localReactionRef = useRef<RiftboundPostReaction | null>(post.viewerReaction);
   const [likeCount, setLikeCount] = useState(post.likeCount);
+  const likeCountRef = useRef(post.likeCount);
   const [dislikeCount, setDislikeCount] = useState(post.dislikeCount);
+  const dislikeCountRef = useRef(post.dislikeCount);
+  const reactionRequestRef = useRef<Promise<unknown>>(Promise.resolve());
   const postHref = `/riftbound/community/${encodeURIComponent(post.id)}`;
   const previewCards = post.previewCardIds.flatMap((cardId) => {
     const card = getRiftboundCardById(cardId);
     return card ? [card] : [];
   });
 
-  const updateReaction = async (nextReaction: RiftboundPostReaction) => {
-    if (!session || reactionBusy) return;
-    setReactionBusy(true);
-    try {
-      const response = await updateRiftboundPostReaction(post.id, localReaction === nextReaction ? null : nextReaction, session);
-      setLocalReaction(response.reaction);
-      setLikeCount(response.likeCount);
-      setDislikeCount(response.dislikeCount);
-      onPostChange?.({ ...post, viewerReaction: response.reaction, likeCount: response.likeCount, dislikeCount: response.dislikeCount });
-    } catch {
-      // Keep the current counts when a transient request fails.
-    } finally {
-      setReactionBusy(false);
-    }
+  const updateReaction = (nextReaction: RiftboundPostReaction) => {
+    if (!session) return;
+    const previousReaction = localReactionRef.current;
+    const nextValue = previousReaction === nextReaction ? null : nextReaction;
+    const nextLikeCount = Math.max(0, likeCountRef.current - (previousReaction === 'like' ? 1 : 0) + (nextValue === 'like' ? 1 : 0));
+    const nextDislikeCount = Math.max(0, dislikeCountRef.current - (previousReaction === 'dislike' ? 1 : 0) + (nextValue === 'dislike' ? 1 : 0));
+    const applyReaction = (reaction: RiftboundPostReaction | null, likes: number, dislikes: number) => {
+      localReactionRef.current = reaction;
+      likeCountRef.current = likes;
+      dislikeCountRef.current = dislikes;
+      setLocalReaction(reaction);
+      setLikeCount(likes);
+      setDislikeCount(dislikes);
+      onPostChange?.({ ...post, viewerReaction: reaction, likeCount: likes, dislikeCount: dislikes });
+    };
+
+    applyReaction(nextValue, nextLikeCount, nextDislikeCount);
+    const request = reactionRequestRef.current
+      .catch(() => undefined)
+      .then(() => updateRiftboundPostReaction(post.id, nextValue, session));
+    reactionRequestRef.current = request;
+    void request.then((response) => {
+      if (localReactionRef.current === nextValue) applyReaction(response.reaction, response.likeCount, response.dislikeCount);
+    }).catch(() => {
+      if (localReactionRef.current !== nextValue) return;
+      applyReaction(
+        previousReaction,
+        Math.max(0, nextLikeCount - (nextValue === 'like' ? 1 : 0) + (previousReaction === 'like' ? 1 : 0)),
+        Math.max(0, nextDislikeCount - (nextValue === 'dislike' ? 1 : 0) + (previousReaction === 'dislike' ? 1 : 0)),
+      );
+    });
   };
 
   const sharePost = async () => {
@@ -106,16 +126,16 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
 
       {post.body ? <p className="line-clamp-3 whitespace-pre-line text-sm leading-6 text-slate-300">{post.body}</p> : null}
 
-      {previewCards.length > 0 ? <div className="riftbound-card-grid">
-        {previewCards.map((card) => <Link key={card.id} href={postHref} className="riftbound-card-item min-w-0 rounded-2xl border border-white/10 bg-slate-900/60 p-2 transition hover:border-amber-200/50">
-          <div className="relative aspect-[744/1039] overflow-hidden rounded-xl bg-slate-950"><RiftboundCardImage card={card} sizes="240px" quality={90} loading="lazy" className="object-cover" /></div>
-          <p className="mt-2 truncate text-xs font-black text-slate-200" title={card.displayName}>{card.displayName}</p>
+      {previewCards.length > 0 ? <div className={post.postType === 'deck_build' ? 'grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8' : 'riftbound-card-grid'}>
+        {previewCards.map((card) => <Link key={card.id} href={postHref} className={`min-w-0 rounded-2xl border border-white/10 bg-slate-900/60 transition hover:border-amber-200/50 ${post.postType === 'deck_build' ? 'rounded-xl p-1' : 'riftbound-card-item p-2'}`}>
+          <div className="relative aspect-[744/1039] overflow-hidden rounded-xl bg-slate-950"><RiftboundCardImage card={card} sizes={post.postType === 'deck_build' ? '120px' : '240px'} quality={90} loading="lazy" className="object-cover" /></div>
+          <p className={`${post.postType === 'deck_build' ? 'mt-1 text-[0.6rem]' : 'mt-2 text-xs'} truncate font-black text-slate-200`} title={card.displayName}>{card.displayName}</p>
         </Link>)}
       </div> : null}
 
       <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
-        <button type="button" onClick={() => void updateReaction('like')} disabled={!session || reactionBusy} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${localReaction === 'like' ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-emerald-200/40 hover:text-emerald-200'}`}><ThumbsUp size={14} /> {likeCount}</button>
-        <button type="button" onClick={() => void updateReaction('dislike')} disabled={!session || reactionBusy} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${localReaction === 'dislike' ? 'border-red-300/50 bg-red-300/10 text-red-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-red-200/40 hover:text-red-200'}`}><ThumbsDown size={14} /> {dislikeCount}</button>
+        <button type="button" onClick={() => updateReaction('like')} disabled={!session} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${localReaction === 'like' ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-emerald-200/40 hover:text-emerald-200'}`}><ThumbsUp size={14} /> {likeCount}</button>
+        <button type="button" onClick={() => updateReaction('dislike')} disabled={!session} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${localReaction === 'dislike' ? 'border-red-300/50 bg-red-300/10 text-red-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-red-200/40 hover:text-red-200'}`}><ThumbsDown size={14} /> {dislikeCount}</button>
         <Link href={`${postHref}#comments`} onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/40 hover:text-amber-200"><MessageCircle size={14} /> {post.commentCount}</Link>
         <button type="button" onClick={() => void sharePost()} disabled={shareBusy} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/40 hover:text-amber-200 disabled:cursor-wait disabled:opacity-50"><Share2 size={14} /> {post.shareCount > 0 ? post.shareCount : 'Share'}</button>
         {!session ? <span className="ml-auto text-[0.68rem] font-semibold text-slate-600">Sign in to react</span> : null}

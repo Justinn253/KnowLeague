@@ -615,12 +615,13 @@ function MobileHeaderMenu({
           setOpen((value) => !value);
         }}
         aria-label="Open navigation menu"
-        title="Menu"
+        title="Navigation"
         aria-expanded={open}
         aria-haspopup="menu"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
+        className="inline-flex h-9 w-auto items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
       >
         <Menu size={18} />
+        <span className="text-xs font-black uppercase tracking-[0.12em]">Navigation</span>
       </button>
 
       {open ? (

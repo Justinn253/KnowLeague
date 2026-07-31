@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
-import {
-  decodeRiftboundSharedDeckCursor,
-  loadRiftboundSharedDecks,
-  upsertRiftboundSharedDeck,
-} from '@/lib/riftbound-shared-decks';
+import { upsertRiftboundSharedDeck } from '@/lib/riftbound-shared-decks';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
@@ -24,34 +20,6 @@ type SharedDeckBody = {
   chosenChampionCardId?: unknown;
   cards?: unknown;
 };
-
-export async function GET(request: Request) {
-  try {
-    const rateLimitResponse = await enforceApiRateLimit(request, {
-      scope: 'riftbound:shared-decks',
-      ip: { limit: 120, windowMs: 60_000 },
-      errorMessage: 'Too many shared deck requests. Please try again shortly.',
-    });
-    if (rateLimitResponse) return rateLimitResponse;
-    const viewerId = await getOptionalAuthenticatedUserId(request);
-    const url = new URL(request.url);
-    const rawLimit = url.searchParams.get('limit');
-    const limit = rawLimit ? Number(rawLimit) : 24;
-    if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error('limit must be a whole number between 1 and 50.');
-    const rawCursor = url.searchParams.get('cursor');
-    const cursor = decodeRiftboundSharedDeckCursor(rawCursor);
-    if (rawCursor && !cursor) throw new Error('Invalid shared deck cursor.');
-    const payload = await loadRiftboundSharedDecks({ limit, cursor, viewerId });
-    const response = NextResponse.json(payload);
-    response.headers.set('Cache-Control', viewerId
-      ? 'private, max-age=15, stale-while-revalidate=30'
-      : 'public, max-age=30, s-maxage=60, stale-while-revalidate=300');
-    response.headers.set('Vary', 'Authorization');
-    return response;
-  } catch (error) {
-    return getRouteErrorResponse(error);
-  }
-}
 
 export async function POST(request: Request) {
   try {

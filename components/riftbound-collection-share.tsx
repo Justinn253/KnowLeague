@@ -920,7 +920,7 @@ export function RiftboundCollectionShare() {
             sideboardEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'sideboard'))}
             tierRatings={tierRatings}
             onOpen={setSelectedCard}
-            qrTopContent={sharedDeck ? <RiftboundSharedDeckReactions deck={sharedDeck} session={session} compact onDeckChange={(nextDeck) => setSharedDeck((current) => current ? { ...current, ...nextDeck } : current)} /> : null}
+            legendBottomContent={sharedDeck ? <RiftboundSharedDeckReactions deck={sharedDeck} session={session} compact onDeckChange={(nextDeck) => setSharedDeck((current) => current ? { ...current, ...nextDeck } : current)} /> : null}
           /> : (
             <>
               <div className={`grid ${deckListView ? 'gap-2' : 'gap-4'} lg:grid-cols-[18rem_minmax(0,1fr)]`}>

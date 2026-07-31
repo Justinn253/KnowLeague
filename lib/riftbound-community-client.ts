@@ -10,7 +10,6 @@ import type {
   RiftboundCardTierRating,
   RiftboundProfileData,
   RiftboundSharedDeckDetail,
-  RiftboundSharedDeckSummary,
 } from '@/lib/riftbound-community-types';
 import type { RiftboundCardTier } from '@/lib/riftbound';
 import { invalidateRiftboundBootstrap, invalidateRiftboundLatestPrices } from '@/lib/riftbound-client';
@@ -110,12 +109,6 @@ export function getRiftboundSharedDeck(deckId: string, session?: Session | null)
   return getJson<{ deck: RiftboundSharedDeckDetail }>(`/api/riftbound/shared-decks/${encodeURIComponent(deckId)}`, session);
 }
 
-export function getRiftboundSharedDecks(session?: Session | null, cursor?: string | null) {
-  const query = new URLSearchParams({ limit: '24' });
-  if (cursor) query.set('cursor', cursor);
-  return getJson<{ decks: RiftboundSharedDeckSummary[]; nextCursor: string | null }>(`/api/riftbound/shared-decks?${query.toString()}`, session);
-}
-
 export function registerRiftboundSharedDeck(body: Record<string, unknown>, session?: Session | null) {
   return requestJson<{ deck: RiftboundSharedDeckDetail }>('/api/riftbound/shared-decks', {
     method: 'POST',
@@ -131,15 +124,6 @@ export function updateRiftboundSharedDeckReaction(deckId: string, reaction: 'lik
     method: 'POST',
     body: JSON.stringify({ reaction }),
   }, session).then((result) => {
-    invalidateCommunityCache();
-    return result;
-  });
-}
-
-export function recordRiftboundSharedDeckShare(deckId: string) {
-  return requestJson<{ shareCount: number }>(`/api/riftbound/shared-decks/${encodeURIComponent(deckId)}/share`, {
-    method: 'POST',
-  }, null).then((result) => {
     invalidateCommunityCache();
     return result;
   });

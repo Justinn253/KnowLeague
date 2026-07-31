@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { ArrowUpRight, ChevronDown, LoaderCircle, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, LoaderCircle, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
@@ -199,16 +198,6 @@ export function RiftboundCommunity() {
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound community">
       <section className="mx-auto grid w-full max-w-[1600px] gap-5">
-        <header className="grid gap-3 px-1">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Riftbound Community</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">Riftbound Deck Builds, Collections, and Discussion</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Discover shared card collections and deck ideas, ask questions, and compare Riftbound builds with other players.</p>
-            </div>
-            <Link href="/riftbound/community/decks" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200">Shared Decks <ArrowUpRight size={14} /></Link>
-          </div>
-        </header>
         <section className="overflow-visible rounded-3xl border border-amber-200/20 bg-slate-950/80" aria-label="Create a new community post">
           <button
             type="button"

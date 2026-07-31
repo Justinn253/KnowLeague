@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { MessageCircle, Share2, ThumbsDown, ThumbsUp } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { getChatNameStyle } from '@/lib/chat-colors';
@@ -39,6 +39,14 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
   const [dislikeCount, setDislikeCount] = useState(post.dislikeCount);
   const dislikeCountRef = useRef(post.dislikeCount);
   const reactionRequestRef = useRef<Promise<unknown>>(Promise.resolve());
+  useEffect(() => {
+    localReactionRef.current = post.viewerReaction;
+    likeCountRef.current = post.likeCount;
+    dislikeCountRef.current = post.dislikeCount;
+    setLocalReaction(post.viewerReaction);
+    setLikeCount(post.likeCount);
+    setDislikeCount(post.dislikeCount);
+  }, [post.dislikeCount, post.likeCount, post.viewerReaction]);
   const postHref = `/riftbound/community/${encodeURIComponent(post.id)}`;
   const previewCards = post.previewCardIds.flatMap((cardId) => {
     const card = getRiftboundCardById(cardId);
@@ -129,7 +137,8 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
       {previewCards.length > 0 ? <div className={post.postType === 'deck_build' ? 'grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8' : 'riftbound-card-grid'}>
         {previewCards.map((card) => <Link key={card.id} href={postHref} className={`min-w-0 rounded-2xl border border-white/10 bg-slate-900/60 transition hover:border-amber-200/50 ${post.postType === 'deck_build' ? 'rounded-xl p-1' : 'riftbound-card-item p-2'}`}>
           <div className="relative aspect-[744/1039] overflow-hidden rounded-xl bg-slate-950"><RiftboundCardImage card={card} sizes={post.postType === 'deck_build' ? '120px' : '240px'} quality={90} loading="lazy" className="object-cover" /></div>
-          <p className={`${post.postType === 'deck_build' ? 'mt-1 text-[0.6rem]' : 'mt-2 text-xs'} truncate font-black text-slate-200`} title={card.displayName}>{card.displayName}</p>
+          <p className={`${post.postType === 'deck_build' ? 'mt-1 text-[0.6rem]' : 'mt-2 text-xs'} truncate text-center font-black text-slate-200`} title={card.displayName}>{card.displayName}</p>
+          <p className="mt-0.5 truncate text-center text-[0.55rem] font-bold uppercase tracking-[0.08em] text-slate-500">{card.setCode} {card.numberLabel}</p>
         </Link>)}
       </div> : null}
 

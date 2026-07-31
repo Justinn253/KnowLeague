@@ -8,9 +8,10 @@ type PageProps = {
 
 export function generateMetadata({ params }: PageProps): Metadata {
   return createPageMetadata({
-    title: 'Riftbound Community Post | KnowLeague',
-    description: 'View a shared Riftbound collection, set, or deck on KnowLeague.',
+    title: 'Riftbound Community Post',
+    description: 'Explore a shared Riftbound collection, set, or deck build with its card list and community discussion on KnowLeague.',
     path: `/riftbound/community/${encodeURIComponent(params.postId)}`,
+    keywords: ['Riftbound community post', 'Riftbound deck build', 'Riftbound collection', 'Riftbound decklist'],
   });
 }
 

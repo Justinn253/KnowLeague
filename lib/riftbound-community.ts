@@ -5,6 +5,7 @@ import { sanitizeChatMessage } from '@/lib/chat-filter';
 import { loadLatestRiftboundPrices, loadRiftboundDecks, loadRiftboundInventory, loadRiftboundSets } from '@/lib/riftbound-server';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { loadRiftboundCardTierRatingMap } from '@/lib/riftbound-card-tiers';
+import { attachRiftboundPostSharedDeck, loadRiftboundSharedDeck, upsertRiftboundSharedDeck } from '@/lib/riftbound-shared-decks';
 import {
   RIFTBOUND_POST_SORTS,
   RIFTBOUND_POST_BODY_MAX_LENGTH,
@@ -49,6 +50,7 @@ type PostRow = {
   share_count: number;
   created_at: string;
   updated_at: string;
+  shared_deck_id: string | null;
 };
 
 type FeedRow = PostRow & {
@@ -404,6 +406,24 @@ export async function createRiftboundPost(input: {
   const postRows = Array.isArray(data) ? data as unknown as Array<{ post_id: string }> : [];
   const postId = postRows[0]?.post_id;
   if (!postId) throw new Error('Unable to publish the Riftbound post.');
+  if (built.sourceType === 'deck') {
+    const author = await loadAuthor(input.userId);
+    const sharedDeck = await upsertRiftboundSharedDeck({
+      ownerId: input.userId,
+      name: built.snapshot.title,
+      description: built.description,
+      createdBy: author.displayName || author.username,
+      createdByChatColor: author.chatColor,
+      createdByUsername: author.username,
+      createdByAvatarUrl: author.avatarUrl,
+      legendCardId: built.snapshot.legendCardId,
+      chosenChampionCardId: built.snapshot.championCardIds[0] ?? null,
+      cards: built.rows
+        .filter((row) => ['legend', 'runes', 'battlefields', 'main', 'sideboard'].includes(row.category))
+        .map((row) => ({ card_id: row.cardId, category: row.category, quantity: row.quantity })),
+    });
+    await attachRiftboundPostSharedDeck(postId, sharedDeck.id);
+  }
   return loadRiftboundPost(postId, input.userId);
 }
 
@@ -442,6 +462,7 @@ function mapSummary(row: FeedRow, author?: RiftboundCommunityAuthor): RiftboundC
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     viewerReaction: row.viewer_reaction ?? null,
+    sharedDeckId: row.shared_deck_id ?? null,
   };
 }
 
@@ -511,7 +532,7 @@ export async function loadRiftboundPost(postId: string, viewerId: string | null 
   const supabase = getSupabaseServiceClient();
   const { data: post, error: postError } = await supabase
     .from('riftbound_posts')
-    .select('id, author_id, snapshot_id, post_type, title, body, visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at')
+    .select('id, author_id, snapshot_id, post_type, title, body, visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at, shared_deck_id')
     .eq('id', postId)
     .neq('visibility', 'removed')
     .maybeSingle<PostRow>();
@@ -519,11 +540,14 @@ export async function loadRiftboundPost(postId: string, viewerId: string | null 
   if (!post) throw new Error('Riftbound post not found.');
   if (!(await canViewRiftboundPost(post, viewerId))) throw new Error('Riftbound post not found.');
 
-  const [author, snapshotResult, cardsResult, reactionResult, cardTiers] = await Promise.all([
+  const [author, snapshotResult, cardsResult, sharedDeck, reactionResult, cardTiers] = await Promise.all([
     loadAuthor(post.author_id, supabase),
     supabase.from('riftbound_post_snapshots').select('id, source_id, title, description').eq('id', post.snapshot_id).maybeSingle<SnapshotRow>(),
     supabase.from('riftbound_post_snapshot_cards').select('snapshot_id, card_id, finish, category, quantity').eq('snapshot_id', post.snapshot_id).order('category', { ascending: true }).order('card_id', { ascending: true }).returns<SnapshotCardRow[]>(),
-    viewerId
+    post.shared_deck_id
+      ? loadRiftboundSharedDeck(post.shared_deck_id, viewerId)
+      : Promise.resolve(null),
+    !post.shared_deck_id && viewerId
       ? supabase.from('riftbound_post_reactions').select('reaction_type').eq('post_id', post.id).eq('user_id', viewerId).maybeSingle<{ reaction_type: RiftboundPostReaction }>()
       : Promise.resolve({ data: null, error: null }),
     loadRiftboundCardTierRatingMap(viewerId),
@@ -533,14 +557,21 @@ export async function loadRiftboundPost(postId: string, viewerId: string | null 
   if (reactionResult.error) throw reactionResult.error;
   if (!snapshotResult.data) throw new Error('Riftbound post snapshot not found.');
 
+  const summary = mapPostRow({
+    ...post,
+    like_count: sharedDeck?.likeCount ?? post.like_count,
+    dislike_count: sharedDeck?.dislikeCount ?? post.dislike_count,
+  }, author, sharedDeck?.viewerReaction ?? reactionResult.data?.reaction_type ?? null);
+
   return {
-    ...mapPostRow(post, author, reactionResult.data?.reaction_type ?? null),
+    ...summary,
     snapshotId: snapshotResult.data.id,
     sourceId: snapshotResult.data.source_id,
     snapshotTitle: snapshotResult.data.title,
     snapshotDescription: snapshotResult.data.description,
     cards: (cardsResult.data ?? []).map(({ snapshot_id: _snapshotId, ...card }) => card),
     cardTiers,
+    sharedDeck,
   };
 }
 
@@ -549,7 +580,7 @@ export async function loadRecentRiftboundPosts(authorId: string, limit = 12, inc
   const canSeeFriendsPosts = includeUnlisted || (viewerId ? (await getFriendRelationship(viewerId, authorId)) === 'friend' : false);
   const { data, error } = await supabase
     .from('riftbound_posts')
-    .select('id, author_id, snapshot_id, post_type, title, body, visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at')
+    .select('id, author_id, snapshot_id, post_type, title, body, visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at, shared_deck_id')
     .eq('author_id', authorId)
     .in('visibility', includeUnlisted ? ['public', 'friends', 'unlisted'] : ['public', 'friends'])
     .order('created_at', { ascending: false })

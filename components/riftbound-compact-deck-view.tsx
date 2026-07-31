@@ -1,8 +1,10 @@
 'use client';
 
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
+import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, type RiftboundCard } from '@/lib/riftbound';
 import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
+import type { ReactNode } from 'react';
 
 export type RiftboundCompactDeckEntry = {
   card: RiftboundCard;
@@ -67,13 +69,13 @@ function RiftboundCompactSection({ label, entries, onOpen, tone, highlighted = f
   );
 }
 
-export function RiftboundCompactDeckView({ shareUrl, creatorName, deckName, createdAt, legendEntries, championEntries, mainEntries, runeEntries, battlefieldEntries, sideboardEntries, onOpen, tierRatings = {}, mainLabel = 'Main Deck', showHeader = true, className = '' }: { shareUrl: string; creatorName: string; deckName: string; createdAt: string; legendEntries: RiftboundCompactDeckEntry[]; championEntries: RiftboundCompactDeckEntry[]; mainEntries: RiftboundCompactDeckEntry[]; runeEntries: RiftboundCompactDeckEntry[]; battlefieldEntries: RiftboundCompactDeckEntry[]; sideboardEntries: RiftboundCompactDeckEntry[]; onOpen: (card: RiftboundCard) => void; tierRatings?: Record<string, RiftboundCardTierRating>; mainLabel?: string; showHeader?: boolean; className?: string }) {
+export function RiftboundCompactDeckView({ shareUrl, creatorName, creatorNameColor, deckName, createdAt, legendEntries, championEntries, mainEntries, runeEntries, battlefieldEntries, sideboardEntries, onOpen, tierRatings = {}, mainLabel = 'Main Deck', showHeader = true, className = '', qrTopContent }: { shareUrl: string; creatorName: string; creatorNameColor?: string | null; deckName: string; createdAt: string; legendEntries: RiftboundCompactDeckEntry[]; championEntries: RiftboundCompactDeckEntry[]; mainEntries: RiftboundCompactDeckEntry[]; runeEntries: RiftboundCompactDeckEntry[]; battlefieldEntries: RiftboundCompactDeckEntry[]; sideboardEntries: RiftboundCompactDeckEntry[]; onOpen: (card: RiftboundCard) => void; tierRatings?: Record<string, RiftboundCardTierRating>; mainLabel?: string; showHeader?: boolean; className?: string; qrTopContent?: ReactNode }) {
   return (
     <section className={`grid gap-3 rounded-3xl border border-amber-200/20 bg-slate-950/90 p-3 sm:p-4 ${className}`}>
       {showHeader ? <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">KnowLeague Deck Share</p>
         <p className="max-w-full truncate text-sm font-black text-white" title={deckName}>{deckName}</p>
-        <p className="max-w-full truncate text-xs font-semibold text-slate-400" title={creatorName}>by {creatorName}</p>
+        <p className="max-w-full truncate text-xs font-semibold text-slate-400" title={creatorName}>by <span style={getChatNameStyle(creatorNameColor)}>{creatorName}</span></p>
         <p className="text-xs text-slate-500">{formatCompactDeckDate(createdAt)}</p>
       </div> : null}
       <div className="grid gap-3 lg:grid-cols-[13.2rem_minmax(0,1fr)]">
@@ -85,8 +87,11 @@ export function RiftboundCompactDeckView({ shareUrl, creatorName, deckName, crea
             <RiftboundCompactSection label="Champion Units" entries={championEntries} onOpen={onOpen} tone="rose" tierRatings={tierRatings} className="w-fit max-w-full" />
             <RiftboundCompactSection label="Runes" entries={runeEntries} onOpen={onOpen} tone="green" tierRatings={tierRatings} className="w-fit max-w-full" />
             <RiftboundCompactSection label="Battlefields" entries={battlefieldEntries} onOpen={onOpen} tone="cyan" tierRatings={tierRatings} className="w-fit max-w-full" />
-            <div className="ml-auto grid h-[12.25rem] w-[12.25rem] max-w-full flex-none place-items-center p-0">
-              {shareUrl ? <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&ecc=L&data=${encodeURIComponent(shareUrl)}`} alt="QR code for this Riftbound deck share link" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full rounded-lg" /> : <span className="text-center text-xs text-slate-500">Preparing QR code...</span>}
+            <div className="ml-auto grid w-[12.25rem] max-w-full flex-none justify-items-center gap-2">
+              {qrTopContent ? <div className="grid justify-items-center">{qrTopContent}</div> : null}
+              <div className="grid h-[12.25rem] w-[12.25rem] max-w-full place-items-center p-0">
+                {shareUrl ? <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&ecc=L&data=${encodeURIComponent(shareUrl)}`} alt="QR code for this Riftbound deck share link" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full rounded-lg" /> : <span className="text-center text-xs text-slate-500">Preparing QR code...</span>}
+              </div>
             </div>
           </div>
           <RiftboundCompactSection label={mainLabel} entries={mainEntries} onOpen={onOpen} tone="red" tierRatings={tierRatings} />

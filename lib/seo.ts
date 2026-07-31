@@ -29,15 +29,17 @@ type PageMetadataOptions = {
   title: string;
   description: string;
   path: string;
+  keywords?: string[];
 };
 
-export function createPageMetadata({ title, description, path }: PageMetadataOptions): Metadata {
+export function createPageMetadata({ title, description, path, keywords }: PageMetadataOptions): Metadata {
   const canonicalUrl = getAbsoluteSiteUrl(path);
   const socialImageUrl = getAbsoluteSiteUrl(SOCIAL_IMAGE_PATH);
 
   return {
     title,
     description,
+    ...(keywords?.length ? { keywords } : {}),
     ...(siteUrl
       ? {
           metadataBase: siteUrl,

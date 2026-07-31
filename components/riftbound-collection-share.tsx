@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft, Check, ExternalLink, FileDown, Grid2X2, Info, LayoutList, LoaderCircle, PackageOpen, Plus, QrCode, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { getRiftboundCardFilterCount, matchesRiftboundPriceRange, RiftboundCardRow } from '@/components/riftbound-card-grid';
@@ -10,6 +10,7 @@ import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
+import { RiftboundSharedDeckReactions } from '@/components/riftbound-shared-deck-reactions';
 import {
   getRiftboundHistoryRangeDays,
   RiftboundHistoryChartLoading,
@@ -19,9 +20,11 @@ import {
   type RiftboundPriceHistoryEntry,
 } from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
+import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundCardTier, type RiftboundFinish } from '@/lib/riftbound';
-import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
+import type { RiftboundCardTierRating, RiftboundSharedDeckDetail } from '@/lib/riftbound-community-types';
 import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundLatestPrice } from '@/lib/riftbound-client';
+import { getRiftboundSharedDeck, registerRiftboundSharedDeck } from '@/lib/riftbound-community-client';
 
 type SharedInventoryRow = {
   card_id: string;
@@ -388,6 +391,25 @@ function decodeShareBytes(value: string) {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
+function snapshotFromSharedDeck(deck: RiftboundSharedDeckDetail): SharedSnapshot {
+  const cards = deck.cards.map(({ card_id, category, quantity }) => ({ card_id, category, quantity }));
+  return {
+    rows: cards.map((entry) => ({ card_id: entry.card_id, finish: cardById.get(entry.card_id)?.defaultFinish ?? 'normal', quantity: entry.quantity })),
+    kind: 'deck',
+    title: deck.name,
+    createdBy: deck.createdBy,
+    createdAt: deck.createdAt,
+    deck: {
+      name: deck.name,
+      description: deck.description,
+      legendCardId: deck.legendCardId ?? cards.find((entry) => entry.category === 'legend')?.card_id ?? '',
+      chosenChampionCardId: deck.chosenChampionCardId ?? '',
+      createdAt: deck.deckCreatedAt ?? deck.createdAt,
+      cards,
+    },
+  };
+}
+
 function readShareVarUint(bytes: Uint8Array, cursor: { index: number }) {
   let value = 0;
   let multiplier = 1;
@@ -605,21 +627,73 @@ export function RiftboundCollectionShare() {
   const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
   const [deckViewMode, setDeckViewMode] = useState<SharedDeckViewMode>('compact');
   const [sharePageUrl, setSharePageUrl] = useState('');
+  const [sharedDeck, setSharedDeck] = useState<RiftboundSharedDeckDetail | null>(null);
+  const [sharedDeckId, setSharedDeckId] = useState('');
+  const [sharedDeckError, setSharedDeckError] = useState('');
   const [deckSaveState, setDeckSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [deckSaveError, setDeckSaveError] = useState('');
+  const registeredDeckKeyRef = useRef('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const data = params.get('d') ?? params.get('data');
-    void (data ? decodeRows(data) : Promise.resolve({ rows: [], kind: 'collection' as const, title: '', createdBy: '', createdAt: '' }))
-      .then(setSnapshot);
+    const deckId = params.get('deck') ?? '';
+    setSharedDeckId(deckId);
     setSharePageUrl(window.location.href);
+    if (data) {
+      void decodeRows(data).then(setSnapshot);
+    } else if (!deckId) {
+      setSnapshot({ rows: [], kind: 'collection', title: '', createdBy: '', createdAt: '' });
+    }
   }, []);
 
   useEffect(() => subscribeToAuthSession((nextSession) => {
     setSession(nextSession);
     setAuthResolved(true);
   }), []);
+
+  useEffect(() => {
+    if (!sharedDeckId) return undefined;
+    let cancelled = false;
+    setSharedDeckError('');
+    void getRiftboundSharedDeck(sharedDeckId, session)
+      .then((response) => {
+        if (cancelled) return;
+        setSharedDeck(response.deck);
+        setSnapshot(snapshotFromSharedDeck(response.deck));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setSharedDeckError(error instanceof Error ? error.message : 'Unable to load this shared deck.');
+      });
+    return () => { cancelled = true; };
+  }, [session, sharedDeckId]);
+
+  useEffect(() => {
+    if (snapshot.kind !== 'deck' || !snapshot.deck || sharedDeckId) return undefined;
+    const registrationKey = `${snapshot.title}:${snapshot.deck.createdAt}:${snapshot.deck.cards.map((card) => `${card.category}:${card.card_id}:${card.quantity}`).join('|')}`;
+    if (registeredDeckKeyRef.current === registrationKey) return undefined;
+    registeredDeckKeyRef.current = registrationKey;
+    setSharedDeckError('');
+    void registerRiftboundSharedDeck({
+      name: snapshot.deck.name || snapshot.title || 'Shared Riftbound deck',
+      description: snapshot.deck.description,
+      createdBy: snapshot.createdBy,
+      createdByChatColor: 'amber',
+      createdByUsername: snapshot.createdBy || null,
+      createdByAvatarUrl: null,
+      createdAt: snapshot.createdAt,
+      deckCreatedAt: snapshot.deck.createdAt,
+      legendCardId: snapshot.deck.legendCardId,
+      chosenChampionCardId: snapshot.deck.chosenChampionCardId,
+      cards: snapshot.deck.cards,
+    }, session)
+      .then((response) => {
+        setSharedDeckId(response.deck.id);
+        setSharedDeck(response.deck);
+      })
+      .catch((error: unknown) => setSharedDeckError(error instanceof Error ? error.message : 'Unable to register this shared deck for community reactions.'));
+    return undefined;
+  }, [session, sharedDeckId, snapshot]);
 
   useEffect(() => {
     let cancelled = false;
@@ -798,11 +872,12 @@ export function RiftboundCollectionShare() {
             </div>
           </div>
           {snapshot.kind === 'deck' && deckSaveError ? <p role="alert" className="mt-3 text-sm font-semibold text-red-200 print:hidden">{deckSaveError}</p> : null}
+          {snapshot.kind === 'deck' && sharedDeckError ? <p role="alert" className="mt-3 text-sm font-semibold text-red-200 print:hidden">{sharedDeckError}</p> : null}
           {snapshot.kind === 'deck' && snapshot.deck ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
                 <span>Created {formatShareCreatedAt(snapshot.deck.createdAt || snapshot.createdAt)}</span>
-                <span>Shared by <strong className="text-slate-300">{snapshot.createdBy || 'Unknown user'}</strong></span>
+                <span>Shared by <strong style={getChatNameStyle(sharedDeck?.createdByChatColor)}>{snapshot.createdBy || 'Unknown user'}</strong></span>
               </div>
               <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Deck view options">
                 {([
@@ -834,6 +909,7 @@ export function RiftboundCollectionShare() {
           deckViewMode === 'compact' ? <RiftboundCompactDeckView
             shareUrl={sharePageUrl}
             creatorName={snapshot.createdBy || 'Unknown user'}
+            creatorNameColor={sharedDeck?.createdByChatColor}
             deckName={snapshot.deck.name}
             createdAt={snapshot.deck.createdAt || snapshot.createdAt}
             legendEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'legend'))}
@@ -844,6 +920,7 @@ export function RiftboundCollectionShare() {
             sideboardEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'sideboard'))}
             tierRatings={tierRatings}
             onOpen={setSelectedCard}
+            qrTopContent={sharedDeck ? <RiftboundSharedDeckReactions deck={sharedDeck} session={session} compact onDeckChange={(nextDeck) => setSharedDeck((current) => current ? { ...current, ...nextDeck } : current)} /> : null}
           /> : (
             <>
               <div className={`grid ${deckListView ? 'gap-2' : 'gap-4'} lg:grid-cols-[18rem_minmax(0,1fr)]`}>

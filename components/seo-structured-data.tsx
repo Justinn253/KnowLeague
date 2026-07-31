@@ -1,6 +1,6 @@
 import { getAbsoluteSiteUrl, SITE_NAME, siteUrl } from '@/lib/seo';
 
-function StructuredData({ data }: { data: Record<string, unknown> }) {
+export function StructuredData({ data }: { data: Record<string, unknown> }) {
   return (
     <script
       type="application/ld+json"

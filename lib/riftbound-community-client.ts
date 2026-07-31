@@ -9,6 +9,8 @@ import type {
   RiftboundCardPreferences,
   RiftboundCardTierRating,
   RiftboundProfileData,
+  RiftboundSharedDeckDetail,
+  RiftboundSharedDeckSummary,
 } from '@/lib/riftbound-community-types';
 import type { RiftboundCardTier } from '@/lib/riftbound';
 import { invalidateRiftboundBootstrap, invalidateRiftboundLatestPrices } from '@/lib/riftbound-client';
@@ -22,6 +24,7 @@ const RIFTBOUND_PREFERENCE_CACHE_TTL_MS = 15_000;
 const RIFTBOUND_FEED_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_POST_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_COMMENTS_CACHE_TTL_MS = 20_000;
+const RIFTBOUND_SHARED_DECK_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_RESPONSE_CACHE_MAX_ENTRIES = 100;
 
 async function getCurrentSession() {
@@ -43,6 +46,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}, session?: Ses
 
 function getCommunityCacheTtl(url: string) {
   if (url.includes('/comments')) return RIFTBOUND_COMMENTS_CACHE_TTL_MS;
+  if (url.includes('/shared-decks')) return RIFTBOUND_SHARED_DECK_CACHE_TTL_MS;
   if (url.includes('/posts/')) return RIFTBOUND_POST_CACHE_TTL_MS;
   if (url.includes('/feed')) return RIFTBOUND_FEED_CACHE_TTL_MS;
   return 0;
@@ -51,7 +55,7 @@ function getCommunityCacheTtl(url: string) {
 function invalidateCommunityCache(postId?: string) {
   const postPath = postId ? `/api/riftbound/community/posts/${encodeURIComponent(postId)}` : null;
   responseCache.forEach((_entry, key) => {
-    if (key.includes('/api/riftbound/community/feed') || (postPath && key.includes(postPath))) {
+    if (key.includes('/api/riftbound/community/feed') || key.includes('/api/riftbound/shared-decks') || (postPath && key.includes(postPath))) {
       responseCache.delete(key);
     }
   });
@@ -100,6 +104,45 @@ async function getJson<T>(url: string, session?: Session | null) {
 
 export function getRiftboundCommunityFeed(url: string, session?: Session | null) {
   return getJson<RiftboundCommunityFeedResponse>(url, session);
+}
+
+export function getRiftboundSharedDeck(deckId: string, session?: Session | null) {
+  return getJson<{ deck: RiftboundSharedDeckDetail }>(`/api/riftbound/shared-decks/${encodeURIComponent(deckId)}`, session);
+}
+
+export function getRiftboundSharedDecks(session?: Session | null, cursor?: string | null) {
+  const query = new URLSearchParams({ limit: '24' });
+  if (cursor) query.set('cursor', cursor);
+  return getJson<{ decks: RiftboundSharedDeckSummary[]; nextCursor: string | null }>(`/api/riftbound/shared-decks?${query.toString()}`, session);
+}
+
+export function registerRiftboundSharedDeck(body: Record<string, unknown>, session?: Session | null) {
+  return requestJson<{ deck: RiftboundSharedDeckDetail }>('/api/riftbound/shared-decks', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }, session).then((result) => {
+    invalidateCommunityCache();
+    return result;
+  });
+}
+
+export function updateRiftboundSharedDeckReaction(deckId: string, reaction: 'like' | 'dislike' | null, session: Session) {
+  return requestJson<{ likeCount: number; dislikeCount: number; reaction: 'like' | 'dislike' | null }>(`/api/riftbound/shared-decks/${encodeURIComponent(deckId)}/reaction`, {
+    method: 'POST',
+    body: JSON.stringify({ reaction }),
+  }, session).then((result) => {
+    invalidateCommunityCache();
+    return result;
+  });
+}
+
+export function recordRiftboundSharedDeckShare(deckId: string) {
+  return requestJson<{ shareCount: number }>(`/api/riftbound/shared-decks/${encodeURIComponent(deckId)}/share`, {
+    method: 'POST',
+  }, null).then((result) => {
+    invalidateCommunityCache();
+    return result;
+  });
 }
 
 export function getRiftboundCommunityPost(postId: string, session?: Session | null) {

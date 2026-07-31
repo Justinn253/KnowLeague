@@ -14,6 +14,9 @@ const publicRoutes = [
   '/category-clash',
   '/mastery-master',
   '/riot-account-viewer',
+  '/riftbound/inventory',
+  '/riftbound/community',
+  '/riftbound/community/decks',
   '/privacy',
   '/terms',
 ] as const;

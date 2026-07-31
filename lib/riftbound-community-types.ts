@@ -24,6 +24,40 @@ export type RiftboundCommunityPostSort = typeof RIFTBOUND_POST_SORTS[number];
 export type RiftboundPostVisibility = 'public' | 'friends' | 'unlisted';
 export type RiftboundPostReaction = 'like' | 'dislike';
 
+export type RiftboundSharedDeckCategory = 'legend' | 'runes' | 'battlefields' | 'main' | 'sideboard';
+
+export type RiftboundSharedDeckCard = {
+  card_id: string;
+  category: RiftboundSharedDeckCategory;
+  quantity: number;
+};
+
+export type RiftboundSharedDeckSummary = {
+  id: string;
+  deckKey: string;
+  name: string;
+  description: string;
+  createdBy: string;
+  createdByChatColor: string;
+  createdByUsername: string | null;
+  createdByAvatarUrl: string | null;
+  createdAt: string;
+  deckCreatedAt: string | null;
+  legendCardId: string | null;
+  chosenChampionCardId: string | null;
+  previewCardIds: string[];
+  totalCardCount: number;
+  totalCopyCount: number;
+  likeCount: number;
+  dislikeCount: number;
+  shareCount: number;
+  viewerReaction: RiftboundPostReaction | null;
+};
+
+export type RiftboundSharedDeckDetail = RiftboundSharedDeckSummary & {
+  cards: RiftboundSharedDeckCard[];
+};
+
 export type RiftboundCommunityAuthor = {
   id: string;
   username: string;
@@ -56,6 +90,7 @@ export type RiftboundCommunityPostSummary = {
   createdAt: string;
   updatedAt: string;
   viewerReaction: RiftboundPostReaction | null;
+  sharedDeckId: string | null;
 };
 
 export type RiftboundPostSnapshotCard = {
@@ -72,6 +107,7 @@ export type RiftboundCommunityPostDetail = RiftboundCommunityPostSummary & {
   snapshotDescription: string;
   cards: RiftboundPostSnapshotCard[];
   cardTiers: Record<string, import('@/lib/riftbound').RiftboundCardTierRating>;
+  sharedDeck: RiftboundSharedDeckDetail | null;
 };
 
 export type RiftboundCommunityComment = {

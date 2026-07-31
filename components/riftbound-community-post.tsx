@@ -441,7 +441,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
               <div className="border-t border-white/10 pt-4">
                 <h2 className="text-xl font-black text-white">{post.snapshotTitle || 'Untitled deck'}</h2>
               </div>
-              {compactDeckEntries ? <RiftboundCompactDeckView shareUrl={shareUrl} creatorName={post.author.displayName || post.author.username} deckName={post.snapshotTitle || 'Untitled deck'} createdAt={post.createdAt} {...compactDeckEntries} tierRatings={tierRatings} onOpen={setSelectedCard} showHeader={false} className="-mx-5 rounded-none border-x-0 border-b-0 border-t-0 bg-transparent p-0 sm:-mx-6 sm:px-6" /> : null}
+              {compactDeckEntries ? <RiftboundCompactDeckView shareUrl={shareUrl} creatorName={post.author.displayName || post.author.username} creatorNameColor={post.author.chatColor} deckName={post.snapshotTitle || 'Untitled deck'} createdAt={post.createdAt} {...compactDeckEntries} tierRatings={tierRatings} onOpen={setSelectedCard} showHeader={false} className="-mx-5 rounded-none border-x-0 border-b-0 border-t-0 bg-transparent p-0 sm:-mx-6 sm:px-6" /> : null}
             </div>
           ) : groupedCards.length > 0 ? (
             <div className="grid gap-5 border-t border-white/10 pt-5">

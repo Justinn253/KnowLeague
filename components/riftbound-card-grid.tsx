@@ -1636,7 +1636,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   const isInventory = mode === 'inventory';
   const isCollection = mode === 'collection-view';
   return (
-    <article className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors focus-within:border-amber-200/80 hover:bg-slate-950 sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
+    <article id={`riftbound-card-${card.id}`} className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors focus-within:border-amber-200/80 hover:bg-slate-950 sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
       {ownership ? <div className={`mb-2 inline-flex items-center gap-1 self-end text-[0.6rem] font-black uppercase tracking-[0.12em] ${ownership === 'owned' ? 'text-emerald-300' : 'text-red-300'}`}><CheckCircle2 size={12} /> {ownership}</div> : null}
       <button
         type="button"
@@ -3295,6 +3295,13 @@ export function RiftboundCardGrid() {
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
       <section className="mx-auto grid w-full max-w-[1600px] gap-6">
         <header className="relative z-40 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-7">
+          <div className="mb-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Riftbound Collection Tools</p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">Riftbound Card Database and Collection Tracker</h1>
+              <p className="mt-2 text-sm leading-6 text-slate-400 xl:whitespace-nowrap">Browse the Riftbound card catalogue, track normal and foil copies, build sets and decks, and compare captured market details.</p>
+            </div>
+          </div>
           <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
             {(['global', 'inventory', 'sets'] as InventoryTab[]).map((tab) => {
               const active = activeTab === tab;

@@ -1,7 +1,16 @@
 import type { RiftboundDeck, RiftboundInventoryItem, RiftboundSet } from '@/lib/riftbound-client';
+export type { RiftboundCardTierRating } from '@/lib/riftbound';
 
-export const RIFTBOUND_POST_TYPES = ['collection', 'set', 'deck'] as const;
+export const RIFTBOUND_POST_TYPES = ['general', 'question', 'deck_build', 'collection', 'set', 'deck'] as const;
 export type RiftboundCommunityPostType = typeof RIFTBOUND_POST_TYPES[number];
+
+export const RIFTBOUND_NEW_POST_TYPES = ['general', 'question', 'deck_build'] as const;
+export type RiftboundNewPostType = typeof RIFTBOUND_NEW_POST_TYPES[number];
+
+export const RIFTBOUND_POST_BODY_MAX_LENGTH = 2000;
+
+export const RIFTBOUND_SOURCE_TYPES = ['collection', 'set', 'deck'] as const;
+export type RiftboundPostSourceType = typeof RIFTBOUND_SOURCE_TYPES[number];
 
 export const RIFTBOUND_POST_SORTS = [
   'recent',
@@ -9,13 +18,45 @@ export const RIFTBOUND_POST_SORTS = [
   'liked-week',
   'liked-month',
   'liked-all',
-  'price-asc',
-  'price-desc',
 ] as const;
 export type RiftboundCommunityPostSort = typeof RIFTBOUND_POST_SORTS[number];
 
-export type RiftboundPostVisibility = 'public' | 'unlisted';
+export type RiftboundPostVisibility = 'public' | 'friends' | 'unlisted';
 export type RiftboundPostReaction = 'like' | 'dislike';
+
+export type RiftboundSharedDeckCategory = 'legend' | 'runes' | 'battlefields' | 'main' | 'sideboard';
+
+export type RiftboundSharedDeckCard = {
+  card_id: string;
+  category: RiftboundSharedDeckCategory;
+  quantity: number;
+};
+
+export type RiftboundSharedDeckSummary = {
+  id: string;
+  deckKey: string;
+  name: string;
+  description: string;
+  createdBy: string;
+  createdByChatColor: string;
+  createdByUsername: string | null;
+  createdByAvatarUrl: string | null;
+  createdAt: string;
+  deckCreatedAt: string | null;
+  legendCardId: string | null;
+  chosenChampionCardId: string | null;
+  previewCardIds: string[];
+  totalCardCount: number;
+  totalCopyCount: number;
+  likeCount: number;
+  dislikeCount: number;
+  shareCount: number;
+  viewerReaction: RiftboundPostReaction | null;
+};
+
+export type RiftboundSharedDeckDetail = RiftboundSharedDeckSummary & {
+  cards: RiftboundSharedDeckCard[];
+};
 
 export type RiftboundCommunityAuthor = {
   id: string;
@@ -49,6 +90,7 @@ export type RiftboundCommunityPostSummary = {
   createdAt: string;
   updatedAt: string;
   viewerReaction: RiftboundPostReaction | null;
+  sharedDeckId: string | null;
 };
 
 export type RiftboundPostSnapshotCard = {
@@ -64,6 +106,8 @@ export type RiftboundCommunityPostDetail = RiftboundCommunityPostSummary & {
   snapshotTitle: string;
   snapshotDescription: string;
   cards: RiftboundPostSnapshotCard[];
+  cardTiers: Record<string, import('@/lib/riftbound').RiftboundCardTierRating>;
+  sharedDeck: RiftboundSharedDeckDetail | null;
 };
 
 export type RiftboundCommunityComment = {
@@ -130,6 +174,7 @@ export type RiftboundProfileData = {
   favoriteDeckIds: string[];
   wishlist: RiftboundWishlistCard[];
   posts: RiftboundCommunityPostSummary[];
+  cardTiers: Record<string, import('@/lib/riftbound').RiftboundCardTierRating>;
   entitlement: {
     plan: 'free' | 'premium';
     status: 'active' | 'inactive' | 'past_due' | 'canceled';

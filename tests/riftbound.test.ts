@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isRiftboundShowcasePrint, RIFTBOUND_CARDS } from '@/lib/riftbound';
+import { getRiftboundCardTierGroupId, isRiftboundShowcasePrint, RIFTBOUND_CARDS } from '@/lib/riftbound';
 
 describe('Riftbound showcase classification', () => {
   it('classifies alternate, overnumbered, signature, and SP prints as foil-only Showcase cards', () => {
@@ -17,5 +17,14 @@ describe('Riftbound showcase classification', () => {
   it('does not classify ordinary in-range prints as Showcase', () => {
     expect(isRiftboundShowcasePrint({ collectorNumber: '185', printedTotal: 219 })).toBe(false);
     expect(isRiftboundShowcasePrint({ collectorNumber: '001', printedTotal: 298 })).toBe(false);
+  });
+
+  it('uses one tier group for identical alternate-art prints', () => {
+    const original = RIFTBOUND_CARDS.find((card) => card.id === 'sfd-057-221');
+    const alternate = RIFTBOUND_CARDS.find((card) => card.id === 'sfd-057a-221');
+    const starPrint = RIFTBOUND_CARDS.find((card) => card.id === 'sfd-225-star-221');
+    expect(original && alternate && starPrint).toBeTruthy();
+    expect(getRiftboundCardTierGroupId(original!)).toBe(getRiftboundCardTierGroupId(alternate!));
+    expect(getRiftboundCardTierGroupId(original!)).toBe(getRiftboundCardTierGroupId(starPrint!));
   });
 });

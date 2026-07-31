@@ -9,9 +9,10 @@ type PageProps = {
 export function generateMetadata({ params }: PageProps): Metadata {
   const username = decodeURIComponent(params.username);
   return createPageMetadata({
-    title: `${username}'s Riftbound Profile | KnowLeague`,
-    description: `View ${username}'s public Riftbound collection, sets, decks, favorites, wishlist, and community posts.`,
+    title: `${username}'s Riftbound Profile`,
+    description: `View ${username}'s public Riftbound collection, saved sets, decklists, favorite cards, wishlist, and community posts on KnowLeague.`,
     path: `/riftbound/profile/${encodeURIComponent(params.username)}`,
+    keywords: ['Riftbound profile', 'Riftbound collection', 'Riftbound decklists', 'Riftbound card tracker'],
   });
 }
 

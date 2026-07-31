@@ -1,6 +1,8 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-memory-cache';
+import type { RiftboundCardTierRating } from '@/lib/riftbound';
 import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
+import { loadRiftboundCardTierRatingMap } from '@/lib/riftbound-card-tiers';
 
 export type RiftboundLatestPrice = {
   normal: number | null;
@@ -49,6 +51,7 @@ export type RiftboundLatestPricesPayload = {
   sourceSnapshotAt: string | null;
   capturedAt: string | null;
   prices: Record<string, RiftboundLatestPrice>;
+  cardTiers?: Record<string, RiftboundCardTierRating>;
 };
 
 type LatestSnapshotDateRow = {
@@ -132,7 +135,7 @@ function isMissingRiftboundDeckStorage(error: unknown) {
   return candidate.code === '42P01' || (/riftbound_deck/.test(message) && /does not exist|relation/.test(message));
 }
 
-export async function loadLatestRiftboundPrices(
+async function loadLatestRiftboundPricePayload(
   supabase: RiftboundSupabaseClient = getSupabaseServiceClient(),
 ): Promise<RiftboundLatestPricesPayload> {
   const cached = getServerCache<RiftboundLatestPricesPayload>(RIFTBOUND_LATEST_PRICES_CACHE_KEY);
@@ -218,6 +221,17 @@ export async function loadLatestRiftboundPrices(
     }
   });
   return request;
+}
+
+export async function loadLatestRiftboundPrices(
+  supabase: RiftboundSupabaseClient = getSupabaseServiceClient(),
+  viewerId: string | null = null,
+): Promise<RiftboundLatestPricesPayload> {
+  const [payload, cardTiers] = await Promise.all([
+    loadLatestRiftboundPricePayload(supabase),
+    loadRiftboundCardTierRatingMap(viewerId),
+  ]);
+  return { ...payload, cardTiers };
 }
 
 export async function loadRiftboundInventory(
@@ -328,7 +342,7 @@ export async function loadRiftboundBootstrap(userId: string | null) {
     })
     : Promise.resolve([] as RiftboundDeck[]);
   const [prices, inventory, sets, decks] = await Promise.all([
-    loadLatestRiftboundPrices(supabase),
+    loadLatestRiftboundPrices(supabase, userId),
     userId ? loadRiftboundInventory(userId, supabase) : Promise.resolve([] as RiftboundInventoryRow[]),
     userId ? loadRiftboundSets(userId, supabase) : Promise.resolve([] as RiftboundSet[]),
     deckPromise,

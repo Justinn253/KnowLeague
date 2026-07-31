@@ -7,6 +7,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit';
 export const runtime = 'nodejs';
 
 type CreatePostBody = {
+  postType?: unknown;
   sourceType?: unknown;
   sourceId?: unknown;
   title?: unknown;
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
     const body = await readJsonBody<CreatePostBody>(request);
     const post = await createRiftboundPost({
       userId,
+      postType: body.postType,
       sourceType: body.sourceType,
       sourceId: body.sourceId,
       title: body.title,

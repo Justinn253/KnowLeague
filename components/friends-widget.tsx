@@ -276,9 +276,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   }, [isOpen]);
 
   useEffect(() => {
-    const openFromMobileMenu = () => setIsOpen(true);
-    window.addEventListener('knowleague:open-friends', openFromMobileMenu);
-    return () => window.removeEventListener('knowleague:open-friends', openFromMobileMenu);
+    const toggleFromHeader = () => setIsOpen((value) => !value);
+    window.addEventListener('knowleague:toggle-friends', toggleFromHeader);
+    return () => window.removeEventListener('knowleague:toggle-friends', toggleFromHeader);
   }, []);
 
   useEffect(() => () => {
@@ -685,6 +685,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (target.closest('[data-profile-overlay="true"]')) {
+        return;
+      }
+      if (target.closest('[data-friends-trigger="true"]')) {
         return;
       }
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
@@ -1549,7 +1552,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
           : 'relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900'}
       >
         <Users size={18} />
-        <span className={variant === 'header' || variant === 'responsive' ? 'hidden xl:inline' : ''}>Friends</span>
+        <span className={variant === 'header' || variant === 'responsive' ? 'hidden 2xl:inline' : ''}>Friends</span>
         <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-100">
           {onlineCount}
         </span>

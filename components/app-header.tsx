@@ -192,10 +192,10 @@ function HeaderIconButton({
         playUiSound('autocomplete-select');
         onClick?.();
       }}
-      className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/15 bg-slate-950/90 text-slate-200 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-45 xl:h-10 ${text ? 'w-auto px-3 xl:w-auto xl:px-3' : 'w-9 xl:w-10'} ${className}`}
+      className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/15 bg-slate-950/90 text-slate-200 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-45 md:h-10 ${text ? (textAlwaysVisible ? 'w-auto px-3' : 'w-9 px-0 md:w-auto md:px-3') : 'w-9 md:w-10'} ${className}`}
     >
       {icon}
-      {text ? <span className={`${textAlwaysVisible ? '' : 'hidden xl:inline'} text-xs font-black uppercase tracking-[0.12em]`}>{text}</span> : null}
+      {text ? <span className={`${textAlwaysVisible ? '' : 'hidden md:inline'} text-xs font-black uppercase tracking-[0.12em]`}>{text}</span> : null}
     </button>
   );
 }
@@ -293,12 +293,12 @@ function ProfileAction({
       title="Profile"
       className={mobile
         ? 'relative inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
-        : 'relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 xl:h-10 xl:w-auto xl:gap-2 xl:px-3'}
+        : 'relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 md:h-10 md:w-auto md:gap-2 md:px-3'}
     >
       {profileAvatarUrl ? (
         <span className="inline-flex h-7 w-7 rounded-lg border border-white/10 bg-cover bg-center" style={{ backgroundImage: `url(${profileAvatarUrl})` }} />
       ) : <UserCircle size={17} />}
-      <span className={`${mobile ? '' : 'hidden xl:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Profile</span>
+      <span className={`${mobile ? '' : 'hidden md:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Profile</span>
       {pendingFriendRequests > 0 ? (
         <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 py-0.5 text-[0.6rem] font-black leading-none text-white">
           {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
@@ -319,16 +319,17 @@ function LoginAction({ mobile = false }: { mobile?: boolean }) {
       onClick={() => playUiSound('autocomplete-select')}
       className={mobile
         ? 'inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-amber-300/40 bg-amber-300 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200'
-        : 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/40 bg-amber-300 text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 xl:h-10 xl:w-auto xl:gap-2 xl:px-3'}
+        : 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/40 bg-amber-300 text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 md:h-10 md:w-auto md:gap-2 md:px-3'}
     >
       <LogIn size={17} />
-      <span className={`${mobile ? '' : 'hidden xl:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Log in</span>
+      <span className={`${mobile ? '' : 'hidden md:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Log in</span>
     </Link>
   );
 }
 
 function HeaderDropdown({
   label,
+  compactLabel,
   icon: Icon,
   tone,
   children,
@@ -336,6 +337,7 @@ function HeaderDropdown({
   wide = false,
 }: {
   label: string;
+  compactLabel?: string;
   icon: LucideIcon;
   tone: HeaderMenuTone;
   children: (closeMenu: () => void) => ReactNode;
@@ -383,7 +385,12 @@ function HeaderDropdown({
         className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-2.5 text-xs font-black uppercase tracking-[0.12em] outline-none transition focus:ring-2 focus:ring-amber-200 xl:h-10 xl:px-3 ${toneClasses[tone]} ${open ? 'bg-slate-900 ring-1 ring-amber-200/50' : 'bg-slate-950/90'}`}
       >
         <Icon size={16} />
-        <span className="hidden xl:inline">{label}</span>
+        {compactLabel ? (
+          <>
+            <span className="hidden xl:inline 2xl:hidden">{compactLabel}</span>
+            <span className="hidden 2xl:inline">{label}</span>
+          </>
+        ) : <span className="hidden xl:inline">{label}</span>}
         <ChevronDown size={14} className={`hidden xl:block transition ${open ? 'rotate-180 text-amber-200' : 'text-slate-400'}`} />
       </button>
       <div
@@ -428,7 +435,7 @@ function GamesMenu() {
 
 function LavMenu() {
   return (
-    <HeaderDropdown label="League Account Viewer" icon={BarChart3} tone="lav">
+    <HeaderDropdown label="League Account Viewer" compactLabel="LAV" icon={BarChart3} tone="lav">
       {(closeMenu) => (
         <div className="grid gap-2">
           <HeaderMenuLink
@@ -484,7 +491,7 @@ function RiftboundMenu() {
             onSelect={closeMenu}
           />
           <HeaderMenuLink
-            href="/inventory"
+            href="/riftbound/inventory"
             label="Inventory"
             description="Cards and collection value"
             icon={Package}
@@ -534,14 +541,36 @@ function MobileMenuDisclosure({
   );
 }
 
+function FriendsHeaderButton({ pendingFriendRequests }: { pendingFriendRequests: number }) {
+  return (
+    <button
+      type="button"
+      onMouseEnter={() => playUiSound('autocomplete-hover')}
+      onFocus={() => playUiSound('autocomplete-hover')}
+      onClick={() => {
+        playUiSound('autocomplete-select');
+        window.dispatchEvent(new Event('knowleague:toggle-friends'));
+      }}
+      aria-label="Friends"
+      title="Friends"
+      data-friends-trigger="true"
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
+    >
+      <Users size={18} />
+      {pendingFriendRequests > 0 ? (
+        <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 py-0.5 text-[0.6rem] font-black leading-none text-white">
+          {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 function MobileHeaderMenu({
   isLoggedIn,
-  profileAvatarUrl,
   pendingFriendRequests,
   moderationRole,
-  onOpenProfile,
-  onLogOut,
-}: AppHeaderProps) {
+}: Pick<AppHeaderProps, 'isLoggedIn' | 'pendingFriendRequests' | 'moderationRole'>) {
   const [open, setOpen] = useState(false);
   const [openSection, setOpenSection] = useState<'games' | 'lav' | 'riftbound' | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -586,12 +615,13 @@ function MobileHeaderMenu({
           setOpen((value) => !value);
         }}
         aria-label="Open navigation menu"
-        title="Menu"
+        title="Navigation"
         aria-expanded={open}
         aria-haspopup="menu"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
+        className="inline-flex h-9 w-auto items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
       >
         <Menu size={18} />
+        <span className="text-xs font-black uppercase tracking-[0.12em]">Navigation</span>
       </button>
 
       {open ? (
@@ -685,7 +715,7 @@ function MobileHeaderMenu({
                 onSelect={closeMenu}
               />
               <HeaderMenuLink
-                href="/inventory"
+                href="/riftbound/inventory"
                 label="Inventory"
                 description="Cards and collection value"
                 icon={Package}
@@ -713,10 +743,11 @@ function MobileHeaderMenu({
                 onFocus={() => playUiSound('autocomplete-hover')}
                 onClick={() => {
                   playUiSound('autocomplete-select');
-                  window.dispatchEvent(new Event('knowleague:open-friends'));
+                  window.dispatchEvent(new Event('knowleague:toggle-friends'));
                   closeMenu();
                 }}
                 aria-label="Friends"
+                data-friends-trigger="true"
                 className="relative inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
               >
                 <Users size={18} />
@@ -728,15 +759,6 @@ function MobileHeaderMenu({
                 ) : null}
               </button>
             ) : null}
-            {isLoggedIn ? (
-              <ProfileAction
-                profileAvatarUrl={profileAvatarUrl}
-                pendingFriendRequests={pendingFriendRequests}
-                onOpenProfile={onOpenProfile}
-                mobile
-              />
-            ) : <LoginAction mobile />}
-            {isLoggedIn ? <LogoutControl onLogOut={onLogOut} mobile /> : null}
           </section>
         </div>
       ) : null}
@@ -756,15 +778,14 @@ export function AppHeader({
   return (
     <header className="sticky top-0 z-[90] border-b border-white/10 bg-slate-950/95 text-slate-100 backdrop-blur">
       <div className="relative flex h-14 w-full items-center justify-between px-2 xl:grid xl:min-h-14 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4 xl:px-6">
-        <MobileHeaderMenu
-          isLoggedIn={isLoggedIn}
-          profileAvatarUrl={profileAvatarUrl}
-          pendingFriendRequests={pendingFriendRequests}
-          moderationRole={moderationRole}
-          onOpenProfile={onOpenProfile}
-          onPendingFriendRequestsChange={onPendingFriendRequestsChange}
-          onLogOut={onLogOut}
-        />
+        <div className="flex items-center gap-1 xl:hidden">
+          <MobileHeaderMenu
+            isLoggedIn={isLoggedIn}
+            pendingFriendRequests={pendingFriendRequests}
+            moderationRole={moderationRole}
+          />
+          {isLoggedIn ? <FriendsHeaderButton pendingFriendRequests={pendingFriendRequests} /> : null}
+        </div>
 
         <nav aria-label="Primary navigation" className="hidden min-w-0 items-center justify-start gap-1 xl:flex xl:gap-2">
           <GamesMenu />
@@ -778,7 +799,7 @@ export function AppHeader({
           onMouseEnter={() => playUiSound('autocomplete-hover')}
           onFocus={() => playUiSound('autocomplete-hover')}
           onClick={() => playUiSound('autocomplete-select')}
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-base font-black tracking-tight text-amber-100 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 xl:static xl:translate-x-0 xl:translate-y-0 xl:justify-self-center xl:text-xl"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-2xl font-black tracking-tight text-amber-100 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 xl:static xl:translate-x-0 xl:translate-y-0 xl:justify-self-center"
         >
           KnowLeague
         </Link>
@@ -812,7 +833,7 @@ export function AppHeader({
           {isLoggedIn ? (
             <FriendsWidget onPendingRequestCountChange={onPendingFriendRequestsChange} variant="responsive" />
           ) : null}
-          <div className="hidden items-center gap-1 xl:flex xl:gap-2">
+          <div className="flex items-center gap-1 xl:gap-2">
             {isLoggedIn
               ? <ProfileAction profileAvatarUrl={profileAvatarUrl} pendingFriendRequests={pendingFriendRequests} onOpenProfile={onOpenProfile} />
               : <LoginAction />}

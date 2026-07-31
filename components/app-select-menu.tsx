@@ -24,6 +24,9 @@ type AppSelectMenuProps<T extends string | number> = {
   className?: string;
   triggerClassName?: string;
   hideLabel?: boolean;
+  optionsClassName?: string;
+  menuPlacement?: 'left' | 'right';
+  menuClassName?: string;
 };
 
 export function AppSelectMenu<T extends string | number>({
@@ -40,6 +43,9 @@ export function AppSelectMenu<T extends string | number>({
   className = '',
   triggerClassName = '',
   hideLabel = false,
+  optionsClassName = '',
+  menuPlacement = 'left',
+  menuClassName = '',
 }: AppSelectMenuProps<T>) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -77,10 +83,10 @@ export function AppSelectMenu<T extends string | number>({
           role="listbox"
           aria-multiselectable={multiple || undefined}
           aria-hidden={!open}
-          className={`absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 transition-[opacity,transform] duration-100 ease-out sm:p-4 ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
+          className={`absolute ${menuPlacement === 'right' ? 'right-0' : menuClassName ? 'left-0' : 'left-0 right-0'} top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 transition-[opacity,transform] duration-100 ease-out sm:p-4 ${menuClassName} ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
         >
           <div className="mb-3 border-b border-white/10 pb-3"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">{label}</p>{headerDescription ? <p className="mt-2 text-xs leading-5 text-slate-400">{headerDescription}</p> : null}</div>
-          <div className="grid gap-2 py-1">
+          <div className={`grid gap-2 py-1 ${optionsClassName}`}>
             {options.map((option) => {
               const selected = activeValues.includes(option.value);
               return (

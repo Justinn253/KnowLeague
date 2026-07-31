@@ -13,6 +13,7 @@ type PreferenceBody = {
   enabled?: unknown;
   desiredQuantity?: unknown;
   note?: unknown;
+  cardIds?: unknown;
   visibility?: unknown;
   about?: unknown;
 };

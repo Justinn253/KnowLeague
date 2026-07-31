@@ -154,7 +154,7 @@ export function AppNavigationDrawer({
                         <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">Profile</span>
                       </span>
                     </Link>
-                    <Link href="/inventory" onClick={closeDrawer} className={gameMenuItemClass}>
+                    <Link href="/riftbound/inventory" onClick={closeDrawer} className={gameMenuItemClass}>
                       <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${gameAccentClasses.gold}`}>
                         <Package size={16} />
                       </span>

@@ -126,7 +126,6 @@ const RIFTBOUND_OCR_SINGLE_LINE_MODE = '7' as Tesseract.PSM;
 const RIFTBOUND_OCR_SINGLE_BLOCK_MODE = '6' as Tesseract.PSM;
 
 export type RiftboundSortMode =
-  | 'none'
   | 'market-asc'
   | 'market-desc'
   | 'name-asc'
@@ -346,10 +345,9 @@ const emptyFilters: RiftboundCardFilters = {
 
 const rarityOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase'];
 const inventoryRarityOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase'];
-const defaultSortMode: RiftboundSortMode = 'none';
+const defaultSortMode: RiftboundSortMode = 'market-desc';
 
 const sortOptions: AppSelectOption<RiftboundSortMode>[] = [
-  { value: 'none', label: 'No sort' },
   { value: 'market-asc', label: 'Value · Low to High' },
   { value: 'market-desc', label: 'Value · High to Low' },
   { value: 'name-asc', label: 'Name · A to Z' },
@@ -368,7 +366,22 @@ const sortOptions: AppSelectOption<RiftboundSortMode>[] = [
   { value: 'quantity-desc', label: 'Quantity · High to Low' },
 ];
 
-export const RIFTBOUND_SORT_OPTIONS = sortOptions;
+const orderedSortValues: RiftboundSortMode[] = [
+  'market-desc', 'market-asc',
+  'name-asc', 'name-desc',
+  'number-asc', 'number-desc',
+  'rarity-desc', 'rarity-asc',
+  'might-desc', 'might-asc',
+  'energy-desc', 'energy-asc',
+  'power-desc', 'power-asc',
+  'quantity-desc', 'quantity-asc',
+];
+
+const orderedSortOptions = orderedSortValues
+  .map((value) => sortOptions.find((option) => option.value === value))
+  .filter((option): option is AppSelectOption<RiftboundSortMode> => Boolean(option));
+
+export const RIFTBOUND_SORT_OPTIONS = orderedSortOptions;
 export const RIFTBOUND_RARITY_ORDER = rarityOrder;
 
 export function createRiftboundCardFilters(): RiftboundCardFilters {
@@ -445,7 +458,6 @@ function compareNullableNumbers(left: number | null, right: number | null, direc
 }
 
 export function compareRiftboundCards(left: RiftboundCard, right: RiftboundCard, mode: RiftboundSortMode, inventoryByCard: Map<string, number>) {
-  if (mode === 'none') return 0;
   const direction: 1 | -1 = mode.endsWith('-desc') ? -1 : 1;
   const [field] = mode.split('-');
 
@@ -2809,8 +2821,8 @@ export function RiftboundCardGrid() {
   const availableSortOptions = activeTab === 'inventory'
     || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory')
     || (activeTab === 'sets' && deckBuilderOpen && deckBuilderSource === 'inventory')
-    ? sortOptions
-    : sortOptions.filter((option) => !option.value.startsWith('quantity-'));
+    ? orderedSortOptions
+    : orderedSortOptions.filter((option) => !option.value.startsWith('quantity-'));
 
   useEffect(() => {
     if (!session || inventoryLoading || inventoryError) return;

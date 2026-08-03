@@ -225,7 +225,7 @@ export function RiftboundProfile({ username }: { username?: string }) {
   const pendingReorderRef = useRef<{ list: 'favorite' | 'wishlist'; cardIds: string[]; previousProfile: RiftboundProfileData } | null>(null);
   const reorderRequestInFlightRef = useRef(false);
   const [collectionQuery, setCollectionQuery] = useState('');
-  const [collectionSortMode, setCollectionSortMode] = useState<RiftboundSortMode>('none');
+  const [collectionSortMode, setCollectionSortMode] = useState<RiftboundSortMode>('market-desc');
   const [collectionFiltersOpen, setCollectionFiltersOpen] = useState(false);
   const [collectionFilters, setCollectionFilters] = useState<RiftboundCardFilters>(() => createRiftboundCardFilters());
 
@@ -480,7 +480,7 @@ export function RiftboundProfile({ username }: { username?: string }) {
 
   const resetCollectionFilters = () => {
     setCollectionQuery('');
-    setCollectionSortMode('none');
+    setCollectionSortMode('market-desc');
     setCollectionFilters(createRiftboundCardFilters());
   };
 

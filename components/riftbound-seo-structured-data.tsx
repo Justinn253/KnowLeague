@@ -4,7 +4,6 @@ import { getAbsoluteSiteUrl, SITE_NAME, siteUrl } from '@/lib/seo';
 
 const RIFTBOUND_INVENTORY_PATH = '/riftbound/inventory';
 const RIFTBOUND_COMMUNITY_PATH = '/riftbound/community';
-const RIFTBOUND_SHARED_DECKS_PATH = '/riftbound/community/decks';
 const RIFTBOUND_CATALOGUE_DESCRIPTION = 'Browse every Riftbound card by set, rarity, domain, cost, and type. Track your collection, build sets and decks, and review market details on KnowLeague.';
 
 function getSiteReference() {
@@ -94,33 +93,6 @@ export function RiftboundCommunityStructuredData() {
         about: {
           '@type': 'Thing',
           name: 'Riftbound trading card game community',
-        },
-        publisher: {
-          '@type': 'Organization',
-          name: SITE_NAME,
-        },
-      }}
-    />
-  );
-}
-
-export function RiftboundSharedDecksStructuredData() {
-  const url = getAbsoluteSiteUrl(RIFTBOUND_SHARED_DECKS_PATH);
-  if (!siteUrl || !url) return null;
-
-  return (
-    <StructuredData
-      data={{
-        '@context': 'https://schema.org',
-        '@type': 'CollectionPage',
-        '@id': `${url}#shared-decks`,
-        name: 'Shared Riftbound Decks',
-        url,
-        description: 'Browse shared Riftbound decklists and open complete community deck views on KnowLeague.',
-        isPartOf: getSiteReference(),
-        about: {
-          '@type': 'Thing',
-          name: 'Riftbound community decklists',
         },
         publisher: {
           '@type': 'Organization',

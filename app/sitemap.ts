@@ -16,7 +16,6 @@ const publicRoutes = [
   '/riot-account-viewer',
   '/riftbound/inventory',
   '/riftbound/community',
-  '/riftbound/community/decks',
   '/privacy',
   '/terms',
 ] as const;

@@ -52,11 +52,6 @@ type SharedDeckInput = {
   cards: unknown;
 };
 
-type SharedDeckCursor = {
-  createdAt: string;
-  id: string;
-};
-
 const sharedDeckCacheKeys = new Set<string>();
 const sharedDeckInFlight = new Map<string, Promise<unknown>>();
 const SHARED_DECK_CACHE_TTL_MS = 45_000;
@@ -158,21 +153,6 @@ function mapDetail(row: SharedDeckRow, viewerReaction: RiftboundPostReaction | n
   };
 }
 
-function encodeCursor(cursor: SharedDeckCursor) {
-  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
-}
-
-export function decodeRiftboundSharedDeckCursor(value: string | null | undefined): SharedDeckCursor | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<SharedDeckCursor>;
-    if (typeof parsed.id !== 'string' || !parsed.id || typeof parsed.createdAt !== 'string' || !parsed.createdAt) return null;
-    return { id: parsed.id, createdAt: parsed.createdAt };
-  } catch {
-    return null;
-  }
-}
-
 async function loadViewerReactions(deckIds: string[], viewerId: string | null) {
   if (!viewerId || deckIds.length === 0) return new Map<string, RiftboundPostReaction>();
   const { data, error } = await getSupabaseServiceClient()
@@ -260,48 +240,6 @@ export async function upsertRiftboundSharedDeck(input: SharedDeckInput) {
   return loadRiftboundSharedDeck(data.id, input.ownerId ?? null);
 }
 
-export async function loadRiftboundSharedDecks(input: {
-  limit: number;
-  cursor: SharedDeckCursor | null;
-  viewerId: string | null;
-}) {
-  const limit = Math.max(1, Math.min(input.limit, 50));
-  const cacheKey = `riftbound:shared-decks:recent:${limit}:${input.cursor ? `${input.cursor.createdAt}:${input.cursor.id}` : 'first'}:${input.viewerId ?? 'guest'}`;
-  const cached = getServerCache<{ decks: RiftboundSharedDeckSummary[]; nextCursor: string | null }>(cacheKey);
-  if (cached) return cached;
-  const existing = sharedDeckInFlight.get(cacheKey);
-  if (existing) return existing as Promise<{ decks: RiftboundSharedDeckSummary[]; nextCursor: string | null }>;
-  sharedDeckCacheKeys.add(cacheKey);
-  const request = (async () => {
-    let query = getSupabaseServiceClient()
-      .from('riftbound_shared_decks')
-    .select('id, deck_key, name, description, created_by, created_by_chat_color, created_by_username, created_by_avatar_url, deck_created_at, legend_card_id, chosen_champion_card_id, cards, preview_card_ids, total_card_count, total_copy_count, like_count, dislike_count, share_count, created_at')
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
-      .limit(limit + 1);
-    if (input.cursor) {
-      query = query.or(`created_at.lt.${input.cursor.createdAt},and(created_at.eq.${input.cursor.createdAt},id.lt.${input.cursor.id})`);
-    }
-    const { data, error } = await query.returns<SharedDeckRow[]>();
-    if (error) throw error;
-    const rows = data ?? [];
-    const pageRows = rows.slice(0, limit);
-    const reactions = await loadViewerReactions(pageRows.map((row) => row.id), input.viewerId);
-    const result = {
-      decks: pageRows.map((row) => mapSummary(row, reactions.get(row.id) ?? null)),
-      nextCursor: rows.length > limit && pageRows.length > 0
-        ? encodeCursor({ createdAt: pageRows[pageRows.length - 1].created_at, id: pageRows[pageRows.length - 1].id })
-        : null,
-    };
-    setServerCache(cacheKey, result, SHARED_DECK_CACHE_TTL_MS);
-    return result;
-  })().finally(() => {
-    if (sharedDeckInFlight.get(cacheKey) === request) sharedDeckInFlight.delete(cacheKey);
-  });
-  sharedDeckInFlight.set(cacheKey, request);
-  return request;
-}
-
 export async function reactToRiftboundSharedDeck(deckId: string, userId: string, reaction: RiftboundPostReaction | null) {
   const { data, error } = await getSupabaseServiceClient().rpc('react_riftbound_shared_deck', {
     p_shared_deck_id: deckId,
@@ -316,16 +254,6 @@ export async function reactToRiftboundSharedDeck(deckId: string, userId: string,
   return { likeCount: row.like_count, dislikeCount: row.dislike_count, reaction: row.reaction ?? null };
 }
 
-export async function recordRiftboundSharedDeckShare(deckId: string) {
-  const { data, error } = await getSupabaseServiceClient().rpc('record_riftbound_shared_deck_share', {
-    p_shared_deck_id: deckId,
-  });
-  if (error) throw error;
-  if (typeof data === 'number') return data;
-  const rows = Array.isArray(data) ? data as unknown as number[] : [];
-  return Number(rows[0] ?? 0);
-}
-
 export async function attachRiftboundPostSharedDeck(postId: string, deckId: string) {
   const { error } = await getSupabaseServiceClient()
     .from('riftbound_posts')
@@ -337,7 +265,7 @@ export async function attachRiftboundPostSharedDeck(postId: string, deckId: stri
 
 function invalidateRiftboundSharedDeckCaches(deckId?: string) {
   sharedDeckCacheKeys.forEach((key) => {
-    if (!deckId || key.includes(`shared-deck:${deckId}:`) || key.includes('shared-decks:')) {
+    if (!deckId || key.includes(`shared-deck:${deckId}:`)) {
       deleteServerCache(key);
       sharedDeckCacheKeys.delete(key);
     }

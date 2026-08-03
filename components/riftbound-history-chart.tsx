@@ -6,6 +6,8 @@ export type RiftboundPriceHistoryEntry = {
   date: string;
   finish: 'normal' | 'foil';
   price: number | null;
+  lowPrice: number | null;
+  highPrice: number | null;
   granularity?: 'month';
 };
 
@@ -269,6 +271,10 @@ export function RiftboundPriceHistoryChart({ history }: { history: RiftboundPric
     () => new Map(history.map((entry) => [`${entry.date}:${entry.finish}`, entry.price])),
     [history],
   );
+  const entriesByKey = useMemo(
+    () => new Map(history.map((entry) => [`${entry.date}:${entry.finish}`, entry])),
+    [history],
+  );
   const series = [
     { finish: 'normal' as const, label: 'Normal', color: '#7dd3fc' },
     { finish: 'foil' as const, label: 'Foil', color: '#fcd34d' },
@@ -307,11 +313,26 @@ export function RiftboundPriceHistoryChart({ history }: { history: RiftboundPric
     x: cursorX,
     y,
     date: formatHistoryTooltipDate(dates[dateIndex], granularity),
-    lines: series.map((entry) => ({
-      label: entry.label,
-      value: formatMarketPriceOrUnavailable(entry.values[dateIndex]),
-      color: entry.color,
-    })),
+    lines: series.flatMap((entry) => {
+      const historyEntry = entriesByKey.get(`${dates[dateIndex]}:${entry.finish}`);
+      return [
+        {
+          label: `${entry.label} Market`,
+          value: formatMarketPriceOrUnavailable(entry.values[dateIndex]),
+          color: entry.color,
+        },
+        {
+          label: `${entry.label} Low`,
+          value: formatMarketPriceOrUnavailable(historyEntry?.lowPrice ?? null),
+          color: '#94a3b8',
+        },
+        {
+          label: `${entry.label} High`,
+          value: formatMarketPriceOrUnavailable(historyEntry?.highPrice ?? null),
+          color: '#cbd5e1',
+        },
+      ];
+    }),
   });
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -368,7 +389,7 @@ export function RiftboundPriceHistoryChart({ history }: { history: RiftboundPric
               strokeWidth="2"
               tabIndex={0}
               role="img"
-              aria-label={`${entry.label}: ${formatMarketPriceOrUnavailable(value)} - ${point.date}`}
+              aria-label={`${entry.label} market: ${formatMarketPriceOrUnavailable(value)}, low: ${formatMarketPriceOrUnavailable(entriesByKey.get(`${dates[index]}:${entry.finish}`)?.lowPrice ?? null)}, high: ${formatMarketPriceOrUnavailable(entriesByKey.get(`${dates[index]}:${entry.finish}`)?.highPrice ?? null)} - ${point.date}`}
               onFocus={() => setHoveredPoint(point)}
               onBlur={() => setHoveredPoint(null)}
             />;

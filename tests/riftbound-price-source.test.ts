@@ -39,21 +39,38 @@ function card(overrides: Partial<RiftboundCard>): RiftboundCard {
 describe('Riftbound price snapshots', () => {
   it('uses live source cents and preserves explicit source status', () => {
     const prices: RiftboundTcgPriceMap = new Map([
-      ['OGN:001', new Map([['normal', 1234], ['foil', null]])],
+      ['OGN:001', new Map([
+        ['normal', { price_cents: 1234, low_price_cents: 1000, high_price_cents: 1500 }],
+        ['foil', { price_cents: null, low_price_cents: 900, high_price_cents: 1800 }],
+      ])],
     ]);
 
     const rows = buildRiftboundPriceSnapshotRows([card({})], prices);
 
     expect(rows).toEqual([
-      { card_id: 'OGN-001', finish: 'normal', price_cents: 1234, capture_status: 'live' },
-      { card_id: 'OGN-001', finish: 'foil', price_cents: null, capture_status: 'no_market_price' },
+      {
+        card_id: 'OGN-001',
+        finish: 'normal',
+        price_cents: 1234,
+        low_price_cents: 1000,
+        high_price_cents: 1500,
+        capture_status: 'live',
+      },
+      {
+        card_id: 'OGN-001',
+        finish: 'foil',
+        price_cents: null,
+        low_price_cents: 900,
+        high_price_cents: 1800,
+        capture_status: 'no_market_price',
+      },
     ]);
   });
 
   it('uses the generated catalogue only when the source cannot match a print', () => {
     const rows = buildRiftboundPriceSnapshotRows([card({ marketPrices: { normal: 0.22, foil: null, updatedAt: null } })], new Map());
 
-    expect(rows[0]).toMatchObject({ price_cents: 22, capture_status: 'catalog_fallback' });
-    expect(rows[1]).toMatchObject({ price_cents: null, capture_status: 'source_unmatched' });
+    expect(rows[0]).toMatchObject({ price_cents: 22, low_price_cents: null, high_price_cents: null, capture_status: 'catalog_fallback' });
+    expect(rows[1]).toMatchObject({ price_cents: null, low_price_cents: null, high_price_cents: null, capture_status: 'source_unmatched' });
   });
 });

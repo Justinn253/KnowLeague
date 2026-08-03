@@ -29,6 +29,7 @@ import {
 } from '@/components/multiplayer-lobby-layout';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
+import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
 import type {
@@ -269,6 +270,8 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const [draftSettings, setDraftSettings] = useState<DraftQuizSettings | null>(null);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const latestLobbyRef = useRef<LatestLobbySnapshot | null>(null);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshVersionRef = useRef(0);
   const previousLobbyRosterRef = useRef<{ hostPlayerId: string | null; playerIds: Set<string> }>({ hostPlayerId: null, playerIds: new Set() });
   const isLeavingLobbyRef = useRef(false);
 
@@ -397,18 +400,33 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
   const refreshLobby = useCallback(async (code: string, activeClientId: string) => {
     if (isLeavingLobbyRef.current) return;
-    try {
-      const response = await fetch(`/api/multiplayer/lobbies/${code}?clientId=${encodeURIComponent(activeClientId)}`);
-      if (response.status === 404) {
-        latestLobbyRef.current = null;
-        setView(null);
-        router.replace('/');
-        return;
+    refreshVersionRef.current += 1;
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+
+    const request = (async () => {
+      let handledVersion = 0;
+      while (handledVersion !== refreshVersionRef.current && !isLeavingLobbyRef.current) {
+        handledVersion = refreshVersionRef.current;
+        try {
+          const response = await fetch(`/api/multiplayer/lobbies/${code}?clientId=${encodeURIComponent(activeClientId)}`);
+          if (response.status === 404) {
+            latestLobbyRef.current = null;
+            setView(null);
+            router.replace('/');
+            return;
+          }
+          applyView(await readResponse(response));
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'Unable to refresh lobby.');
+        }
       }
-      applyView(await readResponse(response));
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to refresh lobby.');
-    }
+    })();
+    refreshInFlightRef.current = request;
+    const clearRequest = () => {
+      if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
+    };
+    void request.then(clearRequest, clearRequest);
+    return request;
   }, [applyView, router]);
 
   const loadPublicLobbies = useCallback(async () => {
@@ -520,8 +538,8 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
           return;
         }
         void refreshLobby(view.lobby.code, clientId);
-      })
-      .subscribe();
+      });
+    subscribeToRealtimeChannel(channel, () => refreshLobby(view.lobby.code, clientId));
     return () => {
       void supabase.removeChannel(channel);
     };
@@ -545,6 +563,9 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   useMultiplayerHeartbeat({
     enabled: Boolean(connectedLobbyCode && clientId),
     onHeartbeat: sendHeartbeat,
+    onReconcile: view?.lobby.status === 'active' && clientId
+      ? () => { void refreshLobby(view.lobby.code, clientId); }
+      : undefined,
   });
 
   useEffect(() => {

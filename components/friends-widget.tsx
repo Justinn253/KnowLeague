@@ -3,6 +3,7 @@
 import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, ExternalLink, Loader2, Pencil, Save, Search, Send, Star, StickyNote, Users, X } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-ui';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
@@ -610,7 +611,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
         });
       });
 
-      nextSocialChannel.subscribe();
+      subscribeToRealtimeChannel(nextSocialChannel, refreshDashboard);
     };
 
     void subscribeToFriendUpdates();
@@ -661,8 +662,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     });
     friendPresenceChannels.forEach(({ channel }) => {
       channel
-        .on('presence', { event: 'sync' }, syncFriendPresence)
-        .subscribe();
+        .on('presence', { event: 'sync' }, syncFriendPresence);
+      subscribeToRealtimeChannel(channel, syncFriendPresence);
     });
 
     return () => {

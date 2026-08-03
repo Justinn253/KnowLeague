@@ -22,6 +22,7 @@ import {
 } from '@/components/multiplayer-lobby-layout';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
+import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { getOrCreateClientId, loadDetailedGameStats, recordSkincognitoStats, type DetailedGameStats } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, SKINCOGNITO_LOBBY_STORAGE_KEY } from '@/lib/multiplayer-client-session';
@@ -1137,7 +1138,7 @@ export function Skincognito() {
       );
     }
 
-    channel.subscribe();
+    subscribeToRealtimeChannel(channel, () => refreshLobbyView(code, nextClientId));
 
     return () => {
       if (realtimeRefreshTimeoutRef.current) {
@@ -1180,6 +1181,9 @@ export function Skincognito() {
   useMultiplayerHeartbeat({
     enabled: Boolean(clientId && lobbyView?.lobby.code),
     onHeartbeat: sendHeartbeat,
+    onReconcile: lobbyView?.lobby.status === 'active' && clientId
+      ? () => { void refreshLobbyView(lobbyView.lobby.code, clientId); }
+      : undefined,
   });
 
   const createLobby = () => {

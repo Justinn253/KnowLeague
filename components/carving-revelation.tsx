@@ -24,6 +24,7 @@ import {
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
+import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
 import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
@@ -1438,6 +1439,9 @@ export function CarvingRevelation() {
   useMultiplayerHeartbeat({
     enabled: Boolean(heartbeatLobbyCode && clientId),
     onHeartbeat: sendHeartbeat,
+    onReconcile: view?.lobby.status === 'active' && clientId
+      ? () => { void refreshLobby(view.lobby.code, clientId); }
+      : undefined,
   });
 
   useEffect(() => {
@@ -1615,8 +1619,8 @@ export function CarvingRevelation() {
           realtimeRefreshTimeoutRef.current = null;
           void refreshLobby(lobbyCode, clientId).catch(() => undefined);
         }, 100);
-      })
-      .subscribe();
+      });
+    subscribeToRealtimeChannel(channel, () => { void refreshLobby(lobbyCode, clientId); });
 
     return () => {
       if (realtimeRefreshTimeoutRef.current) {

@@ -9,6 +9,8 @@ type PriceSnapshotRow = {
   snapshot_date: string;
   finish: 'normal' | 'foil';
   price_cents: number | null;
+  low_price_cents: number | null;
+  high_price_cents: number | null;
   currency: string;
   source: string;
   source_snapshot_at: string | null;
@@ -21,6 +23,10 @@ type PriceHistoryEntry = {
   finish: 'normal' | 'foil';
   price: number | null;
   priceCents: number | null;
+  lowPrice: number | null;
+  lowPriceCents: number | null;
+  highPrice: number | null;
+  highPriceCents: number | null;
   currency: string;
   source: string;
   sourceSnapshotAt: string | null;
@@ -86,7 +92,7 @@ export async function GET(request: Request, { params }: { params: { cardId: stri
     const cutoff = cutoffDate.toISOString().slice(0, 10);
     let query = getSupabaseServiceClient()
       .from('riftbound_card_price_snapshots')
-      .select('snapshot_date, finish, price_cents, currency, source, source_snapshot_at, capture_status, captured_at')
+      .select('snapshot_date, finish, price_cents, low_price_cents, high_price_cents, currency, source, source_snapshot_at, capture_status, captured_at')
       .eq('card_id', card.id)
       .gte('snapshot_date', cutoff)
       .order('snapshot_date', { ascending: true })
@@ -103,6 +109,10 @@ export async function GET(request: Request, { params }: { params: { cardId: stri
       finish: row.finish,
       price: row.price_cents === null ? null : row.price_cents / 100,
       priceCents: row.price_cents,
+      lowPrice: row.low_price_cents === null ? null : row.low_price_cents / 100,
+      lowPriceCents: row.low_price_cents,
+      highPrice: row.high_price_cents === null ? null : row.high_price_cents / 100,
+      highPriceCents: row.high_price_cents,
       currency: row.currency,
       source: row.source,
       sourceSnapshotAt: row.source_snapshot_at,

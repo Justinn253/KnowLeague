@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { ArrowUpRight, ChevronDown, LoaderCircle, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, LoaderCircle, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
@@ -43,6 +42,70 @@ const sideboardOptions: AppSelectOption<string>[] = [
   { value: 'false', label: 'No Sideboard' },
 ];
 
+const COMMUNITY_VIEW_STORAGE_KEY = 'knowleague:riftbound-community-view:v1';
+const COMMUNITY_SCROLL_STORAGE_KEY = 'knowleague:riftbound-community-scroll:v1';
+const communitySortValues: RiftboundCommunityPostSort[] = ['recent', 'liked-today', 'liked-week', 'liked-month', 'liked-all'];
+
+type PersistedCommunityView = {
+  sort: RiftboundCommunityPostSort;
+  postType: string;
+  sideboard: string;
+  legendFilter: string;
+  battlefieldFilter: string;
+  unitFilter: string;
+  filtersOpen: boolean;
+  posts: RiftboundCommunityPostSummary[];
+  nextCursor: string | null;
+};
+
+function normalizeCommunitySort(value: string | null | undefined) {
+  return value && communitySortValues.includes(value as RiftboundCommunityPostSort) ? value as RiftboundCommunityPostSort : 'recent';
+}
+
+function normalizeCommunityPostType(value: string | null | undefined) {
+  return value && (value === 'all' || RIFTBOUND_NEW_POST_TYPES.includes(value as RiftboundNewPostType)) ? value : 'all';
+}
+
+function readPersistedCommunityView() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(COMMUNITY_VIEW_STORAGE_KEY) ?? 'null') as Partial<PersistedCommunityView> | null;
+    if (!parsed || !Array.isArray(parsed.posts)) return null;
+    return {
+      sort: normalizeCommunitySort(parsed.sort),
+      postType: normalizeCommunityPostType(parsed.postType),
+      sideboard: parsed.sideboard === 'true' || parsed.sideboard === 'false' ? parsed.sideboard : 'all',
+      legendFilter: typeof parsed.legendFilter === 'string' ? parsed.legendFilter : '',
+      battlefieldFilter: typeof parsed.battlefieldFilter === 'string' ? parsed.battlefieldFilter : '',
+      unitFilter: typeof parsed.unitFilter === 'string' ? parsed.unitFilter : '',
+      filtersOpen: parsed.filtersOpen === true,
+      posts: parsed.posts,
+      nextCursor: typeof parsed.nextCursor === 'string' ? parsed.nextCursor : null,
+    } satisfies PersistedCommunityView;
+  } catch {
+    return null;
+  }
+}
+
+function readCommunityScrollPosition() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = Number(window.sessionStorage.getItem(COMMUNITY_SCROLL_STORAGE_KEY));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCommunityScrollPosition() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(COMMUNITY_SCROLL_STORAGE_KEY, String(Math.max(0, window.scrollY)));
+  } catch {
+    // Session storage is optional; feed navigation still works without it.
+  }
+}
+
 function resolveCardFilter(value: string) {
   const cleanValue = value.trim().toLowerCase();
   if (!cleanValue) return null;
@@ -79,11 +142,136 @@ export function RiftboundCommunity() {
   const [postVisibility, setPostVisibility] = useState<'public' | 'friends'>('public');
   const [postSaving, setPostSaving] = useState(false);
   const [postError, setPostError] = useState('');
+  const [viewReady, setViewReady] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
   const requestIdRef = useRef(0);
   const nextCursorRef = useRef<string | null>(null);
   const sourceLoadUserIdRef = useRef<string | null>(null);
+  const restoredFeedRef = useRef(false);
+  const restoreScrollRef = useRef<number | null>(null);
 
-  useEffect(() => subscribeToAuthSession((nextSession) => setSession(nextSession)), []);
+  const viewStateRef = useRef<PersistedCommunityView>({
+    sort,
+    postType,
+    sideboard,
+    legendFilter,
+    battlefieldFilter,
+    unitFilter,
+    filtersOpen,
+    posts,
+    nextCursor,
+  });
+  viewStateRef.current = { sort, postType, sideboard, legendFilter, battlefieldFilter, unitFilter, filtersOpen, posts, nextCursor };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stored = readPersistedCommunityView();
+    const hasFilterQuery = Array.from(params.keys()).length > 0;
+    const queryView = {
+      sort: normalizeCommunitySort(params.get('sort')),
+      postType: normalizeCommunityPostType(params.get('type')),
+      sideboard: params.get('sideboard') === 'true' || params.get('sideboard') === 'false' ? params.get('sideboard') as string : 'all',
+      legendFilter: params.get('legend') ?? '',
+      battlefieldFilter: params.get('battlefield') ?? '',
+      unitFilter: params.get('unit') ?? '',
+      filtersOpen: params.get('filters') === '1',
+    };
+    const source = hasFilterQuery ? queryView : stored ?? queryView;
+    setSort(source.sort);
+    setPostType(source.postType);
+    setSideboard(source.sideboard);
+    setLegendFilter(source.legendFilter);
+    setBattlefieldFilter(source.battlefieldFilter);
+    setUnitFilter(source.unitFilter);
+    setFiltersOpen(source.filtersOpen);
+
+    const storedMatchesQuery = !hasFilterQuery || !stored || (
+      stored.sort === queryView.sort
+      && stored.postType === queryView.postType
+      && stored.sideboard === queryView.sideboard
+      && stored.legendFilter === queryView.legendFilter
+      && stored.battlefieldFilter === queryView.battlefieldFilter
+      && stored.unitFilter === queryView.unitFilter
+    );
+    if (stored && storedMatchesQuery && stored.posts.length > 0) {
+      setPosts(stored.posts);
+      setNextCursor(stored.nextCursor);
+      nextCursorRef.current = stored.nextCursor;
+      restoredFeedRef.current = true;
+      restoreScrollRef.current = readCommunityScrollPosition();
+      setLoading(false);
+    }
+    setViewReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!viewReady) return;
+    const params = new URLSearchParams();
+    if (sort !== 'recent') params.set('sort', sort);
+    if (postType !== 'all') params.set('type', postType);
+    if (sideboard !== 'all') params.set('sideboard', sideboard);
+    if (legendFilter) params.set('legend', legendFilter);
+    if (battlefieldFilter) params.set('battlefield', battlefieldFilter);
+    if (unitFilter) params.set('unit', unitFilter);
+    if (filtersOpen) params.set('filters', '1');
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
+    if (window.location.pathname + window.location.search !== nextUrl) {
+      window.history.replaceState(window.history.state, '', nextUrl);
+    }
+  }, [battlefieldFilter, filtersOpen, legendFilter, postType, sideboard, sort, unitFilter, viewReady]);
+
+  useEffect(() => {
+    if (!viewReady) return;
+    try {
+      window.sessionStorage.setItem(COMMUNITY_VIEW_STORAGE_KEY, JSON.stringify(viewStateRef.current));
+    } catch {
+      // Session storage is optional; feed navigation still works without it.
+    }
+  }, [battlefieldFilter, filtersOpen, legendFilter, nextCursor, postType, posts, sideboard, sort, unitFilter, viewReady]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      saveCommunityScrollPosition();
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('pagehide', handleScroll);
+    return () => {
+      saveCommunityScrollPosition();
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('pagehide', handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!viewReady || restoreScrollRef.current === null) return undefined;
+    const target = restoreScrollRef.current;
+    let frame = 0;
+    let retryTimeout: number | null = null;
+    let attempts = 0;
+    const restore = () => {
+      if (restoreScrollRef.current === null) return;
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const nextScroll = Math.min(target, maxScroll);
+      window.scrollTo(0, nextScroll);
+      attempts += 1;
+      if (nextScroll >= target || attempts >= 30) {
+        restoreScrollRef.current = null;
+        return;
+      }
+      retryTimeout = window.setTimeout(restore, 100);
+    };
+    frame = window.requestAnimationFrame(() => window.requestAnimationFrame(restore));
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (retryTimeout !== null) window.clearTimeout(retryTimeout);
+    };
+  }, [loading, posts.length, viewReady]);
+
+  useEffect(() => subscribeToAuthSession((nextSession) => {
+    setSession(nextSession);
+    setAuthResolved(true);
+  }), []);
 
   const feedUrl = useMemo(() => {
     const params = new URLSearchParams({ sort, limit: '20' });
@@ -100,20 +288,26 @@ export function RiftboundCommunity() {
     return `/api/riftbound/community/feed?${params.toString()}`;
   }, [battlefieldFilter, legendFilter, postType, sideboard, sort, unitFilter]);
 
-  const loadFeed = useCallback(async (append = false) => {
+  const loadFeed = useCallback(async (append = false, preserveExisting = false) => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     if (append) setLoadingMore(true);
-    else setLoading(true);
+    else if (!preserveExisting) setLoading(true);
     setError('');
     try {
       const cursor = nextCursorRef.current;
       const url = append && cursor ? `${feedUrl}&cursor=${encodeURIComponent(cursor)}` : feedUrl;
       const data = await getRiftboundCommunityFeed(url, session);
       if (requestId !== requestIdRef.current) return;
-      setPosts((current) => append ? [...current, ...data.posts] : data.posts);
-      nextCursorRef.current = data.nextCursor;
-      setNextCursor(data.nextCursor);
+      setPosts((current) => {
+        if (append) return [...current, ...data.posts];
+        if (!preserveExisting) return data.posts;
+        const freshPostIds = new Set(data.posts.map((post) => post.id));
+        return [...data.posts, ...current.filter((post) => !freshPostIds.has(post.id))];
+      });
+      const nextCursor = preserveExisting ? nextCursorRef.current ?? data.nextCursor : data.nextCursor;
+      nextCursorRef.current = nextCursor;
+      setNextCursor(nextCursor);
     } catch (loadError) {
       if (requestId === requestIdRef.current) setError(loadError instanceof Error ? loadError.message : 'Unable to load the Riftbound community.');
     } finally {
@@ -125,10 +319,15 @@ export function RiftboundCommunity() {
   }, [feedUrl, session]);
 
   useEffect(() => {
-    nextCursorRef.current = null;
-    setNextCursor(null);
-    void loadFeed(false);
-  }, [feedUrl, loadFeed]);
+    if (!viewReady || !authResolved) return;
+    const preserveExisting = restoredFeedRef.current;
+    restoredFeedRef.current = false;
+    if (!preserveExisting) {
+      nextCursorRef.current = null;
+      setNextCursor(null);
+    }
+    void loadFeed(false, preserveExisting);
+  }, [authResolved, feedUrl, loadFeed, viewReady]);
 
   useEffect(() => {
     if (!session) {
@@ -197,18 +396,14 @@ export function RiftboundCommunity() {
   const activeFilterCount = [postType !== 'all', sideboard !== 'all', postType === 'deck_build' && Boolean(legendFilter), battlefieldFilter.trim(), unitFilter.trim()].filter(Boolean).length;
 
   return (
-    <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound community">
+    <main
+      className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10"
+      aria-label="Riftbound community"
+      onPointerDownCapture={saveCommunityScrollPosition}
+      onClickCapture={saveCommunityScrollPosition}
+      onKeyDownCapture={saveCommunityScrollPosition}
+    >
       <section className="mx-auto grid w-full max-w-[1600px] gap-5">
-        <header className="grid gap-3 px-1">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Riftbound Community</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">Riftbound Deck Builds, Collections, and Discussion</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Discover shared card collections and deck ideas, ask questions, and compare Riftbound builds with other players.</p>
-            </div>
-            <Link href="/riftbound/community/decks" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200">Shared Decks <ArrowUpRight size={14} /></Link>
-          </div>
-        </header>
         <section className="overflow-visible rounded-3xl border border-amber-200/20 bg-slate-950/80" aria-label="Create a new community post">
           <button
             type="button"

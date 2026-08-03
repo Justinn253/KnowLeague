@@ -15,6 +15,7 @@ import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate } from '@/components/multiplayer-reconnect';
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
+import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatNameStyle } from '@/lib/chat-colors';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
@@ -558,6 +559,7 @@ export function CategoryClash() {
   useMultiplayerHeartbeat({
     enabled: Boolean(connectedLobbyCode && clientId),
     onHeartbeat: sendHeartbeat,
+    onReconcile: view?.lobby.status === 'active' ? () => { void refreshView(); } : undefined,
   });
 
   useEffect(() => {
@@ -585,8 +587,8 @@ export function CategoryClash() {
           realtimeRefreshTimeoutRef.current = null;
           void refreshView();
         }, 100);
-      })
-      .subscribe();
+      });
+    subscribeToRealtimeChannel(channel, () => { void refreshView(); });
     return () => {
       if (realtimeRefreshTimeoutRef.current) {
         window.clearTimeout(realtimeRefreshTimeoutRef.current);

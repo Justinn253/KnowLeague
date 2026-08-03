@@ -21,7 +21,7 @@ import {
 } from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
-import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, getRiftboundDomainTextClass, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundCardTier, type RiftboundFinish } from '@/lib/riftbound';
+import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, getRiftboundDomainTextClass, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier, type RiftboundFinish } from '@/lib/riftbound';
 import type { RiftboundCardTierRating, RiftboundSharedDeckDetail } from '@/lib/riftbound-community-types';
 import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundLatestPrice } from '@/lib/riftbound-client';
 import { getRiftboundSharedDeck, registerRiftboundSharedDeck } from '@/lib/riftbound-community-client';
@@ -115,7 +115,7 @@ const emptySharedFilters: SharedFilters = {
   minPrice: '',
   maxPrice: '',
 };
-const sharedRarityOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase'];
+const sharedRarityOrder: string[] = [...RIFTBOUND_RARITY_ORDER];
 const sharedSortOptions: AppSelectOption<SharedSortMode>[] = [
   { value: 'none', label: 'No sort' },
   { value: 'value-asc', label: 'Value · Low to High' },
@@ -238,7 +238,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
   const [historyError, setHistoryError] = useState('');
   const [historyRange, setHistoryRange] = useState<RiftboundHistoryRangeKey>('30d');
   const [tierRating, setTierRating] = useState<RiftboundCardTierRating | null>(initialTierRating ?? null);
-  const rarityClassName = ({ Common: 'text-slate-300', Uncommon: 'text-blue-300', Rare: 'text-violet-300', Epic: 'text-amber-300', Showcase: 'text-yellow-200' } as Record<string, string>)[card.rarity] ?? 'text-slate-300';
+  const rarityClassName = ({ Common: 'text-slate-300', Uncommon: 'text-blue-300', Rare: 'text-violet-300', Epic: 'text-amber-300', Showcase: 'text-yellow-200', Overnumbered: 'text-orange-300', Signature: 'text-fuchsia-300' } as Record<string, string>)[card.rarity] ?? 'text-slate-300';
 
   useEffect(() => {
     setTierRating(initialTierRating ?? null);
@@ -920,7 +920,7 @@ export function RiftboundCollectionShare() {
             sideboardEntries={collapseSharedDeckEntries(expandSharedDeckEntries(snapshot.deck, 'sideboard'))}
             tierRatings={tierRatings}
             onOpen={setSelectedCard}
-            qrTopContent={sharedDeck ? <RiftboundSharedDeckReactions deck={sharedDeck} session={session} compact onDeckChange={(nextDeck) => setSharedDeck((current) => current ? { ...current, ...nextDeck } : current)} /> : null}
+            legendBottomContent={sharedDeck ? <RiftboundSharedDeckReactions deck={sharedDeck} session={session} compact onDeckChange={(nextDeck) => setSharedDeck((current) => current ? { ...current, ...nextDeck } : current)} /> : null}
           /> : (
             <>
               <div className={`grid ${deckListView ? 'gap-2' : 'gap-4'} lg:grid-cols-[18rem_minmax(0,1fr)]`}>

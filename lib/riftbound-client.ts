@@ -3,18 +3,14 @@
 import type { Session } from '@supabase/supabase-js';
 import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
 import type { RiftboundCardTierRating } from '@/lib/riftbound';
+import type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
+
+export type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 
 export type RiftboundLatestPrice = {
   normal: number | null;
   foil: number | null;
   updatedAt: string | null;
-};
-
-export type RiftboundInventoryItem = {
-  card_id: string;
-  finish: 'normal' | 'foil';
-  quantity: number;
-  updated_at: string;
 };
 
 export type RiftboundSetCard = {
@@ -59,6 +55,8 @@ export type RiftboundPriceHistoryEntry = {
   date: string;
   finish: 'normal' | 'foil';
   price: number | null;
+  lowPrice: number | null;
+  highPrice: number | null;
   granularity?: 'month';
 };
 
@@ -79,7 +77,7 @@ type CachedResponse<T> = {
 };
 
 const REQUEST_CACHE_TTL_MS = 30_000;
-const RIFTBOUND_PRICE_HISTORY_CACHE_VERSION = 'v3';
+const RIFTBOUND_PRICE_HISTORY_CACHE_VERSION = 'v4';
 const responseCache = new Map<string, CachedResponse<unknown>>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
 const cacheGenerations = new Map<string, number>();

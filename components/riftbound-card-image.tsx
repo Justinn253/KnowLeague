@@ -3,12 +3,17 @@
 import Image, { type ImageProps } from 'next/image';
 import type { RiftboundCard } from '@/lib/riftbound';
 
-type RiftboundCardImageProps = Omit<ImageProps, 'src' | 'alt' | 'fill'> & {
+type RiftboundCardImageProps = Omit<ImageProps, 'src' | 'alt' | 'fill' | 'quality'> & {
   card: RiftboundCard;
   sizes: string;
   className?: string;
   orientation?: 'portrait' | 'landscape';
 };
+
+// Keep every card/source pair on one quality cache key. The card catalogue is
+// large and immutable, so quality 75 provides a good visual result without
+// multiplying Vercel transformations for the same card at qualities 90/100.
+const RIFTBOUND_CARD_IMAGE_QUALITY = 75;
 
 export function RiftboundCardImage({ card, sizes, className = 'object-cover', orientation = 'portrait', ...props }: RiftboundCardImageProps) {
   const image = (
@@ -20,6 +25,7 @@ export function RiftboundCardImage({ card, sizes, className = 'object-cover', or
       draggable={false}
       className={className}
       {...props}
+      quality={RIFTBOUND_CARD_IMAGE_QUALITY}
     />
   );
 

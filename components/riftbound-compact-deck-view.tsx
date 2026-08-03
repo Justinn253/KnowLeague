@@ -47,7 +47,7 @@ function RiftboundCompactCardTile({ card, quantity, onOpen, highlighted = false,
       className={`group relative flex min-w-0 flex-col items-center rounded-xl border p-1 text-center transition hover:border-amber-200/60 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'w-full max-w-full border-amber-200/80 bg-amber-300/10' : isBattlefield ? 'w-[8rem] max-w-full border-white/10 bg-slate-950/70' : 'w-[5.5rem] max-w-full border-white/10 bg-slate-950/70'}`}
     >
       <span className={`relative block w-full overflow-hidden rounded-md bg-slate-900 ${isBattlefield ? 'aspect-[1038/744]' : 'aspect-[744/1039]'}`}>
-        <RiftboundCardImage card={card} orientation={isBattlefield ? 'landscape' : 'portrait'} sizes={highlighted ? '360px' : '220px'} loading={highlighted ? 'eager' : 'lazy'} quality={highlighted ? 100 : 90} className="object-cover" />
+        <RiftboundCardImage card={card} orientation={isBattlefield ? 'landscape' : 'portrait'} sizes={highlighted ? '360px' : '220px'} loading={highlighted ? 'eager' : 'lazy'} className="object-cover" />
         <span className="absolute bottom-1 right-1 rounded-md border border-amber-200/40 bg-slate-950/95 px-1.5 py-0.5 text-[0.6rem] font-black text-amber-200">×{quantity}</span>
       </span>
       <span className={`mt-1 w-full truncate text-[0.65rem] font-black ${getRiftboundCardDomainTextClass(card)}`} title={card.displayName}>{card.displayName}</span>

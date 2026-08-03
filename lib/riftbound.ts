@@ -2,6 +2,9 @@ import riftboundCards from '@/data/catalogs/riftbound-cards.json';
 
 export type RiftboundFinish = 'normal' | 'foil';
 
+export const RIFTBOUND_RARITY_ORDER = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase', 'Overnumbered', 'Signature'] as const;
+export type RiftboundCardRarity = typeof RIFTBOUND_RARITY_ORDER[number];
+
 export const RIFTBOUND_CARD_TIERS = ['S', 'A', 'B', 'C', 'D'] as const;
 export type RiftboundCardTier = typeof RIFTBOUND_CARD_TIERS[number];
 
@@ -104,19 +107,36 @@ export function getRiftboundCardTierValue(tier: RiftboundCardTier) {
   return RIFTBOUND_CARD_TIERS.indexOf(tier);
 }
 
-export function isRiftboundShowcasePrint(card: Pick<RiftboundCard, 'collectorNumber' | 'printedTotal'>) {
+export function isRiftboundSignaturePrint(card: Pick<RiftboundCard, 'collectorNumber'>) {
   const collectorNumber = card.collectorNumber.trim().toUpperCase();
-  if (collectorNumber.endsWith('A') || collectorNumber.endsWith('-STAR') || /^SP\d+$/.test(collectorNumber)) return true;
+  return collectorNumber.endsWith('-STAR') || collectorNumber.endsWith('*');
+}
 
+export function isRiftboundOvernumberedPrint(card: Pick<RiftboundCard, 'collectorNumber' | 'printedTotal'>) {
+  const collectorNumber = card.collectorNumber.trim().toUpperCase();
   const numericNumber = Number(collectorNumber.match(/^\d+/)?.[0]);
   return Number.isFinite(numericNumber) && card.printedTotal !== null && numericNumber > card.printedTotal;
 }
 
+export function isRiftboundShowcasePrint(card: Pick<RiftboundCard, 'collectorNumber' | 'printedTotal'>) {
+  const collectorNumber = card.collectorNumber.trim().toUpperCase();
+  if (collectorNumber.endsWith('A') || /^SP\d+$/.test(collectorNumber)) return true;
+  return isRiftboundSignaturePrint(card) || isRiftboundOvernumberedPrint(card);
+}
+
+export function getRiftboundCardRarity(card: Pick<RiftboundCard, 'rarity' | 'collectorNumber' | 'printedTotal'>) {
+  if (isRiftboundSignaturePrint(card)) return 'Signature';
+  if (isRiftboundOvernumberedPrint(card)) return 'Overnumbered';
+  if (card.rarity === 'Showcase' || isRiftboundShowcasePrint(card)) return 'Showcase';
+  return card.rarity;
+}
+
 export const RIFTBOUND_CARDS = riftboundCards.map((card) => {
-  const isShowcase = card.rarity === 'Showcase' || isRiftboundShowcasePrint(card);
-  return isShowcase
-    ? { ...card, rarity: 'Showcase', finishOptions: ['foil' as RiftboundFinish], defaultFinish: 'foil' as RiftboundFinish }
-    : card;
+  const rarity = getRiftboundCardRarity(card);
+  const isFoilOnly = rarity === 'Showcase' || rarity === 'Overnumbered' || rarity === 'Signature';
+  return isFoilOnly
+    ? { ...card, rarity, finishOptions: ['foil' as RiftboundFinish], defaultFinish: 'foil' as RiftboundFinish }
+    : { ...card, rarity };
 }) as RiftboundCard[];
 
 const riftboundCardsById = new Map(RIFTBOUND_CARDS.map((card) => [card.id, card]));

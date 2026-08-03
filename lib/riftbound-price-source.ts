@@ -6,6 +6,8 @@ export type RiftboundPriceSnapshotRow = {
   card_id: string;
   finish: RiftboundFinish;
   price_cents: number | null;
+  low_price_cents: number | null;
+  high_price_cents: number | null;
   capture_status: RiftboundPriceCaptureStatus;
 };
 
@@ -27,14 +29,22 @@ type TcgCsvProduct = {
 type TcgCsvPrice = {
   productId: number;
   subTypeName?: string;
+  lowPrice?: number | null;
   marketPrice?: number | null;
+  highPrice?: number | null;
 };
 
 type TcgCsvResponse<T> = {
   results?: T[];
 };
 
-export type RiftboundTcgPriceMap = Map<string, Map<RiftboundFinish, number | null>>;
+export type RiftboundTcgPricePoint = {
+  price_cents: number | null;
+  low_price_cents: number | null;
+  high_price_cents: number | null;
+};
+
+export type RiftboundTcgPriceMap = Map<string, Map<RiftboundFinish, RiftboundTcgPricePoint>>;
 
 const TCGCSV_CATEGORY_ID = 89;
 const TCGCSV_BASE_URL = `https://tcgcsv.com/tcgplayer/${TCGCSV_CATEGORY_ID}`;
@@ -114,11 +124,21 @@ function normalizePriceCents(value: number | null | undefined) {
   return Math.round(value * 100);
 }
 
+function mergePricePoint(existing: RiftboundTcgPricePoint | undefined, incoming: RiftboundTcgPricePoint) {
+  if (!existing) return incoming;
+
+  return {
+    price_cents: incoming.price_cents === null ? existing.price_cents : incoming.price_cents,
+    low_price_cents: incoming.low_price_cents === null ? existing.low_price_cents : incoming.low_price_cents,
+    high_price_cents: incoming.high_price_cents === null ? existing.high_price_cents : incoming.high_price_cents,
+  };
+}
+
 function mergePriceMap(target: RiftboundTcgPriceMap, source: RiftboundTcgPriceMap) {
   source.forEach((sourcePrices, printKey) => {
-    const targetPrices = target.get(printKey) ?? new Map<RiftboundFinish, number | null>();
-    sourcePrices.forEach((price, finish) => {
-      if (!targetPrices.has(finish) || price !== null) targetPrices.set(finish, price);
+    const targetPrices = target.get(printKey) ?? new Map<RiftboundFinish, RiftboundTcgPricePoint>();
+    sourcePrices.forEach((pricePoint, finish) => {
+      targetPrices.set(finish, mergePricePoint(targetPrices.get(finish), pricePoint));
     });
     target.set(printKey, targetPrices);
   });
@@ -129,15 +149,19 @@ async function fetchGroupPriceMap(group: TcgCsvGroup) {
     fetchJson<TcgCsvResponse<TcgCsvProduct>>(`${TCGCSV_BASE_URL}/${group.groupId}/products`),
     fetchJson<TcgCsvResponse<TcgCsvPrice>>(`${TCGCSV_BASE_URL}/${group.groupId}/prices`),
   ]);
-  const pricesByProductId = new Map<number, Map<RiftboundFinish, number | null>>();
+  const pricesByProductId = new Map<number, Map<RiftboundFinish, RiftboundTcgPricePoint>>();
 
   for (const price of priceResponse.results ?? []) {
     const finish = getTcgFinishName(price.subTypeName);
     if (!finish) continue;
 
-    const productPrices = pricesByProductId.get(price.productId) ?? new Map<RiftboundFinish, number | null>();
-    const normalizedPrice = normalizePriceCents(price.marketPrice);
-    if (!productPrices.has(finish) || normalizedPrice !== null) productPrices.set(finish, normalizedPrice);
+    const productPrices = pricesByProductId.get(price.productId) ?? new Map<RiftboundFinish, RiftboundTcgPricePoint>();
+    const pricePoint: RiftboundTcgPricePoint = {
+      price_cents: normalizePriceCents(price.marketPrice),
+      low_price_cents: normalizePriceCents(price.lowPrice),
+      high_price_cents: normalizePriceCents(price.highPrice),
+    };
+    productPrices.set(finish, mergePricePoint(productPrices.get(finish), pricePoint));
     pricesByProductId.set(price.productId, productPrices);
   }
 
@@ -148,9 +172,9 @@ async function fetchGroupPriceMap(group: TcgCsvGroup) {
     if (!cardNumber || !productPrices || !group.abbreviation) continue;
 
     for (const printKey of getPrintKeyAliases(group.abbreviation, cardNumber.split('/')[0])) {
-      const existing = pricesByPrintKey.get(printKey) ?? new Map<RiftboundFinish, number | null>();
-      productPrices.forEach((price, finish) => {
-        if (!existing.has(finish) || price !== null) existing.set(finish, price);
+      const existing = pricesByPrintKey.get(printKey) ?? new Map<RiftboundFinish, RiftboundTcgPricePoint>();
+      productPrices.forEach((pricePoint, finish) => {
+        existing.set(finish, mergePricePoint(existing.get(finish), pricePoint));
       });
       pricesByPrintKey.set(printKey, existing);
     }
@@ -189,15 +213,17 @@ export function buildRiftboundPriceSnapshotRows(
   return cards.flatMap((card) => card.finishOptions.map((finish) => {
     const aliasPrices = getPrintKeyAliases(card.setCode, card.collectorNumber)
       .map((printKey) => pricesByPrintKey.get(printKey)?.get(finish))
-      .filter((price): price is number | null => price !== undefined);
-    const sourcePrice = aliasPrices.find((price) => price !== null) ?? aliasPrices[0];
+      .filter((pricePoint): pricePoint is RiftboundTcgPricePoint => pricePoint !== undefined);
+    const sourcePricePoint = aliasPrices.find((pricePoint) => pricePoint.price_cents !== null) ?? aliasPrices[0];
 
-    if (sourcePrice !== undefined) {
+    if (sourcePricePoint !== undefined) {
       return {
         card_id: card.id,
         finish,
-        price_cents: sourcePrice,
-        capture_status: sourcePrice === null ? 'no_market_price' : 'live',
+        price_cents: sourcePricePoint.price_cents,
+        low_price_cents: sourcePricePoint.low_price_cents,
+        high_price_cents: sourcePricePoint.high_price_cents,
+        capture_status: sourcePricePoint.price_cents === null ? 'no_market_price' : 'live',
       };
     }
 
@@ -206,6 +232,8 @@ export function buildRiftboundPriceSnapshotRows(
       card_id: card.id,
       finish,
       price_cents: catalogPrice,
+      low_price_cents: null,
+      high_price_cents: null,
       capture_status: catalogPrice === null ? 'source_unmatched' : 'catalog_fallback',
     };
   }));

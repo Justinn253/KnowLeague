@@ -30,12 +30,13 @@ body {
   contain-intrinsic-size: 0 520px;
 }
 
-/* Keep Riftbound card collections fluid across the available parent width.
-   The minimum is large enough to preserve readable card controls while
-   allowing each grid to add another column whenever the container permits. */
+/* Keep Riftbound card collections adaptive without stretching a partial row.
+   The minimum preserves readable card controls, while the fixed maximum keeps
+   filtered cards at the same width as cards in a full row. */
 .riftbound-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 14rem));
+  justify-content: center;
   gap: 1rem;
 }
 

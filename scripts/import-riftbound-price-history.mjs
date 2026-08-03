@@ -212,11 +212,20 @@ async function readArchivePrices(extractPath, entries, date, productMap) {
       const finish = getFinish(price.subTypeName);
       if (!product || !finish || !product.finishOptions.has(finish)) continue;
       const priceCents = normalizePriceCents(price.marketPrice);
-      if (priceCents === null) continue;
+      const lowPriceCents = normalizePriceCents(price.lowPrice);
+      const highPriceCents = normalizePriceCents(price.highPrice);
+      if (priceCents === null && lowPriceCents === null && highPriceCents === null) continue;
       matchedPriceCount += 1;
       const key = `${product.cardId}:${finish}`;
       if (!pricesByCardFinish.has(key)) {
-        pricesByCardFinish.set(key, { cardId: product.cardId, finish, priceCents, date });
+        pricesByCardFinish.set(key, {
+          cardId: product.cardId,
+          finish,
+          priceCents,
+          lowPriceCents,
+          highPriceCents,
+          date,
+        });
       }
     }
   }
@@ -231,12 +240,21 @@ function toDatabaseRow(entry, source) {
     finish: entry.finish,
     snapshot_date: entry.date,
     price_cents: entry.priceCents,
+    low_price_cents: entry.lowPriceCents,
+    high_price_cents: entry.highPriceCents,
     currency: 'USD',
     source,
     source_snapshot_at: capturedAt,
-    capture_status: 'live',
+    capture_status: entry.priceCents === null ? 'no_market_price' : 'live',
     captured_at: capturedAt,
   };
+}
+
+function isHigherMonthlyMarketPeak(candidate, existing) {
+  if (!existing) return true;
+  if (candidate.priceCents === null) return false;
+  if (existing.priceCents === null) return true;
+  return candidate.priceCents > existing.priceCents;
 }
 
 async function upsertRows(supabase, rows, dryRun) {
@@ -305,7 +323,7 @@ async function main() {
           const month = date.slice(0, 7);
           const key = `${entry.cardId}:${entry.finish}:${month}`;
           const existing = monthlyPeaks.get(key);
-          if (!existing || entry.priceCents > existing.priceCents) monthlyPeaks.set(key, entry);
+          if (isHigherMonthlyMarketPeak(entry, existing)) monthlyPeaks.set(key, entry);
         });
       }
 

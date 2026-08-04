@@ -18,6 +18,7 @@ import {
   getRiftboundCommunityComments,
   getRiftboundCommunityPost,
   hasRiftboundPostBeenShared,
+  isRiftboundRateLimitError,
   markRiftboundPostShared,
   recordRiftboundPostShare,
   submitRiftboundPostReport,
@@ -250,7 +251,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       commentsCursorRef.current = data.nextCursor;
       setCommentsCursor(data.nextCursor);
     } catch (loadError) {
-      setCommentError(loadError instanceof Error ? loadError.message : 'Unable to load comments.');
+      setCommentError(isRiftboundRateLimitError(loadError) ? '' : loadError instanceof Error ? loadError.message : 'Unable to load comments.');
     } finally {
       setCommentsLoading(false);
       setCommentsMoreLoading(false);
@@ -310,7 +311,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       setCommentBody('');
       setPost((current) => current ? { ...current, commentCount: current.commentCount + 1 } : current);
     } catch (saveError) {
-      setCommentError(saveError instanceof Error ? saveError.message : 'Unable to add your comment.');
+      setCommentError(isRiftboundRateLimitError(saveError) ? '' : saveError instanceof Error ? saveError.message : 'Unable to add your comment.');
     } finally {
       setCommentSaving(false);
     }
@@ -331,7 +332,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       setReportOpen(false);
       setReportDetails('');
     } catch (reportError) {
-      setReportMessage(reportError instanceof Error ? reportError.message : 'Unable to submit this report.');
+      setReportMessage(isRiftboundRateLimitError(reportError) ? '' : reportError instanceof Error ? reportError.message : 'Unable to submit this report.');
     } finally {
       setReportSaving(false);
     }
@@ -355,7 +356,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       setPost(result.post);
       setEditOpen(false);
     } catch (saveError) {
-      setActionError(saveError instanceof Error ? saveError.message : 'Unable to update this post.');
+      setActionError(isRiftboundRateLimitError(saveError) ? '' : saveError instanceof Error ? saveError.message : 'Unable to update this post.');
     } finally {
       setEditSaving(false);
     }
@@ -369,7 +370,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       await deleteRiftboundCommunityPost(postId, session);
       router.replace('/riftbound/community');
     } catch (deleteError) {
-      setActionError(deleteError instanceof Error ? deleteError.message : 'Unable to delete this post.');
+      setActionError(isRiftboundRateLimitError(deleteError) ? '' : deleteError instanceof Error ? deleteError.message : 'Unable to delete this post.');
       setDeleteSaving(false);
     }
   };

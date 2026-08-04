@@ -16,6 +16,20 @@ import { invalidateRiftboundBootstrap, invalidateRiftboundLatestPrices } from '@
 
 type ErrorPayload = { error?: string };
 
+export class RiftboundRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'RiftboundRequestError';
+    this.status = status;
+  }
+}
+
+export function isRiftboundRateLimitError(error: unknown) {
+  return error instanceof RiftboundRequestError && error.status === 429;
+}
+
 const inFlightGets = new Map<string, Promise<unknown>>();
 const responseCache = new Map<string, { value: unknown; expiresAt: number }>();
 const preferenceCache = new Map<string, { value: RiftboundCardPreferences; expiresAt: number }>();
@@ -70,7 +84,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}, session?: Ses
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   const response = await fetch(url, { ...init, headers, cache: init.cache ?? 'no-store' });
   const data = await response.json() as T & ErrorPayload;
-  if (!response.ok) throw new Error(data.error || 'Unable to complete the Riftbound request.');
+  if (!response.ok) throw new RiftboundRequestError(data.error || 'Unable to complete the Riftbound request.', response.status);
   return data;
 }
 

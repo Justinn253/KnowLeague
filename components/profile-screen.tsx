@@ -413,8 +413,6 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [badgeEditorOpen, setBadgeEditorOpen] = useState(false);
   const [pendingChatColor, setPendingChatColor] = useState('amber');
   const [pendingChatBorder, setPendingChatBorder] = useState<ChatBorder>(DEFAULT_CHAT_BORDER);
-  const [cosmeticsPreviewColor, setCosmeticsPreviewColor] = useState<string | null>(null);
-  const [cosmeticsPreviewBorder, setCosmeticsPreviewBorder] = useState<string | null>(null);
   const [friendRequestsOpen, setFriendRequestsOpen] = useState(true);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
@@ -478,8 +476,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     passwordResetCooldownEndsAt,
     passwordResetCooldownNow,
   );
-  const previewChatColor = normalizeChatColor(cosmeticsPreviewColor ?? pendingChatColor);
-  const previewChatBorder = normalizeChatBorder(cosmeticsPreviewBorder ?? pendingChatBorder);
+  const previewChatColor = normalizeChatColor(pendingChatColor);
+  const previewChatBorder = normalizeChatBorder(pendingChatBorder);
   const previewBubbleStyle = getChatBubbleStyle(previewChatColor, previewChatBorder);
 
   useEffect(() => {
@@ -1184,9 +1182,6 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   }, [achievementFiltersOpen]);
 
   useEffect(() => {
-    setCosmeticsPreviewColor(null);
-    setCosmeticsPreviewBorder(null);
-
     if (!cosmeticsMenuOpen && !titleMenuOpen) {
       return undefined;
     }
@@ -1814,11 +1809,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                                     <button
                                       key={option.value}
                                       type="button"
-                                      onPointerEnter={() => setCosmeticsPreviewColor(option.value)}
-                                      onFocus={() => setCosmeticsPreviewColor(option.value)}
                                       onClick={() => {
                                         setPendingChatColor(option.value);
-                                        setCosmeticsPreviewColor(option.value);
                                       }}
                                       aria-label={`Select ${option.value} chat color`}
                                       className={`h-7 w-7 rounded-full border transition hover:scale-110 ${
@@ -1839,12 +1831,9 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                                     <button
                                       key={option.value}
                                       type="button"
-                                      onPointerEnter={() => setCosmeticsPreviewBorder(option.value)}
-                                      onFocus={() => setCosmeticsPreviewBorder(option.value)}
                                       onClick={() => {
                                         const nextBorder = pendingChatBorder === option.value ? DEFAULT_CHAT_BORDER : option.value;
                                         setPendingChatBorder(nextBorder);
-                                        setCosmeticsPreviewBorder(nextBorder);
                                       }}
                                       aria-label={`Select ${option.value} chat border`}
                                       className={`h-7 w-7 rounded-full border transition hover:scale-110 ${

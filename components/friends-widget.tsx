@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, Loader2, Pencil, Save, Search, Send, Star, StickyNote, Users, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, ExternalLink, Loader2, Pencil, Save, Search, Send, Star, StickyNote, Users, X } from 'lucide-react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
@@ -41,7 +41,10 @@ type FriendMessage = {
   created_at: string;
   chat_color: string;
   chat_border: string;
+  deliveryStatus?: MessageDeliveryStatus;
 };
+
+type MessageDeliveryStatus = 'pending' | 'sent' | 'failed';
 
 type MessageProfile = {
   chatColor: string;
@@ -61,6 +64,24 @@ type FriendsWidgetProps = {
   onPendingRequestCountChange?: (count: number) => void;
   variant?: 'floating' | 'header' | 'responsive';
 };
+
+function sortFriendMessages(left: FriendMessage, right: FriendMessage) {
+  return left.created_at.localeCompare(right.created_at);
+}
+
+function mergeFriendMessages(serverMessages: FriendMessage[], cachedMessages: FriendMessage[]) {
+  const cachedById = new Map(cachedMessages.map((message) => [message.id, message]));
+  const serverIds = new Set(serverMessages.map((message) => message.id));
+  const mergedMessages = [
+    ...serverMessages.map((message) => {
+      const cachedMessage = cachedById.get(message.id);
+      return cachedMessage?.deliveryStatus ? { ...message, deliveryStatus: cachedMessage.deliveryStatus } : message;
+    }),
+    ...cachedMessages.filter((message) => message.deliveryStatus && !serverIds.has(message.id)),
+  ];
+
+  return mergedMessages.sort(sortFriendMessages);
+}
 
 function openPublicProfileOverlay(username: string) {
   window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
@@ -409,7 +430,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
 
     try {
       const data = await fetchAuthedJson(`/api/friends/messages?friendId=${friend.id}${markRead ? '' : '&markRead=false'}`);
-      const nextMessages = data.messages ?? [];
+      const serverMessages = (data.messages ?? []) as FriendMessage[];
+      const cachedMessages = messageCacheRef.current.get(friend.id) ?? [];
+      const nextMessages = mergeFriendMessages(serverMessages, cachedMessages);
       const nextProfiles = data.profiles ?? {};
       const nextFirstUnreadMessageId = data.firstUnreadMessageId ?? null;
       nextMessages.forEach((message: FriendMessage) => knownMessageIdsRef.current.add(message.id));
@@ -442,9 +465,18 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       return;
     }
 
-    const nextMessages = cachedMessages.some((message) => message.id === nextMessage.id)
-      ? cachedMessages
-      : [...cachedMessages, nextMessage];
+    const pendingMessageIndex = cachedMessages.findIndex((message) => (
+      message.deliveryStatus === 'pending' &&
+      message.sender_id === nextMessage.sender_id &&
+      message.message === nextMessage.message
+    ));
+    const nextMessages = pendingMessageIndex >= 0
+      ? cachedMessages.map((message, index) => (
+          index === pendingMessageIndex ? { ...nextMessage, deliveryStatus: 'sent' as const } : message
+        ))
+      : cachedMessages.some((message) => message.id === nextMessage.id)
+        ? cachedMessages
+        : [...cachedMessages, nextMessage].sort(sortFriendMessages);
     messageCacheRef.current.set(friend.id, nextMessages);
 
     const profileSource = nextMessage.sender_id === currentUserId
@@ -483,6 +515,19 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   useEffect(() => {
     activeFriendRef.current = activeFriend;
   }, [activeFriend]);
+
+  const activeFriendId = activeFriend?.id;
+
+  useEffect(() => {
+    if (!activeFriendId) {
+      return undefined;
+    }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      messageInputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [activeFriendId]);
 
   useEffect(() => {
     if (!dashboardRef.current || Date.now() - lastDashboardRefreshAtRef.current > 10_000) {
@@ -796,6 +841,30 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }
 
     const targetFriendId = activeFriend.id;
+    const currentUser = dashboardRef.current?.currentUser ?? dashboard?.currentUser;
+    const senderId = currentUserId ?? currentUser?.id;
+    if (!senderId) {
+      setStatus('Unable to identify your account. Please try again.');
+      return;
+    }
+
+    const optimisticMessage: FriendMessage = {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      sender_id: senderId,
+      message: cleanMessage,
+      created_at: new Date().toISOString(),
+      chat_color: normalizeChatColor(currentUser?.chatColor),
+      chat_border: normalizeChatBorder(currentUser?.chatBorder),
+      deliveryStatus: 'pending',
+    };
+    const cachedMessages = messageCacheRef.current.get(targetFriendId) ?? messages;
+    const nextOptimisticMessages = [...cachedMessages, optimisticMessage].sort(sortFriendMessages);
+    messageCacheRef.current.set(targetFriendId, nextOptimisticMessages);
+    if (activeFriendRef.current?.id === targetFriendId) {
+      setMessages(nextOptimisticMessages);
+      scrollMessagesToBottom();
+    }
+    setMessageDraft('');
     setIsSendingMessage(true);
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 15_000);
@@ -805,14 +874,14 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
         body: JSON.stringify({ friendId: targetFriendId, message: cleanMessage }),
         signal: controller.signal,
       });
-      const sentMessage = data.message as FriendMessage;
+      const sentMessage = { ...(data.message as FriendMessage), deliveryStatus: 'sent' as const };
       knownMessageIdsRef.current.add(sentMessage.id);
       playUiSound('message-sent');
-      setMessageDraft('');
-      const cachedMessages = messageCacheRef.current.get(targetFriendId) ?? messages;
-      const nextMessages = cachedMessages.some((message) => message.id === sentMessage.id)
-        ? cachedMessages
-        : [...cachedMessages, sentMessage];
+      const cachedMessagesAfterSend = messageCacheRef.current.get(targetFriendId) ?? [];
+      const nextMessages = [
+        ...cachedMessagesAfterSend.filter((message) => message.id !== optimisticMessage.id && message.id !== sentMessage.id),
+        sentMessage,
+      ].sort(sortFriendMessages);
       messageCacheRef.current.set(targetFriendId, nextMessages);
       if (activeFriendRef.current?.id === targetFriendId) {
         setMessages(nextMessages);
@@ -820,6 +889,14 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       }
       void broadcastFriendMessageNotification(targetFriendId);
     } catch (error) {
+      const cachedMessagesAfterFailure = messageCacheRef.current.get(targetFriendId) ?? [];
+      const nextMessages = cachedMessagesAfterFailure.map((message) => (
+        message.id === optimisticMessage.id ? { ...message, deliveryStatus: 'failed' as const } : message
+      ));
+      messageCacheRef.current.set(targetFriendId, nextMessages);
+      if (activeFriendRef.current?.id === targetFriendId) {
+        setMessages(nextMessages);
+      }
       setStatus(error instanceof DOMException && error.name === 'AbortError'
         ? 'Message send timed out. Please try again.'
         : error instanceof Error ? error.message : 'Unable to send message.');
@@ -872,7 +949,11 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   const activeFriendRiotViewerHref = activeFriendView?.riotAccountName?.trim()
     ? `/riot-account-viewer?riotId=${encodeURIComponent(activeFriendView.riotAccountName.trim())}`
     : null;
-  const unreadTotal = useMemo(() => dashboard?.friends.reduce((total, friend) => total + friend.unreadCount, 0) ?? 0, [dashboard?.friends]);
+  const viewerUserId = currentUserId ?? dashboard?.currentUser?.id ?? null;
+  const unreadTotal = useMemo(() => dashboard?.friends.reduce(
+    (total, friend) => total + (friend.id === activeFriend?.id ? 0 : friend.unreadCount),
+    0,
+  ) ?? 0, [activeFriend?.id, dashboard?.friends]);
 
   useEffect(() => {
     const riotAccount = activeFriendView?.riotAccountName?.trim();
@@ -1263,7 +1344,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                       className={`mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}
                     >
                       {messages.map((chatMessage) => {
-                        const isOwnMessage = chatMessage.sender_id === currentUserId;
+                        const isOwnMessage = chatMessage.sender_id === viewerUserId;
+                        const deliveryStatus = chatMessage.deliveryStatus;
                         const invite = getMultiplayerInvite(chatMessage.message);
                         const senderProfile = messageProfiles[chatMessage.sender_id];
                         const bubbleStyle = getChatBubbleStyle(
@@ -1287,33 +1369,44 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                                 <span className="h-px bg-red-500/80" />
                               </div>
                             ) : null}
-                            <div
-                              className={`max-w-[82%] break-words rounded-xl px-3 py-2 text-sm [overflow-wrap:anywhere] ${
-                                isOwnMessage
-                                  ? 'ml-auto text-right font-medium'
-                                  : 'mr-auto font-medium'
-                              }`}
-                              style={bubbleStyle}
-                            >
-                              {invite ? (
-                                <div className={`flex flex-wrap items-center gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                                  <span>{invite.gameName} invite</span>
-                                  <button
-                                    type="button"
-                                    disabled={isOwnMessage}
-                                    onClick={() => {
-                                      if (isOwnMessage) return;
-                                      window.location.href = invite.url;
-                                    }}
-                                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${isOwnMessage ? 'cursor-not-allowed' : ''}`}
-                                    style={inviteButtonStyle}
-                                  >
-                                    {isOwnMessage ? 'Sent' : 'Join Game'}
-                                  </button>
-                                </div>
-                              ) : (
-                                chatMessage.message
-                              )}
+                            <div className={`flex max-w-[82%] min-w-0 items-center gap-1.5 ${isOwnMessage ? 'ml-auto' : 'mr-auto'}`}>
+                              {isOwnMessage && deliveryStatus ? (
+                                <span
+                                  className="inline-flex shrink-0 items-center"
+                                  aria-label={deliveryStatus === 'pending' ? 'Pending' : deliveryStatus === 'sent' ? 'Sent' : 'Failed to send'}
+                                  title={deliveryStatus === 'pending' ? 'Pending' : deliveryStatus === 'sent' ? 'Sent' : 'Failed to send'}
+                                >
+                                  {deliveryStatus === 'pending' ? <Loader2 size={13} className="animate-spin text-slate-300" aria-hidden="true" /> : null}
+                                  {deliveryStatus === 'sent' ? <Check size={13} className="text-emerald-300" aria-hidden="true" /> : null}
+                                  {deliveryStatus === 'failed' ? <X size={13} className="text-red-300" aria-hidden="true" /> : null}
+                                </span>
+                              ) : null}
+                              <div
+                                className={`min-w-0 max-w-full break-words rounded-xl px-3 py-2 text-sm [overflow-wrap:anywhere] ${
+                                  isOwnMessage ? 'text-right font-medium' : 'font-medium'
+                                }`}
+                                style={bubbleStyle}
+                              >
+                                {invite ? (
+                                  <div className={`flex flex-wrap items-center gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                                    <span>{invite.gameName} invite</span>
+                                    <button
+                                      type="button"
+                                      disabled={isOwnMessage}
+                                      onClick={() => {
+                                        if (isOwnMessage) return;
+                                        window.location.href = invite.url;
+                                      }}
+                                      className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${isOwnMessage ? 'cursor-not-allowed' : ''}`}
+                                      style={inviteButtonStyle}
+                                    >
+                                      {isOwnMessage ? 'Sent' : 'Join Game'}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  chatMessage.message
+                                )}
+                              </div>
                             </div>
                           </Fragment>
                         );
@@ -1384,7 +1477,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                       {friend.favorite ? <Star size={12} className="mr-1 inline fill-amber-300 text-amber-300" aria-label="Favorite" /> : null}
                       {friend.displayName}
                     </span>
-                    {friend.unreadCount > 0 ? (
+                    {friend.id !== activeFriend?.id && friend.unreadCount > 0 ? (
                       <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
                         {friend.unreadCount > 99 ? '99+' : friend.unreadCount}
                       </span>

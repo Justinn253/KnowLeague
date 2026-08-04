@@ -6,9 +6,9 @@ const nextConfig = {
     deviceSizes: [360, 640, 960, 1280],
     imageSizes: [32, 48, 64, 96, 160, 240, 320],
     formats: ['image/webp'],
-    // Riot/CDN assets are versioned or generated catalog assets. A week avoids
-    // repeat transformations while keeping catalogue refreshes reasonably fresh.
-    minimumCacheTTL: 60 * 60 * 24 * 7,
+    // Riot/CDN assets and hashed Riftbound catalogue assets are effectively
+    // immutable. A month keeps normal revisits from re-transforming them.
+    minimumCacheTTL: 60 * 60 * 24 * 31,
     remotePatterns: [
       {
         protocol: 'https',
@@ -24,6 +24,16 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'cmsassets.rgpub.io',
         pathname: '/sanity/images/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'tcgplayer-cdn.tcgplayer.com',
+        pathname: '/product/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'openrift.app',
+        pathname: '/media/cards/**',
       },
     ],
   },

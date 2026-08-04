@@ -23,7 +23,7 @@ import {
 } from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
-import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER as RIFTBOUND_CARD_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
+import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER as RIFTBOUND_CARD_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
 import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
 import { getRiftboundBootstrap, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
 import { getRiftboundInventoryChanges, rebaseRiftboundInventoryDraft, type RiftboundInventoryItem } from '@/lib/riftbound-inventory';
@@ -396,17 +396,6 @@ export function createRiftboundCardFilters(): RiftboundCardFilters {
     maxPrice: '',
   };
 }
-
-const rarityStyles: Record<string, string> = {
-  Common: 'text-slate-300',
-  Uncommon: 'text-blue-300',
-  Rare: 'text-violet-300',
-  Epic: 'text-amber-300',
-  Showcase: 'text-yellow-200',
-  Overnumbered: 'text-orange-300',
-  Signature: 'text-fuchsia-300',
-  Token: 'text-cyan-200',
-};
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -1547,7 +1536,7 @@ function RiftboundDeckFavoriteButton({ deckId, session }: { deckId: string; sess
 function RiftboundDeckListRow({ card, onOpen, highlighted = false, tierVote }: { card: RiftboundCard; onOpen: (card: RiftboundCard) => void; highlighted?: boolean; tierVote?: RiftboundCardTier }) {
   return (
     <button type="button" onClick={() => onOpen(card)} className={`w-full max-w-[18rem] justify-self-center min-w-0 rounded-xl border px-3 py-2 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}>
-      <span className={`truncate text-sm font-bold ${getRiftboundCardDomainTextClass(card)}`}>{card.displayName}</span>
+      <span className={`truncate text-sm font-bold ${getRiftboundCardRarityTextClass(card)}`}>{card.displayName}</span>
       <span className="mt-1 block truncate text-xs font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</span>
     </button>
   );
@@ -1571,7 +1560,7 @@ function RiftboundDeckEntries({ entries, listView, onOpen, gridClassName = 'rift
     return <div className={listGridClassName}>{entries.map(({ card, key }) => <RiftboundDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier ?? undefined} />)}</div>;
   }
   const cardGridClassName = gridClassName === 'riftbound-card-grid' ? 'riftbound-deck-card-grid' : gridClassName;
-  return <div className={cardGridClassName}>{entries.map(({ card, category, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored showDeckMetadata landscapeImage={category === 'battlefields'} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
+  return <div className={cardGridClassName}>{entries.map(({ card, category, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} showDeckMetadata landscapeImage={category === 'battlefields'} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
 }
 
 export const RiftboundCardRow = memo(function RiftboundCardRow({
@@ -1587,7 +1576,6 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   onAdjust,
   onSetAdjust,
   highlighted = false,
-  domainNameColored = false,
   showDeckMetadata = false,
   landscapeImage = false,
   tierVote,
@@ -1605,7 +1593,6 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   onAdjust?: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
   onSetAdjust?: (card: RiftboundCard, delta: 1 | -1) => void;
   highlighted?: boolean;
-  domainNameColored?: boolean;
   showDeckMetadata?: boolean;
   landscapeImage?: boolean;
   tierVote?: RiftboundCardTier | null;
@@ -1628,7 +1615,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
           <RiftboundCardImage card={card} sizes="176px" orientation={landscapeImage ? 'landscape' : 'portrait'} className="object-cover" loading="lazy" />
         </span>
         <span className="order-1 min-w-0 w-full">
-          <span className={`block truncate text-lg font-black tracking-tight ${domainNameColored ? getRiftboundCardDomainTextClass(card) : 'text-white'}`} title={card.displayName}>{card.displayName}</span>
+          <span className={`block truncate text-lg font-black tracking-tight ${getRiftboundCardRarityTextClass(card)}`} title={card.displayName}>{card.displayName}</span>
           <span className="mt-1 flex items-center justify-center gap-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500"><span>{card.setCode} · {card.numberLabel}</span>{tierVote ? <span>· {tierVote}</span> : null}</span>
         </span>
       </button>
@@ -1700,7 +1687,7 @@ export function RiftboundCardDetailsModal({
   onClose: () => void;
   onAdjust: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
 }) {
-  const rarityClassName = rarityStyles[card.rarity] ?? 'text-slate-300';
+  const rarityClassName = getRiftboundCardRarityTextClass(card);
   const finishOptions = getCardFinishOptions(card);
   const [priceHistory, setPriceHistory] = useState<RiftboundPriceHistoryEntry[]>([]);
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(true);
@@ -2412,7 +2399,7 @@ function RiftboundCardScannerModal({ cards, accessToken, onClose, onAdd }: { car
                         <RiftboundCardImage card={entry.card} sizes="56px" className="object-cover" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-white">{entry.card.displayName}</p>
+                        <p className={`truncate text-sm font-black ${getRiftboundCardRarityTextClass(entry.card)}`}>{entry.card.displayName}</p>
                         <div className="mt-1 flex min-w-0 flex-row-reverse items-center justify-between gap-2">
                           <span className="shrink-0 text-xs font-black text-emerald-300">{formatMarketPriceOrUnavailable(getMarketPriceForFinish(entry.card, entry.finish))}</span>
                           <p className={`truncate text-xs font-semibold ${entry.finish === 'foil' ? 'text-amber-200' : 'text-slate-500'}`}>{getFinishLabel(entry.finish)} · {entry.card.setCode} {entry.card.numberLabel}</p>
@@ -2517,17 +2504,7 @@ export function RiftboundCardGrid() {
     const latest = latestPrices[card.id];
     if (!latest) return card;
 
-    return {
-      ...card,
-      marketPrice: latest.normal,
-      marketPriceUpdatedAt: latest.updatedAt,
-      marketPrices: {
-        ...card.marketPrices,
-        normal: latest.normal,
-        foil: latest.foil,
-        updatedAt: latest.updatedAt,
-      },
-    };
+    return mergeRiftboundCardMarketPrices(card, latest);
   }), [latestPrices]);
   const cardsById = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards]);
 
@@ -3467,7 +3444,7 @@ export function RiftboundCardGrid() {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
                 {inventoryRarityOrder.map((rarity) => (
                   <button key={rarity} type="button" onClick={() => applyRarityFilter(rarity)} className={`rounded-2xl border px-3 py-3 text-center transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${filters.rarity.includes(rarity) ? 'border-amber-200/70 bg-amber-300/10' : 'border-white/10 bg-slate-900/70 hover:border-amber-200/50 hover:bg-slate-800'}`}>
-                    <p className={`text-xs font-black uppercase tracking-[0.12em] ${rarityStyles[rarity] ?? 'text-slate-300'}`}>{rarity}</p>
+                    <p className={`text-xs font-black uppercase tracking-[0.12em] ${getRiftboundRarityTextClass(rarity)}`}>{rarity}</p>
                     <p className="mt-1 text-xl font-black text-white">{inventoryRarityCounts.get(rarity) ?? 0}</p>
                   </button>
                 ))}
@@ -3718,7 +3695,7 @@ export function RiftboundCardGrid() {
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
                     {inventoryRarityOrder.map((rarity) => (
                       <div key={rarity} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center">
-                        <p className={`text-xs font-black uppercase tracking-[0.12em] ${rarityStyles[rarity] ?? 'text-slate-300'}`}>{rarity}</p>
+                        <p className={`text-xs font-black uppercase tracking-[0.12em] ${getRiftboundRarityTextClass(rarity)}`}>{rarity}</p>
                         <p className="mt-1 text-xl font-black text-white">{selectedSetRarityCounts.get(rarity) ?? 0}</p>
                       </div>
                     ))}

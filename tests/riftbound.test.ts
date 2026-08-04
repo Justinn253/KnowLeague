@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRiftboundCardRarity, getRiftboundCardTierGroupId, isRiftboundOvernumberedPrint, isRiftboundShowcasePrint, isRiftboundSignaturePrint, RIFTBOUND_CARDS } from '@/lib/riftbound';
+import { getRiftboundCardRarity, getRiftboundCardTierGroupId, isRiftboundOvernumberedPrint, isRiftboundShowcasePrint, isRiftboundSignaturePrint, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS } from '@/lib/riftbound';
 
 describe('Riftbound showcase classification', () => {
   it('recognizes alternate, overnumbered, signature, and SP prints as showcase-family variants', () => {
@@ -25,6 +25,28 @@ describe('Riftbound showcase classification', () => {
   it('does not classify ordinary in-range prints as Showcase', () => {
     expect(isRiftboundShowcasePrint({ collectorNumber: '185', printedTotal: 219 })).toBe(false);
     expect(isRiftboundShowcasePrint({ collectorNumber: '001', printedTotal: 298 })).toBe(false);
+  });
+
+  it('keeps a generated catalogue value during an all-null latest snapshot', () => {
+    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === 'ven-012-166');
+    expect(card).toBeTruthy();
+
+    const merged = mergeRiftboundCardMarketPrices(card!, { normal: null, foil: null, updatedAt: '2026-08-03T00:00:00.000Z' });
+    expect(merged.marketPrices.normal).toBe(card!.marketPrices.normal);
+    expect(merged.marketPrices.foil).toBe(card!.marketPrices.foil);
+  });
+
+  it('includes fallback artwork for Vendetta showcase runes whose source image is pending', () => {
+    for (const id of ['ven-r01a', 'ven-r03a', 'ven-r04a', 'ven-r05a', 'ven-r06a']) {
+      expect(RIFTBOUND_CARDS.find((card) => card.id === id)?.imageUrl).toMatch(/^https:\/\/openrift\.app\/media\/cards\/.*-400w\.webp$/);
+    }
+  });
+
+  it('uses one canonical image for regular runes across sets', () => {
+    for (const name of ['Fury Rune', 'Calm Rune', 'Mind Rune', 'Body Rune', 'Chaos Rune', 'Order Rune']) {
+      const images = new Set(RIFTBOUND_CARDS.filter((card) => card.cardType === 'Rune' && card.rarity === 'Common' && card.displayName === name).map((card) => card.imageUrl));
+      expect(images.size).toBe(1);
+    }
   });
 
   it('uses one tier group for identical alternate-art prints', () => {

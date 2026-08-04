@@ -10,6 +10,17 @@ const OUTPUT_PATH = path.join(process.cwd(), 'data', 'catalogs', 'riftbound-card
 const DOMAIN_PAGE_SIZE = 100;
 const MARKET_PAGE_SIZE = 100;
 
+// TCGCSV currently lists these Vendetta showcase-rune products with
+// imageCount: 0. OpenRift has the matching 400w artwork available, so keep
+// these as catalogue fallbacks until the TCGPlayer image records are filled.
+const RIFTBOUND_RUNE_IMAGE_OVERRIDES = {
+  'VEN:R01A': 'https://openrift.app/media/cards/97/019fae34-e2c3-7b0c-9098-d211b728bc97-400w.webp',
+  'VEN:R03A': 'https://openrift.app/media/cards/81/019fc1e0-f7c3-708e-9b7d-39a3126e7981-400w.webp',
+  'VEN:R04A': 'https://openrift.app/media/cards/f8/019fae32-8178-7261-9697-741940fb90f8-400w.webp',
+  'VEN:R05A': 'https://openrift.app/media/cards/7c/019fae62-559f-7265-a083-9ecc5a817f7c-400w.webp',
+  'VEN:R06A': 'https://openrift.app/media/cards/c9/019fae35-a0c8-7372-b7ee-eefff2752dc9-400w.webp',
+};
+
 async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
@@ -174,6 +185,25 @@ function getTcgFinishName(value) {
   return null;
 }
 
+function getCanonicalStandardRuneImages(officialCards) {
+  return new Map(
+    officialCards
+      .filter((card) => card.setCode.toUpperCase() === 'OGN' && card.cardType === 'Rune' && !isShowcasePrint(parseCardNumber(card.cardNumber)))
+      .map((card) => [normalizeName(card.fullName || card.name), card.imageUrl]),
+  );
+}
+
+function applyCanonicalStandardRuneImages(cards, officialCards) {
+  const imagesByName = getCanonicalStandardRuneImages(officialCards);
+
+  return cards.map((card) => {
+    if (card.cardType !== 'Rune' || card.rarity !== 'Common') return card;
+
+    const imageUrl = imagesByName.get(normalizeName(card.fullName || card.name));
+    return imageUrl ? { ...card, imageUrl } : card;
+  });
+}
+
 function isShowcasePrint(number) {
   const collectorNumber = number.collectorNumber.toUpperCase();
   if (collectorNumber.endsWith('A') || collectorNumber.endsWith('-STAR') || /^SP\d+$/.test(collectorNumber)) return true;
@@ -187,6 +217,7 @@ async function fetchTcgCsvMarketPrices(setCodes) {
   const requestedSetCodes = new Set(setCodes.map((setCode) => setCode.toUpperCase()));
   const groups = (groupResponse.results ?? []).filter((group) => requestedSetCodes.has(String(group.abbreviation ?? '').toUpperCase()));
   const pricesByPrintKey = new Map();
+  const productsByPrintKey = new Map();
   const snapshotText = (await fetchText(TCGCSV_LAST_UPDATED_URL)).trim();
   const snapshotDate = Number.isNaN(Date.parse(snapshotText)) ? new Date().toISOString() : new Date(snapshotText).toISOString();
 
@@ -211,9 +242,11 @@ async function fetchTcgCsvMarketPrices(setCodes) {
     for (const product of productResponse.results ?? []) {
       const cardNumber = getExtendedDataValue(product, 'Number');
       const productPrices = pricesByProductId.get(product.productId);
-      if (!cardNumber || !productPrices) continue;
+      if (!cardNumber || !group.abbreviation) continue;
 
       for (const printKey of getPrintKeyAliases(group.abbreviation, cardNumber.split('/')[0])) {
+        productsByPrintKey.set(printKey, { groupCode: group.abbreviation, groupName: group.name, product });
+        if (!productPrices) continue;
         const existing = pricesByPrintKey.get(printKey) ?? { normal: null, foil: null, updatedAt: snapshotDate };
         pricesByPrintKey.set(printKey, {
           normal: productPrices.normal ?? existing.normal,
@@ -224,7 +257,7 @@ async function fetchTcgCsvMarketPrices(setCodes) {
     }
   }
 
-  return pricesByPrintKey;
+  return { pricesByPrintKey, productsByPrintKey };
 }
 
 function normalizeCard(card, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey) {
@@ -279,16 +312,107 @@ function normalizeCard(card, domainCardsByKey, marketPriceByPrintKey, tcgMarketP
   };
 }
 
+function createTcgCsvRuneCards(officialCards, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey, tcgProductsByPrintKey) {
+  const officialCardsByPrintKey = new Map(officialCards.map((card) => [getPrintKey(card), card]));
+  const normalizedCardsByPrintKey = new Map();
+  const existingCardIds = new Set(officialCards.map((card) => card.cardCode));
+  const runeProducts = new Map();
+
+  tcgProductsByPrintKey.forEach(({ groupCode, groupName, product }) => {
+    const rarity = getExtendedDataValue(product, 'Rarity');
+    const cardType = getExtendedDataValue(product, 'Card Type');
+    const cardNumber = getExtendedDataValue(product, 'Number');
+    if (!['Common', 'Showcase'].includes(rarity) || cardType !== 'Rune' || !cardNumber || !product.imageUrl) return;
+    runeProducts.set(product.productId, { groupCode, groupName, product, cardNumber });
+  });
+
+  return Array.from(runeProducts.values())
+    .sort((left, right) => Number(/A$/i.test(left.cardNumber.split('/')[0])) - Number(/A$/i.test(right.cardNumber.split('/')[0])))
+    .flatMap(({ groupCode, groupName, product, cardNumber }) => {
+    const rawCollectorNumber = cardNumber.split('/')[0].trim();
+    const number = parseCardNumber(cardNumber.replace('/', '-'));
+    const printKey = `${groupCode.toUpperCase()}:${number.collectorNumber}`;
+    const existingCard = getPrintKeyAliases(groupCode, rawCollectorNumber)
+      .map((key) => officialCardsByPrintKey.get(key))
+      .find(Boolean);
+    const basePrintKey = `${groupCode.toUpperCase()}:${rawCollectorNumber.replace(/A$/i, '').toUpperCase()}`;
+    const normalizedCard = existingCard
+      ? normalizeCard(existingCard, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey)
+      : normalizedCardsByPrintKey.get(basePrintKey) ?? null;
+    const rarity = getExtendedDataValue(product, 'Rarity') || 'Common';
+    const marketPrices = tcgMarketPricesByPrintKey.get(printKey) ?? { normal: null, foil: null, updatedAt: null };
+    const marketPrice = marketPriceByPrintKey.get(printKey);
+    const imageUrl = RIFTBOUND_RUNE_IMAGE_OVERRIDES[printKey] ?? product.imageUrl;
+    const id = `${groupCode.toLowerCase()}-${number.collectorNumber.toLowerCase()}${number.printedTotal === null ? '' : `-${number.printedTotal}`}`;
+    const isFoilOnly = rarity === 'Rare' || rarity === 'Epic' || rarity === 'Showcase';
+    const fallbackDisplayName = product.name.replace(/\s+\([^)]*\)\s*$/, '').replace(/\s+\(Alternate Art\)\s*$/, '').trim();
+    const card = normalizedCard ?? {
+      id,
+      displayName: fallbackDisplayName,
+      name: fallbackDisplayName,
+      fullName: fallbackDisplayName,
+      setCode: groupCode.toUpperCase(),
+      setName: groupName || groupCode.toUpperCase(),
+      collectorNumber: number.collectorNumber,
+      printedTotal: number.printedTotal,
+      numberLabel: number.numberLabel,
+      rarity,
+      energyCost: 0,
+      powerCost: 0,
+      might: 0,
+      cardType: 'Rune',
+      cardTypeLabels: ['Rune', 'Basic'],
+      tags: [],
+      domains: [getExtendedDataValue(product, 'Domain') || 'Colorless'],
+      productDetails: 'â€”',
+      imageUrl,
+      sourceUrl: product.url,
+      artist: null,
+      hasErrata: false,
+      marketPrice: marketPrice?.marketPrice ?? marketPrices.foil ?? marketPrices.normal,
+      marketPriceUpdatedAt: marketPrice?.marketPriceUpdatedAt ?? marketPrices.updatedAt,
+      marketPriceCurrency: 'USD',
+      marketPrices,
+      finishOptions: isFoilOnly ? ['foil'] : ['normal', 'foil'],
+      defaultFinish: isFoilOnly ? 'foil' : 'normal',
+    };
+
+    if (existingCard) {
+      normalizedCardsByPrintKey.set(printKey, card);
+      return [];
+    }
+
+    const normalizedVariant = {
+      ...card,
+      id,
+      collectorNumber: number.collectorNumber,
+      printedTotal: number.printedTotal,
+      numberLabel: number.numberLabel,
+      rarity,
+      imageUrl,
+      sourceUrl: product.url || normalizedCard.sourceUrl,
+      marketPrice: marketPrice?.marketPrice ?? marketPrices.foil ?? marketPrices.normal,
+      marketPriceUpdatedAt: marketPrice?.marketPriceUpdatedAt ?? marketPrices.updatedAt,
+      marketPrices,
+      finishOptions: isFoilOnly ? ['foil'] : ['normal', 'foil'],
+      defaultFinish: isFoilOnly ? 'foil' : 'normal',
+    };
+    normalizedCardsByPrintKey.set(printKey, normalizedVariant);
+    return existingCardIds.has(id) ? [] : [normalizedVariant];
+  });
+}
+
 async function main() {
   const [officialCards, domainCards] = await Promise.all([
     fetchJson(OFFICIAL_GALLERY_SNAPSHOT_URL),
     fetchDomainCards(),
   ]);
   const setCodes = Array.from(new Set(officialCards.map((card) => card.setCode)));
-  const [marketCards, tcgMarketPricesByPrintKey] = await Promise.all([
+  const [marketCards, tcgPriceSnapshot] = await Promise.all([
     fetchMarketCards(setCodes),
     fetchTcgCsvMarketPrices(setCodes),
   ]);
+  const { pricesByPrintKey: tcgMarketPricesByPrintKey, productsByPrintKey: tcgProductsByPrintKey } = tcgPriceSnapshot;
   const marketPriceByPrintKey = createMarketPriceByPrintKey(marketCards);
 
   const domainCardsByKey = new Map();
@@ -299,9 +423,10 @@ async function main() {
     domainCardsByKey.set(`${setCode.toUpperCase()}:${normalizeName(card.name)}`, card);
   }
 
-  const catalog = officialCards
+  const catalog = applyCanonicalStandardRuneImages(officialCards
     .map((card) => normalizeCard(card, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey))
-    .sort((left, right) => left.id.localeCompare(right.id));
+    .concat(createTcgCsvRuneCards(officialCards, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey, tcgProductsByPrintKey))
+    .sort((left, right) => left.id.localeCompare(right.id)), officialCards);
 
   await mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
   await writeFile(OUTPUT_PATH, `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');

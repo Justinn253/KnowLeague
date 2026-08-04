@@ -17,6 +17,8 @@ import {
   deleteRiftboundCommunityPost,
   getRiftboundCommunityComments,
   getRiftboundCommunityPost,
+  hasRiftboundPostBeenShared,
+  markRiftboundPostShared,
   recordRiftboundPostShare,
   submitRiftboundPostReport,
   updateRiftboundCommunityPost,
@@ -179,8 +181,15 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
   const reactionRequestRef = useRef<Promise<unknown>>(Promise.resolve());
   const [selectedCard, setSelectedCard] = useState<import('@/lib/riftbound').RiftboundCard | null>(null);
   const [shareUrl, setShareUrl] = useState('');
+  const [shareBusy, setShareBusy] = useState(false);
+  const shareBusyRef = useRef(false);
+  const [shareCompleted, setShareCompleted] = useState(false);
 
   useEffect(() => subscribeToAuthSession((nextSession) => setSession(nextSession)), []);
+
+  useEffect(() => {
+    setShareCompleted(Boolean(session && hasRiftboundPostBeenShared(postId, session.user.id)));
+  }, [postId, session]);
 
   useEffect(() => {
     if (!postMenuOpen && !reportOpen) return undefined;
@@ -366,14 +375,24 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
   };
 
   const sharePost = async () => {
+    if (shareBusyRef.current) return;
+    shareBusyRef.current = true;
+    setShareBusy(true);
     try {
       const url = shareUrl || `${window.location.origin}/riftbound/community/${encodeURIComponent(postId)}`;
       if (navigator.share) await navigator.share({ title: post?.title, text: post?.body || post?.title, url });
       else await navigator.clipboard.writeText(url);
-      const result = await recordRiftboundPostShare(postId);
-      setPost((current) => current ? { ...current, shareCount: result.shareCount } : current);
+      if (session && !shareCompleted && !hasRiftboundPostBeenShared(postId, session.user.id)) {
+        const result = await recordRiftboundPostShare(postId, session);
+        markRiftboundPostShared(postId, session.user.id);
+        setShareCompleted(true);
+        setPost((current) => current ? { ...current, shareCount: result.shareCount } : current);
+      }
     } catch {
       // Closing the share sheet is not an error that needs to interrupt reading.
+    } finally {
+      shareBusyRef.current = false;
+      setShareBusy(false);
     }
   };
 
@@ -452,7 +471,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => updateReaction('like')} disabled={!session} aria-label={`Like (${likeCount})`} aria-pressed={localReaction === 'like'} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${localReaction === 'like' ? 'border-amber-200/60 bg-amber-300/15 text-amber-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-amber-200/50 hover:text-amber-200'}`}><ThumbsUp size={15} /> {likeCount}</button>
             <button type="button" onClick={() => updateReaction('dislike')} disabled={!session} aria-label={`Dislike (${dislikeCount})`} aria-pressed={localReaction === 'dislike'} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${localReaction === 'dislike' ? 'border-red-200/60 bg-red-300/15 text-red-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-red-200/50 hover:text-red-200'}`}><ThumbsDown size={15} /> {dislikeCount}</button>
-            <button type="button" onClick={() => void sharePost()} className="ml-2 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/50 hover:text-amber-200"><Share2 size={15} /> Share</button>
+            <button type="button" onClick={() => void sharePost()} disabled={shareBusy} className="ml-2 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/50 hover:text-amber-200 disabled:cursor-wait disabled:opacity-50"><Share2 size={15} /> Share</button>
           </div>
 
           <div id="comments" className="grid gap-4 border-t border-white/10 pt-5">

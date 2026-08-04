@@ -8,7 +8,7 @@ import type { Session } from '@supabase/supabase-js';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass } from '@/lib/riftbound';
-import { recordRiftboundPostShare, updateRiftboundPostReaction } from '@/lib/riftbound-community-client';
+import { hasRiftboundPostBeenShared, markRiftboundPostShared, recordRiftboundPostShare, updateRiftboundPostReaction } from '@/lib/riftbound-community-client';
 import type { RiftboundCommunityPostSummary, RiftboundPostReaction } from '@/lib/riftbound-community-types';
 
 function formatDate(value: string) {
@@ -32,6 +32,7 @@ type RiftboundCommunityPostCardProps = {
 export function RiftboundCommunityPostCard({ post, session, onPostChange }: RiftboundCommunityPostCardProps) {
   const router = useRouter();
   const [shareBusy, setShareBusy] = useState(false);
+  const shareBusyRef = useRef(false);
   const [localReaction, setLocalReaction] = useState<RiftboundPostReaction | null>(post.viewerReaction);
   const localReactionRef = useRef<RiftboundPostReaction | null>(post.viewerReaction);
   const [likeCount, setLikeCount] = useState(post.likeCount);
@@ -87,17 +88,22 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
   };
 
   const sharePost = async () => {
-    if (shareBusy) return;
+    if (shareBusyRef.current) return;
+    shareBusyRef.current = true;
     setShareBusy(true);
     try {
       const url = `${window.location.origin}${postHref}`;
       if (navigator.share) await navigator.share({ title: post.title, text: post.body || post.title, url });
       else await navigator.clipboard.writeText(url);
-      const response = await recordRiftboundPostShare(post.id);
-      onPostChange?.({ ...post, shareCount: response.shareCount });
+      if (session && !hasRiftboundPostBeenShared(post.id, session.user.id)) {
+        const response = await recordRiftboundPostShare(post.id, session);
+        markRiftboundPostShared(post.id, session.user.id);
+        onPostChange?.({ ...post, shareCount: response.shareCount });
+      }
     } catch {
       // Closing the native share sheet is not an error for the page.
     } finally {
+      shareBusyRef.current = false;
       setShareBusy(false);
     }
   };

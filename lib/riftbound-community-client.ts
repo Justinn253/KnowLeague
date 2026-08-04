@@ -25,6 +25,37 @@ const RIFTBOUND_POST_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_COMMENTS_CACHE_TTL_MS = 20_000;
 const RIFTBOUND_SHARED_DECK_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_RESPONSE_CACHE_MAX_ENTRIES = 100;
+const RIFTBOUND_SHARED_POSTS_STORAGE_KEY = 'knowleague:v1:riftbound:shared-posts';
+const RIFTBOUND_SHARED_POSTS_STORAGE_LIMIT = 500;
+
+function getRiftboundSharedPostKeys() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const value = JSON.parse(window.localStorage.getItem(RIFTBOUND_SHARED_POSTS_STORAGE_KEY) ?? '[]');
+    return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value as string[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function getRiftboundSharedPostKey(postId: string, userId: string) {
+  return `${userId}:${postId}`;
+}
+
+export function hasRiftboundPostBeenShared(postId: string, userId: string) {
+  return getRiftboundSharedPostKeys().includes(getRiftboundSharedPostKey(postId, userId));
+}
+
+export function markRiftboundPostShared(postId: string, userId: string) {
+  if (typeof window === 'undefined') return;
+  const key = getRiftboundSharedPostKey(postId, userId);
+  const nextKeys = [...getRiftboundSharedPostKeys().filter((value) => value !== key), key].slice(-RIFTBOUND_SHARED_POSTS_STORAGE_LIMIT);
+  try {
+    window.localStorage.setItem(RIFTBOUND_SHARED_POSTS_STORAGE_KEY, JSON.stringify(nextKeys));
+  } catch {
+    // Local persistence is only an optimization; the server remains authoritative.
+  }
+}
 
 async function getCurrentSession() {
   const supabase = getOptionalSupabaseClient();
@@ -218,8 +249,8 @@ export function updateRiftboundPostReaction(postId: string, reaction: 'like' | '
   });
 }
 
-export function recordRiftboundPostShare(postId: string) {
-  return requestJson<{ shareCount: number }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/share`, { method: 'POST' }, null).then((result) => {
+export function recordRiftboundPostShare(postId: string, session: Session) {
+  return requestJson<{ shareCount: number; recorded: boolean }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/share`, { method: 'POST' }, session).then((result) => {
     invalidateCommunityCache(postId);
     return result;
   });

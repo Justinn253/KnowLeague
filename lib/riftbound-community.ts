@@ -713,12 +713,13 @@ export async function reactToRiftboundPost(postId: string, userId: string, react
   return { likeCount: row.like_count, dislikeCount: row.dislike_count, reaction: row.reaction ?? null };
 }
 
-export async function recordRiftboundPostShare(postId: string) {
-  const { data, error } = await getSupabaseServiceClient().rpc('record_riftbound_post_share', { p_post_id: postId });
+export async function recordRiftboundPostShare(postId: string, userId: string) {
+  const { data, error } = await getSupabaseServiceClient().rpc('record_riftbound_post_share', { p_post_id: postId, p_user_id: userId });
   if (error) throw error;
-  if (typeof data === 'number') return data;
-  const rows = Array.isArray(data) ? data as unknown as number[] : [];
-  return Number(rows[0] ?? 0);
+  const rows = Array.isArray(data) ? data as unknown as Array<{ share_count: number; recorded: boolean }> : [];
+  const row = rows[0];
+  if (!row) throw new Error('Unable to record the post share.');
+  return { shareCount: row.share_count, recorded: row.recorded };
 }
 
 export async function reportRiftboundContent(input: { userId: string; postId?: string; commentId?: string; reason: unknown; details: unknown }) {

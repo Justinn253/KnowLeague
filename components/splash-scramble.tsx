@@ -132,7 +132,7 @@ const DEFAULT_SETTINGS: SplashScrambleSettings = {
   rotateTiles: false,
 };
 const DAILY_SETTINGS: SplashScrambleSettings = {
-  gridSize: 10,
+  gridSize: 8,
   timeLimit: null,
   showReference: true,
   lockCorrectTiles: true,
@@ -704,7 +704,7 @@ const PuzzleBoard = memo(function PuzzleBoard({
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onTileClick(position)}
             disabled={locked}
-            className={`relative min-h-0 overflow-hidden border bg-slate-950 transition focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-default ${
+            className={`relative min-h-0 touch-manipulation select-none overflow-hidden border bg-slate-950 transition focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-default ${
               flashing
                 ? 'z-20 border-emerald-300 ring-2 ring-inset ring-emerald-300  brightness-125'
                 : selected
@@ -2047,7 +2047,7 @@ export function SplashScramble() {
               <p className="truncate text-sm font-bold text-white">{selectedSkin ? selectedSkin.answer : 'Random skin'}</p>
               <p className="text-xs text-slate-500">
                 {selectedSkin
-                  ? targetSkinSolveCount === null ? 'Loading global solves...' : `Global solves: ${targetSkinSolveCount}`
+                  ? targetSkinSolveCount === null ? 'Loading global solves...' : `All-time global solves: ${targetSkinSolveCount}`
                   : 'A random splash will be selected'}
               </p>
             </div>
@@ -2410,7 +2410,7 @@ export function SplashScramble() {
                 {won ? (
                   <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-slate-950/65 px-3 py-1.5 text-xs font-bold text-amber-100">
                     <Trophy size={14} className="text-amber-300" />
-                    Global solves for today: {targetSkinSolveCount ?? '-'}
+                    All-time global solves: {targetSkinSolveCount ?? '-'}
                   </p>
                 ) : null}
                 <div className={`mt-6 grid gap-3 ${roundMode === 'daily' ? '' : 'sm:grid-cols-2'}`}>
@@ -2517,7 +2517,7 @@ export function SplashScramble() {
             {roundMode === 'daily' && phase !== 'prematch' ? (
               <div className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-200">
                 <Trophy size={16} className="text-amber-300" />
-                Global solves {targetSkinSolveCount ?? '-'}
+                All-time global solves: {targetSkinSolveCount ?? '-'}
               </div>
             ) : null}
             {phase === 'prematch' ? renderDailyAction() : null}

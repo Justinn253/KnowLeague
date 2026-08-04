@@ -2252,12 +2252,12 @@ export function SplashScramble() {
     <section className="grid gap-4">
       <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-3  backdrop-blur-xl sm:p-5">
         <div className="mb-3 grid gap-2 sm:mb-4 sm:gap-3 lg:grid-cols-[1fr_auto]">
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className={`order-2 grid ${lockCorrectTiles ? 'grid-cols-3' : 'grid-cols-2'} gap-2 sm:gap-3 lg:order-1`}>
             <StatPill label={timeLimit === null ? 'Elapsed' : 'Time'} value={activeTimeValue} valueClassName={timerValueClassName} />
             <StatPill label="Moves" value={moves} />
-            <StatPill label="Correct" value={`${correctPositions}/${tileCount}`} />
+            {lockCorrectTiles ? <StatPill label="Correct" value={`${correctPositions}/${tileCount}`} /> : null}
           </div>
-          <div className="flex w-full items-center justify-end gap-2 lg:w-auto">
+          <div className="order-1 flex w-full items-center justify-end gap-2 lg:order-2 lg:w-auto">
             {lockCorrectTiles ? (
               <button
                 type="button"

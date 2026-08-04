@@ -10,7 +10,7 @@ import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
-import { getRiftboundCardById, getRiftboundCardTierGroupId, type RiftboundCardTier } from '@/lib/riftbound';
+import { getRiftboundCardById, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, type RiftboundCardTier } from '@/lib/riftbound';
 import { isRiftboundChampionUnit } from '@/lib/riftbound-decks';
 import {
   createRiftboundComment,
@@ -84,7 +84,7 @@ function RiftboundPostCardRow({ entry, tierVote }: { entry: RiftboundPostSnapsho
   return (
     <article className="riftbound-card-item min-w-0 rounded-2xl border border-white/10 bg-slate-950/80 p-3">
       <div className="relative aspect-[744/1039] overflow-hidden rounded-xl bg-slate-900"><RiftboundCardImage card={card} sizes="220px" loading="lazy" className="object-cover" /></div>
-      <p className="mt-2 truncate text-sm font-black text-white" title={card.displayName}>{card.displayName}</p>
+      <p className={`mt-2 truncate text-sm font-black ${getRiftboundCardRarityTextClass(card)}`} title={card.displayName}>{card.displayName}</p>
       <p className="mt-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-400">
         <span>{entry.category === 'collection' ? entry.finish : categoryLabels[entry.category]}</span>

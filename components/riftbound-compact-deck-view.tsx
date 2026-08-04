@@ -2,7 +2,7 @@
 
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { getChatNameStyle } from '@/lib/chat-colors';
-import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, type RiftboundCard } from '@/lib/riftbound';
+import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, type RiftboundCard } from '@/lib/riftbound';
 import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
 import type { ReactNode } from 'react';
 
@@ -50,7 +50,7 @@ function RiftboundCompactCardTile({ card, quantity, onOpen, highlighted = false,
         <RiftboundCardImage card={card} orientation={isBattlefield ? 'landscape' : 'portrait'} sizes={highlighted ? '360px' : '220px'} loading={highlighted ? 'eager' : 'lazy'} className="object-cover" />
         <span className="absolute bottom-1 right-1 rounded-md border border-amber-200/40 bg-slate-950/95 px-1.5 py-0.5 text-[0.6rem] font-black text-amber-200">×{quantity}</span>
       </span>
-      <span className={`mt-1 w-full truncate text-[0.65rem] font-black ${getRiftboundCardDomainTextClass(card)}`} title={card.displayName}>{card.displayName}</span>
+      <span className={`mt-1 w-full truncate text-[0.65rem] font-black ${getRiftboundCardRarityTextClass(card)}`} title={card.displayName}>{card.displayName}</span>
       <span className="mt-0.5 w-full truncate text-[0.55rem] font-black uppercase tracking-[0.08em] text-slate-500">{card.setCode} · {card.numberLabel}{tier ? ` · ${tier}` : ''}</span>
     </button>
   );

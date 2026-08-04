@@ -21,7 +21,7 @@ import {
 } from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
-import { getRiftboundCardDomainTextClass, getRiftboundCardTierGroupId, getRiftboundDomainTextClass, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier, type RiftboundFinish } from '@/lib/riftbound';
+import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDomainTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier, type RiftboundFinish } from '@/lib/riftbound';
 import type { RiftboundCardTierRating, RiftboundSharedDeckDetail } from '@/lib/riftbound-community-types';
 import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundLatestPrice } from '@/lib/riftbound-client';
 import { getRiftboundSharedDeck, registerRiftboundSharedDeck } from '@/lib/riftbound-community-client';
@@ -238,7 +238,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
   const [historyError, setHistoryError] = useState('');
   const [historyRange, setHistoryRange] = useState<RiftboundHistoryRangeKey>('30d');
   const [tierRating, setTierRating] = useState<RiftboundCardTierRating | null>(initialTierRating ?? null);
-  const rarityClassName = ({ Common: 'text-slate-300', Uncommon: 'text-blue-300', Rare: 'text-violet-300', Epic: 'text-amber-300', Showcase: 'text-yellow-200', Overnumbered: 'text-orange-300', Signature: 'text-fuchsia-300' } as Record<string, string>)[card.rarity] ?? 'text-slate-300';
+  const rarityClassName = getRiftboundCardRarityTextClass(card);
 
   useEffect(() => {
     setTierRating(initialTierRating ?? null);
@@ -592,7 +592,7 @@ function isSharedChampionUnit(card: RiftboundCard) {
 }
 
 function SharedDeckListRow({ card, onOpen, highlighted = false, tierVote }: { card: RiftboundCard; onOpen: (card: RiftboundCard) => void; highlighted?: boolean; tierVote?: RiftboundCardTier }) {
-  return <button type="button" onClick={() => onOpen(card)} className={`w-full max-w-[18rem] justify-self-center min-w-0 rounded-xl border px-2.5 py-1.5 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}><span className={`block truncate text-xs font-bold ${getRiftboundCardDomainTextClass(card)}`}>{card.displayName}</span><span className="mt-0.5 block truncate text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</span></button>;
+  return <button type="button" onClick={() => onOpen(card)} className={`w-full max-w-[18rem] justify-self-center min-w-0 rounded-xl border px-2.5 py-1.5 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : 'border-white/10 bg-slate-900/60'}`}><span className={`block truncate text-xs font-bold ${getRiftboundCardRarityTextClass(card)}`}>{card.displayName}</span><span className="mt-0.5 block truncate text-[0.6rem] font-black uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</span></button>;
 }
 
 function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbound-card-grid', highlightCardId, landscapeImages = false, tierRatings = {} }: { entries: Array<{ card: RiftboundCard; key: string }>; listView: boolean; onOpen: (card: RiftboundCard) => void; gridClassName?: string; highlightCardId?: string; landscapeImages?: boolean; tierRatings?: Record<string, RiftboundCardTierRating> }) {
@@ -604,7 +604,7 @@ function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbou
     return <div className={listGridClassName}>{entries.map(({ card, key }) => <SharedDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier ?? undefined} />)}</div>;
   }
   const cardGridClassName = gridClassName === 'riftbound-card-grid' ? 'riftbound-deck-card-grid' : gridClassName;
-  return <div className={cardGridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} domainNameColored landscapeImage={landscapeImages} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
+  return <div className={cardGridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} landscapeImage={landscapeImages} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
 }
 
 function SharedDeckSection({ deck, category, label, entries: providedEntries, className = '', entriesClassName, highlightCardId, listView, onOpen, tierRatings = {} }: { deck: SharedDeck; category: SharedDeckCategory; label?: string; entries?: Array<{ card: RiftboundCard; key: string }>; className?: string; entriesClassName?: string; highlightCardId?: string; listView: boolean; onOpen: (card: RiftboundCard) => void; tierRatings?: Record<string, RiftboundCardTierRating> }) {
@@ -725,12 +725,7 @@ export function RiftboundCollectionShare() {
         const card = cardById.get(cardId);
         if (!card) return [];
         const latest = latestPrices[card.id];
-        const currentCard = latest ? {
-          ...card,
-          marketPrice: latest.normal,
-          marketPriceUpdatedAt: latest.updatedAt,
-          marketPrices: { ...card.marketPrices, normal: latest.normal, foil: latest.foil, updatedAt: latest.updatedAt },
-        } : card;
+        const currentCard = latest ? mergeRiftboundCardMarketPrices(card, latest) : card;
         return [{
           card: currentCard,
           ...quantitiesForCard,
@@ -1025,7 +1020,7 @@ export function RiftboundCollectionShare() {
             {filteredCards.map(({ card, normal, foil }) => (
               <article key={card.id} className="flex min-w-0 break-inside-avoid flex-col rounded-2xl border border-white/10 bg-slate-950/80 p-4 transition focus-within:border-amber-200/80 print:rounded-lg print:border-slate-300 print:bg-white print:p-2">
                 <button type="button" onClick={() => setSelectedCard(card)} className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none print:pointer-events-none">
-                <h2 className="w-full truncate text-center text-lg font-black text-white print:text-[10px] print:leading-tight print:text-black" title={card.displayName}>{card.displayName}</h2>
+                <h2 className={`w-full truncate text-center text-lg font-black ${getRiftboundCardRarityTextClass(card)} print:text-[10px] print:leading-tight print:text-black`} title={card.displayName}>{card.displayName}</h2>
                 <p className="mt-1 text-center text-xs font-bold uppercase tracking-[0.1em] text-slate-500 print:mt-0.5 print:text-[8px] print:text-slate-600">{card.setCode} · {card.numberLabel}{tierRatings[getRiftboundCardTierGroupId(card)]?.tier ? ` · ${tierRatings[getRiftboundCardTierGroupId(card)]?.tier}` : ''}</p>
                 <div className="relative mx-auto mt-3 aspect-[744/1039] w-full max-w-[11rem] overflow-hidden rounded-xl bg-slate-900 print:mt-1 print:max-w-[4.5rem] print:rounded print:bg-slate-100">
                   <RiftboundCardImage card={card} sizes="176px" loading="eager" className="riftbound-print-card-image object-cover" />

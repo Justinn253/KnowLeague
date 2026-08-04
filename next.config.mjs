@@ -25,6 +25,16 @@ const nextConfig = {
         hostname: 'cmsassets.rgpub.io',
         pathname: '/sanity/images/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'tcgplayer-cdn.tcgplayer.com',
+        pathname: '/product/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'openrift.app',
+        pathname: '/media/cards/**',
+      },
     ],
   },
 };

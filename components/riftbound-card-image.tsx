@@ -16,6 +16,8 @@ type RiftboundCardImageProps = Omit<ImageProps, 'src' | 'alt' | 'fill' | 'qualit
 const RIFTBOUND_CARD_IMAGE_QUALITY = 75;
 
 export function RiftboundCardImage({ card, sizes, className = 'object-cover', orientation = 'portrait', ...props }: RiftboundCardImageProps) {
+  const usesDirectCardCdn = card.imageUrl.startsWith('https://tcgplayer-cdn.tcgplayer.com/')
+    || card.imageUrl.startsWith('https://openrift.app/media/cards/');
   const image = (
     <Image
       src={card.imageUrl}
@@ -25,6 +27,9 @@ export function RiftboundCardImage({ card, sizes, className = 'object-cover', or
       draggable={false}
       className={className}
       {...props}
+      // These card CDN assets are already resized and may reject Vercel's
+      // image fetcher. Load catalogue fallbacks directly in the browser.
+      unoptimized={usesDirectCardCdn}
       quality={RIFTBOUND_CARD_IMAGE_QUALITY}
     />
   );

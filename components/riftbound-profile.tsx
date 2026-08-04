@@ -29,7 +29,7 @@ import {
 import { RiftboundCommunityPostCard } from '@/components/riftbound-community-post-card';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
-import { getRiftboundCardById, getRiftboundCardTierGroupId, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
+import { getRiftboundCardById, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
 import { isRiftboundChampionUnit } from '@/lib/riftbound-decks';
 import { getRiftboundOwnerProfile, getRiftboundPublicProfile, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import type { RiftboundCardTierRating, RiftboundProfileData, RiftboundWishlistCard } from '@/lib/riftbound-community-types';
@@ -71,7 +71,7 @@ function ProfileStat({ label, value, onClick, title }: { label: string; value: s
 function CardPreview({ cardId, quantity, tierVote }: { cardId: string; quantity?: number; tierVote?: RiftboundCardTier }) {
   const card = getRiftboundCardById(cardId);
   if (!card) return null;
-  return <div className="min-w-0 rounded-xl border border-white/10 bg-slate-900/60 p-2"><div className="relative aspect-[744/1039] overflow-hidden rounded-lg bg-slate-950"><RiftboundCardImage card={card} sizes="120px" loading="lazy" className="object-cover" /></div><p className="mt-1 truncate text-[0.65rem] font-black text-slate-200" title={card.displayName}>{card.displayName}</p><p className="mt-1 truncate text-[0.58rem] font-bold uppercase tracking-[0.08em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</p>{quantity ? <p className="mt-1 text-[0.65rem] font-bold text-amber-200">×{quantity}</p> : null}</div>;
+  return <div className="min-w-0 rounded-xl border border-white/10 bg-slate-900/60 p-2"><div className="relative aspect-[744/1039] overflow-hidden rounded-lg bg-slate-950"><RiftboundCardImage card={card} sizes="120px" loading="lazy" className="object-cover" /></div><p className={`mt-1 truncate text-[0.65rem] font-black ${getRiftboundCardRarityTextClass(card)}`} title={card.displayName}>{card.displayName}</p><p className="mt-1 truncate text-[0.58rem] font-bold uppercase tracking-[0.08em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</p>{quantity ? <p className="mt-1 text-[0.65rem] font-bold text-amber-200">×{quantity}</p> : null}</div>;
 }
 
 function getProfileCollectionFilterOptions() {
@@ -98,7 +98,7 @@ function OverviewCardTile({ cardId, onOpen, action, tierRatings }: { cardId: str
   const card = getRiftboundCardById(cardId);
   if (!card) return null;
   const tier = tierRatings?.[getRiftboundCardTierGroupId(card)]?.tier;
-  return <article className="group relative min-w-0 rounded-xl border border-white/10 bg-slate-900/60 p-2 transition focus-within:border-amber-200 hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => onOpen(card)} className="block w-full min-w-0 text-center focus:outline-none"><div className="relative mx-auto aspect-[744/1039] w-full max-w-[8rem] overflow-hidden rounded-lg bg-slate-950"><RiftboundCardImage card={card} sizes="128px" className="object-cover" /></div><p className="mt-2 truncate text-center text-sm font-black text-slate-200" title={card.displayName}>{card.displayName}</p><p className="mt-1 truncate text-center text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}{tier ? ` · ${tier}` : ''}</p></button>{action ? <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">{action}</div> : null}</article>;
+  return <article className="group relative min-w-0 rounded-xl border border-white/10 bg-slate-900/60 p-2 transition focus-within:border-amber-200 hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => onOpen(card)} className="block w-full min-w-0 text-center focus:outline-none"><div className="relative mx-auto aspect-[744/1039] w-full max-w-[8rem] overflow-hidden rounded-lg bg-slate-950"><RiftboundCardImage card={card} sizes="128px" className="object-cover" /></div><p className={`mt-2 truncate text-center text-sm font-black ${getRiftboundCardRarityTextClass(card)}`} title={card.displayName}>{card.displayName}</p><p className="mt-1 truncate text-center text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">{card.setCode} · {card.numberLabel}{tier ? ` · ${tier}` : ''}</p></button>{action ? <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">{action}</div> : null}</article>;
 }
 
 function ReorderableOverviewCardTile({ cardId, onOpen, action, tierRatings, draggable, dragging, onDragStart, onDragOver, onDrop, onDragEnd }: { cardId: string; onOpen: (card: RiftboundCard) => void; action?: ReactNode; tierRatings?: Record<string, RiftboundCardTierRating>; draggable: boolean; dragging: boolean; onDragStart: (event: DragEvent<HTMLDivElement>) => void; onDragOver: (event: DragEvent<HTMLDivElement>) => void; onDrop: (event: DragEvent<HTMLDivElement>) => void; onDragEnd: () => void }) {
@@ -192,7 +192,7 @@ function ProfileSourceCard(props: ProfileSourceCardProps) {
           {previewCards.map((card) => (
             <div key={card.id} className="min-w-0 rounded-xl border border-white/10 bg-slate-950/70 p-2 text-center">
               <div className="relative mx-auto aspect-[744/1039] w-full max-w-[6rem] overflow-hidden rounded-lg bg-slate-900"><RiftboundCardImage card={card} sizes="96px" loading="lazy" className="object-cover" /></div>
-              <p className="mt-1 truncate text-center text-[0.65rem] font-black text-slate-200" title={card.displayName}>{card.displayName}</p>
+              <p className={`mt-1 truncate text-center text-[0.65rem] font-black ${getRiftboundCardRarityTextClass(card)}`} title={card.displayName}>{card.displayName}</p>
               <p className="mt-1 truncate text-center text-[0.58rem] font-bold uppercase tracking-[0.08em] text-slate-500">{card.setCode} · {card.numberLabel}{props.tierRatings[getRiftboundCardTierGroupId(card)]?.tier ? ` · ${props.tierRatings[getRiftboundCardTierGroupId(card)]?.tier}` : ''}</p>
             </div>
           ))}

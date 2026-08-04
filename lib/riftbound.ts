@@ -26,12 +26,31 @@ const RIFTBOUND_DOMAIN_TEXT_CLASSES: Record<string, string> = {
   Fury: 'text-red-400',
 };
 
+const RIFTBOUND_RARITY_TEXT_CLASSES: Record<string, string> = {
+  Common: 'text-slate-300',
+  Uncommon: 'text-blue-300',
+  Rare: 'text-violet-300',
+  Epic: 'text-amber-300',
+  Showcase: 'text-yellow-200',
+  Overnumbered: 'text-orange-300',
+  Signature: 'text-fuchsia-300',
+  Token: 'text-cyan-200',
+};
+
 export function getRiftboundDomainTextClass(domain: string | undefined) {
   return RIFTBOUND_DOMAIN_TEXT_CLASSES[domain ?? ''] ?? 'text-slate-300';
 }
 
 export function getRiftboundCardDomainTextClass(card: Pick<RiftboundCard, 'domains'>) {
   return getRiftboundDomainTextClass(card.domains.find((domain) => domain !== 'Colorless') ?? card.domains[0]);
+}
+
+export function getRiftboundRarityTextClass(rarity: string | undefined) {
+  return RIFTBOUND_RARITY_TEXT_CLASSES[rarity ?? ''] ?? 'text-slate-300';
+}
+
+export function getRiftboundCardRarityTextClass(card: Pick<RiftboundCard, 'rarity'>) {
+  return getRiftboundRarityTextClass(card.rarity);
 }
 
 export function getRiftboundDeckTypeLabel(card: Pick<RiftboundCard, 'cardType' | 'cardTypeLabels'>) {
@@ -76,6 +95,30 @@ export type RiftboundCard = {
   finishOptions: RiftboundFinish[];
   defaultFinish: RiftboundFinish;
 };
+
+export function mergeRiftboundCardMarketPrices(card: RiftboundCard, latest: RiftboundMarketPrices) {
+  // A snapshot can contain a temporary null while TCGPlayer is publishing a
+  // new print. Keep the generated catalogue value until a live value arrives
+  // so a transient source gap does not turn a known price into N/A.
+  const normal = latest.normal ?? card.marketPrices.normal ?? card.marketPrice;
+  const foil = latest.foil ?? card.marketPrices.foil;
+  const hasLivePrice = latest.normal !== null || latest.foil !== null;
+  const updatedAt = hasLivePrice
+    ? latest.updatedAt
+    : card.marketPrices.updatedAt ?? card.marketPriceUpdatedAt;
+
+  return {
+    ...card,
+    marketPrice: normal,
+    marketPriceUpdatedAt: updatedAt,
+    marketPrices: {
+      ...card.marketPrices,
+      normal,
+      foil,
+      updatedAt,
+    },
+  };
+}
 
 export function getRiftboundCardTierGroupId(card: Pick<RiftboundCard, 'fullName' | 'productDetails' | 'cardType' | 'cardTypeLabels' | 'energyCost' | 'powerCost' | 'might'>) {
   const identity = [

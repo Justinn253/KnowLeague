@@ -447,6 +447,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const avatarCropImageRef = useRef<HTMLImageElement | null>(null);
+  const avatarCropLoadRequestRef = useRef(0);
+  const avatarCropPendingSourceRef = useRef<string | null>(null);
   const avatarDraftUrlRef = useRef<string | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(true);
@@ -984,6 +986,11 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   };
 
   const closeAvatarCropper = () => {
+    avatarCropLoadRequestRef.current += 1;
+    if (avatarCropPendingSourceRef.current) {
+      URL.revokeObjectURL(avatarCropPendingSourceRef.current);
+      avatarCropPendingSourceRef.current = null;
+    }
     if (avatarCropSource) {
       URL.revokeObjectURL(avatarCropSource);
     }
@@ -995,7 +1002,17 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   };
 
   const openAvatarCropper = (file: File) => {
-    if (!file.type.startsWith('image/')) {
+    const requestId = avatarCropLoadRequestRef.current + 1;
+    avatarCropLoadRequestRef.current = requestId;
+
+    if (avatarCropPendingSourceRef.current) {
+      URL.revokeObjectURL(avatarCropPendingSourceRef.current);
+      avatarCropPendingSourceRef.current = null;
+    }
+
+    const hasImageMimeType = file.type.startsWith('image/');
+    const hasImageFileExtension = /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|webp)$/i.test(file.name);
+    if (!hasImageMimeType && !hasImageFileExtension) {
       setMessage('Profile picture must be an image file.');
       return;
     }
@@ -1005,15 +1022,41 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       return;
     }
 
-    if (avatarCropSource) {
-      URL.revokeObjectURL(avatarCropSource);
-    }
+    const objectUrl = URL.createObjectURL(file);
+    avatarCropPendingSourceRef.current = objectUrl;
+    const previewImage = new window.Image();
 
-    setMessage('');
-    setAvatarCropSource(URL.createObjectURL(file));
-    setAvatarCropScale(1);
-    setAvatarCropOffset({ x: 0, y: 0 });
-    setAvatarCropNaturalSize({ width: 0, height: 0 });
+    previewImage.onload = () => {
+      if (requestId !== avatarCropLoadRequestRef.current) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
+
+      avatarCropPendingSourceRef.current = null;
+      if (previewImage.naturalWidth <= 0 || previewImage.naturalHeight <= 0) {
+        URL.revokeObjectURL(objectUrl);
+        setMessage('This image could not be read. Choose a JPG, PNG, WebP, or GIF image.');
+        return;
+      }
+
+      setMessage('');
+      setAvatarCropSource(objectUrl);
+      setAvatarCropScale(1);
+      setAvatarCropOffset({ x: 0, y: 0 });
+      setAvatarCropNaturalSize({ width: previewImage.naturalWidth, height: previewImage.naturalHeight });
+    };
+
+    previewImage.onerror = () => {
+      if (avatarCropPendingSourceRef.current === objectUrl) {
+        avatarCropPendingSourceRef.current = null;
+      }
+      URL.revokeObjectURL(objectUrl);
+      if (requestId === avatarCropLoadRequestRef.current) {
+        setMessage('This image format could not be displayed. Choose a JPG, PNG, WebP, or GIF image.');
+      }
+    };
+
+    previewImage.src = objectUrl;
   };
 
   const clearAvatar = () => {
@@ -1234,6 +1277,9 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   useEffect(() => () => {
     if (avatarDraftUrlRef.current) {
       URL.revokeObjectURL(avatarDraftUrlRef.current);
+    }
+    if (avatarCropPendingSourceRef.current) {
+      URL.revokeObjectURL(avatarCropPendingSourceRef.current);
     }
   }, []);
 
@@ -1753,7 +1799,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                     <input
                       ref={avatarInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      accept="image/*"
                       className="hidden"
                       onChange={(event) => {
                         const file = event.target.files?.[0];
@@ -2240,6 +2286,10 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       height: event.currentTarget.naturalHeight,
                     });
                   }}
+                  onError={() => {
+                    closeAvatarCropper();
+                    setMessage('This image format could not be displayed. Choose a JPG, PNG, WebP, or GIF image.');
+                  }}
                   className="absolute max-w-none select-none"
                   style={{
                     width: avatarDisplayWidth || avatarPreviewSize,
@@ -2275,7 +2325,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
               <button
                 type="button"
                 onClick={saveCroppedAvatar}
-                disabled={avatarUploading}
+                disabled={avatarUploading || avatarCropNaturalSize.width <= 0 || avatarCropNaturalSize.height <= 0}
                 className="inline-flex min-h-10 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {avatarUploading ? 'Saving' : 'Use Picture'}

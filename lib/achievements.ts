@@ -84,3 +84,13 @@ export function getEarnedRewards(achievements: AchievementListItem[], kind: Achi
     .flatMap((achievement) => achievement.rewards)
     .filter((reward) => reward.kind === kind);
 }
+
+export function getRewardById(rewardId: string | null | undefined, kind: AchievementRewardKind) {
+  if (!rewardId) {
+    return null;
+  }
+
+  return ACHIEVEMENTS
+    .flatMap((achievement) => achievement.rewards)
+    .find((reward) => reward.kind === kind && reward.id === rewardId) ?? null;
+}

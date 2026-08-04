@@ -26,7 +26,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { submitAchievementEvent } from '@/lib/achievement-client';
-import { getEarnedRewards, type AchievementListItem } from '@/lib/achievements';
+import { getEarnedRewards, getRewardById, type AchievementListItem } from '@/lib/achievements';
 import { DiscordMark } from '@/components/discord-mark';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import {
@@ -1459,7 +1459,16 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const avatarDisplayHeight = avatarCropNaturalSize.height * avatarCoverScale;
   const earnedTitleRewards = useMemo(() => getEarnedRewards(achievements, 'title'), [achievements]);
   const earnedBadgeRewards = useMemo(() => getEarnedRewards(achievements, 'badge'), [achievements]);
-  const selectedTitleReward = useMemo(() => earnedTitleRewards.find((reward) => reward.id === selectedTitleRewardId) ?? null, [earnedTitleRewards, selectedTitleRewardId]);
+  const selectedTitleReward = useMemo(() => {
+    const earnedReward = earnedTitleRewards.find((reward) => reward.id === selectedTitleRewardId);
+    if (earnedReward) {
+      return earnedReward;
+    }
+
+    return !achievementsLoadAttempted || achievementsLoading
+      ? getRewardById(selectedTitleRewardId, 'title')
+      : null;
+  }, [achievementsLoadAttempted, achievementsLoading, earnedTitleRewards, selectedTitleRewardId]);
   const displayedBadgeRewards = useMemo(() => displayedBadgeRewardIds
     .map((rewardId) => earnedBadgeRewards.find((reward) => reward.id === rewardId))
     .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward)), [displayedBadgeRewardIds, earnedBadgeRewards]);

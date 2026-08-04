@@ -118,7 +118,7 @@ export async function GET(request: Request, { params }: { params: { username: st
       getOptionalAuthenticatedUserId(request).then((viewerId) => (
         viewerId ? getFriendRelationship(viewerId, profile.id) : 'none'
       )),
-      getUserAchievements(profile.id),
+      getUserAchievements(profile.id, { includeGlobalStats: false }),
     ]);
 
     return NextResponse.json({

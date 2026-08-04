@@ -48,18 +48,27 @@ async function getCompletedRows() {
   return data ?? [];
 }
 
-export async function getUserAchievements(userId: string): Promise<AchievementListItem[]> {
+export async function getUserAchievements(
+  userId: string,
+  options: { includeGlobalStats?: boolean } = {},
+): Promise<AchievementListItem[]> {
   const supabase = getSupabaseServiceClient();
-  const [{ data: rows, error }, completedRows, profileCountResult] = await Promise.all([
-    supabase
-      .from('user_achievements')
-      .select('user_id, achievement_id, progress_current, progress_target, completed_at, updated_at')
-      .eq('user_id', userId)
-      .returns<AchievementRow[]>(),
-    getCompletedRows(),
-    supabase
-      .from('profiles')
-      .select('id', { count: 'exact', head: true }),
+  const includeGlobalStats = options.includeGlobalStats ?? true;
+  const rowsPromise = supabase
+    .from('user_achievements')
+    .select('user_id, achievement_id, progress_current, progress_target, completed_at, updated_at')
+    .eq('user_id', userId)
+    .returns<AchievementRow[]>();
+  const [
+    { data: rows, error },
+    completedRows,
+    profileCountResult,
+  ] = await Promise.all([
+    rowsPromise,
+    includeGlobalStats ? getCompletedRows() : Promise.resolve<CompletedAchievementRow[]>([]),
+    includeGlobalStats
+      ? supabase.from('profiles').select('id', { count: 'exact', head: true })
+      : Promise.resolve({ data: null, error: null, count: null }),
   ]);
 
   if (isMissingAchievementsTableError(error)) {

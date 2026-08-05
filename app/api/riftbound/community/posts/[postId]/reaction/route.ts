@@ -12,8 +12,8 @@ export async function POST(request: Request, { params }: { params: { postId: str
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
       scope: 'riftbound:community-reaction',
-      ip: { limit: 60, windowMs: 60_000 },
-      subject: { id: userId, limit: 60, windowMs: 60_000 },
+      ip: { limit: 30, windowMs: 60_000 },
+      subject: { id: userId, limit: 30, windowMs: 60_000 },
       errorMessage: 'Too many reaction updates. Please try again shortly.',
     });
     if (rateLimitResponse) return rateLimitResponse;

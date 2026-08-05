@@ -716,10 +716,10 @@ export async function reactToRiftboundPost(postId: string, userId: string, react
 export async function recordRiftboundPostShare(postId: string, userId: string) {
   const { data, error } = await getSupabaseServiceClient().rpc('record_riftbound_post_share', { p_post_id: postId, p_user_id: userId });
   if (error) throw error;
-  const rows = Array.isArray(data) ? data as unknown as Array<{ share_count: number; recorded: boolean }> : [];
+  const rows = Array.isArray(data) ? data as unknown as Array<{ new_share_count: number; recorded: boolean }> : [];
   const row = rows[0];
   if (!row) throw new Error('Unable to record the post share.');
-  return { shareCount: row.share_count, recorded: row.recorded };
+  return { shareCount: row.new_share_count, recorded: row.recorded };
 }
 
 export async function reportRiftboundContent(input: { userId: string; postId?: string; commentId?: string; reason: unknown; details: unknown }) {

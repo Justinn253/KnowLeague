@@ -91,15 +91,22 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
     if (shareBusyRef.current) return;
     shareBusyRef.current = true;
     setShareBusy(true);
+
+    if (session && !hasRiftboundPostBeenShared(post.id, session.user.id)) {
+      const shareSession = session;
+      const shareRequest = recordRiftboundPostShare(post.id, shareSession);
+      void shareRequest.then((response) => {
+        markRiftboundPostShared(post.id, shareSession.user.id);
+        onPostChange?.({ ...post, shareCount: response.shareCount });
+      }).catch(() => {
+        // Share-count failures should not interrupt the sharing flow.
+      });
+    }
+
     try {
       const url = `${window.location.origin}${postHref}`;
       if (navigator.share) await navigator.share({ title: post.title, text: post.body || post.title, url });
       else await navigator.clipboard.writeText(url);
-      if (session && !hasRiftboundPostBeenShared(post.id, session.user.id)) {
-        const response = await recordRiftboundPostShare(post.id, session);
-        markRiftboundPostShared(post.id, session.user.id);
-        onPostChange?.({ ...post, shareCount: response.shareCount });
-      }
     } catch {
       // Closing the native share sheet is not an error for the page.
     } finally {
@@ -152,7 +159,7 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
         <button type="button" onClick={() => updateReaction('like')} disabled={!session} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${localReaction === 'like' ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-emerald-200/40 hover:text-emerald-200'}`}><ThumbsUp size={14} /> {likeCount}</button>
         <button type="button" onClick={() => updateReaction('dislike')} disabled={!session} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${localReaction === 'dislike' ? 'border-red-300/50 bg-red-300/10 text-red-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-red-200/40 hover:text-red-200'}`}><ThumbsDown size={14} /> {dislikeCount}</button>
         <Link href={`${postHref}#comments`} onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/40 hover:text-amber-200"><MessageCircle size={14} /> {post.commentCount}</Link>
-        <button type="button" onClick={() => void sharePost()} disabled={shareBusy} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/40 hover:text-amber-200 disabled:cursor-wait disabled:opacity-50"><Share2 size={14} /> {post.shareCount > 0 ? post.shareCount : 'Share'}</button>
+        <button type="button" onClick={() => void sharePost()} disabled={shareBusy} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/40 hover:text-amber-200 disabled:cursor-wait disabled:opacity-50"><Share2 size={14} /> {post.shareCount}</button>
         {!session ? <span className="ml-auto text-[0.68rem] font-semibold text-slate-600">Sign in to react</span> : null}
       </div>
     </article>

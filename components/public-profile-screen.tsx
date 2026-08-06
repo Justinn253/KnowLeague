@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Award, BadgeCheck, Ellipsis, ExternalLink, Filter, Flag, Loader2, MessageCircle, Pencil, Save, Search, ShieldBan, Trophy, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, BadgeCheck, Ellipsis, ExternalLink, Eye, Filter, Flag, Loader2, MessageCircle, Pencil, Save, Search, ShieldBan, Trophy, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
-import { ACHIEVEMENT_GAME_OPTIONS, getAchievementGameLabel, getEarnedRewards, getRewardDescription, maskAchievement, type AchievementListItem } from '@/lib/achievements';
+import { ACHIEVEMENT_GAME_OPTIONS, getAchievementGameLabel, getEarnedRewards, getRewardDescription, isUnachievedHiddenAchievement, maskAchievement, type AchievementListItem } from '@/lib/achievements';
 import { AppSelectMenu } from '@/components/app-select-menu';
 import { getChatBorderSwatchStyle, getChatNameStyle, getChatSwatchStyle } from '@/lib/chat-colors';
 import { requestOpenUserReport } from '@/lib/contact-navigation';
@@ -372,7 +372,7 @@ function PublicAchievementGrid({
             <div className="min-w-0 pr-10">
                   <div className="flex min-w-0 items-start gap-3">
                     <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${complete ? 'border-emerald-300/40 bg-emerald-400/15 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400'}`}>
-                      {complete ? <Trophy size={18} /> : <Award size={18} />}
+                      {complete ? <Trophy size={18} /> : isUnachievedHiddenAchievement(achievement) ? <Eye size={18} /> : <Award size={18} />}
                     </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -457,6 +457,11 @@ function filterAndSortAchievements(
     .filter((achievement) => !cleanSearch || achievement.titleVisible.toLowerCase().includes(cleanSearch) || achievement.descriptionVisible.toLowerCase().includes(cleanSearch))
     .sort((left, right) => {
       const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey !== 'globalRanking') {
+        const leftHidden = isUnachievedHiddenAchievement(left);
+        const rightHidden = isUnachievedHiddenAchievement(right);
+        if (leftHidden !== rightHidden) return leftHidden ? 1 : -1;
+      }
       if (sortKey === 'completedAt') {
         if (!left.completedAt && !right.completedAt) return left.titleVisible.localeCompare(right.titleVisible);
         if (!left.completedAt) return 1;

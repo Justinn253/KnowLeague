@@ -86,6 +86,10 @@ export function PlayerGameStatsSync() {
         if (detailedResetAt.skincognito) {
           mergedDetailedStats.skincognito = serverDetailedStats.skincognito;
         }
+        if (detailedResetAt.all) {
+          mergedDetailedStats.totalWins = serverDetailedStats.totalWins;
+          mergedDetailedStats.recordedWinIds = serverDetailedStats.recordedWinIds;
+        }
 
         hydratingRef.current = true;
         STREAK_GAME_IDS.forEach((gameId) => {

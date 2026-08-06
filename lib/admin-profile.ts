@@ -92,6 +92,11 @@ export async function resetAdminProfileStats(
     detailedStats.skincognito = createEmptyDetailedStats().skincognito;
     detailedResetAt.skincognito = now;
   }
+  if (target === 'all') {
+    detailedStats.totalWins = 0;
+    detailedStats.recordedWinIds = [];
+    detailedResetAt.all = now;
+  }
 
   const { error } = await supabase
     .from('profile_private_details')

@@ -25,7 +25,7 @@ import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate }
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
-import { getOrCreateClientId } from '@/lib/game-storage';
+import { getOrCreateClientId, recordAppWin } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
 import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { normalizeAnswer } from '@/lib/quiz';
@@ -1591,6 +1591,13 @@ export function CarvingRevelation() {
     finishSoundLobbyIdRef.current = view.lobby.id;
     playUiSound(view.requestingPlayer?.result === 'won' ? 'puzzle-complete' : 'timer-expired');
     if (view.requestingPlayer) {
+      if (view.requestingPlayer.result === 'won') {
+        recordAppWin(`carving-revelation:${view.lobby.id}:${view.requestingPlayer.id}`);
+      }
+      void submitAchievementEvent('multiplayer_result', {
+        gameId: 'carving-revelation',
+        result: view.requestingPlayer.result === 'won' ? 'win' : 'loss',
+      });
       void submitAchievementEvent('developer_moment', { gameId: 'carving-revelation', lobbyCode: view.lobby.code });
     }
   }, [view]);
@@ -1894,6 +1901,7 @@ export function CarvingRevelation() {
 
   const submitGuessValue = async (guessValue: string) => {
     if (!clientId || !view || !canGuess) return;
+    const guessTurn = view.actions.filter((action) => action.action_type === 'guess' && action.player_id === view.requestingPlayer?.id).length + 1;
     setBusy(true);
     setMessage('');
     try {
@@ -1902,8 +1910,23 @@ export function CarvingRevelation() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, guess: guessValue }),
       });
-      applyActionResponse(await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response));
+      const actionResponse = await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response);
+      let submittedAction: CarvingRevelationAction | undefined;
+      if (isCarvingRoutineActionResponse(actionResponse)) {
+        if (actionResponse.kind === 'submission_status') {
+          submittedAction = actionResponse.action;
+        }
+      } else {
+        submittedAction = actionResponse.actions.find((action) => action.action_type === 'guess' && action.player_id === view.requestingPlayer?.id && action.round_number === view.lobby.round_number);
+      }
+      const guessWasCorrect = submittedAction?.payload.correct === true;
+      applyActionResponse(actionResponse);
       void submitAchievementEvent('carving_revelation_correct_guess', { lobbyCode: view.lobby.code });
+      if (guessWasCorrect && guessTurn <= 2) {
+        void submitAchievementEvent('carving_revelation_early_correct_guess', {
+          guessTurn,
+        });
+      }
       setGuess('');
       setSuggestions([]);
     } catch (error) {

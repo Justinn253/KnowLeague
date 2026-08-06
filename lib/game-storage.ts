@@ -11,6 +11,7 @@ const DETAILED_STATS_KEY = `${STORAGE_PREFIX}:detailed-game-stats`;
 const PENDING_QUIZ_STATS_KEY = `${STORAGE_PREFIX}:pending-quiz-stats`;
 const MASTERY_MASTER_STATS_KEY = `${STORAGE_PREFIX}:mastery-master:stats`;
 const MAX_RECORDED_MATCH_IDS = 250;
+const MAX_RECORDED_WIN_IDS = 1000;
 const MAX_SKIN_GUESS_STATS = 50;
 export const STREAK_GAME_IDS: StreakGameId[] = ['skindle', 'splash-scramble', 'ability-blitz', 'skin-champion'];
 export const PLAYER_GAME_STATS_CHANGED_EVENT = 'knowleague:player-game-stats-changed';
@@ -116,6 +117,8 @@ export type DetailedGameStats = {
   abilityBlitz: QuizGameDetailedStats;
   skinChampion: QuizGameDetailedStats;
   skincognito: SkincognitoDetailedStats;
+  totalWins: number;
+  recordedWinIds: string[];
 };
 
 export type QuizStatsInput = {
@@ -454,6 +457,8 @@ export function createEmptyDetailedStats(): DetailedGameStats {
       multiplayer: createEmptyQuizModeStats(),
     },
     skincognito: createEmptySkincognitoStats(),
+    totalWins: 0,
+    recordedWinIds: [],
   };
 }
 
@@ -475,6 +480,12 @@ function normalizeSkincognitoStats(stats?: Partial<SkincognitoDetailedStats>): S
 }
 
 export function normalizeDetailedGameStats(stats?: Partial<DetailedGameStats> | null): DetailedGameStats {
+  const legacyWins = (stats?.abilityBlitz?.multiplayer?.matchesWon ?? 0)
+    + (stats?.skinChampion?.multiplayer?.matchesWon ?? 0)
+    + (stats?.skincognito?.totalWins ?? 0);
+  const recordedWinIds = Array.isArray(stats?.recordedWinIds)
+    ? [...new Set(stats.recordedWinIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))].slice(-MAX_RECORDED_WIN_IDS)
+    : [];
   return {
     abilityBlitz: {
       solo: normalizeQuizModeStats(stats?.abilityBlitz?.solo),
@@ -485,6 +496,8 @@ export function normalizeDetailedGameStats(stats?: Partial<DetailedGameStats> | 
       multiplayer: normalizeQuizModeStats(stats?.skinChampion?.multiplayer),
     },
     skincognito: normalizeSkincognitoStats(stats?.skincognito),
+    totalWins: Math.max(0, Math.floor(Number(stats?.totalWins) || legacyWins)),
+    recordedWinIds,
   };
 }
 
@@ -526,6 +539,17 @@ function mergeSkincognitoStats(left: SkincognitoDetailedStats, right: Skincognit
   };
 }
 
+function recordAppWinInStats(stats: DetailedGameStats, winId: string) {
+  const normalizedWinId = winId.trim();
+  if (!normalizedWinId || stats.recordedWinIds.includes(normalizedWinId)) {
+    return false;
+  }
+
+  stats.totalWins += 1;
+  stats.recordedWinIds = [...stats.recordedWinIds, normalizedWinId].slice(-MAX_RECORDED_WIN_IDS);
+  return true;
+}
+
 export function mergeDetailedGameStats(left?: Partial<DetailedGameStats> | null, right?: Partial<DetailedGameStats> | null) {
   const leftStats = normalizeDetailedGameStats(left);
   const rightStats = normalizeDetailedGameStats(right);
@@ -539,6 +563,8 @@ export function mergeDetailedGameStats(left?: Partial<DetailedGameStats> | null,
       multiplayer: mergeQuizModeStats(leftStats.skinChampion.multiplayer, rightStats.skinChampion.multiplayer),
     },
     skincognito: mergeSkincognitoStats(leftStats.skincognito, rightStats.skincognito),
+    totalWins: Math.max(leftStats.totalWins, rightStats.totalWins, new Set([...leftStats.recordedWinIds, ...rightStats.recordedWinIds]).size),
+    recordedWinIds: [...new Set([...leftStats.recordedWinIds, ...rightStats.recordedWinIds])].slice(-MAX_RECORDED_WIN_IDS),
   } satisfies DetailedGameStats;
 }
 
@@ -571,6 +597,9 @@ function applyQuizGameStats(allStats: DetailedGameStats, input: QuizStatsInput) 
   };
 
   allStats[gameKey][input.mode] = nextStats;
+  if (won && input.matchId) {
+    recordAppWinInStats(allStats, input.matchId);
+  }
   return allStats;
 }
 
@@ -724,6 +753,16 @@ export function recordSkincognitoStats(input: SkincognitoStatsInput) {
     guessedSkinStats: trimValueStats(guessedSkinStats),
     recordedMatchIds: appendRecordedMatchId(current.recordedMatchIds, input.matchId),
   };
+  if (input.won) {
+    recordAppWinInStats(allStats, input.matchId);
+  }
+  saveDetailedGameStats(allStats);
+  return allStats;
+}
+
+export function recordAppWin(winId: string) {
+  const allStats = loadDetailedGameStats();
+  recordAppWinInStats(allStats, winId);
   saveDetailedGameStats(allStats);
   return allStats;
 }

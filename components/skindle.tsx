@@ -11,6 +11,7 @@ import {
   getOrCreateClientId,
   loadDailyGameState,
   loadPlayerGameStats,
+  recordAppWin,
   recordPlayerGameCompletion,
   saveDailyGameState,
   type PlayerGameStats,
@@ -890,6 +891,7 @@ export function Skindle() {
 
     const result = compareGuess(skin, target);
     const isCorrectGuess = skin.id === target.id;
+    const nextGuessCount = guesses.length + 1;
     correctGuessStatsPendingRef.current = Boolean(clientId && isCorrectGuess);
     setGuesses((current) => [...current, result]);
     setInputValue('');
@@ -898,6 +900,17 @@ export function Skindle() {
       isCorrectGuess ? 'skindle-guess-correct' : 'skindle-guess-incorrect',
       Math.max(0, SKINDLE_REVEAL_TOTAL_MS - 220),
     );
+
+    if (isCorrectGuess) {
+      recordAppWin(`skindle:${activeDateKeyRef.current}:${target.id}`);
+      void submitAchievementEvent('solo_game_won', { gameId: 'skindle' });
+      if (nextGuessCount === 1) {
+        void submitAchievementEvent('skindle_lucky_guess', { guessCount: nextGuessCount });
+      }
+    }
+    if (nextGuessCount > 30) {
+      void submitAchievementEvent('skindle_many_guesses', { guessCount: nextGuessCount });
+    }
 
     if (clientId) {
       let statsRecorded = false;

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { AchievementToasts } from '@/components/achievement-toasts';
+import { CumulativeAchievementTracker } from '@/components/cumulative-achievement-tracker';
 import { AppHeader } from '@/components/app-header';
 import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
 import { submitAchievementEvent } from '@/lib/achievement-client';
@@ -197,6 +198,7 @@ export function GlobalActions() {
   return (
     <>
       <PlayerGameStatsSync />
+      <CumulativeAchievementTracker />
 
       <AppHeader
         isLoggedIn={isLoggedIn}

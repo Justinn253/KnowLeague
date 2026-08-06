@@ -31,6 +31,7 @@ import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
+import { submitAchievementEvent } from '@/lib/achievement-client';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
 import type {
   MultiplayerQuizDifficulty,
@@ -274,6 +275,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
   const refreshVersionRef = useRef(0);
   const previousLobbyRosterRef = useRef<{ hostPlayerId: string | null; playerIds: Set<string> }>({ hostPlayerId: null, playerIds: new Set() });
   const isLeavingLobbyRef = useRef(false);
+  const achievementLobbyRef = useRef<string | null>(null);
 
   useMultiplayerAuthTransition(async () => {
     const activeLobby = latestLobbyRef.current;
@@ -325,6 +327,25 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
     setDraftSettings(createDraftSettings(view));
   }, [settingsDirty, view?.lobby.ability_slots, view?.lobby.difficulty, view?.lobby.modifiers, view?.lobby.total_items, view]);
+
+  useEffect(() => {
+    if (!view || view.lobby.status !== 'finished' || !view.requestingPlayer || achievementLobbyRef.current === view.lobby.id) {
+      return;
+    }
+
+    const result = getMultiplayerQuizResult(view.players, view.requestingPlayer.id, true);
+    if (!result) {
+      return;
+    }
+
+    achievementLobbyRef.current = view.lobby.id;
+    const gameId = gameMode === 'ability_blitz' ? 'ability-blitz' : 'skin-champion';
+    void submitAchievementEvent('multiplayer_result', { gameId, result });
+    const developerPresent = view.players.some((player) => player.display_name.trim().toLowerCase() === 'justin');
+    if (developerPresent) {
+      void submitAchievementEvent('developer_moment', { gameId, developerPresent });
+    }
+  }, [gameMode, view]);
 
   useEffect(() => {
     if (lobbyId) {

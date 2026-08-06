@@ -15,6 +15,7 @@ type AchievementRow = {
   achievement_id: string;
   progress_current: number;
   progress_target: number;
+  progress_scope_key: string | null;
   completed_at: string | null;
   updated_at: string | null;
 };
@@ -42,6 +43,12 @@ type MatchContext = {
 };
 
 type JsonRecord = Record<string, unknown>;
+
+type ValidatedAchievementUpdate = {
+  achievementId: string;
+  progressCurrent: number;
+  progressScopeKey?: string;
+};
 
 function isMissingAchievementsTableError(error: unknown) {
   if (!error || typeof error !== 'object') return false;
@@ -71,12 +78,29 @@ function getMetadataString(metadata: Record<string, unknown> | undefined, key: s
   return value.trim();
 }
 
+function getMetadataNumber(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`Achievement metadata '${key}' is required.`);
+  }
+  return value;
+}
+
+function getMetadataBoolean(metadata: Record<string, unknown> | undefined, key: string) {
+  if (typeof metadata?.[key] !== 'boolean') {
+    throw new Error(`Achievement metadata '${key}' is required.`);
+  }
+  return metadata[key] as boolean;
+}
+
 function getMatchGameId(metadata: Record<string, unknown> | undefined) {
   const gameId = getMetadataString(metadata, 'gameId');
   const validGameIds = new Set([
     'skincognito',
     'carving-revelation',
     'category-clash',
+    'ability-blitz',
+    'skin-champion',
   ]);
   if (!validGameIds.has(gameId)) {
     throw new Error('Invalid multiplayer game identifier.');
@@ -115,7 +139,7 @@ export async function getUserAchievements(
   const includeGlobalStats = options.includeGlobalStats ?? true;
   const rowsPromise = supabase
     .from('user_achievements')
-    .select('user_id, achievement_id, progress_current, progress_target, completed_at, updated_at')
+    .select('user_id, achievement_id, progress_current, progress_target, progress_scope_key, completed_at, updated_at')
     .eq('user_id', userId)
     .returns<AchievementRow[]>();
   const [
@@ -176,43 +200,121 @@ export async function getUserAchievements(
   });
 }
 
-async function upsertProgress(userId: string, achievementId: string, progressCurrent: number) {
+async function upsertProgress(userId: string, achievementId: string, progressCurrent: number, progressScopeKey?: string) {
   const achievement = ACHIEVEMENT_BY_ID.get(achievementId);
   if (!achievement) {
     throw new Error('Unknown achievement.');
   }
 
-  const now = new Date().toISOString();
-  const completed = progressCurrent >= achievement.target;
+  const isSessionScoped = achievement.progressScope === 'session';
+  if (isSessionScoped && !progressScopeKey) {
+    throw new Error('Session-scoped achievement progress requires a session key.');
+  }
+
   const supabase = getSupabaseServiceClient();
-  const { data: existing, error: existingError } = await supabase
-    .from('user_achievements')
-    .select('user_id, achievement_id, progress_current, progress_target, completed_at, updated_at')
-    .eq('user_id', userId)
-    .eq('achievement_id', achievementId)
-    .maybeSingle<AchievementRow>();
+  const requestedProgress = Math.max(0, Math.min(progressCurrent, achievement.target));
 
-  if (isMissingAchievementsTableError(existingError)) {
-    throw new Error('Achievements require the latest database migration.');
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data: existing, error: existingError } = await supabase
+      .from('user_achievements')
+      .select('user_id, achievement_id, progress_current, progress_target, progress_scope_key, completed_at, updated_at')
+      .eq('user_id', userId)
+      .eq('achievement_id', achievementId)
+      .maybeSingle<AchievementRow>();
+
+    if (isMissingAchievementsTableError(existingError)) {
+      throw new Error('Achievements require the latest database migration.');
+    }
+    if (existingError) throw existingError;
+
+    if (existing?.completed_at) {
+      return;
+    }
+
+    const scopeChanged = Boolean(
+      isSessionScoped
+      && existing
+      && existing.progress_scope_key !== progressScopeKey,
+    );
+    const nextProgress = scopeChanged
+      ? requestedProgress
+      : Math.max(existing?.progress_current ?? 0, requestedProgress);
+    const completed = nextProgress >= achievement.target;
+    const now = new Date().toISOString();
+    if (existing) {
+      if (nextProgress === existing.progress_current && !scopeChanged && !completed) {
+        return;
+      }
+
+      if (nextProgress === existing.progress_current && !scopeChanged && completed) {
+        const { error: completionError } = await supabase
+          .from('user_achievements')
+          .update({
+            completed_at: now,
+            progress_scope_key: isSessionScoped ? progressScopeKey : null,
+            updated_at: now,
+          })
+          .eq('user_id', userId)
+          .eq('achievement_id', achievementId)
+          .is('completed_at', null);
+        if (isMissingAchievementsTableError(completionError)) {
+          throw new Error('Achievements require the latest database migration.');
+        }
+        if (completionError) throw completionError;
+        return;
+      }
+
+      let updateQuery = supabase
+        .from('user_achievements')
+        .update({
+          progress_current: nextProgress,
+          progress_target: achievement.target,
+          progress_scope_key: isSessionScoped ? progressScopeKey : null,
+          completed_at: completed ? now : null,
+          updated_at: now,
+        })
+        .eq('user_id', userId)
+        .eq('achievement_id', achievementId);
+
+      if (scopeChanged) {
+        updateQuery = updateQuery.is('completed_at', null);
+        updateQuery = existing.progress_scope_key
+          ? updateQuery.eq('progress_scope_key', existing.progress_scope_key)
+          : updateQuery.is('progress_scope_key', null);
+      } else {
+        updateQuery = updateQuery.lt('progress_current', nextProgress);
+      }
+
+      const { data: updated, error: updateError } = await updateQuery.select('achievement_id');
+
+      if (isMissingAchievementsTableError(updateError)) {
+        throw new Error('Achievements require the latest database migration.');
+      }
+      if (updateError) throw updateError;
+      if ((updated ?? []).length > 0) return;
+      continue;
+    }
+
+    const { error: insertError } = await supabase
+      .from('user_achievements')
+      .insert({
+        user_id: userId,
+        achievement_id: achievementId,
+        progress_current: requestedProgress,
+        progress_target: achievement.target,
+        progress_scope_key: isSessionScoped ? progressScopeKey : null,
+        completed_at: requestedProgress >= achievement.target ? now : null,
+        updated_at: now,
+      });
+
+    if (isMissingAchievementsTableError(insertError)) {
+      throw new Error('Achievements require the latest database migration.');
+    }
+    if (!insertError) return;
+    if (insertError.code !== '23505') throw insertError;
   }
-  if (existingError) throw existingError;
 
-  const nextProgress = Math.max(existing?.progress_current ?? 0, Math.min(progressCurrent, achievement.target));
-  const { error } = await supabase
-    .from('user_achievements')
-    .upsert({
-      user_id: userId,
-      achievement_id: achievementId,
-      progress_current: nextProgress,
-      progress_target: achievement.target,
-      completed_at: existing?.completed_at ?? (completed ? now : null),
-      updated_at: now,
-    }, { onConflict: 'user_id,achievement_id' });
-
-  if (isMissingAchievementsTableError(error)) {
-    throw new Error('Achievements require the latest database migration.');
-  }
-  if (error) throw error;
+  throw new Error('Achievement progress changed while it was being updated.');
 }
 
 async function getMatchContext(userId: string, gameId: string, lobbyCode: string): Promise<MatchContext> {
@@ -303,6 +405,19 @@ async function assertEventIsValid(userId: string, event: AchievementEventName, m
     return 'discord_linked';
   }
 
+  if (event === 'riot_linked') {
+    const { data, error } = await getSupabaseServiceClient()
+      .from('profile_private_details')
+      .select('riot_account_name')
+      .eq('user_id', userId)
+      .maybeSingle<{ riot_account_name: string | null }>();
+    if (error) throw error;
+    if (!data?.riot_account_name?.trim()) {
+      throw new Error('A Riot account must be linked before this achievement can be completed.');
+    }
+    return 'riot_linked';
+  }
+
   if (event === 'daily_skindle_completed') {
     const solvedSkinId = typeof metadata?.skinId === 'string' ? metadata.skinId : '';
     const targetId = getDailySkindleTargetId();
@@ -312,8 +427,28 @@ async function assertEventIsValid(userId: string, event: AchievementEventName, m
     return 'daily_skindle_complete';
   }
 
+  if (event === 'skindle_many_guesses') {
+    if (getMetadataNumber(metadata, 'guessCount') <= 30) {
+      throw new Error('Skindle must take more than 30 guesses for this achievement.');
+    }
+    return 'any_day_now';
+  }
+
+  if (event === 'skindle_lucky_guess') {
+    if (getMetadataNumber(metadata, 'guessCount') !== 1) {
+      throw new Error('Lucky Guess requires a correct first guess.');
+    }
+    return 'lucky_guess';
+  }
+
   if (event === 'developer_moment') {
     const gameId = getMatchGameId(metadata);
+    if (gameId === 'ability-blitz' || gameId === 'skin-champion') {
+      if (!getMetadataBoolean(metadata, 'developerPresent')) {
+        throw new Error('The developer was not identified as a participant in this match.');
+      }
+      return 'developer_moment';
+    }
     const context = await getMatchContext(userId, gameId, getLobbyCode(metadata));
     if (context.status !== 'finished') {
       throw new Error('The multiplayer match is not finished.');
@@ -332,6 +467,119 @@ async function assertEventIsValid(userId: string, event: AchievementEventName, m
       throw new Error('The developer was not verified as a participant in this match.');
     }
     return 'developer_moment';
+  }
+
+  if (event === 'solo_quiz_completed') {
+    const gameId = getMetadataString(metadata, 'gameId');
+    const mode = getMetadataString(metadata, 'mode');
+    if (!['ability-blitz', 'skin-champion'].includes(gameId) || !['daily', 'chaos'].includes(mode)) {
+      throw new Error('Invalid solo quiz completion metadata.');
+    }
+    if (gameId === 'ability-blitz' && mode === 'chaos') return 'ability_master';
+    if (gameId === 'skin-champion' && mode === 'chaos') return 'skin_master';
+    if (gameId === 'ability-blitz') return 'daily_ability_blitz_solver';
+    return 'daily_skin_champion_solver';
+  }
+
+  if (event === 'solo_game_won') {
+    const gameId = getMetadataString(metadata, 'gameId');
+    if (!['skindle', 'ability-blitz', 'skin-champion', 'splash-scramble'].includes(gameId)) {
+      throw new Error('Invalid solo game identifier.');
+    }
+    return 'welcome';
+  }
+
+  if (event === 'multiplayer_result') {
+    const gameId = getMetadataString(metadata, 'gameId');
+    const result = getMetadataString(metadata, 'result');
+    if (!['ability-blitz', 'skin-champion', 'skincognito', 'carving-revelation', 'category-clash'].includes(gameId) || !['win', 'loss'].includes(result)) {
+      throw new Error('Invalid multiplayer result metadata.');
+    }
+    return result === 'win' ? 'multiplayer_first_win' : 'multiplayer_first_loss';
+  }
+
+  if (event === 'quiz_wrong_answer') {
+    const gameId = getMetadataString(metadata, 'gameId');
+    const difficulty = getMetadataString(metadata, 'difficulty');
+    if (difficulty !== 'iron' || !['ability-blitz', 'skin-champion'].includes(gameId)) {
+      throw new Error('Iron difficulty is required for this achievement.');
+    }
+    return gameId === 'ability-blitz' ? 'are_you_dumb' : 'are_you_stupid';
+  }
+
+  if (event === 'quiz_completed_with_settings') {
+    const gameId = getMetadataString(metadata, 'gameId');
+    const difficulty = getMetadataString(metadata, 'difficulty');
+    const modifierCount = getMetadataNumber(metadata, 'modifierCount');
+    if (!['ability-blitz', 'skin-champion'].includes(gameId) || difficulty !== 'iron' || modifierCount !== 0) {
+      throw new Error('The easiest quiz settings are required for this achievement.');
+    }
+    return gameId === 'ability-blitz' ? 'novice_ability_blitz' : 'novice_skin_champion';
+  }
+
+  if (event === 'splash_scramble_completed') {
+    const variant = getMetadataString(metadata, 'variant');
+    const achievementByVariant: Record<string, string> = {
+      puzzler: 'puzzler',
+      speed_blitz: 'speed_blitz',
+      master_puzzler: 'master_puzzler',
+      novice_puzzler: 'novice_puzzler',
+    };
+    const achievementId = achievementByVariant[variant];
+    if (!achievementId) throw new Error('Invalid Splash Scramble achievement variant.');
+    return achievementId;
+  }
+
+  if (event === 'cumulative_progress') {
+    const rawUpdates = metadata?.updates;
+    if (!Array.isArray(rawUpdates) || rawUpdates.length === 0 || rawUpdates.length > 8) {
+      throw new Error('Cumulative achievement updates are required.');
+    }
+
+    const allowedAchievementIds = new Set([
+      'holy_tryhard',
+      'dedication',
+      'anyone_there',
+      'discord_sleep_caller',
+    ]);
+    const updatesById = new Map<string, ValidatedAchievementUpdate>();
+    rawUpdates.forEach((rawUpdate) => {
+      if (!isRecord(rawUpdate)) {
+        throw new Error('Invalid cumulative achievement update.');
+      }
+      const achievementId = getMetadataString(rawUpdate, 'achievementId');
+      const progressCurrent = getMetadataNumber(rawUpdate, 'progress');
+      const achievement = ACHIEVEMENT_BY_ID.get(achievementId);
+      const sessionId = rawUpdate.sessionId;
+      if (!allowedAchievementIds.has(achievementId) || !achievement || progressCurrent < 0) {
+        throw new Error('Invalid cumulative achievement update.');
+      }
+      if (achievement.progressScope === 'session') {
+        if (typeof sessionId !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(sessionId)) {
+          throw new Error('Session-scoped achievement progress requires a valid session key.');
+        }
+      } else if (sessionId !== undefined) {
+        throw new Error('Account-scoped achievement progress cannot include a session key.');
+      }
+      const current = updatesById.get(achievementId);
+      if (!current || progressCurrent > current.progressCurrent) {
+        updatesById.set(achievementId, {
+          achievementId,
+          progressCurrent,
+          ...(typeof sessionId === 'string' ? { progressScopeKey: sessionId } : {}),
+        });
+      }
+    });
+
+    return [...updatesById.values()];
+  }
+
+  if (event === 'carving_revelation_early_correct_guess') {
+    const guessTurn = getMetadataNumber(metadata, 'guessTurn');
+    if (guessTurn !== 1 && guessTurn !== 2) {
+      throw new Error('Pixel Perfect requires a correct first or second guess.');
+    }
+    return 'pixel_perfect';
   }
 
   if (event === 'skincognito_skin_guessed' || event === 'skincognito_clean_sweep' || event === 'skincognito_random_skin') {
@@ -526,8 +774,16 @@ export async function recordAchievementEvent(
   metadata?: Record<string, unknown>,
 ): Promise<AchievementEventResult> {
   const before = await getUserAchievements(userId);
-  const achievementId = await assertEventIsValid(userId, event, metadata);
-  await upsertProgress(userId, achievementId, 1);
+  const validated = await assertEventIsValid(userId, event, metadata);
+  const updates: ValidatedAchievementUpdate[] = Array.isArray(validated)
+    ? validated
+    : [{ achievementId: validated, progressCurrent: 1 }];
+  await Promise.all(updates.map((update) => upsertProgress(
+    userId,
+    update.achievementId,
+    update.progressCurrent,
+    update.progressScopeKey,
+  )));
   const after = await getUserAchievements(userId);
   const beforeById = new Map(before.map((achievement) => [achievement.id, achievement]));
   const changed = after.filter((achievement) => {

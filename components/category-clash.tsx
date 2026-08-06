@@ -17,7 +17,7 @@ import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatNameStyle } from '@/lib/chat-colors';
-import { getOrCreateClientId } from '@/lib/game-storage';
+import { getOrCreateClientId, recordAppWin } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
 import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -636,6 +636,13 @@ export function CategoryClash() {
     playUiSound(currentPlayer?.result === 'won' ? 'puzzle-complete' : 'timer-expired');
     if (currentPlayer) {
       const metadata = { lobbyCode: view.lobby.code };
+      if (currentPlayer.result === 'won') {
+        recordAppWin(`category-clash:${view.lobby.id}`);
+      }
+      void submitAchievementEvent('multiplayer_result', {
+        gameId: 'category-clash',
+        result: currentPlayer.result === 'won' ? 'win' : 'loss',
+      });
       void submitAchievementEvent('developer_moment', { gameId: 'category-clash', ...metadata });
       void submitAchievementEvent('category_clash_last_standing', metadata);
       void submitAchievementEvent('category_clash_shared_answer', metadata);

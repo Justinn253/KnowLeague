@@ -37,6 +37,7 @@ import { QuizItemCarousel } from '@/components/quiz-item-carousel';
 import { QuizProgressCard } from '@/components/quiz-progress-card';
 import { ToggleSwitch } from '@/components/toggle-switch';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
+import { submitAchievementEvent } from '@/lib/achievement-client';
 import { getSkinThemeAnswer } from '@/lib/skin-themes';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
@@ -554,8 +555,22 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       elapsedSeconds: multiplayer && multiplayerGameEnded ? multiplayer.initialElapsedSeconds : totalTime,
       won: multiplayer ? Boolean(multiplayer.won) : finished,
       lost: multiplayer ? Boolean(multiplayer.lost) : failed,
-      matchId: multiplayer?.matchId,
+      matchId: statsKey,
     });
+
+    if (finished && !multiplayer) {
+      void submitAchievementEvent('solo_game_won', { gameId: 'skin-champion' });
+      if (soloMode === 'daily' || soloMode === 'chaos') {
+        void submitAchievementEvent('solo_quiz_completed', { gameId: 'skin-champion', mode: soloMode });
+      }
+      if (soloMode === 'casual' && selectedDifficulty === 'iron' && activeModifierCount === 0) {
+        void submitAchievementEvent('quiz_completed_with_settings', {
+          gameId: 'skin-champion',
+          difficulty: selectedDifficulty,
+          modifierCount: activeModifierCount,
+        });
+      }
+    }
 
     if (finished && !multiplayer) {
       if (leaderboardMode) {
@@ -648,7 +663,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
       void submitFailure();
     }
-  }, [completedProgressCount, failed, finished, items, leaderboardMode, multiplayer, multiplayerGameEnded, selectedDifficulty, soloMode, totalTime, wrongGuessCount]);
+  }, [activeModifierCount, completedProgressCount, failed, finished, items, leaderboardMode, multiplayer, multiplayerGameEnded, selectedDifficulty, soloMode, totalTime, wrongGuessCount]);
 
   useEffect(() => {
     const query = normalizeAnswer(inputValue);
@@ -1116,6 +1131,10 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
   const applyWrongGuess = (wrongOption?: string) => {
     playUiSound('skindle-guess-incorrect');
+    void submitAchievementEvent('quiz_wrong_answer', {
+      gameId: 'skin-champion',
+      difficulty: selectedDifficulty,
+    });
     setWrongGuessCount((count) => count + 1);
     if (activeModifiers.cropped) {
       setCroppedZoom((value) => Math.max(CROPPED_MIN_ZOOM, value - CROPPED_ZOOM_STEP));

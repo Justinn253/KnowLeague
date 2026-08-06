@@ -26,7 +26,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { submitAchievementEvent } from '@/lib/achievement-client';
-import { ACHIEVEMENT_GAME_OPTIONS, getAchievementGameLabel, getEarnedRewards, getRewardById, getRewardDescription, type AchievementListItem } from '@/lib/achievements';
+import { ACHIEVEMENT_GAME_OPTIONS, getAchievementGameLabel, getEarnedRewards, getRewardById, getRewardDescription, isUnachievedHiddenAchievement, type AchievementListItem } from '@/lib/achievements';
 import { DiscordMark } from '@/components/discord-mark';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import {
@@ -888,6 +888,22 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   }, [achievements, achievementsLoadAttempted, achievementsLoading, profile?.discord_username]);
 
   useEffect(() => {
+    if (
+      profile?.riot_account_name &&
+      achievementsLoadAttempted &&
+      !achievementsLoading &&
+      achievements.length > 0 &&
+      !achievements.some((achievement) => achievement.id === 'riot_linked' && achievement.completedAt)
+    ) {
+      void submitAchievementEvent('riot_linked').then((result) => {
+        if (result) {
+          setAchievements(result.achievements);
+        }
+      });
+    }
+  }, [achievements, achievementsLoadAttempted, achievementsLoading, profile?.riot_account_name]);
+
+  useEffect(() => {
     if (activeTab === 'achievements' && !achievementsLoadAttempted && !achievementsLoading) {
       void refreshAchievements();
     }
@@ -1745,6 +1761,11 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     })
     .sort((left, right) => {
       const direction = achievementSortDirection === 'asc' ? 1 : -1;
+      if (achievementSortKey !== 'globalRanking') {
+        const leftHidden = isUnachievedHiddenAchievement(left);
+        const rightHidden = isUnachievedHiddenAchievement(right);
+        if (leftHidden !== rightHidden) return leftHidden ? 1 : -1;
+      }
       if (achievementSortKey === 'completedAt') {
         if (!left.completedAt && !right.completedAt) return left.titleVisible.localeCompare(right.titleVisible);
         if (!left.completedAt) return 1;
@@ -2393,7 +2414,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                             <div className="min-w-0">
                               <div className="flex min-w-0 items-start gap-3">
                                 <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${complete ? 'border-emerald-300/40 bg-emerald-400/15 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400'}`}>
-                                  {complete ? <Trophy size={18} /> : <Award size={18} />}
+                                  {complete ? <Trophy size={18} /> : isUnachievedHiddenAchievement(achievement) ? <Eye size={18} /> : <Award size={18} />}
                                 </span>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">

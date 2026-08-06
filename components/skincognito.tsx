@@ -650,6 +650,10 @@ export function Skincognito() {
       mostRecentSkinGuess: skinGuesses[skinGuesses.length - 1]?.guess_value ?? null,
     });
     setDetailedStats(updatedStats);
+    void submitAchievementEvent('multiplayer_result', {
+      gameId: 'skincognito',
+      result: won ? 'win' : 'loss',
+    });
     void submitAchievementEvent('developer_moment', { gameId: 'skincognito', lobbyCode: lobbyView.lobby.code });
   }, [lobbyView, requestingPlayer]);
 

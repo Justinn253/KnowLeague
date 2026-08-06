@@ -39,6 +39,7 @@ import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, is
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
 import { QuizItemCarousel, type QuizCarouselRole } from '@/components/quiz-item-carousel';
 import { QuizProgressCard } from '@/components/quiz-progress-card';
+import { ToggleSwitch } from '@/components/toggle-switch';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const placeholderItems: QuizItem[] = [
@@ -216,25 +217,6 @@ function loadAbilityItems(url: string) {
   };
   void request.then(clearRequest, clearRequest);
   return request;
-}
-
-function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boolean }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
-        checked
-          ? 'border-amber-300/50 bg-amber-300'
-          : 'border-white/10 bg-slate-950'
-      } ${disabled ? 'opacity-60' : ''}`}
-    >
-      <span
-        className={`h-4 w-4 rounded-full bg-white  transition ${
-          checked ? 'translate-x-5' : 'translate-x-1'
-        }`}
-      />
-    </span>
-  );
 }
 
 function PixelatedIcon({
@@ -806,7 +788,6 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
               result: 'completed',
             }),
           });
-
           const response = await fetch('/api/solo-quiz/leaderboard', {
             method: 'POST',
             headers: {

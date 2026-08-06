@@ -3,7 +3,9 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Crown, MoreHorizontal, UserCheck, UserMinus, UserX, Users, WifiOff } from 'lucide-react';
+import Link from 'next/link';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 
 export type MultiplayerLobbyRosterPlayer = {
   id: string;
@@ -39,10 +41,6 @@ type ContextMenuState = {
   x: number;
   y: number;
 };
-
-function openPublicProfileOverlay(username: string) {
-  window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
-}
 
 export function MultiplayerLobbyRoster({
   players,
@@ -301,7 +299,7 @@ export function MultiplayerLobbyRoster({
       {contextMenu ? createPortal((
         <div ref={menuRef} className="fixed z-[90] min-w-48 rounded-2xl border border-white/10 bg-slate-950 p-2" style={{ left: contextMenu.x, top: contextMenu.y }}>
           {contextMenu.player.authUserId && profileUsernames[contextMenu.player.authUserId] ? (
-            <button type="button" onClick={() => { openPublicProfileOverlay(profileUsernames[contextMenu.player.authUserId as string]); setContextMenu(null); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</button>
+            <Link href={getPublicProfileHref(profileUsernames[contextMenu.player.authUserId as string])} target={shouldOpenProfileInNewTab() ? '_blank' : undefined} rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined} onClick={() => setContextMenu(null)} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</Link>
           ) : null}
           {contextMenu.player.authUserId && currentAuthUserId && contextMenu.player.authUserId !== currentAuthUserId ? (
             friendIds.has(contextMenu.player.authUserId) ? (

@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { assertUsersCanInteract } from '@/lib/account-status';
 import { normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { sanitizeChatMessage } from '@/lib/chat-filter';
 
@@ -71,6 +72,11 @@ type FriendMessageRow = {
 const ONLINE_WINDOW_MS = 20 * 1000;
 type FriendRequestResult = 'requested' | 'accepted';
 export type PublicFriendRelationship = 'friend' | 'pending' | 'none';
+export type FriendRelationshipDetails = {
+  relationship: PublicFriendRelationship;
+  friendNote: string;
+  blocked: boolean;
+};
 let endedAtColumnAvailable: boolean | null = null;
 let friendPreferenceColumnsAvailable: boolean | null = null;
 
@@ -157,6 +163,40 @@ function isMissingFriendPreferenceError(error: unknown) {
     text.includes('user_one_favorite') ||
     text.includes('user_two_favorite')
   );
+}
+
+function isMissingUserBlocksError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return maybeError.code === '42P01'
+    || maybeError.code === 'PGRST205'
+    || text.includes('user_blocks');
+}
+
+async function areUsersBlocked(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  firstUserId: string,
+  secondUserId: string,
+) {
+  const { data, error } = await supabase
+    .from('user_blocks')
+    .select('blocker_id')
+    .or(`and(blocker_id.eq.${firstUserId},blocked_id.eq.${secondUserId}),and(blocker_id.eq.${secondUserId},blocked_id.eq.${firstUserId})`)
+    .limit(1)
+    .returns<Array<{ blocker_id: string }>>();
+
+  if (isMissingUserBlocksError(error)) {
+    return false;
+  }
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data?.length);
 }
 
 async function selectProfilesByIds(supabase: ReturnType<typeof getSupabaseServiceClient>, ids: string[]) {
@@ -334,6 +374,11 @@ export async function acceptFriendPair(
   firstUserId: string,
   secondUserId: string,
 ) {
+  await assertUsersCanInteract(firstUserId, secondUserId);
+  if (await areUsersBlocked(supabase, firstUserId, secondUserId)) {
+    throw new Error('You cannot connect with this user.');
+  }
+
   const { userOneId, userTwoId } = orderedPair(firstUserId, secondUserId);
   const upsertFriendship = async (includeEndedAt: boolean) => supabase
     .from('friendships')
@@ -554,16 +599,32 @@ export async function updateFriendPreferences(
   }
 }
 
-export async function getFriendRelationship(userId: string, targetUserId: string): Promise<PublicFriendRelationship> {
+export async function getFriendRelationshipDetails(userId: string, targetUserId: string): Promise<FriendRelationshipDetails> {
   if (userId === targetUserId) {
-    return 'none';
+    return { relationship: 'none', friendNote: '', blocked: false };
   }
 
   const supabase = getSupabaseServiceClient();
+  const blocked = await areUsersBlocked(supabase, userId, targetUserId);
+  if (blocked) {
+    return { relationship: 'none', friendNote: '', blocked: true };
+  }
+
   const { userOneId, userTwoId } = orderedPair(userId, targetUserId);
   const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
   if (friendship) {
-    return 'friend';
+    const { data: preferences, error: preferenceError } = await supabase
+      .from('friendships')
+      .select('user_one_note, user_two_note')
+      .eq('id', friendship.id)
+      .maybeSingle<{ user_one_note?: string | null; user_two_note?: string | null }>();
+    if (preferenceError && !isMissingFriendPreferenceError(preferenceError)) {
+      throw preferenceError;
+    }
+    const friendNote = preferenceError
+      ? ''
+      : userId === userOneId ? preferences?.user_one_note ?? '' : preferences?.user_two_note ?? '';
+    return { relationship: 'friend', friendNote, blocked: false };
   }
 
   const { data: pendingRequests, error } = await supabase
@@ -578,7 +639,12 @@ export async function getFriendRelationship(userId: string, targetUserId: string
     throw error;
   }
 
-  return pendingRequests?.length ? 'pending' : 'none';
+  return { relationship: pendingRequests?.length ? 'pending' : 'none', friendNote: '', blocked: false };
+}
+
+export async function getFriendRelationship(userId: string, targetUserId: string): Promise<PublicFriendRelationship> {
+  const details = await getFriendRelationshipDetails(userId, targetUserId);
+  return details.relationship;
 }
 
 export async function searchExistingFriends(userId: string, query: string) {
@@ -600,6 +666,11 @@ export async function createFriendRequest(userId: string, targetUserId: string):
   }
 
   const supabase = getSupabaseServiceClient();
+  await assertUsersCanInteract(userId, targetUserId);
+  if (await areUsersBlocked(supabase, userId, targetUserId)) {
+    throw new Error('You cannot send a friend request to this user.');
+  }
+
   const { data: target, error: targetError } = await supabase
     .from('profiles')
     .select('id, friend_requests_open')
@@ -735,6 +806,11 @@ export async function markFriendMessagesRead(userId: string, friendId: string) {
 export async function getFriendMessages(userId: string, friendId: string, options: { markRead?: boolean } = {}) {
   const { userOneId, userTwoId } = orderedPair(userId, friendId);
   const supabase = getSupabaseServiceClient();
+  await assertUsersCanInteract(userId, friendId);
+  if (await areUsersBlocked(supabase, userId, friendId)) {
+    throw new Error('You cannot message this user.');
+  }
+
   const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
 
   if (!friendship) {
@@ -833,6 +909,11 @@ export async function sendFriendMessage(
   const filteredMessage = sanitizeChatMessage(`${adminPrefix}${cleanMessage}`);
 
   const supabase = getSupabaseServiceClient();
+  await assertUsersCanInteract(userId, friendId);
+  if (await areUsersBlocked(supabase, userId, friendId)) {
+    throw new Error('You cannot message this user.');
+  }
+
   if (options.createThread) {
     await acceptFriendPair(supabase, userId, friendId);
   }
@@ -901,4 +982,47 @@ export async function removeFriend(userId: string, friendId: string) {
   }
 
   await refreshFriendCounts(supabase, [userId, friendId]);
+}
+
+export async function blockUser(userId: string, targetUserId: string) {
+  if (userId === targetUserId) {
+    throw new Error('You cannot block yourself.');
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const { data: target, error: targetError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', targetUserId)
+    .maybeSingle<{ id: string }>();
+
+  if (targetError) {
+    throw targetError;
+  }
+  if (!target) {
+    throw new Error('Profile not found.');
+  }
+
+  const { error: blockError } = await supabase
+    .from('user_blocks')
+    .upsert({ blocker_id: userId, blocked_id: targetUserId }, { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true });
+
+  if (isMissingUserBlocksError(blockError)) {
+    throw new Error('Blocking requires the latest database migration.');
+  }
+  if (blockError) {
+    throw blockError;
+  }
+
+  await removeFriend(userId, targetUserId);
+
+  const { error: requestError } = await supabase
+    .from('friend_requests')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('status', 'pending')
+    .or(`and(requester_id.eq.${userId},addressee_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},addressee_id.eq.${userId})`);
+
+  if (requestError) {
+    throw requestError;
+  }
 }

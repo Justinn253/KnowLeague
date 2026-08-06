@@ -35,6 +35,7 @@ import { ViewportPopover } from '@/components/viewport-popover';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { QuizItemCarousel } from '@/components/quiz-item-carousel';
 import { QuizProgressCard } from '@/components/quiz-progress-card';
+import { ToggleSwitch } from '@/components/toggle-switch';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
 import { getSkinThemeAnswer } from '@/lib/skin-themes';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -177,19 +178,6 @@ function createModifierState(activeIds: readonly string[] = []) {
 const CROPPED_INITIAL_ZOOM = 2;
 const CROPPED_ZOOM_STEP = 0.25;
 const CROPPED_MIN_ZOOM = 1;
-
-function ToggleSwitch({ checked, disabled }: { checked: boolean; disabled: boolean }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
-        checked ? 'border-amber-300/50 bg-amber-300' : 'border-white/10 bg-slate-950'
-      } ${disabled ? 'opacity-60' : ''}`}
-    >
-      <span className={`h-4 w-4 rounded-full bg-white  transition ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
-    </span>
-  );
-}
 
 function getCropOrigin(item?: QuizItem | null) {
   const seed = item?.id ?? 'skin';
@@ -600,7 +588,6 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
               result: 'completed',
             }),
           });
-
           const response = await fetch('/api/solo-quiz/leaderboard', {
             method: 'POST',
             headers: {

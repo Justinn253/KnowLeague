@@ -23,6 +23,7 @@ import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
+import { submitAchievementEvent } from '@/lib/achievement-client';
 import type {
   CategoryClashCategory,
   CategoryClashChatMessage,
@@ -633,7 +634,13 @@ export function CategoryClash() {
     if (finishSoundLobbyIdRef.current === view.lobby.id) return;
     finishSoundLobbyIdRef.current = view.lobby.id;
     playUiSound(currentPlayer?.result === 'won' ? 'puzzle-complete' : 'timer-expired');
-  }, [currentPlayer?.result, view]);
+    if (currentPlayer) {
+      const metadata = { lobbyCode: view.lobby.code };
+      void submitAchievementEvent('developer_moment', { gameId: 'category-clash', ...metadata });
+      void submitAchievementEvent('category_clash_last_standing', metadata);
+      void submitAchievementEvent('category_clash_shared_answer', metadata);
+    }
+  }, [currentPlayer, view]);
 
   useEffect(() => {
     if (!view || view.lobby.status !== 'waiting') {

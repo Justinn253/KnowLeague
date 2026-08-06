@@ -26,7 +26,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { submitAchievementEvent } from '@/lib/achievement-client';
-import { getEarnedRewards, getRewardById, type AchievementListItem } from '@/lib/achievements';
+import { ACHIEVEMENT_GAME_OPTIONS, getAchievementGameLabel, getEarnedRewards, getRewardById, getRewardDescription, type AchievementListItem } from '@/lib/achievements';
 import { DiscordMark } from '@/components/discord-mark';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import {
@@ -34,7 +34,12 @@ import {
   getEmailDeliveryCooldownSeconds,
 } from '@/lib/email-delivery-policy';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
+import { getPublicProfileHref, navigateToPublicProfile } from '@/lib/profile-navigation';
+import { invalidateCachedOwnerProfileResponse } from '@/lib/profile-response-cache';
+import { getProfileTabFromUrl, pushProfileTabToUrl } from '@/lib/profile-tabs';
 import { loadDetailedGameStats, loadPlayerGameStats, type DetailedGameStats, type PlayerGameStats, type QuizGameDetailedStats, type QuizModeStats, type SkincognitoDetailedStats } from '@/lib/game-storage';
+import { AppSelectMenu } from '@/components/app-select-menu';
+import { ToggleSwitch } from '@/components/toggle-switch';
 import {
   type ChatBorder,
   CHAT_COLOR_VALUES,
@@ -53,6 +58,7 @@ type ProfileRecord = {
   about_me: string;
   friends_count: number;
   friend_requests_open: boolean;
+  profile_visibility: 'public' | 'private';
   avatar_url: string | null;
   chat_color: string;
   chat_border: string;
@@ -66,7 +72,11 @@ type ProfileRecord = {
 };
 
 type ProfileTab = 'profile' | 'stats' | 'achievements' | 'account';
-type AchievementSortKey = 'completedAt' | 'globalRanking';
+const OWNER_PROFILE_TABS: readonly ProfileTab[] = ['profile', 'stats', 'achievements', 'account'];
+type ProfileVisibility = 'public' | 'private';
+type ProfilePreferenceKey = 'friendRequestsOpen' | 'profileVisibility';
+type ProfilePreferenceSavingState = Record<ProfilePreferenceKey, boolean>;
+type AchievementSortKey = 'completedAt' | 'globalRanking' | 'alphabetical';
 type AchievementSortDirection = 'asc' | 'desc';
 type IncomingRequest = {
   id: string;
@@ -105,12 +115,6 @@ const PROFILE_COSMETICS_DATABASE_MESSAGE = 'Profile cosmetics cannot be saved be
 const ACHIEVEMENT_COSMETICS_DATABASE_MESSAGE = 'Achievement cosmetics cannot be saved because the database is missing the latest achievement cosmetics columns. Apply the latest profile achievement cosmetics migration, then save again.';
 let cachedProfileScreenState: CachedProfileScreenState | null = null;
 
-type ProfileScreenProps = {
-  presentation?: 'page' | 'overlay';
-  initialTab?: ProfileTab;
-  onClose?: () => void;
-};
-
 function getLinkedValue(value?: string | null) {
   return value?.trim() || 'Not linked';
 }
@@ -141,10 +145,6 @@ function formatAchievementDate(value?: string | null) {
   }).format(new Date(value));
 }
 
-function openPublicProfileOverlay(username: string) {
-  window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
-}
-
 function isMissingProfileColumnError(error: unknown, column: string) {
   if (!error || typeof error !== 'object') {
     return false;
@@ -153,6 +153,38 @@ function isMissingProfileColumnError(error: unknown, column: string) {
   const maybeError = error as { code?: string; message?: string; details?: string };
   const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
   return (maybeError.code === '42703' || maybeError.code === 'PGRST204') && text.includes(column);
+}
+
+function normalizeProfileVisibility(value: unknown): ProfileVisibility {
+  return value === 'private' ? 'private' : 'public';
+}
+
+function createProfileFromInitialData(initialProfileData: Partial<ProfileRecord>): ProfileRecord {
+  return {
+    username: initialProfileData.username ?? '',
+    display_name: initialProfileData.display_name ?? initialProfileData.username ?? '',
+    about_me: initialProfileData.about_me ?? '',
+    friends_count: initialProfileData.friends_count ?? 0,
+    friend_requests_open: initialProfileData.friend_requests_open ?? true,
+    profile_visibility: normalizeProfileVisibility(initialProfileData.profile_visibility),
+    avatar_url: initialProfileData.avatar_url ?? null,
+    chat_color: normalizeChatColor(initialProfileData.chat_color),
+    chat_border: normalizeChatBorder(initialProfileData.chat_border),
+    selected_title_reward_id: initialProfileData.selected_title_reward_id ?? null,
+    displayed_badge_reward_ids: initialProfileData.displayed_badge_reward_ids ?? [],
+    discord_username: initialProfileData.discord_username ?? null,
+    discord_avatar_url: initialProfileData.discord_avatar_url ?? null,
+    discord_banner_url: initialProfileData.discord_banner_url ?? null,
+    riot_account_name: initialProfileData.riot_account_name ?? null,
+    created_at: initialProfileData.created_at ?? new Date().toISOString(),
+  };
+}
+
+function notifyProfileUpdated(userId: string) {
+  invalidateCachedOwnerProfileResponse(userId);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('knowleague:profile-updated', { detail: { userId } }));
+  }
 }
 
 function getTopValue<TValue extends { count: number }>(values: Record<string, TValue>) {
@@ -192,13 +224,47 @@ function CompactStat({ label, value, title }: { label: string; value: string | n
   );
 }
 
+function ProfilePreferenceToggle({
+  label,
+  description,
+  valueLabel,
+  checked,
+  disabled,
+  onToggle,
+}: {
+  label: string;
+  description: string;
+  valueLabel: string;
+  checked: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onToggle}
+      className="flex min-h-28 w-full items-start justify-between gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 text-left transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-70 sm:p-5"
+    >
+      <span className="min-w-0">
+        <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</span>
+        <span className="mt-2 block text-sm font-bold text-white">{valueLabel}</span>
+        <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span>
+      </span>
+      <ToggleSwitch checked={checked} disabled={disabled} />
+    </button>
+  );
+}
+
 function QuizStatsRow({ label, stats, multiplayer = false }: { label: string; stats: QuizModeStats; multiplayer?: boolean }) {
   const averageTimePerItem = stats.completedItems > 0 ? stats.totalElapsedSeconds / stats.completedItems : 0;
   const winPercent = formatPercent(stats.matchesWon, stats.matchesPlayed);
 
   return (
-    <div className="grid gap-2 rounded-xl border border-white/10 bg-slate-900/55 p-3 lg:grid-cols-[7rem_repeat(6,minmax(0,1fr))] lg:items-center">
-      <div>
+    <div className="grid gap-2 rounded-2xl border border-white/10 bg-slate-900/55 p-3 sm:grid-cols-2 lg:grid-cols-[10rem_repeat(6,minmax(0,1fr))] lg:items-center">
+      <div className="sm:col-span-2 lg:col-span-1">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-white">{label}</p>
         {multiplayer ? <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">{stats.matchesWon}W / {stats.matchesLost}L</p> : null}
       </div>
@@ -214,10 +280,13 @@ function QuizStatsRow({ label, stats, multiplayer = false }: { label: string; st
 
 function QuizGameStatsSection({ title, stats }: { title: string; stats: QuizGameDetailedStats }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
-      <div className="mb-3 flex items-center justify-between gap-3 px-1">
-        <h3 className="text-base font-black text-amber-300">{title}</h3>
-        <span className="text-xs font-semibold text-slate-300">Current / Best streak</span>
+    <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2 px-1">
+        <div>
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-500">Game statistics</p>
+          <h3 className="mt-1 text-lg font-black text-amber-300">{title}</h3>
+        </div>
+        <span className="text-xs font-semibold text-slate-400">Current / Best streak</span>
       </div>
       <div className="grid gap-2">
         <QuizStatsRow label="Solo" stats={stats.solo} />
@@ -234,7 +303,7 @@ function SkindleStatsPanel({ stats }: { stats: PlayerGameStats }) {
   const topRarity = getTopValue(stats.rarityStats);
 
   return (
-    <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+    <article className="min-w-0 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-black text-amber-300">Skindle</h3>
@@ -261,7 +330,7 @@ function SkincognitoStatsPanel({ stats }: { stats: SkincognitoDetailedStats }) {
   const topSkinGuess = getTopValueStat(stats.guessedSkinStats);
 
   return (
-    <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+    <article className="min-w-0 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-black text-amber-300">Skincognito</h3>
@@ -396,9 +465,28 @@ function RiotConnectionCard({ value }: { value: string }) {
   );
 }
 
-export function ProfileScreen({ presentation = 'page', initialTab = 'profile', onClose }: ProfileScreenProps) {
+type ProfileScreenProps = {
+  expectedUserId?: string;
+  expectedUsername?: string;
+  initialProfileData?: Partial<ProfileRecord>;
+};
+
+export function ProfileScreen({ expectedUserId, expectedUsername, initialProfileData }: ProfileScreenProps = {}) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
+  const redirectToExpectedProfile = useCallback(() => {
+    if (expectedUsername) {
+      router.replace(getPublicProfileHref(expectedUsername));
+    } else {
+      router.replace('/login');
+    }
+  }, [expectedUsername, router]);
+  const openPublicProfilePage = (username: string) => {
+    setRequestsOpen(false);
+    setAddFriendOpen(false);
+    setFriendSearchContext(null);
+    navigateToPublicProfile(username, (href) => router.push(href));
+  };
+  const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
@@ -414,6 +502,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [pendingChatColor, setPendingChatColor] = useState('amber');
   const [pendingChatBorder, setPendingChatBorder] = useState<ChatBorder>(DEFAULT_CHAT_BORDER);
   const [friendRequestsOpen, setFriendRequestsOpen] = useState(true);
+  const [profileVisibility, setProfileVisibility] = useState<ProfileVisibility>('public');
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
   const [detailedStats, setDetailedStats] = useState<DetailedGameStats>(() => loadDetailedGameStats());
@@ -438,7 +527,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [achievementSearchQuery, setAchievementSearchQuery] = useState('');
   const [achievementSortKey, setAchievementSortKey] = useState<AchievementSortKey>('completedAt');
   const [achievementSortDirection, setAchievementSortDirection] = useState<AchievementSortDirection>('desc');
-  const [achievementGameFilters, setAchievementGameFilters] = useState<Set<string>>(() => new Set(['general', 'skindle']));
+  const [achievementGameFilters, setAchievementGameFilters] = useState<Set<string>>(() => new Set(ACHIEVEMENT_GAME_OPTIONS.map((option) => option.value)));
   const [achievementFiltersOpen, setAchievementFiltersOpen] = useState(false);
   const addFriendPanelRef = useRef<HTMLDivElement | null>(null);
   const cosmeticsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -453,9 +542,31 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [preferenceSaving, setPreferenceSaving] = useState<ProfilePreferenceSavingState>({
+    friendRequestsOpen: false,
+    profileVisibility: false,
+  });
   const [passwordResetSending, setPasswordResetSending] = useState(false);
   const [passwordResetCooldownEndsAt, setPasswordResetCooldownEndsAt] = useState(0);
   const [passwordResetCooldownNow, setPasswordResetCooldownNow] = useState(() => Date.now());
+  const preferenceValuesRef = useRef({
+    friendRequestsOpen: true,
+    profileVisibility: 'public' as ProfileVisibility,
+  });
+  const preferenceQueuesRef = useRef<Record<ProfilePreferenceKey, Promise<void>>>({
+    friendRequestsOpen: Promise.resolve(),
+    profileVisibility: Promise.resolve(),
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTab(getProfileTabFromUrl(OWNER_PROFILE_TABS, 'profile'));
+    };
+
+    handlePopState();
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const cleanUsernameDraft = usernameDraft.trim();
   const cleanAboutDraft = aboutDraft.trim();
   const hasAvatarChanges = avatarAction !== 'unchanged';
@@ -472,8 +583,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     selectedTitleRewardId !== (profile.selected_title_reward_id ?? '') ||
     displayedBadgeRewardIds.join('|') !== (profile.displayed_badge_reward_ids ?? []).join('|')
   ) : false;
-  const hasPreferenceChanges = profile ? friendRequestsOpen !== profile.friend_requests_open : false;
-  const hasAnySaveChanges = hasProfileChanges || hasPreferenceChanges || hasAvatarChanges;
+  const hasAnySaveChanges = hasProfileChanges || hasAvatarChanges;
+  preferenceValuesRef.current = { friendRequestsOpen, profileVisibility };
   const passwordResetCooldownSeconds = getEmailDeliveryCooldownSeconds(
     passwordResetCooldownEndsAt,
     passwordResetCooldownNow,
@@ -481,10 +592,6 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
   const previewChatColor = normalizeChatColor(pendingChatColor);
   const previewChatBorder = normalizeChatBorder(pendingChatBorder);
   const previewBubbleStyle = getChatBubbleStyle(previewChatColor, previewChatBorder);
-
-  useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
 
   useEffect(() => {
     const remainingMs = passwordResetCooldownEndsAt - passwordResetCooldownNow;
@@ -510,6 +617,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     setSelectedTitleRewardId(cachedState.profile?.selected_title_reward_id ?? '');
     setDisplayedBadgeRewardIds(cachedState.profile?.displayed_badge_reward_ids ?? []);
     setFriendRequestsOpen(cachedState.friendRequestsOpen);
+    setProfileVisibility(normalizeProfileVisibility(cachedState.profile?.profile_visibility));
     setIncomingRequests(cachedState.incomingRequests);
     setBusy(false);
   }, []);
@@ -589,23 +697,39 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
 
     supabase.auth.getUser().then(async ({ data, error }) => {
       if (error || !data.user) {
-        if (presentation === 'overlay') {
-          onClose?.();
-        } else {
-          router.replace('/login');
-        }
+        redirectToExpectedProfile();
         return;
       }
 
-      if (cachedProfileScreenState?.userId === data.user.id) {
-        hydrateFromCache(cachedProfileScreenState);
+      if (expectedUserId && data.user.id !== expectedUserId) {
+        redirectToExpectedProfile();
+        return;
       }
 
       setUserId(data.user.id);
       setEmail(data.user.email ?? '');
+      if (initialProfileData && expectedUserId === data.user.id && cachedProfileScreenState?.userId !== data.user.id) {
+        const seededProfile = createProfileFromInitialData(initialProfileData);
+        cachedProfileScreenState = {
+          userId: data.user.id,
+          email: data.user.email ?? '',
+          profile: seededProfile,
+          usernameDraft: seededProfile.username,
+          aboutDraft: seededProfile.about_me,
+          chatColorDraft: seededProfile.chat_color,
+          chatBorderDraft: seededProfile.chat_border,
+          friendRequestsOpen: seededProfile.friend_requests_open,
+          incomingRequests: [],
+        };
+      }
+
+      const cachedState = cachedProfileScreenState?.userId === data.user.id ? cachedProfileScreenState : null;
+      if (cachedState?.profile) {
+        hydrateFromCache(cachedState);
+      } else {
       let { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
         .eq('id', data.user.id)
         .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
       if (profileError && isMissingProfileColumnError(profileError, 'chat_color')) {
@@ -636,6 +760,21 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'selected_title_reward_id' | 'displayed_badge_reward_ids'>>();
 
         profileData = fallback.data ? { ...fallback.data, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
+        profileError = fallback.error;
+      }
+      if (profileError && isMissingProfileColumnError(profileError, 'profile_visibility')) {
+        const fallback = await supabase
+          .from('profiles')
+          .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
+          .eq('id', data.user.id)
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'profile_visibility' | 'selected_title_reward_id' | 'displayed_badge_reward_ids'>>();
+
+        profileData = fallback.data ? {
+          ...fallback.data,
+          profile_visibility: 'public',
+          selected_title_reward_id: null,
+          displayed_badge_reward_ids: [],
+        } : null;
         profileError = fallback.error;
       }
       let { data: privateData, error: privateError } = await supabase
@@ -680,6 +819,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           ...profileData,
           chat_color: normalizeChatColor(profileData.chat_color),
           chat_border: normalizeChatBorder(profileData.chat_border),
+          profile_visibility: normalizeProfileVisibility(profileData.profile_visibility),
           discord_username: privateData?.discord_username ?? null,
           discord_avatar_url: privateData?.discord_avatar_url ?? null,
           discord_banner_url: privateData?.discord_banner_url ?? null,
@@ -693,6 +833,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
         setSelectedTitleRewardId(profileData?.selected_title_reward_id ?? '');
         setDisplayedBadgeRewardIds(profileData?.displayed_badge_reward_ids ?? []);
         setFriendRequestsOpen(profileData?.friend_requests_open ?? true);
+        setProfileVisibility(normalizeProfileVisibility(profileData?.profile_visibility));
         cachedProfileScreenState = {
           userId: data.user.id,
           email: data.user.email ?? '',
@@ -705,12 +846,30 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           incomingRequests: cachedProfileScreenState?.userId === data.user.id ? cachedProfileScreenState.incomingRequests : [],
         };
       }
+      }
 
       await Promise.all([refreshFriendDashboard(), refreshAchievements()]);
 
       setBusy(false);
     });
-  }, [hydrateFromCache, onClose, presentation, refreshAchievements, refreshFriendDashboard, router]);
+  }, [expectedUserId, hydrateFromCache, initialProfileData, redirectToExpectedProfile, refreshAchievements, refreshFriendDashboard]);
+
+  useEffect(() => {
+    const supabase = getOptionalSupabaseClient();
+    if (!supabase) {
+      return undefined;
+    }
+
+    const { data: authState } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (expectedUserId && session?.user.id !== expectedUserId) {
+        redirectToExpectedProfile();
+      } else if (!expectedUserId && !session) {
+        redirectToExpectedProfile();
+      }
+    });
+
+    return () => authState.subscription.unsubscribe();
+  }, [expectedUserId, redirectToExpectedProfile]);
 
   useEffect(() => {
     if (
@@ -803,6 +962,100 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     setAvatarAction('unchanged');
   };
 
+  const updateProfilePreference = (key: ProfilePreferenceKey, nextValue: boolean | ProfileVisibility) => {
+    let previousValue: boolean | ProfileVisibility;
+    if (key === 'friendRequestsOpen') {
+      if (typeof nextValue !== 'boolean') {
+        return;
+      }
+      previousValue = preferenceValuesRef.current.friendRequestsOpen;
+      preferenceValuesRef.current.friendRequestsOpen = nextValue;
+      setFriendRequestsOpen(nextValue);
+    } else {
+      if (nextValue !== 'public' && nextValue !== 'private') {
+        return;
+      }
+      previousValue = preferenceValuesRef.current.profileVisibility;
+      preferenceValuesRef.current.profileVisibility = nextValue;
+      setProfileVisibility(nextValue);
+    }
+
+    setPreferenceSaving((current) => ({ ...current, [key]: true }));
+    const queuedSave = async () => {
+      const preferenceValue = key === 'friendRequestsOpen'
+        ? nextValue as boolean
+        : nextValue as ProfileVisibility;
+      const databaseField = key === 'friendRequestsOpen' ? 'friend_requests_open' : 'profile_visibility';
+
+      try {
+        const supabase = getOptionalSupabaseClient();
+        const { data: sessionData, error: sessionError } = await supabase?.auth.getSession() ?? { data: { session: null }, error: null };
+        if (sessionError || !supabase || !sessionData.session || sessionData.session.user.id !== userId) {
+          throw new Error('Your session has expired. Please sign in again.');
+        }
+
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            [databaseField]: preferenceValue,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+        if (error) {
+          if (key === 'profileVisibility' && isMissingProfileColumnError(error, 'profile_visibility')) {
+            throw new Error('Profile visibility cannot be saved until the latest profile migration is applied.');
+          }
+          throw error;
+        }
+
+        setProfile((current) => {
+          if (!current) {
+            return current;
+          }
+          const nextProfile = key === 'friendRequestsOpen'
+            ? { ...current, friend_requests_open: preferenceValue as boolean }
+            : { ...current, profile_visibility: preferenceValue as ProfileVisibility };
+          if (cachedProfileScreenState?.userId === userId) {
+            cachedProfileScreenState = { ...cachedProfileScreenState, profile: nextProfile };
+          }
+          return nextProfile;
+        });
+        notifyProfileUpdated(userId);
+        setMessage(key === 'friendRequestsOpen' ? 'Friend request preferences updated.' : 'Profile visibility updated.');
+      } catch (error) {
+        const currentValue = preferenceValuesRef.current[key];
+        if (currentValue === preferenceValue) {
+          if (key === 'friendRequestsOpen') {
+            preferenceValuesRef.current.friendRequestsOpen = previousValue as boolean;
+            setFriendRequestsOpen(previousValue as boolean);
+          } else {
+            preferenceValuesRef.current.profileVisibility = previousValue as ProfileVisibility;
+            setProfileVisibility(previousValue as ProfileVisibility);
+          }
+
+          setProfile((current) => {
+            if (!current) {
+              return current;
+            }
+            const nextProfile = key === 'friendRequestsOpen'
+              ? { ...current, friend_requests_open: previousValue as boolean }
+              : { ...current, profile_visibility: previousValue as ProfileVisibility };
+            if (cachedProfileScreenState?.userId === userId) {
+              cachedProfileScreenState = { ...cachedProfileScreenState, profile: nextProfile };
+            }
+            return nextProfile;
+          });
+        }
+        setMessage(error instanceof Error ? error.message : 'Unable to save profile preference.');
+      } finally {
+        setPreferenceSaving((current) => ({ ...current, [key]: false }));
+      }
+    };
+
+    preferenceQueuesRef.current[key] = preferenceQueuesRef.current[key].catch(() => undefined).then(queuedSave);
+    void preferenceQueuesRef.current[key];
+  };
+
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const supabase = getOptionalSupabaseClient();
@@ -870,7 +1123,6 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       username: cleanUsername,
       display_name: cleanUsername,
       about_me: aboutDraft.trim().slice(0, 500),
-      friend_requests_open: friendRequestsOpen,
       avatar_url: nextAvatarUrl,
       chat_color: normalizeChatColor(chatColorDraft),
       chat_border: normalizeChatBorder(chatBorderDraft),
@@ -957,6 +1209,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       ...data,
       chat_color: normalizeChatColor(data.chat_color),
       chat_border: normalizeChatBorder(data.chat_border),
+      profile_visibility: normalizeProfileVisibility(profile?.profile_visibility),
       discord_username: profile?.discord_username ?? null,
       discord_avatar_url: profile?.discord_avatar_url ?? null,
       discord_banner_url: profile?.discord_banner_url ?? null,
@@ -970,6 +1223,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     setSelectedTitleRewardId(data.selected_title_reward_id ?? '');
     setDisplayedBadgeRewardIds(data.displayed_badge_reward_ids ?? []);
     setFriendRequestsOpen(data.friend_requests_open);
+    setProfileVisibility(normalizeProfileVisibility(profile?.profile_visibility));
     resetAvatarDraft();
     cachedProfileScreenState = {
       userId,
@@ -982,6 +1236,13 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
       friendRequestsOpen: data.friend_requests_open,
       incomingRequests,
     };
+    notifyProfileUpdated(userId);
+    void submitAchievementEvent('profile_customized').then((result) => {
+      if (result?.achievements) setAchievements(result.achievements);
+    });
+    void submitAchievementEvent('profile_completed').then((result) => {
+      if (result?.achievements) setAchievements(result.achievements);
+    });
     setMessage('Profile updated.');
   };
 
@@ -1493,6 +1754,10 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
         return (leftTime - rightTime) * direction;
       }
 
+      if (achievementSortKey === 'alphabetical') {
+        return left.titleVisible.localeCompare(right.titleVisible, undefined, { sensitivity: 'base' }) * direction;
+      }
+
       if (left.topPercent === null && right.topPercent === null) return left.titleVisible.localeCompare(right.titleVisible);
       if (left.topPercent === null) return 1;
       if (right.topPercent === null) return -1;
@@ -1502,33 +1767,28 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
     }), [achievementGameFilters, achievementSortDirection, achievementSortKey, achievements, cleanAchievementSearch]);
 
   return (
-    <main className={presentation === 'overlay' ? 'text-slate-100' : 'min-h-screen bg-slate-950 text-slate-100'}>
-      <section className={presentation === 'overlay'
-        ? 'mx-auto flex min-w-0 w-full max-w-5xl flex-col px-3 py-4 sm:px-6 sm:py-8'
-        : 'mx-auto flex min-h-[100dvh] w-full max-w-5xl flex-col justify-center px-4 py-6 sm:px-6 sm:py-10'}
-      >
-        <header className={`mb-5 flex min-h-12 min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between ${presentation === 'overlay' ? 'pr-12 sm:pr-16' : ''}`}>
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <section className="mx-auto flex min-h-[100dvh] min-w-0 w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-12 lg:py-8">
+        <header className="relative z-30 flex min-w-0 flex-col items-stretch gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <Link
               href="/"
               aria-label="Back to game hub"
-              className={`${presentation === 'overlay' ? 'hidden' : 'inline-flex'} h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900`}
+              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
             >
               <ArrowLeft size={20} />
             </Link>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="min-w-0 text-xl font-semibold text-white">
-                  Profile{profile?.username || usernameDraft ? (
-                    <> - <span style={getChatNameStyle(chatColorDraft)}>{profile?.username || usernameDraft}</span></>
-                  ) : ''}
-                </h1>
-              </div>
+            <div className="grid min-w-0 gap-1">
+              <h1 className="min-w-0 text-lg font-semibold text-white sm:text-xl">
+                Profile{profile?.username || usernameDraft ? (
+                  <> - <span style={getChatNameStyle(chatColorDraft)}>{profile?.username || usernameDraft}</span></>
+                ) : ''}
+              </h1>
             </div>
           </div>
           {!busy ? (
-            <div className="relative flex min-h-11 w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
-              <div className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-semibold text-slate-300">
+            <div className="relative flex min-h-11 w-full flex-wrap items-center justify-start gap-2 lg:w-auto lg:justify-end">
+              <div className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm font-semibold text-slate-300 sm:flex-none sm:px-4">
                 <Users size={16} className="text-amber-300" />
                 {profile?.friends_count ?? 0} friends
               </div>
@@ -1536,7 +1796,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                 <button
                   type="button"
                   onClick={() => setRequestsOpen((value) => !value)}
-                  className="relative inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-amber-300/10 px-4 text-sm font-bold text-amber-100 transition hover:bg-amber-300/20"
+                  className="relative inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-amber-300/10 px-3 text-sm font-bold text-amber-100 transition hover:bg-amber-300/20 sm:flex-none sm:px-4"
                 >
                   Requests
                   <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">
@@ -1548,7 +1808,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                 type="button"
                 onClick={() => setAddFriendOpen((value) => !value)}
                 data-add-friend-toggle="true"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:bg-slate-900"
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-slate-100 transition hover:bg-slate-900 sm:flex-none sm:px-4"
               >
                 <UserPlus size={17} />
                 Add Friend
@@ -1561,7 +1821,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => openPublicProfileOverlay(request.requester.username)}
+                          onClick={() => openPublicProfilePage(request.requester.username)}
                           className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-800 active:scale-[0.98]"
                         >
                           View
@@ -1646,7 +1906,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       <button
                         type="button"
                         onClick={() => {
-                          openPublicProfileOverlay(friendSearchContext.candidate.username);
+                          openPublicProfilePage(friendSearchContext.candidate.username);
                           setFriendSearchContext(null);
                         }}
                         className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
@@ -1673,7 +1933,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
           ) : null}
         </header>
 
-        <section className="min-h-[34rem] min-w-0 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-6">
+        <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-5 lg:p-6">
           {busy ? (
             <div className="flex min-h-[30rem] items-center justify-center gap-3 text-sm font-semibold text-slate-300">
               <Loader2 size={18} className="animate-spin text-amber-300" />
@@ -1681,7 +1941,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-1 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-slate-950/70 p-1 sm:grid-cols-4 sm:gap-2">
                 {[
                   ['profile', 'Profile'],
                   ['stats', 'Stats'],
@@ -1692,10 +1952,12 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                     key={tab}
                     type="button"
                     onClick={() => {
-                      setActiveTab(tab as ProfileTab);
+                      const nextTab = tab as ProfileTab;
+                      setActiveTab(nextTab);
+                      pushProfileTabToUrl(nextTab);
                       setMessage('');
                     }}
-                    className={`min-h-10 rounded-xl px-2 text-xs font-semibold transition sm:px-3 sm:text-sm ${
+                    className={`min-h-11 rounded-xl px-2 text-xs font-semibold transition sm:px-3 sm:text-sm ${
                       activeTab === tab ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900'
                     }`}
                   >
@@ -1706,8 +1968,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
 
 
               {activeTab === 'profile' ? (
-                <form onSubmit={saveProfile} className="mt-6 grid min-w-0 gap-4">
-                  <div className="flex min-w-0 flex-col items-start gap-4 rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:flex-row sm:p-4">
+                <form onSubmit={saveProfile} className="mt-5 grid min-w-0 gap-5 sm:mt-6">
+                  <div className="flex min-w-0 flex-col items-start gap-5 rounded-3xl border border-white/10 bg-slate-950/80 p-4 md:flex-row md:p-5">
                     <div className="relative shrink-0">
                       {avatarPreviewUrl ? (
                         <button
@@ -1745,20 +2007,28 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                         </div>
                       </div>
                       <div className="relative mt-2 flex w-28 justify-center">
-                        <button
-                          type="button"
-                          data-profile-title-toggle="true"
-                          onClick={() => {
-                            setCosmeticsMenuOpen(false);
-                            setTitleMenuOpen((open) => !open);
-                          }}
-                          aria-label="Edit active title"
-                          aria-expanded={titleMenuOpen}
-                          className="inline-flex max-w-28 items-center gap-1 rounded-md px-1 py-0.5 text-center text-xs font-semibold text-slate-300 transition hover:bg-slate-900 hover:text-white"
-                        >
-                          <span className="truncate">{selectedTitleReward?.name ?? 'No title'}</span>
-                          <Pencil size={12} className="shrink-0 text-slate-500" />
-                        </button>
+                        <div className="group relative">
+                          <button
+                            type="button"
+                            data-profile-title-toggle="true"
+                            onClick={() => {
+                              setCosmeticsMenuOpen(false);
+                              setTitleMenuOpen((open) => !open);
+                            }}
+                            aria-label="Edit active title"
+                            aria-expanded={titleMenuOpen}
+                            className="inline-flex max-w-32 items-center gap-1 rounded-full border border-amber-300/40 bg-amber-300/10 px-2.5 py-1 text-center text-[0.68rem] font-black uppercase tracking-[0.1em] text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-300/20"
+                          >
+                            <span className="truncate">{selectedTitleReward?.name ?? 'No title'}</span>
+                            <Pencil size={12} className="shrink-0 text-amber-200/70" />
+                          </button>
+                          {selectedTitleReward ? (
+                            <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-56 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-left opacity-0 shadow-xl transition group-hover:opacity-100">
+                              <span className="block text-xs font-bold text-white">{selectedTitleReward.name}</span>
+                              <span className="mt-1 block text-xs leading-5 text-slate-400">{getRewardDescription(selectedTitleReward.id, 'title') || 'Earned profile title.'}</span>
+                            </span>
+                          ) : null}
+                        </div>
                         {titleMenuOpen ? (
                           <div
                             ref={titleMenuRef}
@@ -1818,8 +2088,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                         event.target.value = '';
                       }}
                     />
-                    <div className="hidden h-28 w-px shrink-0 bg-white/10 sm:block" />
-                    <div className="min-w-0 flex-1">
+                    <div className="hidden self-stretch min-h-28 w-px shrink-0 bg-white/10 md:block" />
+                    <div className="min-w-0 flex-1 self-stretch sm:self-start">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Profile Cosmetics</p>
                       <div className="mt-3 flex flex-wrap gap-3">
                         <div className="relative">
@@ -1927,8 +2197,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                         </div>
                       </div>
                     </div>
-                    <div className="hidden min-h-28 w-px shrink-0 bg-white/10 lg:block" />
-                    <div className="min-w-0 lg:w-40">
+                    <div className="hidden self-stretch min-h-28 w-px shrink-0 bg-white/10 lg:block" />
+                    <div className="min-w-0 self-stretch md:w-44 md:self-start">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Badges</p>
                         <button
@@ -1947,8 +2217,9 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                             className="group relative flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300/35 bg-amber-300/10 text-amber-100"
                           >
                             <BadgeCheck size={16} />
-                            <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200  group-hover:block">
-                              {badge.name}
+                            <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-left opacity-0 shadow-xl transition group-hover:opacity-100">
+                              <span className="block text-xs font-bold text-white">{badge.name}</span>
+                              <span className="mt-1 block text-xs leading-5 text-slate-400">{getRewardDescription(badge.id, 'badge') || 'Earned profile badge.'}</span>
                             </span>
                           </div>
                         ))}
@@ -1956,8 +2227,8 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                     </div>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <label className="grid gap-2 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                       <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Username</span>
                       <input
                         ref={usernameInputRef}
@@ -1972,7 +2243,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       ) : null}
                     </label>
 
-                    <div className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
+                    <div className="grid gap-2 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Account Created</p>
                       <p className="flex min-h-11 items-center rounded-xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-slate-200">
                         {formatProfileDate(profile?.created_at)}
@@ -1980,7 +2251,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                     </div>
                   </div>
 
-                  <label className="grid gap-2">
+                  <label className="grid gap-2 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                     <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">About Me</span>
                     <textarea
                       value={aboutDraft}
@@ -1988,12 +2259,12 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       rows={6}
                       maxLength={500}
                       placeholder="Tell other players a little about yourself."
-                      className="min-h-36 w-full max-w-full resize-none rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 focus:ring-1 focus:ring-white/15"
+                      className="min-h-40 w-full max-w-full resize-y rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-white/20 focus:ring-1 focus:ring-white/15"
                     />
                     <span className="text-xs text-slate-500">{aboutDraft.length}/500</span>
                   </label>
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 xl:grid-cols-2">
                     <DiscordConnectionCard
                       profile={profile}
                       onConnect={() => void connectDiscord()}
@@ -2005,7 +2276,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                   <button
                     type="submit"
                     disabled={saving || !hasAnySaveChanges}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save size={17} />
                     {saving ? 'Saving' : 'Save Profile'}
@@ -2014,10 +2285,10 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
               ) : null}
 
               {activeTab === 'stats' ? (
-                <div className="mt-5 grid gap-3">
+                <div className="mt-5 grid min-w-0 gap-4">
                   <QuizGameStatsSection title="Ability Blitz" stats={detailedStats.abilityBlitz} />
                   <QuizGameStatsSection title="Skin Champion" stats={detailedStats.skinChampion} />
-                  <div className="grid gap-3 xl:grid-cols-2">
+                  <div className="grid min-w-0 gap-4 xl:grid-cols-2">
                     <SkindleStatsPanel stats={playerStats.find((entry) => entry.gameId === 'skindle') ?? loadPlayerGameStats('skindle')} />
                     <SkincognitoStatsPanel stats={detailedStats.skincognito} />
                   </div>
@@ -2025,69 +2296,81 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
               ) : null}
 
               {activeTab === 'achievements' ? (
-                <div className="mt-5 grid gap-4">
-                  <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/80 p-4 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center">
-                    <div className="relative">
-                      <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                      <input
-                        value={achievementSearchQuery}
-                        onChange={(event) => setAchievementSearchQuery(event.target.value)}
-                        placeholder="Search achievements"
-                        className="min-h-11 w-full rounded-2xl border border-white/10 bg-slate-900 px-10 text-sm text-white outline-none placeholder:text-slate-500"
-                      />
+                <div className="mt-5 grid min-w-0 gap-4">
+                  <div className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-500">Achievement progress</p>
+                        <h2 className="mt-1 text-lg font-black text-white">Your accomplishments</h2>
+                      </div>
+                      <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-100">
+                        {achievements.filter((achievement) => achievement.completedAt).length} completed
+                      </span>
                     </div>
-                    <select
-                      value={achievementSortKey}
-                      onChange={(event) => setAchievementSortKey(event.target.value as AchievementSortKey)}
-                      className="min-h-11 rounded-2xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-white outline-none"
-                    >
-                      <option value="completedAt">Date completed</option>
-                      <option value="globalRanking">Global ranking</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setAchievementSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))}
-                      className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:bg-slate-800"
-                    >
-                      {achievementSortDirection === 'asc' ? 'Ascending' : 'Descending'}
-                    </button>
-                    <div ref={achievementFiltersRef} className="relative">
+                    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,13rem)_auto_minmax(8rem,10rem)] lg:items-end">
+                      <div className="relative min-w-0">
+                        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                        <input
+                          value={achievementSearchQuery}
+                          onChange={(event) => setAchievementSearchQuery(event.target.value)}
+                          placeholder="Search achievements"
+                          className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-900 px-10 text-sm text-white outline-none placeholder:text-slate-500 focus:border-amber-300/60 focus:ring-1 focus:ring-amber-300/30"
+                        />
+                      </div>
+                      <AppSelectMenu
+                        label="Sort by"
+                        value={achievementSortKey}
+                        options={[
+                          { value: 'completedAt' as const, label: 'Date completed' },
+                          { value: 'globalRanking' as const, label: 'Global ranking' },
+                          { value: 'alphabetical' as const, label: 'Alphabetical' },
+                        ]}
+                        onChange={setAchievementSortKey}
+                        triggerClassName="h-12 min-h-12"
+                        menuClassName="min-w-[14rem] max-w-[calc(100vw-2rem)]"
+                      />
                       <button
                         type="button"
-                        onClick={() => setAchievementFiltersOpen((open) => !open)}
-                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:bg-slate-800"
+                        onClick={() => setAchievementSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))}
+                        className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:border-amber-300/40 hover:bg-slate-800"
                       >
-                        <Filter size={16} />
-                        Filter
+                        {achievementSortDirection === 'asc' ? 'Ascending' : 'Descending'}
                       </button>
-                      {achievementFiltersOpen ? (
-                        <div className="absolute right-0 top-12 z-30 grid w-[min(13rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] gap-2 rounded-2xl border border-white/10 bg-slate-950 p-3">
-                          {[
-                            ['general', 'General App'],
-                            ['skindle', 'Skindle'],
-                          ].map(([value, label]) => (
-                            <label key={value} className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-900">
-                              <span>{label}</span>
-                              <input
-                                type="checkbox"
-                                checked={achievementGameFilters.has(value)}
-                                onChange={(event) => {
-                                  setAchievementGameFilters((current) => {
-                                    const next = new Set(current);
-                                    if (event.target.checked) {
-                                      next.add(value);
-                                    } else {
-                                      next.delete(value);
-                                    }
-                                    return next;
-                                  });
-                                }}
-                                className="h-4 w-4 accent-amber-300"
-                              />
-                            </label>
-                          ))}
-                        </div>
-                      ) : null}
+                      <div ref={achievementFiltersRef} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setAchievementFiltersOpen((open) => !open)}
+                          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:border-amber-300/40 hover:bg-slate-800"
+                        >
+                          <Filter size={16} />
+                          Filter
+                        </button>
+                        {achievementFiltersOpen ? (
+                          <div className="absolute right-0 top-12 z-30 grid w-[min(13rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] gap-2 rounded-2xl border border-white/10 bg-slate-950 p-3">
+                            {ACHIEVEMENT_GAME_OPTIONS.map(({ value, label }) => (
+                              <label key={value} className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-900">
+                                <span>{label}</span>
+                                <input
+                                  type="checkbox"
+                                  checked={achievementGameFilters.has(value)}
+                                  onChange={(event) => {
+                                    setAchievementGameFilters((current) => {
+                                      const next = new Set(current);
+                                      if (event.target.checked) {
+                                        next.add(value);
+                                      } else {
+                                        next.delete(value);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className="h-4 w-4 accent-amber-300"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
 
@@ -2101,12 +2384,12 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                       No achievements match the current filters.
                     </div>
                   ) : (
-                    <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="grid min-w-0 gap-4 md:grid-cols-2">
                       {visibleAchievements.map((achievement) => {
                         const complete = Boolean(achievement.completedAt);
                         const progressPercent = Math.min(100, Math.round((achievement.progressCurrent / achievement.progressTarget) * 100));
                         return (
-                          <article key={achievement.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-4 rounded-2xl border p-3 ${complete ? 'border-emerald-300/35 bg-emerald-400/10' : 'border-white/10 bg-slate-950/80'}`}>
+                          <article key={achievement.id} className={`grid min-w-0 grid-cols-1 items-stretch gap-3 rounded-3xl border p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4 ${complete ? 'border-emerald-300/35 bg-emerald-400/10' : 'border-white/10 bg-slate-950/80'}`}>
                             <div className="min-w-0">
                               <div className="flex min-w-0 items-start gap-3">
                                 <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${complete ? 'border-emerald-300/40 bg-emerald-400/15 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400'}`}>
@@ -2122,7 +2405,7 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                                     ))}
                                   </div>
                                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
-                                    <span className="uppercase tracking-[0.14em]">{achievement.game === 'general' ? 'General App' : 'Skindle'}</span>
+                                    <span className="uppercase tracking-[0.14em]">{getAchievementGameLabel(achievement.game)}</span>
                                     <span>{formatAchievementDate(achievement.completedAt)}</span>
                                     {complete && achievement.topPercent ? <span>Top {achievement.topPercent}%</span> : null}
                                   </div>
@@ -2130,10 +2413,14 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                                 </div>
                               </div>
                             </div>
-                            <div className="flex w-12 shrink-0 self-stretch flex-col items-center justify-between gap-2">
-                              <div className="relative min-h-0 w-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                            <div className="flex w-full shrink-0 items-center gap-3 sm:w-12 sm:flex-col sm:items-center sm:justify-between sm:gap-2">
+                              <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-800 sm:h-auto sm:w-2 sm:flex-none sm:self-stretch">
                                 <div
-                                  className={`absolute bottom-0 left-0 w-full rounded-full ${complete ? 'bg-emerald-300' : 'bg-amber-300'}`}
+                                  className={`absolute bottom-0 left-0 h-full rounded-full sm:hidden ${complete ? 'bg-emerald-300' : 'bg-amber-300'}`}
+                                  style={{ width: `${progressPercent}%` }}
+                                />
+                                <div
+                                  className={`absolute bottom-0 left-0 hidden w-full rounded-full sm:block ${complete ? 'bg-emerald-300' : 'bg-amber-300'}`}
                                   style={{ height: `${progressPercent}%` }}
                                 />
                               </div>
@@ -2148,8 +2435,9 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
               ) : null}
 
               {activeTab === 'account' ? (
-                <div className="mt-6 grid gap-4">
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
+                <div className="mt-5 grid min-w-0 gap-4">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Email</p>
                       <button
@@ -2164,36 +2452,32 @@ export function ProfileScreen({ presentation = 'page', initialTab = 'profile', o
                     <p className="mt-2 break-all text-sm font-semibold text-slate-200">{accountInfoVisible ? email : 'Hidden'}</p>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
+                  <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">User ID</p>
                     <p className="mt-2 break-all font-mono text-sm text-slate-200">{accountInfoVisible ? userId : 'Hidden'}</p>
                   </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Friend Request Preferences</p>
-                    <form onSubmit={saveProfile} className="mt-3 grid gap-3">
-                      <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900 px-3 py-2">
-                        <span className="text-sm font-semibold text-slate-200">
-                          {friendRequestsOpen ? 'Open to friend requests' : 'Friend requests closed'}
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={friendRequestsOpen}
-                          onChange={(event) => setFriendRequestsOpen(event.target.checked)}
-                          className="h-5 w-5 accent-amber-300"
-                        />
-                      </label>
-                      <button
-                        type="submit"
-                        disabled={saving || !hasPreferenceChanges}
-                        className="inline-flex min-h-10 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {saving ? 'Saving' : 'Save Preference'}
-                      </button>
-                    </form>
                   </div>
 
-                  <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <ProfilePreferenceToggle
+                      label="Friend Request Preferences"
+                      valueLabel={friendRequestsOpen ? 'Open to friend requests' : 'Friend requests closed'}
+                      description="Allow other players to send you friend requests."
+                      checked={friendRequestsOpen}
+                      disabled={preferenceSaving.friendRequestsOpen}
+                      onToggle={() => updateProfilePreference('friendRequestsOpen', !friendRequestsOpen)}
+                    />
+                    <ProfilePreferenceToggle
+                      label="Profile Visibility"
+                      valueLabel={profileVisibility === 'public' ? 'Public profile' : 'Private profile'}
+                      description="Private profiles are hidden from visitors and can only be viewed by the owner."
+                      checked={profileVisibility === 'public'}
+                      disabled={preferenceSaving.profileVisibility}
+                      onToggle={() => updateProfilePreference('profileVisibility', profileVisibility === 'public' ? 'private' : 'public')}
+                    />
+                  </div>
+
+                  <div className="rounded-3xl border border-amber-300/20 bg-amber-300/10 p-4 sm:p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Temporary Admin Control</p>
                     <p className="mt-2 text-sm leading-6 text-slate-300">
                       Reset all achievements for this account. Gate this behind admin permissions when admin users are implemented.

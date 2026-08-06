@@ -8,6 +8,7 @@ import { sanitizeChatMessage } from '@/lib/chat-filter';
 import {
   addMultiplayerLobbyEvent,
   assertMultiplayerAccountAvailable,
+  assertMultiplayerAccountNotBanned,
   assertMultiplayerHost,
   assertSupabaseConfigured,
   generateMultiplayerLobbyCode,
@@ -818,6 +819,7 @@ async function reconcileLobby(lobby: SkincognitoLobbyRecord, initialPlayers?: Sk
 
 export async function createSkincognitoLobby(input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await assertMultiplayerAccountNotBanned(input.authUserId);
   await forfeitOutstandingReconnects(input.clientId);
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -849,6 +851,7 @@ export async function createSkincognitoLobby(input: CreateOrJoinInput) {
 }
 
 export async function joinSkincognitoLobby(code: string, input: CreateOrJoinInput) {
+  await assertMultiplayerAccountNotBanned(input.authUserId);
   const lobby = await fetchLobbyByCode(code);
   if (!lobby || lobby.status === 'terminated') {
     throw new Error('Lobby is not available.');
@@ -1243,6 +1246,10 @@ export async function startSkincognitoLobby(code: string, clientId: string) {
     throw new Error('Two connected active players are required.');
   }
 
+  const randomPlayerIds = activePlayers
+    .filter((player) => !player.selected_skin_id)
+    .map((player) => player.id);
+
   await Promise.all(
     activePlayers.map(async (player) => {
       if (player.selected_skin_id) {
@@ -1275,7 +1282,7 @@ export async function startSkincognitoLobby(code: string, clientId: string) {
     return_to_lobby_at: null,
   });
 
-  await addLobbyEvent(updatedLobby.id, 'game_started');
+  await addLobbyEvent(updatedLobby.id, 'game_started', { randomPlayerIds });
   return getLobbyView(updatedLobby, clientId);
 }
 

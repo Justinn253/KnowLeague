@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
-import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
+import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
 import { getUserAchievements } from '@/lib/achievements-server';
-import { getFriendRelationship } from '@/lib/friends';
+import { getFriendRelationshipDetails } from '@/lib/friends';
+import { isAdminAuthUser } from '@/lib/moderation';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { getIpRateLimit } from '@/lib/abuse-controls';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
@@ -16,6 +17,9 @@ type PublicProfileRow = {
   display_name: string;
   about_me: string;
   avatar_url: string | null;
+  chat_color: string | null;
+  chat_border: string | null;
+  profile_visibility: 'public' | 'private';
   friends_count: number;
   friend_requests_open: boolean;
   selected_title_reward_id?: string | null;
@@ -84,7 +88,12 @@ export async function GET(request: Request, { params }: { params: { username: st
     });
     if (rateLimitResponse) return rateLimitResponse;
 
-    const username = decodeURIComponent(params.username).trim();
+    let username = '';
+    try {
+      username = decodeURIComponent(params.username).trim();
+    } catch {
+      throw new Error('Profile not found.');
+    }
     if (!username) {
       throw new Error('Profile not found.');
     }
@@ -100,11 +109,31 @@ export async function GET(request: Request, { params }: { params: { username: st
       throw new Error('Profile not found.');
     }
 
-    const { data: profile, error } = await supabase
+    let { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, username, display_name, about_me, avatar_url, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+      .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, profile_visibility, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
       .eq('id', matchingProfile.id)
       .maybeSingle<PublicProfileRow>();
+
+    if (error && (isMissingColumnError(error, 'chat_color') || isMissingColumnError(error, 'chat_border'))) {
+      const fallback = await supabase
+        .from('profiles')
+        .select('id, username, display_name, about_me, avatar_url, profile_visibility, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .eq('id', matchingProfile.id)
+        .maybeSingle<Omit<PublicProfileRow, 'chat_color' | 'chat_border'>>();
+      profile = fallback.data ? { ...fallback.data, chat_color: 'amber', chat_border: 'black' } : null;
+      error = fallback.error;
+    }
+
+    if (error && isMissingColumnError(error, 'profile_visibility')) {
+      const fallback = await supabase
+        .from('profiles')
+        .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .eq('id', matchingProfile.id)
+        .maybeSingle<Omit<PublicProfileRow, 'profile_visibility'>>();
+      profile = fallback.data ? { ...fallback.data, profile_visibility: 'public' } : null;
+      error = fallback.error;
+    }
 
     if (error) {
       throw error;
@@ -113,15 +142,28 @@ export async function GET(request: Request, { params }: { params: { username: st
       throw new Error('Profile not found.');
     }
 
-    const [privateDetails, relationship, achievements] = await Promise.all([
+    const viewerUser = await getOptionalAuthenticatedUser(request);
+    const viewerId = viewerUser?.id ?? null;
+    const viewerIsAdmin = isAdminAuthUser(viewerUser);
+    if (profile.profile_visibility === 'private' && viewerId !== profile.id && !viewerIsAdmin) {
+      throw new Error('Profile not found.');
+    }
+
+    const [privateDetails, relationshipDetails, achievements, moderationProfile] = await Promise.all([
       fetchPrivateDetails(profile.id),
-      getOptionalAuthenticatedUserId(request).then((viewerId) => (
-        viewerId ? getFriendRelationship(viewerId, profile.id) : 'none'
-      )),
+      viewerId ? getFriendRelationshipDetails(viewerId, profile.id) : { relationship: 'none' as const, friendNote: '', blocked: false },
       getUserAchievements(profile.id, { includeGlobalStats: false }),
+      viewerIsAdmin
+        ? supabase.from('profiles').select('is_banned').eq('id', profile.id).maybeSingle<{ is_banned: boolean | null }>()
+        : Promise.resolve({ data: null, error: null }),
     ]);
+    if (moderationProfile.error) throw moderationProfile.error;
 
     return NextResponse.json({
+      viewer: {
+        isOwner: viewerId === profile.id,
+        isAdmin: viewerIsAdmin,
+      },
       profile: {
         ...profile,
         discord_username: privateDetails?.discord_username ?? null,
@@ -131,7 +173,10 @@ export async function GET(request: Request, { params }: { params: { username: st
         selected_title_reward_id: profile.selected_title_reward_id ?? null,
         displayed_badge_reward_ids: profile.displayed_badge_reward_ids ?? [],
         achievements,
-        relationship,
+        relationship: relationshipDetails.relationship,
+        friend_note: relationshipDetails.friendNote,
+        blocked: relationshipDetails.blocked,
+        ...(viewerIsAdmin ? { is_banned: Boolean(moderationProfile.data?.is_banned) } : {}),
       },
     });
   } catch (error) {

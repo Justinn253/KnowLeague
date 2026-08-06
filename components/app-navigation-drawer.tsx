@@ -7,6 +7,7 @@ import { ArrowRight, BarChart3, Menu, Package, UserCircle, Users, X } from 'luci
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { GAME_NAVIGATION_ITEMS } from '@/lib/game-navigation';
+import { shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import type { AppRole } from '@/lib/moderation';
 
 const ModerationWidget = dynamic(
@@ -21,7 +22,6 @@ type AppNavigationDrawerProps = {
   profileAvatarUrl: string | null;
   pendingFriendRequests: number;
   moderationRole: Extract<AppRole, 'moderator' | 'admin'> | null;
-  onOpenProfile: () => void;
 };
 
 const gameAccentClasses = {
@@ -48,7 +48,6 @@ export function AppNavigationDrawer({
   profileAvatarUrl,
   pendingFriendRequests,
   moderationRole,
-  onOpenProfile,
 }: AppNavigationDrawerProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -180,14 +179,7 @@ export function AppNavigationDrawer({
 
             <div className="flex items-center gap-2 border-t border-white/10 p-4 sm:p-5">
               {isLoggedIn ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeDrawer();
-                    onOpenProfile();
-                  }}
-                  className={`${menuItemClass} min-w-0 flex-1`}
-                >
+                <Link href={profileHref} target={shouldOpenProfileInNewTab() ? '_blank' : undefined} rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined} onClick={closeDrawer} className={`${menuItemClass} min-w-0 flex-1`}>
                   {profileAvatarUrl ? (
                     <span
                       className="inline-flex h-9 w-9 shrink-0 rounded-xl border border-white/10 bg-slate-900 bg-cover bg-center"
@@ -204,9 +196,9 @@ export function AppNavigationDrawer({
                       {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
                     </span>
                   ) : null}
-                </button>
+                </Link>
               ) : (
-                <Link href={profileHref} onClick={closeDrawer} className={`${menuItemClass} min-w-0 flex-1`}>
+                <Link href={profileHref} target={shouldOpenProfileInNewTab() ? '_blank' : undefined} rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined} onClick={closeDrawer} className={`${menuItemClass} min-w-0 flex-1`}>
                   <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200">
                     <UserCircle size={18} />
                   </span>

@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeftRight, Clock3, Hash, Info, LoaderCircle, Trophy, UserPlus, UserRound, X } from 'lucide-react';
+import Link from 'next/link';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import type { SplashScrambleLeaderboardEntry, SplashScrambleLeaderboardSnapshot } from '@/lib/splash-scramble-leaderboard';
 
 type SplashScrambleDailyLeaderboardProps = {
@@ -27,10 +29,6 @@ function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
-
-function openPublicProfileOverlay(username: string) {
-  window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
 }
 
 export function SplashScrambleDailyLeaderboard({ open, onClose, snapshot, loading, error, currentUserId, friendIds }: SplashScrambleDailyLeaderboardProps) {
@@ -207,7 +205,7 @@ export function SplashScrambleDailyLeaderboard({ open, onClose, snapshot, loadin
 
       {contextMenu ? createPortal(
         <div ref={contextMenuRef} onPointerDown={(event) => event.stopPropagation()} className="fixed z-[110] max-h-[calc(100dvh-1rem)] w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2" style={{ left: contextMenu.x, top: contextMenu.y }}>
-          <button type="button" onClick={() => { setContextMenu(null); onClose(); window.setTimeout(() => openPublicProfileOverlay(contextMenu.entry.username), 0); }} className="flex min-h-11 w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</button>
+          <Link href={getPublicProfileHref(contextMenu.entry.username)} target={shouldOpenProfileInNewTab() ? '_blank' : undefined} rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined} onClick={() => { setContextMenu(null); onClose(); }} className="flex min-h-11 w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900">View Profile</Link>
           {contextMenu.entry.userId !== currentUserId ? (
             <button type="button" onClick={() => void sendFriendRequest(contextMenu.entry)} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10">
               <UserPlus size={15} />

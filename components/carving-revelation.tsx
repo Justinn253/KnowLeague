@@ -33,6 +33,7 @@ import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevela
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
+import { submitAchievementEvent } from '@/lib/achievement-client';
 import {
   canActivateCarvingRevelationPowerUp,
   CARVING_REVELATION_POWER_UP_DEFINITIONS,
@@ -1589,6 +1590,9 @@ export function CarvingRevelation() {
 
     finishSoundLobbyIdRef.current = view.lobby.id;
     playUiSound(view.requestingPlayer?.result === 'won' ? 'puzzle-complete' : 'timer-expired');
+    if (view.requestingPlayer) {
+      void submitAchievementEvent('developer_moment', { gameId: 'carving-revelation', lobbyCode: view.lobby.code });
+    }
   }, [view]);
 
   useEffect(() => {
@@ -1899,6 +1903,7 @@ export function CarvingRevelation() {
         body: JSON.stringify({ clientId, guess: guessValue }),
       });
       applyActionResponse(await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response));
+      void submitAchievementEvent('carving_revelation_correct_guess', { lobbyCode: view.lobby.code });
       setGuess('');
       setSuggestions([]);
     } catch (error) {
@@ -1933,6 +1938,10 @@ export function CarvingRevelation() {
         body: JSON.stringify({ clientId, points }),
       });
       applyActionResponse(await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response));
+      const lobbyCode = view.lobby.code;
+      void submitAchievementEvent('carving_revelation_max_line', { lobbyCode });
+      void submitAchievementEvent('carving_revelation_power_up_claimed', { lobbyCode });
+      void submitAchievementEvent('carving_revelation_power_up_conflict', { lobbyCode });
       setConfirmedCarvePath(points);
       setDraftPath([]);
       setIsDrawing(false);
@@ -1956,6 +1965,7 @@ export function CarvingRevelation() {
         body: JSON.stringify({ clientId, powerUpId }),
       });
       applyView(await readLobbyResponse(response));
+      void submitAchievementEvent('carving_revelation_power_up_used', { lobbyCode: view.lobby.code });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to use power up.');
     } finally {

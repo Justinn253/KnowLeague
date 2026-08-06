@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Check, Crown, Flame, Play, RefreshCw, Sparkles, Trophy, UserPlus, Users, X, XCircle, Zap } from 'lucide-react';
+import Link from 'next/link';
 import { DifficultyLabel } from '@/components/difficulty-style';
 import { formatSeconds } from '@/lib/quiz';
+import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import {
   CHAOS_DIFFICULTY,
@@ -32,10 +34,6 @@ type SoloQuizPrematchProps = {
   onModeSelect: (mode: SoloQuizMode) => void;
   onPlay: () => void;
 };
-
-function openProfile(username: string) {
-  window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
-}
 
 function modeIcon(mode: SoloQuizMode) {
   if (mode === 'daily') return <Trophy size={18} />;
@@ -346,14 +344,15 @@ export function SoloQuizPrematch({
                 }`}>
                   <span className="text-2xl">{index + 1}</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => openProfile(entry.username)}
+                <Link
+                  href={getPublicProfileHref(entry.username)}
+                  target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+                  rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
                   className="min-w-0 text-left"
                 >
                   <span className="block truncate text-sm font-bold text-white transition hover:text-amber-200">{entry.displayName}</span>
                   <span className="mt-1 block truncate text-xs text-slate-500">@{entry.username}</span>
-                </button>
+                </Link>
                 <span className="text-right">
                   {progressLeaderboard ? (
                     <>

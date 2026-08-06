@@ -14,6 +14,7 @@ const MAX_RECORDED_MATCH_IDS = 250;
 const MAX_SKIN_GUESS_STATS = 50;
 export const STREAK_GAME_IDS: StreakGameId[] = ['skindle', 'splash-scramble', 'ability-blitz', 'skin-champion'];
 export const PLAYER_GAME_STATS_CHANGED_EVENT = 'knowleague:player-game-stats-changed';
+export const DETAILED_GAME_STATS_CHANGED_EVENT = 'knowleague:detailed-game-stats-changed';
 export const MASTERY_MASTER_STATS_CHANGED_EVENT = 'knowleague:mastery-master-stats-changed';
 
 export type PlayerGuessStat = {
@@ -442,7 +443,7 @@ function createEmptySkincognitoStats(): SkincognitoDetailedStats {
   };
 }
 
-function createEmptyDetailedStats(): DetailedGameStats {
+export function createEmptyDetailedStats(): DetailedGameStats {
   return {
     abilityBlitz: {
       solo: createEmptyQuizModeStats(),
@@ -473,7 +474,7 @@ function normalizeSkincognitoStats(stats?: Partial<SkincognitoDetailedStats>): S
   };
 }
 
-function normalizeDetailedStats(stats?: Partial<DetailedGameStats>): DetailedGameStats {
+export function normalizeDetailedGameStats(stats?: Partial<DetailedGameStats> | null): DetailedGameStats {
   return {
     abilityBlitz: {
       solo: normalizeQuizModeStats(stats?.abilityBlitz?.solo),
@@ -485,6 +486,60 @@ function normalizeDetailedStats(stats?: Partial<DetailedGameStats>): DetailedGam
     },
     skincognito: normalizeSkincognitoStats(stats?.skincognito),
   };
+}
+
+function mergeQuizModeStats(left: QuizModeStats, right: QuizModeStats): QuizModeStats {
+  return {
+    totalPlayed: Math.max(left.totalPlayed, right.totalPlayed),
+    matchesPlayed: Math.max(left.matchesPlayed, right.matchesPlayed),
+    matchesWon: Math.max(left.matchesWon, right.matchesWon),
+    matchesLost: Math.max(left.matchesLost, right.matchesLost),
+    currentStreak: Math.max(left.currentStreak, right.currentStreak),
+    bestStreak: Math.max(left.bestStreak, right.bestStreak),
+    totalGuesses: Math.max(left.totalGuesses, right.totalGuesses),
+    correctGuesses: Math.max(left.correctGuesses, right.correctGuesses),
+    totalElapsedSeconds: Math.max(left.totalElapsedSeconds, right.totalElapsedSeconds),
+    completedItems: Math.max(left.completedItems, right.completedItems),
+    recordedMatchIds: [...new Set([...left.recordedMatchIds, ...right.recordedMatchIds])].slice(-MAX_RECORDED_MATCH_IDS),
+  };
+}
+
+function mergeSkincognitoStats(left: SkincognitoDetailedStats, right: SkincognitoDetailedStats): SkincognitoDetailedStats {
+  const guessedSkinStats = { ...left.guessedSkinStats };
+  Object.entries(right.guessedSkinStats).forEach(([key, value]) => {
+    if (!guessedSkinStats[key] || value.count > guessedSkinStats[key].count) {
+      guessedSkinStats[key] = value;
+    }
+  });
+  return {
+    totalPlayed: Math.max(left.totalPlayed, right.totalPlayed),
+    totalWins: Math.max(left.totalWins, right.totalWins),
+    totalLosses: Math.max(left.totalLosses, right.totalLosses),
+    currentStreak: Math.max(left.currentStreak, right.currentStreak),
+    bestStreak: Math.max(left.bestStreak, right.bestStreak),
+    totalGuesses: Math.max(left.totalGuesses, right.totalGuesses),
+    correctGuesses: Math.max(left.correctGuesses, right.correctGuesses),
+    totalVictoryTurns: Math.max(left.totalVictoryTurns, right.totalVictoryTurns),
+    victoriesWithTurnCount: Math.max(left.victoriesWithTurnCount, right.victoriesWithTurnCount),
+    guessedSkinStats,
+    recordedMatchIds: [...new Set([...left.recordedMatchIds, ...right.recordedMatchIds])].slice(-MAX_RECORDED_MATCH_IDS),
+  };
+}
+
+export function mergeDetailedGameStats(left?: Partial<DetailedGameStats> | null, right?: Partial<DetailedGameStats> | null) {
+  const leftStats = normalizeDetailedGameStats(left);
+  const rightStats = normalizeDetailedGameStats(right);
+  return {
+    abilityBlitz: {
+      solo: mergeQuizModeStats(leftStats.abilityBlitz.solo, rightStats.abilityBlitz.solo),
+      multiplayer: mergeQuizModeStats(leftStats.abilityBlitz.multiplayer, rightStats.abilityBlitz.multiplayer),
+    },
+    skinChampion: {
+      solo: mergeQuizModeStats(leftStats.skinChampion.solo, rightStats.skinChampion.solo),
+      multiplayer: mergeQuizModeStats(leftStats.skinChampion.multiplayer, rightStats.skinChampion.multiplayer),
+    },
+    skincognito: mergeSkincognitoStats(leftStats.skincognito, rightStats.skincognito),
+  } satisfies DetailedGameStats;
 }
 
 function applyQuizGameStats(allStats: DetailedGameStats, input: QuizStatsInput) {
@@ -582,20 +637,21 @@ export function loadDetailedGameStats() {
 
   try {
     const rawStats = window.localStorage.getItem(DETAILED_STATS_KEY);
-    return applyExpiredPendingQuizStats(normalizeDetailedStats(rawStats ? JSON.parse(rawStats) as Partial<DetailedGameStats> : undefined));
+    return applyExpiredPendingQuizStats(normalizeDetailedGameStats(rawStats ? JSON.parse(rawStats) as Partial<DetailedGameStats> : undefined));
   } catch (error) {
     console.warn('Unable to load detailed game stats.', error);
     return createEmptyDetailedStats();
   }
 }
 
-function saveDetailedGameStats(stats: DetailedGameStats) {
+export function saveDetailedGameStats(stats: DetailedGameStats) {
   if (!isStorageAvailable()) {
     return;
   }
 
   try {
     window.localStorage.setItem(DETAILED_STATS_KEY, JSON.stringify(stats));
+    window.dispatchEvent(new CustomEvent(DETAILED_GAME_STATS_CHANGED_EVENT, { detail: stats }));
   } catch (error) {
     console.warn('Unable to save detailed game stats.', error);
   }

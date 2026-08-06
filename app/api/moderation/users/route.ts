@@ -21,6 +21,7 @@ type UserActionBody = {
   targetUserId: string;
   action: 'message' | 'logout' | 'ban' | 'unban';
   message?: string;
+  reason?: string;
 };
 
 export const runtime = 'nodejs';
@@ -67,9 +68,9 @@ export async function POST(request: Request) {
     } else if (body.action === 'logout') {
       await forceUserLogout(targetUserId);
     } else if (body.action === 'ban') {
-      await setUserBanState(targetUserId, true);
+      await setUserBanState(targetUserId, true, user.id, body.reason?.trim() || 'Moderation action');
     } else if (body.action === 'unban') {
-      await setUserBanState(targetUserId, false);
+      await setUserBanState(targetUserId, false, user.id, body.reason?.trim() || 'Moderation action');
     } else {
       throw new Error('Invalid moderation action.');
     }

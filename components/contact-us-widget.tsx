@@ -5,6 +5,7 @@ import { MessageSquare, Send, X } from 'lucide-react';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { ContactSubmissionCategory } from '@/lib/contact';
+import { OPEN_CONTACT_REPORT_EVENT } from '@/lib/contact-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const CONTACT_MESSAGE_MAX_LENGTH = 2000;
@@ -28,6 +29,28 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const reportedUsernameInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const openReportForm = (event: Event) => {
+      const username = (event as CustomEvent<{ username?: string }>).detail?.username?.trim() ?? '';
+      setCategory('player_report');
+      setReportedUsername(username.slice(0, 100));
+      setMessage('');
+      setStatus('idle');
+      setErrorMessage('');
+      setIsOpen(true);
+    };
+
+    window.addEventListener(OPEN_CONTACT_REPORT_EVENT, openReportForm);
+    return () => window.removeEventListener(OPEN_CONTACT_REPORT_EVENT, openReportForm);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && category === 'player_report') {
+      reportedUsernameInputRef.current?.focus();
+    }
+  }, [category, isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -122,8 +145,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
         >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Contact Us</p>
-              <h2 className="mt-1 text-lg font-bold text-white">Send feedback</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Help Center</p>
             </div>
             <button
               type="button"
@@ -162,8 +184,9 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
 
             {category === 'player_report' ? (
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Reported Username</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Username</span>
                 <input
+                  ref={reportedUsernameInputRef}
                   value={reportedUsername}
                   onChange={(event) => setReportedUsername(event.target.value.slice(0, 100))}
                   placeholder="Enter username"
@@ -221,8 +244,8 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
             playUiSound('autocomplete-select');
             setIsOpen((value) => !value);
           }}
-          aria-label="Contact"
-          title="Contact"
+          aria-label="Help Center"
+          title="Help Center"
           className={variant === 'drawer'
             ? 'flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
             : variant === 'header-icon'
@@ -234,7 +257,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
               <MessageSquare size={18} />
             </span>
           ) : <MessageSquare size={18} />}
-          {variant !== 'header-icon' ? 'Contact' : null}
+          {variant !== 'header-icon' ? 'Help Center' : null}
       </button>
     </div>
   );

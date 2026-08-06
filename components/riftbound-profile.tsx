@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Check, GripVertical, LoaderCircle, Minus, PackageOpen, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, Star, X } from 'lucide-react';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import {
@@ -27,6 +28,7 @@ import {
   type RiftboundSortMode,
 } from '@/components/riftbound-card-grid';
 import { RiftboundCommunityPostCard } from '@/components/riftbound-community-post-card';
+import { navigateToPublicProfile } from '@/lib/profile-navigation';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
@@ -204,6 +206,7 @@ function ProfileSourceCard(props: ProfileSourceCardProps) {
 }
 
 export function RiftboundProfile({ username }: { username?: string }) {
+  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<RiftboundProfileData | null>(null);
   const [tierRatings, setTierRatings] = useState<Record<string, RiftboundCardTierRating>>({});
@@ -489,8 +492,8 @@ export function RiftboundProfile({ username }: { username?: string }) {
   };
 
   const openKnowLeagueProfile = () => {
-    if (typeof window !== 'undefined' && profile) {
-      window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username: profile.profile.username } }));
+    if (profile) {
+      navigateToPublicProfile(profile.profile.username, (href) => router.push(href));
     }
   };
 

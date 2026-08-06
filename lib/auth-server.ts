@@ -22,6 +22,11 @@ export async function getAuthenticatedUserId(request: Request) {
 }
 
 export async function getOptionalAuthenticatedUserId(request: Request) {
+  const user = await getOptionalAuthenticatedUser(request);
+  return user?.id ?? null;
+}
+
+export async function getOptionalAuthenticatedUser(request: Request) {
   const authHeader = request.headers.get('authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
   if (!token) return null;
@@ -30,5 +35,5 @@ export async function getOptionalAuthenticatedUserId(request: Request) {
   if (error || !data.user) {
     throw new Error('Authentication is required.');
   }
-  return data.user.id;
+  return data.user;
 }

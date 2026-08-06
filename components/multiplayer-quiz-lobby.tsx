@@ -332,6 +332,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
     }
   }, [lobbyId, serverLobbyDescription]);
 
+
   useEffect(() => {
     const disconnectOnPageExit = () => {
       const activeLobby = latestLobbyRef.current;

@@ -1,4 +1,5 @@
 import { getMultiplayerGuestDisplayName, MULTIPLAYER_STALE_AFTER_MS } from '@/lib/multiplayer-lifecycle';
+import { assertAccountNotBanned } from '@/lib/account-status';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const MULTIPLAYER_LOBBY_CODE_LENGTH = 6;
@@ -82,6 +83,12 @@ export function assertMultiplayerAccountAvailable(
 ) {
   if (authUserId && members.some((member) => member.auth_user_id === authUserId && member.client_id !== clientId)) {
     throw new Error('This account is already present in the lobby.');
+  }
+}
+
+export async function assertMultiplayerAccountNotBanned(authUserId?: string | null) {
+  if (authUserId) {
+    await assertAccountNotBanned(authUserId);
   }
 }
 

@@ -3,10 +3,15 @@
 import { useEffect, useRef } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
+  createEmptyPlayerStats,
+  DETAILED_GAME_STATS_CHANGED_EVENT,
   loadPlayerGameStats,
+  loadDetailedGameStats,
+  mergeDetailedGameStats,
   mergePlayerGameStats,
   PLAYER_GAME_STATS_CHANGED_EVENT,
   savePlayerGameStats,
+  saveDetailedGameStats,
   STREAK_GAME_IDS,
   type PlayerGameStats,
   type PlayerGameStatsByGame,
@@ -30,7 +35,7 @@ export function PlayerGameStatsSync() {
   const saveTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const saveAccountStats = (stats: PlayerGameStatsByGame) => {
+    const saveAccountStats = (stats: PlayerGameStatsByGame, detailedStats = loadDetailedGameStats()) => {
       const token = sessionRef.current?.access_token;
       if (!token || hydratingRef.current) {
         return;
@@ -48,7 +53,7 @@ export function PlayerGameStatsSync() {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ stats }),
+          body: JSON.stringify({ stats, detailedStats }),
         }).catch(() => undefined);
       }, 250);
     };
@@ -62,10 +67,25 @@ export function PlayerGameStatsSync() {
       try {
         const data = await getProfileBootstrap(session);
         const serverStats = data.playerGameStats;
+        const serverDetailedStats = data.detailedGameStats;
+        const localDetailedStats = loadDetailedGameStats();
         const mergedStats = Object.fromEntries(STREAK_GAME_IDS.map((gameId) => [
           gameId,
-          mergePlayerGameStats(gameId, loadPlayerGameStats(gameId), serverStats[gameId]),
+          data.playerGameStatsResetAt?.[gameId]
+            ? (serverStats[gameId] ?? createEmptyPlayerStats(gameId))
+            : mergePlayerGameStats(gameId, loadPlayerGameStats(gameId), serverStats[gameId]),
         ])) as PlayerGameStatsByGame;
+        const mergedDetailedStats = mergeDetailedGameStats(localDetailedStats, serverDetailedStats);
+        const detailedResetAt = data.detailedGameStatsResetAt ?? {};
+        if (detailedResetAt['ability-blitz']) {
+          mergedDetailedStats.abilityBlitz = serverDetailedStats.abilityBlitz;
+        }
+        if (detailedResetAt['skin-champion']) {
+          mergedDetailedStats.skinChampion = serverDetailedStats.skinChampion;
+        }
+        if (detailedResetAt.skincognito) {
+          mergedDetailedStats.skincognito = serverDetailedStats.skincognito;
+        }
 
         hydratingRef.current = true;
         STREAK_GAME_IDS.forEach((gameId) => {
@@ -74,9 +94,13 @@ export function PlayerGameStatsSync() {
             savePlayerGameStats(stats);
           }
         });
+        saveDetailedGameStats(mergedDetailedStats);
         hydratingRef.current = false;
-        if (serializeStatsByGame(mergedStats) !== serializeStatsByGame(serverStats)) {
-          saveAccountStats(mergedStats);
+        if (
+          serializeStatsByGame(mergedStats) !== serializeStatsByGame(serverStats)
+          || JSON.stringify(mergedDetailedStats) !== JSON.stringify(serverDetailedStats)
+        ) {
+          saveAccountStats(mergedStats, mergedDetailedStats);
         }
       } catch {
         hydratingRef.current = false;
@@ -102,11 +126,19 @@ export function PlayerGameStatsSync() {
       saveAccountStats({ [detail.gameId]: detail.stats });
     };
 
+    const handleDetailedStatsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (hydratingRef.current || !detail || typeof detail !== 'object') return;
+      saveAccountStats(getLocalStatsByGame(), detail as Parameters<typeof saveDetailedGameStats>[0]);
+    };
+
     window.addEventListener(PLAYER_GAME_STATS_CHANGED_EVENT, handleStatsChanged);
+    window.addEventListener(DETAILED_GAME_STATS_CHANGED_EVENT, handleDetailedStatsChanged);
 
     return () => {
       unsubscribeFromAuthSession();
       window.removeEventListener(PLAYER_GAME_STATS_CHANGED_EVENT, handleStatsChanged);
+      window.removeEventListener(DETAILED_GAME_STATS_CHANGED_EVENT, handleDetailedStatsChanged);
       if (saveTimeoutRef.current) {
         window.clearTimeout(saveTimeoutRef.current);
       }

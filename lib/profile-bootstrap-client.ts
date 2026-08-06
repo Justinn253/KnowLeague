@@ -2,7 +2,7 @@
 
 import type { Session } from '@supabase/supabase-js';
 import type { AppRole } from '@/lib/moderation';
-import type { PlayerGameStatsByGame } from '@/lib/game-storage';
+import type { DetailedGameStats, PlayerGameStatsByGame } from '@/lib/game-storage';
 import { getSessionScopedRequest } from '@/lib/auth-session-client';
 import type { UiSoundSettings } from '@/lib/ui-sounds';
 
@@ -10,6 +10,9 @@ export type ProfileBootstrapResponse = {
   role: AppRole;
   soundSettings: UiSoundSettings | null;
   playerGameStats: PlayerGameStatsByGame;
+  playerGameStatsResetAt: Record<string, string>;
+  detailedGameStats: DetailedGameStats;
+  detailedGameStatsResetAt: Record<string, string>;
 };
 
 export function getProfileBootstrap(session: Session, options: { force?: boolean } = {}) {

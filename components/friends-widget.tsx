@@ -2,10 +2,13 @@
 
 import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, ExternalLink, Loader2, Pencil, Save, Search, Send, Star, StickyNote, Users, X } from 'lucide-react';
+import Link from 'next/link';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-ui';
+import { OPEN_FRIEND_MESSAGES_EVENT } from '@/lib/friends-navigation';
+import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
 
@@ -81,10 +84,6 @@ function mergeFriendMessages(serverMessages: FriendMessage[], cachedMessages: Fr
   ];
 
   return mergedMessages.sort(sortFriendMessages);
-}
-
-function openPublicProfileOverlay(username: string) {
-  window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
 }
 
 type MultiplayerInvite = {
@@ -405,6 +404,45 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       refreshTimeoutRef.current = null;
       void refreshDashboard();
     }, 150);
+  }, [refreshDashboard]);
+
+  useEffect(() => {
+    const openFriendMessages = (event: Event) => {
+      const friendId = (event as CustomEvent<{ friendId?: string }>).detail?.friendId;
+      if (!friendId) {
+        return;
+      }
+
+      const activateFriend = (friend: FriendSummary) => {
+        shouldStickToBottomRef.current = true;
+        setIsOpen(true);
+        setAddFriendOpen(false);
+        setAddFriendUsername('');
+        setContextFriend(null);
+        setSnapshotExpanded(false);
+        setSnapshotAboutExpanded(false);
+        setFriendNoteEditing(false);
+        setActiveFriend(friend);
+      };
+
+      const currentFriend = dashboardRef.current?.friends.find((friend) => friend.id === friendId);
+      if (currentFriend) {
+        activateFriend(currentFriend);
+        return;
+      }
+
+      void refreshDashboard().then(() => {
+        const refreshedFriend = dashboardRef.current?.friends.find((friend) => friend.id === friendId);
+        if (refreshedFriend) {
+          activateFriend(refreshedFriend);
+        } else {
+          setStatus('This friend is no longer available.');
+        }
+      });
+    };
+
+    window.addEventListener(OPEN_FRIEND_MESSAGES_EVENT, openFriendMessages);
+    return () => window.removeEventListener(OPEN_FRIEND_MESSAGES_EVENT, openFriendMessages);
   }, [refreshDashboard]);
 
   const scheduleMessageRead = useCallback((friendId: string) => {
@@ -730,9 +768,6 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (target.closest('[data-profile-overlay="true"]')) {
-        return;
-      }
       if (target.closest('[data-friends-trigger="true"]')) {
         return;
       }
@@ -1176,17 +1211,23 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                           </div>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => openPublicProfileOverlay(activeFriendView.username)}
+                      <Link
+                        href={getPublicProfileHref(activeFriendView.username)}
+                        target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+                        rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
                         aria-label="View full profile"
+                        onClick={() => {
+                          setIsOpen(false);
+                          setActiveFriend(null);
+                          setContextFriend(null);
+                        }}
                         className="group relative inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
                       >
                         <ExternalLink size={15} />
                         <span className="pointer-events-none absolute right-0 top-full z-20 mt-1 hidden whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200  group-hover:block">
                           Go to profile
                         </span>
-                      </button>
+                      </Link>
                     </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-3">
                       <div className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 sm:col-span-3">
@@ -1506,16 +1547,19 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
               className="fixed z-[70] max-h-[calc(100dvh-1rem)] w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2"
               style={{ left: contextFriend.x, top: contextFriend.y }}
             >
-              <button
-                type="button"
+              <Link
+                href={getPublicProfileHref(contextFriend.friend.username)}
+                target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+                rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
                 onClick={() => {
-                  openPublicProfileOverlay(contextFriend.friend.username);
+                  setIsOpen(false);
+                  setActiveFriend(null);
                   setContextFriend(null);
                 }}
                 className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
               >
                 View Profile
-              </button>
+              </Link>
               <button
                 type="button"
                 onClick={() => toggleFavoriteFriend(contextFriend.friend)}

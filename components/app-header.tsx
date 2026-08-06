@@ -26,6 +26,7 @@ import { DiscordMark } from '@/components/discord-mark';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { GAME_NAVIGATION_ITEMS, type Accent, type GameMode } from '@/lib/game-navigation';
 import type { AppRole } from '@/lib/moderation';
+import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const ModerationWidget = dynamic(
@@ -40,9 +41,9 @@ const FriendsWidget = dynamic(
 type AppHeaderProps = {
   isLoggedIn: boolean;
   profileAvatarUrl: string | null;
+  profileUsername: string | null;
   pendingFriendRequests: number;
   moderationRole: Extract<AppRole, 'moderator' | 'admin'> | null;
-  onOpenProfile: () => void;
   onPendingFriendRequestsChange: (count: number) => void;
   onLogOut: () => void;
 };
@@ -271,24 +272,23 @@ function LogoutControl({ onLogOut, mobile = false }: { onLogOut: () => void; mob
 
 function ProfileAction({
   profileAvatarUrl,
+  profileUsername,
   pendingFriendRequests,
-  onOpenProfile,
   mobile = false,
 }: {
   profileAvatarUrl: string | null;
+  profileUsername: string | null;
   pendingFriendRequests: number;
-  onOpenProfile: () => void;
   mobile?: boolean;
 }) {
   return (
-    <button
-      type="button"
+    <Link
+      href={profileUsername ? getPublicProfileHref(profileUsername) : '/profile'}
+      target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+      rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
-      onClick={() => {
-        playUiSound('autocomplete-select');
-        onOpenProfile();
-      }}
+      onClick={() => playUiSound('autocomplete-select')}
       aria-label="Open profile"
       title="Profile"
       className={mobile
@@ -304,7 +304,7 @@ function ProfileAction({
           {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
         </span>
       ) : null}
-    </button>
+    </Link>
   );
 }
 
@@ -769,9 +769,9 @@ function MobileHeaderMenu({
 export function AppHeader({
   isLoggedIn,
   profileAvatarUrl,
+  profileUsername,
   pendingFriendRequests,
   moderationRole,
-  onOpenProfile,
   onPendingFriendRequestsChange,
   onLogOut,
 }: AppHeaderProps) {
@@ -835,7 +835,7 @@ export function AppHeader({
           ) : null}
           <div className="flex items-center gap-1 xl:gap-2">
             {isLoggedIn
-              ? <ProfileAction profileAvatarUrl={profileAvatarUrl} pendingFriendRequests={pendingFriendRequests} onOpenProfile={onOpenProfile} />
+              ? <ProfileAction profileAvatarUrl={profileAvatarUrl} profileUsername={profileUsername} pendingFriendRequests={pendingFriendRequests} />
               : <LoginAction />}
             {isLoggedIn ? <LogoutControl onLogOut={onLogOut} /> : null}
           </div>

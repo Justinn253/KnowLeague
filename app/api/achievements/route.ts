@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getUserAchievements, recordAchievementEvent, resetUserAchievements } from '@/lib/achievements-server';
-import type { AchievementEventName } from '@/lib/achievements';
+import { isAchievementEventName } from '@/lib/achievements';
 
 export const runtime = 'nodejs';
 
@@ -20,13 +20,13 @@ export async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<{ event?: unknown; metadata?: unknown }>(request);
-    if (typeof body.event !== 'string') {
+    if (!isAchievementEventName(body.event)) {
       throw new Error('Achievement event is required.');
     }
     const metadata = body.metadata && typeof body.metadata === 'object'
       ? body.metadata as Record<string, unknown>
       : undefined;
-    const result = await recordAchievementEvent(userId, body.event as AchievementEventName, metadata);
+    const result = await recordAchievementEvent(userId, body.event, metadata);
     return NextResponse.json(result);
   } catch (error) {
     return getRouteErrorResponse(error);

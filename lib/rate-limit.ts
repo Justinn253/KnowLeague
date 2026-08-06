@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
@@ -40,7 +39,8 @@ const limiters = new Map<string, Ratelimit>();
 const rateLimitKeySalt = process.env.RATE_LIMIT_KEY_SALT ?? '';
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
-const requireSharedRateLimit = process.env.RATE_LIMIT_REQUIRE_SHARED === 'true';
+const requireSharedRateLimit = process.env.RATE_LIMIT_REQUIRE_SHARED === 'true'
+  || (process.env.NODE_ENV === 'production' && process.env.RATE_LIMIT_REQUIRE_SHARED !== 'false');
 const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
 
 function cleanupExpiredBuckets(now: number) {
@@ -110,32 +110,54 @@ function getSharedLimiter(limit: number, windowMs: number) {
   return limiter;
 }
 
-function getDistributedIdentifier(key: string) {
-  return createHash('sha256')
-    .update(rateLimitKeySalt)
-    .update(':')
-    .update(key)
-    .digest('base64url');
+function getFallbackIdentifier(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+async function getDistributedIdentifier(key: string) {
+  const value = `${rateLimitKeySalt}:${key}`;
+  if (globalThis.crypto?.subtle) {
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  return getFallbackIdentifier(value);
 }
 
 export function getClientIp(request: Request) {
-  const vercelForwardedFor = request.headers.get('x-vercel-forwarded-for')?.split(',').pop()?.trim();
+  const vercelForwardedFor = request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim();
   const cloudflareConnectingIp = request.headers.get('cf-connecting-ip')?.trim();
   const realIp = request.headers.get('x-real-ip')?.trim();
-  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',').pop()?.trim();
+  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
   return vercelForwardedFor || cloudflareConnectingIp || realIp || forwardedFor || 'unknown';
 }
 
 /**
+ * Returns a non-sensitive bucket identifier for the bearer token, when one
+ * is present. This is useful for middleware-wide protection before a route
+ * has authenticated the token and resolved its Supabase user ID.
+ */
+export async function getRateLimitSubject(request: Request) {
+  const authHeader = request.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
+  return token ? `auth:${await getDistributedIdentifier(token)}` : null;
+}
+
+/**
  * Uses Upstash/Vercel KV Redis when configured, giving every serverless
- * instance the same bucket. Local memory is only a development/staged-rollout
- * fallback; set RATE_LIMIT_REQUIRE_SHARED=true in production to fail closed.
+ * instance the same bucket. Local memory is only a development fallback;
+ * production fails closed unless shared enforcement is explicitly disabled.
  */
 export async function checkRateLimit({ key, limit, windowMs }: RateLimitOptions): Promise<RateLimitResult> {
   const limiter = getSharedLimiter(limit, windowMs);
   if (limiter) {
     try {
-      const result = await limiter.limit(getDistributedIdentifier(key));
+      const result = await limiter.limit(await getDistributedIdentifier(key));
       return {
         allowed: result.success,
         remaining: Math.max(0, result.remaining),

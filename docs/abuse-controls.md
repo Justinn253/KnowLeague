@@ -1,6 +1,6 @@
 # Abuse-control deployment runbook
 
-The application enforces rate limits for expensive API routes with Upstash Redis or Vercel KV's REST-compatible environment variables. Every protected request receives an IP bucket; authenticated mutations also receive a user bucket, and guest lobby/chat actions use their generated client ID as a secondary bucket. Identifiers are hashed before reaching Redis.
+The application enforces a global rate limit for every `/api/*` request with Upstash Redis or Vercel KV's REST-compatible environment variables. Read requests allow 600 per IP per minute, and non-read requests allow 180 per IP per minute. Bearer-authenticated requests also receive a per-token bucket of 300 reads or 120 writes per minute. Expensive or abuse-prone routes add stricter route-specific buckets; guest lobby/chat actions use their generated client ID as a secondary bucket. Identifiers are hashed before reaching Redis.
 
 ## Required production environment
 
@@ -13,7 +13,7 @@ RATE_LIMIT_KEY_SALT=<long random secret>
 RATE_LIMIT_REQUIRE_SHARED=true
 ```
 
-`RATE_LIMIT_REQUIRE_SHARED=true` is the production fail-closed switch. Without it, the app deliberately falls back to an in-memory limiter for local development and staged rollout; that fallback is not safe as a global serverless limit.
+`RATE_LIMIT_REQUIRE_SHARED=true` is the production fail-closed switch. Production also defaults to fail-closed unless this setting is explicitly set to `false`. Without shared Redis, local development deliberately falls back to an in-memory limiter; that fallback is not safe as a global serverless limit.
 
 Apply the accompanying Supabase migration before deploying this code. It replaces signup's paginated Auth-user scan with a service-role-only single-row lookup.
 

@@ -84,7 +84,7 @@ export type AchievementListItem = AchievementDefinition & {
   updatedAt: string | null;
   globalCompletedCount: number;
   completionRank: number | null;
-  topPercent: number | null;
+  completionPercent: number | null;
   titleVisible: string;
   descriptionVisible: string;
 };

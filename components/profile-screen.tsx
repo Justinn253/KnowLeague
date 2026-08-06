@@ -76,7 +76,7 @@ const OWNER_PROFILE_TABS: readonly ProfileTab[] = ['profile', 'stats', 'achievem
 type ProfileVisibility = 'public' | 'private';
 type ProfilePreferenceKey = 'friendRequestsOpen' | 'profileVisibility';
 type ProfilePreferenceSavingState = Record<ProfilePreferenceKey, boolean>;
-type AchievementSortKey = 'completedAt' | 'globalRanking' | 'alphabetical';
+type AchievementSortKey = 'completedAt' | 'globalRanking' | 'completionPercent' | 'alphabetical';
 type AchievementSortDirection = 'asc' | 'desc';
 type IncomingRequest = {
   id: string;
@@ -1779,11 +1779,18 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
         return left.titleVisible.localeCompare(right.titleVisible, undefined, { sensitivity: 'base' }) * direction;
       }
 
-      if (left.topPercent === null && right.topPercent === null) return left.titleVisible.localeCompare(right.titleVisible);
-      if (left.topPercent === null) return 1;
-      if (right.topPercent === null) return -1;
-      const leftRank = left.topPercent;
-      const rightRank = right.topPercent;
+      if (achievementSortKey === 'completionPercent') {
+        const leftPercent = left.completionPercent ?? -1;
+        const rightPercent = right.completionPercent ?? -1;
+        if (leftPercent === rightPercent) return left.titleVisible.localeCompare(right.titleVisible);
+        return (leftPercent - rightPercent) * direction;
+      }
+
+      if (left.completionRank === null && right.completionRank === null) return left.titleVisible.localeCompare(right.titleVisible);
+      if (left.completionRank === null) return 1;
+      if (right.completionRank === null) return -1;
+      const leftRank = left.completionRank;
+      const rightRank = right.completionRank;
       return (leftRank - rightRank) * direction;
     }), [achievementGameFilters, achievementSortDirection, achievementSortKey, achievements, cleanAchievementSearch]);
 
@@ -2344,6 +2351,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                         options={[
                           { value: 'completedAt' as const, label: 'Date completed' },
                           { value: 'globalRanking' as const, label: 'Global ranking' },
+                          { value: 'completionPercent' as const, label: '% of players completed' },
                           { value: 'alphabetical' as const, label: 'Alphabetical' },
                         ]}
                         onChange={setAchievementSortKey}
@@ -2425,10 +2433,12 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                                       </span>
                                     ))}
                                   </div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
-                                    <span className="uppercase tracking-[0.14em]">{getAchievementGameLabel(achievement.game)}</span>
-                                    <span>{formatAchievementDate(achievement.completedAt)}</span>
-                                    {complete && achievement.topPercent ? <span>Top {achievement.topPercent}%</span> : null}
+                                  <div className="mt-1 flex flex-col items-start gap-1 text-xs font-semibold text-slate-500">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                      <span className="uppercase tracking-[0.14em]">{getAchievementGameLabel(achievement.game)}</span>
+                                      <span>{formatAchievementDate(achievement.completedAt)}</span>
+                                    </div>
+                                    {achievement.completionPercent !== null ? <span>{achievement.completionPercent}% of players have completed this</span> : null}
                                   </div>
                                   <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-300">{achievement.descriptionVisible}</p>
                                 </div>

@@ -181,8 +181,10 @@ export async function getUserAchievements(
       ? globalRows.findIndex((candidate) => candidate.user_id === userId)
       : -1;
     const completionRank = completionIndex >= 0 ? completionIndex + 1 : null;
-    const topPercent = completionRank
-      ? Math.max(0.1, Math.min(100, Math.round((completionRank / totalProfiles) * 1000) / 10))
+    const completionPercent = includeGlobalStats
+      ? globalRows.length === 0
+        ? 0
+        : Math.max(0.1, Math.min(100, Math.round((globalRows.length / totalProfiles) * 1000) / 10))
       : null;
     const masked = maskAchievement(achievement, completedAt);
 
@@ -194,7 +196,7 @@ export async function getUserAchievements(
       updatedAt: row?.updated_at ?? null,
       globalCompletedCount: globalRows.length,
       completionRank,
-      topPercent,
+      completionPercent,
       ...masked,
     };
   });

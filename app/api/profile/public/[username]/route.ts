@@ -152,7 +152,7 @@ export async function GET(request: Request, { params }: { params: { username: st
     const [privateDetails, relationshipDetails, achievements, moderationProfile] = await Promise.all([
       fetchPrivateDetails(profile.id),
       viewerId ? getFriendRelationshipDetails(viewerId, profile.id) : { relationship: 'none' as const, friendNote: '', blocked: false },
-      getUserAchievements(profile.id, { includeGlobalStats: false }),
+      getUserAchievements(profile.id),
       viewerIsAdmin
         ? supabase.from('profiles').select('is_banned').eq('id', profile.id).maybeSingle<{ is_banned: boolean | null }>()
         : Promise.resolve({ data: null, error: null }),

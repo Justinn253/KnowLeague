@@ -12,6 +12,8 @@ import { getCachedOwnerProfileResponse, invalidateCachedOwnerProfileResponse, se
 import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-ui';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { ProfileScreen } from '@/components/profile-screen';
+import { ProfileFriendsMenu } from '@/components/profile-friends-menu';
+import { getPublicProfileHref } from '@/lib/profile-navigation';
 import { getProfileTabFromUrl, pushProfileTabToUrl } from '@/lib/profile-tabs';
 
 type PublicProfileRecord = {
@@ -25,6 +27,8 @@ type PublicProfileRecord = {
   profile_visibility: 'public' | 'private';
   friends_count: number;
   friend_requests_open: boolean;
+  profile_status: string;
+  friends_list_public: boolean;
   discord_username: string | null;
   discord_avatar_url: string | null;
   discord_banner_url: string | null;
@@ -579,6 +583,10 @@ function PublicAchievementsTab({
           </button>
         </div>
       ) : null}
+      <div>
+        <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-500">Achievement progress</p>
+        <h2 className="mt-1 text-lg font-black text-white">{profileName}&apos;s Achievement progress</h2>
+      </div>
       <div className="grid min-w-0 gap-3 rounded-3xl border border-white/10 bg-slate-950/80 p-3 sm:p-4">
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,13rem)_auto_auto_auto] lg:items-end">
           <div className="relative min-w-0">
@@ -1153,10 +1161,12 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
           </div>
           {!busy && profile ? (
             <div className="flex min-h-11 w-full flex-wrap items-center justify-start gap-2 lg:w-auto lg:justify-end">
-              <div className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm font-semibold text-slate-300 sm:flex-none sm:px-4">
-                <Users size={16} className="text-amber-300" />
-                {profile.friends_count} friends
-              </div>
+               <ProfileFriendsMenu
+                 username={profile.username}
+                 count={profile.friends_count}
+                 isOwner={false}
+                 initialListPublic={profile.friends_list_public}
+               />
               {currentUserId && currentUserId !== profile.id && !blocked ? (
                 relationship === 'friend' ? (
                   <>
@@ -1376,9 +1386,10 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
                       )}
                     </div>
                     <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                      <span className="shrink-0 truncate">@{profile.username}</span>
+                      <Link href={getPublicProfileHref(profile.username)} className="shrink-0 truncate transition hover:text-amber-200" style={getChatNameStyle(profile.chat_color)}>{profile.username}</Link>
                       <span className="truncate">Joined {formatProfileDate(profile.created_at)}</span>
                     </div>
+                    {profile.profile_status ? <p className="mt-2 max-w-xl text-sm leading-5 text-slate-300">{profile.profile_status}</p> : null}
                     {liveGameNote ? (
                       <p className="mt-1 text-sm font-semibold text-emerald-300">{liveGameNote}</p>
                     ) : null}
@@ -1493,7 +1504,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
                       >
                         <span className="min-w-0">
                           <p className="text-sm font-bold text-white">Riftbound Profile</p>
-                          <span className="mt-1 block text-xs text-slate-500">View their public Riftbound collection.</span>
+                          <span className="mt-1 block text-xs text-slate-500">View their public Riftbound profile.</span>
                         </span>
                         <ExternalLink size={16} className="shrink-0 text-slate-500" />
                       </Link>

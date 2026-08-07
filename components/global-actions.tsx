@@ -19,12 +19,25 @@ export function GlobalActions() {
   const router = useRouter();
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
+  const [profileAway, setProfileAway] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
   const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
   const activeSessionRef = useRef<Session | null>(null);
   const profileAppRoleRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const handleOwnPresence = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string; away?: boolean }>).detail;
+      if (detail.userId && activeSessionRef.current?.user.id === detail.userId) {
+        setProfileAway(detail.away === true);
+      }
+    };
+
+    window.addEventListener('knowleague:own-presence', handleOwnPresence);
+    return () => window.removeEventListener('knowleague:own-presence', handleOwnPresence);
+  }, []);
 
   const logOut = async () => {
     await forfeitStoredMultiplayerSessions();
@@ -72,6 +85,7 @@ export function GlobalActions() {
       activeSessionRef.current = session ?? null;
       if (!session) {
         profileAppRoleRef.current = null;
+        setProfileAway(false);
         setProfileAvatarUrl(null);
         setProfileUsername(null);
         setIsLoggedIn(false);
@@ -117,6 +131,7 @@ export function GlobalActions() {
         activeSessionRef.current = null;
         setProfileAvatarUrl(null);
         setProfileUsername(null);
+        setProfileAway(false);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
         setModerationRole(null);
@@ -178,6 +193,7 @@ export function GlobalActions() {
         signInCheckTimeout = null;
       }
       if (event === 'SIGNED_IN' && session) {
+        setProfileAway(false);
         void updateProfileAction(session, 6);
         return;
       }
@@ -204,6 +220,7 @@ export function GlobalActions() {
         isLoggedIn={isLoggedIn}
         profileAvatarUrl={profileAvatarUrl}
         profileUsername={profileUsername}
+        profileAway={profileAway}
         pendingFriendRequests={pendingFriendRequests}
         moderationRole={moderationRole}
         onPendingFriendRequestsChange={setPendingFriendRequests}

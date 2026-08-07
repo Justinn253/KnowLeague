@@ -18,7 +18,6 @@ import {
   Save,
   Trophy,
   UserPlus,
-  Users,
   Search,
   Upload,
   X,
@@ -39,6 +38,8 @@ import { invalidateCachedOwnerProfileResponse } from '@/lib/profile-response-cac
 import { getProfileTabFromUrl, pushProfileTabToUrl } from '@/lib/profile-tabs';
 import { loadDetailedGameStats, loadPlayerGameStats, type DetailedGameStats, type PlayerGameStats, type QuizGameDetailedStats, type QuizModeStats, type SkincognitoDetailedStats } from '@/lib/game-storage';
 import { AppSelectMenu } from '@/components/app-select-menu';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
+import { ProfileFriendsMenu } from '@/components/profile-friends-menu';
 import { ToggleSwitch } from '@/components/toggle-switch';
 import {
   type ChatBorder,
@@ -51,6 +52,7 @@ import {
   normalizeChatBorder,
   normalizeChatColor,
 } from '@/lib/chat-colors';
+import type { AppRole } from '@/lib/moderation';
 
 type ProfileRecord = {
   username: string;
@@ -58,6 +60,8 @@ type ProfileRecord = {
   about_me: string;
   friends_count: number;
   friend_requests_open: boolean;
+  profile_status: string;
+  friends_list_public: boolean;
   profile_visibility: 'public' | 'private';
   avatar_url: string | null;
   chat_color: string;
@@ -103,8 +107,26 @@ type FriendCandidate = {
   username: string;
   displayName: string;
   friendRequestsOpen: boolean;
+  avatarUrl: string | null;
+  discordAvatarUrl: string | null;
+  chatColor: string;
   relationship: 'friend' | 'incoming' | 'outgoing' | 'none';
 };
+
+type SkinProfilePictureOption = {
+  id: string;
+  name: string;
+  champion: string;
+  skinLine: string | null;
+  imageUrl: string;
+};
+
+function compareSkinProfilePictureOptions(left: SkinProfilePictureOption, right: SkinProfilePictureOption) {
+  const championComparison = left.champion.localeCompare(right.champion, undefined, { sensitivity: 'base' });
+  if (championComparison !== 0) return championComparison;
+  const skinComparison = left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+  return skinComparison !== 0 ? skinComparison : left.id.localeCompare(right.id);
+}
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,16}$/;
 const AVATAR_BUCKET = 'profile-avatars';
@@ -166,6 +188,8 @@ function createProfileFromInitialData(initialProfileData: Partial<ProfileRecord>
     about_me: initialProfileData.about_me ?? '',
     friends_count: initialProfileData.friends_count ?? 0,
     friend_requests_open: initialProfileData.friend_requests_open ?? true,
+    profile_status: initialProfileData.profile_status ?? '',
+    friends_list_public: initialProfileData.friends_list_public ?? true,
     profile_visibility: normalizeProfileVisibility(initialProfileData.profile_visibility),
     avatar_url: initialProfileData.avatar_url ?? null,
     chat_color: normalizeChatColor(initialProfileData.chat_color),
@@ -483,7 +507,6 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const openPublicProfilePage = (username: string) => {
     setRequestsOpen(false);
     setAddFriendOpen(false);
-    setFriendSearchContext(null);
     navigateToPublicProfile(username, (href) => router.push(href));
   };
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
@@ -492,6 +515,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [usernameDraft, setUsernameDraft] = useState('');
   const [aboutDraft, setAboutDraft] = useState('');
+  const [statusDraft, setStatusDraft] = useState('');
   const [chatColorDraft, setChatColorDraft] = useState('amber');
   const [chatBorderDraft, setChatBorderDraft] = useState(DEFAULT_CHAT_BORDER);
   const [selectedTitleRewardId, setSelectedTitleRewardId] = useState('');
@@ -503,11 +527,19 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const [pendingChatBorder, setPendingChatBorder] = useState<ChatBorder>(DEFAULT_CHAT_BORDER);
   const [friendRequestsOpen, setFriendRequestsOpen] = useState(true);
   const [profileVisibility, setProfileVisibility] = useState<ProfileVisibility>('public');
+  const [appRole, setAppRole] = useState<AppRole | null>(null);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
   const [detailedStats, setDetailedStats] = useState<DetailedGameStats>(() => loadDetailedGameStats());
   const [accountInfoVisible, setAccountInfoVisible] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarSourceMenuOpen, setAvatarSourceMenuOpen] = useState(false);
+  const [skinPickerOpen, setSkinPickerOpen] = useState(false);
+  const [skinCatalog, setSkinCatalog] = useState<SkinProfilePictureOption[]>([]);
+  const [skinCatalogLoading, setSkinCatalogLoading] = useState(false);
+  const [skinCatalogError, setSkinCatalogError] = useState('');
+  const [skinSearchQuery, setSkinSearchQuery] = useState('');
+  const [skinLoadingId, setSkinLoadingId] = useState<string | null>(null);
   const [avatarCropSource, setAvatarCropSource] = useState<string | null>(null);
   const [avatarDraftBlob, setAvatarDraftBlob] = useState<Blob | null>(null);
   const [avatarDraftUrl, setAvatarDraftUrl] = useState<string | null>(null);
@@ -520,7 +552,6 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [friendSearchResults, setFriendSearchResults] = useState<FriendCandidate[]>([]);
-  const [friendSearchContext, setFriendSearchContext] = useState<{ candidate: FriendCandidate; x: number; y: number } | null>(null);
   const [achievements, setAchievements] = useState<AchievementListItem[]>([]);
   const [achievementsLoading, setAchievementsLoading] = useState(false);
   const [achievementsLoadAttempted, setAchievementsLoadAttempted] = useState(false);
@@ -533,6 +564,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const cosmeticsMenuRef = useRef<HTMLDivElement | null>(null);
   const titleMenuRef = useRef<HTMLDivElement | null>(null);
   const achievementFiltersRef = useRef<HTMLDivElement | null>(null);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const avatarCropImageRef = useRef<HTMLImageElement | null>(null);
@@ -578,6 +610,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const hasProfileChanges = profile ? (
     cleanUsernameDraft !== profile.username ||
     cleanAboutDraft !== profile.about_me ||
+    statusDraft.trim() !== profile.profile_status ||
     chatColorDraft !== profile.chat_color ||
     chatBorderDraft !== profile.chat_border ||
     selectedTitleRewardId !== (profile.selected_title_reward_id ?? '') ||
@@ -592,6 +625,13 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const previewChatColor = normalizeChatColor(pendingChatColor);
   const previewChatBorder = normalizeChatBorder(pendingChatBorder);
   const previewBubbleStyle = getChatBubbleStyle(previewChatColor, previewChatBorder);
+  const cleanSkinSearch = skinSearchQuery.trim().toLowerCase();
+  const visibleSkinOptions = useMemo(() => {
+    if (cleanSkinSearch.length < 2) return [];
+    return [...skinCatalog]
+      .filter((skin) => `${skin.name} ${skin.champion} ${skin.skinLine ?? ''}`.toLowerCase().includes(cleanSkinSearch))
+      .sort(compareSkinProfilePictureOptions);
+  }, [cleanSkinSearch, skinCatalog]);
 
   useEffect(() => {
     const remainingMs = passwordResetCooldownEndsAt - passwordResetCooldownNow;
@@ -612,6 +652,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     setProfile(cachedState.profile);
     setUsernameDraft(cachedState.usernameDraft);
     setAboutDraft(cachedState.aboutDraft);
+    setStatusDraft(cachedState.profile?.profile_status ?? '');
     setChatColorDraft(cachedState.chatColorDraft);
     setChatBorderDraft(normalizeChatBorder(cachedState.chatBorderDraft));
     setSelectedTitleRewardId(cachedState.profile?.selected_title_reward_id ?? '');
@@ -729,7 +770,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       } else {
       let { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
         .eq('id', data.user.id)
         .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
       if (profileError && isMissingProfileColumnError(profileError, 'chat_color')) {
@@ -737,9 +778,18 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
           .from('profiles')
           .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, created_at')
           .eq('id', data.user.id)
-          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_color' | 'chat_border'>>();
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_color' | 'chat_border' | 'profile_visibility' | 'profile_status' | 'friends_list_public'>>();
 
-        profileData = fallback.data ? { ...fallback.data, chat_color: 'amber', chat_border: DEFAULT_CHAT_BORDER, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
+        profileData = fallback.data ? { ...fallback.data, profile_visibility: 'public' as const, profile_status: '', friends_list_public: true, chat_color: 'amber', chat_border: DEFAULT_CHAT_BORDER, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
+        profileError = fallback.error;
+      }
+      if (profileError && (isMissingProfileColumnError(profileError, 'profile_status') || isMissingProfileColumnError(profileError, 'friends_list_public'))) {
+        const fallback = await supabase
+          .from('profiles')
+          .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+          .eq('id', data.user.id)
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'profile_status' | 'friends_list_public'>>();
+        profileData = fallback.data ? { ...fallback.data, profile_status: '', friends_list_public: true } : null;
         profileError = fallback.error;
       }
       if (profileError && isMissingProfileColumnError(profileError, 'chat_border')) {
@@ -747,9 +797,9 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
           .from('profiles')
           .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, created_at')
           .eq('id', data.user.id)
-          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_border'>>();
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_border' | 'profile_status' | 'friends_list_public'>>();
 
-        profileData = fallback.data ? { ...fallback.data, chat_color: normalizeChatColor(fallback.data.chat_color), chat_border: DEFAULT_CHAT_BORDER, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
+        profileData = fallback.data ? { ...fallback.data, profile_status: '', friends_list_public: true, chat_color: normalizeChatColor(fallback.data.chat_color), chat_border: DEFAULT_CHAT_BORDER, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
         profileError = fallback.error;
       }
       if (profileError && (isMissingProfileColumnError(profileError, 'selected_title_reward_id') || isMissingProfileColumnError(profileError, 'displayed_badge_reward_ids'))) {
@@ -757,9 +807,9 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
           .from('profiles')
           .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
           .eq('id', data.user.id)
-          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'selected_title_reward_id' | 'displayed_badge_reward_ids'>>();
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'selected_title_reward_id' | 'displayed_badge_reward_ids' | 'profile_status' | 'friends_list_public'>>();
 
-        profileData = fallback.data ? { ...fallback.data, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
+        profileData = fallback.data ? { ...fallback.data, profile_status: '', friends_list_public: true, selected_title_reward_id: null, displayed_badge_reward_ids: [] } : null;
         profileError = fallback.error;
       }
       if (profileError && isMissingProfileColumnError(profileError, 'profile_visibility')) {
@@ -767,11 +817,13 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
           .from('profiles')
           .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
           .eq('id', data.user.id)
-          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'profile_visibility' | 'selected_title_reward_id' | 'displayed_badge_reward_ids'>>();
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'profile_visibility' | 'selected_title_reward_id' | 'displayed_badge_reward_ids' | 'profile_status' | 'friends_list_public'>>();
 
         profileData = fallback.data ? {
           ...fallback.data,
           profile_visibility: 'public',
+          profile_status: '',
+          friends_list_public: true,
           selected_title_reward_id: null,
           displayed_badge_reward_ids: [],
         } : null;
@@ -828,6 +880,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
         setProfile(nextProfile);
         setUsernameDraft(profileData?.username ?? '');
         setAboutDraft(profileData?.about_me ?? '');
+        setStatusDraft(profileData?.profile_status ?? '');
         setChatColorDraft(normalizeChatColor(profileData?.chat_color));
         setChatBorderDraft(normalizeChatBorder(profileData?.chat_border));
         setSelectedTitleRewardId(profileData?.selected_title_reward_id ?? '');
@@ -958,6 +1011,31 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     };
   }, [refreshFriendDashboard, userId]);
 
+  useEffect(() => {
+    if (!userId) {
+      setAppRole(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const supabase = getOptionalSupabaseClient();
+      const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+      if (!data.session) return;
+      try {
+        const response = await fetch('/api/moderation/me', { headers: { Authorization: `Bearer ${data.session.access_token}` } });
+        const body = await response.json() as { role?: AppRole | null };
+        if (!cancelled) setAppRole(body.role ?? null);
+      } catch {
+        if (!cancelled) setAppRole(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
   const replaceAvatarDraft = (blob: Blob, objectUrl: string) => {
     if (avatarDraftUrlRef.current) {
       URL.revokeObjectURL(avatarDraftUrlRef.current);
@@ -976,6 +1054,29 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     setAvatarDraftBlob(null);
     setAvatarDraftUrl(null);
     setAvatarAction('unchanged');
+  };
+
+  const saveProfileSettings = async (updates: { profileStatus?: string }) => {
+    const supabase = getOptionalSupabaseClient();
+    const { data, error } = await supabase?.auth.getSession() ?? { data: { session: null }, error: null };
+    if (error || !data.session || data.session.user.id !== userId) {
+      throw new Error('Your session has expired. Please sign in again.');
+    }
+
+    const response = await fetch('/api/profile/preferences', {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${data.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+    const body = await response.json() as { settings?: { profile_status?: string }; error?: string };
+    if (!response.ok) {
+      throw new Error(body.error ?? 'Unable to save profile settings.');
+    }
+
+    return body.settings?.profile_status ?? updates.profileStatus ?? '';
   };
 
   const updateProfilePreference = (key: ProfilePreferenceKey, nextValue: boolean | ProfileVisibility) => {
@@ -1094,6 +1195,38 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     setSaving(true);
     setMessage('');
 
+    const nextProfileStatus = statusDraft.trim().slice(0, 50);
+    const statusChanged = nextProfileStatus !== (profile?.profile_status ?? '');
+    const hasNonStatusChanges = profile ? (
+      cleanUsername !== profile.username ||
+      cleanAboutDraft !== profile.about_me ||
+      chatColorDraft !== profile.chat_color ||
+      chatBorderDraft !== profile.chat_border ||
+      selectedTitleRewardId !== (profile.selected_title_reward_id ?? '') ||
+      displayedBadgeRewardIds.join('|') !== (profile.displayed_badge_reward_ids ?? []).join('|')
+    ) : false;
+
+    if (statusChanged && !hasNonStatusChanges && !hasAvatarChanges) {
+      try {
+        const savedStatus = await saveProfileSettings({ profileStatus: nextProfileStatus });
+        const nextProfile = profile ? { ...profile, profile_status: savedStatus } : null;
+        if (nextProfile) {
+          setProfile(nextProfile);
+          if (cachedProfileScreenState?.userId === userId) {
+            cachedProfileScreenState = { ...cachedProfileScreenState, profile: nextProfile };
+          }
+        }
+        setStatusDraft(savedStatus);
+        notifyProfileUpdated(userId);
+        setMessage('Profile updated.');
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Unable to save profile status.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     const { data: usernameMatch, error: usernameMatchError } = await supabase
       .rpc('find_profile_by_username_ci', { search_username: cleanUsername })
       .maybeSingle<{ id: string; username: string }>();
@@ -1150,8 +1283,18 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       .from('profiles')
       .update(profileUpdate)
       .eq('id', userId)
-      .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+      .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
       .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
+    if (error && (isMissingProfileColumnError(error, 'profile_status') || isMissingProfileColumnError(error, 'friends_list_public'))) {
+      const fallback = await supabase
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', userId)
+        .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'profile_status' | 'friends_list_public'>>();
+      data = fallback.data ? { ...fallback.data, profile_status: profile?.profile_status ?? '', friends_list_public: profile?.friends_list_public ?? true } : null;
+      error = fallback.error;
+    }
     if (
       error &&
       (isMissingProfileColumnError(error, 'chat_color') || isMissingProfileColumnError(error, 'chat_border'))
@@ -1170,7 +1313,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
         .from('profiles')
         .update(fallbackUpdate)
         .eq('id', userId)
-        .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, created_at')
+        .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, avatar_url, created_at')
         .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'chat_color' | 'chat_border'>>();
 
       data = fallback.data ? {
@@ -1198,7 +1341,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
         .from('profiles')
         .update(fallbackUpdate)
         .eq('id', userId)
-        .select('username, display_name, about_me, friends_count, friend_requests_open, avatar_url, chat_color, chat_border, created_at')
+        .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, avatar_url, chat_color, chat_border, created_at')
         .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'selected_title_reward_id' | 'displayed_badge_reward_ids'>>();
 
       data = fallback.data ? {
@@ -1207,6 +1350,19 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
         displayed_badge_reward_ids: profile?.displayed_badge_reward_ids ?? [],
       } : null;
       error = fallback.error;
+    }
+
+    if (!error && statusChanged) {
+      try {
+        const savedStatus = await saveProfileSettings({ profileStatus: nextProfileStatus });
+        if (data) {
+          data = { ...data, profile_status: savedStatus };
+        }
+      } catch (statusError) {
+        setSaving(false);
+        setMessage(statusError instanceof Error ? statusError.message : 'Unable to save profile status.');
+        return;
+      }
     }
 
     setSaving(false);
@@ -1234,6 +1390,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     setProfile(nextProfile);
     setUsernameDraft(data.username);
     setAboutDraft(data.about_me);
+    setStatusDraft(data.profile_status ?? '');
     setChatColorDraft(normalizeChatColor(data.chat_color));
     setChatBorderDraft(normalizeChatBorder(data.chat_border));
     setSelectedTitleRewardId(data.selected_title_reward_id ?? '');
@@ -1276,6 +1433,54 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     setAvatarCropOffset({ x: 0, y: 0 });
     setAvatarCropNaturalSize({ width: 0, height: 0 });
     setAvatarDragStart(null);
+  };
+
+  const loadSkinCatalog = async () => {
+    if (skinCatalog.length > 0 || skinCatalogLoading) return;
+    setSkinCatalogLoading(true);
+    setSkinCatalogError('');
+    try {
+      const cacheKey = 'knowleague:profile-skin-catalog:v1';
+      const cached = window.localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as SkinProfilePictureOption[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSkinCatalog(parsed);
+          return;
+        }
+      }
+
+      const response = await fetch('/api/profile/skins');
+      const data = await response.json() as SkinProfilePictureOption[] | { error?: string };
+      if (!response.ok || !Array.isArray(data)) {
+        throw new Error('error' in data && data.error ? data.error : 'Unable to load League skins.');
+      }
+      setSkinCatalog(data);
+      window.localStorage.setItem(cacheKey, JSON.stringify(data));
+    } catch (loadError) {
+      setSkinCatalogError(loadError instanceof Error ? loadError.message : 'Unable to load League skins.');
+    } finally {
+      setSkinCatalogLoading(false);
+    }
+  };
+
+  const selectSkinForAvatar = async (skin: SkinProfilePictureOption) => {
+    setSkinLoadingId(skin.id);
+    setSkinCatalogError('');
+    try {
+      const response = await fetch(skin.imageUrl, { cache: 'force-cache' });
+      if (!response.ok) throw new Error('Unable to load that skin splash art.');
+      const blob = await response.blob();
+      if (blob.size > MAX_AVATAR_SIZE_BYTES) throw new Error('That splash art is too large to use as a profile picture.');
+      const file = new File([blob], `${skin.id}.jpg`, { type: blob.type || 'image/jpeg' });
+      setAvatarSourceMenuOpen(false);
+      setSkinPickerOpen(false);
+      openAvatarCropper(file);
+    } catch (loadError) {
+      setSkinCatalogError(loadError instanceof Error ? loadError.message : 'Unable to load that skin splash art.');
+    } finally {
+      setSkinLoadingId(null);
+    }
   };
 
   const openAvatarCropper = (file: File) => {
@@ -1434,7 +1639,6 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   useEffect(() => {
     if (!addFriendOpen || friendSearchQuery.trim().length < 3) {
       setFriendSearchResults([]);
-      setFriendSearchContext(null);
       return undefined;
     }
 
@@ -1457,12 +1661,6 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   }, [addFriendOpen, friendSearchQuery]);
 
   useEffect(() => {
-    const closeContext = () => setFriendSearchContext(null);
-    document.addEventListener('click', closeContext);
-    return () => document.removeEventListener('click', closeContext);
-  }, []);
-
-  useEffect(() => {
     if (!addFriendOpen) {
       return undefined;
     }
@@ -1477,7 +1675,6 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       }
 
       setAddFriendOpen(false);
-      setFriendSearchContext(null);
     };
 
     document.addEventListener('pointerdown', closeAddFriendPanel);
@@ -1537,6 +1734,31 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   }, [cosmeticsMenuOpen, titleMenuOpen]);
 
   useEffect(() => {
+    if (!avatarSourceMenuOpen && !skinPickerOpen) {
+      return undefined;
+    }
+
+    const closeAvatarMenus = (event: PointerEvent) => {
+      if (avatarMenuRef.current?.contains(event.target as Node)) return;
+      setAvatarSourceMenuOpen(false);
+      setSkinPickerOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAvatarSourceMenuOpen(false);
+        setSkinPickerOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeAvatarMenus);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeAvatarMenus);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [avatarSourceMenuOpen, skinPickerOpen]);
+
+  useEffect(() => {
     if (activeTab !== 'stats') {
       return;
     }
@@ -1588,6 +1810,27 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     } else {
       setMessage(body.error ?? 'Unable to send friend request.');
     }
+  };
+
+  const removeFriend = async (candidate: FriendCandidate) => {
+    if (!window.confirm(`Remove ${candidate.displayName} from your friends?`)) return;
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      setMessage('Login required.');
+      return;
+    }
+    const response = await fetch(`/api/friends/${candidate.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      setMessage(body.error ?? 'Unable to remove friend.');
+      return;
+    }
+    setFriendSearchResults((results) => results.map((entry) => entry.id === candidate.id ? { ...entry, relationship: 'none' } : entry));
+    void refreshFriendDashboard();
   };
 
   const sendPasswordReset = async () => {
@@ -1816,10 +2059,12 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
           </div>
           {!busy ? (
             <div className="relative flex min-h-11 w-full flex-wrap items-center justify-start gap-2 lg:w-auto lg:justify-end">
-              <div className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm font-semibold text-slate-300 sm:flex-none sm:px-4">
-                <Users size={16} className="text-amber-300" />
-                {profile?.friends_count ?? 0} friends
-              </div>
+               <ProfileFriendsMenu
+                 username={profile?.username ?? usernameDraft}
+                 count={profile?.friends_count ?? 0}
+                 isOwner
+                 initialListPublic={profile?.friends_list_public ?? true}
+               />
               {incomingRequests.length > 0 ? (
                 <button
                   type="button"
@@ -1878,7 +2123,6 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                         onClick={() => {
                           setFriendSearchQuery('');
                           setFriendSearchResults([]);
-                          setFriendSearchContext(null);
                         }}
                         aria-label="Clear friend search"
                         className="absolute right-3 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
@@ -1889,72 +2133,39 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                   </div>
                   <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto">
                     {friendSearchResults.map((candidate) => (
-                      <button
-                        key={candidate.id}
-                        type="button"
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          const panelRect = addFriendPanelRef.current?.getBoundingClientRect();
-                          setFriendSearchContext({
-                            candidate,
-                            x: event.clientX - (panelRect?.left ?? 0),
-                            y: event.clientY - (panelRect?.top ?? 0),
-                          });
-                        }}
-                        onClick={() => {
-                          if (candidate.relationship === 'incoming' || (candidate.friendRequestsOpen && candidate.relationship === 'none')) {
-                            void sendFriendRequest(candidate.id);
-                          }
-                        }}
-                        className={`flex min-h-11 items-center justify-between rounded-xl bg-slate-900 px-3 text-left text-sm transition hover:bg-slate-800 ${
-                          candidate.relationship === 'friend' || candidate.relationship === 'outgoing' || (candidate.relationship === 'none' && !candidate.friendRequestsOpen) ? 'cursor-default opacity-70' : ''
-                        }`}
-                      >
-                        <span className="font-semibold text-white">{candidate.displayName}</span>
-                        <span className="text-xs text-slate-400">
-                          {!candidate.friendRequestsOpen && candidate.relationship === 'none'
-                            ? 'Requests closed'
-                            : candidate.relationship === 'outgoing'
-                              ? 'Pending'
-                              : candidate.relationship === 'incoming'
-                                ? 'Accept'
-                                : candidate.relationship === 'friend'
-                                  ? 'Friend'
-                                  : 'Add'}
+                      <div key={candidate.id} className="flex min-h-14 items-center gap-3 rounded-xl bg-slate-900 px-3 py-2">
+                        <span
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 bg-cover bg-center text-xs font-black text-amber-200"
+                          style={candidate.avatarUrl ? { backgroundImage: `url(${candidate.avatarUrl})` } : undefined}
+                        >
+                          {candidate.avatarUrl ? null : candidate.displayName.slice(0, 1).toUpperCase()}
                         </span>
-                      </button>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-white" style={getChatNameStyle(candidate.chatColor)}>{candidate.displayName}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openPublicProfilePage(candidate.username)}
+                            className="inline-flex min-h-9 items-center justify-center rounded-lg border border-white/10 bg-slate-950 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition hover:border-amber-200/40 hover:bg-slate-800"
+                          >
+                            View Profile
+                          </button>
+                          {candidate.relationship === 'friend' ? (
+                            <button type="button" onClick={() => void removeFriend(candidate)} className="shrink-0 rounded-lg border border-red-300/35 bg-red-500/10 px-2.5 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/20">Remove Friend</button>
+                          ) : candidate.relationship === 'incoming' ? (
+                            <button type="button" onClick={() => void sendFriendRequest(candidate.id)} className="shrink-0 rounded-lg bg-emerald-400 px-2.5 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300">Accept</button>
+                          ) : candidate.relationship === 'outgoing' ? (
+                            <span className="shrink-0 text-xs font-semibold text-slate-500">Pending</span>
+                          ) : candidate.friendRequestsOpen ? (
+                            <button type="button" onClick={() => void sendFriendRequest(candidate.id)} className="shrink-0 rounded-lg bg-emerald-400 px-2.5 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300">Add Friend</button>
+                          ) : (
+                            <span className="shrink-0 text-xs font-semibold text-slate-500">Requests closed</span>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                  {friendSearchContext ? (
-                    <div
-                      className="absolute z-[70] min-w-40 rounded-2xl border border-white/10 bg-slate-950 p-2"
-                      style={{ left: friendSearchContext.x, top: friendSearchContext.y }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          openPublicProfilePage(friendSearchContext.candidate.username);
-                          setFriendSearchContext(null);
-                        }}
-                        className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
-                      >
-                        View Profile
-                      </button>
-                      {friendSearchContext.candidate.relationship === 'incoming' || (friendSearchContext.candidate.relationship === 'none' && friendSearchContext.candidate.friendRequestsOpen) ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void sendFriendRequest(friendSearchContext.candidate.id);
-                            setFriendSearchContext(null);
-                          }}
-                          className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10"
-                        >
-                          {friendSearchContext.candidate.relationship === 'incoming' ? 'Accept Friend' : 'Add Friend'}
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -1998,7 +2209,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
               {activeTab === 'profile' ? (
                 <form onSubmit={saveProfile} className="mt-5 grid min-w-0 gap-5 sm:mt-6">
                   <div className="flex min-w-0 flex-col items-start gap-5 rounded-3xl border border-white/10 bg-slate-950/80 p-4 md:flex-row md:p-5">
-                    <div className="relative shrink-0">
+                    <div ref={avatarMenuRef} className="relative shrink-0">
                       {avatarPreviewUrl ? (
                         <button
                           type="button"
@@ -2025,15 +2236,92 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                           )}
                           <button
                             type="button"
-                            onClick={() => avatarInputRef.current?.click()}
+                            onClick={() => {
+                              setAvatarSourceMenuOpen((open) => !open);
+                              setSkinPickerOpen(false);
+                            }}
                             disabled={avatarUploading || saving}
-                            aria-label="Upload profile picture"
+                            aria-label="Choose profile picture source"
                             className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-950 text-white opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100 disabled:cursor-not-allowed"
                           >
                             <Upload size={24} className="transition-transform duration-200 ease-out group-hover:scale-110" />
                           </button>
                         </div>
                       </div>
+                      {avatarSourceMenuOpen || skinPickerOpen ? (
+                        <div className={`absolute left-0 top-32 z-40 rounded-2xl border border-white/10 bg-slate-950 ${skinPickerOpen ? 'w-[min(42rem,calc(100vw-2rem))] p-3 sm:p-4' : 'w-56 p-2'}`}>
+                          {!skinPickerOpen ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAvatarSourceMenuOpen(false);
+                                  avatarInputRef.current?.click();
+                                }}
+                                className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
+                              >
+                                Select photo
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAvatarSourceMenuOpen(false);
+                                  setSkinPickerOpen(true);
+                                  void loadSkinCatalog();
+                                }}
+                                className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10"
+                              >
+                                Search League skins
+                              </button>
+                            </>
+                          ) : (
+                            <div className="grid gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSkinPickerOpen(false);
+                                  setAvatarSourceMenuOpen(true);
+                                }}
+                                className="text-left text-xs font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-200"
+                              >
+                                ← Profile picture sources
+                              </button>
+                              <input
+                                value={skinSearchQuery}
+                                onChange={(event) => setSkinSearchQuery(event.target.value)}
+                                placeholder="Search skins or champions"
+                                autoFocus
+                                className="min-h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none placeholder:text-slate-600"
+                              />
+                              {skinCatalogLoading ? <p className="py-4 text-center text-xs text-slate-500">Loading skins...</p> : null}
+                              {skinCatalogError ? <p className="text-xs leading-5 text-red-200">{skinCatalogError}</p> : null}
+                              {!skinCatalogLoading && !skinCatalogError && cleanSkinSearch.length < 2 ? (
+                                <p className="mt-2 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-4 text-center text-xs text-slate-500">Enter at least 2 letters to show skins.</p>
+                              ) : null}
+                              {!skinCatalogLoading && !skinCatalogError && cleanSkinSearch.length >= 2 ? (
+                                <div className={`grid max-h-[min(32rem,calc(100dvh-14rem))] gap-2 overflow-y-auto pr-1 sm:grid-cols-2 ${THEMED_SCROLLBAR_CLASS}`}>
+                                  {visibleSkinOptions.map((skin) => (
+                                    <button
+                                      key={skin.id}
+                                      type="button"
+                                      onClick={() => void selectSkinForAvatar(skin)}
+                                      disabled={Boolean(skinLoadingId)}
+                                      className="flex min-h-12 items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 p-3 text-left transition hover:border-amber-300/45 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-bold text-slate-100">{skin.name}</span>
+                                        <span className="mt-0.5 block truncate text-xs text-slate-500">{skin.champion}</span>
+                                      </span>
+                                      {skinLoadingId === skin.id ? <Loader2 size={14} className="shrink-0 animate-spin text-amber-300" /> : null}
+                                    </button>
+                                  ))}
+                                  {visibleSkinOptions.length === 0 ? <p className="rounded-xl border border-white/10 bg-slate-900/70 px-3 py-4 text-center text-xs text-slate-500 sm:col-span-2">No skins found.</p> : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                       <div className="relative mt-2 flex w-28 justify-center">
                         <div className="group relative">
                           <button
@@ -2224,6 +2512,19 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                           ) : null}
                         </div>
                       </div>
+                      <label className="mt-4 grid gap-1.5 sm:w-1/2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status</span>
+                        <input
+                          value={statusDraft}
+                          onChange={(event) => setStatusDraft(event.target.value.slice(0, 50))}
+                          maxLength={50}
+                          autoComplete="off"
+                          spellCheck={false}
+                          placeholder="What are you up to?"
+                          className="min-h-10 w-full rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-amber-300/50 focus:ring-1 focus:ring-amber-300/20"
+                        />
+                        <span className="text-right text-[0.68rem] text-slate-600">{statusDraft.length}/50</span>
+                      </label>
                     </div>
                     <div className="hidden self-stretch min-h-28 w-px shrink-0 bg-white/10 lg:block" />
                     <div className="min-w-0 self-stretch md:w-44 md:self-start">
@@ -2325,11 +2626,10 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
 
               {activeTab === 'achievements' ? (
                 <div className="mt-5 grid min-w-0 gap-4">
-                  <div className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+                   <div className="grid gap-3 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-500">Achievement progress</p>
-                        <h2 className="mt-1 text-lg font-black text-white">Your accomplishments</h2>
                       </div>
                       <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-100">
                         {achievements.filter((achievement) => achievement.completedAt).length} completed
@@ -2468,7 +2768,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
               {activeTab === 'account' ? (
                 <div className="mt-5 grid min-w-0 gap-4">
                   <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+                     <div className="min-h-28 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Email</p>
                       <button
@@ -2483,7 +2783,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                     <p className="mt-2 break-all text-sm font-semibold text-slate-200">{accountInfoVisible ? email : 'Hidden'}</p>
                   </div>
 
-                  <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+                   <div className="min-h-28 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">User ID</p>
                     <p className="mt-2 break-all font-mono text-sm text-slate-200">{accountInfoVisible ? userId : 'Hidden'}</p>
                   </div>
@@ -2508,10 +2808,11 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                     />
                   </div>
 
-                  <div className="rounded-3xl border border-amber-300/20 bg-amber-300/10 p-4 sm:p-5">
+                   {appRole === 'moderator' || appRole === 'admin' ? (
+                   <div className="rounded-3xl border border-amber-300/20 bg-amber-300/10 p-4 sm:p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Temporary Admin Control</p>
                     <p className="mt-2 text-sm leading-6 text-slate-300">
-                      Reset all achievements for this account. Gate this behind admin permissions when admin users are implemented.
+                       Reset all achievements for this account. This control is visible only to staff.
                     </p>
                     <button
                       type="button"
@@ -2521,7 +2822,8 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                       <RotateCcw size={16} />
                       Reset Achievements
                     </button>
-                  </div>
+                   </div>
+                   ) : null}
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <button

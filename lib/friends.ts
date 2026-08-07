@@ -13,6 +13,7 @@ export type FriendProfileSummary = {
   discordUsername: string | null;
   discordAvatarUrl: string | null;
   riotAccountName: string | null;
+  profileStatus: string;
   online: boolean;
   unreadCount: number;
   chatColor: string;
@@ -40,6 +41,8 @@ type ProfileRow = {
   chat_color?: string | null;
   chat_border?: string | null;
   avatar_url?: string | null;
+  profile_status?: string | null;
+  profile_visibility?: 'public' | 'private' | null;
 };
 
 type PrivateProfileDetailsRow = {
@@ -104,6 +107,7 @@ function toSummary(
     discordUsername: options.privateDetails?.discord_username ?? null,
     discordAvatarUrl: options.privateDetails?.discord_avatar_url ?? null,
     riotAccountName: options.privateDetails?.riot_account_name ?? null,
+    profileStatus: profile.profile_status?.trim().slice(0, 50) ?? '',
     online: isOnline(profile.last_seen_at),
     unreadCount,
     chatColor: normalizeChatColor(profile.chat_color),
@@ -204,16 +208,26 @@ async function selectProfilesByIds(supabase: ReturnType<typeof getSupabaseServic
     return [];
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, chat_color, chat_border, avatar_url')
+    .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, chat_color, chat_border, avatar_url, profile_status, profile_visibility')
     .in('id', ids)
     .returns<ProfileRow[]>();
+
+  if (error && isMissingProfileStatusError(error)) {
+    const fallback = await supabase
+      .from('profiles')
+      .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, chat_color, chat_border, avatar_url, profile_visibility')
+      .in('id', ids)
+      .returns<ProfileRow[]>();
+    data = fallback.data?.map((profile) => ({ ...profile, profile_status: '' })) ?? null;
+    error = fallback.error;
+  }
 
   if (isMissingChatCosmeticsError(error)) {
     const fallback = await supabase
       .from('profiles')
-      .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, avatar_url')
+      .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, avatar_url, profile_status, profile_visibility')
       .in('id', ids)
       .returns<ProfileRow[]>();
 
@@ -223,6 +237,13 @@ async function selectProfilesByIds(supabase: ReturnType<typeof getSupabaseServic
 
   if (error) throw error;
   return data ?? [];
+}
+
+function isMissingProfileStatusError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return (maybeError.code === '42703' || maybeError.code === 'PGRST204') && text.includes('profile_status');
 }
 
 async function selectPrivateDetailsByUserIds(supabase: ReturnType<typeof getSupabaseServiceClient>, ids: string[]) {
@@ -508,6 +529,73 @@ export async function getFriendDashboard(userId: string) {
   };
 }
 
+export type PublicFriendPreview = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  chatColor: string;
+  profileStatus: string;
+  createdAt: string | null;
+  online: boolean;
+  favorite: boolean;
+};
+
+export async function getPublicFriendList(targetUserId: string, viewerId: string | null, viewerIsAdmin = false) {
+  const supabase = getSupabaseServiceClient();
+  let { data: targetProfile, error: targetProfileError } = await supabase
+    .from('profiles')
+    .select('friends_list_public')
+    .eq('id', targetUserId)
+    .maybeSingle<{ friends_list_public: boolean | null }>();
+
+  if (targetProfileError && isMissingFriendsListPublicError(targetProfileError)) {
+    targetProfile = { friends_list_public: true };
+    targetProfileError = null;
+  }
+  if (targetProfileError) throw targetProfileError;
+
+  const canView = viewerIsAdmin || viewerId === targetUserId || targetProfile?.friends_list_public !== false;
+  if (!canView) {
+    return { visible: false, friends: [] as PublicFriendPreview[] };
+  }
+
+  const friendships = await getActiveFriendshipsForUser(supabase, targetUserId);
+  const friendIds = friendships.map((friendship) => (
+    friendship.user_one_id === targetUserId ? friendship.user_two_id : friendship.user_one_id
+  ));
+  const profiles = (await selectProfilesByIds(supabase, friendIds)).filter((profile) => !profile.is_banned);
+  const publicProfiles = viewerIsAdmin || viewerId === targetUserId
+    ? profiles
+    : profiles.filter((profile) => profile.profile_visibility !== 'private');
+
+  return {
+    visible: true,
+    friends: publicProfiles.map((profile) => ({
+      id: profile.id,
+      username: profile.username,
+      displayName: profile.display_name || profile.username,
+      avatarUrl: profile.avatar_url ?? null,
+      chatColor: normalizeChatColor(profile.chat_color),
+      profileStatus: profile.profile_status?.trim().slice(0, 50) ?? '',
+      createdAt: profile.created_at ?? null,
+      online: isOnline(profile.last_seen_at),
+      favorite: Boolean(friendships.find((friendship) => (
+        friendship.user_one_id === targetUserId
+          ? friendship.user_two_id === profile.id && friendship.user_one_favorite
+          : friendship.user_one_id === profile.id && friendship.user_two_favorite
+      ))),
+    })),
+  };
+}
+
+function isMissingFriendsListPublicError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return (maybeError.code === '42703' || maybeError.code === 'PGRST204') && text.includes('friends_list_public');
+}
+
 export async function searchFriendCandidates(userId: string, query: string) {
   const cleanQuery = query.trim().toLowerCase();
   if (cleanQuery.length < 3) {
@@ -517,15 +605,30 @@ export async function searchFriendCandidates(userId: string, query: string) {
   const supabase = getSupabaseServiceClient();
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned')
+    .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, avatar_url, chat_color, chat_border, profile_status, profile_visibility')
     .ilike('username', `${cleanQuery}%`)
     .neq('id', userId)
     .eq('is_banned', false)
     .limit(10)
     .returns<ProfileRow[]>();
 
-  if (error) {
-    throw error;
+  let profileRows = profiles;
+  let profileError = error;
+  if (error && isMissingProfileStatusError(error)) {
+    const fallback = await supabase
+      .from('profiles')
+      .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, avatar_url, chat_color, chat_border, profile_visibility')
+      .ilike('username', `${cleanQuery}%`)
+      .neq('id', userId)
+      .eq('is_banned', false)
+      .limit(10)
+      .returns<ProfileRow[]>();
+    profileRows = fallback.data?.map((profile) => ({ ...profile, profile_status: '' })) ?? null;
+    profileError = fallback.error;
+  }
+
+  if (profileError) {
+    throw profileError;
   }
 
   const { friends } = await getFriendDashboard(userId);
@@ -547,8 +650,10 @@ export async function searchFriendCandidates(userId: string, query: string) {
     request.requester_id === userId ? 'outgoing' : 'incoming',
   ]));
 
-  return (profiles ?? []).map((profile) => ({
-    ...toSummary(profile),
+  const privateDetailsByUserId = await selectPrivateDetailsByUserIds(supabase, (profileRows ?? []).map((profile) => profile.id));
+
+  return (profileRows ?? []).map((profile) => ({
+    ...toSummary(profile, 0, '', { privateDetails: privateDetailsByUserId.get(profile.id) ?? null }),
     friendRequestsOpen: profile.friend_requests_open,
     relationship: friendIds.has(profile.id) ? 'friend' : pendingByUserId.get(profile.id) ?? 'none',
   }));

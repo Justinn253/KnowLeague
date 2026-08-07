@@ -42,6 +42,7 @@ type AppHeaderProps = {
   isLoggedIn: boolean;
   profileAvatarUrl: string | null;
   profileUsername: string | null;
+  profileAway: boolean;
   pendingFriendRequests: number;
   moderationRole: Extract<AppRole, 'moderator' | 'admin'> | null;
   onPendingFriendRequestsChange: (count: number) => void;
@@ -273,11 +274,13 @@ function LogoutControl({ onLogOut, mobile = false }: { onLogOut: () => void; mob
 function ProfileAction({
   profileAvatarUrl,
   profileUsername,
+  profileAway,
   pendingFriendRequests,
   mobile = false,
 }: {
   profileAvatarUrl: string | null;
   profileUsername: string | null;
+  profileAway: boolean;
   pendingFriendRequests: number;
   mobile?: boolean;
 }) {
@@ -295,9 +298,12 @@ function ProfileAction({
         ? 'relative inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
         : 'relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 md:h-10 md:w-auto md:gap-2 md:px-3'}
     >
-      {profileAvatarUrl ? (
-        <span className="inline-flex h-7 w-7 rounded-lg border border-white/10 bg-cover bg-center" style={{ backgroundImage: `url(${profileAvatarUrl})` }} />
-      ) : <UserCircle size={17} />}
+      <span className="relative inline-flex h-7 w-7 items-center justify-center">
+        {profileAvatarUrl ? (
+          <span className="inline-flex h-7 w-7 rounded-lg border border-white/10 bg-cover bg-center" style={{ backgroundImage: `url(${profileAvatarUrl})` }} />
+        ) : <UserCircle size={17} />}
+        <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-950 ${profileAway ? 'bg-amber-300' : 'bg-emerald-400'}`} />
+      </span>
       <span className={`${mobile ? '' : 'hidden md:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Profile</span>
       {pendingFriendRequests > 0 ? (
         <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 py-0.5 text-[0.6rem] font-black leading-none text-white">
@@ -770,6 +776,7 @@ export function AppHeader({
   isLoggedIn,
   profileAvatarUrl,
   profileUsername,
+  profileAway,
   pendingFriendRequests,
   moderationRole,
   onPendingFriendRequestsChange,
@@ -835,7 +842,7 @@ export function AppHeader({
           ) : null}
           <div className="flex items-center gap-1 xl:gap-2">
             {isLoggedIn
-              ? <ProfileAction profileAvatarUrl={profileAvatarUrl} profileUsername={profileUsername} pendingFriendRequests={pendingFriendRequests} />
+              ? <ProfileAction profileAvatarUrl={profileAvatarUrl} profileUsername={profileUsername} profileAway={profileAway} pendingFriendRequests={pendingFriendRequests} />
               : <LoginAction />}
             {isLoggedIn ? <LogoutControl onLogOut={onLogOut} /> : null}
           </div>

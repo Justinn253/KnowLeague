@@ -351,7 +351,7 @@ export function SoloQuizPrematch({
                   className="min-w-0 text-left"
                 >
                   <span className="block truncate text-sm font-bold text-white transition hover:text-amber-200">{entry.displayName}</span>
-                  <span className="mt-1 block truncate text-xs text-slate-500">@{entry.username}</span>
+                  <span className="mt-1 block truncate text-xs text-slate-500">{entry.username}</span>
                 </Link>
                 <span className="text-right">
                   {progressLeaderboard ? (

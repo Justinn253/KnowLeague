@@ -22,6 +22,8 @@ type PublicProfileRow = {
   profile_visibility: 'public' | 'private';
   friends_count: number;
   friend_requests_open: boolean;
+  profile_status?: string | null;
+  friends_list_public?: boolean | null;
   selected_title_reward_id?: string | null;
   displayed_badge_reward_ids?: string[] | null;
   created_at: string;
@@ -111,24 +113,34 @@ export async function GET(request: Request, { params }: { params: { username: st
 
     let { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, profile_visibility, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+      .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, profile_visibility, friends_count, friend_requests_open, profile_status, friends_list_public, selected_title_reward_id, displayed_badge_reward_ids, created_at')
       .eq('id', matchingProfile.id)
       .maybeSingle<PublicProfileRow>();
 
     if (error && (isMissingColumnError(error, 'chat_color') || isMissingColumnError(error, 'chat_border'))) {
       const fallback = await supabase
         .from('profiles')
-        .select('id, username, display_name, about_me, avatar_url, profile_visibility, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .select('id, username, display_name, about_me, avatar_url, profile_visibility, friends_count, friend_requests_open, profile_status, friends_list_public, selected_title_reward_id, displayed_badge_reward_ids, created_at')
         .eq('id', matchingProfile.id)
         .maybeSingle<Omit<PublicProfileRow, 'chat_color' | 'chat_border'>>();
       profile = fallback.data ? { ...fallback.data, chat_color: 'amber', chat_border: 'black' } : null;
       error = fallback.error;
     }
 
+    if (error && (isMissingColumnError(error, 'profile_status') || isMissingColumnError(error, 'friends_list_public'))) {
+      const fallback = await supabase
+        .from('profiles')
+        .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, profile_visibility, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .eq('id', matchingProfile.id)
+        .maybeSingle<Omit<PublicProfileRow, 'profile_status' | 'friends_list_public'>>();
+      profile = fallback.data ? { ...fallback.data, profile_status: '', friends_list_public: true } : null;
+      error = fallback.error;
+    }
+
     if (error && isMissingColumnError(error, 'profile_visibility')) {
       const fallback = await supabase
         .from('profiles')
-        .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, profile_status, friends_list_public, friends_count, friend_requests_open, selected_title_reward_id, displayed_badge_reward_ids, created_at')
         .eq('id', matchingProfile.id)
         .maybeSingle<Omit<PublicProfileRow, 'profile_visibility'>>();
       profile = fallback.data ? { ...fallback.data, profile_visibility: 'public' } : null;
@@ -170,6 +182,8 @@ export async function GET(request: Request, { params }: { params: { username: st
         discord_avatar_url: privateDetails?.discord_avatar_url ?? null,
         discord_banner_url: privateDetails?.discord_banner_url ?? null,
         riot_account_name: privateDetails?.riot_account_name ?? null,
+        profile_status: profile.profile_status ?? '',
+        friends_list_public: profile.friends_list_public !== false,
         selected_title_reward_id: profile.selected_title_reward_id ?? null,
         displayed_badge_reward_ids: profile.displayed_badge_reward_ids ?? [],
         achievements,

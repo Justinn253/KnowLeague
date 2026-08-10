@@ -71,6 +71,11 @@ export type AchievementEventName =
   | 'splash_scramble_completed'
   | 'cumulative_progress';
 
+export type AchievementEventSubmission = {
+  event: AchievementEventName;
+  metadata?: Record<string, unknown>;
+};
+
 export type CumulativeAchievementId =
   | 'holy_tryhard'
   | 'dedication'
@@ -90,7 +95,7 @@ export type AchievementListItem = AchievementDefinition & {
 };
 
 export type AchievementEventResult = {
-  achievements: AchievementListItem[];
+  achievements?: AchievementListItem[];
   changed: AchievementListItem[];
   completed: AchievementListItem[];
 };

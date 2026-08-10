@@ -19,7 +19,8 @@ import {
 import { getNextUtcResetLabel, normalizeAnswer, type QuizItem } from '@/lib/quiz';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { ViewportPopover } from '@/components/viewport-popover';
-import { submitAchievementEvent } from '@/lib/achievement-client';
+import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achievement-client';
+import type { AchievementEventSubmission } from '@/lib/achievements';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound, type SoundName } from '@/lib/ui-sounds';
 
@@ -586,6 +587,7 @@ export function Skindle() {
   const hoveredSuggestionIdRef = useRef<string | null>(null);
   const hasRestoredStateRef = useRef(false);
   const achievementRecordedRef = useRef(false);
+  const manyGuessesAchievementRecordedRef = useRef(false);
   const correctGuessStatsPendingRef = useRef(false);
   const activeDateKeyRef = useRef(activeDateKey);
 
@@ -736,6 +738,21 @@ export function Skindle() {
   }, [activeDateKey, firstGlobalGuessSkinIds, guesses, revealedSolvedGuessId, storageReady]);
 
   useEffect(() => {
+    if (!storageReady || guesses.length < 31 || manyGuessesAchievementRecordedRef.current) {
+      return;
+    }
+
+    manyGuessesAchievementRecordedRef.current = true;
+    void submitAchievementEvent('skindle_many_guesses', { guessCount: guesses.length })
+      .then((result) => {
+        if (!result) manyGuessesAchievementRecordedRef.current = false;
+      })
+      .catch(() => {
+        manyGuessesAchievementRecordedRef.current = false;
+      });
+  }, [guesses.length, storageReady]);
+
+  useEffect(() => {
     if (storageReady && solved) {
       if (!correctGuessStatsPendingRef.current) {
         void refreshDailyStats(true);
@@ -801,6 +818,7 @@ export function Skindle() {
     setDailyStats(null);
     hasRestoredStateRef.current = false;
     achievementRecordedRef.current = false;
+    manyGuessesAchievementRecordedRef.current = false;
     activeDateKeyRef.current = nextDateKey;
     setActiveDateKey(nextDateKey);
     if (hadUnfinishedRound) {
@@ -903,15 +921,14 @@ export function Skindle() {
 
     if (isCorrectGuess) {
       recordAppWin(`skindle:${activeDateKeyRef.current}:${target.id}`);
-      void submitAchievementEvent('solo_game_won', { gameId: 'skindle' });
+      const achievementEvents: AchievementEventSubmission[] = [
+        { event: 'solo_game_won', metadata: { gameId: 'skindle' } },
+      ];
       if (nextGuessCount === 1) {
-        void submitAchievementEvent('skindle_lucky_guess', { guessCount: nextGuessCount });
+        achievementEvents.push({ event: 'skindle_lucky_guess', metadata: { guessCount: nextGuessCount } });
       }
+      void submitAchievementEvents(achievementEvents);
     }
-    if (nextGuessCount > 30) {
-      void submitAchievementEvent('skindle_many_guesses', { guessCount: nextGuessCount });
-    }
-
     if (clientId) {
       let statsRecorded = false;
       fetch('/api/skindle/stats', {

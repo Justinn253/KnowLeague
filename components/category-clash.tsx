@@ -23,7 +23,7 @@ import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
-import { submitAchievementEvent } from '@/lib/achievement-client';
+import { submitAchievementEvents } from '@/lib/achievement-client';
 import type {
   CategoryClashCategory,
   CategoryClashChatMessage,
@@ -639,13 +639,18 @@ export function CategoryClash() {
       if (currentPlayer.result === 'won') {
         recordAppWin(`category-clash:${view.lobby.id}`);
       }
-      void submitAchievementEvent('multiplayer_result', {
-        gameId: 'category-clash',
-        result: currentPlayer.result === 'won' ? 'win' : 'loss',
-      });
-      void submitAchievementEvent('developer_moment', { gameId: 'category-clash', ...metadata });
-      void submitAchievementEvent('category_clash_last_standing', metadata);
-      void submitAchievementEvent('category_clash_shared_answer', metadata);
+      void submitAchievementEvents([
+        {
+          event: 'multiplayer_result',
+          metadata: {
+            gameId: 'category-clash',
+            result: currentPlayer.result === 'won' ? 'win' : 'loss',
+          },
+        },
+        { event: 'developer_moment', metadata: { gameId: 'category-clash', ...metadata } },
+        { event: 'category_clash_last_standing', metadata },
+        { event: 'category_clash_shared_answer', metadata },
+      ]);
     }
   }, [currentPlayer, view]);
 

@@ -31,7 +31,7 @@ import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { ABILITY_SLOTS, formatAbilitySlotSelection, type AbilitySlotId } from '@/lib/ability-slots';
-import { submitAchievementEvent } from '@/lib/achievement-client';
+import { submitAchievementEvents } from '@/lib/achievement-client';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession, getMultiplayerQuizLobbyStorageKey } from '@/lib/multiplayer-client-session';
 import type {
   MultiplayerQuizDifficulty,
@@ -340,11 +340,11 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
     achievementLobbyRef.current = view.lobby.id;
     const gameId = gameMode === 'ability_blitz' ? 'ability-blitz' : 'skin-champion';
-    void submitAchievementEvent('multiplayer_result', { gameId, result });
     const developerPresent = view.players.some((player) => player.display_name.trim().toLowerCase() === 'justin');
-    if (developerPresent) {
-      void submitAchievementEvent('developer_moment', { gameId, developerPresent });
-    }
+    void submitAchievementEvents([
+      { event: 'multiplayer_result', metadata: { gameId, result } },
+      ...(developerPresent ? [{ event: 'developer_moment' as const, metadata: { gameId, developerPresent } }] : []),
+    ]);
   }, [gameMode, view]);
 
   useEffect(() => {

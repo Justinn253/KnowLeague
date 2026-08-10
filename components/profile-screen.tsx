@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { submitAchievementEvent } from '@/lib/achievement-client';
+import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achievement-client';
 import { ACHIEVEMENT_GAME_OPTIONS, getAchievementGameLabel, getEarnedRewards, getRewardById, getRewardDescription, isUnachievedHiddenAchievement, type AchievementListItem } from '@/lib/achievements';
 import { DiscordMark } from '@/components/discord-mark';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -933,12 +933,10 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       !achievements.some((achievement) => achievement.id === 'discord_linked' && achievement.completedAt)
     ) {
       void submitAchievementEvent('discord_linked').then((result) => {
-        if (result) {
-          setAchievements(result.achievements);
-        }
+        if (result?.changed.length) void refreshAchievements();
       });
     }
-  }, [achievements, achievementsLoadAttempted, achievementsLoading, profile?.discord_username]);
+  }, [achievements, achievementsLoadAttempted, achievementsLoading, profile?.discord_username, refreshAchievements]);
 
   useEffect(() => {
     if (
@@ -949,12 +947,10 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       !achievements.some((achievement) => achievement.id === 'riot_linked' && achievement.completedAt)
     ) {
       void submitAchievementEvent('riot_linked').then((result) => {
-        if (result) {
-          setAchievements(result.achievements);
-        }
+        if (result?.changed.length) void refreshAchievements();
       });
     }
-  }, [achievements, achievementsLoadAttempted, achievementsLoading, profile?.riot_account_name]);
+  }, [achievements, achievementsLoadAttempted, achievementsLoading, profile?.riot_account_name, refreshAchievements]);
 
   useEffect(() => {
     if (activeTab === 'achievements' && !achievementsLoadAttempted && !achievementsLoading) {
@@ -1410,11 +1406,13 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       incomingRequests,
     };
     notifyProfileUpdated(userId);
-    void submitAchievementEvent('profile_customized').then((result) => {
-      if (result?.achievements) setAchievements(result.achievements);
-    });
-    void submitAchievementEvent('profile_completed').then((result) => {
-      if (result?.achievements) setAchievements(result.achievements);
+    void submitAchievementEvents([
+      { event: 'profile_customized' },
+      { event: 'profile_completed' },
+    ]).then((result) => {
+      if (result?.changed.length) {
+        void refreshAchievements();
+      }
     });
     setMessage('Profile updated.');
   };
@@ -1919,8 +1917,8 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     setSelectedTitleRewardId('');
     setDisplayedBadgeRewardIds([]);
     window.localStorage.removeItem(`knowleague:v1:achievement:first-login:${data.session.user.id}`);
-    const result = await submitAchievementEvent('first_login');
-    if (result) {
+    const result = await submitAchievementEvent('first_login', undefined, { includeAchievements: true });
+    if (result?.achievements) {
       window.localStorage.setItem(`knowleague:v1:achievement:first-login:${data.session.user.id}`, 'synced');
       setAchievements(result.achievements);
     } else {

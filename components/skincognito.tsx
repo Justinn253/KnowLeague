@@ -33,7 +33,7 @@ import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatInviteButtonStyle, getC
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
-import { submitAchievementEvent } from '@/lib/achievement-client';
+import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achievement-client';
 
 type SkinAnswer = {
   id: string;
@@ -650,11 +650,16 @@ export function Skincognito() {
       mostRecentSkinGuess: skinGuesses[skinGuesses.length - 1]?.guess_value ?? null,
     });
     setDetailedStats(updatedStats);
-    void submitAchievementEvent('multiplayer_result', {
-      gameId: 'skincognito',
-      result: won ? 'win' : 'loss',
-    });
-    void submitAchievementEvent('developer_moment', { gameId: 'skincognito', lobbyCode: lobbyView.lobby.code });
+    void submitAchievementEvents([
+      {
+        event: 'multiplayer_result',
+        metadata: {
+          gameId: 'skincognito',
+          result: won ? 'win' : 'loss',
+        },
+      },
+      { event: 'developer_moment', metadata: { gameId: 'skincognito', lobbyCode: lobbyView.lobby.code } },
+    ]);
   }, [lobbyView, requestingPlayer]);
 
   useEffect(() => {
@@ -1400,9 +1405,16 @@ export function Skincognito() {
         setGuessQuery('');
       }
 
-      if (categoryId === 'skin') {
-        void submitAchievementEvent('skincognito_skin_guessed', { lobbyCode: code });
-        void submitAchievementEvent('skincognito_clean_sweep', { lobbyCode: code });
+      if (categoryId === 'skin' && view) {
+        const submittedSkinGuess = [...view.actions]
+          .reverse()
+          .find((action) => action.player_id === view.requestingPlayer?.id && action.action_type === 'skin_guess');
+        if (submittedSkinGuess?.is_correct) {
+          void submitAchievementEvents([
+            { event: 'skincognito_skin_guessed', metadata: { lobbyCode: code } },
+            { event: 'skincognito_clean_sweep', metadata: { lobbyCode: code } },
+          ]);
+        }
         window.setTimeout(() => {
           void refreshLobbyView(code, clientId);
         }, 150);

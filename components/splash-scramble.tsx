@@ -42,7 +42,7 @@ import type { QuizItem } from '@/lib/quiz';
 import { getNextUtcResetLabel } from '@/lib/quiz';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { SplashScrambleLeaderboardSnapshot } from '@/lib/splash-scramble-leaderboard';
-import { submitAchievementEvent } from '@/lib/achievement-client';
+import { submitAchievementEvents } from '@/lib/achievement-client';
 import { playUiSound } from '@/lib/ui-sounds';
 
 type PuzzlePhase = 'prematch' | 'loading' | 'playing' | 'won' | 'lost';
@@ -1543,17 +1543,20 @@ export function SplashScramble() {
     playUiSound('puzzle-complete');
     recordSolveStats();
     recordAppWin(`splash-scramble:${roundMode}:${startedAt ?? Date.now()}:${targetSkin?.id ?? 'unknown'}`);
-    void submitAchievementEvent('splash_scramble_completed', { variant: 'puzzler' });
-    void submitAchievementEvent('solo_game_won', { gameId: 'splash-scramble' });
+    const achievementEvents = [
+      { event: 'splash_scramble_completed' as const, metadata: { variant: 'puzzler' } },
+      { event: 'solo_game_won' as const, metadata: { gameId: 'splash-scramble' } },
+    ];
     if (roundMode === 'regular' && timeLimit === 180 && !showReference && !lockCorrectTiles) {
-      void submitAchievementEvent('splash_scramble_completed', { variant: 'speed_blitz' });
+      achievementEvents.push({ event: 'splash_scramble_completed', metadata: { variant: 'speed_blitz' } });
     }
     if (roundMode === 'regular' && !showReference && !lockCorrectTiles && rotateTiles) {
-      void submitAchievementEvent('splash_scramble_completed', { variant: 'master_puzzler' });
+      achievementEvents.push({ event: 'splash_scramble_completed', metadata: { variant: 'master_puzzler' } });
     }
     if (roundMode === 'regular' && gridSize === 5 && timeLimit === null && showReference && lockCorrectTiles && !rotateTiles) {
-      void submitAchievementEvent('splash_scramble_completed', { variant: 'novice_puzzler' });
+      achievementEvents.push({ event: 'splash_scramble_completed', metadata: { variant: 'novice_puzzler' } });
     }
+    void submitAchievementEvents(achievementEvents);
     if (targetSkin) {
       void recordTargetSkinSolve(targetSkin.id);
     }

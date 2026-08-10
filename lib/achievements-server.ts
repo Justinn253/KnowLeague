@@ -2,6 +2,7 @@ import {
   ACHIEVEMENTS,
   ACHIEVEMENT_BY_ID,
   type AchievementEventName,
+  type AchievementEventSubmission,
   type AchievementEventResult,
   type AchievementListItem,
   maskAchievement,
@@ -131,6 +132,58 @@ async function getCompletedRows() {
   return data ?? [];
 }
 
+async function getAchievementRows(userId: string, achievementIds: readonly string[]) {
+  if (achievementIds.length === 0) {
+    return [];
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const query = supabase
+    .from('user_achievements')
+    .select('user_id, achievement_id, progress_current, progress_target, progress_scope_key, completed_at, updated_at')
+    .eq('user_id', userId);
+  const result = achievementIds.length === 1
+    ? await query.eq('achievement_id', achievementIds[0])
+    : await query.in('achievement_id', [...achievementIds]);
+
+  if (isMissingAchievementsTableError(result.error)) {
+    throw new Error('Achievements require the latest database migration.');
+  }
+  if (result.error) throw result.error;
+  return (result.data ?? []) as AchievementRow[];
+}
+
+function toAchievementListItem(
+  achievement: (typeof ACHIEVEMENTS)[number],
+  row?: AchievementRow,
+  globalRows: CompletedAchievementRow[] = [],
+  totalProfiles = 1,
+  includeGlobalStats = false,
+): AchievementListItem {
+  const completedAt = row?.completed_at ?? null;
+  const completionIndex = completedAt
+    ? globalRows.findIndex((candidate) => candidate.user_id === row?.user_id)
+    : -1;
+  const completionRank = completionIndex >= 0 ? completionIndex + 1 : null;
+  const completionPercent = includeGlobalStats
+    ? globalRows.length === 0
+      ? 0
+      : Math.max(0.1, Math.min(100, Math.round((globalRows.length / totalProfiles) * 1000) / 10))
+    : null;
+
+  return {
+    ...achievement,
+    progressCurrent: row?.progress_current ?? 0,
+    progressTarget: row?.progress_target ?? achievement.target,
+    completedAt,
+    updatedAt: row?.updated_at ?? null,
+    globalCompletedCount: globalRows.length,
+    completionRank,
+    completionPercent,
+    ...maskAchievement(achievement, completedAt),
+  };
+}
+
 export async function getUserAchievements(
   userId: string,
   options: { includeGlobalStats?: boolean } = {},
@@ -173,33 +226,13 @@ export async function getUserAchievements(
     achievementRows.sort((left, right) => new Date(left.completed_at).getTime() - new Date(right.completed_at).getTime());
   });
 
-  return ACHIEVEMENTS.map((achievement) => {
-    const row = rowsById.get(achievement.id);
-    const completedAt = row?.completed_at ?? null;
-    const globalRows = completedByAchievement.get(achievement.id) ?? [];
-    const completionIndex = completedAt
-      ? globalRows.findIndex((candidate) => candidate.user_id === userId)
-      : -1;
-    const completionRank = completionIndex >= 0 ? completionIndex + 1 : null;
-    const completionPercent = includeGlobalStats
-      ? globalRows.length === 0
-        ? 0
-        : Math.max(0.1, Math.min(100, Math.round((globalRows.length / totalProfiles) * 1000) / 10))
-      : null;
-    const masked = maskAchievement(achievement, completedAt);
-
-    return {
-      ...achievement,
-      progressCurrent: row?.progress_current ?? 0,
-      progressTarget: row?.progress_target ?? achievement.target,
-      completedAt,
-      updatedAt: row?.updated_at ?? null,
-      globalCompletedCount: globalRows.length,
-      completionRank,
-      completionPercent,
-      ...masked,
-    };
-  });
+  return ACHIEVEMENTS.map((achievement) => toAchievementListItem(
+    achievement,
+    rowsById.get(achievement.id),
+    completedByAchievement.get(achievement.id) ?? [],
+    totalProfiles,
+    includeGlobalStats,
+  ));
 }
 
 async function upsertProgress(userId: string, achievementId: string, progressCurrent: number, progressScopeKey?: string) {
@@ -774,26 +807,79 @@ export async function recordAchievementEvent(
   userId: string,
   event: AchievementEventName,
   metadata?: Record<string, unknown>,
+  options: { includeAchievements?: boolean } = {},
 ): Promise<AchievementEventResult> {
-  const before = await getUserAchievements(userId);
-  const validated = await assertEventIsValid(userId, event, metadata);
-  const updates: ValidatedAchievementUpdate[] = Array.isArray(validated)
-    ? validated
-    : [{ achievementId: validated, progressCurrent: 1 }];
+  return recordAchievementEvents(userId, [{ event, metadata }], options);
+}
+
+export async function recordAchievementEvents(
+  userId: string,
+  submissions: readonly AchievementEventSubmission[],
+  options: { includeAchievements?: boolean; ignoreInvalidEvents?: boolean } = {},
+): Promise<AchievementEventResult> {
+  if (submissions.length === 0 || submissions.length > 8) {
+    throw new Error('Achievement event submissions are required.');
+  }
+
+  const validations = await Promise.allSettled(
+    submissions.map(({ event, metadata }) => assertEventIsValid(userId, event, metadata)),
+  );
+  const rejectedValidation = validations.find((validation) => validation.status === 'rejected');
+  if (rejectedValidation && !options.ignoreInvalidEvents) {
+    throw rejectedValidation.reason;
+  }
+
+  const updatesById = new Map<string, ValidatedAchievementUpdate>();
+  validations.forEach((validation) => {
+    if (validation.status !== 'fulfilled') {
+      return;
+    }
+
+    const updates: ValidatedAchievementUpdate[] = Array.isArray(validation.value)
+      ? validation.value
+      : [{ achievementId: validation.value, progressCurrent: 1 }];
+    updates.forEach((update) => {
+      const current = updatesById.get(update.achievementId);
+      if (!current || update.progressCurrent > current.progressCurrent) {
+        updatesById.set(update.achievementId, update);
+      }
+    });
+  });
+
+  const updates = [...updatesById.values()];
+  const achievementIds = [...new Set(updates.map((update) => update.achievementId))];
+  const beforeRows = await getAchievementRows(userId, achievementIds);
   await Promise.all(updates.map((update) => upsertProgress(
     userId,
     update.achievementId,
     update.progressCurrent,
     update.progressScopeKey,
   )));
-  const after = await getUserAchievements(userId);
-  const beforeById = new Map(before.map((achievement) => [achievement.id, achievement]));
-  const changed = after.filter((achievement) => {
-    const previous = beforeById.get(achievement.id);
-    return previous?.progressCurrent !== achievement.progressCurrent || previous?.completedAt !== achievement.completedAt;
+  const afterRows = await getAchievementRows(userId, achievementIds);
+  const beforeById = new Map(beforeRows.map((row) => [row.achievement_id, row]));
+  const afterById = new Map(afterRows.map((row) => [row.achievement_id, row]));
+  const changed = achievementIds.flatMap((achievementId) => {
+    const after = afterById.get(achievementId);
+    const previous = beforeById.get(achievementId);
+    if (!after || (
+      previous
+      && previous.progress_current === after.progress_current
+      && previous.completed_at === after.completed_at
+    )) {
+      return [];
+    }
+    const achievement = ACHIEVEMENT_BY_ID.get(achievementId);
+    return achievement ? [toAchievementListItem(achievement, after)] : [];
   });
-  const completed = changed.filter((achievement) => achievement.completedAt && !beforeById.get(achievement.id)?.completedAt);
-  return { achievements: after, changed, completed };
+  const completed = changed.filter((achievement) => {
+    const previous = beforeById.get(achievement.id);
+    return Boolean(achievement.completedAt && !previous?.completed_at);
+  });
+  const result: AchievementEventResult = { changed, completed };
+  if (options.includeAchievements) {
+    result.achievements = await getUserAchievements(userId);
+  }
+  return result;
 }
 
 export async function resetUserAchievements(userId: string) {

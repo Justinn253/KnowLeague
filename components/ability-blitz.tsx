@@ -40,7 +40,8 @@ import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
 import { QuizItemCarousel, type QuizCarouselRole } from '@/components/quiz-item-carousel';
 import { QuizProgressCard } from '@/components/quiz-progress-card';
 import { ToggleSwitch } from '@/components/toggle-switch';
-import { submitAchievementEvent } from '@/lib/achievement-client';
+import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achievement-client';
+import type { AchievementEventSubmission } from '@/lib/achievements';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const placeholderItems: QuizItem[] = [
@@ -372,6 +373,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
   const answerInputAreaRef = useRef<HTMLDivElement | null>(null);
   const hasRestoredStateRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
+  const ironWrongAchievementSubmittedRef = useRef(false);
   const multiplayerResultSoundRef = useRef<string | null>(null);
   const persistenceSnapshotRef = useRef<{
     mode: SoloQuizMode;
@@ -759,17 +761,26 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
     });
 
     if (finished && !multiplayer) {
-      void submitAchievementEvent('solo_game_won', { gameId: 'ability-blitz' });
+      const achievementEvents: AchievementEventSubmission[] = [
+        { event: 'solo_game_won', metadata: { gameId: 'ability-blitz' } },
+      ];
       if (soloMode === 'daily' || soloMode === 'chaos') {
-        void submitAchievementEvent('solo_quiz_completed', { gameId: 'ability-blitz', mode: soloMode });
-      }
-      if (soloMode === 'casual' && selectedDifficulty === 'iron' && activeModifierCount === 0) {
-        void submitAchievementEvent('quiz_completed_with_settings', {
-          gameId: 'ability-blitz',
-          difficulty: selectedDifficulty,
-          modifierCount: activeModifierCount,
+        achievementEvents.push({
+          event: 'solo_quiz_completed',
+          metadata: { gameId: 'ability-blitz', mode: soloMode },
         });
       }
+      if (soloMode === 'casual' && selectedDifficulty === 'iron' && activeModifierCount === 0) {
+        achievementEvents.push({
+          event: 'quiz_completed_with_settings',
+          metadata: {
+            gameId: 'ability-blitz',
+            difficulty: selectedDifficulty,
+            modifierCount: activeModifierCount,
+          },
+        });
+      }
+      void submitAchievementEvents(achievementEvents);
     }
 
     if (finished && !multiplayer) {
@@ -1029,10 +1040,17 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
 
   const applyWrongGuess = (wrongOption?: string) => {
     playUiSound('skindle-guess-incorrect');
-    void submitAchievementEvent('quiz_wrong_answer', {
-      gameId: 'ability-blitz',
-      difficulty: selectedDifficulty,
-    });
+    if (selectedDifficulty === 'iron' && !ironWrongAchievementSubmittedRef.current) {
+      ironWrongAchievementSubmittedRef.current = true;
+      void submitAchievementEvent('quiz_wrong_answer', {
+        gameId: 'ability-blitz',
+        difficulty: selectedDifficulty,
+      }).then((result) => {
+        if (!result) ironWrongAchievementSubmittedRef.current = false;
+      }).catch(() => {
+        ironWrongAchievementSubmittedRef.current = false;
+      });
+    }
     setWrongGuessCount((count) => count + 1);
     if (difficultyRule.wrongGuess === 'game-over') {
       playUiSound('timer-expired');

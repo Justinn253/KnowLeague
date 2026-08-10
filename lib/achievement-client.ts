@@ -1,7 +1,8 @@
-import type { AchievementEventName, AchievementEventResult, CumulativeAchievementId } from '@/lib/achievements';
+import type { AchievementEventName, AchievementEventResult, AchievementEventSubmission, CumulativeAchievementId } from '@/lib/achievements';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 const inFlightEvents = new Map<string, Promise<AchievementEventResult | null>>();
+const inFlightEventBatches = new Map<string, Promise<AchievementEventResult | null>>();
 const inFlightCumulativeProgress = new Map<string, Promise<AchievementEventResult | null>>();
 const CUMULATIVE_PROGRESS_STORAGE_KEY = 'knowleague:v1:achievement:cumulative-progress';
 
@@ -9,6 +10,10 @@ export type CumulativeAchievementUpdate = {
   achievementId: CumulativeAchievementId;
   progress: number;
   sessionId?: string;
+};
+
+type SubmitAchievementEventOptions = {
+  includeAchievements?: boolean;
 };
 
 type PendingCumulativeProgressValue = {
@@ -152,8 +157,9 @@ function dispatchCompletedAchievements(result: AchievementEventResult) {
 export async function submitAchievementEvent(
   event: AchievementEventName,
   metadata?: Record<string, unknown>,
+  options: SubmitAchievementEventOptions = {},
 ) {
-  const eventKey = `${event}:${JSON.stringify(metadata ?? {})}`;
+  const eventKey = `${event}:${JSON.stringify(metadata ?? {})}:${options.includeAchievements ? 'full' : 'compact'}`;
   const inFlight = inFlightEvents.get(eventKey);
   if (inFlight) {
     return inFlight;
@@ -172,7 +178,7 @@ export async function submitAchievementEvent(
         Authorization: `Bearer ${data.session.access_token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ event, metadata }),
+      body: JSON.stringify({ event, metadata, includeAchievements: options.includeAchievements === true }),
     });
     const result = await response.json() as AchievementEventResult | { error?: string };
     if (!response.ok) {
@@ -189,6 +195,52 @@ export async function submitAchievementEvent(
     inFlightEvents.delete(eventKey);
   });
   inFlightEvents.set(eventKey, promise);
+  return promise;
+}
+
+export async function submitAchievementEvents(
+  submissions: readonly AchievementEventSubmission[],
+  options: SubmitAchievementEventOptions = {},
+) {
+  if (submissions.length === 0) {
+    return null;
+  }
+
+  const eventKey = `${JSON.stringify(submissions)}:${options.includeAchievements ? 'full' : 'compact'}`;
+  const inFlight = inFlightEventBatches.get(eventKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const submit = async () => {
+    const supabase = getOptionalSupabaseClient();
+    const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    if (!data.session) {
+      return null;
+    }
+
+    const response = await fetch('/api/achievements', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${data.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ events: submissions, includeAchievements: options.includeAchievements === true }),
+    });
+    const result = await response.json() as AchievementEventResult | { error?: string };
+    if (!response.ok) {
+      return null;
+    }
+
+    const achievementResult = result as AchievementEventResult;
+    dispatchCompletedAchievements(achievementResult);
+    return achievementResult;
+  };
+
+  const promise = submit().finally(() => {
+    inFlightEventBatches.delete(eventKey);
+  });
+  inFlightEventBatches.set(eventKey, promise);
   return promise;
 }
 

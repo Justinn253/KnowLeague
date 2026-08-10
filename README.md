@@ -12,6 +12,12 @@ Starter scaffold for a League of Legends quiz app using Next.js, Tailwind CSS, R
 
 - Copy `.env.example` into your hosting provider environment and provide real Supabase and Riot values.
 - Apply Supabase migrations before deploying a production build.
+
+## Authentication setup
+
+- Enable Google under Supabase Auth → Providers and configure the Google OAuth client. Add the Supabase Auth callback URL shown in the provider settings to the Google OAuth client, and add the KnowLeague site URL to Supabase Auth redirect URLs.
+- Disable Supabase Auth → Sessions → Single session per user if it is enabled. KnowLeague supports users staying signed in on multiple devices.
+- Apply `supabase/migrations/111_multi_device_auth_sessions.sql` before deploying the multi-device session revocation behavior.
 - Review `docs/alpha-launch-checklist.md` before public launch.
 - Configure the controls in `docs/abuse-controls.md` before public launch.
 - Enable and review the scheduled retention policy in `docs/data-retention.md` before public launch.

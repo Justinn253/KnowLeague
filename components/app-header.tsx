@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
   BarChart3,
   ChevronDown,
   CircleDollarSign,
+  FileText,
   Gamepad2,
   Layers,
   LogIn,
@@ -778,10 +780,22 @@ function MobileHeaderMenu({
 
           <section className="mt-4 border-t border-white/10 pt-3" aria-label="Miscellaneous">
             <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Miscellaneous</p>
-            <div className="mt-2 flex items-center gap-2">
-              <SoundSettingsMenu variant="header-icon" />
-              <ContactUsWidget variant="header-icon" />
-              {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
+            <div className="mt-2 grid gap-2">
+              {moderationRole ? (
+                <HeaderMenuLink
+                  href="/staff/changelog"
+                  label="Staff change log"
+                  description="Internal patch history"
+                  icon={FileText}
+                  iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
+                  onSelect={closeMenu}
+                />
+              ) : null}
+              <div className="flex items-center gap-2">
+                <SoundSettingsMenu variant="header-icon" />
+                <ContactUsWidget variant="header-icon" />
+                {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
+              </div>
             </div>
           </section>
 
@@ -827,6 +841,8 @@ export function AppHeader({
   onPendingFriendRequestsChange,
   onLogOut,
 }: AppHeaderProps) {
+  const router = useRouter();
+
   return (
     <header className="sticky top-0 z-[90] border-b border-white/10 bg-slate-950/95 text-slate-100 backdrop-blur">
       <div className="relative flex h-14 w-full items-center justify-between px-2 xl:grid xl:min-h-14 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4 xl:px-6">
@@ -860,6 +876,14 @@ export function AppHeader({
           <div className="hidden items-center gap-1 xl:flex xl:gap-2">
             <SoundSettingsMenu variant="header-icon" />
             <ContactUsWidget variant="header-icon" />
+            {moderationRole ? (
+              <HeaderIconButton
+                label="Staff change log"
+                icon={<FileText size={17} />}
+                onClick={() => router.push('/staff/changelog')}
+                className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
+              />
+            ) : null}
             {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
           </div>
 

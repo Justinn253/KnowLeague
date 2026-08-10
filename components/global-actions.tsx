@@ -8,7 +8,6 @@ import { CumulativeAchievementTracker } from '@/components/cumulative-achievemen
 import { AppHeader } from '@/components/app-header';
 import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
 import { submitAchievementEvent } from '@/lib/achievement-client';
-import { getAuthSessionId } from '@/lib/auth-session';
 import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
 import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -42,7 +41,7 @@ export function GlobalActions() {
   const logOut = async () => {
     await forfeitStoredMultiplayerSessions();
     const supabase = getOptionalSupabaseClient();
-    await supabase?.auth.signOut();
+    await supabase?.auth.signOut({ scope: 'local' });
     router.push('/login');
   };
 
@@ -55,9 +54,46 @@ export function GlobalActions() {
     if (!supabase) {
       return undefined;
     }
-    let signInCheckTimeout: number | null = null;
+    let sessionValidationInterval: number | null = null;
+    let sessionValidationInFlight = false;
     let profileChannel: ReturnType<typeof supabase.channel> | null = null;
     let subscribedProfileId: string | null = null;
+
+    const validateSession = async (session: Session) => {
+      if (sessionValidationInFlight) return;
+      sessionValidationInFlight = true;
+      try {
+        const response = await fetch('/api/auth/session', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: 'no-store',
+        });
+        if (response.ok || activeSessionRef.current?.access_token !== session.access_token) {
+          return;
+        }
+
+        await forfeitStoredMultiplayerSessions();
+        await supabase.auth.signOut({ scope: 'local' });
+        router.push('/login');
+      } catch {
+        // A transient network failure should not sign the user out locally.
+      } finally {
+        sessionValidationInFlight = false;
+      }
+    };
+
+    const updateSessionValidation = (session: Session | null) => {
+      if (sessionValidationInterval) {
+        window.clearInterval(sessionValidationInterval);
+        sessionValidationInterval = null;
+      }
+      if (!session) return;
+
+      void validateSession(session);
+      sessionValidationInterval = window.setInterval(() => {
+        const activeSession = activeSessionRef.current;
+        if (activeSession) void validateSession(activeSession);
+      }, 60_000);
+    };
 
     const updateModerationRole = async (session: Session, force = false) => {
       try {
@@ -78,7 +114,6 @@ export function GlobalActions() {
 
     const updateProfileAction = async (
       session?: Session | null,
-      mismatchRetries = 0,
       forceProfile = false,
       forceModeration = false,
     ) => {
@@ -110,39 +145,12 @@ export function GlobalActions() {
       }
       const profileResult = await getSessionScopedRequest('global-profile', session, async () => supabase
         .from('profiles')
-        .select('username, display_name, active_session_id, avatar_url, app_role')
+        .select('username, display_name, avatar_url, app_role')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null; avatar_url: string | null; app_role: string | null }>(), { force: forceProfile || forceModeration });
+        .maybeSingle<{ username: string; display_name: string; avatar_url: string | null; app_role: string | null }>(), { force: forceProfile || forceModeration });
       const { data } = profileResult;
       profileAppRoleRef.current = data?.app_role ?? null;
       setProfileUsername(data?.username?.trim() || null);
-
-      const sessionId = getAuthSessionId(session.access_token);
-      if (data?.active_session_id && sessionId && data.active_session_id !== sessionId) {
-        if (mismatchRetries > 0) {
-          signInCheckTimeout = window.setTimeout(() => {
-            signInCheckTimeout = null;
-            void updateProfileAction(session, mismatchRetries - 1, true);
-          }, 500);
-          return;
-        }
-        await forfeitStoredMultiplayerSessions();
-        await supabase.auth.signOut({ scope: 'local' });
-        activeSessionRef.current = null;
-        setProfileAvatarUrl(null);
-        setProfileUsername(null);
-        setProfileAway(false);
-        setIsLoggedIn(false);
-        setPendingFriendRequests(0);
-        setModerationRole(null);
-        router.push('/login');
-        return;
-      }
-
-      if (signInCheckTimeout) {
-        window.clearTimeout(signInCheckTimeout);
-        signInCheckTimeout = null;
-      }
       setProfileAvatarUrl(data?.avatar_url ?? null);
     };
 
@@ -180,29 +188,26 @@ export function GlobalActions() {
             && profileAppRoleRef.current !== null
             && profileAppRoleRef.current !== nextProfile.app_role;
           profileAppRoleRef.current = nextProfile.app_role ?? profileAppRoleRef.current;
-          void updateProfileAction(activeSession, 0, true, roleChanged);
+          void updateProfileAction(activeSession, true, roleChanged);
         })
         .subscribe();
     };
 
     const unsubscribeFromAuthSession = subscribeToAuthSession((session, event) => {
       activeSessionRef.current = session;
+      updateSessionValidation(session);
       replaceProfileSubscription(session);
-      if (signInCheckTimeout) {
-        window.clearTimeout(signInCheckTimeout);
-        signInCheckTimeout = null;
-      }
       if (event === 'SIGNED_IN' && session) {
         setProfileAway(false);
-        void updateProfileAction(session, 6);
+        void updateProfileAction(session);
         return;
       }
       void updateProfileAction(session);
     });
 
     return () => {
-      if (signInCheckTimeout) {
-        window.clearTimeout(signInCheckTimeout);
+      if (sessionValidationInterval) {
+        window.clearInterval(sessionValidationInterval);
       }
       unsubscribeFromAuthSession();
       if (profileChannel) {

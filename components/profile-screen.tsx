@@ -1965,7 +1965,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const signOut = async () => {
     const supabase = getOptionalSupabaseClient();
     await forfeitStoredMultiplayerSessions();
-    await supabase?.auth.signOut();
+    await supabase?.auth.signOut({ scope: 'local' });
     router.push('/login');
   };
 

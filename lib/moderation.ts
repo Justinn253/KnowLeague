@@ -1,5 +1,4 @@
 import type { User } from '@supabase/supabase-js';
-import { randomUUID } from 'crypto';
 import { sanitizeChatMessage } from '@/lib/chat-filter';
 import { sendFriendMessage } from '@/lib/friends';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -227,10 +226,10 @@ export async function forceUserLogout(targetUserId: string) {
     throw new Error('Admin accounts cannot be logged out from moderation tools.');
   }
 
+  const now = new Date().toISOString();
   const { error } = await getSupabaseServiceClient()
-    .from('profiles')
-    .update({ active_session_id: randomUUID(), updated_at: new Date().toISOString() })
-    .eq('id', targetUserId);
+    .from('auth_session_controls')
+    .upsert({ user_id: targetUserId, sessions_revoked_at: now, updated_at: now }, { onConflict: 'user_id' });
 
   if (error) throw error;
 }

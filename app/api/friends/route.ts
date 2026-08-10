@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getFriendDashboard } from '@/lib/friends';
@@ -20,7 +21,7 @@ function loadFriendDashboard(userId: string) {
   return request;
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/friends', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const dashboard = await loadFriendDashboard(userId);
@@ -28,4 +29,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

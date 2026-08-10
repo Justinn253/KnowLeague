@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { heartbeatSkincognitoPlayer } from '@/lib/skincognito';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -9,7 +10,7 @@ type HeartbeatBody = {
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/skincognito/lobbies/[code]/heartbeat', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<HeartbeatBody>(request);
     const view = await heartbeatSkincognitoPlayer(
@@ -22,4 +23,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

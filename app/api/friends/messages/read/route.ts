@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { markFriendMessagesRead } from '@/lib/friends';
@@ -9,7 +10,7 @@ type ReadMessagesBody = {
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/friends/messages/read', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<ReadMessagesBody>(request);
@@ -18,4 +19,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

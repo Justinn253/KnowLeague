@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUser } from '@/lib/auth-server';
@@ -10,7 +11,7 @@ type ProfilePreferencesBody = {
   friendsListPublic?: unknown;
 };
 
-export async function PUT(request: Request) {
+export const PUT = withApiMetrics('/api/profile/preferences', async function PUT(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     const body = await readJsonBody<ProfilePreferencesBody>(request);
@@ -38,4 +39,4 @@ export async function PUT(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

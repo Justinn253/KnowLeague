@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
@@ -10,7 +11,7 @@ import { getIpRateLimit } from '@/lib/abuse-controls';
 export const runtime = 'nodejs';
 const publicFriendsRateLimit = getIpRateLimit('publicProfile');
 
-export async function GET(request: Request, { params }: { params: { username: string } }) {
+export const GET = withApiMetrics('/api/profile/public/[username]/friends', async function GET(request: Request, { params }: { params: { username: string } }) {
   try {
     const rateLimitResponse = await enforceApiRateLimit(request, {
       scope: 'public-profile-friends',
@@ -35,4 +36,4 @@ export async function GET(request: Request, { params }: { params: { username: st
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

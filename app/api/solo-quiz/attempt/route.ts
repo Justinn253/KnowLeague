@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -29,7 +30,7 @@ function assertScope(body: { gameId?: SoloQuizGameId; mode?: SoloQuizMode; diffi
   };
 }
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/solo-quiz/attempt', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await request.json() as {
@@ -67,4 +68,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

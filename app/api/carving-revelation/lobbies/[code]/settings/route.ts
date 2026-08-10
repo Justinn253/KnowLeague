@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { updateCarvingRevelationSettings } from '@/lib/carving-revelation';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -16,7 +17,7 @@ type SettingsBody = {
 };
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/carving-revelation/lobbies/[code]/settings', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<SettingsBody>(request);
     return NextResponse.json(await updateCarvingRevelationSettings(
@@ -37,4 +38,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

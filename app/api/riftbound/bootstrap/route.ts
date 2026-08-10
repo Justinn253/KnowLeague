@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
@@ -6,7 +7,7 @@ import { loadRiftboundBootstrap } from '@/lib/riftbound-server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riftbound/bootstrap', async function GET(request: Request) {
   try {
     const userId = await getOptionalAuthenticatedUserId(request);
     const payload = await loadRiftboundBootstrap(userId);
@@ -19,4 +20,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

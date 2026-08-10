@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { submitSkincognitoAction, type SkincognitoActionType, type SkincognitoCategoryId } from '@/lib/skincognito';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -13,7 +14,7 @@ const actionTypes = new Set(['category_guess', 'skin_guess']);
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/skincognito/lobbies/[code]/actions', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<SubmitActionBody>(request);
     const actionType = requireString(body.actionType, 'actionType') as SkincognitoActionType;
@@ -32,4 +33,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

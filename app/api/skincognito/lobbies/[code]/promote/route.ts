@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { promoteSkincognitoSpectator } from '@/lib/skincognito';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -9,7 +10,7 @@ type PromoteBody = {
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/skincognito/lobbies/[code]/promote', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<PromoteBody>(request);
     const view = await promoteSkincognitoSpectator(
@@ -22,4 +23,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

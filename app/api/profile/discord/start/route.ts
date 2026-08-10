@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { createHmac, randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -24,7 +25,7 @@ function signState(userId: string, nonce: string, secret: string) {
   return createHmac('sha256', secret).update(`${userId}.${nonce}`).digest('hex');
 }
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/profile/discord/start', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const { clientId, clientSecret, redirectUri } = getDiscordConfig(request);
@@ -50,4 +51,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

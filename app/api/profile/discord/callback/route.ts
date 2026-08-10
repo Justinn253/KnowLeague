@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
@@ -76,7 +77,7 @@ function getDiscordBannerUrl(user: DiscordUserResponse) {
   return `https://cdn.discordapp.com/banners/${user.id}/${user.banner}.${extension}?size=1024`;
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/profile/discord/callback', async function GET(request: Request) {
   const response = NextResponse.redirect(new URL('/profile?discord=linked', request.url));
   response.cookies.delete('knowleague_discord_oauth_state');
 
@@ -171,4 +172,4 @@ export async function GET(request: Request) {
     redirect.cookies.delete('knowleague_discord_oauth_state');
     return errorResponse.status >= 500 ? errorResponse : redirect;
   }
-}
+});

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { createContactSubmission, isContactSubmissionCategory } from '@/lib/contact';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -17,7 +18,7 @@ type ContactSubmissionBody = {
 export const runtime = 'nodejs';
 const CONTACT_RATE_LIMIT_WINDOW_MS = 30 * 60 * 1000;
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/contact', async function POST(request: Request) {
   try {
     const body = await readJsonBody<ContactSubmissionBody>(request);
     const category = requireString(body.category, 'category');
@@ -133,4 +134,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

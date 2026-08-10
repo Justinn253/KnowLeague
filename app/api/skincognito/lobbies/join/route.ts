@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { joinSkincognitoLobby } from '@/lib/skincognito';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -15,7 +16,7 @@ type JoinLobbyBody = {
 export const runtime = 'nodejs';
 const lobbyJoinRateLimit = getDualRateLimit('lobbyJoin');
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/skincognito/lobbies/join', async function POST(request: Request) {
   try {
     const body = await readJsonBody<JoinLobbyBody>(request);
     const authUserId = await getOptionalAuthenticatedUserId(request);
@@ -38,4 +39,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

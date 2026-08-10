@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getDailyDateKey } from '@/lib/game-storage';
 import { getSkindleDailyStats, recordSkindleGuess } from '@/lib/skindle-stats';
@@ -9,15 +10,15 @@ function shouldIncludeTopGuesses(request: Request) {
   return url.searchParams.get('includeTop') === 'true';
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/skindle/stats', async function GET(request: Request) {
   const dateKey = getDailyDateKey();
   const stats = await getSkindleDailyStats(dateKey, shouldIncludeTopGuesses(request));
   return NextResponse.json(stats, {
     headers: { 'Cache-Control': 'no-store' },
   });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/skindle/stats', async function POST(request: Request) {
   const body = await request.json();
 
   if (
@@ -42,4 +43,4 @@ export async function POST(request: Request) {
   );
 
   return NextResponse.json(result);
-}
+});

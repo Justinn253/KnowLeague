@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { buildRiftboundPriceSnapshotRows, fetchRiftboundPriceSnapshot } from '@/lib/riftbound-price-source';
 import { RIFTBOUND_CARDS } from '@/lib/riftbound';
@@ -67,10 +68,10 @@ async function captureSnapshot(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/cron/riftbound-price-snapshot', async function GET(request: Request) {
   return captureSnapshot(request);
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/cron/riftbound-price-snapshot', async function POST(request: Request) {
   return captureSnapshot(request);
-}
+});

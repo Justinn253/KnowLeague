@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -91,16 +92,16 @@ function buildCardRows(deckId: string, cards: RiftboundDeckCardSelection[]) {
   return cards.map(({ cardId: card_id, category, quantity }) => ({ deck_id: deckId, card_id, category, quantity }));
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riftbound/decks', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     return NextResponse.json({ decks: await loadRiftboundDecks(userId) });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/riftbound/decks', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const input = parseDeckInput(await readJsonBody<DeckBody>(request));
@@ -129,9 +130,9 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withApiMetrics('/api/riftbound/decks', async function PATCH(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<DeckBody>(request);
@@ -153,9 +154,9 @@ export async function PATCH(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withApiMetrics('/api/riftbound/decks', async function DELETE(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<{ deckId?: unknown }>(request);
@@ -173,4 +174,4 @@ export async function DELETE(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

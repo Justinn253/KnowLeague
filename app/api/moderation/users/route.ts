@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -26,7 +27,7 @@ type UserActionBody = {
 
 export const runtime = 'nodejs';
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/moderation/users', async function GET(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     await requireModerationAccess(user);
@@ -35,9 +36,9 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withApiMetrics('/api/moderation/users', async function PATCH(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     await requireAdminAccess(user);
@@ -53,9 +54,9 @@ export async function PATCH(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/moderation/users', async function POST(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     await requireModerationAccess(user);
@@ -79,4 +80,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

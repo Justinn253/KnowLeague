@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -32,7 +33,7 @@ function mergeStatsByGame(left: PlayerGameStatsByGame, right: PlayerGameStatsByG
   }));
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/profile/player-game-stats', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const { data, error } = await getSupabaseServiceClient()
@@ -52,9 +53,9 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withApiMetrics('/api/profile/player-game-stats', async function PUT(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<PlayerGameStatsBody>(request);
@@ -91,4 +92,4 @@ export async function PUT(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

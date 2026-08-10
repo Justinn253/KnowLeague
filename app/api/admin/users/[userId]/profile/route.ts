@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -13,7 +14,7 @@ type AdminProfileActionBody = {
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { userId: string } }) {
+export const POST = withApiMetrics('/api/admin/users/[userId]/profile', async function POST(request: Request, { params }: { params: { userId: string } }) {
   try {
     const staffUser = await getAuthenticatedUser(request);
     await requireAdminAccess(staffUser);
@@ -56,4 +57,4 @@ export async function POST(request: Request, { params }: { params: { userId: str
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
@@ -5,7 +6,7 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/profile/discord/unlink', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const { error } = await getSupabaseServiceClient()
@@ -54,4 +55,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

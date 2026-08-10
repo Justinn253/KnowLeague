@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId, getOptionalAuthenticatedUserId } from '@/lib/auth-server';
@@ -7,7 +8,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request, { params }: { params: { postId: string } }) {
+export const GET = withApiMetrics('/api/riftbound/community/posts/[postId]', async function GET(request: Request, { params }: { params: { postId: string } }) {
   try {
     const rateLimitResponse = await enforceApiRateLimit(request, {
       scope: 'riftbound:community-post',
@@ -26,9 +27,9 @@ export async function GET(request: Request, { params }: { params: { postId: stri
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function PATCH(request: Request, { params }: { params: { postId: string } }) {
+export const PATCH = withApiMetrics('/api/riftbound/community/posts/[postId]', async function PATCH(request: Request, { params }: { params: { postId: string } }) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -44,9 +45,9 @@ export async function PATCH(request: Request, { params }: { params: { postId: st
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function DELETE(request: Request, { params }: { params: { postId: string } }) {
+export const DELETE = withApiMetrics('/api/riftbound/community/posts/[postId]', async function DELETE(request: Request, { params }: { params: { postId: string } }) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -61,4 +62,4 @@ export async function DELETE(request: Request, { params }: { params: { postId: s
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

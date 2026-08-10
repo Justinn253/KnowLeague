@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { selectSkincognitoSkin } from '@/lib/skincognito';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -9,7 +10,7 @@ type SelectSkinBody = {
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/skincognito/lobbies/[code]/skin', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<SelectSkinBody>(request);
     const view = await selectSkincognitoSkin(
@@ -22,4 +23,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
@@ -5,7 +6,7 @@ import { listModerationTeamMembers, requireModerationAccess } from '@/lib/modera
 
 export const runtime = 'nodejs';
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/moderation/team', async function GET(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     await requireModerationAccess(user);
@@ -13,4 +14,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { updateMultiplayerQuizProgress, type MultiplayerQuizPlayerResult } from '@/lib/multiplayer-quiz';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -10,7 +11,7 @@ type ProgressBody = {
   record?: { wins?: number; losses?: number };
 };
 export const runtime = 'nodejs';
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/multiplayer/lobbies/[code]/progress', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<ProgressBody>(request);
     return NextResponse.json(await updateMultiplayerQuizProgress(
@@ -24,4 +25,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

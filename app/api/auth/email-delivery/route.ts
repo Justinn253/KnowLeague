@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { enforceEmailDeliveryProtection } from '@/lib/email-delivery';
@@ -30,7 +31,7 @@ function getSafeRedirectUrl(request: Request, value: unknown, path: string) {
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/auth/email-delivery', async function POST(request: Request) {
   try {
     const body = await request.json() as EmailDeliveryBody;
     const email = typeof body.email === 'string' ? body.email.trim() : '';
@@ -64,4 +65,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

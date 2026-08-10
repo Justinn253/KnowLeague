@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, requireString } from '@/lib/api-utils';
 import { getCarvingRevelationSkinImageSource } from '@/lib/carving-revelation';
@@ -5,7 +6,7 @@ import { getCarvingRevelationSkinImageSource } from '@/lib/carving-revelation';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request, { params }: { params: { code: string } }) {
+export const GET = withApiMetrics('/api/carving-revelation/lobbies/[code]/skin-image', async function GET(request: Request, { params }: { params: { code: string } }) {
   try {
     const url = new URL(request.url);
     const { imageUrl } = await getCarvingRevelationSkinImageSource(
@@ -25,4 +26,4 @@ export async function GET(request: Request, { params }: { params: { code: string
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { searchExistingFriends, searchFriendCandidates } from '@/lib/friends';
@@ -8,7 +9,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit';
 export const runtime = 'nodejs';
 const friendSearchRateLimit = getDualRateLimit('friendSearch');
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/friends/search', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -27,4 +28,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

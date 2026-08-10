@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { createCarvingRevelationLobby } from '@/lib/carving-revelation';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -9,7 +10,7 @@ type CreateLobbyBody = { clientId: string };
 export const runtime = 'nodejs';
 const lobbyCreateRateLimit = getDualRateLimit('lobbyCreate');
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/carving-revelation/lobbies', async function POST(request: Request) {
   try {
     const body = await readJsonBody<CreateLobbyBody>(request);
     const authUserId = await getOptionalAuthenticatedUserId(request);
@@ -29,4 +30,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

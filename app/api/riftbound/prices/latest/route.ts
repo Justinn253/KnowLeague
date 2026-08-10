@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
 import { loadLatestRiftboundPrices } from '@/lib/riftbound-server';
@@ -5,7 +6,7 @@ import { loadLatestRiftboundPrices } from '@/lib/riftbound-server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riftbound/prices/latest', async function GET(request: Request) {
   try {
     const viewerId = await getOptionalAuthenticatedUserId(request);
     const response = NextResponse.json(await loadLatestRiftboundPrices(undefined, viewerId));
@@ -15,4 +16,4 @@ export async function GET(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Unable to load the latest Riftbound market values.' }, { status: 500 });
   }
-}
+});

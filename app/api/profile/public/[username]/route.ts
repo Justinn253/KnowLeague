@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
@@ -81,7 +82,7 @@ async function fetchPrivateDetails(userId: string) {
   return data;
 }
 
-export async function GET(request: Request, { params }: { params: { username: string } }) {
+export const GET = withApiMetrics('/api/profile/public/[username]', async function GET(request: Request, { params }: { params: { username: string } }) {
   try {
     const rateLimitResponse = await enforceApiRateLimit(request, {
       scope: 'public-profile',
@@ -196,4 +197,4 @@ export async function GET(request: Request, { params }: { params: { username: st
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

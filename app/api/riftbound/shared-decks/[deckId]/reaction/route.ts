@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -7,7 +8,7 @@ import type { RiftboundPostReaction } from '@/lib/riftbound-community-types';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { deckId: string } }) {
+export const POST = withApiMetrics('/api/riftbound/shared-decks/[deckId]/reaction', async function POST(request: Request, { params }: { params: { deckId: string } }) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -27,4 +28,4 @@ export async function POST(request: Request, { params }: { params: { deckId: str
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

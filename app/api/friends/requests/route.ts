@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { createFriendRequest, createFriendRequestByUsername } from '@/lib/friends';
@@ -14,7 +15,7 @@ type FriendRequestBody = {
 export const runtime = 'nodejs';
 const friendRequestRateLimit = getDualRateLimit('friendRequest');
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/friends/requests', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -43,4 +44,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

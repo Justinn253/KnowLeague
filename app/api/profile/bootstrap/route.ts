@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getAuthenticatedUser } from '@/lib/auth-server';
@@ -21,7 +22,7 @@ type ProfileBootstrapRow = {
   detailed_game_stats_reset_at: Record<string, string> | null;
 };
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/profile/bootstrap', async function GET(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     const [role, privateDetailsResult] = await Promise.all([
@@ -51,4 +52,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

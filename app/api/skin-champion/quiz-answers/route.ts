@@ -1,9 +1,10 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
 import { GENERATED_CATALOG_CACHE_CONTROL } from '@/lib/cache-control';
 import { getAnswerList, getSkinCatalog } from '@/lib/catalogs';
 import { getSkinThemeAnswerList } from '@/lib/skin-themes';
 
-export async function GET(request: NextRequest) {
+export const GET = withApiMetrics('/api/skin-champion/quiz-answers', async function GET(request: NextRequest) {
   const answerMode = request.nextUrl.searchParams.get('answerMode');
   const catalog = getSkinCatalog();
 
@@ -16,4 +17,4 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(getAnswerList(catalog), {
     headers: { 'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL },
   });
-}
+});

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import {
   getRiotAccountProfileSnapshot,
@@ -87,7 +88,7 @@ function getErrorStatus(error: unknown) {
   return 400;
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riot-account/viewer', async function GET(request: Request) {
   const clientIp = getClientIp(request);
   try {
     const url = new URL(request.url);
@@ -188,4 +189,4 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ error: message }, { status: getErrorStatus(error) });
   }
-}
+});

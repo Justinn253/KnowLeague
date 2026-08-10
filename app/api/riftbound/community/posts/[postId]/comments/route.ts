@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId, getOptionalAuthenticatedUserId } from '@/lib/auth-server';
@@ -6,7 +7,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: Request, { params }: { params: { postId: string } }) {
+export const GET = withApiMetrics('/api/riftbound/community/posts/[postId]/comments', async function GET(request: Request, { params }: { params: { postId: string } }) {
   try {
     const rateLimitResponse = await enforceApiRateLimit(request, {
       scope: 'riftbound:community-comments-read',
@@ -23,9 +24,9 @@ export async function GET(request: Request, { params }: { params: { postId: stri
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request, { params }: { params: { postId: string } }) {
+export const POST = withApiMetrics('/api/riftbound/community/posts/[postId]/comments', async function POST(request: Request, { params }: { params: { postId: string } }) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -40,4 +41,4 @@ export async function POST(request: Request, { params }: { params: { postId: str
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

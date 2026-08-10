@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { postCategoryClashChatMessage } from '@/lib/category-clash';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -8,7 +9,7 @@ type ChatBody = { clientId: string; message: string };
 export const runtime = 'nodejs';
 const lobbyChatRateLimit = getDualRateLimit('lobbyChat');
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/category-clash/lobbies/[code]/chat', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<ChatBody>(request);
     const clientId = requireString(body.clientId, 'clientId');
@@ -27,4 +28,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

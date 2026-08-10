@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -6,7 +7,7 @@ import { isAchievementEventName } from '@/lib/achievements';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/achievements', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const achievements = await getUserAchievements(userId);
@@ -14,9 +15,9 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/achievements', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<{ event?: unknown; events?: unknown; metadata?: unknown; includeAchievements?: unknown }>(request);
@@ -53,9 +54,9 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withApiMetrics('/api/achievements', async function DELETE(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     await resetUserAchievements(userId);
@@ -63,4 +64,4 @@ export async function DELETE(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

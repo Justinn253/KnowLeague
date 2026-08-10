@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -6,7 +7,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { postId: string } }) {
+export const POST = withApiMetrics('/api/riftbound/community/posts/[postId]/share', async function POST(request: Request, { params }: { params: { postId: string } }) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -20,4 +21,4 @@ export async function POST(request: Request, { params }: { params: { postId: str
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

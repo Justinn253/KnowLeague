@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
+  Activity,
   BarChart3,
   ChevronDown,
   CircleDollarSign,
@@ -793,6 +794,17 @@ function MobileHeaderMenu({
                   className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
                 />
               ) : null}
+              {moderationRole ? (
+                <HeaderIconButton
+                  label="API metrics"
+                  icon={<Activity size={17} />}
+                  onClick={() => {
+                    closeMenu();
+                    router.push('/staff/api-metrics');
+                  }}
+                  className="border-cyan-300/30 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-300/10"
+                />
+              ) : null}
               <SoundSettingsMenu variant="header-icon" />
               <ContactUsWidget variant="header-icon" />
               {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
@@ -882,6 +894,14 @@ export function AppHeader({
                 icon={<FileText size={17} />}
                 onClick={() => router.push('/staff/changelog')}
                 className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
+              />
+            ) : null}
+            {moderationRole ? (
+              <HeaderIconButton
+                label="API metrics"
+                icon={<Activity size={17} />}
+                onClick={() => router.push('/staff/api-metrics')}
+                className="border-cyan-300/30 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-300/10"
               />
             ) : null}
             {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}

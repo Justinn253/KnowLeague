@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
@@ -27,7 +28,7 @@ function getOptionalCardId(value: string | null) {
   return card.id;
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riftbound/community/feed', async function GET(request: Request) {
   try {
     const rateLimitResponse = await enforceApiRateLimit(request, {
       scope: 'riftbound:community-feed',
@@ -69,4 +70,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

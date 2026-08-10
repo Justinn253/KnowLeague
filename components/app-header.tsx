@@ -614,6 +614,7 @@ function MobileHeaderMenu({
   pendingFriendRequests,
   moderationRole,
 }: Pick<AppHeaderProps, 'isLoggedIn' | 'pendingFriendRequests' | 'moderationRole'>) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [openSection, setOpenSection] = useState<'games' | 'lav' | 'riftbound' | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -780,22 +781,21 @@ function MobileHeaderMenu({
 
           <section className="mt-4 border-t border-white/10 pt-3" aria-label="Miscellaneous">
             <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Miscellaneous</p>
-            <div className="mt-2 grid gap-2">
+            <div className="mt-2 flex items-center gap-2">
               {moderationRole ? (
-                <HeaderMenuLink
-                  href="/staff/changelog"
+                <HeaderIconButton
                   label="Staff change log"
-                  description="Internal patch history"
-                  icon={FileText}
-                  iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
-                  onSelect={closeMenu}
+                  icon={<FileText size={17} />}
+                  onClick={() => {
+                    closeMenu();
+                    router.push('/staff/changelog');
+                  }}
+                  className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
                 />
               ) : null}
-              <div className="flex items-center gap-2">
-                <SoundSettingsMenu variant="header-icon" />
-                <ContactUsWidget variant="header-icon" />
-                {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
-              </div>
+              <SoundSettingsMenu variant="header-icon" />
+              <ContactUsWidget variant="header-icon" />
+              {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
             </div>
           </section>
 

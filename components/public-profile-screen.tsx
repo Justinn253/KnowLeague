@@ -13,7 +13,6 @@ import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-u
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { ProfileScreen } from '@/components/profile-screen';
 import { ProfileFriendsMenu } from '@/components/profile-friends-menu';
-import { getPublicProfileHref } from '@/lib/profile-navigation';
 import { getProfileTabFromUrl, pushProfileTabToUrl } from '@/lib/profile-tabs';
 
 type PublicProfileRecord = {
@@ -570,9 +569,10 @@ function PublicAchievementsTab({
   };
 
   return (
-    <div className="mt-5 grid min-w-0 gap-4">
-      {isAdmin ? (
-        <div className="flex justify-end">
+    <div className="mt-3 grid min-w-0 gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-black text-white">{profileName}&apos;s Achievement progress</h2>
+        {isAdmin ? (
           <button
             type="button"
             onClick={onResetAllAchievements}
@@ -581,11 +581,7 @@ function PublicAchievementsTab({
           >
             {resetAllBusy ? 'Resetting...' : resetAllConfirming ? 'Confirm Reset' : 'Reset All Achievements'}
           </button>
-        </div>
-      ) : null}
-      <div>
-        <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-500">Achievement progress</p>
-        <h2 className="mt-1 text-lg font-black text-white">{profileName}&apos;s Achievement progress</h2>
+        ) : null}
       </div>
       <div className="grid min-w-0 gap-3 rounded-3xl border border-white/10 bg-slate-950/80 p-3 sm:p-4">
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,13rem)_auto_auto_auto] lg:items-end">
@@ -1386,7 +1382,6 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
                       )}
                     </div>
                     <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                      <Link href={getPublicProfileHref(profile.username)} className="shrink-0 truncate transition hover:text-amber-200" style={getChatNameStyle(profile.chat_color)}>{profile.username}</Link>
                       <span className="truncate">Joined {formatProfileDate(profile.created_at)}</span>
                     </div>
                     {profile.profile_status ? <p className="mt-2 max-w-xl text-sm leading-5 text-slate-300">{profile.profile_status}</p> : null}

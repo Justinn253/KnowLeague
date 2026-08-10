@@ -40,6 +40,7 @@ type FriendSearchCandidate = {
   friendRequestsOpen: boolean;
   avatarUrl: string | null;
   chatColor: string;
+  createdAt: string | null;
   relationship: 'friend' | 'incoming' | 'outgoing' | 'none';
 };
 
@@ -429,7 +430,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
 
   useEffect(() => {
     const openFriendMessages = (event: Event) => {
-      const friendId = (event as CustomEvent<{ friendId?: string }>).detail?.friendId;
+      const detail = (event as CustomEvent<{ friendId?: string; expandProfile?: boolean }>).detail;
+      const friendId = detail?.friendId;
       if (!friendId) {
         return;
       }
@@ -441,7 +443,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
         setAddFriendSearchQuery('');
         setAddFriendSearchResults([]);
         setContextFriend(null);
-        setSnapshotExpanded(false);
+        setSnapshotExpanded(detail?.expandProfile ?? false);
         setSnapshotAboutExpanded(false);
         setFriendNoteEditing(false);
         setActiveFriend(friend);
@@ -1325,23 +1327,11 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                              </Link>
                           </div>
                           <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                               <Link
-                                 href={getPublicProfileHref(activeFriendView.username)}
-                                 target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
-                                 rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
-                                 onClick={() => {
-                                   setIsOpen(false);
-                                   setActiveFriend(null);
-                                 }}
-                                 className="shrink-0 truncate text-xs text-slate-500 transition hover:text-amber-200"
-                                 style={getChatNameStyle(activeFriendView.chatColor)}
-                               >{activeFriendView.username}</Link>
-                              <span className="shrink-0 text-slate-600">-</span>
-                              <p className="min-w-0 truncate text-xs italic text-slate-500">
-                                {activeFriendView.friendNote ? `Note: ${activeFriendView.friendNote}` : 'Add note'}
-                              </p>
-                            </div>
+                            {activeFriendView.friendNote ? (
+                              <div className="flex min-w-0 items-center text-xs text-slate-500">
+                                <p className="min-w-0 truncate italic">Note: {activeFriendView.friendNote}</p>
+                              </div>
+                            ) : null}
                             <div className="mt-auto min-w-0 pt-1">
                               {activeFriendView.profileStatus ? <p className="truncate text-xs text-slate-300">{activeFriendView.profileStatus}</p> : null}
                               {activeFriendLiveGameNote ? (
@@ -1606,6 +1596,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-white" style={getChatNameStyle(candidate.chatColor)}>{candidate.displayName}</p>
+                            <p className="mt-0.5 truncate text-[0.68rem] text-slate-500">Joined {formatProfileDate(candidate.createdAt)}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
                             <Link

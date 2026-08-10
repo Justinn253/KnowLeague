@@ -87,6 +87,15 @@ function isOnline(lastSeenAt?: string | null) {
   return Boolean(lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < ONLINE_WINDOW_MS);
 }
 
+function getFriendId(friendship: FriendshipRow, userId: string) {
+  return friendship.user_one_id === userId ? friendship.user_two_id : friendship.user_one_id;
+}
+
+function isFriendFavorite(friendship: FriendshipRow | undefined, userId: string) {
+  if (!friendship) return false;
+  return Boolean(userId === friendship.user_one_id ? friendship.user_one_favorite : friendship.user_two_favorite);
+}
+
 function toSummary(
   profile: ProfileRow,
   unreadCount = 0,
@@ -561,9 +570,14 @@ export async function getPublicFriendList(targetUserId: string, viewerId: string
   }
 
   const friendships = await getActiveFriendshipsForUser(supabase, targetUserId);
-  const friendIds = friendships.map((friendship) => (
-    friendship.user_one_id === targetUserId ? friendship.user_two_id : friendship.user_one_id
-  ));
+  const selectedFriendships = [...friendships]
+    .sort((left, right) => (
+      Number(isFriendFavorite(right, targetUserId)) - Number(isFriendFavorite(left, targetUserId))
+      || getFriendId(left, targetUserId).localeCompare(getFriendId(right, targetUserId))
+    ))
+    .slice(0, 50);
+  const friendIds = selectedFriendships.map((friendship) => getFriendId(friendship, targetUserId));
+  const friendshipByFriendId = new Map(selectedFriendships.map((friendship) => [getFriendId(friendship, targetUserId), friendship]));
   const profiles = (await selectProfilesByIds(supabase, friendIds)).filter((profile) => !profile.is_banned);
   const publicProfiles = viewerIsAdmin || viewerId === targetUserId
     ? profiles
@@ -580,11 +594,7 @@ export async function getPublicFriendList(targetUserId: string, viewerId: string
       profileStatus: profile.profile_status?.trim().slice(0, 50) ?? '',
       createdAt: profile.created_at ?? null,
       online: isOnline(profile.last_seen_at),
-      favorite: Boolean(friendships.find((friendship) => (
-        friendship.user_one_id === targetUserId
-          ? friendship.user_two_id === profile.id && friendship.user_one_favorite
-          : friendship.user_one_id === profile.id && friendship.user_two_favorite
-      ))),
+      favorite: isFriendFavorite(friendshipByFriendId.get(profile.id), targetUserId),
     })),
   };
 }
@@ -609,6 +619,7 @@ export async function searchFriendCandidates(userId: string, query: string) {
     .ilike('username', `${cleanQuery}%`)
     .neq('id', userId)
     .eq('is_banned', false)
+    .order('username', { ascending: true })
     .limit(10)
     .returns<ProfileRow[]>();
 
@@ -621,6 +632,7 @@ export async function searchFriendCandidates(userId: string, query: string) {
       .ilike('username', `${cleanQuery}%`)
       .neq('id', userId)
       .eq('is_banned', false)
+      .order('username', { ascending: true })
       .limit(10)
       .returns<ProfileRow[]>();
     profileRows = fallback.data?.map((profile) => ({ ...profile, profile_status: '' })) ?? null;
@@ -652,11 +664,16 @@ export async function searchFriendCandidates(userId: string, query: string) {
 
   const privateDetailsByUserId = await selectPrivateDetailsByUserIds(supabase, (profileRows ?? []).map((profile) => profile.id));
 
-  return (profileRows ?? []).map((profile) => ({
+  return [...(profileRows ?? [])]
+    .sort((left, right) => (
+      Number(right.username.toLowerCase() === cleanQuery) - Number(left.username.toLowerCase() === cleanQuery)
+      || left.username.localeCompare(right.username)
+    ))
+    .map((profile) => ({
     ...toSummary(profile, 0, '', { privateDetails: privateDetailsByUserId.get(profile.id) ?? null }),
     friendRequestsOpen: profile.friend_requests_open,
     relationship: friendIds.has(profile.id) ? 'friend' : pendingByUserId.get(profile.id) ?? 'none',
-  }));
+    }));
 }
 
 export async function updateFriendPreferences(

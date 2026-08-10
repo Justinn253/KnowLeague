@@ -46,6 +46,12 @@ export function AuthScreen() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('mode') === 'signup') {
+      setMode('signup');
+    }
+  }, []);
+
   const title = useMemo(() => {
     if (mode === 'signup') {
       return 'Create your account';

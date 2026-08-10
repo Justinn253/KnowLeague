@@ -6,6 +6,6 @@ export function requestOpenFriendMessages(friendId: string) {
   }
 
   window.dispatchEvent(new CustomEvent(OPEN_FRIEND_MESSAGES_EVENT, {
-    detail: { friendId },
+    detail: { friendId, expandProfile: true },
   }));
 }

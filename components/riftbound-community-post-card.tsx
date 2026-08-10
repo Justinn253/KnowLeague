@@ -6,7 +6,6 @@ import { MessageCircle, Share2, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
-import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass } from '@/lib/riftbound';
 import { hasRiftboundPostBeenShared, markRiftboundPostShared, recordRiftboundPostShare, updateRiftboundPostReaction } from '@/lib/riftbound-community-client';
 import type { RiftboundCommunityPostSummary, RiftboundPostReaction } from '@/lib/riftbound-community-types';
@@ -137,8 +136,6 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
         <div className="min-w-0 flex-1">
           <Link href={postHref} className="block truncate text-xl font-black text-white hover:text-amber-200 sm:text-2xl">{post.title}</Link>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-            <Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} className="font-black hover:underline" style={getChatNameStyle(post.author.chatColor)}>{post.author.username}</Link>
-            <span aria-hidden="true">·</span>
             <span>{formatDate(post.createdAt)}</span>
           </p>
         </div>

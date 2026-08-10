@@ -437,7 +437,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                             {userOnline ? 'Online' : 'Offline'}
                           </span>
                         </div>
-                        <p className="mt-1 truncate text-xs text-slate-500">{user.username} - Joined {formatModerationDate(user.createdAt)}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">Joined {formatModerationDate(user.createdAt)}</p>
                       </div>
                       <div className="flex flex-wrap justify-end gap-2">
                         <button
@@ -587,7 +587,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                           UUID: {submission.userUid} - Email: {submission.email} - Premium: {submission.premium === true ? 'Yes' : submission.premium === false ? 'No' : 'Unknown'}
                         </p>
                         {submission.reportedUsername ? (
-                          <p className="mt-1 text-xs font-semibold text-red-200">Reported: {submission.reportedUsername}</p>
+                          <p className="mt-1 text-xs font-semibold text-red-200">Reported user</p>
                         ) : null}
                       </div>
                       <div className="flex flex-wrap justify-end gap-2">
@@ -678,7 +678,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                             {member.role}
                           </span>
                         </div>
-                        <p className="mt-1 truncate text-xs text-slate-500">{member.username} - Joined {formatModerationDate(member.createdAt)}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">Joined {formatModerationDate(member.createdAt)}</p>
                       </div>
                       {member.role !== 'admin' && canManageModerators ? (
                         <button

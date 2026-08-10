@@ -238,7 +238,7 @@ export function ProfileFriendsMenu({ username, count, isOwner, initialListPublic
           ) : error ? (
             <p className="py-5 text-sm text-red-200">{error}</p>
           ) : visible === false ? (
-            <p className="py-5 text-sm leading-5 text-slate-400">This friends list is private. The total friend count is still visible.</p>
+            <p className="py-5 text-sm leading-5 text-slate-400">This friends list is private.</p>
           ) : friends.length === 0 ? (
             <p className="py-5 text-sm text-slate-500">No friends to show.</p>
           ) : filteredFriends.length === 0 ? (

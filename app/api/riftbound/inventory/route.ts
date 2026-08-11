@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -32,16 +33,16 @@ function isMissingInventoryBatchFunction(error: unknown) {
     || (typeof candidate.message === 'string' && /apply_riftbound_inventory_changes|could not find the function|does not exist/i.test(candidate.message));
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riftbound/inventory', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     return NextResponse.json({ items: await loadRiftboundInventory(userId) });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/riftbound/inventory', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -182,4 +183,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

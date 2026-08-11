@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRiftboundCardById } from '@/lib/riftbound';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -71,7 +72,7 @@ function getMonthlyPricePeaks(history: PriceHistoryEntry[]) {
   ));
 }
 
-export async function GET(request: Request, { params }: { params: { cardId: string } }) {
+export const GET = withApiMetrics('/api/riftbound/prices/[cardId]', async function GET(request: Request, { params }: { params: { cardId: string } }) {
   const card = getRiftboundCardById(params.cardId);
   if (!card) return NextResponse.json({ error: 'Riftbound card not found.' }, { status: 404 });
 
@@ -132,4 +133,4 @@ export async function GET(request: Request, { params }: { params: { cardId: stri
   } catch {
     return NextResponse.json({ error: 'Unable to load Riftbound price history.' }, { status: 500 });
   }
-}
+});

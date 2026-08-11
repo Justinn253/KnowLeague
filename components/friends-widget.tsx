@@ -1,11 +1,14 @@
 'use client';
 
 import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, Loader2, Pencil, Save, Search, Send, Star, StickyNote, Users, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Ellipsis, ExternalLink, Loader2, Pencil, Save, Search, Send, ShieldBan, Star, StickyNote, Users, X } from 'lucide-react';
+import Link from 'next/link';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { getChatBubbleStyle, getChatInviteButtonStyle, getChatNameStyle, normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { getLiveGameNote, type LiveGameStatusView } from '@/lib/riot-live-game-ui';
+import { OPEN_FRIEND_MESSAGES_EVENT } from '@/lib/friends-navigation';
+import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
 
@@ -19,13 +22,26 @@ type FriendSummary = {
   discordUsername: string | null;
   discordAvatarUrl: string | null;
   riotAccountName: string | null;
+  profileStatus: string;
   online: boolean;
+  away?: boolean;
   unreadCount: number;
   chatColor: string;
   chatBorder: string;
   avatarUrl: string | null;
   friendNote: string;
   favorite: boolean;
+};
+
+type FriendSearchCandidate = {
+  id: string;
+  username: string;
+  displayName: string;
+  friendRequestsOpen: boolean;
+  avatarUrl: string | null;
+  chatColor: string;
+  createdAt: string | null;
+  relationship: 'friend' | 'incoming' | 'outgoing' | 'none';
 };
 
 type IncomingRequest = {
@@ -41,7 +57,10 @@ type FriendMessage = {
   created_at: string;
   chat_color: string;
   chat_border: string;
+  deliveryStatus?: MessageDeliveryStatus;
 };
+
+type MessageDeliveryStatus = 'pending' | 'sent' | 'failed';
 
 type MessageProfile = {
   chatColor: string;
@@ -62,8 +81,22 @@ type FriendsWidgetProps = {
   variant?: 'floating' | 'header' | 'responsive';
 };
 
-function openPublicProfileOverlay(username: string) {
-  window.dispatchEvent(new CustomEvent('knowleague:open-profile', { detail: { username } }));
+function sortFriendMessages(left: FriendMessage, right: FriendMessage) {
+  return left.created_at.localeCompare(right.created_at);
+}
+
+function mergeFriendMessages(serverMessages: FriendMessage[], cachedMessages: FriendMessage[]) {
+  const cachedById = new Map(cachedMessages.map((message) => [message.id, message]));
+  const serverIds = new Set(serverMessages.map((message) => message.id));
+  const mergedMessages = [
+    ...serverMessages.map((message) => {
+      const cachedMessage = cachedById.get(message.id);
+      return cachedMessage?.deliveryStatus ? { ...message, deliveryStatus: cachedMessage.deliveryStatus } : message;
+    }),
+    ...cachedMessages.filter((message) => message.deliveryStatus && !serverIds.has(message.id)),
+  ];
+
+  return mergedMessages.sort(sortFriendMessages);
 }
 
 type MultiplayerInvite = {
@@ -211,7 +244,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   const [isOpen, setIsOpen] = useState(false);
   const [dashboard, setDashboard] = useState<FriendDashboard | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+  const [presenceByUserId, setPresenceByUserId] = useState<Map<string, { online: boolean; away: boolean }>>(new Map());
   const [activeFriend, setActiveFriend] = useState<FriendSummary | null>(null);
   const [messages, setMessages] = useState<FriendMessage[]>([]);
   const [messageProfiles, setMessageProfiles] = useState<Record<string, MessageProfile>>({});
@@ -220,7 +253,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [addFriendOpen, setAddFriendOpen] = useState(false);
-  const [addFriendUsername, setAddFriendUsername] = useState('');
+  const [addFriendSearchQuery, setAddFriendSearchQuery] = useState('');
+  const [addFriendSearchResults, setAddFriendSearchResults] = useState<FriendSearchCandidate[]>([]);
+  const [addFriendSearchLoading, setAddFriendSearchLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [contextFriend, setContextFriend] = useState<{ friend: FriendSummary; x: number; y: number } | null>(null);
   const [friendNoteDraft, setFriendNoteDraft] = useState('');
@@ -228,6 +263,10 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   const [confirmUnfriendFriendId, setConfirmUnfriendFriendId] = useState<string | null>(null);
   const [snapshotExpanded, setSnapshotExpanded] = useState(false);
   const [snapshotAboutExpanded, setSnapshotAboutExpanded] = useState(false);
+  const [snapshotActionsOpen, setSnapshotActionsOpen] = useState(false);
+  const [snapshotNoteOpen, setSnapshotNoteOpen] = useState(false);
+  const [snapshotConfirmAction, setSnapshotConfirmAction] = useState<'remove' | 'block' | null>(null);
+  const [snapshotActionsPosition, setSnapshotActionsPosition] = useState({ top: 12, left: 12 });
   const [liveGameStatus, setLiveGameStatus] = useState<LiveGameStatusView | null>(null);
   const [liveGameNow, setLiveGameNow] = useState(() => Date.now());
   const [favoriteLoadingFriendId, setFavoriteLoadingFriendId] = useState<string | null>(null);
@@ -248,6 +287,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   const refreshTimeoutRef = useRef<number | null>(null);
   const dashboardRefreshPromiseRef = useRef<Promise<void> | null>(null);
   const lastDashboardRefreshAtRef = useRef(0);
+  const presenceOwnerIdRef = useRef<string | null>(null);
+  const lastActivityAtRef = useRef(Date.now());
+  const ownPresenceAwayRef = useRef(false);
   const knownIncomingRequestIdsRef = useRef<Set<string>>(new Set());
   const knownMessageIdsRef = useRef<Set<string>>(new Set());
   const friendRealtimeSubscriptionKey = useMemo(() => (dashboard?.friends ?? [])
@@ -386,6 +428,47 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }, 150);
   }, [refreshDashboard]);
 
+  useEffect(() => {
+    const openFriendMessages = (event: Event) => {
+      const detail = (event as CustomEvent<{ friendId?: string; expandProfile?: boolean }>).detail;
+      const friendId = detail?.friendId;
+      if (!friendId) {
+        return;
+      }
+
+      const activateFriend = (friend: FriendSummary) => {
+        shouldStickToBottomRef.current = true;
+        setIsOpen(true);
+        setAddFriendOpen(false);
+        setAddFriendSearchQuery('');
+        setAddFriendSearchResults([]);
+        setContextFriend(null);
+        setSnapshotExpanded(detail?.expandProfile ?? false);
+        setSnapshotAboutExpanded(false);
+        setFriendNoteEditing(false);
+        setActiveFriend(friend);
+      };
+
+      const currentFriend = dashboardRef.current?.friends.find((friend) => friend.id === friendId);
+      if (currentFriend) {
+        activateFriend(currentFriend);
+        return;
+      }
+
+      void refreshDashboard().then(() => {
+        const refreshedFriend = dashboardRef.current?.friends.find((friend) => friend.id === friendId);
+        if (refreshedFriend) {
+          activateFriend(refreshedFriend);
+        } else {
+          setStatus('This friend is no longer available.');
+        }
+      });
+    };
+
+    window.addEventListener(OPEN_FRIEND_MESSAGES_EVENT, openFriendMessages);
+    return () => window.removeEventListener(OPEN_FRIEND_MESSAGES_EVENT, openFriendMessages);
+  }, [refreshDashboard]);
+
   const scheduleMessageRead = useCallback((friendId: string) => {
     if (markReadTimeoutRef.current) {
       window.clearTimeout(markReadTimeoutRef.current);
@@ -409,7 +492,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
 
     try {
       const data = await fetchAuthedJson(`/api/friends/messages?friendId=${friend.id}${markRead ? '' : '&markRead=false'}`);
-      const nextMessages = data.messages ?? [];
+      const serverMessages = (data.messages ?? []) as FriendMessage[];
+      const cachedMessages = messageCacheRef.current.get(friend.id) ?? [];
+      const nextMessages = mergeFriendMessages(serverMessages, cachedMessages);
       const nextProfiles = data.profiles ?? {};
       const nextFirstUnreadMessageId = data.firstUnreadMessageId ?? null;
       nextMessages.forEach((message: FriendMessage) => knownMessageIdsRef.current.add(message.id));
@@ -442,9 +527,18 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       return;
     }
 
-    const nextMessages = cachedMessages.some((message) => message.id === nextMessage.id)
-      ? cachedMessages
-      : [...cachedMessages, nextMessage];
+    const pendingMessageIndex = cachedMessages.findIndex((message) => (
+      message.deliveryStatus === 'pending' &&
+      message.sender_id === nextMessage.sender_id &&
+      message.message === nextMessage.message
+    ));
+    const nextMessages = pendingMessageIndex >= 0
+      ? cachedMessages.map((message, index) => (
+          index === pendingMessageIndex ? { ...nextMessage, deliveryStatus: 'sent' as const } : message
+        ))
+      : cachedMessages.some((message) => message.id === nextMessage.id)
+        ? cachedMessages
+        : [...cachedMessages, nextMessage].sort(sortFriendMessages);
     messageCacheRef.current.set(friend.id, nextMessages);
 
     const profileSource = nextMessage.sender_id === currentUserId
@@ -484,6 +578,19 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     activeFriendRef.current = activeFriend;
   }, [activeFriend]);
 
+  const activeFriendId = activeFriend?.id;
+
+  useEffect(() => {
+    if (!activeFriendId) {
+      return undefined;
+    }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      messageInputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [activeFriendId]);
+
   useEffect(() => {
     if (!dashboardRef.current || Date.now() - lastDashboardRefreshAtRef.current > 10_000) {
       void refreshDashboard();
@@ -504,7 +611,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       const userId = data.session?.user.id ?? null;
       setCurrentUserId(userId);
       if (!userId) {
-        setOnlineUserIds(new Set());
+        setPresenceByUserId(new Map());
         return;
       }
 
@@ -632,8 +739,15 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   useEffect(() => {
     const supabase = getOptionalSupabaseClient();
     if (!supabase || !currentUserId) {
-      setOnlineUserIds(new Set());
+      setPresenceByUserId(new Map());
+      presenceOwnerIdRef.current = null;
       return undefined;
+    }
+
+    if (presenceOwnerIdRef.current !== currentUserId) {
+      presenceOwnerIdRef.current = currentUserId;
+      lastActivityAtRef.current = Date.now();
+      ownPresenceAwayRef.current = false;
     }
 
     const ownPresenceChannel = supabase.channel(`knowleague-user-presence:${currentUserId}`, {
@@ -645,19 +759,43 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }));
 
     const syncFriendPresence = () => {
-      const nextOnlineUserIds = new Set<string>();
+      const nextPresenceByUserId = new Map<string, { online: boolean; away: boolean }>();
       friendPresenceChannels.forEach(({ friendId, channel }) => {
-        const state = channel.presenceState<{ userId?: string }>();
-        if (Object.values(state).flat().some((presence) => presence.userId === friendId)) {
-          nextOnlineUserIds.add(friendId);
+        const state = channel.presenceState<{ userId?: string; away?: boolean }>();
+        const presence = Object.values(state).flat().find((entry) => entry.userId === friendId);
+        if (presence) {
+          nextPresenceByUserId.set(friendId, { online: !presence.away, away: Boolean(presence.away) });
         }
       });
-      setOnlineUserIds(nextOnlineUserIds);
+      setPresenceByUserId(nextPresenceByUserId);
     };
+
+    const publishOwnPresence = (away: boolean) => {
+      window.dispatchEvent(new CustomEvent('knowleague:own-presence', {
+        detail: { userId: currentUserId, away },
+      }));
+    };
+    const awayAfterMs = 5 * 60 * 1000;
+    const trackOwnPresence = (away: boolean) => {
+      if (ownPresenceAwayRef.current === away) return;
+      ownPresenceAwayRef.current = away;
+      publishOwnPresence(away);
+      void ownPresenceChannel.track({ userId: currentUserId, away });
+    };
+    const markActivity = () => {
+      lastActivityAtRef.current = Date.now();
+      trackOwnPresence(false);
+    };
+    const activityEvents = ['pointermove', 'keydown', 'mousedown', 'touchstart', 'scroll'] as const;
+    activityEvents.forEach((eventName) => document.addEventListener(eventName, markActivity));
+    const awayTimer = window.setInterval(() => {
+      if (Date.now() - lastActivityAtRef.current >= awayAfterMs) trackOwnPresence(true);
+    }, 15_000);
 
     ownPresenceChannel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        void ownPresenceChannel.track({ userId: currentUserId });
+        publishOwnPresence(ownPresenceAwayRef.current);
+        void ownPresenceChannel.track({ userId: currentUserId, away: ownPresenceAwayRef.current });
       }
     });
     friendPresenceChannels.forEach(({ channel }) => {
@@ -667,6 +805,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     });
 
     return () => {
+      window.clearInterval(awayTimer);
+      activityEvents.forEach((eventName) => document.removeEventListener(eventName, markActivity));
       void ownPresenceChannel.untrack();
       void supabase.removeChannel(ownPresenceChannel);
       friendPresenceChannels.forEach(({ channel }) => {
@@ -685,9 +825,6 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (target.closest('[data-profile-overlay="true"]')) {
-        return;
-      }
       if (target.closest('[data-friends-trigger="true"]')) {
         return;
       }
@@ -698,7 +835,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
         setSnapshotAboutExpanded(false);
         setContextFriend(null);
         setAddFriendOpen(false);
-        setAddFriendUsername('');
+        setAddFriendSearchQuery('');
+        setAddFriendSearchResults([]);
       }
     };
 
@@ -708,6 +846,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
 
   useEffect(() => {
     setSnapshotAboutExpanded(false);
+    setSnapshotActionsOpen(false);
+    setSnapshotNoteOpen(false);
+    setSnapshotConfirmAction(null);
   }, [activeFriend?.id]);
 
   useEffect(() => {
@@ -734,6 +875,19 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [contextFriend]);
+
+  useEffect(() => {
+    if (!snapshotActionsOpen) return undefined;
+    const closeSnapshotActions = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-snapshot-actions="true"]')) return;
+      setSnapshotActionsOpen(false);
+      setSnapshotNoteOpen(false);
+      setSnapshotConfirmAction(null);
+    };
+    document.addEventListener('pointerdown', closeSnapshotActions);
+    return () => document.removeEventListener('pointerdown', closeSnapshotActions);
+  }, [snapshotActionsOpen]);
 
   useEffect(() => {
     if (!activeFriend) {
@@ -788,6 +942,34 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     return () => window.removeEventListener('knowleague:friends-refresh', refreshFriendsFromExternalAction);
   }, [refreshDashboard]);
 
+  useEffect(() => {
+    if (!addFriendOpen || addFriendSearchQuery.trim().length < 3) {
+      setAddFriendSearchResults([]);
+      setAddFriendSearchLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      setAddFriendSearchLoading(true);
+      void fetchAuthedJson(`/api/friends/search?q=${encodeURIComponent(addFriendSearchQuery.trim())}`)
+        .then((data) => {
+          if (!cancelled) setAddFriendSearchResults((data.results ?? []) as FriendSearchCandidate[]);
+        })
+        .catch((error) => {
+          if (!cancelled) setStatus(error instanceof Error ? error.message : 'Unable to search users.');
+        })
+        .finally(() => {
+          if (!cancelled) setAddFriendSearchLoading(false);
+        });
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [addFriendOpen, addFriendSearchQuery]);
+
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const cleanMessage = (messageInputRef.current?.value ?? messageDraft).trim();
@@ -796,6 +978,30 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }
 
     const targetFriendId = activeFriend.id;
+    const currentUser = dashboardRef.current?.currentUser ?? dashboard?.currentUser;
+    const senderId = currentUserId ?? currentUser?.id;
+    if (!senderId) {
+      setStatus('Unable to identify your account. Please try again.');
+      return;
+    }
+
+    const optimisticMessage: FriendMessage = {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      sender_id: senderId,
+      message: cleanMessage,
+      created_at: new Date().toISOString(),
+      chat_color: normalizeChatColor(currentUser?.chatColor),
+      chat_border: normalizeChatBorder(currentUser?.chatBorder),
+      deliveryStatus: 'pending',
+    };
+    const cachedMessages = messageCacheRef.current.get(targetFriendId) ?? messages;
+    const nextOptimisticMessages = [...cachedMessages, optimisticMessage].sort(sortFriendMessages);
+    messageCacheRef.current.set(targetFriendId, nextOptimisticMessages);
+    if (activeFriendRef.current?.id === targetFriendId) {
+      setMessages(nextOptimisticMessages);
+      scrollMessagesToBottom();
+    }
+    setMessageDraft('');
     setIsSendingMessage(true);
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 15_000);
@@ -805,14 +1011,14 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
         body: JSON.stringify({ friendId: targetFriendId, message: cleanMessage }),
         signal: controller.signal,
       });
-      const sentMessage = data.message as FriendMessage;
+      const sentMessage = { ...(data.message as FriendMessage), deliveryStatus: 'sent' as const };
       knownMessageIdsRef.current.add(sentMessage.id);
       playUiSound('message-sent');
-      setMessageDraft('');
-      const cachedMessages = messageCacheRef.current.get(targetFriendId) ?? messages;
-      const nextMessages = cachedMessages.some((message) => message.id === sentMessage.id)
-        ? cachedMessages
-        : [...cachedMessages, sentMessage];
+      const cachedMessagesAfterSend = messageCacheRef.current.get(targetFriendId) ?? [];
+      const nextMessages = [
+        ...cachedMessagesAfterSend.filter((message) => message.id !== optimisticMessage.id && message.id !== sentMessage.id),
+        sentMessage,
+      ].sort(sortFriendMessages);
       messageCacheRef.current.set(targetFriendId, nextMessages);
       if (activeFriendRef.current?.id === targetFriendId) {
         setMessages(nextMessages);
@@ -820,6 +1026,14 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       }
       void broadcastFriendMessageNotification(targetFriendId);
     } catch (error) {
+      const cachedMessagesAfterFailure = messageCacheRef.current.get(targetFriendId) ?? [];
+      const nextMessages = cachedMessagesAfterFailure.map((message) => (
+        message.id === optimisticMessage.id ? { ...message, deliveryStatus: 'failed' as const } : message
+      ));
+      messageCacheRef.current.set(targetFriendId, nextMessages);
+      if (activeFriendRef.current?.id === targetFriendId) {
+        setMessages(nextMessages);
+      }
       setStatus(error instanceof DOMException && error.name === 'AbortError'
         ? 'Message send timed out. Please try again.'
         : error instanceof Error ? error.message : 'Unable to send message.');
@@ -829,33 +1043,47 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }
   };
 
-  const sendDirectFriendRequest = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const cleanUsername = addFriendUsername.trim();
-    if (cleanUsername.length < 3) {
-      setStatus('Enter a username with at least 3 characters.');
-      return;
-    }
+  const updateAddFriendCandidate = (candidateId: string, relationship: FriendSearchCandidate['relationship']) => {
+    setAddFriendSearchResults((results) => results.map((candidate) => (
+      candidate.id === candidateId ? { ...candidate, relationship } : candidate
+    )));
+  };
 
+  const sendFriendCandidateRequest = async (candidate: FriendSearchCandidate) => {
     try {
       const data = await fetchAuthedJson('/api/friends/requests', {
         method: 'POST',
-        body: JSON.stringify({ targetUsername: cleanUsername }),
+        body: JSON.stringify({ targetUserId: candidate.id }),
       });
       playUiSound('friend-request-sent');
       setStatus(data.status === 'accepted' ? 'Friend added.' : 'Friend request sent.');
-      setAddFriendUsername('');
-      setAddFriendOpen(false);
+      updateAddFriendCandidate(candidate.id, data.status === 'accepted' ? 'friend' : 'outgoing');
       scheduleDashboardRefresh();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to send friend request.');
     }
   };
 
+  const removeFriendCandidate = async (candidate: FriendSearchCandidate) => {
+    if (!window.confirm(`Remove ${candidate.displayName} from your friends?`)) return;
+    try {
+      await fetchAuthedJson(`/api/friends/${candidate.id}`, { method: 'DELETE' });
+      updateAddFriendCandidate(candidate.id, 'none');
+      setStatus('Friend removed.');
+      scheduleDashboardRefresh();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to remove friend.');
+    }
+  };
+
   const allFriends = useMemo(() => (dashboard?.friends ?? [])
-    .map((friend) => ({ ...friend, online: onlineUserIds.has(friend.id) }))
-    .sort((left, right) => Number(right.favorite) - Number(left.favorite) || Number(right.online) - Number(left.online) || left.displayName.localeCompare(right.displayName)), [dashboard?.friends, onlineUserIds]);
+    .map((friend) => {
+      const presence = presenceByUserId.get(friend.id);
+      return { ...friend, online: presence?.online ?? friend.online, away: presence?.away ?? false };
+    })
+    .sort((left, right) => Number(right.favorite) - Number(left.favorite) || Number(right.online) - Number(left.online) || Number(right.away) - Number(left.away) || left.displayName.localeCompare(right.displayName)), [dashboard?.friends, presenceByUserId]);
   const onlineCount = useMemo(() => allFriends.filter((friend) => friend.online).length, [allFriends]);
+  const awayCount = useMemo(() => allFriends.filter((friend) => friend.away).length, [allFriends]);
   const totalFriendCount = allFriends.length;
   const cleanSearchQuery = searchQuery.trim().toLowerCase();
   const friends = useMemo(() => cleanSearchQuery
@@ -865,14 +1093,21 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       ))
     : allFriends, [allFriends, cleanSearchQuery]);
   const activeFriendView = useMemo(() => activeFriend
-    ? { ...(allFriends.find((friend) => friend.id === activeFriend.id) ?? activeFriend), online: onlineUserIds.has(activeFriend.id) }
-    : null, [activeFriend, allFriends, onlineUserIds]);
+    ? { ...(allFriends.find((friend) => friend.id === activeFriend.id) ?? activeFriend), ...(presenceByUserId.get(activeFriend.id) ?? { online: false, away: false }) }
+    : null, [activeFriend, allFriends, presenceByUserId]);
   const snapshotAboutIsLong = Boolean(activeFriendView?.aboutMe && activeFriendView.aboutMe.length > 140);
   const activeFriendLiveGameNote = getLiveGameNote(liveGameStatus, liveGameNow);
-  const activeFriendRiotViewerHref = activeFriendView?.riotAccountName?.trim()
-    ? `/riot-account-viewer?riotId=${encodeURIComponent(activeFriendView.riotAccountName.trim())}`
-    : null;
-  const unreadTotal = useMemo(() => dashboard?.friends.reduce((total, friend) => total + friend.unreadCount, 0) ?? 0, [dashboard?.friends]);
+  const activeFriendAvatarUrl = activeFriendView?.avatarUrl || null;
+  const viewerUserId = currentUserId ?? dashboard?.currentUser?.id ?? null;
+  const activeSnapshotFriendId = activeFriendView?.id;
+  const activeFriendNote = activeFriendView?.friendNote;
+  useEffect(() => {
+    if (activeFriendNote !== undefined) setFriendNoteDraft(activeFriendNote);
+  }, [activeSnapshotFriendId, activeFriendNote]);
+  const unreadTotal = useMemo(() => dashboard?.friends.reduce(
+    (total, friend) => total + (friend.id === activeFriend?.id ? 0 : friend.unreadCount),
+    0,
+  ) ?? 0, [activeFriend?.id, dashboard?.friends]);
 
   useEffect(() => {
     const riotAccount = activeFriendView?.riotAccountName?.trim();
@@ -940,6 +1175,20 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     setContextFriend(null);
     setConfirmUnfriendFriendId(null);
     await refreshDashboard();
+  };
+
+  const blockFriend = async (friend: FriendSummary) => {
+    try {
+      await fetchAuthedJson(`/api/users/${friend.id}/block`, { method: 'POST' });
+      if (activeFriend?.id === friend.id) setActiveFriend(null);
+      setSnapshotActionsOpen(false);
+      setSnapshotConfirmAction(null);
+      setContextFriend(null);
+      setStatus('User blocked.');
+      await refreshDashboard();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to block user.');
+    }
   };
 
   const inviteFriendToGame = async (friend: FriendSummary) => {
@@ -1034,78 +1283,184 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
             : 'fixed bottom-2 left-2 right-2 z-[60] mb-0 flex max-h-[calc(100dvh-1rem)] w-auto max-w-none flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:z-auto sm:mb-3 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(calc(100vw-2.5rem),42rem)] sm:max-w-[calc(100vw-2.5rem)] sm:p-4'}
         >
           {activeFriendView ? (
-            <>
+            <div className="order-last pt-4">
+              <button
+                type="button"
+                onClick={() => setSnapshotExpanded((expanded) => !expanded)}
+                className="mb-4 grid min-h-9 w-full grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl px-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 transition hover:bg-slate-900/70 hover:text-slate-200"
+              >
+                <span className="h-px bg-white/10" />
+                <span className="inline-flex items-center gap-2">
+                  {snapshotExpanded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                  {snapshotExpanded ? 'Collapse Profile' : 'Expand Profile'}
+                  {snapshotExpanded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                </span>
+                <span className="h-px bg-white/10" />
+              </button>
               <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${snapshotExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                 <section className="min-h-0 overflow-hidden">
                   <div className="pb-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
+                     <div className="relative flex items-stretch justify-between gap-3">
+                      <div className="flex min-w-0 flex-1 items-stretch gap-3">
                         <span
                           className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 bg-cover bg-center text-lg font-black text-amber-200"
-                          style={activeFriendView.avatarUrl ? { backgroundImage: `url(${activeFriendView.avatarUrl})` } : undefined}
-                        >
-                          {activeFriendView.avatarUrl ? null : activeFriendView.displayName.slice(0, 1).toUpperCase()}
-                          <span className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-slate-950 ${activeFriendView.online ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                           style={activeFriendAvatarUrl ? { backgroundImage: `url(${activeFriendAvatarUrl})` } : undefined}
+                         >
+                           {activeFriendAvatarUrl ? null : activeFriendView.displayName.slice(0, 1).toUpperCase()}
+                           <span className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-slate-950 ${activeFriendView.online ? 'bg-emerald-400' : activeFriendView.away ? 'bg-amber-300' : 'bg-slate-600'}`} />
                         </span>
-                        <div className="min-w-0">
+                        <div className="flex min-h-14 min-w-0 flex-1 flex-col">
                           <div className="flex min-w-0 items-center gap-2">
                             {activeFriendView.favorite ? <Star size={14} className="shrink-0 fill-amber-300 text-amber-300" aria-label="Favorite" /> : null}
-                            {activeFriendRiotViewerHref ? (
-                              <a
-                                href={activeFriendRiotViewerHref}
-                                className="truncate text-base font-bold text-white transition hover:text-amber-200"
-                                style={getChatNameStyle(activeFriendView.chatColor)}
-                                title="Open linked Riot account in League Account Viewer"
-                              >
-                                {activeFriendView.displayName}
-                              </a>
-                            ) : (
-                              <p className="truncate text-base font-bold text-white" style={getChatNameStyle(activeFriendView.chatColor)}>{activeFriendView.displayName}</p>
-                            )}
+                             <Link
+                               href={getPublicProfileHref(activeFriendView.username)}
+                               target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+                               rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
+                               onClick={() => {
+                                 setIsOpen(false);
+                                 setActiveFriend(null);
+                               }}
+                               className="truncate text-base font-bold text-white transition hover:text-amber-200"
+                               style={getChatNameStyle(activeFriendView.chatColor)}
+                             >
+                               {activeFriendView.displayName}
+                             </Link>
                           </div>
                           <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                              <p className="shrink-0 truncate text-xs text-slate-500">@{activeFriendView.username}</p>
-                              <span className="shrink-0 text-slate-600">-</span>
-                              <p className="min-w-0 truncate text-xs italic text-slate-500">
-                                {activeFriendView.friendNote ? `Note: ${activeFriendView.friendNote}` : 'Add note'}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  const rect = event.currentTarget.getBoundingClientRect();
-                                  setFriendNoteDraft(activeFriendView.friendNote);
-                                  setFriendNoteEditing(true);
-                                  setConfirmUnfriendFriendId(null);
-                                  setContextFriend({
-                                    friend: activeFriendView,
-                                    x: Math.min(rect.left, Math.max(12, window.innerWidth - 300)),
-                                    y: Math.min(rect.bottom + 8, Math.max(12, window.innerHeight - 360)),
-                                  });
-                                }}
-                                aria-label="Edit friend note"
-                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-900 hover:text-white"
-                              >
-                                <Pencil size={12} />
-                              </button>
-                            </div>
-                            {activeFriendLiveGameNote ? (
-                              <p className="mt-0.5 truncate text-xs font-semibold text-emerald-300">{activeFriendLiveGameNote}</p>
+                            {activeFriendView.friendNote ? (
+                              <div className="flex min-w-0 items-center text-xs text-slate-500">
+                                <p className="min-w-0 truncate italic">Note: {activeFriendView.friendNote}</p>
+                              </div>
                             ) : null}
+                            <div className="mt-auto min-w-0 pt-1">
+                              {activeFriendView.profileStatus ? <p className="truncate text-xs text-slate-300">{activeFriendView.profileStatus}</p> : null}
+                              {activeFriendLiveGameNote ? (
+                                <p className="truncate text-xs font-semibold text-emerald-300">{activeFriendLiveGameNote}</p>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => openPublicProfileOverlay(activeFriendView.username)}
-                        aria-label="View full profile"
-                        className="group relative inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
-                      >
-                        <ExternalLink size={15} />
-                        <span className="pointer-events-none absolute right-0 top-full z-20 mt-1 hidden whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200  group-hover:block">
-                          Go to profile
-                        </span>
-                      </button>
+                      <div className="relative shrink-0" data-snapshot-actions="true">
+                        <button
+                          type="button"
+                          aria-label="Friend actions"
+                          aria-expanded={snapshotActionsOpen}
+                          onClick={(event) => {
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            const menuWidth = 208;
+                            const gutter = 12;
+                            setSnapshotActionsPosition({
+                              top: Math.min(rect.bottom + 8, Math.max(gutter, window.innerHeight - 360)),
+                              left: Math.min(Math.max(gutter, rect.right - menuWidth), Math.max(gutter, window.innerWidth - menuWidth - gutter)),
+                            });
+                            setSnapshotConfirmAction(null);
+                            setSnapshotActionsOpen((open) => {
+                              if (open) setSnapshotNoteOpen(false);
+                              return !open;
+                            });
+                          }}
+                          className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:border-amber-200/40 hover:bg-slate-800"
+                        >
+                          <Ellipsis size={21} />
+                        </button>
+                        {snapshotActionsOpen ? (
+                          <div
+                            role="menu"
+                            className={`fixed z-[120] grid max-h-[calc(100dvh-1.5rem)] w-52 gap-1 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2 ${THEMED_SCROLLBAR_CLASS}`}
+                            style={snapshotActionsPosition}
+                          >
+                            <Link
+                              href={getPublicProfileHref(activeFriendView.username)}
+                              target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+                              rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
+                              onClick={() => {
+                                setIsOpen(false);
+                                setActiveFriend(null);
+                                setSnapshotActionsOpen(false);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
+                            >
+                              <ExternalLink size={15} /> Go to profile
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSnapshotActionsOpen(false);
+                                void toggleFavoriteFriend(activeFriendView);
+                              }}
+                              disabled={Boolean(favoriteLoadingFriendId)}
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {favoriteLoadingFriendId === activeFriendView.id ? <Loader2 size={15} className="animate-spin" /> : <Star size={15} className="fill-amber-300 text-amber-300" />}
+                              {activeFriendView.favorite ? 'Unfavorite' : 'Favorite'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (snapshotConfirmAction === 'remove') {
+                                  void unfriend(activeFriendView);
+                                } else {
+                                  setSnapshotConfirmAction('remove');
+                                }
+                              }}
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/10"
+                            >
+                              <Users size={15} /> {snapshotConfirmAction === 'remove' ? 'Click again to remove' : 'Remove friend'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (snapshotConfirmAction === 'block') {
+                                  void blockFriend(activeFriendView);
+                                } else {
+                                  setSnapshotConfirmAction('block');
+                                }
+                              }}
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/10"
+                            >
+                              <ShieldBan size={15} /> {snapshotConfirmAction === 'block' ? 'Click again to block' : 'Block'}
+                            </button>
+                            {snapshotNoteOpen ? (
+                              <div className="mt-1 border-t border-white/10 pt-2">
+                                <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                    <StickyNote size={13} /> Note
+                                  </p>
+                                  <span className="text-[0.65rem] text-slate-600">{friendNoteDraft.length}/30</span>
+                                </div>
+                                <textarea
+                                  value={friendNoteDraft}
+                                  onChange={(event) => setFriendNoteDraft(event.target.value.slice(0, 30))}
+                                  rows={2}
+                                  maxLength={30}
+                                  autoFocus
+                                  placeholder="Only visible to you"
+                                  className="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600 focus:border-amber-200/40"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void saveFriendNote(activeFriendView)}
+                                  className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-amber-300 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-amber-200"
+                                >
+                                  <Save size={14} /> Save note
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFriendNoteDraft(activeFriendView.friendNote);
+                                  setSnapshotNoteOpen(true);
+                                }}
+                                className="mt-1 flex w-full items-center gap-2 rounded-xl border-t border-white/10 px-3 py-3 text-left text-sm font-semibold text-slate-200 transition hover:bg-slate-900"
+                              >
+                                <StickyNote size={15} /> {activeFriendView.friendNote ? 'Edit note' : 'Add note'}
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-3">
                       <div className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 sm:col-span-3">
@@ -1126,7 +1481,10 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#8EA1E1]">Discord</p>
                           <DiscordMark className="h-4 w-4 shrink-0 text-[#8EA1E1]" />
                         </div>
-                        <p className={`mt-1 truncate text-sm font-semibold ${activeFriendView.discordUsername ? 'text-white' : 'italic text-slate-500'}`}>{activeFriendView.discordUsername ?? 'Not linked'}</p>
+                         <div className="mt-1 flex min-w-0 items-center gap-2">
+                           {activeFriendView.discordAvatarUrl ? <span className="h-6 w-6 shrink-0 rounded-full border border-[#5865F2]/35 bg-cover bg-center" style={{ backgroundImage: `url(${activeFriendView.discordAvatarUrl})` }} /> : null}
+                           <p className={`truncate text-sm font-semibold ${activeFriendView.discordUsername ? 'text-white' : 'italic text-slate-500'}`}>{activeFriendView.discordUsername ?? 'Not linked'}</p>
+                         </div>
                       </div>
                       <div className="min-w-0 rounded-xl border border-[#d13639]/35 bg-gradient-to-br from-[#180b10] via-[#111827] to-[#05070b] px-3 py-2 ">
                         <div className="flex items-start justify-between gap-2">
@@ -1153,27 +1511,14 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                   </div>
                 </section>
               </div>
-              <button
-                type="button"
-                onClick={() => setSnapshotExpanded((expanded) => !expanded)}
-                className="mb-4 grid min-h-9 w-full grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl px-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 transition hover:bg-slate-900/70 hover:text-slate-200"
-              >
-                <span className="h-px bg-white/10" />
-                <span className="inline-flex items-center gap-2">
-                  {snapshotExpanded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
-                  {snapshotExpanded ? 'Collapse Profile' : 'Expand Profile'}
-                  {snapshotExpanded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
-                </span>
-                <span className="h-px bg-white/10" />
-              </button>
-            </>
+            </div>
           ) : null}
 
           <div className="flex h-[min(34rem,calc(100dvh-5rem))] min-h-0 flex-col sm:h-[min(34rem,calc(100dvh-12rem))]">
             <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Friends</p>
-                <h2 className="mt-1 text-base font-bold text-white sm:text-lg">{totalFriendCount} friends · {onlineCount} online</h2>
+                <h2 className="mt-1 text-base font-bold text-white sm:text-lg">{totalFriendCount} friends · {onlineCount} online{awayCount > 0 ? ` · ${awayCount} away` : ''}</h2>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button
@@ -1195,7 +1540,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                   setSnapshotExpanded(false);
                   setSnapshotAboutExpanded(false);
                   setAddFriendOpen(false);
-                  setAddFriendUsername('');
+                  setAddFriendSearchQuery('');
+                  setAddFriendSearchResults([]);
                   setContextFriend(null);
                   }}
                   aria-label="Close friends"
@@ -1208,22 +1554,77 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
 
             <div className="mt-4 grid gap-2">
               {addFriendOpen ? (
-                <form onSubmit={sendDirectFriendRequest} className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:grid-cols-[1fr_auto]">
-                  <input
-                    value={addFriendUsername}
-                    onChange={(event) => setAddFriendUsername(event.target.value)}
-                    placeholder="Username"
-                    autoComplete="off"
-                    className="min-h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none placeholder:text-slate-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={addFriendUsername.trim().length < 3}
-                    className="inline-flex min-h-10 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Send
-                  </button>
-                </form>
+                <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      value={addFriendSearchQuery}
+                      onChange={(event) => setAddFriendSearchQuery(event.target.value)}
+                      placeholder="Search users"
+                      autoComplete="off"
+                      className="min-h-11 w-full rounded-2xl border border-white/10 bg-slate-900 px-10 pr-11 text-sm text-white outline-none placeholder:text-slate-500"
+                    />
+                    {addFriendSearchQuery ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddFriendSearchQuery('');
+                          setAddFriendSearchResults([]);
+                        }}
+                        aria-label="Clear user search"
+                        className="absolute right-3 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                      >
+                        <X size={15} />
+                      </button>
+                    ) : null}
+                  </div>
+                  {addFriendSearchLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-5 text-sm text-slate-400"><Loader2 size={16} className="animate-spin text-amber-300" /> Searching users...</div>
+                  ) : addFriendSearchQuery.trim().length < 3 ? (
+                    <p className="py-4 text-xs text-slate-500">Type at least 3 characters to search.</p>
+                  ) : addFriendSearchResults.length === 0 ? (
+                    <p className="py-4 text-xs text-slate-500">No users found.</p>
+                  ) : (
+                    <div className={`mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}>
+                      {addFriendSearchResults.map((candidate) => (
+                        <div key={candidate.id} className="flex min-h-14 items-center gap-3 rounded-xl bg-slate-900 px-3 py-2">
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 bg-cover bg-center text-xs font-black text-amber-200"
+                            style={candidate.avatarUrl ? { backgroundImage: `url(${candidate.avatarUrl})` } : undefined}
+                          >
+                            {candidate.avatarUrl ? null : candidate.displayName.slice(0, 1).toUpperCase()}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-white" style={getChatNameStyle(candidate.chatColor)}>{candidate.displayName}</p>
+                            <p className="mt-0.5 truncate text-[0.68rem] text-slate-500">Joined {formatProfileDate(candidate.createdAt)}</p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Link
+                              href={getPublicProfileHref(candidate.username)}
+                              target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+                              rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
+                              onClick={() => setAddFriendOpen(false)}
+                              className="inline-flex min-h-9 items-center justify-center rounded-lg border border-white/10 bg-slate-950 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition hover:border-amber-200/40 hover:bg-slate-800"
+                            >
+                              View Profile
+                            </Link>
+                            {candidate.relationship === 'friend' ? (
+                              <button type="button" onClick={() => void removeFriendCandidate(candidate)} className="shrink-0 rounded-lg border border-red-300/35 bg-red-500/10 px-2.5 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/20">Remove Friend</button>
+                            ) : candidate.relationship === 'incoming' ? (
+                              <button type="button" onClick={() => void sendFriendCandidateRequest(candidate)} className="shrink-0 rounded-lg bg-emerald-400 px-2.5 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300">Accept</button>
+                            ) : candidate.relationship === 'outgoing' ? (
+                              <span className="shrink-0 text-xs font-semibold text-slate-500">Pending</span>
+                            ) : candidate.friendRequestsOpen ? (
+                              <button type="button" onClick={() => void sendFriendCandidateRequest(candidate)} className="shrink-0 rounded-lg bg-emerald-400 px-2.5 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300">Add Friend</button>
+                            ) : (
+                              <span className="shrink-0 text-xs font-semibold text-slate-500">Requests closed</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : null}
               <div className="relative">
                 <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -1253,8 +1654,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                   <>
                     <div className="border-b border-white/10 pb-2">
                       <p className="text-sm font-bold text-white" style={getChatNameStyle(activeFriendView.chatColor)}>{activeFriendView.displayName}</p>
-                      <p className={`text-xs ${activeFriendView.online ? 'text-emerald-300' : 'text-slate-500'}`}>
-                        {activeFriendView.online ? 'Online' : 'Offline'}
+                       <p className={`text-xs ${activeFriendView.online ? 'text-emerald-300' : activeFriendView.away ? 'text-amber-200' : 'text-slate-500'}`}>
+                         {activeFriendView.online ? 'Online' : activeFriendView.away ? 'Away' : 'Offline'}
                       </p>
                     </div>
                     <div
@@ -1263,7 +1664,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                       className={`mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}
                     >
                       {messages.map((chatMessage) => {
-                        const isOwnMessage = chatMessage.sender_id === currentUserId;
+                        const isOwnMessage = chatMessage.sender_id === viewerUserId;
+                        const deliveryStatus = chatMessage.deliveryStatus;
                         const invite = getMultiplayerInvite(chatMessage.message);
                         const senderProfile = messageProfiles[chatMessage.sender_id];
                         const bubbleStyle = getChatBubbleStyle(
@@ -1287,33 +1689,47 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                                 <span className="h-px bg-red-500/80" />
                               </div>
                             ) : null}
-                            <div
-                              className={`max-w-[82%] break-words rounded-xl px-3 py-2 text-sm [overflow-wrap:anywhere] ${
-                                isOwnMessage
-                                  ? 'ml-auto text-right font-medium'
-                                  : 'mr-auto font-medium'
-                              }`}
-                              style={bubbleStyle}
-                            >
-                              {invite ? (
-                                <div className={`flex flex-wrap items-center gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                                  <span>{invite.gameName} invite</span>
-                                  <button
-                                    type="button"
-                                    disabled={isOwnMessage}
-                                    onClick={() => {
-                                      if (isOwnMessage) return;
-                                      window.location.href = invite.url;
-                                    }}
-                                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${isOwnMessage ? 'cursor-not-allowed' : ''}`}
-                                    style={inviteButtonStyle}
-                                  >
-                                    {isOwnMessage ? 'Sent' : 'Join Game'}
-                                  </button>
-                                </div>
-                              ) : (
-                                chatMessage.message
-                              )}
+                            <div className={`flex max-w-[82%] min-w-0 items-center gap-1.5 ${isOwnMessage ? 'ml-auto' : 'mr-auto'}`}>
+                              {isOwnMessage && deliveryStatus ? (
+                                <span
+                                  className="group relative inline-flex shrink-0 items-center"
+                                  aria-label={deliveryStatus === 'pending' ? 'Pending' : deliveryStatus === 'sent' ? 'Sent' : 'Failed to send'}
+                                  tabIndex={0}
+                                >
+                                  {deliveryStatus === 'pending' ? <Loader2 size={13} className="animate-spin text-slate-300" aria-hidden="true" /> : null}
+                                  {deliveryStatus === 'sent' ? <Check size={13} className="text-emerald-300" aria-hidden="true" /> : null}
+                                  {deliveryStatus === 'failed' ? <X size={13} className="text-red-300" aria-hidden="true" /> : null}
+                                  <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-[0.65rem] font-semibold text-slate-200 group-hover:block group-focus-within:block">
+                                    {deliveryStatus === 'pending' ? 'Pending' : deliveryStatus === 'sent' ? 'Sent' : 'Failed to send'}
+                                  </span>
+                                </span>
+                              ) : null}
+                              <div
+                                className={`min-w-0 max-w-full break-words rounded-xl px-3 py-2 text-sm [overflow-wrap:anywhere] ${
+                                  isOwnMessage ? 'text-right font-medium' : 'font-medium'
+                                }`}
+                                style={bubbleStyle}
+                              >
+                                {invite ? (
+                                  <div className={`flex flex-wrap items-center gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                                    <span>{invite.gameName} invite</span>
+                                    <button
+                                      type="button"
+                                      disabled={isOwnMessage}
+                                      onClick={() => {
+                                        if (isOwnMessage) return;
+                                        window.location.href = invite.url;
+                                      }}
+                                      className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${isOwnMessage ? 'cursor-not-allowed' : ''}`}
+                                      style={inviteButtonStyle}
+                                    >
+                                      {isOwnMessage ? 'Sent' : 'Join Game'}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  chatMessage.message
+                                )}
+                              </div>
                             </div>
                           </Fragment>
                         );
@@ -1375,16 +1791,19 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                   >
                     <span
                       className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-900 bg-cover bg-center text-xs font-black text-amber-200"
-                      style={friend.avatarUrl ? { backgroundImage: `url(${friend.avatarUrl})` } : undefined}
+                       style={friend.avatarUrl ? { backgroundImage: `url(${friend.avatarUrl})` } : undefined}
                     >
-                      {friend.avatarUrl ? null : friend.displayName.slice(0, 1).toUpperCase()}
-                      <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-950 ${friend.online ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                    </span>
-                    <span className="min-w-0 truncate text-sm font-semibold">
-                      {friend.favorite ? <Star size={12} className="mr-1 inline fill-amber-300 text-amber-300" aria-label="Favorite" /> : null}
-                      {friend.displayName}
-                    </span>
-                    {friend.unreadCount > 0 ? (
+                       {friend.avatarUrl ? null : friend.displayName.slice(0, 1).toUpperCase()}
+                       <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-950 ${friend.online ? 'bg-emerald-400' : friend.away ? 'bg-amber-300' : 'bg-slate-600'}`} />
+                     </span>
+                     <span className="min-w-0 flex-1 text-left">
+                       <span className="block truncate text-sm font-semibold" style={getChatNameStyle(friend.chatColor)}>
+                         {friend.favorite ? <Star size={12} className="mr-1 inline fill-amber-300 text-amber-300" aria-label="Favorite" /> : null}
+                         {friend.displayName}
+                       </span>
+                       {friend.profileStatus ? <span className="block truncate text-[0.68rem] text-slate-300">{friend.profileStatus}</span> : null}
+                     </span>
+                    {friend.id !== activeFriend?.id && friend.unreadCount > 0 ? (
                       <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
                         {friend.unreadCount > 99 ? '99+' : friend.unreadCount}
                       </span>
@@ -1413,16 +1832,19 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
               className="fixed z-[70] max-h-[calc(100dvh-1rem)] w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2"
               style={{ left: contextFriend.x, top: contextFriend.y }}
             >
-              <button
-                type="button"
+              <Link
+                href={getPublicProfileHref(contextFriend.friend.username)}
+                target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+                rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
                 onClick={() => {
-                  openPublicProfileOverlay(contextFriend.friend.username);
+                  setIsOpen(false);
+                  setActiveFriend(null);
                   setContextFriend(null);
                 }}
                 className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900"
               >
                 View Profile
-              </button>
+              </Link>
               <button
                 type="button"
                 onClick={() => toggleFavoriteFriend(contextFriend.friend)}
@@ -1537,7 +1959,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
           setIsOpen((value) => {
             if (value) {
               setAddFriendOpen(false);
-              setAddFriendUsername('');
+              setAddFriendSearchQuery('');
+              setAddFriendSearchResults([]);
               setContextFriend(null);
               setActiveFriend(null);
               setSnapshotExpanded(false);

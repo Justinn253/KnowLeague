@@ -1,10 +1,13 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, Home, Loader2, Medal, Package, Play, RefreshCw, Search, Shield, Swords, Trophy, UserRound } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { ArrowLeft, BarChart3, ChevronDown, ChevronUp, CircleDot, Coins, Copy, Crown, Eye, FileText, Loader2, Medal, Package, Play, RefreshCw, Search, Share2, Shield, Swords, Trophy, UserRound, X } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { AppSelectMenu } from '@/components/app-select-menu';
 import { GameIconImage } from '@/components/game-asset-image';
 import { getLeagueRankIconUrl, getLeagueRankStyle, type LeagueRankTier } from '@/components/difficulty-style';
-import type { RiotAccountViewerResponse, RiotLiveGameStatus } from '@/lib/riot-account-viewer';
+import type { RiotAccountViewerResponse, RiotLiveGameStatus, RiotPatchNoteDetail, RiotPatchNoteSearchResult, RiotPatchNoteSummary } from '@/lib/riot-account-viewer';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
@@ -17,9 +20,17 @@ type SharedRiotIdSuggestion = {
   searchCount: number;
 };
 
+type PopularAccount = {
+  riotId: string;
+  platform: PlatformRoute;
+  searchCount: number;
+  lastSearchedAt: string;
+};
+
 const lastSearchStorageKey = 'knowleague:riot-account-viewer:last-search';
 const recentSearchesStorageKey = 'knowleague:riot-account-viewer:recent-searches';
 const sessionProfileCachePrefix = 'knowleague:riot-account-viewer:profile-cache:';
+const searchSessionStorageKey = 'knowleague:riot-account-viewer:search-session-id';
 const maxRecentSearches = 5;
 const profileClientCacheTtlMs = 30 * 24 * 60 * 60_000;
 const globalRankingSampleThreshold = 1000;
@@ -270,12 +281,19 @@ function averageRankFromValues(values: number[]): AverageRankSummary {
   return formatRankValue(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
-function getAverageEnemyRank(match: RiotAccountViewerResponse['matches'][number]) {
-  const searchedPlayer = match.teams.flatMap((team) => team.participants).find((participant) => participant.isSearchedPlayer);
-  if (!searchedPlayer) return { label: 'Unavailable', tier: null };
-  const enemyRankValues = match.teams
+function getEnemyParticipants(match: RiotAccountViewerResponse['matches'][number]) {
+  const searchedPlayer = match.teams
     .flatMap((team) => team.participants)
-    .filter((participant) => participant.teamId !== searchedPlayer.teamId)
+    .find((participant) => participant.isSearchedPlayer);
+  if (!searchedPlayer) return [];
+
+  return match.teams
+    .flatMap((team) => team.participants)
+    .filter((participant) => participant.teamId !== searchedPlayer.teamId && !participant.isSearchedPlayer);
+}
+
+function getAverageEnemyRank(match: RiotAccountViewerResponse['matches'][number]) {
+  const enemyRankValues = getEnemyParticipants(match)
     .map((participant) => rankValue(participant.rank))
     .filter((value): value is number => value !== null);
   return averageRankFromValues(enemyRankValues);
@@ -283,15 +301,9 @@ function getAverageEnemyRank(match: RiotAccountViewerResponse['matches'][number]
 
 function getAverageEnemyRankForMatches(matches: RiotAccountViewerResponse['matches']) {
   return averageRankFromValues(
-    matches.flatMap((match) => {
-      const searchedPlayer = match.teams.flatMap((team) => team.participants).find((participant) => participant.isSearchedPlayer);
-      if (!searchedPlayer) return [];
-      return match.teams
-        .flatMap((team) => team.participants)
-        .filter((participant) => participant.teamId !== searchedPlayer.teamId)
-        .map((participant) => rankValue(participant.rank))
-        .filter((value): value is number => value !== null);
-    }),
+    matches.flatMap((match) => getEnemyParticipants(match)
+      .map((participant) => rankValue(participant.rank))
+      .filter((value): value is number => value !== null)),
   );
 }
 
@@ -303,20 +315,21 @@ function AverageEnemyRankBadge({ averageRank }: { averageRank: AverageRankSummar
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-xs font-bold text-slate-300"
-      title={`Average Enemy Rank: ${averageRank.label}`}
+      className="group relative inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-xs font-bold text-slate-300"
     >
       <span>AER: {abbreviatedRank}</span>
       {averageRank.tier ? <GameIconImage src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={18} height={18} className="h-4 w-4 object-contain" /> : null}
+      <LavHoverNote text={`Average Enemy Rank: ${averageRank.label}`} />
     </span>
   );
 }
 
 function AverageEnemyRankSummary({ averageRank }: { averageRank: AverageRankSummary }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-300" title={`Average Enemy Rank: ${averageRank.label}`}>
+    <span className="group relative inline-flex items-center gap-1.5 text-sm font-bold text-slate-300">
       <span>Average Enemy Rank: {averageRank.label}</span>
       {averageRank.tier ? <GameIconImage src={getLeagueRankIconUrl(averageRank.tier)} alt="" width={20} height={20} className="h-5 w-5 object-contain" /> : null}
+      <LavHoverNote text={`Average Enemy Rank: ${averageRank.label}`} />
     </span>
   );
 }
@@ -448,6 +461,20 @@ async function copyTextToClipboard(value: string) {
   document.body.removeChild(textarea);
 }
 
+async function shareLink(value: string, title: string) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url: value });
+      return true;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return false;
+    }
+  }
+
+  await copyTextToClipboard(value);
+  return true;
+}
+
 function isPlatformRoute(value: string | null): value is PlatformRoute {
   return Boolean(value && platformRoutes.includes(value as PlatformRoute));
 }
@@ -491,8 +518,30 @@ function writeStoredSearch(riotId: string, platform: PlatformRoute) {
   window.localStorage.setItem(recentSearchesStorageKey, JSON.stringify(recentSearches));
 }
 
+function readSearchSessionId() {
+  try {
+    const stored = window.localStorage.getItem(searchSessionStorageKey);
+    if (stored && /^[a-zA-Z0-9-]{16,128}$/.test(stored)) return stored;
+    const next = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    window.localStorage.setItem(searchSessionStorageKey, next);
+    return next;
+  } catch {
+    return `browser-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
 function profileCacheKey(riotId: string, platform: PlatformRoute) {
   return `${sessionProfileCachePrefix}${platform}:${riotId.trim().toLowerCase()}`;
+}
+
+function hasCachedItemDetails(data: RiotAccountViewerResponse) {
+  const items = data.matches.flatMap((match) => match.teams.flatMap((team) => team.participants.flatMap((participant) => participant.items)));
+  return items.every((item) => (
+    Object.prototype.hasOwnProperty.call(item, 'description')
+    && Object.prototype.hasOwnProperty.call(item, 'plaintext')
+  ));
 }
 
 function readSessionProfileCache(riotId: string, platform: PlatformRoute) {
@@ -504,9 +553,29 @@ function readSessionProfileCache(riotId: string, platform: PlatformRoute) {
       window.sessionStorage.removeItem(profileCacheKey(riotId, platform));
       return null;
     }
+    if (!hasCachedItemDetails(data)) {
+      window.sessionStorage.removeItem(profileCacheKey(riotId, platform));
+      return null;
+    }
     return data;
   } catch {
     return null;
+  }
+}
+
+async function recordCachedProfileSearch(data: RiotAccountViewerResponse) {
+  try {
+    await fetch('/api/riot-account/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        riotId: `${data.account.gameName}#${data.account.tagLine}`,
+        platform: data.platform,
+        searchSessionId: readSearchSessionId(),
+      }),
+    });
+  } catch {
+    // Search analytics are best-effort and must not block profile rendering.
   }
 }
 
@@ -552,12 +621,10 @@ function StatTile({
       </div>
       <p className="mt-3 text-2xl font-bold text-white">{value}</p>
       {topPercent ? (
-        <p className="group relative mt-2 w-fit text-xs font-bold uppercase tracking-[0.14em] text-amber-300">
+        <p className="group relative mt-2 w-fit text-xs font-bold uppercase tracking-[0.14em] text-amber-300" tabIndex={0}>
           {topPercent}
           {topPercentTitle ? (
-            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] normal-case leading-5 tracking-normal text-slate-200  group-hover:block">
-              {topPercentTitle}
-            </span>
+            <LavHoverNote text={topPercentTitle} wide />
           ) : null}
         </p>
       ) : null}
@@ -617,10 +684,11 @@ function MasteryCrest({ championLevel }: { championLevel: number }) {
 
   return (
     <div className="animate-mastery-badge-reveal flex h-12 w-14 items-center justify-center">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={src}
         alt=""
+        width={56}
+        height={48}
         className="h-12 w-14 object-contain "
       />
     </div>
@@ -630,8 +698,7 @@ function MasteryCrest({ championLevel }: { championLevel: number }) {
 function MasteryLevelPlate({ championLevel }: { championLevel: number }) {
   return (
     <div className="relative mx-auto mt-1 flex min-h-5 w-14 items-center justify-center px-1 text-[0.68rem] font-black text-slate-950">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/mastery-crests/Mastery_Level_Plate.png" alt="" className="absolute inset-0 h-full w-full object-fill" />
+      <Image src="/mastery-crests/Mastery_Level_Plate.png" alt="" width={56} height={20} className="absolute inset-0 h-full w-full object-fill" />
       <span className="relative z-10">L{championLevel}</span>
     </div>
   );
@@ -719,11 +786,9 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
                           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
                             KnowLeague Sample Placement
                           </p>
-                          <p className="group relative mt-1 w-fit text-sm font-bold text-amber-300">
+                          <p className="group relative mt-1 w-fit text-sm font-bold text-amber-300" tabIndex={0}>
                             #{formatNumber(regionalRank)} regional - {formatTopPercent(topPercent)}
-                            <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-[0.7rem] font-semibold leading-5 text-slate-200  group-hover:block">
-                              {globalRankingTooltip}
-                            </span>
+                            <LavHoverNote text={globalRankingTooltip} wide />
                           </p>
                         </div>
                       );
@@ -1068,15 +1133,33 @@ function CurrentGameSection({ data }: { data: RiotAccountViewerResponse }) {
   );
 }
 
+function LavHoverNote({ text, wide = false }: { text: string; wide?: boolean }) {
+  return (
+    <span role="tooltip" className={`pointer-events-none absolute bottom-full left-1/2 z-[240] mb-2 hidden -translate-x-1/2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-200 group-hover:block group-focus-within:block ${wide ? 'w-64 max-w-[calc(100vw-2rem)]' : 'w-max max-w-[calc(100vw-2rem)]'}`}>
+      {text}
+    </span>
+  );
+}
+
 function SmallGameIcon({ src, label, size = 'sm' }: { src: string; label: string; size?: 'xs' | 'sm' }) {
   const className = size === 'xs' ? 'h-5 w-5 rounded' : 'h-6 w-6 rounded-md';
   const pixels = size === 'xs' ? 20 : 24;
 
   if (!src) {
-    return <span className={`${className} border border-white/10 bg-slate-800`} aria-label={label} title={label} />;
+    return <span className={`group relative inline-flex ${className} border border-white/10 bg-slate-800`} aria-label={label} tabIndex={0}><LavHoverNote text={label} /></span>;
   }
 
-  return <GameIconImage src={src} alt={label} title={label} width={pixels} height={pixels} className={`${className} object-cover ring-1 ring-white/10`} />;
+  return <span className={`group relative inline-flex ${className}`} aria-label={label} tabIndex={0}><GameIconImage src={src} alt={label} width={pixels} height={pixels} className={`${className} object-cover ring-1 ring-white/10`} /><LavHoverNote text={label} /></span>;
+}
+
+function MatchItemTooltip({ item }: { item: MatchParticipantItem }) {
+  const details = item.description || item.plaintext || 'No item description is available.';
+  return (
+    <span className="group relative inline-flex h-6 w-6 shrink-0 rounded-md outline-none focus-within:z-[220]" tabIndex={0} aria-label={`${item.name}: ${details}`}>
+      <GameIconImage src={item.imageUrl} alt={item.name} width={24} height={24} className="h-6 w-6 rounded-md object-cover ring-1 ring-white/10" />
+      <LavHoverNote text={`${item.name}: ${details}`} wide />
+    </span>
+  );
 }
 
 function MatchMetricLabel({ icon: Icon, label }: { icon: typeof Swords; label: string }) {
@@ -1090,9 +1173,10 @@ function MatchMetricLabel({ icon: Icon, label }: { icon: typeof Swords; label: s
 
 function MatchHeaderMetric({ icon: Icon, label, value }: { icon: typeof Swords; label: string; value: string }) {
   return (
-    <div title={label}>
+    <div className="group relative">
       <MatchMetricLabel icon={Icon} label={label} />
       <p className="font-bold text-white">{value}</p>
+      <LavHoverNote text={label} />
     </div>
   );
 }
@@ -1146,9 +1230,10 @@ function TeamObjectiveSummary({ team }: { team: MatchTeam }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
       {objectives.map(({ label, value, icon: Icon }) => (
-        <span key={label} className="inline-flex items-center gap-1.5 font-bold text-white" title={label}>
+        <span key={label} className="group relative inline-flex items-center gap-1.5 font-bold text-white">
           <Icon size={14} className="text-slate-400" aria-hidden="true" />
           <span>{value}</span>
+          <LavHoverNote text={label} />
         </span>
       ))}
     </div>
@@ -1171,16 +1256,18 @@ const MatchParticipantRow = memo(function MatchParticipantRow({ participant, max
   ].filter(([ count]) => Number(count) > 0);
 
   return (
-    <div className={`grid gap-3 rounded-xl border p-2.5 text-sm lg:grid-cols-[minmax(15rem,1.45fr)_0.55fr_0.8fr_0.8fr_0.7fr_0.9fr_7rem_2.75rem] lg:items-center ${
+    <div className={`grid grid-cols-2 gap-3 rounded-xl border p-2.5 text-sm sm:grid-cols-3 lg:grid-cols-[minmax(15rem,1.45fr)_0.55fr_0.8fr_0.8fr_0.7fr_0.9fr_7rem_2.75rem] lg:items-center ${
       participant.isSearchedPlayer ? 'border-amber-300/50 bg-amber-300/10' : 'border-white/10 bg-slate-900/70'
     }`}
     >
-      <div className="flex min-w-0 items-center gap-2.5">
-        <div className="relative shrink-0" title={participant.champion.name}>
+      <div className="col-span-2 flex min-w-0 items-center gap-2.5 sm:col-span-3 lg:col-span-1">
+        <div className="group relative shrink-0">
           <ChampionIcon src={participant.champion.imageUrl} name={participant.champion.name} />
-          <span className="absolute -bottom-1 -right-1 min-w-5 rounded-full border border-white/20 bg-black px-1 text-center text-[0.65rem] font-black leading-4 text-white" title="Champion level at game end">
+          <span className="group absolute -bottom-1 -right-1 min-w-5 rounded-full border border-white/20 bg-black px-1 text-center text-[0.65rem] font-black leading-4 text-white" tabIndex={0}>
             {participant.championLevel}
+            <LavHoverNote text="Champion level at game end" />
           </span>
+          <LavHoverNote text={participant.champion.name} />
         </div>
         <div className="grid grid-cols-2 gap-1">
           {[...participant.summonerSpells.map((spell) => ({ id: `spell-${spell.id}`, src: spell.imageUrl, label: `Summoner spell: ${spell.name}` })),
@@ -1193,15 +1280,18 @@ const MatchParticipantRow = memo(function MatchParticipantRow({ participant, max
             href={viewerHref}
             target="_blank"
             rel="noreferrer"
-            className="block truncate font-bold text-white transition hover:text-amber-200"
-            title={`Open ${participant.riotId} in League Account Viewer`}
+            className="group relative block truncate font-bold text-white transition hover:text-amber-200"
           >
             {participant.riotId}
+            <LavHoverNote text={`Open ${participant.riotId} in League Account Viewer`} />
           </a>
           <div className="mt-1 flex items-center gap-2">
             {participant.rank && rankTier ? (
               <>
-                <GameIconImage src={getLeagueRankIconUrl(rankTier)} alt="" title={`${participant.rank.tier} ${participant.rank.rank}`} width={22} height={22} className="h-5 w-5 object-contain" />
+                <span className="group relative inline-flex" tabIndex={0} aria-label={`${participant.rank.tier} ${participant.rank.rank}`}>
+                  <GameIconImage src={getLeagueRankIconUrl(rankTier)} alt="" width={22} height={22} className="h-5 w-5 object-contain" />
+                  <LavHoverNote text={`${participant.rank.tier} ${participant.rank.rank}`} />
+                </span>
                 <span className={`truncate text-xs font-bold ${getLeagueRankStyle(rankTier).text}`}>
                   {formatRankedDivision(participant.rank.tier, participant.rank.rank)}
                 </span>
@@ -1212,50 +1302,57 @@ const MatchParticipantRow = memo(function MatchParticipantRow({ participant, max
           </div>
         </div>
       </div>
-      <div title="Kills / Deaths / Assists">
+      <div className="group relative">
         <MatchMetricLabel icon={Swords} label="KDA" />
         <p className="font-bold text-white">{participant.kills}/{participant.deaths}/{participant.assists}</p>
+        <LavHoverNote text="Kills / Deaths / Assists" />
       </div>
-      <div title="Gold earned">
+      <div className="group relative">
         <MatchMetricLabel icon={Coins} label="Gold" />
         <p className="font-bold text-white">{formatNumber(participant.goldEarned)} <span className="text-xs font-semibold text-slate-500">{goldPerSecond}/s</span></p>
+        <LavHoverNote text="Gold earned" />
       </div>
-      <div title="Creep score: lane minions plus neutral monsters killed">
+      <div className="group relative">
         <MatchMetricLabel icon={CircleDot} label="CS" />
         <p className="font-bold text-white">{formatNumber(participant.creepScore)} <span className="text-xs font-semibold text-slate-500">{csPerMinute}/min</span></p>
+        <LavHoverNote text="Creep score: lane minions plus neutral monsters killed" wide />
       </div>
-      <div title="Vision score, wards placed, and wards killed">
+      <div className="group relative">
         <MatchMetricLabel icon={Eye} label="Vision" />
         <p className="font-bold text-white">{participant.visionScore} - {participant.wardsPlaced} - {participant.wardsKilled}</p>
+        <LavHoverNote text="Vision score, wards placed, and wards killed" wide />
       </div>
-      <div title="Damage dealt to enemy champions">
+      <div className="group relative">
         <MatchMetricLabel icon={Swords} label="Damage" />
         <div className="relative mt-1 h-5 overflow-hidden rounded-full bg-slate-800">
           <div className="absolute inset-y-0 left-0 rounded-full bg-rose-400" style={{ width: `${damageWidth}%` }} />
           <span className="absolute inset-0 flex items-center px-2 text-xs font-bold text-white">{formatNumber(participant.damageToChampions)}</span>
         </div>
+        <LavHoverNote text="Damage dealt to enemy champions" wide />
       </div>
-      <div>
+      <div className="col-span-2 sm:col-span-1 lg:col-span-1">
         <div className="grid grid-cols-4 gap-1">
           {arrangedItems.map((item, index) => (
             item
-              ? <SmallGameIcon key={`${participant.puuid}-${item.slot}-${item.id}-${index}`} src={item.imageUrl} label={item.name} />
-              : <span key={`${participant.puuid}-empty-item-${index}`} title="Empty item slot" className="h-6 w-6 rounded-md border border-white/10 bg-slate-800/70" />
+              ? <MatchItemTooltip key={`${participant.puuid}-${item.slot}-${item.id}-${index}`} item={item} />
+              : <span key={`${participant.puuid}-empty-item-${index}`} className="group relative inline-flex h-6 w-6 rounded-md border border-white/10 bg-slate-800/70" tabIndex={0}><LavHoverNote text="Empty item slot" /></span>
           ))}
         </div>
       </div>
-      <div title="Double, triple, quadra, and penta kills">
+      <div className="group relative">
         {multikills.length > 0 ? (
           <div className="grid w-10 grid-cols-1 gap-1">
             {multikills.map(([label, title, count, tier]) => (
-              <span key={label} className={`whitespace-nowrap rounded-md border px-1 py-0.5 text-center text-[0.56rem] font-black leading-none ${getLeagueRankStyle(String(tier)).selected} ${getLeagueRankStyle(String(tier)).text}`} title={`${title} in this match`}>
+              <span key={label} className={`group relative whitespace-nowrap rounded-md border px-1 py-0.5 text-center text-[0.56rem] font-black leading-none ${getLeagueRankStyle(String(tier)).selected} ${getLeagueRankStyle(String(tier)).text}`} tabIndex={0}>
                 {label} x{count}
+                <LavHoverNote text={`${title} in this match`} />
               </span>
             ))}
           </div>
         ) : (
           <span className="block h-1 w-1" aria-hidden="true" />
         )}
+        <LavHoverNote text="Double, triple, quadra, and penta kills" />
       </div>
     </div>
   );
@@ -1306,13 +1403,24 @@ function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { dat
   const [resultFilter, setResultFilter] = useState('all');
   const [queueFilter, setQueueFilter] = useState('all');
   const [expandedMatchIds, setExpandedMatchIds] = useState<Set<string>>(new Set());
-  const [copiedMatchId, setCopiedMatchId] = useState<string | null>(null);
+  const [sharedMatchId, setSharedMatchId] = useState<string | null>(null);
+  const [pendingScrollMatchId, setPendingScrollMatchId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!focusedMatchId) return;
     setExpandedMatchIds((current) => new Set([...current, focusedMatchId]));
+    setPendingScrollMatchId(focusedMatchId);
     onFocusedMatchConsumed();
   }, [focusedMatchId, onFocusedMatchConsumed]);
+
+  useEffect(() => {
+    if (!pendingScrollMatchId || !expandedMatchIds.has(pendingScrollMatchId)) return undefined;
+    const frameId = window.requestAnimationFrame(() => {
+      document.getElementById(`riot-match-${pendingScrollMatchId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPendingScrollMatchId(null);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [expandedMatchIds, pendingScrollMatchId]);
 
   const queues = useMemo(() => ['all', ...Array.from(new Set(data.matches.map((match) => String(match.queueId))))], [data.matches]);
   const matches = useMemo(() => data.matches.filter((match) => {
@@ -1348,14 +1456,20 @@ function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { dat
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <select value={resultFilter} onChange={(event) => setResultFilter(event.target.value)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">
-              <option value="all">All results</option>
-              <option value="wins">Victory</option>
-              <option value="losses">Defeat</option>
-            </select>
-            <select value={queueFilter} onChange={(event) => setQueueFilter(event.target.value)} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300/60">
-              {queues.map((queueId) => <option key={queueId} value={queueId}>{queueId === 'all' ? 'All game modes' : formatQueueLabel(Number(queueId))}</option>)}
-            </select>
+            <AppSelectMenu
+              label="Result"
+              hideLabel
+              value={resultFilter}
+              options={[{ value: 'all', label: 'All results' }, { value: 'wins', label: 'Victory' }, { value: 'losses', label: 'Defeat' }]}
+              onChange={setResultFilter}
+            />
+            <AppSelectMenu
+              label="Game mode"
+              hideLabel
+              value={queueFilter}
+              options={queues.map((queueId) => ({ value: queueId, label: queueId === 'all' ? 'All game modes' : formatQueueLabel(Number(queueId)) }))}
+              onChange={setQueueFilter}
+            />
           </div>
         </div>
 
@@ -1381,7 +1495,7 @@ function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { dat
               matchId: match.matchId,
             });
             return (
-              <article key={match.matchId} className={`overflow-hidden rounded-2xl border ${resultCardClass}`}>
+              <article id={`riot-match-${match.matchId}`} key={match.matchId} className={`scroll-mt-24 overflow-visible rounded-2xl border ${resultCardClass}`}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1400,14 +1514,15 @@ function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { dat
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-bold text-white">{match.champion.name}</p>
-                        <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300" title={`Queue ${match.queueId}`}>
+                        <span className="group relative rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300" tabIndex={0}>
                           {formatQueueLabel(match.queueId)}
+                          <LavHoverNote text={`Queue ${match.queueId}`} />
                         </span>
                         <AverageEnemyRankBadge averageRank={averageEnemyRank} />
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
                         <span>{matchMeta}</span>
-                        {match.position ? (
+                        {knownQueue && match.position ? (
                           <>
                             <span aria-hidden="true">-</span>
                             <MatchRole position={match.position} />
@@ -1431,25 +1546,28 @@ function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { dat
                       tabIndex={0}
                       onClick={(event) => {
                         event.stopPropagation();
-                        void copyTextToClipboard(matchLink).then(() => {
-                          setCopiedMatchId(match.matchId);
-                          window.setTimeout(() => setCopiedMatchId((current) => current === match.matchId ? null : current), 1400);
+                        void shareLink(matchLink, `${data.account.gameName} match`).then((shared) => {
+                          if (!shared) return;
+                          setSharedMatchId(match.matchId);
+                          window.setTimeout(() => setSharedMatchId((current) => current === match.matchId ? null : current), 1400);
                         });
                       }}
                       onKeyDown={(event) => {
                         if (event.key !== 'Enter' && event.key !== ' ') return;
                         event.preventDefault();
                         event.stopPropagation();
-                        void copyTextToClipboard(matchLink).then(() => {
-                          setCopiedMatchId(match.matchId);
-                          window.setTimeout(() => setCopiedMatchId((current) => current === match.matchId ? null : current), 1400);
+                        void shareLink(matchLink, `${data.account.gameName} match`).then((shared) => {
+                          if (!shared) return;
+                          setSharedMatchId(match.matchId);
+                          window.setTimeout(() => setSharedMatchId((current) => current === match.matchId ? null : current), 1400);
                         });
                       }}
                       className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-xs font-bold text-slate-300 transition hover:border-amber-300/50 hover:text-amber-200"
-                      title="Copy link to this game"
+                      aria-label="Share a link to this game"
                     >
-                      <Copy size={14} />
-                      {copiedMatchId === match.matchId ? 'Copied' : 'Copy'}
+                      <Share2 size={14} />
+                      {sharedMatchId === match.matchId ? 'Shared' : 'Share'}
+                      <LavHoverNote text="Share a link to this game" />
                     </span>
                     {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </div>
@@ -1525,8 +1643,7 @@ function ChallengesTab({ data }: { data: RiotAccountViewerResponse }) {
             return (
               <div
                 key={challenge.challengeId}
-                title={challengeTitle}
-                className={`grid gap-3 rounded-2xl border p-4 sm:grid-cols-[1fr_auto] sm:items-center ${style.selected} ${challenge.description ? 'cursor-help' : ''}`}
+                className={`group relative grid gap-3 rounded-2xl border p-4 sm:grid-cols-[1fr_auto] sm:items-center ${style.selected} ${challenge.description ? 'cursor-help' : ''}`}
               >
                 <div>
                   <p className="font-bold text-white">{challenge.name ?? `Challenge #${challenge.challengeId}`}</p>
@@ -1537,12 +1654,360 @@ function ChallengesTab({ data }: { data: RiotAccountViewerResponse }) {
                 <p className={`text-sm font-black ${style.text}`}>
                   {challenge.percentile === null ? 'No percentile' : `${Math.round(challenge.percentile * 1000) / 10} percentile`}
                 </p>
+                <LavHoverNote text={challengeTitle} wide />
               </div>
             );
           })}
         </div>
       </section>
     </div>
+  );
+}
+
+const popularityPeriodOptions = [
+  { value: 'day', label: 'Today' },
+  { value: 'week', label: 'This week' },
+  { value: 'month', label: 'This month' },
+  { value: 'all_time', label: 'All time' },
+] as const;
+
+const popularityLimitOptions = [
+  { value: 10, label: 'Top 10' },
+  { value: 25, label: 'Top 25' },
+  { value: 50, label: 'Top 50' },
+] as const;
+
+export function PopularAccountsSection() {
+  const [period, setPeriod] = useState<(typeof popularityPeriodOptions)[number]['value']>('day');
+  const [limit, setLimit] = useState<(typeof popularityLimitOptions)[number]['value']>(10);
+  const [accounts, setAccounts] = useState<PopularAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    fetch(`/api/riot-account/popular?period=${encodeURIComponent(period)}&limit=${limit}`, { signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json() as { accounts?: PopularAccount[]; error?: string };
+        if (!response.ok) throw new Error(result.error ?? 'Unable to load popular accounts.');
+        setAccounts(Array.isArray(result.accounts) ? result.accounts : []);
+      })
+      .catch((nextError) => {
+        if ((nextError as Error).name !== 'AbortError') {
+          setAccounts([]);
+          setError(nextError instanceof Error ? nextError.message : 'Unable to load popular accounts.');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [limit, period]);
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">League Account Viewer</p>
+          <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">Most Popular Accounts</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">View the most searched League of Legends accounts on KnowLeague</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:min-w-[22rem]">
+          <AppSelectMenu label="Time period" value={period} options={popularityPeriodOptions.map((option) => ({ ...option }))} onChange={setPeriod} />
+          <AppSelectMenu label="Number of accounts" value={limit} options={popularityLimitOptions.map((option) => ({ ...option }))} onChange={setLimit} />
+        </div>
+      </div>
+
+      {loading ? <p className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5 text-sm text-slate-400">Loading popular accounts…</p> : null}
+      {error ? <p className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-950/30 p-5 text-sm text-rose-100">{error}</p> : null}
+      {!loading && !error && accounts.length === 0 ? (
+        <p className="mt-6 rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-5 text-sm text-slate-400">No searches have been recorded for this period yet.</p>
+      ) : null}
+      {!loading && !error && accounts.length > 0 ? (
+        <div className="mt-6 grid gap-2">
+          {accounts.map((account, index) => (
+            <a
+              key={`${account.platform}-${account.riotId}`}
+              href={`/riot-account-viewer?riotId=${encodeURIComponent(account.riotId)}&platform=${encodeURIComponent(account.platform)}`}
+              className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-3 transition hover:border-cyan-300/50 hover:bg-slate-900 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:items-center sm:p-4"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10 text-lg font-black text-cyan-200">{index + 1}</span>
+              <span className="min-w-0">
+                <span className="block truncate font-black text-white">{account.riotId}</span>
+                <span className="mt-1 block text-xs font-semibold text-slate-500">{account.platform} · Last searched {formatProfileUpdatedAt(account.lastSearchedAt)}</span>
+              </span>
+              <span className="text-sm font-black text-amber-200">{formatNumber(account.searchCount)} searches</span>
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+const patchNotesSessionCacheKey = 'knowleague:riot-account-viewer:patch-notes-cache:v2';
+const patchNotesClientCacheTtlMs = 6 * 60 * 60_000;
+const patchNotesSourceUrl = 'https://www.leagueoflegends.com/en-us/news/tags/patch-notes/';
+
+type PatchNotesClientCache = {
+  notes: RiotPatchNoteSummary[];
+  sourceUrl: string;
+  cachedAt: number;
+};
+
+function readPatchNotesClientCache(): PatchNotesClientCache | null {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(patchNotesSessionCacheKey) ?? 'null') as Partial<PatchNotesClientCache> | null;
+    if (!parsed || !Array.isArray(parsed.notes) || typeof parsed.cachedAt !== 'number' || Date.now() - parsed.cachedAt > patchNotesClientCacheTtlMs) return null;
+    return {
+      notes: parsed.notes as RiotPatchNoteSummary[],
+      sourceUrl: typeof parsed.sourceUrl === 'string' ? parsed.sourceUrl : patchNotesSourceUrl,
+      cachedAt: parsed.cachedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePatchNotesClientCache(notes: RiotPatchNoteSummary[], sourceUrl: string) {
+  try {
+    window.sessionStorage.setItem(patchNotesSessionCacheKey, JSON.stringify({ notes, sourceUrl, cachedAt: Date.now() } satisfies PatchNotesClientCache));
+  } catch {
+    // Session storage is an optimization; the server cache remains authoritative.
+  }
+}
+
+function formatPatchNoteDate(value: string) {
+  if (!value) return 'Date unavailable';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Date unavailable';
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+function formatPatchNoteHeading(note: RiotPatchNoteSummary) {
+  return `League of Legends Patch ${note.patchNumber} Notes - ${formatPatchNoteDate(note.publishedAt)}`;
+}
+
+function getPatchNoteDetailHref(note: RiotPatchNoteSummary) {
+  return `/riot-account-viewer/patch-notes/${encodeURIComponent(note.slug)}`;
+}
+
+export function PatchNotesSection() {
+  const [notes, setNotes] = useState<RiotPatchNoteSummary[]>([]);
+  const [sourceUrl, setSourceUrl] = useState(patchNotesSourceUrl);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [searchedQuery, setSearchedQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<RiotPatchNoteSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const searchControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const cached = readPatchNotesClientCache();
+    if (cached) {
+      setNotes(cached.notes);
+      setSourceUrl(cached.sourceUrl);
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    fetch('/api/riot-account/patch-notes', { signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json() as { notes?: RiotPatchNoteSummary[]; sourceUrl?: string };
+        if (!response.ok) throw new Error('Unable to load patch notes.');
+        const nextNotes = Array.isArray(result.notes) ? result.notes : [];
+        const nextSourceUrl = result.sourceUrl ?? patchNotesSourceUrl;
+        setNotes(nextNotes);
+        setSourceUrl(nextSourceUrl);
+        writePatchNotesClientCache(nextNotes, nextSourceUrl);
+      })
+      .catch((nextError) => {
+        if ((nextError as Error).name !== 'AbortError') setNotes([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+      searchControllerRef.current?.abort();
+    };
+  }, []);
+
+  async function searchPatchNotes(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) {
+      setSearchError('Search for at least two characters.');
+      return;
+    }
+
+    searchControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
+    setSearchLoading(true);
+    setSearchError(null);
+    try {
+      const response = await fetch(`/api/riot-account/patch-notes/search?q=${encodeURIComponent(normalizedQuery)}`, { signal: controller.signal });
+      const result = await response.json() as { results?: RiotPatchNoteSearchResult[]; error?: string };
+      if (!response.ok) throw new Error(result.error ?? 'Unable to search patch notes.');
+      if (searchControllerRef.current !== controller) return;
+      setSearchResults(Array.isArray(result.results) ? result.results : []);
+      setSearchedQuery(normalizedQuery);
+    } catch (nextError) {
+      if ((nextError as Error).name === 'AbortError') return;
+      if (searchControllerRef.current !== controller) return;
+      setSearchError(nextError instanceof Error ? nextError.message : 'Unable to search patch notes.');
+      setSearchResults([]);
+      setSearchedQuery(normalizedQuery);
+    } finally {
+      if (searchControllerRef.current === controller) {
+        searchControllerRef.current = null;
+        setSearchLoading(false);
+      }
+    }
+  }
+
+  function clearPatchNoteSearch() {
+    searchControllerRef.current?.abort();
+    searchControllerRef.current = null;
+    setQuery('');
+    setSearchedQuery('');
+    setSearchResults([]);
+    setSearchError(null);
+    setSearchLoading(false);
+  }
+
+  const showingSearchResults = searchedQuery.length > 0;
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">League Account Viewer</p>
+          <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">Official League Patch Notes</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Recent official patch-note releases, fetched from Riot’s League of Legends news site.</p>
+        </div>
+        <a href={sourceUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-300/30 px-3 text-sm font-bold text-cyan-100 transition hover:border-cyan-200 hover:bg-cyan-300/10">
+          <FileText size={16} />
+          View on Riot
+        </a>
+      </div>
+
+      {loading ? <p className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5 text-sm text-slate-400">Fetching the latest releases…</p> : null}
+      <form onSubmit={searchPatchNotes} className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Search patch changes</span>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by champion, item, rune, system, or game mode" className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300/60" />
+        </label>
+        <button type="submit" disabled={searchLoading} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
+          <Search size={17} />
+          {searchLoading ? 'Searching' : 'Search'}
+        </button>
+        {showingSearchResults || query ? (
+          <button type="button" onClick={clearPatchNoteSearch} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 text-sm font-black text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200">
+            <X size={17} />
+            Clear search
+          </button>
+        ) : null}
+      </form>
+
+      {searchError ? <p className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-950/30 p-4 text-sm font-semibold text-rose-100">{searchError}</p> : null}
+      {!loading && notes.length === 0 ? <p className="mt-6 rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-5 text-sm text-slate-400">The official release list is temporarily unavailable. Use the official patch notes link above.</p> : null}
+      {!loading && !showingSearchResults && notes.length > 0 ? (
+        <div className="mt-6 grid gap-2">
+          {notes.map((note) => (
+            <Link key={note.href} href={getPatchNoteDetailHref(note)} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-900/70 p-4 font-bold text-white transition hover:border-cyan-300/50 hover:bg-slate-900">
+              <span className="min-w-0 truncate">{formatPatchNoteHeading(note)}</span>
+              <FileText size={17} className="shrink-0 text-cyan-200" />
+            </Link>
+          ))}
+        </div>
+      ) : null}
+      {!loading && showingSearchResults && searchResults.length === 0 && !searchError ? <p className="mt-6 rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-5 text-sm text-slate-400">No matching changes were found in the recent releases.</p> : null}
+      {!loading && showingSearchResults && searchResults.length > 0 ? (
+        <div className="mt-6 grid gap-4">
+          <p className="text-sm font-semibold text-slate-400">Results for <span className="text-white">{searchedQuery}</span></p>
+          {searchResults.map((result) => (
+            <div key={result.note.href} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+              <Link href={getPatchNoteDetailHref(result.note)} className="font-black text-cyan-100 transition hover:text-cyan-200">{formatPatchNoteHeading(result.note)}</Link>
+              <div className="mt-4 grid gap-4">
+                {result.matches.map((match) => (
+                  <div key={match.heading}>
+                    <h3 className="text-sm font-black text-amber-200">{match.heading}</h3>
+                    <div className="mt-2 grid gap-2">
+                      {match.excerpts.map((excerpt, index) => <p key={`${match.heading}-${index}`} className="border-l-2 border-white/10 pl-3 text-sm leading-6 text-slate-300">{excerpt}</p>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function PatchNoteDetailSection({ slug }: { slug: string }) {
+  const [detail, setDetail] = useState<RiotPatchNoteDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`/api/riot-account/patch-notes/detail?slug=${encodeURIComponent(slug)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json() as { detail?: RiotPatchNoteDetail; error?: string };
+        if (!response.ok || !result.detail) throw new Error(result.error ?? 'Unable to load this patch note.');
+        setDetail(result.detail);
+      })
+      .catch((nextError) => {
+        if ((nextError as Error).name !== 'AbortError') setDetail(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [slug]);
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/riot-account-viewer/patch-notes" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm font-bold text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200">
+          <ArrowLeft size={16} />
+          Back to patch notes
+        </Link>
+        {detail ? <a href={detail.href} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-cyan-300/30 px-3 text-sm font-bold text-cyan-100 transition hover:border-cyan-200 hover:bg-cyan-300/10"><FileText size={16} />Official patch notes</a> : null}
+      </div>
+
+      {loading ? <p className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5 text-sm text-slate-400">Fetching detailed patch changes...</p> : null}
+      {!loading && !detail ? <p className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-950/30 p-5 text-sm font-semibold text-rose-100">This patch note could not be loaded. Use the back button to choose another release.</p> : null}
+      {detail ? (
+        <article className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Patch {detail.patchNumber} · {formatPatchNoteDate(detail.publishedAt)}</p>
+          <h1 className="mt-3 text-3xl font-black text-white sm:text-4xl">{detail.title}</h1>
+          {detail.subtitle ? <p className="mt-3 text-lg font-semibold leading-7 text-slate-300">{detail.subtitle}</p> : null}
+          {detail.intro.map((paragraph, index) => <p key={`intro-${index}`} className="mt-4 max-w-4xl text-sm leading-7 text-slate-300">{paragraph}</p>)}
+          <div className="mt-8 grid gap-5 [content-visibility:auto] [contain-intrinsic-size:1000px]">
+            {detail.blocks.map((block, index) => {
+              if (block.kind === 'heading') {
+                return block.level && block.level <= 2
+                  ? <h2 key={`block-${index}`} className="border-b border-white/10 pb-2 pt-3 text-2xl font-black text-white">{block.text}</h2>
+                  : <h3 key={`block-${index}`} className="pt-2 text-lg font-black text-cyan-100">{block.text}</h3>;
+              }
+              if (block.kind === 'list') return <p key={`block-${index}`} className="border-l-2 border-cyan-300/30 pl-4 text-sm leading-7 text-slate-300">{block.text}</p>;
+              return <p key={`block-${index}`} className="text-sm leading-7 text-slate-300">{block.text}</p>;
+            })}
+          </div>
+        </article>
+      ) : null}
+    </section>
   );
 }
 
@@ -1609,6 +2074,7 @@ export function RiotAccountViewer() {
       const cachedData = options.refresh ? null : readSessionProfileCache(trimmedRiotId, nextPlatform);
       if (cachedData) {
         const dataWithLiveGame = await refreshCachedLiveGame(trimmedRiotId, nextPlatform, cachedData);
+        await recordCachedProfileSearch(dataWithLiveGame);
         applyLoadedData(dataWithLiveGame);
         return;
       }
@@ -1616,6 +2082,7 @@ export function RiotAccountViewer() {
       const requestUrl = new URL('/api/riot-account/viewer', window.location.origin);
       requestUrl.searchParams.set('riotId', trimmedRiotId);
       requestUrl.searchParams.set('platform', nextPlatform);
+      requestUrl.searchParams.set('searchSessionId', readSearchSessionId());
       if (options.refresh) {
         requestUrl.searchParams.set('refresh', 'true');
       }
@@ -1679,8 +2146,10 @@ export function RiotAccountViewer() {
     const queryPlatform = params.get('platform')?.toUpperCase() ?? null;
     const queryTab = params.get('tab');
     const queryMatchId = params.get('matchId');
+    const safeQueryTab = isViewerTab(queryTab) ? queryTab : queryMatchId ? 'matches' : 'overview';
     const storedLastSearch = readStoredLastSearch();
     setRiotIdSuggestions(readStoredRecentSearches());
+    setActiveTab(safeQueryTab);
     if (queryRiotId) {
       const safePlatform = isPlatformRoute(queryPlatform)
         ? queryPlatform
@@ -1688,7 +2157,7 @@ export function RiotAccountViewer() {
       setRiotId(queryRiotId);
       setPlatform(safePlatform);
       void loadAccount(queryRiotId, safePlatform, {
-        tab: isViewerTab(queryTab) ? queryTab : queryMatchId ? 'matches' : 'overview',
+        tab: safeQueryTab,
         matchId: queryMatchId,
       });
       return;
@@ -1737,46 +2206,42 @@ export function RiotAccountViewer() {
       <section className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-8 lg:px-10">
         <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
-                <a
-                  href="/"
-                  className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200"
-                >
-                  <Home size={14} />
-                  Home
-                </a>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">League Account Viewer</p>
               </div>
               <h1 className="mt-3 text-3xl font-black text-white sm:text-5xl">{title}</h1>
             </div>
 
             {data ? (
-              <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                <GameIconImage src={data.summoner.profileIconUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10" />
-                <div>
-                  <p className="font-bold text-white">Level {formatNumber(data.summoner.summonerLevel)}</p>
-                  <p className="text-sm text-slate-400">{data.platform} - {data.regionalRoute.toUpperCase()}</p>
+              <div className="w-full rounded-2xl border border-white/10 bg-slate-950/70 p-4 lg:w-auto lg:shrink-0">
+                <div className="flex flex-wrap items-center gap-4">
+                  <GameIconImage src={data.summoner.profileIconUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10" />
+                  <div>
+                    <p className="font-bold text-white">Level {formatNumber(data.summoner.summonerLevel)}</p>
+                    <p className="text-sm text-slate-400">{data.platform} - {data.regionalRoute.toUpperCase()}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const accountLink = buildRiotViewerUrl({
+                        riotId: `${data.account.gameName}#${data.account.tagLine}`,
+                        platform: data.platform,
+                        tab: activeTab,
+                      });
+                      void copyTextToClipboard(accountLink).then(() => {
+                        setCopiedAccountLink(true);
+                        window.setTimeout(() => setCopiedAccountLink(false), 1400);
+                      });
+                    }}
+                    className="group relative inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200"
+                    aria-label="Copy link to this account"
+                  >
+                    <Copy size={14} />
+                    {copiedAccountLink ? 'Copied' : 'Copy'}
+                    <LavHoverNote text="Copy link to this account" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const accountLink = buildRiotViewerUrl({
-                      riotId: `${data.account.gameName}#${data.account.tagLine}`,
-                      platform: data.platform,
-                      tab: activeTab,
-                    });
-                    void copyTextToClipboard(accountLink).then(() => {
-                      setCopiedAccountLink(true);
-                      window.setTimeout(() => setCopiedAccountLink(false), 1400);
-                    });
-                  }}
-                  className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black text-slate-200 transition hover:border-amber-300/50 hover:text-amber-200"
-                  title="Copy link to this account"
-                >
-                  <Copy size={14} />
-                  {copiedAccountLink ? 'Copied' : 'Copy'}
-                </button>
               </div>
             ) : null}
           </div>
@@ -1786,9 +2251,9 @@ export function RiotAccountViewer() {
               event.preventDefault();
               void loadAccount();
             }}
-            className="mt-6 grid gap-3 lg:grid-cols-[1fr_10rem_auto]"
+            className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"
           >
-            <label className="relative">
+            <label className="relative block min-w-0">
               <span className="sr-only">Riot ID</span>
               <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
@@ -1799,41 +2264,42 @@ export function RiotAccountViewer() {
                 list="riot-account-viewer-suggestions"
                 autoComplete="username"
                 placeholder="Riot ID"
-                className={`min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40 ${
+                className={`block min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40 ${
                   data ? 'pr-28' : 'pr-4'
                 }`}
               />
               {data ? (
-                <button
-                  type="button"
-                  onClick={() => void loadAccount(riotId, platform, { tab: activeTab, matchId: focusedMatchId, refresh: true })}
-                  disabled={loading}
-                  title="Refresh this account from the live Riot API"
-                  className="absolute right-2 top-1/2 inline-flex h-9 -translate-y-1/2 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black uppercase tracking-[0.08em] text-slate-300 transition hover:border-amber-300/50 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                  Update
-                </button>
+                <div className="group absolute right-2 top-1/2 -translate-y-1/2">
+                  <button
+                    type="button"
+                    onClick={() => void loadAccount(riotId, platform, { tab: activeTab, matchId: focusedMatchId, refresh: true })}
+                    disabled={loading}
+                    aria-label="Refresh this account from the live Riot API"
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black uppercase tracking-[0.08em] text-slate-300 transition hover:border-amber-300/50 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    Update
+                  </button>
+                  <LavHoverNote text="Refresh this account from the live Riot API" wide />
+                </div>
               ) : null}
               <datalist id="riot-account-viewer-suggestions">
                 {mergedRiotIdSuggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
               </datalist>
             </label>
-            <label className="relative">
-              <span className="sr-only">League platform</span>
-              <select
-                value={platform}
-                onChange={(event) => setPlatform(event.target.value as PlatformRoute)}
-                className="min-h-12 w-full appearance-none rounded-2xl border border-white/10 bg-slate-950 py-2 pl-4 pr-14 text-sm font-bold text-white outline-none transition focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40"
-              >
-                {platformRoutes.map((route) => <option key={route} value={route}>{platformLabels[route]}</option>)}
-              </select>
-              <ChevronDown size={18} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-white" />
-            </label>
+            <AppSelectMenu
+              label="League platform"
+              hideLabel
+              className="min-w-0 lg:w-48"
+              triggerClassName="min-w-0"
+              value={platform}
+              options={platformRoutes.map((route) => ({ value: route, label: platformLabels[route] }))}
+              onChange={(value) => setPlatform(value as PlatformRoute)}
+            />
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
               {loading ? 'Loading' : 'Search'}

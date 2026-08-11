@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { assertUsersCanInteract } from '@/lib/account-status';
 import { normalizeChatBorder, normalizeChatColor } from '@/lib/chat-colors';
 import { sanitizeChatMessage } from '@/lib/chat-filter';
 
@@ -12,6 +13,7 @@ export type FriendProfileSummary = {
   discordUsername: string | null;
   discordAvatarUrl: string | null;
   riotAccountName: string | null;
+  profileStatus: string;
   online: boolean;
   unreadCount: number;
   chatColor: string;
@@ -39,6 +41,8 @@ type ProfileRow = {
   chat_color?: string | null;
   chat_border?: string | null;
   avatar_url?: string | null;
+  profile_status?: string | null;
+  profile_visibility?: 'public' | 'private' | null;
 };
 
 type PrivateProfileDetailsRow = {
@@ -71,11 +75,25 @@ type FriendMessageRow = {
 const ONLINE_WINDOW_MS = 20 * 1000;
 type FriendRequestResult = 'requested' | 'accepted';
 export type PublicFriendRelationship = 'friend' | 'pending' | 'none';
+export type FriendRelationshipDetails = {
+  relationship: PublicFriendRelationship;
+  friendNote: string;
+  blocked: boolean;
+};
 let endedAtColumnAvailable: boolean | null = null;
 let friendPreferenceColumnsAvailable: boolean | null = null;
 
 function isOnline(lastSeenAt?: string | null) {
   return Boolean(lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < ONLINE_WINDOW_MS);
+}
+
+function getFriendId(friendship: FriendshipRow, userId: string) {
+  return friendship.user_one_id === userId ? friendship.user_two_id : friendship.user_one_id;
+}
+
+function isFriendFavorite(friendship: FriendshipRow | undefined, userId: string) {
+  if (!friendship) return false;
+  return Boolean(userId === friendship.user_one_id ? friendship.user_one_favorite : friendship.user_two_favorite);
 }
 
 function toSummary(
@@ -98,6 +116,7 @@ function toSummary(
     discordUsername: options.privateDetails?.discord_username ?? null,
     discordAvatarUrl: options.privateDetails?.discord_avatar_url ?? null,
     riotAccountName: options.privateDetails?.riot_account_name ?? null,
+    profileStatus: profile.profile_status?.trim().slice(0, 50) ?? '',
     online: isOnline(profile.last_seen_at),
     unreadCount,
     chatColor: normalizeChatColor(profile.chat_color),
@@ -159,21 +178,65 @@ function isMissingFriendPreferenceError(error: unknown) {
   );
 }
 
+function isMissingUserBlocksError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return maybeError.code === '42P01'
+    || maybeError.code === 'PGRST205'
+    || text.includes('user_blocks');
+}
+
+async function areUsersBlocked(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  firstUserId: string,
+  secondUserId: string,
+) {
+  const { data, error } = await supabase
+    .from('user_blocks')
+    .select('blocker_id')
+    .or(`and(blocker_id.eq.${firstUserId},blocked_id.eq.${secondUserId}),and(blocker_id.eq.${secondUserId},blocked_id.eq.${firstUserId})`)
+    .limit(1)
+    .returns<Array<{ blocker_id: string }>>();
+
+  if (isMissingUserBlocksError(error)) {
+    return false;
+  }
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data?.length);
+}
+
 async function selectProfilesByIds(supabase: ReturnType<typeof getSupabaseServiceClient>, ids: string[]) {
   if (ids.length === 0) {
     return [];
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, chat_color, chat_border, avatar_url')
+    .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, chat_color, chat_border, avatar_url, profile_status, profile_visibility')
     .in('id', ids)
     .returns<ProfileRow[]>();
+
+  if (error && isMissingProfileStatusError(error)) {
+    const fallback = await supabase
+      .from('profiles')
+      .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, chat_color, chat_border, avatar_url, profile_visibility')
+      .in('id', ids)
+      .returns<ProfileRow[]>();
+    data = fallback.data?.map((profile) => ({ ...profile, profile_status: '' })) ?? null;
+    error = fallback.error;
+  }
 
   if (isMissingChatCosmeticsError(error)) {
     const fallback = await supabase
       .from('profiles')
-      .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, avatar_url')
+      .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, avatar_url, profile_status, profile_visibility')
       .in('id', ids)
       .returns<ProfileRow[]>();
 
@@ -183,6 +246,13 @@ async function selectProfilesByIds(supabase: ReturnType<typeof getSupabaseServic
 
   if (error) throw error;
   return data ?? [];
+}
+
+function isMissingProfileStatusError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return (maybeError.code === '42703' || maybeError.code === 'PGRST204') && text.includes('profile_status');
 }
 
 async function selectPrivateDetailsByUserIds(supabase: ReturnType<typeof getSupabaseServiceClient>, ids: string[]) {
@@ -334,6 +404,11 @@ export async function acceptFriendPair(
   firstUserId: string,
   secondUserId: string,
 ) {
+  await assertUsersCanInteract(firstUserId, secondUserId);
+  if (await areUsersBlocked(supabase, firstUserId, secondUserId)) {
+    throw new Error('You cannot connect with this user.');
+  }
+
   const { userOneId, userTwoId } = orderedPair(firstUserId, secondUserId);
   const upsertFriendship = async (includeEndedAt: boolean) => supabase
     .from('friendships')
@@ -463,6 +538,74 @@ export async function getFriendDashboard(userId: string) {
   };
 }
 
+export type PublicFriendPreview = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  chatColor: string;
+  profileStatus: string;
+  createdAt: string | null;
+  online: boolean;
+  favorite: boolean;
+};
+
+export async function getPublicFriendList(targetUserId: string, viewerId: string | null, viewerIsAdmin = false) {
+  const supabase = getSupabaseServiceClient();
+  let { data: targetProfile, error: targetProfileError } = await supabase
+    .from('profiles')
+    .select('friends_list_public')
+    .eq('id', targetUserId)
+    .maybeSingle<{ friends_list_public: boolean | null }>();
+
+  if (targetProfileError && isMissingFriendsListPublicError(targetProfileError)) {
+    targetProfile = { friends_list_public: true };
+    targetProfileError = null;
+  }
+  if (targetProfileError) throw targetProfileError;
+
+  const canView = viewerIsAdmin || viewerId === targetUserId || targetProfile?.friends_list_public !== false;
+  if (!canView) {
+    return { visible: false, friends: [] as PublicFriendPreview[] };
+  }
+
+  const friendships = await getActiveFriendshipsForUser(supabase, targetUserId);
+  const selectedFriendships = [...friendships]
+    .sort((left, right) => (
+      Number(isFriendFavorite(right, targetUserId)) - Number(isFriendFavorite(left, targetUserId))
+      || getFriendId(left, targetUserId).localeCompare(getFriendId(right, targetUserId))
+    ))
+    .slice(0, 50);
+  const friendIds = selectedFriendships.map((friendship) => getFriendId(friendship, targetUserId));
+  const friendshipByFriendId = new Map(selectedFriendships.map((friendship) => [getFriendId(friendship, targetUserId), friendship]));
+  const profiles = (await selectProfilesByIds(supabase, friendIds)).filter((profile) => !profile.is_banned);
+  const publicProfiles = viewerIsAdmin || viewerId === targetUserId
+    ? profiles
+    : profiles.filter((profile) => profile.profile_visibility !== 'private');
+
+  return {
+    visible: true,
+    friends: publicProfiles.map((profile) => ({
+      id: profile.id,
+      username: profile.username,
+      displayName: profile.display_name || profile.username,
+      avatarUrl: profile.avatar_url ?? null,
+      chatColor: normalizeChatColor(profile.chat_color),
+      profileStatus: profile.profile_status?.trim().slice(0, 50) ?? '',
+      createdAt: profile.created_at ?? null,
+      online: isOnline(profile.last_seen_at),
+      favorite: isFriendFavorite(friendshipByFriendId.get(profile.id), targetUserId),
+    })),
+  };
+}
+
+function isMissingFriendsListPublicError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return (maybeError.code === '42703' || maybeError.code === 'PGRST204') && text.includes('friends_list_public');
+}
+
 export async function searchFriendCandidates(userId: string, query: string) {
   const cleanQuery = query.trim().toLowerCase();
   if (cleanQuery.length < 3) {
@@ -472,15 +615,32 @@ export async function searchFriendCandidates(userId: string, query: string) {
   const supabase = getSupabaseServiceClient();
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned')
+    .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, avatar_url, chat_color, chat_border, profile_status, profile_visibility')
     .ilike('username', `${cleanQuery}%`)
     .neq('id', userId)
     .eq('is_banned', false)
+    .order('username', { ascending: true })
     .limit(10)
     .returns<ProfileRow[]>();
 
-  if (error) {
-    throw error;
+  let profileRows = profiles;
+  let profileError = error;
+  if (error && isMissingProfileStatusError(error)) {
+    const fallback = await supabase
+      .from('profiles')
+      .select('id, username, display_name, about_me, friend_requests_open, last_seen_at, created_at, is_banned, avatar_url, chat_color, chat_border, profile_visibility')
+      .ilike('username', `${cleanQuery}%`)
+      .neq('id', userId)
+      .eq('is_banned', false)
+      .order('username', { ascending: true })
+      .limit(10)
+      .returns<ProfileRow[]>();
+    profileRows = fallback.data?.map((profile) => ({ ...profile, profile_status: '' })) ?? null;
+    profileError = fallback.error;
+  }
+
+  if (profileError) {
+    throw profileError;
   }
 
   const { friends } = await getFriendDashboard(userId);
@@ -502,11 +662,18 @@ export async function searchFriendCandidates(userId: string, query: string) {
     request.requester_id === userId ? 'outgoing' : 'incoming',
   ]));
 
-  return (profiles ?? []).map((profile) => ({
-    ...toSummary(profile),
+  const privateDetailsByUserId = await selectPrivateDetailsByUserIds(supabase, (profileRows ?? []).map((profile) => profile.id));
+
+  return [...(profileRows ?? [])]
+    .sort((left, right) => (
+      Number(right.username.toLowerCase() === cleanQuery) - Number(left.username.toLowerCase() === cleanQuery)
+      || left.username.localeCompare(right.username)
+    ))
+    .map((profile) => ({
+    ...toSummary(profile, 0, '', { privateDetails: privateDetailsByUserId.get(profile.id) ?? null }),
     friendRequestsOpen: profile.friend_requests_open,
     relationship: friendIds.has(profile.id) ? 'friend' : pendingByUserId.get(profile.id) ?? 'none',
-  }));
+    }));
 }
 
 export async function updateFriendPreferences(
@@ -554,16 +721,32 @@ export async function updateFriendPreferences(
   }
 }
 
-export async function getFriendRelationship(userId: string, targetUserId: string): Promise<PublicFriendRelationship> {
+export async function getFriendRelationshipDetails(userId: string, targetUserId: string): Promise<FriendRelationshipDetails> {
   if (userId === targetUserId) {
-    return 'none';
+    return { relationship: 'none', friendNote: '', blocked: false };
   }
 
   const supabase = getSupabaseServiceClient();
+  const blocked = await areUsersBlocked(supabase, userId, targetUserId);
+  if (blocked) {
+    return { relationship: 'none', friendNote: '', blocked: true };
+  }
+
   const { userOneId, userTwoId } = orderedPair(userId, targetUserId);
   const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
   if (friendship) {
-    return 'friend';
+    const { data: preferences, error: preferenceError } = await supabase
+      .from('friendships')
+      .select('user_one_note, user_two_note')
+      .eq('id', friendship.id)
+      .maybeSingle<{ user_one_note?: string | null; user_two_note?: string | null }>();
+    if (preferenceError && !isMissingFriendPreferenceError(preferenceError)) {
+      throw preferenceError;
+    }
+    const friendNote = preferenceError
+      ? ''
+      : userId === userOneId ? preferences?.user_one_note ?? '' : preferences?.user_two_note ?? '';
+    return { relationship: 'friend', friendNote, blocked: false };
   }
 
   const { data: pendingRequests, error } = await supabase
@@ -578,7 +761,12 @@ export async function getFriendRelationship(userId: string, targetUserId: string
     throw error;
   }
 
-  return pendingRequests?.length ? 'pending' : 'none';
+  return { relationship: pendingRequests?.length ? 'pending' : 'none', friendNote: '', blocked: false };
+}
+
+export async function getFriendRelationship(userId: string, targetUserId: string): Promise<PublicFriendRelationship> {
+  const details = await getFriendRelationshipDetails(userId, targetUserId);
+  return details.relationship;
 }
 
 export async function searchExistingFriends(userId: string, query: string) {
@@ -600,6 +788,11 @@ export async function createFriendRequest(userId: string, targetUserId: string):
   }
 
   const supabase = getSupabaseServiceClient();
+  await assertUsersCanInteract(userId, targetUserId);
+  if (await areUsersBlocked(supabase, userId, targetUserId)) {
+    throw new Error('You cannot send a friend request to this user.');
+  }
+
   const { data: target, error: targetError } = await supabase
     .from('profiles')
     .select('id, friend_requests_open')
@@ -735,6 +928,11 @@ export async function markFriendMessagesRead(userId: string, friendId: string) {
 export async function getFriendMessages(userId: string, friendId: string, options: { markRead?: boolean } = {}) {
   const { userOneId, userTwoId } = orderedPair(userId, friendId);
   const supabase = getSupabaseServiceClient();
+  await assertUsersCanInteract(userId, friendId);
+  if (await areUsersBlocked(supabase, userId, friendId)) {
+    throw new Error('You cannot message this user.');
+  }
+
   const friendship = await getActiveFriendshipBetween(supabase, userOneId, userTwoId);
 
   if (!friendship) {
@@ -833,6 +1031,11 @@ export async function sendFriendMessage(
   const filteredMessage = sanitizeChatMessage(`${adminPrefix}${cleanMessage}`);
 
   const supabase = getSupabaseServiceClient();
+  await assertUsersCanInteract(userId, friendId);
+  if (await areUsersBlocked(supabase, userId, friendId)) {
+    throw new Error('You cannot message this user.');
+  }
+
   if (options.createThread) {
     await acceptFriendPair(supabase, userId, friendId);
   }
@@ -901,4 +1104,47 @@ export async function removeFriend(userId: string, friendId: string) {
   }
 
   await refreshFriendCounts(supabase, [userId, friendId]);
+}
+
+export async function blockUser(userId: string, targetUserId: string) {
+  if (userId === targetUserId) {
+    throw new Error('You cannot block yourself.');
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const { data: target, error: targetError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', targetUserId)
+    .maybeSingle<{ id: string }>();
+
+  if (targetError) {
+    throw targetError;
+  }
+  if (!target) {
+    throw new Error('Profile not found.');
+  }
+
+  const { error: blockError } = await supabase
+    .from('user_blocks')
+    .upsert({ blocker_id: userId, blocked_id: targetUserId }, { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true });
+
+  if (isMissingUserBlocksError(blockError)) {
+    throw new Error('Blocking requires the latest database migration.');
+  }
+  if (blockError) {
+    throw blockError;
+  }
+
+  await removeFriend(userId, targetUserId);
+
+  const { error: requestError } = await supabase
+    .from('friend_requests')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('status', 'pending')
+    .or(`and(requester_id.eq.${userId},addressee_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},addressee_id.eq.${userId})`);
+
+  if (requestError) {
+    throw requestError;
+  }
 }

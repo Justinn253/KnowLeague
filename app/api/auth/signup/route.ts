@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -24,7 +25,7 @@ async function findAuthUserByEmail(email: string) {
   return data;
 }
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/auth/signup', async function POST(request: Request) {
   try {
     const body = await request.json() as {
       email?: unknown;
@@ -140,4 +141,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

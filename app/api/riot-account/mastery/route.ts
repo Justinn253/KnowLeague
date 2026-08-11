@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getMasteryMasterProfile, isRiotPlatformRoute } from '@/lib/riot-account-viewer';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
@@ -37,7 +38,7 @@ function loadProfile(cacheKey: string, riotId: string, platform: Parameters<type
   return request;
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riot-account/mastery', async function GET(request: Request) {
   const clientIp = getClientIp(request);
   try {
     const url = new URL(request.url);
@@ -72,4 +73,4 @@ export async function GET(request: Request) {
     const message = error instanceof Error ? error.message : 'Unable to load mastery data.';
     return NextResponse.json({ error: message }, { status: getErrorStatus(error) });
   }
-}
+});

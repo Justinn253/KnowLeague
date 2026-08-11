@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getAuthenticatedUser } from '@/lib/auth-server';
@@ -27,7 +28,7 @@ function getSafeRedirectUrl(request: Request, value: unknown) {
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/auth/password-reset/authenticated', async function POST(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     if (!user.email) {
@@ -55,4 +56,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

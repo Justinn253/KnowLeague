@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDailyQuizCacheControl } from '@/lib/cache-control';
 import { dailySeed, seededShuffle } from '@/lib/daily-set';
@@ -27,7 +28,7 @@ function getSoloSkinThemeItems(input: {
   return seededShuffle(catalog, seed).slice(0, count);
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withApiMetrics('/api/skin-champion/quiz-items', async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get('mode') as SoloQuizMode | null;
   const difficulty = request.nextUrl.searchParams.get('difficulty') as SoloQuizDifficulty | null;
   const entryCount = Number(request.nextUrl.searchParams.get('entries') ?? 50);
@@ -47,4 +48,4 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(shuffle(catalog).slice(0, 50), {
     headers: { 'Cache-Control': 'no-store' },
   });
-}
+});

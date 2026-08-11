@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -60,16 +61,16 @@ function buildSet(set: SetRow, cards: SetCardRow[]) {
   };
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riftbound/sets', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     return NextResponse.json({ sets: await loadRiftboundSets(userId) });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/riftbound/sets', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<SetBody>(request);
@@ -92,9 +93,9 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withApiMetrics('/api/riftbound/sets', async function PATCH(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<SetBody>(request);
@@ -117,9 +118,9 @@ export async function PATCH(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withApiMetrics('/api/riftbound/sets', async function DELETE(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<{ setId?: unknown }>(request);
@@ -139,4 +140,4 @@ export async function DELETE(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

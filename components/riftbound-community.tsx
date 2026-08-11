@@ -8,7 +8,7 @@ import { RiftboundCommunityPostCard } from '@/components/riftbound-community-pos
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundBootstrap, type RiftboundBootstrapResponse } from '@/lib/riftbound-client';
 import { RIFTBOUND_CARDS } from '@/lib/riftbound';
-import { createRiftboundCommunityPost, getRiftboundCommunityFeed } from '@/lib/riftbound-community-client';
+import { createRiftboundCommunityPost, getRiftboundCommunityFeed, isRiftboundRateLimitError } from '@/lib/riftbound-community-client';
 import {
   RIFTBOUND_NEW_POST_TYPES,
   RIFTBOUND_POST_BODY_MAX_LENGTH,
@@ -383,7 +383,7 @@ export function RiftboundCommunity() {
       setPostBody('');
       setPostVisibility('public');
     } catch (saveError) {
-      setPostError(saveError instanceof Error ? saveError.message : 'Unable to publish this post.');
+      setPostError(isRiftboundRateLimitError(saveError) ? '' : saveError instanceof Error ? saveError.message : 'Unable to publish this post.');
     } finally {
       setPostSaving(false);
     }

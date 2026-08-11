@@ -4,7 +4,8 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 
 ## Application Shell
 - `app/layout.tsx`: root metadata, global CSS, and global actions.
-- `app/page.tsx`: game hub and game cards.
+- `app/page.tsx`: default landing page for the Games, League Account Viewer, and Riftbound sections.
+- `app/games/page.tsx`, `components/games-home.tsx`: game hub and game cards.
 - `components/global-actions.tsx`: profile/public-profile/contact/friends overlay shell.
 
 ## Solo Games

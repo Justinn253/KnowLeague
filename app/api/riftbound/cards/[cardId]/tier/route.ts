@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -10,7 +11,7 @@ type VoteBody = {
   tier?: unknown;
 };
 
-export async function POST(request: Request, { params }: { params: { cardId: string } }) {
+export const POST = withApiMetrics('/api/riftbound/cards/[cardId]/tier', async function POST(request: Request, { params }: { params: { cardId: string } }) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -26,4 +27,4 @@ export async function POST(request: Request, { params }: { params: { cardId: str
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

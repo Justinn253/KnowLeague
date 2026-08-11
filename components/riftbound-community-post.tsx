@@ -17,6 +17,9 @@ import {
   deleteRiftboundCommunityPost,
   getRiftboundCommunityComments,
   getRiftboundCommunityPost,
+  hasRiftboundPostBeenShared,
+  isRiftboundRateLimitError,
+  markRiftboundPostShared,
   recordRiftboundPostShare,
   submitRiftboundPostReport,
   updateRiftboundCommunityPost,
@@ -65,8 +68,6 @@ function RiftboundCommunityPostHeader({ post }: { post: RiftboundCommunityPostDe
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-black text-white sm:text-3xl">{post.title}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-            <Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} className="font-black hover:underline" style={getChatNameStyle(post.author.chatColor)}>@{post.author.username}</Link>
-            <span aria-hidden="true">·</span>
             <span>{formatDate(post.createdAt)}</span>
             <span aria-hidden="true">·</span>
             <span className="inline-flex items-center rounded-lg border border-amber-200/25 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-amber-200">{postTypeLabel(post.postType)}</span>
@@ -179,8 +180,15 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
   const reactionRequestRef = useRef<Promise<unknown>>(Promise.resolve());
   const [selectedCard, setSelectedCard] = useState<import('@/lib/riftbound').RiftboundCard | null>(null);
   const [shareUrl, setShareUrl] = useState('');
+  const [shareBusy, setShareBusy] = useState(false);
+  const shareBusyRef = useRef(false);
+  const [shareCompleted, setShareCompleted] = useState(false);
 
   useEffect(() => subscribeToAuthSession((nextSession) => setSession(nextSession)), []);
+
+  useEffect(() => {
+    setShareCompleted(Boolean(session && hasRiftboundPostBeenShared(postId, session.user.id)));
+  }, [postId, session]);
 
   useEffect(() => {
     if (!postMenuOpen && !reportOpen) return undefined;
@@ -241,7 +249,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       commentsCursorRef.current = data.nextCursor;
       setCommentsCursor(data.nextCursor);
     } catch (loadError) {
-      setCommentError(loadError instanceof Error ? loadError.message : 'Unable to load comments.');
+      setCommentError(isRiftboundRateLimitError(loadError) ? '' : loadError instanceof Error ? loadError.message : 'Unable to load comments.');
     } finally {
       setCommentsLoading(false);
       setCommentsMoreLoading(false);
@@ -301,7 +309,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       setCommentBody('');
       setPost((current) => current ? { ...current, commentCount: current.commentCount + 1 } : current);
     } catch (saveError) {
-      setCommentError(saveError instanceof Error ? saveError.message : 'Unable to add your comment.');
+      setCommentError(isRiftboundRateLimitError(saveError) ? '' : saveError instanceof Error ? saveError.message : 'Unable to add your comment.');
     } finally {
       setCommentSaving(false);
     }
@@ -322,7 +330,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       setReportOpen(false);
       setReportDetails('');
     } catch (reportError) {
-      setReportMessage(reportError instanceof Error ? reportError.message : 'Unable to submit this report.');
+      setReportMessage(isRiftboundRateLimitError(reportError) ? '' : reportError instanceof Error ? reportError.message : 'Unable to submit this report.');
     } finally {
       setReportSaving(false);
     }
@@ -346,7 +354,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       setPost(result.post);
       setEditOpen(false);
     } catch (saveError) {
-      setActionError(saveError instanceof Error ? saveError.message : 'Unable to update this post.');
+      setActionError(isRiftboundRateLimitError(saveError) ? '' : saveError instanceof Error ? saveError.message : 'Unable to update this post.');
     } finally {
       setEditSaving(false);
     }
@@ -360,20 +368,37 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
       await deleteRiftboundCommunityPost(postId, session);
       router.replace('/riftbound/community');
     } catch (deleteError) {
-      setActionError(deleteError instanceof Error ? deleteError.message : 'Unable to delete this post.');
+      setActionError(isRiftboundRateLimitError(deleteError) ? '' : deleteError instanceof Error ? deleteError.message : 'Unable to delete this post.');
       setDeleteSaving(false);
     }
   };
 
   const sharePost = async () => {
+    if (shareBusyRef.current) return;
+    shareBusyRef.current = true;
+    setShareBusy(true);
+
+    if (session && !shareCompleted && !hasRiftboundPostBeenShared(postId, session.user.id)) {
+      const shareSession = session;
+      const shareRequest = recordRiftboundPostShare(postId, shareSession);
+      void shareRequest.then((result) => {
+        markRiftboundPostShared(postId, shareSession.user.id);
+        setShareCompleted(true);
+        setPost((current) => current ? { ...current, shareCount: result.shareCount } : current);
+      }).catch(() => {
+        // Share-count failures should not interrupt the sharing flow.
+      });
+    }
+
     try {
       const url = shareUrl || `${window.location.origin}/riftbound/community/${encodeURIComponent(postId)}`;
       if (navigator.share) await navigator.share({ title: post?.title, text: post?.body || post?.title, url });
       else await navigator.clipboard.writeText(url);
-      const result = await recordRiftboundPostShare(postId);
-      setPost((current) => current ? { ...current, shareCount: result.shareCount } : current);
     } catch {
       // Closing the share sheet is not an error that needs to interrupt reading.
+    } finally {
+      shareBusyRef.current = false;
+      setShareBusy(false);
     }
   };
 
@@ -452,7 +477,7 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => updateReaction('like')} disabled={!session} aria-label={`Like (${likeCount})`} aria-pressed={localReaction === 'like'} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${localReaction === 'like' ? 'border-amber-200/60 bg-amber-300/15 text-amber-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-amber-200/50 hover:text-amber-200'}`}><ThumbsUp size={15} /> {likeCount}</button>
             <button type="button" onClick={() => updateReaction('dislike')} disabled={!session} aria-label={`Dislike (${dislikeCount})`} aria-pressed={localReaction === 'dislike'} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${localReaction === 'dislike' ? 'border-red-200/60 bg-red-300/15 text-red-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-red-200/50 hover:text-red-200'}`}><ThumbsDown size={15} /> {dislikeCount}</button>
-            <button type="button" onClick={() => void sharePost()} className="ml-2 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/50 hover:text-amber-200"><Share2 size={15} /> Share</button>
+            <button type="button" onClick={() => void sharePost()} disabled={shareBusy} className="ml-2 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/50 hover:text-amber-200 disabled:cursor-wait disabled:opacity-50"><Share2 size={15} /> {post.shareCount}</button>
           </div>
 
           <div id="comments" className="grid gap-4 border-t border-white/10 pt-5">

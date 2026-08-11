@@ -1,8 +1,10 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import {
   getRiotAccountProfileSnapshot,
   getRiotAccountViewerData,
   getRiotLiveGameStatus,
+  hasRiotAccountViewerItemDetails,
   isRiotAccountProfileSnapshotFresh,
   isRiotPlatformRoute,
   recordRiotAccountSearch,
@@ -56,15 +58,7 @@ function loadAndCacheAccount(cacheKey: string, riotId: string, platform: Paramet
   const request = (async () => {
     const data = await getRiotAccountViewerData(riotId, platform);
     setServerCache(cacheKey, data, viewerMemoryCacheTtlMs);
-    await Promise.all([
-      saveRiotAccountProfileSnapshot(data, profileSnapshotTtlMs),
-      recordRiotAccountSearch({
-        riotId: `${data.account.gameName}#${data.account.tagLine}`,
-        gameName: data.account.gameName,
-        tagLine: data.account.tagLine,
-        platform: data.platform,
-      }),
-    ]);
+    await saveRiotAccountProfileSnapshot(data, profileSnapshotTtlMs);
     return data;
   })();
 
@@ -78,6 +72,19 @@ function loadAndCacheAccount(cacheKey: string, riotId: string, platform: Paramet
   return request;
 }
 
+function getSearchDedupeKey(value: string | null, clientIp: string) {
+  return value && /^[a-zA-Z0-9-]{16,128}$/.test(value) ? `session:${value}` : `ip:${clientIp}`;
+}
+
+async function recordViewerSearch(data: ViewerData, dedupeKey: string) {
+  await recordRiotAccountSearch({
+    riotId: `${data.account.gameName}#${data.account.tagLine}`,
+    gameName: data.account.gameName,
+    tagLine: data.account.tagLine,
+    platform: data.platform,
+  }, dedupeKey);
+}
+
 function getErrorStatus(error: unknown) {
   const message = error instanceof Error ? error.message : '';
   if (message.includes('not configured')) return 503;
@@ -87,13 +94,14 @@ function getErrorStatus(error: unknown) {
   return 400;
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riot-account/viewer', async function GET(request: Request) {
   const clientIp = getClientIp(request);
   try {
     const url = new URL(request.url);
     const riotId = url.searchParams.get('riotId')?.trim() ?? '';
     const platform = (url.searchParams.get('platform') ?? 'NA1').trim().toUpperCase();
     const shouldRefresh = url.searchParams.get('refresh') === 'true';
+    const searchDedupeKey = getSearchDedupeKey(url.searchParams.get('searchSessionId'), clientIp);
 
     if (!riotId) {
       return NextResponse.json({ error: 'riotId is required.' }, { status: 400 });
@@ -112,7 +120,6 @@ export async function GET(request: Request) {
     if (!rateLimit.allowed) {
       const unavailable = rateLimit.source === 'unavailable';
       logServerEvent('warn', 'riot_account_viewer_rate_limited', {
-        clientIp,
         retryAfterSeconds: rateLimit.retryAfterSeconds,
       });
       return NextResponse.json(
@@ -130,7 +137,8 @@ export async function GET(request: Request) {
 
     const cacheKey = `riot-account-viewer:${platform}:${riotId.toLowerCase()}`;
     const cachedData = shouldRefresh ? null : getServerCache<ViewerData>(cacheKey);
-    if (cachedData) {
+    if (cachedData && hasRiotAccountViewerItemDetails(cachedData)) {
+      await recordViewerSearch(cachedData, searchDedupeKey);
       return NextResponse.json(cachedData, {
         headers: {
           'Cache-Control': 'private, no-store',
@@ -142,7 +150,7 @@ export async function GET(request: Request) {
     }
 
     const profileSnapshot = shouldRefresh ? null : await getRiotAccountProfileSnapshot(riotId, platform);
-    if (profileSnapshot && isRiotAccountProfileSnapshotFresh(profileSnapshot)) {
+    if (profileSnapshot && isRiotAccountProfileSnapshotFresh(profileSnapshot) && hasRiotAccountViewerItemDetails(profileSnapshot.data)) {
       let currentGame = profileSnapshot.data.currentGame;
       const liveGameIsFresh = profileSnapshot.currentGameFetchedAt
         && Date.now() - Date.parse(profileSnapshot.currentGameFetchedAt) < liveGameCacheTtlMs;
@@ -160,6 +168,7 @@ export async function GET(request: Request) {
       if (Date.now() - Date.parse(profileSnapshot.lastAccessedAt) >= 6 * 60 * 60_000) {
         await touchRiotAccountProfileSnapshot(profileSnapshot);
       }
+      await recordViewerSearch(data, searchDedupeKey);
       return NextResponse.json(data, {
         headers: {
           'Cache-Control': 'private, no-store',
@@ -171,6 +180,7 @@ export async function GET(request: Request) {
     }
 
     const data = await loadAndCacheAccount(cacheKey, riotId, platform);
+    await recordViewerSearch(data, searchDedupeKey);
     return NextResponse.json(data, {
       headers: {
         'Cache-Control': 'private, no-store',
@@ -182,10 +192,9 @@ export async function GET(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load Riot account data.';
     logServerEvent(getErrorStatus(error) >= 500 ? 'error' : 'warn', 'riot_account_viewer_error', {
-      clientIp,
       status: getErrorStatus(error),
       message,
     });
     return NextResponse.json({ error: message }, { status: getErrorStatus(error) });
   }
-}
+});

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { postSkincognitoChatMessage } from '@/lib/skincognito';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -12,7 +13,7 @@ type ChatBody = {
 export const runtime = 'nodejs';
 const lobbyChatRateLimit = getDualRateLimit('lobbyChat');
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/skincognito/lobbies/[code]/chat', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<ChatBody>(request);
     const clientId = requireString(body.clientId, 'clientId');
@@ -33,4 +34,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

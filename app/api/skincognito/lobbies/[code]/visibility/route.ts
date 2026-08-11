@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { updateSkincognitoLobbyVisibility } from '@/lib/skincognito';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -5,7 +6,7 @@ import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-ut
 type VisibilityBody = { clientId: string; isPublic?: boolean; lobbyDescription?: unknown };
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/skincognito/lobbies/[code]/visibility', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<VisibilityBody>(request);
     return NextResponse.json(await updateSkincognitoLobbyVisibility(
@@ -17,4 +18,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

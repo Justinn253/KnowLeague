@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getAuthenticatedUserId, getOptionalAuthenticatedUserId } from '@/lib/auth-server';
@@ -33,7 +34,7 @@ function parseScope(request: NextRequest) {
   return { gameId, mode, difficulty };
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withApiMetrics('/api/solo-quiz/leaderboard', async function GET(request: NextRequest) {
   try {
     const userId = await getOptionalAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -52,9 +53,9 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withApiMetrics('/api/solo-quiz/leaderboard', async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -100,4 +101,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

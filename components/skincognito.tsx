@@ -33,6 +33,7 @@ import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatInviteButtonStyle, getC
 import { MultiplayerRecordDelta } from '@/components/multiplayer-record-delta';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
+import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achievement-client';
 
 type SkinAnswer = {
   id: string;
@@ -442,6 +443,7 @@ export function Skincognito() {
   const skinQueryDirtyRef = useRef(false);
   const hasRequestingPlayerRef = useRef(false);
   const statsRecordedRef = useRef<string | null>(null);
+  const randomSkinAchievementLobbyRef = useRef<string | null>(null);
   const latestLobbyRef = useRef<{ code: string; clientId: string; status: SkincognitoLobbyView['lobby']['status'] } | null>(null);
   const isLeavingLobbyRef = useRef(false);
   const seenActionIdsRef = useRef<Set<string>>(new Set());
@@ -648,7 +650,27 @@ export function Skincognito() {
       mostRecentSkinGuess: skinGuesses[skinGuesses.length - 1]?.guess_value ?? null,
     });
     setDetailedStats(updatedStats);
+    void submitAchievementEvents([
+      {
+        event: 'multiplayer_result',
+        metadata: {
+          gameId: 'skincognito',
+          result: won ? 'win' : 'loss',
+        },
+      },
+      { event: 'developer_moment', metadata: { gameId: 'skincognito', lobbyCode: lobbyView.lobby.code } },
+    ]);
   }, [lobbyView, requestingPlayer]);
+
+  useEffect(() => {
+    if (!lobbyView || lobbyView.lobby.status !== 'active' || !lobbyView.requestingPlayer) {
+      if (lobbyView?.lobby.status !== 'active') randomSkinAchievementLobbyRef.current = null;
+      return;
+    }
+    if (randomSkinAchievementLobbyRef.current === lobbyView.lobby.id) return;
+    randomSkinAchievementLobbyRef.current = lobbyView.lobby.id;
+    void submitAchievementEvent('skincognito_random_skin', { lobbyCode: lobbyView.lobby.code });
+  }, [lobbyView]);
 
   const selectedSkinPreview = selectedSkin ?? (
     requestingPlayer?.selected_skin
@@ -1383,7 +1405,16 @@ export function Skincognito() {
         setGuessQuery('');
       }
 
-      if (categoryId === 'skin') {
+      if (categoryId === 'skin' && view) {
+        const submittedSkinGuess = [...view.actions]
+          .reverse()
+          .find((action) => action.player_id === view.requestingPlayer?.id && action.action_type === 'skin_guess');
+        if (submittedSkinGuess?.is_correct) {
+          void submitAchievementEvents([
+            { event: 'skincognito_skin_guessed', metadata: { lobbyCode: code } },
+            { event: 'skincognito_clean_sweep', metadata: { lobbyCode: code } },
+          ]);
+        }
         window.setTimeout(() => {
           void refreshLobbyView(code, clientId);
         }, 150);

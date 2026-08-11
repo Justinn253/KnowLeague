@@ -1,8 +1,9 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
 import { GENERATED_CATALOG_CACHE_CONTROL } from '@/lib/cache-control';
 import { getAbilityCatalog, getAnswerList, getAnswersByType } from '@/lib/catalogs';
 
-export async function GET(request: NextRequest) {
+export const GET = withApiMetrics('/api/ability-blitz/quiz-answers', async function GET(request: NextRequest) {
   const category = request.nextUrl.searchParams.get('category');
   const items = getAbilityCatalog();
   const answersByType = getAnswersByType(items);
@@ -16,4 +17,4 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(getAnswerList(items), {
     headers: { 'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL },
   });
-}
+});

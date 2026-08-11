@@ -1,12 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
+  Activity,
   BarChart3,
   ChevronDown,
   CircleDollarSign,
+  FileText,
   Gamepad2,
   Layers,
   LogIn,
@@ -15,6 +18,7 @@ import {
   Package,
   Search,
   Trophy,
+  TrendingUp,
   UserCircle,
   UserCog,
   Users,
@@ -23,9 +27,11 @@ import {
 import dynamic from 'next/dynamic';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { DiscordMark } from '@/components/discord-mark';
+import { GameIconImage } from '@/components/game-asset-image';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { GAME_NAVIGATION_ITEMS, type Accent, type GameMode } from '@/lib/game-navigation';
 import type { AppRole } from '@/lib/moderation';
+import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const ModerationWidget = dynamic(
@@ -40,9 +46,10 @@ const FriendsWidget = dynamic(
 type AppHeaderProps = {
   isLoggedIn: boolean;
   profileAvatarUrl: string | null;
+  profileUsername: string | null;
+  profileAway: boolean;
   pendingFriendRequests: number;
   moderationRole: Extract<AppRole, 'moderator' | 'admin'> | null;
-  onOpenProfile: () => void;
   onPendingFriendRequestsChange: (count: number) => void;
   onLogOut: () => void;
 };
@@ -271,40 +278,44 @@ function LogoutControl({ onLogOut, mobile = false }: { onLogOut: () => void; mob
 
 function ProfileAction({
   profileAvatarUrl,
+  profileUsername,
+  profileAway,
   pendingFriendRequests,
-  onOpenProfile,
   mobile = false,
 }: {
   profileAvatarUrl: string | null;
+  profileUsername: string | null;
+  profileAway: boolean;
   pendingFriendRequests: number;
-  onOpenProfile: () => void;
   mobile?: boolean;
 }) {
   return (
-    <button
-      type="button"
+    <Link
+      href={profileUsername ? getPublicProfileHref(profileUsername) : '/profile'}
+      target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+      rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
-      onClick={() => {
-        playUiSound('autocomplete-select');
-        onOpenProfile();
-      }}
+      onClick={() => playUiSound('autocomplete-select')}
       aria-label="Open profile"
       title="Profile"
       className={mobile
         ? 'relative inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
         : 'relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 md:h-10 md:w-auto md:gap-2 md:px-3'}
     >
-      {profileAvatarUrl ? (
-        <span className="inline-flex h-7 w-7 rounded-lg border border-white/10 bg-cover bg-center" style={{ backgroundImage: `url(${profileAvatarUrl})` }} />
-      ) : <UserCircle size={17} />}
+      <span className="relative inline-flex h-7 w-7 items-center justify-center">
+        {profileAvatarUrl ? (
+          <span className="inline-flex h-7 w-7 rounded-lg border border-white/10 bg-cover bg-center" style={{ backgroundImage: `url(${profileAvatarUrl})` }} />
+        ) : <UserCircle size={17} />}
+        <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-950 ${profileAway ? 'bg-amber-300' : 'bg-emerald-400'}`} />
+      </span>
       <span className={`${mobile ? '' : 'hidden md:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Profile</span>
       {pendingFriendRequests > 0 ? (
         <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 py-0.5 text-[0.6rem] font-black leading-none text-white">
           {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
         </span>
       ) : null}
-    </button>
+    </Link>
   );
 }
 
@@ -331,18 +342,22 @@ function HeaderDropdown({
   label,
   compactLabel,
   icon: Icon,
+  iconNode,
   tone,
   children,
   align = 'left',
   wide = false,
+  headerAction,
 }: {
   label: string;
   compactLabel?: string;
   icon: LucideIcon;
+  iconNode?: ReactNode;
   tone: HeaderMenuTone;
   children: (closeMenu: () => void) => ReactNode;
   align?: 'left' | 'right';
   wide?: boolean;
+  headerAction?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -384,7 +399,7 @@ function HeaderDropdown({
         aria-haspopup="menu"
         className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-2.5 text-xs font-black uppercase tracking-[0.12em] outline-none transition focus:ring-2 focus:ring-amber-200 xl:h-10 xl:px-3 ${toneClasses[tone]} ${open ? 'bg-slate-900 ring-1 ring-amber-200/50' : 'bg-slate-950/90'}`}
       >
-        <Icon size={16} />
+        {iconNode ?? <Icon size={16} />}
         {compactLabel ? (
           <>
             <span className="hidden xl:inline 2xl:hidden">{compactLabel}</span>
@@ -399,8 +414,9 @@ function HeaderDropdown({
         aria-hidden={!open}
         className={`absolute top-full z-50 mt-2 ${wide ? 'w-[min(44rem,calc(100vw-1rem))]' : 'w-[min(22rem,calc(100vw-1rem))]'} rounded-2xl border border-white/10 bg-slate-950 p-3 transition-[opacity,transform] duration-100 ease-out sm:p-4 ${align === 'right' ? 'right-0' : 'left-0'} ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
       >
-        <div className="mb-3 border-b border-white/10 pb-3">
+        <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">{label}</p>
+          {headerAction}
         </div>
         {children(closeMenu)}
       </div>
@@ -410,7 +426,23 @@ function HeaderDropdown({
 
 function GamesMenu() {
   return (
-    <HeaderDropdown label="Games" icon={Gamepad2} tone="games" wide>
+    <HeaderDropdown
+      label="Games"
+      icon={Gamepad2}
+      tone="games"
+      wide
+      headerAction={(
+        <Link
+          href="/games"
+          onMouseEnter={() => playUiSound('autocomplete-hover')}
+          onFocus={() => playUiSound('autocomplete-hover')}
+          onClick={() => playUiSound('autocomplete-select')}
+          className="inline-flex min-h-7 items-center rounded-lg border border-amber-300/30 bg-amber-300/10 px-2 text-[0.65rem] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:border-amber-200/70 hover:bg-amber-300/20 focus:outline-none focus:ring-2 focus:ring-amber-200"
+        >
+          View All
+        </Link>
+      )}
+    >
       {(closeMenu) => (
         <div className="grid grid-cols-2 gap-2">
           {gamesForHeader.map((game) => {
@@ -435,7 +467,13 @@ function GamesMenu() {
 
 function LavMenu() {
   return (
-    <HeaderDropdown label="League Account Viewer" compactLabel="LAV" icon={BarChart3} tone="lav">
+    <HeaderDropdown
+      label="League Account Viewer"
+      compactLabel="LAV"
+      icon={BarChart3}
+      iconNode={<GameIconImage src="/Icons/LoL-Symbol.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />}
+      tone="lav"
+    >
       {(closeMenu) => (
         <div className="grid gap-2">
           <HeaderMenuLink
@@ -443,6 +481,22 @@ function LavMenu() {
             label="Search account"
             description="League Account Viewer"
             icon={Search}
+            iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
+            onSelect={closeMenu}
+          />
+          <HeaderMenuLink
+            href="/riot-account-viewer/popular"
+            label="Most Popular Accounts"
+            description="Top searched accounts"
+            icon={TrendingUp}
+            iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
+            onSelect={closeMenu}
+          />
+          <HeaderMenuLink
+            href="/riot-account-viewer/patch-notes"
+            label="Patch Notes"
+            description="Latest League updates"
+            icon={FileText}
             iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
             onSelect={closeMenu}
           />
@@ -471,7 +525,12 @@ function LavMenu() {
 
 function RiftboundMenu() {
   return (
-    <HeaderDropdown label="Riftbound" icon={Layers} tone="riftbound">
+    <HeaderDropdown
+      label="Riftbound"
+      icon={Layers}
+      iconNode={<GameIconImage src="/Icons/riftbound.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />}
+      tone="riftbound"
+    >
       {(closeMenu) => (
         <div className="grid gap-2">
           <HeaderMenuLink
@@ -507,6 +566,7 @@ function RiftboundMenu() {
 function MobileMenuDisclosure({
   label,
   icon: Icon,
+  iconNode,
   tone,
   open,
   onClick,
@@ -514,6 +574,7 @@ function MobileMenuDisclosure({
 }: {
   label: string;
   icon: LucideIcon;
+  iconNode?: ReactNode;
   tone: HeaderMenuTone;
   open: boolean;
   onClick: () => void;
@@ -532,7 +593,7 @@ function MobileMenuDisclosure({
         aria-expanded={open}
         className={`inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border px-3 text-xs font-black uppercase tracking-[0.12em] outline-none transition focus:ring-2 focus:ring-amber-200 ${toneClasses[tone]} ${open ? 'bg-slate-900 ring-1 ring-amber-200/50' : 'bg-slate-950/90'}`}
       >
-        <Icon size={16} />
+        {iconNode ?? <Icon size={16} />}
         <span>{label}</span>
         <ChevronDown size={14} className={`ml-auto transition ${open ? 'rotate-180 text-amber-200' : 'text-slate-400'}`} />
       </button>
@@ -571,6 +632,7 @@ function MobileHeaderMenu({
   pendingFriendRequests,
   moderationRole,
 }: Pick<AppHeaderProps, 'isLoggedIn' | 'pendingFriendRequests' | 'moderationRole'>) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [openSection, setOpenSection] = useState<'games' | 'lav' | 'riftbound' | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -657,10 +719,19 @@ function MobileHeaderMenu({
                   />
                 );
               })}
+              <HeaderMenuLink
+                href="/games"
+                label="View All"
+                description="All KnowLeague games"
+                icon={Gamepad2}
+                iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
+                onSelect={closeMenu}
+              />
             </MobileMenuDisclosure>
             <MobileMenuDisclosure
               label="League Account Viewer"
               icon={BarChart3}
+              iconNode={<GameIconImage src="/Icons/LoL-Symbol.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />}
               tone="lav"
               open={openSection === 'lav'}
               onClick={() => setOpenSection((current) => current === 'lav' ? null : 'lav')}
@@ -670,6 +741,22 @@ function MobileHeaderMenu({
                 label="Search account"
                 description="League Account Viewer"
                 icon={Search}
+                iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
+                onSelect={closeMenu}
+              />
+              <HeaderMenuLink
+                href="/riot-account-viewer/popular"
+                label="Most Popular Accounts"
+                description="Top searched accounts"
+                icon={TrendingUp}
+                iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
+                onSelect={closeMenu}
+              />
+              <HeaderMenuLink
+                href="/riot-account-viewer/patch-notes"
+                label="Patch Notes"
+                description="Latest League updates"
+                icon={FileText}
                 iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
                 onSelect={closeMenu}
               />
@@ -694,6 +781,7 @@ function MobileHeaderMenu({
             <MobileMenuDisclosure
               label="Riftbound"
               icon={Layers}
+              iconNode={<GameIconImage src="/Icons/riftbound.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />}
               tone="riftbound"
               open={openSection === 'riftbound'}
               onClick={() => setOpenSection((current) => current === 'riftbound' ? null : 'riftbound')}
@@ -728,6 +816,28 @@ function MobileHeaderMenu({
           <section className="mt-4 border-t border-white/10 pt-3" aria-label="Miscellaneous">
             <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Miscellaneous</p>
             <div className="mt-2 flex items-center gap-2">
+              {moderationRole ? (
+                <HeaderIconButton
+                  label="Staff change log"
+                  icon={<FileText size={17} />}
+                  onClick={() => {
+                    closeMenu();
+                    router.push('/staff/changelog');
+                  }}
+                  className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
+                />
+              ) : null}
+              {moderationRole ? (
+                <HeaderIconButton
+                  label="API metrics"
+                  icon={<Activity size={17} />}
+                  onClick={() => {
+                    closeMenu();
+                    router.push('/staff/api-metrics');
+                  }}
+                  className="border-cyan-300/30 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-300/10"
+                />
+              ) : null}
               <SoundSettingsMenu variant="header-icon" />
               <ContactUsWidget variant="header-icon" />
               {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
@@ -769,12 +879,15 @@ function MobileHeaderMenu({
 export function AppHeader({
   isLoggedIn,
   profileAvatarUrl,
+  profileUsername,
+  profileAway,
   pendingFriendRequests,
   moderationRole,
-  onOpenProfile,
   onPendingFriendRequestsChange,
   onLogOut,
 }: AppHeaderProps) {
+  const router = useRouter();
+
   return (
     <header className="sticky top-0 z-[90] border-b border-white/10 bg-slate-950/95 text-slate-100 backdrop-blur">
       <div className="relative flex h-14 w-full items-center justify-between px-2 xl:grid xl:min-h-14 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4 xl:px-6">
@@ -808,6 +921,22 @@ export function AppHeader({
           <div className="hidden items-center gap-1 xl:flex xl:gap-2">
             <SoundSettingsMenu variant="header-icon" />
             <ContactUsWidget variant="header-icon" />
+            {moderationRole ? (
+              <HeaderIconButton
+                label="Staff change log"
+                icon={<FileText size={17} />}
+                onClick={() => router.push('/staff/changelog')}
+                className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
+              />
+            ) : null}
+            {moderationRole ? (
+              <HeaderIconButton
+                label="API metrics"
+                icon={<Activity size={17} />}
+                onClick={() => router.push('/staff/api-metrics')}
+                className="border-cyan-300/30 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-300/10"
+              />
+            ) : null}
             {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
           </div>
 
@@ -835,7 +964,7 @@ export function AppHeader({
           ) : null}
           <div className="flex items-center gap-1 xl:gap-2">
             {isLoggedIn
-              ? <ProfileAction profileAvatarUrl={profileAvatarUrl} pendingFriendRequests={pendingFriendRequests} onOpenProfile={onOpenProfile} />
+              ? <ProfileAction profileAvatarUrl={profileAvatarUrl} profileUsername={profileUsername} profileAway={profileAway} pendingFriendRequests={pendingFriendRequests} />
               : <LoginAction />}
             {isLoggedIn ? <LogoutControl onLogOut={onLogOut} /> : null}
           </div>

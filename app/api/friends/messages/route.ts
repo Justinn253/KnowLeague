@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getFriendMessages, sendFriendMessage } from '@/lib/friends';
@@ -13,7 +14,7 @@ type MessageBody = {
 export const runtime = 'nodejs';
 const friendMessageRateLimit = getDualRateLimit('friendMessage');
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/friends/messages', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const url = new URL(request.url);
@@ -25,9 +26,9 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/friends/messages', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await readJsonBody<MessageBody>(request);
@@ -46,4 +47,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

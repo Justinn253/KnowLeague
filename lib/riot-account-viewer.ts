@@ -8,6 +8,7 @@ const MATCH_COUNT = process.env.NODE_ENV === 'production' ? 20 : 8;
 const MATCH_DETAIL_BATCH_SIZE = 4;
 const MATCH_DETAIL_BATCH_DELAY_MS = 350;
 const PARTICIPANT_RANK_CACHE_TTL_MS = Number(process.env.RIOT_PARTICIPANT_RANK_CACHE_TTL_MS ?? 5 * 60_000);
+const RIOT_ACCOUNT_SEARCH_DEDUPE_TTL_MS = 30_000;
 
 export const RIOT_PLATFORM_ROUTES = [
   'BR1',
@@ -262,6 +263,8 @@ type DataDragonRune = {
 
 type DataDragonItem = {
   name: string;
+  description?: string;
+  plaintext?: string;
   image: {
     full: string;
   };
@@ -270,6 +273,19 @@ type DataDragonItem = {
 type DataDragonItemResponse = {
   data: Record<string, DataDragonItem>;
 };
+
+function stripRichText(value: string | undefined) {
+  return (value ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n\s+/g, '\n')
+    .trim();
+}
 
 export type RiotChampionSummary = {
   id: number;
@@ -350,6 +366,8 @@ export type RiotAccountViewerMatchParticipant = {
     id: number;
     slot: number;
     name: string;
+    description: string;
+    plaintext: string | null;
     imageUrl: string;
   }>;
   summonerSpells: Array<{
@@ -476,6 +494,46 @@ export type RiotAccountSearchSuggestion = {
   searchCount: number;
 };
 
+export type RiotAccountPopularityPeriod = 'day' | 'week' | 'month' | 'all_time';
+
+export type RiotAccountPopularSearch = {
+  riotId: string;
+  platform: RiotPlatformRoute;
+  searchCount: number;
+  lastSearchedAt: string;
+};
+
+export type RiotPatchNoteSummary = {
+  patchNumber: string;
+  publishedAt: string;
+  title: string;
+  description: string | null;
+  href: string;
+  slug: string;
+};
+
+export type RiotPatchNoteContentBlock = {
+  kind: 'heading' | 'paragraph' | 'list';
+  level?: number;
+  text: string;
+};
+
+export type RiotPatchNoteDetail = RiotPatchNoteSummary & {
+  subtitle: string | null;
+  intro: string[];
+  blocks: RiotPatchNoteContentBlock[];
+};
+
+export type RiotPatchNoteSearchMatch = {
+  heading: string;
+  excerpts: string[];
+};
+
+export type RiotPatchNoteSearchResult = {
+  note: RiotPatchNoteSummary;
+  matches: RiotPatchNoteSearchMatch[];
+};
+
 export type MasteryMasterChampion = {
   id: number;
   key: string;
@@ -533,7 +591,7 @@ let cachedChampionLookup: Promise<Map<number, RiotChampionSummary>> | null = nul
 let cachedDataDragonVersion: Promise<string> | null = null;
 let cachedSummonerSpellLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
 let cachedRuneLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
-let cachedItemLookup: Promise<Map<number, { name: string; imageUrl: string }>> | null = null;
+let cachedItemLookup: Promise<Map<number, { name: string; description: string; plaintext: string | null; imageUrl: string }>> | null = null;
 const inFlightParticipantRanks = new Map<string, Promise<ParticipantRank | null>>();
 
 export function isRiotPlatformRoute(value: string): value is RiotPlatformRoute {
@@ -566,6 +624,14 @@ function decompressJson<T>(value: string) {
 
 function snapshotProfilePayload(data: RiotAccountViewerResponse) {
   return { ...data, currentGame: null } satisfies RiotAccountViewerResponse;
+}
+
+export function hasRiotAccountViewerItemDetails(data: RiotAccountViewerResponse) {
+  const items = data.matches.flatMap((match) => match.teams.flatMap((team) => team.participants.flatMap((participant) => participant.items)));
+  return items.every((item) => (
+    Object.prototype.hasOwnProperty.call(item, 'description')
+    && Object.prototype.hasOwnProperty.call(item, 'plaintext')
+  ));
 }
 
 export function isRiotAccountProfileSnapshotFresh(snapshot: RiotAccountProfileSnapshot) {
@@ -673,17 +739,369 @@ export async function recordRiotAccountSearch(input: {
   gameName: string;
   tagLine: string;
   platform: RiotPlatformRoute;
-}) {
+}, dedupeKey?: string) {
+  const normalizedDedupeKey = dedupeKey?.trim();
+  const cacheKey = normalizedDedupeKey
+    ? `riot-account-search-dedupe:${normalizedDedupeKey}:${input.platform}:${input.riotId.toLowerCase()}`
+    : null;
+  if (cacheKey && getServerCache<boolean>(cacheKey)) return false;
+
   try {
-    await getSupabaseServiceClient().rpc('record_riot_account_search', {
+    const { error } = await getSupabaseServiceClient().rpc('record_riot_account_search', {
       search_riot_id: input.riotId,
       search_game_name: input.gameName,
       search_tag_line: input.tagLine,
       search_platform: input.platform,
     });
+    if (error) return false;
+    if (cacheKey) setServerCache(cacheKey, true, RIOT_ACCOUNT_SEARCH_DEDUPE_TTL_MS);
+    return true;
   } catch {
     // Search suggestions are best-effort and should not block a successful Riot lookup.
+    return false;
   }
+}
+
+export async function getRiotAccountPopularSearches(
+  period: RiotAccountPopularityPeriod,
+  limit: number,
+) {
+  try {
+    const { data, error } = await getSupabaseServiceClient().rpc('get_riot_account_popularity', {
+      search_period: period,
+      search_limit: Math.min(50, Math.max(1, limit)),
+    });
+    if (error) return null;
+
+    const rows = (data ?? []) as unknown[];
+    return rows
+      .filter((row: unknown): row is { riot_id: string; platform: RiotPlatformRoute; search_count: number | string; last_searched_at: string } => {
+        if (!row || typeof row !== 'object') return false;
+        const candidate = row as Record<string, unknown>;
+        const searchCount = typeof candidate.search_count === 'number'
+          ? candidate.search_count
+          : typeof candidate.search_count === 'string'
+            ? Number(candidate.search_count)
+            : NaN;
+        return typeof candidate.riot_id === 'string'
+          && typeof candidate.platform === 'string'
+          && isRiotPlatformRoute(candidate.platform)
+          && Number.isFinite(searchCount)
+          && typeof candidate.last_searched_at === 'string';
+      })
+      .map((row): RiotAccountPopularSearch => ({
+        riotId: row.riot_id,
+        platform: row.platform,
+        searchCount: Number(row.search_count),
+        lastSearchedAt: row.last_searched_at,
+      }));
+  } catch {
+    return null;
+  }
+}
+
+const PATCH_NOTES_URL = 'https://www.leagueoflegends.com/en-us/news/tags/patch-notes/';
+const PATCH_NOTES_ORIGIN = 'https://www.leagueoflegends.com';
+const PATCH_NOTE_REVALIDATE_SECONDS = 6 * 60 * 60;
+const PATCH_NOTE_SUMMARY_CACHE_TTL_MS = 15 * 60_000;
+const PATCH_NOTE_DETAIL_CACHE_TTL_MS = 15 * 60_000;
+const PATCH_NOTE_SEARCH_CACHE_TTL_MS = 5 * 60_000;
+const patchNoteSummaryCacheKey = 'riot-account-viewer:patch-notes:summaries';
+const patchNoteDetailCachePrefix = 'riot-account-viewer:patch-notes:detail:';
+const patchNoteSearchCachePrefix = 'riot-account-viewer:patch-notes:search:';
+const inFlightPatchNoteSummaryRequest = { current: null as Promise<RiotPatchNoteSummary[]> | null };
+const inFlightPatchNoteDetailRequests = new Map<string, Promise<RiotPatchNoteDetail | null>>();
+const inFlightPatchNoteSearchRequests = new Map<string, Promise<RiotPatchNoteSearchResult[]>>();
+
+function decodeHtmlText(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&#39;/gi, "'")
+    .replace(/&rsquo;/gi, '’')
+    .replace(/&ldquo;/gi, '“')
+    .replace(/&rdquo;/gi, '”')
+    .replace(/&ndash;/gi, '–')
+    .replace(/&mdash;/gi, '—')
+    .replace(/&hellip;/gi, '…')
+    .replace(/&#(\d+);/g, (_match, code: string) => {
+      const numericCode = Number(code);
+      try {
+        return Number.isInteger(numericCode) && numericCode > 0 ? String.fromCodePoint(numericCode) : '';
+      } catch {
+        return '';
+      }
+    })
+    .replace(/&#x([\da-f]+);/gi, (_match, code: string) => {
+      const numericCode = Number.parseInt(code, 16);
+      try {
+        return Number.isInteger(numericCode) && numericCode > 0 ? String.fromCodePoint(numericCode) : '';
+      } catch {
+        return '';
+      }
+    })
+    .replace(/\u00e2\u20ac\u2122/g, '\u2019')
+    .replace(/\u00e2\u20ac\u0153/g, '\u201c')
+    .replace(/\u00e2\u20ac\u009d/g, '\u201d')
+    .replace(/\u00e2\u20ac\u201c/g, '\u2013')
+    .replace(/\u00e2\u20ac\u201d/g, '\u2014')
+    .replace(/\u00e2\u20ac\u00a6/g, '\u2026')
+    .replace(/\u00e2\u0080\u0099/g, '\u2019')
+    .replace(/\u00e2\u0080\u009c/g, '\u201c')
+    .replace(/\u00e2\u0080\u009d/g, '\u201d')
+    .replace(/\u00e2\u0080\u0093/g, '\u2013')
+    .replace(/\u00e2\u0080\u0094/g, '\u2014')
+    .replace(/\u00e2\u0080\u00a6/g, '\u2026')
+    .replace(new RegExp(String.fromCharCode(0xe2, 0x80, 0x99), 'g'), '\u2019')
+    .replace(new RegExp(String.fromCharCode(0xe2, 0x80, 0x9c), 'g'), '\u201c')
+    .replace(new RegExp(String.fromCharCode(0xe2, 0x80, 0x9d), 'g'), '\u201d')
+    .replace(new RegExp(String.fromCharCode(0xe2, 0x80, 0x93), 'g'), '\u2013')
+    .replace(new RegExp(String.fromCharCode(0xe2, 0x80, 0x94), 'g'), '\u2014')
+    .replace(new RegExp(String.fromCharCode(0xe2, 0x80, 0xa6), 'g'), '\u2026')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function patchNoteSlugFromPath(path: string) {
+  return path.split('/').filter(Boolean).pop() ?? '';
+}
+
+function parsePatchNoteSummary(path: string, rawTitle: string): RiotPatchNoteSummary {
+  const titleText = decodeHtmlText(rawTitle);
+  const publishedAt = titleText.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/i)?.[0] ?? '';
+  const patchNumber = titleText.match(/\bPatch\s+(\d+(?:\.\d+)+)\s+Notes\b/i)?.[1] ?? 'Unknown';
+  const titleMatch = titleText.match(/(?:League of Legends\s+)?Patch\s+\d+(?:\.\d+)+\s+Notes\b/i);
+  const title = titleMatch?.[0]
+    ?? titleText.replace(/^Game Updates\s*/i, '').replace(publishedAt, '').trim();
+  const description = titleMatch
+    ? titleText.slice((titleMatch.index ?? 0) + titleMatch[0].length).trim() || null
+    : null;
+  const href = `${PATCH_NOTES_ORIGIN}${path.startsWith('/') ? path : `/${path}`}`;
+
+  return {
+    patchNumber,
+    publishedAt,
+    title,
+    description,
+    href,
+    slug: patchNoteSlugFromPath(path),
+  };
+}
+
+type ParsedHtmlBlock = RiotPatchNoteContentBlock & { tag: string };
+
+function extractPatchNoteBlocks(html: string): ParsedHtmlBlock[] {
+  const articleHtml = html.match(/<article\b[^>]*>[\s\S]*?<\/article>/i)?.[0] ?? html;
+  const contentHtml = articleHtml.replace(/<(script|style|noscript|svg|nav|footer)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  const blocks: ParsedHtmlBlock[] = [];
+  const blockPattern = /<(h[1-6]|p|li|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+
+  for (const match of contentHtml.matchAll(blockPattern)) {
+    const tag = match[1].toLowerCase();
+    const text = decodeHtmlText(match[2]);
+    if (!text) continue;
+    if (tag.startsWith('h')) {
+      blocks.push({ kind: 'heading', level: Number(tag.slice(1)), text, tag });
+    } else if (tag === 'li') {
+      blocks.push({ kind: 'list', text, tag });
+    } else {
+      blocks.push({ kind: 'paragraph', text, tag });
+    }
+  }
+
+  return blocks;
+}
+
+function isPatchNoteMetadataBlock(block: ParsedHtmlBlock, summary: RiotPatchNoteSummary) {
+  return block.text === summary.title
+    || block.text === summary.publishedAt
+    || block.text === 'Game Updates'
+    || /^Riot\s/i.test(block.text);
+}
+
+function parsePatchNoteDetail(html: string, summary: RiotPatchNoteSummary): RiotPatchNoteDetail {
+  const blocks = extractPatchNoteBlocks(html);
+  const titleIndex = blocks.findIndex((block) => block.tag === 'h1' || block.text === summary.title);
+  const firstSectionIndex = blocks.findIndex((block, index) => index > titleIndex && block.kind === 'heading' && (block.level ?? 0) <= 2);
+  const headerEndIndex = firstSectionIndex >= 0 ? firstSectionIndex : blocks.length;
+  const headerBlocks = blocks.slice(Math.max(titleIndex + 1, 0), headerEndIndex).filter((block) => !isPatchNoteMetadataBlock(block, summary));
+  const subtitleCandidate = headerBlocks.find((block) => block.kind === 'paragraph')?.text ?? null;
+  const subtitle = subtitleCandidate && subtitleCandidate.length <= 220 ? subtitleCandidate : null;
+  const intro = headerBlocks
+    .filter((block) => block.kind === 'paragraph' && block.text !== subtitle)
+    .map((block) => block.text);
+  const contentBlocks = blocks
+    .slice(firstSectionIndex >= 0 ? firstSectionIndex : Math.max(titleIndex + 1, 0))
+    .filter((block) => !isPatchNoteMetadataBlock(block, summary))
+    .map(({ tag: _tag, ...block }) => block);
+
+  return {
+    ...summary,
+    subtitle,
+    intro,
+    blocks: contentBlocks,
+  };
+}
+
+export async function getRiotPatchNotes(): Promise<RiotPatchNoteSummary[]> {
+  const cached = getServerCache<RiotPatchNoteSummary[]>(patchNoteSummaryCacheKey);
+  if (cached) return cached;
+  if (inFlightPatchNoteSummaryRequest.current) return inFlightPatchNoteSummaryRequest.current;
+
+  const request = (async () => {
+    try {
+      const response = await fetch(PATCH_NOTES_URL, { next: { revalidate: PATCH_NOTE_REVALIDATE_SECONDS } });
+      if (!response.ok) return [];
+      const html = await response.text();
+      const notes: RiotPatchNoteSummary[] = [];
+      const seen = new Set<string>();
+      const linkPattern = /href=["'](\/en-us\/news\/game-updates\/[^"']*patch[^"']*-notes\/?)["'][^>]*>([\s\S]*?)<\/a>/gi;
+      for (const match of html.matchAll(linkPattern)) {
+        const path = match[1];
+        if (!path || seen.has(path)) continue;
+        seen.add(path);
+        notes.push(parsePatchNoteSummary(path, match[2]));
+        if (notes.length >= 12) break;
+      }
+      setServerCache(patchNoteSummaryCacheKey, notes, PATCH_NOTE_SUMMARY_CACHE_TTL_MS);
+      return notes;
+    } catch {
+      return [];
+    }
+  })();
+
+  inFlightPatchNoteSummaryRequest.current = request;
+  const clearRequest = () => {
+    if (inFlightPatchNoteSummaryRequest.current === request) inFlightPatchNoteSummaryRequest.current = null;
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
+
+function normalizePatchNoteSlug(value: string) {
+  try {
+    const decoded = decodeURIComponent(value).trim().replace(/^\/+|\/+$/g, '');
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getRiotPatchNoteDetail(slug: string): Promise<RiotPatchNoteDetail | null> {
+  const normalizedSlug = normalizePatchNoteSlug(slug);
+  if (!normalizedSlug) return null;
+  const cacheKey = `${patchNoteDetailCachePrefix}${normalizedSlug}`;
+  const cached = getServerCache<RiotPatchNoteDetail>(cacheKey);
+  if (cached) return cached;
+  const existingRequest = inFlightPatchNoteDetailRequests.get(normalizedSlug);
+  if (existingRequest) return existingRequest;
+
+  const request = (async () => {
+    try {
+      const href = `${PATCH_NOTES_ORIGIN}/en-us/news/game-updates/${normalizedSlug}/`;
+      const response = await fetch(href, { next: { revalidate: PATCH_NOTE_REVALIDATE_SECONDS } });
+      if (!response.ok) return null;
+      const html = await response.text();
+      const h1 = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? `League of Legends Patch ${normalizedSlug}`;
+      const publishedAt = html.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/i)?.[0] ?? '';
+      const summary = parsePatchNoteSummary(`/en-us/news/game-updates/${normalizedSlug}/`, `${publishedAt} ${decodeHtmlText(h1)}`);
+      const detail = parsePatchNoteDetail(html, summary);
+      setServerCache(cacheKey, detail, PATCH_NOTE_DETAIL_CACHE_TTL_MS);
+      return detail;
+    } catch {
+      return null;
+    }
+  })();
+
+  inFlightPatchNoteDetailRequests.set(normalizedSlug, request);
+  const clearRequest = () => {
+    if (inFlightPatchNoteDetailRequests.get(normalizedSlug) === request) inFlightPatchNoteDetailRequests.delete(normalizedSlug);
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
+
+function getPatchNoteSearchMatches(detail: RiotPatchNoteDetail, query: string): RiotPatchNoteSearchMatch[] {
+  const normalizedQuery = query.toLowerCase();
+  const matches: RiotPatchNoteSearchMatch[] = [];
+  const headingStack: Array<{ level: number; text: string }> = [];
+  const seen = new Set<string>();
+
+  detail.blocks.forEach((block, index) => {
+    if (block.kind === 'heading') {
+      const level = block.level ?? 6;
+      while (headingStack.length > 0 && (headingStack[headingStack.length - 1]?.level ?? 6) >= level) headingStack.pop();
+      headingStack.push({ level, text: block.text });
+
+      if (!block.text.toLowerCase().includes(normalizedQuery)) return;
+      const nextSectionIndex = detail.blocks.findIndex((candidate, candidateIndex) => (
+        candidateIndex > index
+        && candidate.kind === 'heading'
+        && (candidate.level ?? 6) <= level
+      ));
+      const endIndex = nextSectionIndex >= 0 ? nextSectionIndex : detail.blocks.length;
+      const excerpts = detail.blocks
+        .slice(index + 1, endIndex)
+        .filter((candidate) => candidate.kind !== 'heading')
+        .map((candidate) => candidate.text)
+        .slice(0, 8);
+      const heading = headingStack.map((item) => item.text).join(' / ');
+      if (!seen.has(heading)) {
+        seen.add(heading);
+        matches.push({ heading, excerpts });
+      }
+      return;
+    }
+
+    if (!block.text.toLowerCase().includes(normalizedQuery)) return;
+    const heading = headingStack.length > 0
+      ? headingStack.map((item) => item.text).join(' / ')
+      : 'Patch overview';
+    const existing = matches.find((match) => match.heading === heading);
+    if (existing) {
+      if (!existing.excerpts.includes(block.text) && existing.excerpts.length < 8) existing.excerpts.push(block.text);
+    } else {
+      matches.push({ heading, excerpts: [block.text] });
+      seen.add(heading);
+    }
+  });
+
+  return matches.slice(0, 8);
+}
+
+export async function searchRiotPatchNotes(query: string): Promise<RiotPatchNoteSearchResult[]> {
+  const normalizedQuery = query.trim().slice(0, 80).toLowerCase();
+  if (normalizedQuery.length < 2) return [];
+  const cacheKey = `${patchNoteSearchCachePrefix}${normalizedQuery}`;
+  const cached = getServerCache<RiotPatchNoteSearchResult[]>(cacheKey);
+  if (cached) return cached;
+  const existingRequest = inFlightPatchNoteSearchRequests.get(normalizedQuery);
+  if (existingRequest) return existingRequest;
+
+  const request = (async () => {
+    const notes = await getRiotPatchNotes();
+    const details = await Promise.all(notes.map((note) => getRiotPatchNoteDetail(note.slug)));
+    const results = details
+      .map((detail, index) => {
+        if (!detail) return null;
+        const matches = getPatchNoteSearchMatches(detail, normalizedQuery);
+        return matches.length > 0 ? { note: notes[index], matches } : null;
+      })
+      .filter((result): result is RiotPatchNoteSearchResult => result !== null);
+    setServerCache(cacheKey, results, PATCH_NOTE_SEARCH_CACHE_TTL_MS);
+    return results;
+  })();
+
+  inFlightPatchNoteSearchRequests.set(normalizedQuery, request);
+  const clearRequest = () => {
+    if (inFlightPatchNoteSearchRequests.get(normalizedQuery) === request) inFlightPatchNoteSearchRequests.delete(normalizedQuery);
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
 }
 
 export async function getRiotAccountSearchSuggestions(query: string, platform?: RiotPlatformRoute) {
@@ -950,6 +1368,8 @@ async function getItemLookup() {
         Number(itemId),
         {
           name: item.name,
+          description: stripRichText(item.description),
+          plaintext: item.plaintext?.trim() || null,
           imageUrl: `https://ddragon.leagueoflegends.com/cdn/${version}/img/item/${item.image.full}`,
         },
       ]),
@@ -1035,7 +1455,7 @@ function normalizeParticipant(
   champions: Map<number, RiotChampionSummary>,
   summonerSpells: Map<number, { name: string; imageUrl: string }>,
   runes: Map<number, { name: string; imageUrl: string }>,
-  items: Map<number, { name: string; imageUrl: string }>,
+  items: Map<number, { name: string; description: string; plaintext: string | null; imageUrl: string }>,
   ranks: Map<string, { tier: string; rank: string; queueType: string }>,
   version: string,
 ): RiotAccountViewerMatchParticipant {
@@ -1086,6 +1506,8 @@ function normalizeParticipant(
         id: itemId,
         slot,
         name: item?.name ?? `Item ${itemId}`,
+        description: item?.description ?? '',
+        plaintext: item?.plaintext ?? null,
         imageUrl: item?.imageUrl ?? itemIconUrl(itemId, version),
       };
     }),
@@ -1173,7 +1595,7 @@ function normalizeMatch(
   champions: Map<number, RiotChampionSummary>,
   summonerSpells: Map<number, { name: string; imageUrl: string }>,
   runes: Map<number, { name: string; imageUrl: string }>,
-  items: Map<number, { name: string; imageUrl: string }>,
+  items: Map<number, { name: string; description: string; plaintext: string | null; imageUrl: string }>,
   ranks: Map<string, { tier: string; rank: string; queueType: string }>,
   version: string,
 ) {
@@ -1559,7 +1981,7 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
   const challengePoints = challengeData?.totalPoints?.current ?? 0;
   const canonicalRiotId = `${account.gameName ?? parsed.gameName}#${account.tagLine ?? parsed.tagLine}`;
 
-  await recordRiotAccountProfileMetrics({
+  void recordRiotAccountProfileMetrics({
     puuid: account.puuid,
     riotId: canonicalRiotId,
     platform,

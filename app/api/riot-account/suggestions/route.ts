@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRiotAccountSearchSuggestions, isRiotPlatformRoute } from '@/lib/riot-account-viewer';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
@@ -8,7 +9,7 @@ export const runtime = 'nodejs';
 const rateLimitWindowMs = Number(process.env.SUGGESTIONS_RATE_LIMIT_WINDOW_MS ?? 60_000);
 const rateLimitRequests = Number(process.env.SUGGESTIONS_RATE_LIMIT_REQUESTS ?? 60);
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riot-account/suggestions', async function GET(request: Request) {
   const url = new URL(request.url);
   const clientIp = getClientIp(request);
   const rateLimit = await checkRateLimit({
@@ -51,4 +52,4 @@ export async function GET(request: Request) {
       'X-RateLimit-Remaining': String(rateLimit.remaining),
     },
   });
-}
+});

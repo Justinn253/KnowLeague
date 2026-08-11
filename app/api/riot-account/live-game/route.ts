@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { getRiotLiveGameStatus, isRiotPlatformRoute } from '@/lib/riot-account-viewer';
@@ -19,7 +20,7 @@ function getErrorStatus(error: unknown) {
   return 400;
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riot-account/live-game', async function GET(request: Request) {
   const clientIp = getClientIp(request);
 
   try {
@@ -94,4 +95,4 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ error: message }, { status });
   }
-}
+});

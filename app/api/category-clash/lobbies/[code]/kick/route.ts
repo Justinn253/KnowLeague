@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { kickCategoryClashPlayer } from '@/lib/category-clash';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -5,7 +6,7 @@ import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-ut
 type KickBody = { clientId: string; targetPlayerId: string };
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/category-clash/lobbies/[code]/kick', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<KickBody>(request);
     return NextResponse.json(await kickCategoryClashPlayer(
@@ -16,4 +17,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

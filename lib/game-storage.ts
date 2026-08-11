@@ -11,9 +11,11 @@ const DETAILED_STATS_KEY = `${STORAGE_PREFIX}:detailed-game-stats`;
 const PENDING_QUIZ_STATS_KEY = `${STORAGE_PREFIX}:pending-quiz-stats`;
 const MASTERY_MASTER_STATS_KEY = `${STORAGE_PREFIX}:mastery-master:stats`;
 const MAX_RECORDED_MATCH_IDS = 250;
+const MAX_RECORDED_WIN_IDS = 1000;
 const MAX_SKIN_GUESS_STATS = 50;
 export const STREAK_GAME_IDS: StreakGameId[] = ['skindle', 'splash-scramble', 'ability-blitz', 'skin-champion'];
 export const PLAYER_GAME_STATS_CHANGED_EVENT = 'knowleague:player-game-stats-changed';
+export const DETAILED_GAME_STATS_CHANGED_EVENT = 'knowleague:detailed-game-stats-changed';
 export const MASTERY_MASTER_STATS_CHANGED_EVENT = 'knowleague:mastery-master-stats-changed';
 
 export type PlayerGuessStat = {
@@ -115,6 +117,8 @@ export type DetailedGameStats = {
   abilityBlitz: QuizGameDetailedStats;
   skinChampion: QuizGameDetailedStats;
   skincognito: SkincognitoDetailedStats;
+  totalWins: number;
+  recordedWinIds: string[];
 };
 
 export type QuizStatsInput = {
@@ -442,7 +446,7 @@ function createEmptySkincognitoStats(): SkincognitoDetailedStats {
   };
 }
 
-function createEmptyDetailedStats(): DetailedGameStats {
+export function createEmptyDetailedStats(): DetailedGameStats {
   return {
     abilityBlitz: {
       solo: createEmptyQuizModeStats(),
@@ -453,6 +457,8 @@ function createEmptyDetailedStats(): DetailedGameStats {
       multiplayer: createEmptyQuizModeStats(),
     },
     skincognito: createEmptySkincognitoStats(),
+    totalWins: 0,
+    recordedWinIds: [],
   };
 }
 
@@ -473,7 +479,13 @@ function normalizeSkincognitoStats(stats?: Partial<SkincognitoDetailedStats>): S
   };
 }
 
-function normalizeDetailedStats(stats?: Partial<DetailedGameStats>): DetailedGameStats {
+export function normalizeDetailedGameStats(stats?: Partial<DetailedGameStats> | null): DetailedGameStats {
+  const legacyWins = (stats?.abilityBlitz?.multiplayer?.matchesWon ?? 0)
+    + (stats?.skinChampion?.multiplayer?.matchesWon ?? 0)
+    + (stats?.skincognito?.totalWins ?? 0);
+  const recordedWinIds = Array.isArray(stats?.recordedWinIds)
+    ? [...new Set(stats.recordedWinIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))].slice(-MAX_RECORDED_WIN_IDS)
+    : [];
   return {
     abilityBlitz: {
       solo: normalizeQuizModeStats(stats?.abilityBlitz?.solo),
@@ -484,7 +496,76 @@ function normalizeDetailedStats(stats?: Partial<DetailedGameStats>): DetailedGam
       multiplayer: normalizeQuizModeStats(stats?.skinChampion?.multiplayer),
     },
     skincognito: normalizeSkincognitoStats(stats?.skincognito),
+    totalWins: Math.max(0, Math.floor(Number(stats?.totalWins) || legacyWins)),
+    recordedWinIds,
   };
+}
+
+function mergeQuizModeStats(left: QuizModeStats, right: QuizModeStats): QuizModeStats {
+  return {
+    totalPlayed: Math.max(left.totalPlayed, right.totalPlayed),
+    matchesPlayed: Math.max(left.matchesPlayed, right.matchesPlayed),
+    matchesWon: Math.max(left.matchesWon, right.matchesWon),
+    matchesLost: Math.max(left.matchesLost, right.matchesLost),
+    currentStreak: Math.max(left.currentStreak, right.currentStreak),
+    bestStreak: Math.max(left.bestStreak, right.bestStreak),
+    totalGuesses: Math.max(left.totalGuesses, right.totalGuesses),
+    correctGuesses: Math.max(left.correctGuesses, right.correctGuesses),
+    totalElapsedSeconds: Math.max(left.totalElapsedSeconds, right.totalElapsedSeconds),
+    completedItems: Math.max(left.completedItems, right.completedItems),
+    recordedMatchIds: [...new Set([...left.recordedMatchIds, ...right.recordedMatchIds])].slice(-MAX_RECORDED_MATCH_IDS),
+  };
+}
+
+function mergeSkincognitoStats(left: SkincognitoDetailedStats, right: SkincognitoDetailedStats): SkincognitoDetailedStats {
+  const guessedSkinStats = { ...left.guessedSkinStats };
+  Object.entries(right.guessedSkinStats).forEach(([key, value]) => {
+    if (!guessedSkinStats[key] || value.count > guessedSkinStats[key].count) {
+      guessedSkinStats[key] = value;
+    }
+  });
+  return {
+    totalPlayed: Math.max(left.totalPlayed, right.totalPlayed),
+    totalWins: Math.max(left.totalWins, right.totalWins),
+    totalLosses: Math.max(left.totalLosses, right.totalLosses),
+    currentStreak: Math.max(left.currentStreak, right.currentStreak),
+    bestStreak: Math.max(left.bestStreak, right.bestStreak),
+    totalGuesses: Math.max(left.totalGuesses, right.totalGuesses),
+    correctGuesses: Math.max(left.correctGuesses, right.correctGuesses),
+    totalVictoryTurns: Math.max(left.totalVictoryTurns, right.totalVictoryTurns),
+    victoriesWithTurnCount: Math.max(left.victoriesWithTurnCount, right.victoriesWithTurnCount),
+    guessedSkinStats,
+    recordedMatchIds: [...new Set([...left.recordedMatchIds, ...right.recordedMatchIds])].slice(-MAX_RECORDED_MATCH_IDS),
+  };
+}
+
+function recordAppWinInStats(stats: DetailedGameStats, winId: string) {
+  const normalizedWinId = winId.trim();
+  if (!normalizedWinId || stats.recordedWinIds.includes(normalizedWinId)) {
+    return false;
+  }
+
+  stats.totalWins += 1;
+  stats.recordedWinIds = [...stats.recordedWinIds, normalizedWinId].slice(-MAX_RECORDED_WIN_IDS);
+  return true;
+}
+
+export function mergeDetailedGameStats(left?: Partial<DetailedGameStats> | null, right?: Partial<DetailedGameStats> | null) {
+  const leftStats = normalizeDetailedGameStats(left);
+  const rightStats = normalizeDetailedGameStats(right);
+  return {
+    abilityBlitz: {
+      solo: mergeQuizModeStats(leftStats.abilityBlitz.solo, rightStats.abilityBlitz.solo),
+      multiplayer: mergeQuizModeStats(leftStats.abilityBlitz.multiplayer, rightStats.abilityBlitz.multiplayer),
+    },
+    skinChampion: {
+      solo: mergeQuizModeStats(leftStats.skinChampion.solo, rightStats.skinChampion.solo),
+      multiplayer: mergeQuizModeStats(leftStats.skinChampion.multiplayer, rightStats.skinChampion.multiplayer),
+    },
+    skincognito: mergeSkincognitoStats(leftStats.skincognito, rightStats.skincognito),
+    totalWins: Math.max(leftStats.totalWins, rightStats.totalWins, new Set([...leftStats.recordedWinIds, ...rightStats.recordedWinIds]).size),
+    recordedWinIds: [...new Set([...leftStats.recordedWinIds, ...rightStats.recordedWinIds])].slice(-MAX_RECORDED_WIN_IDS),
+  } satisfies DetailedGameStats;
 }
 
 function applyQuizGameStats(allStats: DetailedGameStats, input: QuizStatsInput) {
@@ -516,6 +597,9 @@ function applyQuizGameStats(allStats: DetailedGameStats, input: QuizStatsInput) 
   };
 
   allStats[gameKey][input.mode] = nextStats;
+  if (won && input.matchId) {
+    recordAppWinInStats(allStats, input.matchId);
+  }
   return allStats;
 }
 
@@ -582,20 +666,21 @@ export function loadDetailedGameStats() {
 
   try {
     const rawStats = window.localStorage.getItem(DETAILED_STATS_KEY);
-    return applyExpiredPendingQuizStats(normalizeDetailedStats(rawStats ? JSON.parse(rawStats) as Partial<DetailedGameStats> : undefined));
+    return applyExpiredPendingQuizStats(normalizeDetailedGameStats(rawStats ? JSON.parse(rawStats) as Partial<DetailedGameStats> : undefined));
   } catch (error) {
     console.warn('Unable to load detailed game stats.', error);
     return createEmptyDetailedStats();
   }
 }
 
-function saveDetailedGameStats(stats: DetailedGameStats) {
+export function saveDetailedGameStats(stats: DetailedGameStats) {
   if (!isStorageAvailable()) {
     return;
   }
 
   try {
     window.localStorage.setItem(DETAILED_STATS_KEY, JSON.stringify(stats));
+    window.dispatchEvent(new CustomEvent(DETAILED_GAME_STATS_CHANGED_EVENT, { detail: stats }));
   } catch (error) {
     console.warn('Unable to save detailed game stats.', error);
   }
@@ -668,6 +753,16 @@ export function recordSkincognitoStats(input: SkincognitoStatsInput) {
     guessedSkinStats: trimValueStats(guessedSkinStats),
     recordedMatchIds: appendRecordedMatchId(current.recordedMatchIds, input.matchId),
   };
+  if (input.won) {
+    recordAppWinInStats(allStats, input.matchId);
+  }
+  saveDetailedGameStats(allStats);
+  return allStats;
+}
+
+export function recordAppWin(winId: string) {
+  const allStats = loadDetailedGameStats();
+  recordAppWinInStats(allStats, winId);
   saveDetailedGameStats(allStats);
   return allStats;
 }

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { isDeepStrictEqual } from 'node:util';
 import { getRouteErrorResponse } from '@/lib/api-utils';
@@ -46,7 +47,7 @@ function getSplashScrambleErrorResponse(error: unknown) {
   return getRouteErrorResponse(error);
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/splash-scramble/state', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const { data, error } = await getSupabaseServiceClient()
@@ -63,9 +64,9 @@ export async function GET(request: Request) {
   } catch (error) {
     return getSplashScrambleErrorResponse(error);
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withApiMetrics('/api/splash-scramble/state', async function PUT(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const body = await request.json() as { state?: unknown; stats?: unknown };
@@ -115,9 +116,9 @@ export async function PUT(request: Request) {
   } catch (error) {
     return getSplashScrambleErrorResponse(error);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withApiMetrics('/api/splash-scramble/state', async function DELETE(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const { error } = await getSupabaseServiceClient()
@@ -136,4 +137,4 @@ export async function DELETE(request: Request) {
   } catch (error) {
     return getSplashScrambleErrorResponse(error);
   }
-}
+});

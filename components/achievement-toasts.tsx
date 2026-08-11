@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Trophy, X } from 'lucide-react';
+import Link from 'next/link';
 import type { AchievementListItem } from '@/lib/achievements';
+import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 
 function playAchievementSound() {
   try {
@@ -30,7 +32,7 @@ function playAchievementSound() {
   }
 }
 
-export function AchievementToasts() {
+export function AchievementToasts({ profileUsername }: { profileUsername: string | null }) {
   const [achievement, setAchievement] = useState<AchievementListItem | null>(null);
   const timeoutRef = useRef<number | null>(null);
 
@@ -74,17 +76,16 @@ export function AchievementToasts() {
           <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Achievement Unlocked</p>
           <h2 className="mt-1 truncate text-base font-black text-white">{achievement.titleVisible}</h2>
           <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-300">{achievement.descriptionVisible}</p>
-          <button
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent('knowleague:open-profile-tab', { detail: { tab: 'achievements' } }));
-              setAchievement(null);
-            }}
+          <Link
+            href={profileUsername ? getPublicProfileHref(profileUsername) : '/profile'}
+            target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+            rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
+            onClick={() => setAchievement(null)}
             className="mt-3 inline-flex min-h-8 items-center gap-2 rounded-xl border border-amber-300/35 bg-amber-300/10 px-3 text-xs font-bold text-amber-100 transition hover:bg-amber-300/20"
           >
             View Achievements
             <ExternalLink size={13} />
-          </button>
+          </Link>
         </div>
         <button
           type="button"

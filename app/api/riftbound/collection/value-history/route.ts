@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -43,7 +44,7 @@ function getDays(searchParams: URLSearchParams) {
   return days;
 }
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riftbound/collection/value-history', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const url = new URL(request.url);
@@ -81,4 +82,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

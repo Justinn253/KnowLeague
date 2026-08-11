@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { heartbeatCarvingRevelationPlayer } from '@/lib/carving-revelation';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
@@ -5,7 +6,7 @@ import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-ut
 type HeartbeatBody = { clientId: string; connected?: boolean };
 export const runtime = 'nodejs';
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export const POST = withApiMetrics('/api/carving-revelation/lobbies/[code]/heartbeat', async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     const body = await readJsonBody<HeartbeatBody>(request);
     return NextResponse.json(await heartbeatCarvingRevelationPlayer(
@@ -16,4 +17,4 @@ export async function POST(request: Request, { params }: { params: { code: strin
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

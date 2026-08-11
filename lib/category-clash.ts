@@ -14,6 +14,7 @@ import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 import {
   addMultiplayerLobbyEvent,
   assertMultiplayerAccountAvailable,
+  assertMultiplayerAccountNotBanned,
   assertMultiplayerHost,
   assertSupabaseConfigured,
   generateMultiplayerLobbyCode,
@@ -1233,6 +1234,7 @@ async function insertPlayer(lobby: CategoryClashLobby, input: CreateOrJoinInput,
 
 export async function createCategoryClashLobby(input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await assertMultiplayerAccountNotBanned(input.authUserId);
   await forfeitOutstandingReconnects(input.clientId);
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const { data: lobby, error } = await getSupabaseServiceClient()
@@ -1263,6 +1265,7 @@ export async function createCategoryClashLobby(input: CreateOrJoinInput) {
 
 export async function joinCategoryClashLobby(code: string, input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await assertMultiplayerAccountNotBanned(input.authUserId);
   const fetchedLobby = await fetchLobby(code);
   if (!fetchedLobby || fetchedLobby.status === 'terminated') {
     throw new Error('Lobby not found.');

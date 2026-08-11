@@ -12,6 +12,7 @@ import { ALL_ABILITY_SLOT_IDS, filterItemsByAbilitySlots, type AbilitySlotId } f
 import {
   addMultiplayerLobbyEvent,
   assertMultiplayerAccountAvailable,
+  assertMultiplayerAccountNotBanned,
   assertMultiplayerHost,
   assertSupabaseConfigured,
   generateMultiplayerLobbyCode,
@@ -419,6 +420,7 @@ async function insertPlayer(lobby: MultiplayerQuizLobby, input: CreateOrJoinInpu
 
 export async function createMultiplayerQuizLobby(input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await assertMultiplayerAccountNotBanned(input.authUserId);
   await forfeitOutstandingReconnects(input.clientId);
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const { data: lobby, error } = await getSupabaseServiceClient()
@@ -453,6 +455,7 @@ export async function createMultiplayerQuizLobby(input: CreateOrJoinInput) {
 
 export async function joinMultiplayerQuizLobby(code: string, input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await assertMultiplayerAccountNotBanned(input.authUserId);
   const fetchedLobby = await fetchLobby(code);
   if (!fetchedLobby || fetchedLobby.status === 'terminated' || fetchedLobby.game_mode !== input.gameMode) {
     throw new Error('Lobby not found.');

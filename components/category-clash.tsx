@@ -17,12 +17,13 @@ import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { CHAT_COLOR_NAME_HEX, getChatBubbleStyle, getChatNameStyle } from '@/lib/chat-colors';
-import { getOrCreateClientId } from '@/lib/game-storage';
+import { getOrCreateClientId, recordAppWin } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
 import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
+import { submitAchievementEvents } from '@/lib/achievement-client';
 import type {
   CategoryClashCategory,
   CategoryClashChatMessage,
@@ -633,7 +634,25 @@ export function CategoryClash() {
     if (finishSoundLobbyIdRef.current === view.lobby.id) return;
     finishSoundLobbyIdRef.current = view.lobby.id;
     playUiSound(currentPlayer?.result === 'won' ? 'puzzle-complete' : 'timer-expired');
-  }, [currentPlayer?.result, view]);
+    if (currentPlayer) {
+      const metadata = { lobbyCode: view.lobby.code };
+      if (currentPlayer.result === 'won') {
+        recordAppWin(`category-clash:${view.lobby.id}`);
+      }
+      void submitAchievementEvents([
+        {
+          event: 'multiplayer_result',
+          metadata: {
+            gameId: 'category-clash',
+            result: currentPlayer.result === 'won' ? 'win' : 'loss',
+          },
+        },
+        { event: 'developer_moment', metadata: { gameId: 'category-clash', ...metadata } },
+        { event: 'category_clash_last_standing', metadata },
+        { event: 'category_clash_shared_answer', metadata },
+      ]);
+    }
+  }, [currentPlayer, view]);
 
   useEffect(() => {
     if (!view || view.lobby.status !== 'waiting') {

@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
@@ -18,7 +19,7 @@ type PreferenceBody = {
   about?: unknown;
 };
 
-export async function GET(request: Request) {
+export const GET = withApiMetrics('/api/riftbound/profile', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const username = await getRiftboundProfileUsername(userId);
@@ -29,9 +30,9 @@ export async function GET(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withApiMetrics('/api/riftbound/profile', async function PATCH(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -46,4 +47,4 @@ export async function PATCH(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

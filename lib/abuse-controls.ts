@@ -9,6 +9,17 @@ type DualRateLimitRule = {
 };
 
 export const ABUSE_RATE_LIMITS: Record<string, RateLimitRule | DualRateLimitRule> = {
+  // These two buckets are applied by middleware to every API route. They are
+  // deliberately generous enough for normal page loads and multiplayer
+  // heartbeats while bounding scraping and mutation floods.
+  apiRead: {
+    ip: { limit: 600, windowMs: 60_000 },
+    subject: { limit: 300, windowMs: 60_000 },
+  },
+  apiWrite: {
+    ip: { limit: 180, windowMs: 60_000 },
+    subject: { limit: 120, windowMs: 60_000 },
+  },
   lobbyCreate: {
     ip: { limit: 8, windowMs: 60_000 },
     subject: { limit: 4, windowMs: 60_000 },

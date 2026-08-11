@@ -9,7 +9,7 @@ Last updated: June 24, 2026.
 - Apply all Supabase migrations to production, including `026_private_profile_details.sql`.
 - Review `/privacy` and `/terms` with counsel before monetization or broad public launch.
 - Confirm the global footer Riot disclaimer is visible on production pages.
-- Configure hosting-level rate limits, WAF/bot protection, and alerting. The in-app limiter is an alpha guard, not a distributed abuse-control system.
+- Configure hosting-level rate limits, WAF/bot protection, and alerting. The in-app limiter is distributed when shared Redis is configured and `RATE_LIMIT_REQUIRE_SHARED=true`; upstream controls are still needed to stop abusive traffic before it invokes a function.
 - Complete every provider-dashboard action in `docs/budget-protection.md`, including Vercel's hard pause and Supabase Spend Cap, before production launch.
 - Configure production monitoring/log collection for structured `console.*` JSON events. Suggested alert events:
   - `riot_account_viewer_rate_limited`

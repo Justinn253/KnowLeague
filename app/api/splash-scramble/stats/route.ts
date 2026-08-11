@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getDailyDateKey } from '@/lib/game-storage';
 import { getSplashScrambleDailyStats, recordSplashScrambleSolve } from '@/lib/splash-scramble-stats';
@@ -5,13 +6,13 @@ import { getSplashScrambleDailyStats, recordSplashScrambleSolve } from '@/lib/sp
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET() {
+export const GET = withApiMetrics('/api/splash-scramble/stats', async function GET() {
   const dateKey = getDailyDateKey();
   const stats = await getSplashScrambleDailyStats(dateKey);
   return NextResponse.json(stats);
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/splash-scramble/stats', async function POST(request: Request) {
   const body = await request.json();
 
   if (!body || typeof body.clientId !== 'string' || body.clientId.trim().length === 0) {
@@ -28,4 +29,4 @@ export async function POST(request: Request) {
     accepted: result.accepted,
     clientAlreadySolved: result.clientAlreadySolved,
   });
-}
+});

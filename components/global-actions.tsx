@@ -1,56 +1,47 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
-import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { AchievementToasts } from '@/components/achievement-toasts';
+import { CumulativeAchievementTracker } from '@/components/cumulative-achievement-tracker';
 import { AppHeader } from '@/components/app-header';
 import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
 import { submitAchievementEvent } from '@/lib/achievement-client';
-import { getAuthSessionId } from '@/lib/auth-session';
 import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
 import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
-import { getProfileBootstrap } from '@/lib/profile-bootstrap-client';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { AppRole } from '@/lib/moderation';
-
-type ProfileOverlayTab = 'profile' | 'stats' | 'achievements' | 'account';
-
-const ProfileScreen = dynamic(
-  () => import('@/components/profile-screen').then((module) => module.ProfileScreen),
-  { ssr: false },
-);
-const PublicProfileScreen = dynamic(
-  () => import('@/components/public-profile-screen').then((module) => module.PublicProfileScreen),
-  { ssr: false },
-);
 
 export function GlobalActions() {
   const pathname = usePathname();
   const router = useRouter();
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
+  const [profileUsername, setProfileUsername] = useState<string | null>(null);
+  const [profileAway, setProfileAway] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [profileInitialTab, setProfileInitialTab] = useState<ProfileOverlayTab>('profile');
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
   const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
-  const [publicProfileUsername, setPublicProfileUsername] = useState<string | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
   const activeSessionRef = useRef<Session | null>(null);
   const profileAppRoleRef = useRef<string | null>(null);
 
-  const openProfile = (tab: ProfileOverlayTab = 'profile') => {
-    setProfileInitialTab(tab);
-    setProfileOpen(true);
-  };
+  useEffect(() => {
+    const handleOwnPresence = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string; away?: boolean }>).detail;
+      if (detail.userId && activeSessionRef.current?.user.id === detail.userId) {
+        setProfileAway(detail.away === true);
+      }
+    };
+
+    window.addEventListener('knowleague:own-presence', handleOwnPresence);
+    return () => window.removeEventListener('knowleague:own-presence', handleOwnPresence);
+  }, []);
 
   const logOut = async () => {
     await forfeitStoredMultiplayerSessions();
     const supabase = getOptionalSupabaseClient();
-    await supabase?.auth.signOut();
-    setProfileOpen(false);
+    await supabase?.auth.signOut({ scope: 'local' });
     router.push('/login');
   };
 
@@ -63,13 +54,58 @@ export function GlobalActions() {
     if (!supabase) {
       return undefined;
     }
-    let signInCheckTimeout: number | null = null;
+    let sessionValidationInterval: number | null = null;
+    let sessionValidationInFlight = false;
     let profileChannel: ReturnType<typeof supabase.channel> | null = null;
     let subscribedProfileId: string | null = null;
 
+    const validateSession = async (session: Session) => {
+      if (sessionValidationInFlight) return;
+      sessionValidationInFlight = true;
+      try {
+        const response = await fetch('/api/auth/session', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: 'no-store',
+        });
+        if (response.ok || activeSessionRef.current?.access_token !== session.access_token) {
+          return;
+        }
+
+        await forfeitStoredMultiplayerSessions();
+        await supabase.auth.signOut({ scope: 'local' });
+        router.push('/login');
+      } catch {
+        // A transient network failure should not sign the user out locally.
+      } finally {
+        sessionValidationInFlight = false;
+      }
+    };
+
+    const updateSessionValidation = (session: Session | null) => {
+      if (sessionValidationInterval) {
+        window.clearInterval(sessionValidationInterval);
+        sessionValidationInterval = null;
+      }
+      if (!session) return;
+
+      void validateSession(session);
+      sessionValidationInterval = window.setInterval(() => {
+        const activeSession = activeSessionRef.current;
+        if (activeSession) void validateSession(activeSession);
+      }, 60_000);
+    };
+
     const updateModerationRole = async (session: Session, force = false) => {
       try {
-        const { role } = await getProfileBootstrap(session, { force });
+        const response = await fetch('/api/moderation/me', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: force ? 'no-store' : 'default',
+        });
+        const data = await response.json() as { role?: AppRole | null };
+        if (!response.ok) {
+          throw new Error('Unable to load moderation role.');
+        }
+        const role = data.role;
         setModerationRole(role === 'moderator' || role === 'admin' ? role : null);
       } catch {
         setModerationRole(null);
@@ -78,14 +114,15 @@ export function GlobalActions() {
 
     const updateProfileAction = async (
       session?: Session | null,
-      mismatchRetries = 0,
       forceProfile = false,
       forceModeration = false,
     ) => {
       activeSessionRef.current = session ?? null;
       if (!session) {
         profileAppRoleRef.current = null;
+        setProfileAway(false);
         setProfileAvatarUrl(null);
+        setProfileUsername(null);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
         setModerationRole(null);
@@ -108,37 +145,12 @@ export function GlobalActions() {
       }
       const profileResult = await getSessionScopedRequest('global-profile', session, async () => supabase
         .from('profiles')
-        .select('username, display_name, active_session_id, avatar_url, app_role')
+        .select('username, display_name, avatar_url, app_role')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string; active_session_id: string | null; avatar_url: string | null; app_role: string | null }>(), { force: forceProfile || forceModeration });
+        .maybeSingle<{ username: string; display_name: string; avatar_url: string | null; app_role: string | null }>(), { force: forceProfile || forceModeration });
       const { data } = profileResult;
       profileAppRoleRef.current = data?.app_role ?? null;
-
-      const sessionId = getAuthSessionId(session.access_token);
-      if (data?.active_session_id && sessionId && data.active_session_id !== sessionId) {
-        if (mismatchRetries > 0) {
-          signInCheckTimeout = window.setTimeout(() => {
-            signInCheckTimeout = null;
-            void updateProfileAction(session, mismatchRetries - 1, true);
-          }, 500);
-          return;
-        }
-        await forfeitStoredMultiplayerSessions();
-        await supabase.auth.signOut({ scope: 'local' });
-        activeSessionRef.current = null;
-        setProfileAvatarUrl(null);
-        setIsLoggedIn(false);
-        setPendingFriendRequests(0);
-        setModerationRole(null);
-        setProfileOpen(false);
-        router.push('/login');
-        return;
-      }
-
-      if (signInCheckTimeout) {
-        window.clearTimeout(signInCheckTimeout);
-        signInCheckTimeout = null;
-      }
+      setProfileUsername(data?.username?.trim() || null);
       setProfileAvatarUrl(data?.avatar_url ?? null);
     };
 
@@ -176,28 +188,26 @@ export function GlobalActions() {
             && profileAppRoleRef.current !== null
             && profileAppRoleRef.current !== nextProfile.app_role;
           profileAppRoleRef.current = nextProfile.app_role ?? profileAppRoleRef.current;
-          void updateProfileAction(activeSession, 0, true, roleChanged);
+          void updateProfileAction(activeSession, true, roleChanged);
         })
         .subscribe();
     };
 
     const unsubscribeFromAuthSession = subscribeToAuthSession((session, event) => {
       activeSessionRef.current = session;
+      updateSessionValidation(session);
       replaceProfileSubscription(session);
-      if (signInCheckTimeout) {
-        window.clearTimeout(signInCheckTimeout);
-        signInCheckTimeout = null;
-      }
       if (event === 'SIGNED_IN' && session) {
-        void updateProfileAction(session, 6);
+        setProfileAway(false);
+        void updateProfileAction(session);
         return;
       }
       void updateProfileAction(session);
     });
 
     return () => {
-      if (signInCheckTimeout) {
-        window.clearTimeout(signInCheckTimeout);
+      if (sessionValidationInterval) {
+        window.clearInterval(sessionValidationInterval);
       }
       unsubscribeFromAuthSession();
       if (profileChannel) {
@@ -206,86 +216,25 @@ export function GlobalActions() {
     };
   }, [router]);
 
-  useEffect(() => {
-    const openProfileTab = (event: Event) => {
-      const tab = (event as CustomEvent<{ tab?: ProfileOverlayTab }>).detail?.tab ?? 'profile';
-      setProfileInitialTab(tab);
-      setProfileOpen(true);
-    };
-
-    window.addEventListener('knowleague:open-profile-tab', openProfileTab);
-    return () => window.removeEventListener('knowleague:open-profile-tab', openProfileTab);
-  }, []);
-
-  useEffect(() => {
-    const openPublicProfile = (event: Event) => {
-      const username = (event as CustomEvent<{ username?: string }>).detail?.username?.trim();
-      if (username) {
-        setPublicProfileUsername(username);
-      }
-    };
-
-    window.addEventListener('knowleague:open-profile', openPublicProfile);
-    return () => window.removeEventListener('knowleague:open-profile', openPublicProfile);
-  }, []);
-
   return (
     <>
       <PlayerGameStatsSync />
+      <CumulativeAchievementTracker />
 
       <AppHeader
         isLoggedIn={isLoggedIn}
         profileAvatarUrl={profileAvatarUrl}
+        profileUsername={profileUsername}
+        profileAway={profileAway}
         pendingFriendRequests={pendingFriendRequests}
         moderationRole={moderationRole}
-        onOpenProfile={() => openProfile()}
         onPendingFriendRequestsChange={setPendingFriendRequests}
         onLogOut={() => void logOut()}
       />
 
       <div className="fixed bottom-3 right-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-end gap-2 sm:bottom-5 sm:right-5 sm:gap-3">
-        <AchievementToasts />
+        <AchievementToasts profileUsername={profileUsername} />
       </div>
-      {profileOpen ? (
-        <div
-          data-profile-overlay="true"
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4"
-          onPointerDown={() => setProfileOpen(false)}
-        >
-          <div
-            className="relative min-w-0 max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-x-hidden overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setProfileOpen(false)}
-              aria-label="Close profile"
-              className="absolute right-3 top-3 z-10 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:right-4 sm:top-[2.125rem]"
-            >
-              <X size={18} />
-            </button>
-            <ProfileScreen presentation="overlay" initialTab={profileInitialTab} onClose={() => setProfileOpen(false)} />
-          </div>
-        </div>
-      ) : null}
-      {publicProfileUsername ? (
-        <div
-          data-profile-overlay="true"
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-4"
-          onPointerDown={() => setPublicProfileUsername(null)}
-        >
-          <div
-            className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <PublicProfileScreen
-              username={publicProfileUsername}
-              presentation="overlay"
-              onClose={() => setPublicProfileUsername(null)}
-            />
-          </div>
-        </div>
-      ) : null}
     </>
   );
 }

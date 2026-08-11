@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDailyQuizCacheControl } from '@/lib/cache-control';
 import { getAbilityCatalog } from '@/lib/catalogs';
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic';
 const modes = new Set<SoloQuizMode>(['casual', 'daily', 'chaos']);
 const difficulties = new Set<SoloQuizDifficulty>(['iron', 'gold', 'diamond', 'challenger']);
 
-export async function GET(request: NextRequest) {
+export const GET = withApiMetrics('/api/ability-blitz/quiz-items', async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get('mode') as SoloQuizMode | null;
   const difficulty = request.nextUrl.searchParams.get('difficulty') as SoloQuizDifficulty | null;
   const entryCount = Number(request.nextUrl.searchParams.get('entries') ?? 100);
@@ -28,4 +29,4 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(shuffle(getAbilityCatalog()), {
     headers: { 'Cache-Control': 'no-store' },
   });
-}
+});

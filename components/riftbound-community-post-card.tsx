@@ -6,9 +6,8 @@ import { MessageCircle, Share2, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
-import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass } from '@/lib/riftbound';
-import { recordRiftboundPostShare, updateRiftboundPostReaction } from '@/lib/riftbound-community-client';
+import { hasRiftboundPostBeenShared, markRiftboundPostShared, recordRiftboundPostShare, updateRiftboundPostReaction } from '@/lib/riftbound-community-client';
 import type { RiftboundCommunityPostSummary, RiftboundPostReaction } from '@/lib/riftbound-community-types';
 
 function formatDate(value: string) {
@@ -32,6 +31,7 @@ type RiftboundCommunityPostCardProps = {
 export function RiftboundCommunityPostCard({ post, session, onPostChange }: RiftboundCommunityPostCardProps) {
   const router = useRouter();
   const [shareBusy, setShareBusy] = useState(false);
+  const shareBusyRef = useRef(false);
   const [localReaction, setLocalReaction] = useState<RiftboundPostReaction | null>(post.viewerReaction);
   const localReactionRef = useRef<RiftboundPostReaction | null>(post.viewerReaction);
   const [likeCount, setLikeCount] = useState(post.likeCount);
@@ -87,17 +87,29 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
   };
 
   const sharePost = async () => {
-    if (shareBusy) return;
+    if (shareBusyRef.current) return;
+    shareBusyRef.current = true;
     setShareBusy(true);
+
+    if (session && !hasRiftboundPostBeenShared(post.id, session.user.id)) {
+      const shareSession = session;
+      const shareRequest = recordRiftboundPostShare(post.id, shareSession);
+      void shareRequest.then((response) => {
+        markRiftboundPostShared(post.id, shareSession.user.id);
+        onPostChange?.({ ...post, shareCount: response.shareCount });
+      }).catch(() => {
+        // Share-count failures should not interrupt the sharing flow.
+      });
+    }
+
     try {
       const url = `${window.location.origin}${postHref}`;
       if (navigator.share) await navigator.share({ title: post.title, text: post.body || post.title, url });
       else await navigator.clipboard.writeText(url);
-      const response = await recordRiftboundPostShare(post.id);
-      onPostChange?.({ ...post, shareCount: response.shareCount });
     } catch {
       // Closing the native share sheet is not an error for the page.
     } finally {
+      shareBusyRef.current = false;
       setShareBusy(false);
     }
   };
@@ -124,8 +136,6 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
         <div className="min-w-0 flex-1">
           <Link href={postHref} className="block truncate text-xl font-black text-white hover:text-amber-200 sm:text-2xl">{post.title}</Link>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-            <Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} className="font-black hover:underline" style={getChatNameStyle(post.author.chatColor)}>@{post.author.username}</Link>
-            <span aria-hidden="true">·</span>
             <span>{formatDate(post.createdAt)}</span>
           </p>
         </div>
@@ -146,7 +156,7 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
         <button type="button" onClick={() => updateReaction('like')} disabled={!session} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${localReaction === 'like' ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-emerald-200/40 hover:text-emerald-200'}`}><ThumbsUp size={14} /> {likeCount}</button>
         <button type="button" onClick={() => updateReaction('dislike')} disabled={!session} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${localReaction === 'dislike' ? 'border-red-300/50 bg-red-300/10 text-red-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-red-200/40 hover:text-red-200'}`}><ThumbsDown size={14} /> {dislikeCount}</button>
         <Link href={`${postHref}#comments`} onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/40 hover:text-amber-200"><MessageCircle size={14} /> {post.commentCount}</Link>
-        <button type="button" onClick={() => void sharePost()} disabled={shareBusy} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/40 hover:text-amber-200 disabled:cursor-wait disabled:opacity-50"><Share2 size={14} /> {post.shareCount > 0 ? post.shareCount : 'Share'}</button>
+        <button type="button" onClick={() => void sharePost()} disabled={shareBusy} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black text-slate-400 transition hover:border-amber-200/40 hover:text-amber-200 disabled:cursor-wait disabled:opacity-50"><Share2 size={14} /> {post.shareCount}</button>
         {!session ? <span className="ml-auto text-[0.68rem] font-semibold text-slate-600">Sign in to react</span> : null}
       </div>
     </article>

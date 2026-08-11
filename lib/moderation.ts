@@ -1,5 +1,4 @@
 import type { User } from '@supabase/supabase-js';
-import { randomUUID } from 'crypto';
 import { sanitizeChatMessage } from '@/lib/chat-filter';
 import { sendFriendMessage } from '@/lib/friends';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -45,6 +44,7 @@ const MAX_MODERATION_SEARCH_RESULTS = 12;
 const MAX_CONTACT_SUBMISSIONS = 25;
 const ONLINE_WINDOW_MS = 20 * 1000;
 export type ModerationTicketStatus = 'open' | 'closed' | 'archived';
+export type ProfileAdminAction = 'ban' | 'unban' | 'unlink_discord' | 'unlink_riot' | 'reset_stats' | 'grant_achievement' | 'revoke_achievement' | 'reset_achievements';
 
 function parseAllowlist(value?: string) {
   return new Set(
@@ -185,7 +185,27 @@ export async function setStoredModeratorRole(targetUserId: string, role: StoredA
   }
 }
 
-export async function setUserBanState(targetUserId: string, banned: boolean) {
+export async function recordProfileAdminAction(
+  staffUserId: string,
+  targetUserId: string,
+  action: ProfileAdminAction,
+  reason = '',
+  metadata: Record<string, unknown> = {},
+) {
+  const { error } = await getSupabaseServiceClient()
+    .from('profile_admin_actions')
+    .insert({
+      staff_user_id: staffUserId,
+      target_user_id: targetUserId,
+      action,
+      reason: reason.trim().slice(0, 500),
+      metadata,
+    });
+
+  if (error) throw error;
+}
+
+export async function setUserBanState(targetUserId: string, banned: boolean, staffUserId?: string, reason = 'Moderation action') {
   if (isAdminUserId(targetUserId)) {
     throw new Error('Admin accounts cannot be banned from moderation tools.');
   }
@@ -196,6 +216,9 @@ export async function setUserBanState(targetUserId: string, banned: boolean) {
     .eq('id', targetUserId);
 
   if (error) throw error;
+  if (staffUserId) {
+    await recordProfileAdminAction(staffUserId, targetUserId, banned ? 'ban' : 'unban', reason);
+  }
 }
 
 export async function forceUserLogout(targetUserId: string) {
@@ -203,10 +226,10 @@ export async function forceUserLogout(targetUserId: string) {
     throw new Error('Admin accounts cannot be logged out from moderation tools.');
   }
 
+  const now = new Date().toISOString();
   const { error } = await getSupabaseServiceClient()
-    .from('profiles')
-    .update({ active_session_id: randomUUID(), updated_at: new Date().toISOString() })
-    .eq('id', targetUserId);
+    .from('auth_session_controls')
+    .upsert({ user_id: targetUserId, sessions_revoked_at: now, updated_at: now }, { onConflict: 'user_id' });
 
   if (error) throw error;
 }

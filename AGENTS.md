@@ -24,6 +24,8 @@
 
 ## Global Conventions
 - Keep changes scoped and follow existing App Router and Tailwind patterns.
+- For every impactful patch, append a staff changelog entry to `lib/staff-changelog.ts` in the same change. Entries must be overly specific: use a unique patch ID, the UTC ISO 8601 time the patch was made, a concise title and summary, exact behavior/data/security/operational changes, user and staff impact, affected file paths, and verification performed. Do not log routine formatting-only edits, and never include secrets or sensitive user data.
+- Every `app/api` handler must be exported through `withApiMetrics` from `lib/api-metrics.ts` using a static route template; represent dynamic segments with their Next.js `[param]` names. API telemetry must remain aggregate-only and must never store request bodies, query values, headers, tokens, IP addresses, user IDs, or raw dynamic identifiers.
 - Use TypeScript types and existing `@/components/*` and `@/lib/*` aliases.
 - Preserve established game behavior and visual consistency unless the request changes it.
 - Use generated local catalogues during gameplay; do not fetch full Riot or CommunityDragon datasets at runtime.

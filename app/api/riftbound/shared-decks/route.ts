@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
@@ -21,7 +22,7 @@ type SharedDeckBody = {
   cards?: unknown;
 };
 
-export async function POST(request: Request) {
+export const POST = withApiMetrics('/api/riftbound/shared-decks', async function POST(request: Request) {
   try {
     const ownerId = await getOptionalAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -50,4 +51,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

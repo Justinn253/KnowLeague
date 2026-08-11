@@ -16,6 +16,20 @@ import { invalidateRiftboundBootstrap, invalidateRiftboundLatestPrices } from '@
 
 type ErrorPayload = { error?: string };
 
+export class RiftboundRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'RiftboundRequestError';
+    this.status = status;
+  }
+}
+
+export function isRiftboundRateLimitError(error: unknown) {
+  return error instanceof RiftboundRequestError && error.status === 429;
+}
+
 const inFlightGets = new Map<string, Promise<unknown>>();
 const responseCache = new Map<string, { value: unknown; expiresAt: number }>();
 const preferenceCache = new Map<string, { value: RiftboundCardPreferences; expiresAt: number }>();
@@ -25,6 +39,37 @@ const RIFTBOUND_POST_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_COMMENTS_CACHE_TTL_MS = 20_000;
 const RIFTBOUND_SHARED_DECK_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_RESPONSE_CACHE_MAX_ENTRIES = 100;
+const RIFTBOUND_SHARED_POSTS_STORAGE_KEY = 'knowleague:v1:riftbound:shared-posts';
+const RIFTBOUND_SHARED_POSTS_STORAGE_LIMIT = 500;
+
+function getRiftboundSharedPostKeys() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const value = JSON.parse(window.localStorage.getItem(RIFTBOUND_SHARED_POSTS_STORAGE_KEY) ?? '[]');
+    return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value as string[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function getRiftboundSharedPostKey(postId: string, userId: string) {
+  return `${userId}:${postId}`;
+}
+
+export function hasRiftboundPostBeenShared(postId: string, userId: string) {
+  return getRiftboundSharedPostKeys().includes(getRiftboundSharedPostKey(postId, userId));
+}
+
+export function markRiftboundPostShared(postId: string, userId: string) {
+  if (typeof window === 'undefined') return;
+  const key = getRiftboundSharedPostKey(postId, userId);
+  const nextKeys = [...getRiftboundSharedPostKeys().filter((value) => value !== key), key].slice(-RIFTBOUND_SHARED_POSTS_STORAGE_LIMIT);
+  try {
+    window.localStorage.setItem(RIFTBOUND_SHARED_POSTS_STORAGE_KEY, JSON.stringify(nextKeys));
+  } catch {
+    // Local persistence is only an optimization; the server remains authoritative.
+  }
+}
 
 async function getCurrentSession() {
   const supabase = getOptionalSupabaseClient();
@@ -39,7 +84,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}, session?: Ses
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   const response = await fetch(url, { ...init, headers, cache: init.cache ?? 'no-store' });
   const data = await response.json() as T & ErrorPayload;
-  if (!response.ok) throw new Error(data.error || 'Unable to complete the Riftbound request.');
+  if (!response.ok) throw new RiftboundRequestError(data.error || 'Unable to complete the Riftbound request.', response.status);
   return data;
 }
 
@@ -218,8 +263,8 @@ export function updateRiftboundPostReaction(postId: string, reaction: 'like' | '
   });
 }
 
-export function recordRiftboundPostShare(postId: string) {
-  return requestJson<{ shareCount: number }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/share`, { method: 'POST' }, null).then((result) => {
+export function recordRiftboundPostShare(postId: string, session: Session) {
+  return requestJson<{ shareCount: number; recorded: boolean }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/share`, { method: 'POST' }, session).then((result) => {
     invalidateCommunityCache(postId);
     return result;
   });

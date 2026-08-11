@@ -25,7 +25,7 @@ import { MultiplayerDisconnectStatus, ReconnectButton, type ReconnectCandidate }
 import { useMultiplayerAuthTransition } from '@/components/use-multiplayer-auth-transition';
 import { useMultiplayerHeartbeat } from '@/components/use-multiplayer-heartbeat';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
-import { getOrCreateClientId } from '@/lib/game-storage';
+import { getOrCreateClientId, recordAppWin } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
 import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { normalizeAnswer } from '@/lib/quiz';
@@ -33,6 +33,7 @@ import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevela
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
+import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achievement-client';
 import {
   canActivateCarvingRevelationPowerUp,
   CARVING_REVELATION_POWER_UP_DEFINITIONS,
@@ -815,6 +816,7 @@ export function CarvingRevelation() {
   const finishSoundLobbyIdRef = useRef<string | null>(null);
   const guessOutcomeSoundIdsRef = useRef<Set<number>>(new Set());
   const guessOutcomeLobbyIdRef = useRef<string | null>(null);
+  const carvingAchievementSubmissionRef = useRef<{ lobbyId: string | null; events: Set<string> }>({ lobbyId: null, events: new Set() });
   const powerUpClaimsSnapshotRef = useRef<{ lobbyId: string; roundNumber: number; phase: 'carve' | 'guess'; ids: Set<string> } | null>(null);
   const pendingAcquiredPowerUpIdsRef = useRef<{ lobbyId: string; roundNumber: number; ids: Set<string> } | null>(null);
   const previousRosterSnapshotRef = useRef<{ hostId: string | null; roles: Map<string, string>; playerIds: Set<string> } | null>(null);
@@ -845,6 +847,30 @@ export function CarvingRevelation() {
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [powerUpMenuOpen, setPowerUpMenuOpen] = useState(false);
   const [acquiredPowerUpNotice, setAcquiredPowerUpNotice] = useState<{ names: string[] } | null>(null);
+
+  const submitCarvingAchievement = useCallback((
+    event: Parameters<typeof submitAchievementEvent>[0],
+    lobbyId: string,
+    metadata: Record<string, unknown> = {},
+  ) => {
+    const submissionState = carvingAchievementSubmissionRef.current;
+    if (submissionState.lobbyId !== lobbyId) {
+      submissionState.lobbyId = lobbyId;
+      submissionState.events.clear();
+    }
+    if (submissionState.events.has(event)) {
+      return;
+    }
+
+    submissionState.events.add(event);
+    void submitAchievementEvent(event, { lobbyCode: lobbyId, ...metadata })
+      .then((result) => {
+        if (!result) submissionState.events.delete(event);
+      })
+      .catch(() => {
+        submissionState.events.delete(event);
+      });
+  }, []);
 
   const clearTransientState = useCallback(() => {
     setMessage('');
@@ -1589,6 +1615,21 @@ export function CarvingRevelation() {
 
     finishSoundLobbyIdRef.current = view.lobby.id;
     playUiSound(view.requestingPlayer?.result === 'won' ? 'puzzle-complete' : 'timer-expired');
+    if (view.requestingPlayer) {
+      if (view.requestingPlayer.result === 'won') {
+        recordAppWin(`carving-revelation:${view.lobby.id}:${view.requestingPlayer.id}`);
+      }
+      void submitAchievementEvents([
+        {
+          event: 'multiplayer_result',
+          metadata: {
+            gameId: 'carving-revelation',
+            result: view.requestingPlayer.result === 'won' ? 'win' : 'loss',
+          },
+        },
+        { event: 'developer_moment', metadata: { gameId: 'carving-revelation', lobbyCode: view.lobby.code } },
+      ]);
+    }
   }, [view]);
 
   useEffect(() => {
@@ -1890,6 +1931,7 @@ export function CarvingRevelation() {
 
   const submitGuessValue = async (guessValue: string) => {
     if (!clientId || !view || !canGuess) return;
+    const guessTurn = view.actions.filter((action) => action.action_type === 'guess' && action.player_id === view.requestingPlayer?.id).length + 1;
     setBusy(true);
     setMessage('');
     try {
@@ -1898,7 +1940,26 @@ export function CarvingRevelation() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, guess: guessValue }),
       });
-      applyActionResponse(await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response));
+      const actionResponse = await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response);
+      let submittedAction: CarvingRevelationAction | undefined;
+      if (isCarvingRoutineActionResponse(actionResponse)) {
+        if (actionResponse.kind === 'submission_status') {
+          submittedAction = actionResponse.action;
+        }
+      } else {
+        submittedAction = actionResponse.actions.find((action) => action.action_type === 'guess' && action.player_id === view.requestingPlayer?.id && action.round_number === view.lobby.round_number);
+      }
+      const guessWasCorrect = submittedAction?.payload.correct === true;
+      applyActionResponse(actionResponse);
+      if (guessWasCorrect) {
+        submitCarvingAchievement('carving_revelation_correct_guess', view.lobby.id, { lobbyCode: view.lobby.code });
+        if (guessTurn <= 2) {
+          submitCarvingAchievement('carving_revelation_early_correct_guess', view.lobby.id, {
+            lobbyCode: view.lobby.code,
+            guessTurn,
+          });
+        }
+      }
       setGuess('');
       setSuggestions([]);
     } catch (error) {
@@ -1932,7 +1993,33 @@ export function CarvingRevelation() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, points }),
       });
-      applyActionResponse(await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response));
+      const actionResponse = await readLobbyResponse<CarvingRevelationLobbyView | CarvingRevelationRoutineActionResponse>(response);
+      const submittedAction = isCarvingRoutineActionResponse(actionResponse)
+        ? actionResponse.kind === 'submission_status' ? actionResponse.action : undefined
+        : actionResponse.actions.find((action) => (
+          action.action_type === 'draw' &&
+          action.player_id === view.requestingPlayer?.id &&
+          action.round_number === view.lobby.round_number
+        ));
+      const drawPayload = submittedAction?.payload;
+      const claimedPowerUpIds = Array.isArray(drawPayload?.claimedPowerUpIds)
+        ? (drawPayload.claimedPowerUpIds as unknown[]).filter((id: unknown): id is string => typeof id === 'string')
+        : [];
+      const reachedMaximum = typeof drawPayload?.length === 'number'
+        && typeof drawPayload.lineLengthLimit === 'number'
+        && drawPayload.length >= drawPayload.lineLengthLimit - 0.01;
+      if (reachedMaximum) {
+        submitCarvingAchievement('carving_revelation_max_line', view.lobby.id, { lobbyCode: view.lobby.code });
+      }
+      if (claimedPowerUpIds.length > 0) {
+        submitCarvingAchievement('carving_revelation_power_up_claimed', view.lobby.id, { lobbyCode: view.lobby.code });
+      }
+      const conflictedPowerUp = !isCarvingRoutineActionResponse(actionResponse)
+        && claimedPowerUpIds.some((powerUpId) => actionResponse.powerUps.some((powerUp) => powerUp.id === powerUpId && powerUp.conflicted));
+      if (conflictedPowerUp) {
+        submitCarvingAchievement('carving_revelation_power_up_conflict', view.lobby.id, { lobbyCode: view.lobby.code });
+      }
+      applyActionResponse(actionResponse);
       setConfirmedCarvePath(points);
       setDraftPath([]);
       setIsDrawing(false);
@@ -1942,7 +2029,7 @@ export function CarvingRevelation() {
     } finally {
       setBusy(false);
     }
-  }, [applyActionResponse, canCarve, clientId, view]);
+  }, [applyActionResponse, canCarve, clientId, submitCarvingAchievement, view]);
 
   const activatePowerUp = async (powerUpId: string) => {
     if (!clientId || !view || !activatablePowerUps.some((powerUp) => powerUp.id === powerUpId)) return;
@@ -1956,12 +2043,13 @@ export function CarvingRevelation() {
         body: JSON.stringify({ clientId, powerUpId }),
       });
       applyView(await readLobbyResponse(response));
+      submitCarvingAchievement('carving_revelation_power_up_used', view.lobby.id, { lobbyCode: view.lobby.code });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to use power up.');
     } finally {
       setBusy(false);
     }
-  };
+    };
 
   const cancelPowerUp = async (powerUpId: string) => {
     if (!clientId || !view || ![...pendingPowerUpIdsByKind.values()].includes(powerUpId)) return;

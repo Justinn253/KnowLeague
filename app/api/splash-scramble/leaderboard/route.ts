@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getAuthenticatedUserId, getOptionalAuthenticatedUserId } from '@/lib/auth-server';
@@ -17,7 +18,7 @@ function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withApiMetrics('/api/splash-scramble/leaderboard', async function GET(request: NextRequest) {
   try {
     const userId = await getOptionalAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -31,9 +32,9 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withApiMetrics('/api/splash-scramble/leaderboard', async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -57,4 +58,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

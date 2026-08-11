@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
@@ -7,7 +8,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request, { params }: { params: { username: string } }) {
+export const GET = withApiMetrics('/api/riftbound/profiles/[username]', async function GET(request: Request, { params }: { params: { username: string } }) {
   try {
     const rateLimitResponse = await enforceApiRateLimit(request, {
       scope: 'riftbound-profile',
@@ -26,4 +27,4 @@ export async function GET(request: Request, { params }: { params: { username: st
   } catch (error) {
     return getRouteErrorResponse(error);
   }
-}
+});

@@ -1,12 +1,11 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, Mail, Shield, UserPlus } from 'lucide-react';
+import { ArrowLeft, Chrome, Eye, EyeOff, Mail, Shield, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isValidPassword, PasswordRequirements } from '@/components/password-requirements';
 import { TurnstileChallenge, isTurnstileClientEnabled } from '@/components/turnstile-challenge';
-import { getAuthSessionId } from '@/lib/auth-session';
 import {
   EMAIL_DELIVERY_COOLDOWN_MS,
   getEmailDeliveryCooldownSeconds,
@@ -45,6 +44,12 @@ export function AuthScreen() {
   const [emailDeliveryCooldownNow, setEmailDeliveryCooldownNow] = useState(() => Date.now());
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('mode') === 'signup') {
+      setMode('signup');
+    }
+  }, []);
 
   const title = useMemo(() => {
     if (mode === 'signup') {
@@ -130,19 +135,27 @@ export function AuthScreen() {
     return () => window.clearTimeout(timeout);
   }, [mode, username]);
 
-  const activateSession = async (accessToken: string, userId: string) => {
+  const continueWithGoogle = async () => {
     const supabase = getOptionalSupabaseClient();
-    if (!supabase) throw new Error('Supabase auth is not configured.');
-    const sessionId = getAuthSessionId(accessToken);
-    if (!sessionId) throw new Error('Unable to identify the authenticated session.');
+    setMessage('');
 
-    const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' });
-    if (signOutError) throw signOutError;
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ active_session_id: sessionId })
-      .eq('id', userId);
-    if (profileError) throw profileError;
+    if (!supabase) {
+      setMessage('Supabase auth is not configured.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await forfeitStoredMultiplayerSessions();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: getAuthRedirectUrl('/') },
+      });
+      if (error) throw error;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to continue with Google.');
+      setBusy(false);
+    }
   };
 
   const requestEmailDelivery = useCallback(async (type: EmailDelivery['type'], targetEmail: string) => {
@@ -248,7 +261,6 @@ export function AuthScreen() {
             refresh_token: payload.session.refreshToken,
           });
           if (sessionError) throw sessionError;
-          await activateSession(payload.session.accessToken, payload.session.userId);
           await forfeitStoredMultiplayerSessions();
           setEmail('');
           setUsername('');
@@ -273,7 +285,7 @@ export function AuthScreen() {
         return;
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -282,7 +294,6 @@ export function AuthScreen() {
         throw error;
       }
 
-      await activateSession(data.session.access_token, data.session.user.id);
       await forfeitStoredMultiplayerSessions();
       setEmail('');
       setUsername('');
@@ -459,6 +470,28 @@ export function AuthScreen() {
               {busy ? 'Working' : mode === 'signup' ? 'Create Account' : mode === 'password' ? 'Send Reset Email' : 'Login'}
             </button>
           </form>
+
+          {mode !== 'password' ? (
+            <div className="mt-5 grid gap-3">
+              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                <span className="h-px flex-1 bg-white/10" />
+                <span>Or continue with</span>
+                <span className="h-px flex-1 bg-white/10" />
+              </div>
+              <button
+                type="button"
+                onClick={() => void continueWithGoogle()}
+                disabled={busy}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-slate-950 px-5 text-sm font-bold text-white transition hover:border-white/25 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Chrome size={18} />
+                Continue with Google
+              </button>
+              <p className="text-center text-xs font-semibold leading-5 text-slate-500">
+                Google sign-in uses your Google account and does not require a KnowLeague password.
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-5 grid gap-3">
             {mode !== 'signup' ? (

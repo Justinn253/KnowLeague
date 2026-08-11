@@ -1,3 +1,4 @@
+import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import {
   getPlaceholderMultiplayerPlayerCounts,
@@ -8,7 +9,7 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export const GET = withApiMetrics('/api/multiplayer/player-counts', async function GET() {
   const enabled = isMultiplayerPlayerCountsEnabled();
   const payload: MultiplayerPlayerCountsPayload = {
     enabled,
@@ -20,4 +21,4 @@ export async function GET() {
   return NextResponse.json(payload, {
     headers: { 'Cache-Control': 'no-store' },
   });
-}
+});

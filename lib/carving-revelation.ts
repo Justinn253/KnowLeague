@@ -9,6 +9,7 @@ import { forfeitOutstandingReconnects } from '@/lib/multiplayer-reconnect';
 import {
   addMultiplayerLobbyEvent,
   assertMultiplayerAccountAvailable,
+  assertMultiplayerAccountNotBanned,
   assertMultiplayerHost,
   assertSupabaseConfigured,
   generateMultiplayerLobbyCode,
@@ -1304,6 +1305,7 @@ async function insertPlayer(lobby: CarvingRevelationLobby, input: CreateOrJoinIn
 
 export async function createCarvingRevelationLobby(input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await assertMultiplayerAccountNotBanned(input.authUserId);
   await forfeitOutstandingReconnects(input.clientId);
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const { data: lobby, error } = await getSupabaseServiceClient()
@@ -1333,6 +1335,7 @@ export async function createCarvingRevelationLobby(input: CreateOrJoinInput) {
 
 export async function joinCarvingRevelationLobby(code: string, input: CreateOrJoinInput) {
   assertSupabaseConfigured();
+  await assertMultiplayerAccountNotBanned(input.authUserId);
   const fetchedLobby = await fetchLobby(code);
   if (!fetchedLobby || fetchedLobby.status === 'terminated') {
     throw new Error('Lobby not found.');

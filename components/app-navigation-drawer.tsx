@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowRight, BarChart3, Menu, Package, UserCircle, Users, X } from 'lucide-react';
+import { ArrowRight, BarChart3, FileText, Menu, Package, TrendingUp, UserCircle, Users, X } from 'lucide-react';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { GAME_NAVIGATION_ITEMS } from '@/lib/game-navigation';
@@ -128,6 +128,20 @@ export function AppNavigationDrawer({
                       <BarChart3 size={18} />
                     </span>
                     <span className="min-w-0 flex-1 text-sm font-black">League Account Viewer</span>
+                    <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
+                  </Link>
+                  <Link href="/riot-account-viewer/popular" onClick={closeDrawer} className={menuItemClass}>
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200/25 bg-amber-300 text-slate-950">
+                      <TrendingUp size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1 text-sm font-black">Most Popular Accounts</span>
+                    <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
+                  </Link>
+                  <Link href="/riot-account-viewer/patch-notes" onClick={closeDrawer} className={menuItemClass}>
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300 text-slate-950">
+                      <FileText size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1 text-sm font-black">League Patch Notes</span>
                     <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
                   </Link>
                 </div>

@@ -18,6 +18,7 @@ import {
   Package,
   Search,
   Trophy,
+  TrendingUp,
   UserCircle,
   UserCog,
   Users,
@@ -483,6 +484,22 @@ function LavMenu() {
             iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
             onSelect={closeMenu}
           />
+          <HeaderMenuLink
+            href="/riot-account-viewer/popular"
+            label="Most Popular Accounts"
+            description="Top searched accounts"
+            icon={TrendingUp}
+            iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
+            onSelect={closeMenu}
+          />
+          <HeaderMenuLink
+            href="/riot-account-viewer/patch-notes"
+            label="Patch Notes"
+            description="Latest League updates"
+            icon={FileText}
+            iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
+            onSelect={closeMenu}
+          />
           {masteryMasterGame ? (
             <HeaderMenuLink
               href={masteryMasterGame.href}
@@ -724,6 +741,22 @@ function MobileHeaderMenu({
                 label="Search account"
                 description="League Account Viewer"
                 icon={Search}
+                iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
+                onSelect={closeMenu}
+              />
+              <HeaderMenuLink
+                href="/riot-account-viewer/popular"
+                label="Most Popular Accounts"
+                description="Top searched accounts"
+                icon={TrendingUp}
+                iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
+                onSelect={closeMenu}
+              />
+              <HeaderMenuLink
+                href="/riot-account-viewer/patch-notes"
+                label="Patch Notes"
+                description="Latest League updates"
+                icon={FileText}
                 iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
                 onSelect={closeMenu}
               />

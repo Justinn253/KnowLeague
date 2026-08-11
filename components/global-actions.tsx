@@ -1,30 +1,52 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { AchievementToasts } from '@/components/achievement-toasts';
 import { CumulativeAchievementTracker } from '@/components/cumulative-achievement-tracker';
 import { AppHeader } from '@/components/app-header';
 import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
-import { submitAchievementEvent } from '@/lib/achievement-client';
+import { submitAchievementEvent, toAchievementNotification } from '@/lib/achievement-client';
 import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
+import { consumeAuthReturnPath, rememberAuthReturnPath } from '@/lib/auth-redirect';
 import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { AppRole } from '@/lib/moderation';
 
-export function GlobalActions() {
+function dispatchAchievementNotification(row: unknown) {
+  const achievement = toAchievementNotification(row as Parameters<typeof toAchievementNotification>[0]);
+  if (!achievement) {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent('knowleague:achievement-completed', {
+    detail: { achievements: [achievement] },
+  }));
+}
+
+export function GlobalActions({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [profileAway, setProfileAway] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
   const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
   const activeSessionRef = useRef<Session | null>(null);
   const profileAppRoleRef = useRef<string | null>(null);
+  const pathnameRef = useRef(pathname);
+
+  pathnameRef.current = pathname;
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      rememberAuthReturnPath(pathname, window.location.search, window.location.hash);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     const handleOwnPresence = (event: Event) => {
@@ -190,11 +212,33 @@ export function GlobalActions() {
           profileAppRoleRef.current = nextProfile.app_role ?? profileAppRoleRef.current;
           void updateProfileAction(activeSession, true, roleChanged);
         })
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'user_achievements',
+          filter: `user_id=eq.${userId}`,
+        }, (payload) => {
+          dispatchAchievementNotification(payload.new);
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'user_achievements',
+          filter: `user_id=eq.${userId}`,
+        }, (payload) => {
+          dispatchAchievementNotification(payload.new);
+        })
         .subscribe();
     };
 
     const unsubscribeFromAuthSession = subscribeToAuthSession((session, event) => {
       activeSessionRef.current = session;
+      setAuthResolved(true);
+      if (event === 'SIGNED_IN' && pathnameRef.current !== '/login') {
+        // A direct OAuth callback can land on the requested page. Clear the
+        // one-shot return path there; password flows consume it themselves.
+        consumeAuthReturnPath();
+      }
       updateSessionValidation(session);
       replaceProfileSubscription(session);
       if (event === 'SIGNED_IN' && session) {
@@ -216,6 +260,16 @@ export function GlobalActions() {
     };
   }, [router]);
 
+  if (!authResolved) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
+        <div role="status" className="rounded-2xl border border-white/10 bg-slate-900/80 px-5 py-4 text-sm font-semibold text-slate-300">
+          Loading KnowLeague...
+        </div>
+      </main>
+    );
+  }
+
   return (
     <>
       <PlayerGameStatsSync />
@@ -235,6 +289,7 @@ export function GlobalActions() {
       <div className="fixed bottom-3 right-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-end gap-2 sm:bottom-5 sm:right-5 sm:gap-3">
         <AchievementToasts profileUsername={profileUsername} />
       </div>
+      {children}
     </>
   );
 }

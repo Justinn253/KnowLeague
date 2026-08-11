@@ -37,8 +37,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="flex min-h-screen flex-col">
-        <GlobalActions />
-        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        <GlobalActions>
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        </GlobalActions>
         <SiteStructuredData />
         <SiteFooter />
       </body>

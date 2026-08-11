@@ -1,4 +1,4 @@
-import type { AchievementEventName, AchievementEventResult, AchievementEventSubmission, CumulativeAchievementId } from '@/lib/achievements';
+import { ACHIEVEMENT_BY_ID, maskAchievement, type AchievementEventName, type AchievementEventResult, type AchievementEventSubmission, type AchievementListItem, type CumulativeAchievementId } from '@/lib/achievements';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 const inFlightEvents = new Map<string, Promise<AchievementEventResult | null>>();
@@ -11,6 +11,35 @@ export type CumulativeAchievementUpdate = {
   progress: number;
   sessionId?: string;
 };
+
+export type AchievementRealtimeRow = {
+  achievement_id?: unknown;
+  progress_current?: unknown;
+  progress_target?: unknown;
+  completed_at?: unknown;
+  updated_at?: unknown;
+};
+
+export function toAchievementNotification(row: AchievementRealtimeRow): AchievementListItem | null {
+  const achievementId = typeof row.achievement_id === 'string' ? row.achievement_id : '';
+  const completedAt = typeof row.completed_at === 'string' ? row.completed_at : null;
+  const achievement = ACHIEVEMENT_BY_ID.get(achievementId);
+  if (!achievement || !completedAt) {
+    return null;
+  }
+
+  return {
+    ...achievement,
+    progressCurrent: typeof row.progress_current === 'number' ? row.progress_current : achievement.target,
+    progressTarget: typeof row.progress_target === 'number' ? row.progress_target : achievement.target,
+    completedAt,
+    updatedAt: typeof row.updated_at === 'string' ? row.updated_at : completedAt,
+    globalCompletedCount: 0,
+    completionRank: null,
+    completionPercent: null,
+    ...maskAchievement(achievement, completedAt),
+  };
+}
 
 type SubmitAchievementEventOptions = {
   includeAchievements?: boolean;

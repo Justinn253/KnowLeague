@@ -11,6 +11,7 @@ import {
   getEmailDeliveryCooldownSeconds,
 } from '@/lib/email-delivery-policy';
 import { forfeitStoredMultiplayerSessions } from '@/lib/multiplayer-client-session';
+import { consumeAuthReturnPath, peekAuthReturnPath } from '@/lib/auth-redirect';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type AuthMode = 'login' | 'signup' | 'password';
@@ -149,7 +150,7 @@ export function AuthScreen() {
       await forfeitStoredMultiplayerSessions();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: getAuthRedirectUrl('/') },
+        options: { redirectTo: getAuthRedirectUrl(peekAuthReturnPath() ?? '/') },
       });
       if (error) throw error;
     } catch (error) {
@@ -242,7 +243,7 @@ export function AuthScreen() {
             email: email.trim(),
             password,
             username: cleanUsername,
-            emailRedirectTo: getAuthRedirectUrl('/'),
+            emailRedirectTo: getAuthRedirectUrl(peekAuthReturnPath() ?? '/'),
             turnstileToken,
           }),
         });
@@ -266,7 +267,7 @@ export function AuthScreen() {
           setUsername('');
           setPassword('');
           setConfirmPassword('');
-          router.push('/');
+          router.replace(consumeAuthReturnPath());
           return;
         }
 
@@ -299,7 +300,7 @@ export function AuthScreen() {
       setUsername('');
       setPassword('');
       setConfirmPassword('');
-      router.push('/');
+      router.replace(consumeAuthReturnPath());
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Authentication failed.');
     } finally {

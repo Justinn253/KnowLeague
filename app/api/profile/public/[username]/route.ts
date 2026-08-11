@@ -164,7 +164,7 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
 
     const [privateDetails, relationshipDetails, achievements, moderationProfile] = await Promise.all([
       fetchPrivateDetails(profile.id),
-      viewerId ? getFriendRelationshipDetails(viewerId, profile.id) : { relationship: 'none' as const, friendNote: '', blocked: false },
+      viewerId ? getFriendRelationshipDetails(viewerId, profile.id) : { relationship: 'none' as const, friendNote: '', blocked: false, blockedByViewer: false },
       getUserAchievements(profile.id),
       viewerIsAdmin
         ? supabase.from('profiles').select('is_banned').eq('id', profile.id).maybeSingle<{ is_banned: boolean | null }>()
@@ -191,6 +191,7 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
         relationship: relationshipDetails.relationship,
         friend_note: relationshipDetails.friendNote,
         blocked: relationshipDetails.blocked,
+        blockedByViewer: relationshipDetails.blockedByViewer,
         ...(viewerIsAdmin ? { is_banned: Boolean(moderationProfile.data?.is_banned) } : {}),
       },
     });

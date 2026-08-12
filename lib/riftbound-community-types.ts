@@ -21,7 +21,7 @@ export const RIFTBOUND_POST_SORTS = [
 ] as const;
 export type RiftboundCommunityPostSort = typeof RIFTBOUND_POST_SORTS[number];
 
-export type RiftboundPostVisibility = 'public' | 'friends' | 'unlisted';
+export type RiftboundPostVisibility = 'public' | 'friends' | 'unlisted' | 'archived';
 export type RiftboundPostReaction = 'like' | 'dislike';
 
 export type RiftboundSharedDeckCategory = 'legend' | 'runes' | 'battlefields' | 'main' | 'sideboard';
@@ -73,6 +73,7 @@ export type RiftboundCommunityPostSummary = {
   title: string;
   body: string;
   visibility: RiftboundPostVisibility;
+  archivedByStaff: boolean;
   totalCardCount: number;
   totalCopyCount: number;
   totalValueCents: number;
@@ -167,6 +168,11 @@ export type RiftboundProfileData = {
     totalCopies: number;
     totalValueCents: number;
   };
+  prices: Record<string, {
+    normal: number | null;
+    foil: number | null;
+    updatedAt: string | null;
+  }>;
   sets: Array<RiftboundSet & RiftboundProfileSourceSummary>;
   decks: Array<RiftboundDeck & RiftboundProfileSourceSummary>;
   favoriteCardIds: string[];

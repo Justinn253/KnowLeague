@@ -1,8 +1,9 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
-import { getAuthenticatedUserId, getOptionalAuthenticatedUserId } from '@/lib/auth-server';
-import { deleteRiftboundPost, loadRiftboundPost, updateRiftboundPost } from '@/lib/riftbound-community';
+import { getAuthenticatedUser, getAuthenticatedUserId, getOptionalAuthenticatedUser } from '@/lib/auth-server';
+import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
+import { deleteRiftboundPost, loadRiftboundPost, setRiftboundPostArchiveState, updateRiftboundPost } from '@/lib/riftbound-community';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
@@ -16,8 +17,10 @@ export const GET = withApiMetrics('/api/riftbound/community/posts/[postId]', asy
       errorMessage: 'Too many community post requests. Please try again shortly.',
     });
     if (rateLimitResponse) return rateLimitResponse;
-    const viewerId = await getOptionalAuthenticatedUserId(request);
-    const post = await loadRiftboundPost(params.postId, viewerId);
+    const viewer = await getOptionalAuthenticatedUser(request);
+    const viewerId = viewer?.id ?? null;
+    const isStaff = viewer ? canAccessModeration(await getAuthenticatedAppRole(viewer)) : false;
+    const post = await loadRiftboundPost(params.postId, viewerId, isStaff);
     const response = NextResponse.json({ post });
     response.headers.set('Cache-Control', viewerId
       ? 'private, max-age=15, stale-while-revalidate=30'
@@ -31,7 +34,8 @@ export const GET = withApiMetrics('/api/riftbound/community/posts/[postId]', asy
 
 export const PATCH = withApiMetrics('/api/riftbound/community/posts/[postId]', async function PATCH(request: Request, { params }: { params: { postId: string } }) {
   try {
-    const userId = await getAuthenticatedUserId(request);
+    const user = await getAuthenticatedUser(request);
+    const userId = user.id;
     const rateLimitResponse = await enforceApiRateLimit(request, {
       scope: 'riftbound:community-post-update',
       ip: { limit: 30, windowMs: 60_000 },
@@ -39,7 +43,12 @@ export const PATCH = withApiMetrics('/api/riftbound/community/posts/[postId]', a
       errorMessage: 'Too many post updates. Please try again shortly.',
     });
     if (rateLimitResponse) return rateLimitResponse;
-    const body = await readJsonBody<{ title?: unknown; body?: unknown }>(request);
+    const body = await readJsonBody<{ action?: unknown; title?: unknown; body?: unknown }>(request);
+    if (body.action === 'archive' || body.action === 'unarchive') {
+      const isStaff = canAccessModeration(await getAuthenticatedAppRole(user));
+      const result = await setRiftboundPostArchiveState(params.postId, userId, body.action, isStaff);
+      return NextResponse.json({ archived: result.visibility === 'archived', visibility: result.visibility, archivedByStaff: result.archivedByStaff });
+    }
     const post = await updateRiftboundPost(params.postId, userId, body.title, body.body);
     return NextResponse.json({ post });
   } catch (error) {

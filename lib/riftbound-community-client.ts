@@ -253,6 +253,16 @@ export function deleteRiftboundCommunityPost(postId: string, session: Session) {
   });
 }
 
+export function setRiftboundCommunityPostArchiveState(postId: string, action: 'archive' | 'unarchive', session: Session) {
+  return requestJson<{ archived: boolean; visibility: 'public' | 'friends' | 'unlisted' | 'archived'; archivedByStaff: boolean }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ action }),
+  }, session).then((result) => {
+    invalidateCommunityCache(postId);
+    return result;
+  });
+}
+
 export function updateRiftboundPostReaction(postId: string, reaction: 'like' | 'dislike' | null, session: Session) {
   return requestJson<{ likeCount: number; dislikeCount: number; reaction: 'like' | 'dislike' | null }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/reaction`, {
     method: 'POST',

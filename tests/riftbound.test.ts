@@ -27,13 +27,14 @@ describe('Riftbound showcase classification', () => {
     expect(isRiftboundShowcasePrint({ collectorNumber: '001', printedTotal: 298 })).toBe(false);
   });
 
-  it('keeps a generated catalogue value during an all-null latest snapshot', () => {
+  it('treats an all-null latest snapshot as the current unavailable value', () => {
     const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === 'ven-012-166');
     expect(card).toBeTruthy();
 
     const merged = mergeRiftboundCardMarketPrices(card!, { normal: null, foil: null, updatedAt: '2026-08-03T00:00:00.000Z' });
-    expect(merged.marketPrices.normal).toBe(card!.marketPrices.normal);
-    expect(merged.marketPrices.foil).toBe(card!.marketPrices.foil);
+    expect(merged.marketPrices.normal).toBeNull();
+    expect(merged.marketPrices.foil).toBeNull();
+    expect(merged.marketPrices.updatedAt).toBe('2026-08-03T00:00:00.000Z');
   });
 
   it('includes fallback artwork for Vendetta showcase runes whose source image is pending', () => {

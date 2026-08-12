@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Award, BadgeCheck, Ellipsis, ExternalLink, Eye, Filter, Flag, Loader2, MessageCircle, Pencil, Save, Search, ShieldBan, Trophy, UserPlus, Users, X } from 'lucide-react';
+import { Award, BadgeCheck, Ellipsis, ExternalLink, Eye, Filter, Flag, Loader2, MessageCircle, Pencil, Save, Search, ShieldBan, Trophy, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { ACHIEVEMENT_GAME_OPTIONS, getAchievementGameLabel, getEarnedRewards, getRewardDescription, isUnachievedHiddenAchievement, maskAchievement, type AchievementListItem } from '@/lib/achievements';
 import { AppSelectMenu } from '@/components/app-select-menu';
@@ -39,6 +39,7 @@ type PublicProfileRecord = {
   relationship: FriendCandidate['relationship'];
   friend_note: string;
   blocked: boolean;
+  blockedByViewer: boolean;
   is_banned?: boolean;
 };
 
@@ -712,6 +713,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
   const [friendRequestBusy, setFriendRequestBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
+  const [blockedByViewer, setBlockedByViewer] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [adminBusy, setAdminBusy] = useState('');
@@ -798,6 +800,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
     setFriendNoteSaving(false);
     setFriendRequestBusy(false);
     setBlocked(false);
+    setBlockedByViewer(false);
     setBlockBusy(false);
     setProfileMenuOpen(false);
     setBanDialogOpen(false);
@@ -824,6 +827,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
           setFriendNote(cachedResponse.profile.friend_note ?? '');
           setFriendNoteDraft(cachedResponse.profile.friend_note ?? '');
           setBlocked(cachedResponse.profile.blocked === true);
+          setBlockedByViewer(cachedResponse.profile.blockedByViewer === true);
           setBusy(false);
           return;
         }
@@ -847,6 +851,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
           setFriendNote(data.profile.friend_note ?? '');
           setFriendNoteDraft(data.profile.friend_note ?? '');
           setBlocked(data.profile.blocked === true);
+          setBlockedByViewer(data.profile.blockedByViewer === true);
           if (data.viewer?.isOwner === true && session?.user.id === data.profile.id) {
             setCachedOwnerProfileResponse(data.profile.id, profileRouteKey, data);
           }
@@ -1014,6 +1019,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
       }
 
       setBlocked(true);
+      setBlockedByViewer(true);
       setRelationship('none');
       setFriendNote('');
       setFriendNoteDraft('');
@@ -1023,6 +1029,42 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
       window.dispatchEvent(new Event('knowleague:friends-refresh'));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to block this user.');
+    } finally {
+      setBlockBusy(false);
+    }
+  };
+
+  const unblockProfile = async () => {
+    if (!profile || !currentUserId || currentUserId === profile.id || blockBusy || !blockedByViewer) {
+      if (!currentUserId) {
+        setMessage('Login required to unblock users.');
+      }
+      return;
+    }
+
+    setBlockBusy(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      if (!authHeaders) {
+        throw new Error('Login required to unblock users.');
+      }
+      const response = await fetch(`/api/users/${profile.id}/block`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Unable to unblock this user.');
+      }
+
+      setBlocked(false);
+      setBlockedByViewer(false);
+      setRelationship('none');
+      setProfileMenuOpen(false);
+      setMessage('User unblocked.');
+      window.dispatchEvent(new Event('knowleague:friends-refresh'));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to unblock this user.');
     } finally {
       setBlockBusy(false);
     }
@@ -1140,13 +1182,6 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
       <section className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-12 lg:py-8">
         <header className="relative z-30 flex min-w-0 flex-col items-stretch gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-          <Link
-            href="/"
-            aria-label="Back to game hub"
-            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
-          >
-            <ArrowLeft size={20} />
-          </Link>
             <div className="grid min-w-0 gap-1">
               <h1 className="min-w-0 truncate text-lg font-semibold text-white sm:text-xl">
                 Profile{profile?.username ? (
@@ -1217,12 +1252,12 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
                   <div className="absolute right-0 top-full z-40 mt-2 grid w-52 gap-1 rounded-2xl border border-white/10 bg-slate-950 p-2">
                     <button
                       type="button"
-                      onClick={() => void blockProfile()}
-                      disabled={blocked || blockBusy}
+                      onClick={() => void (blockedByViewer ? unblockProfile() : blockProfile())}
+                      disabled={blockBusy || (blocked && !blockedByViewer)}
                       className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <ShieldBan size={16} />
-                      {blockBusy ? 'Blocking...' : blocked ? 'User Blocked' : 'Block User'}
+                      {blockBusy ? (blockedByViewer ? 'Unblocking...' : 'Blocking...') : blockedByViewer ? 'Unblock User' : blocked ? 'User Blocked' : 'Block User'}
                     </button>
                     <button
                       type="button"

@@ -4,6 +4,7 @@ import { createPageMetadata } from '@/lib/seo';
 
 type PageProps = {
   params: { postId: string };
+  searchParams?: { returnTo?: string | string[] };
 };
 
 export function generateMetadata({ params }: PageProps): Metadata {
@@ -15,6 +16,7 @@ export function generateMetadata({ params }: PageProps): Metadata {
   });
 }
 
-export default function RiftboundCommunityPostPage({ params }: PageProps) {
-  return <RiftboundCommunityPost postId={params.postId} />;
+export default function RiftboundCommunityPostPage({ params, searchParams }: PageProps) {
+  const returnTo = Array.isArray(searchParams?.returnTo) ? searchParams.returnTo[0] : searchParams?.returnTo;
+  return <RiftboundCommunityPost postId={params.postId} returnTo={returnTo} />;
 }

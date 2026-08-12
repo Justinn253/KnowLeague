@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, Ellipsis, ExternalLink, Loader2, Pencil, Save, Search, Send, ShieldBan, Star, StickyNote, Users, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, CircleSlash2, Ellipsis, ExternalLink, Loader2, Pencil, Save, Search, Send, ShieldBan, Star, StickyNote, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
@@ -41,6 +41,7 @@ type FriendSearchCandidate = {
   avatarUrl: string | null;
   chatColor: string;
   createdAt: string | null;
+  blocked: boolean;
   relationship: 'friend' | 'incoming' | 'outgoing' | 'none';
 };
 
@@ -253,9 +254,11 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [addFriendOpen, setAddFriendOpen] = useState(false);
+  const [requestsOpen, setRequestsOpen] = useState(false);
   const [addFriendSearchQuery, setAddFriendSearchQuery] = useState('');
   const [addFriendSearchResults, setAddFriendSearchResults] = useState<FriendSearchCandidate[]>([]);
   const [addFriendSearchLoading, setAddFriendSearchLoading] = useState(false);
+  const [incomingRequestActionId, setIncomingRequestActionId] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [contextFriend, setContextFriend] = useState<{ friend: FriendSummary; x: number; y: number } | null>(null);
   const [friendNoteDraft, setFriendNoteDraft] = useState('');
@@ -1064,6 +1067,43 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }
   };
 
+  const respondToIncomingRequest = async (request: IncomingRequest, action: 'accept' | 'decline') => {
+    if (incomingRequestActionId) {
+      return;
+    }
+
+    setIncomingRequestActionId(request.id);
+    try {
+      await fetchAuthedJson(`/api/friends/requests/${request.id}`, {
+        method: 'POST',
+        body: JSON.stringify({ action }),
+      });
+      setStatus(action === 'accept' ? 'Friend request accepted.' : 'Friend request declined.');
+      await refreshDashboard();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to respond to friend request.');
+    } finally {
+      setIncomingRequestActionId(null);
+    }
+  };
+
+  const blockIncomingRequest = async (request: IncomingRequest) => {
+    if (incomingRequestActionId) {
+      return;
+    }
+
+    setIncomingRequestActionId(request.id);
+    try {
+      await fetchAuthedJson(`/api/users/${request.requester.id}/block`, { method: 'POST' });
+      setStatus('User blocked.');
+      await refreshDashboard();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to block user.');
+    } finally {
+      setIncomingRequestActionId(null);
+    }
+  };
+
   const removeFriendCandidate = async (candidate: FriendSearchCandidate) => {
     if (!window.confirm(`Remove ${candidate.displayName} from your friends?`)) return;
     try {
@@ -1521,6 +1561,22 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                 <h2 className="mt-1 text-base font-bold text-white sm:text-lg">{totalFriendCount} friends · {onlineCount} online{awayCount > 0 ? ` · ${awayCount} away` : ''}</h2>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {dashboard && dashboard.incomingRequests.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRequestsOpen((value) => !value);
+                      setAddFriendOpen(false);
+                      setStatus('');
+                    }}
+                    className="relative inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 text-sm font-bold text-amber-100 transition hover:bg-amber-300/20"
+                  >
+                    Requests
+                    <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-black text-white">
+                      {dashboard.incomingRequests.length > 99 ? '99+' : dashboard.incomingRequests.length}
+                    </span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
@@ -1553,6 +1609,65 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
             </div>
 
             <div className="mt-4 grid gap-2">
+              {dashboard && dashboard.incomingRequests.length > 0 && requestsOpen ? (
+                <div className="grid gap-2 rounded-2xl border border-amber-300/25 bg-amber-300/5 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-200">Incoming Friend Requests</p>
+                  <div className="max-h-[min(18rem,calc(100dvh-14rem))] overflow-x-auto overflow-y-auto pr-1">
+                    <div className="grid gap-2">
+                      {dashboard.incomingRequests.map((request) => (
+                        <div key={request.id} className="flex min-w-max items-center justify-between gap-2 rounded-xl bg-slate-900 p-3">
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 bg-cover bg-center text-xs font-black text-amber-200"
+                              style={request.requester.avatarUrl ? { backgroundImage: `url(${request.requester.avatarUrl})` } : undefined}
+                            >
+                              {request.requester.avatarUrl ? null : request.requester.displayName.slice(0, 1).toUpperCase()}
+                            </span>
+                            <p className="max-w-48 truncate text-sm font-semibold" style={getChatNameStyle(request.requester.chatColor)}>{request.requester.displayName}</p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Link
+                              href={getPublicProfileHref(request.requester.username)}
+                              target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
+                              rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
+                              onClick={() => setIsOpen(false)}
+                              className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-800"
+                            >
+                              View
+                            </Link>
+                            <button
+                              type="button"
+                              disabled={Boolean(incomingRequestActionId)}
+                              onClick={() => void respondToIncomingRequest(request, 'accept')}
+                              className="rounded-xl bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              disabled={Boolean(incomingRequestActionId)}
+                              onClick={() => void respondToIncomingRequest(request, 'decline')}
+                              className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Decline
+                            </button>
+                            <button
+                              type="button"
+                              disabled={Boolean(incomingRequestActionId)}
+                              onClick={() => void blockIncomingRequest(request)}
+                              aria-label={`Block ${request.requester.displayName}`}
+                              className="inline-flex items-center justify-center gap-1 rounded-xl border border-red-300/30 bg-red-950/30 px-3 py-2 text-xs font-bold text-red-100 transition hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <ShieldBan size={14} />
+                              Block
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               {addFriendOpen ? (
                 <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
                   <div className="relative">
@@ -1595,7 +1710,10 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                             {candidate.avatarUrl ? null : candidate.displayName.slice(0, 1).toUpperCase()}
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-white" style={getChatNameStyle(candidate.chatColor)}>{candidate.displayName}</p>
+                            <div className="flex min-w-0 items-center gap-1">
+                              <p className="min-w-0 truncate text-sm font-semibold text-white" style={getChatNameStyle(candidate.chatColor)}>{candidate.displayName}</p>
+                              {candidate.blocked ? <CircleSlash2 size={15} className="shrink-0 text-red-300" aria-label="Blocked" /> : null}
+                            </div>
                             <p className="mt-0.5 truncate text-[0.68rem] text-slate-500">Joined {formatProfileDate(candidate.createdAt)}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
@@ -1608,7 +1726,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
                             >
                               View Profile
                             </Link>
-                            {candidate.relationship === 'friend' ? (
+                            {candidate.blocked ? (
+                              <span className="shrink-0 text-xs font-semibold text-red-200">Blocked</span>
+                            ) : candidate.relationship === 'friend' ? (
                               <button type="button" onClick={() => void removeFriendCandidate(candidate)} className="shrink-0 rounded-lg border border-red-300/35 bg-red-500/10 px-2.5 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/20">Remove Friend</button>
                             ) : candidate.relationship === 'incoming' ? (
                               <button type="button" onClick={() => void sendFriendCandidateRequest(candidate)} className="shrink-0 rounded-lg bg-emerald-400 px-2.5 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300">Accept</button>

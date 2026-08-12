@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass } from '@/lib/riftbound';
+import { getChatNameStyle } from '@/lib/chat-colors';
 import { hasRiftboundPostBeenShared, markRiftboundPostShared, recordRiftboundPostShare, updateRiftboundPostReaction } from '@/lib/riftbound-community-client';
 import type { RiftboundCommunityPostSummary, RiftboundPostReaction } from '@/lib/riftbound-community-types';
 
@@ -26,9 +27,10 @@ type RiftboundCommunityPostCardProps = {
   post: RiftboundCommunityPostSummary;
   session: Session | null;
   onPostChange?: (post: RiftboundCommunityPostSummary) => void;
+  openHref?: string;
 };
 
-export function RiftboundCommunityPostCard({ post, session, onPostChange }: RiftboundCommunityPostCardProps) {
+export function RiftboundCommunityPostCard({ post, session, onPostChange, openHref }: RiftboundCommunityPostCardProps) {
   const router = useRouter();
   const [shareBusy, setShareBusy] = useState(false);
   const shareBusyRef = useRef(false);
@@ -47,7 +49,8 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
     setLikeCount(post.likeCount);
     setDislikeCount(post.dislikeCount);
   }, [post.dislikeCount, post.likeCount, post.viewerReaction]);
-  const postHref = `/riftbound/community/${encodeURIComponent(post.id)}`;
+  const postHref = openHref ?? `/riftbound/community/${encodeURIComponent(post.id)}`;
+  const shareHref = `/riftbound/community/${encodeURIComponent(post.id)}`;
   const previewCards = post.previewCardIds.flatMap((cardId) => {
     const card = getRiftboundCardById(cardId);
     return card ? [card] : [];
@@ -103,7 +106,7 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
     }
 
     try {
-      const url = `${window.location.origin}${postHref}`;
+      const url = `${window.location.origin}${shareHref}`;
       if (navigator.share) await navigator.share({ title: post.title, text: post.body || post.title, url });
       else await navigator.clipboard.writeText(url);
     } catch {
@@ -136,10 +139,15 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange }: Rift
         <div className="min-w-0 flex-1">
           <Link href={postHref} className="block truncate text-xl font-black text-white hover:text-amber-200 sm:text-2xl">{post.title}</Link>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+            <Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} onClick={(event) => event.stopPropagation()} className="font-black hover:underline" style={getChatNameStyle(post.author.chatColor)}>{post.author.displayName || post.author.username}</Link>
+            <span aria-hidden="true">·</span>
             <span>{formatDate(post.createdAt)}</span>
           </p>
         </div>
-        <span className="shrink-0 rounded-lg border border-amber-200/20 bg-amber-300/10 px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-amber-200">{postTypeLabel(post.postType)}</span>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <span className="rounded-lg border border-amber-200/20 bg-amber-300/10 px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-amber-200">{postTypeLabel(post.postType)}</span>
+          {post.visibility === 'archived' ? <span className="rounded-lg border border-slate-400/30 bg-slate-500/15 px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-300">Archived</span> : null}
+        </div>
       </div>
 
       {post.body ? <p className="line-clamp-3 whitespace-pre-line text-sm leading-6 text-slate-300">{post.body}</p> : null}

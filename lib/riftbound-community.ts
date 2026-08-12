@@ -33,7 +33,9 @@ type PostRow = {
   post_type: RiftboundCommunityPostType;
   title: string;
   body: string;
-  visibility: 'public' | 'friends' | 'unlisted' | 'removed';
+  visibility: 'public' | 'friends' | 'unlisted' | 'archived' | 'removed';
+  archived_by_staff: boolean;
+  archived_from_visibility: 'public' | 'friends' | 'unlisted' | null;
   total_card_count: number;
   total_copy_count: number;
   total_value_cents: number | string;
@@ -444,7 +446,14 @@ function mapSummary(row: FeedRow, author?: RiftboundCommunityAuthor): RiftboundC
     postType: row.post_type,
     title: row.title,
     body: row.body,
-    visibility: row.visibility === 'friends' ? 'friends' : row.visibility === 'unlisted' ? 'unlisted' : 'public',
+    visibility: row.visibility === 'friends'
+      ? 'friends'
+      : row.visibility === 'unlisted'
+        ? 'unlisted'
+        : row.visibility === 'archived'
+          ? 'archived'
+          : 'public',
+    archivedByStaff: Boolean(row.archived_by_staff),
     totalCardCount: row.total_card_count,
     totalCopyCount: row.total_copy_count,
     totalValueCents: asNumber(row.total_value_cents),
@@ -470,7 +479,8 @@ function mapPostRow(row: PostRow, author: RiftboundCommunityAuthor, viewerReacti
   return mapSummary({ ...row, username: author.username, display_name: author.displayName, avatar_url: author.avatarUrl, chat_color: author.chatColor, viewer_reaction: viewerReaction, sort_value: 0 }, author);
 }
 
-async function canViewRiftboundPost(post: Pick<PostRow, 'author_id' | 'visibility'>, viewerId: string | null) {
+async function canViewRiftboundPost(post: Pick<PostRow, 'author_id' | 'visibility' | 'archived_by_staff'>, viewerId: string | null, allowArchived = false) {
+  if (post.visibility === 'archived') return allowArchived || post.author_id === viewerId;
   if (post.visibility === 'public' || post.visibility === 'unlisted') return true;
   if (post.visibility !== 'friends' || !viewerId) return false;
   if (post.author_id === viewerId) return true;
@@ -489,6 +499,7 @@ export async function loadRiftboundCommunityFeed(input: {
   battlefieldCardId: string | null;
   unitCardId: string | null;
   hasSideboard: boolean | null;
+  includeArchived?: boolean;
 }) {
   const { data, error } = await getSupabaseServiceClient()
     .rpc('get_riftbound_community_feed', {
@@ -509,12 +520,69 @@ export async function loadRiftboundCommunityFeed(input: {
   if (error) throw error;
 
   const rows = Array.isArray(data) ? data as unknown as FeedRow[] : [];
+  const visiblePosts = rows.map((row) => mapSummary(row));
+  const archivedPosts = input.includeArchived && !input.cursor
+    ? await loadArchivedRiftboundCommunityPosts(input)
+    : [];
+  const posts = [...visiblePosts, ...archivedPosts].sort((left, right) => {
+    if (input.sort === 'recent') return right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id);
+    return right.likeCount - left.likeCount || right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id);
+  }).slice(0, Math.max(1, Math.min(input.limit, 50)));
+
   return {
-    posts: rows.map((row) => mapSummary(row)),
+    posts,
     nextCursor: rows.length >= Math.min(input.limit, 50)
       ? encodeCursor({ value: asNumber(rows[rows.length - 1].sort_value), id: rows[rows.length - 1].id })
       : null,
   };
+}
+
+async function loadArchivedRiftboundCommunityPosts(input: {
+  sort: RiftboundCommunityPostSort;
+  limit: number;
+  viewerId: string | null;
+  postType: string | null;
+  setCode: string | null;
+  legendCardId: string | null;
+  championCardId: string | null;
+  battlefieldCardId: string | null;
+  unitCardId: string | null;
+  hasSideboard: boolean | null;
+}) {
+  const supabase = getSupabaseServiceClient();
+  let query = supabase
+    .from('riftbound_posts')
+    .select('id, author_id, snapshot_id, post_type, title, body, visibility, archived_by_staff, archived_from_visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at, shared_deck_id')
+    .eq('visibility', 'archived');
+  if (input.postType) query = query.eq('post_type', input.postType);
+  if (input.setCode) query = query.contains('set_codes', [input.setCode]);
+  if (input.legendCardId) query = query.eq('legend_card_id', input.legendCardId);
+  if (input.championCardId) query = query.contains('champion_card_ids', [input.championCardId]);
+  if (input.battlefieldCardId) query = query.contains('battlefield_card_ids', [input.battlefieldCardId]);
+  if (input.unitCardId) query = query.contains('unit_card_ids', [input.unitCardId]);
+  if (input.hasSideboard !== null) query = query.eq('has_sideboard', input.hasSideboard);
+  query = input.sort === 'recent'
+    ? query.order('created_at', { ascending: false }).order('id', { ascending: false })
+    : query.order('like_count', { ascending: false }).order('created_at', { ascending: false }).order('id', { ascending: false });
+
+  const { data, error } = await query.limit(Math.max(1, Math.min(input.limit, 50))).returns<PostRow[]>();
+  if (error) throw error;
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const authorIds = unique(rows.map((row) => row.author_id));
+  const [{ data: profiles, error: profilesError }, { data: reactions, error: reactionsError }] = await Promise.all([
+    supabase.from('profiles').select('id, username, display_name, avatar_url, chat_color').in('id', authorIds).returns<Array<{ id: string; username: string; display_name: string; avatar_url: string | null; chat_color: string | null }>>(),
+    input.viewerId
+      ? supabase.from('riftbound_post_reactions').select('post_id, reaction_type').eq('user_id', input.viewerId).in('post_id', rows.map((row) => row.id)).returns<Array<{ post_id: string; reaction_type: RiftboundPostReaction }>>()
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (profilesError) throw profilesError;
+  if (reactionsError) throw reactionsError;
+
+  const authors = new Map((profiles ?? []).map((profile) => [profile.id, mapAuthor(profile)]));
+  const viewerReactions = new Map((reactions ?? []).map((reaction) => [reaction.post_id, reaction.reaction_type]));
+  return rows.map((row) => mapPostRow(row, authors.get(row.author_id) ?? { id: row.author_id, username: 'Unknown', displayName: 'Unknown', avatarUrl: null, chatColor: 'amber' }, viewerReactions.get(row.id) ?? null));
 }
 
 async function loadAuthor(userId: string, supabase: RiftboundSupabaseClient = getSupabaseServiceClient()) {
@@ -528,17 +596,17 @@ async function loadAuthor(userId: string, supabase: RiftboundSupabaseClient = ge
   return mapAuthor(data);
 }
 
-export async function loadRiftboundPost(postId: string, viewerId: string | null = null): Promise<RiftboundCommunityPostDetail> {
+export async function loadRiftboundPost(postId: string, viewerId: string | null = null, allowArchived = false): Promise<RiftboundCommunityPostDetail> {
   const supabase = getSupabaseServiceClient();
   const { data: post, error: postError } = await supabase
     .from('riftbound_posts')
-    .select('id, author_id, snapshot_id, post_type, title, body, visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at, shared_deck_id')
+    .select('id, author_id, snapshot_id, post_type, title, body, visibility, archived_by_staff, archived_from_visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at, shared_deck_id')
     .eq('id', postId)
     .neq('visibility', 'removed')
     .maybeSingle<PostRow>();
   if (postError) throw postError;
   if (!post) throw new Error('Riftbound post not found.');
-  if (!(await canViewRiftboundPost(post, viewerId))) throw new Error('Riftbound post not found.');
+  if (!(await canViewRiftboundPost(post, viewerId, allowArchived))) throw new Error('Riftbound post not found.');
 
   const [author, snapshotResult, cardsResult, sharedDeck, reactionResult, cardTiers] = await Promise.all([
     loadAuthor(post.author_id, supabase),
@@ -575,33 +643,38 @@ export async function loadRiftboundPost(postId: string, viewerId: string | null 
   };
 }
 
-export async function loadRecentRiftboundPosts(authorId: string, limit = 12, includeUnlisted = false, viewerId: string | null = null) {
+export async function loadRecentRiftboundPosts(authorId: string, limit = 12, includeUnlisted = false, viewerId: string | null = null, includeArchived = false) {
   const supabase = getSupabaseServiceClient();
   const canSeeFriendsPosts = includeUnlisted || (viewerId ? (await getFriendRelationship(viewerId, authorId)) === 'friend' : false);
+  const allowedVisibilities = includeUnlisted ? ['public', 'friends', 'unlisted'] : ['public', 'friends'];
+  if (includeArchived) allowedVisibilities.push('archived');
   const { data, error } = await supabase
     .from('riftbound_posts')
-    .select('id, author_id, snapshot_id, post_type, title, body, visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at, shared_deck_id')
+    .select('id, author_id, snapshot_id, post_type, title, body, visibility, archived_by_staff, archived_from_visibility, total_card_count, total_copy_count, total_value_cents, set_codes, legend_card_id, champion_card_ids, battlefield_card_ids, unit_card_ids, has_sideboard, preview_card_ids, like_count, dislike_count, comment_count, share_count, created_at, updated_at, shared_deck_id')
     .eq('author_id', authorId)
-    .in('visibility', includeUnlisted ? ['public', 'friends', 'unlisted'] : ['public', 'friends'])
+    .in('visibility', allowedVisibilities)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(Math.max(1, Math.min(limit, 25)))
     .returns<PostRow[]>();
   if (error) throw error;
   const author = await loadAuthor(authorId, supabase);
-  return (data ?? []).filter((row) => row.visibility !== 'friends' || canSeeFriendsPosts).map((row) => mapPostRow(row, author));
+  return (data ?? []).filter((row) => {
+    if (row.visibility === 'archived') return includeArchived;
+    return row.visibility !== 'friends' || canSeeFriendsPosts;
+  }).map((row) => mapPostRow(row, author));
 }
 
-export async function loadRiftboundComments(postId: string, cursor: CommentCursor | null, limit = 20, viewerId: string | null = null) {
+export async function loadRiftboundComments(postId: string, cursor: CommentCursor | null, limit = 20, viewerId: string | null = null, allowArchived = false) {
   const supabase = getSupabaseServiceClient();
   const { data: post, error: postError } = await supabase
     .from('riftbound_posts')
-    .select('author_id, visibility')
+    .select('author_id, visibility, archived_by_staff')
     .eq('id', postId)
     .neq('visibility', 'removed')
-    .maybeSingle<Pick<PostRow, 'author_id' | 'visibility'>>();
+    .maybeSingle<Pick<PostRow, 'author_id' | 'visibility' | 'archived_by_staff'>>();
   if (postError) throw postError;
-  if (!post || !(await canViewRiftboundPost(post, viewerId))) throw new Error('Riftbound post not found.');
+  if (!post || !(await canViewRiftboundPost(post, viewerId, allowArchived))) throw new Error('Riftbound post not found.');
   let query = supabase
     .from('riftbound_post_comments')
     .select('id, post_id, author_id, parent_id, body, status, created_at, updated_at')
@@ -645,7 +718,7 @@ export async function createRiftboundComment(postId: string, userId: string, bod
   if (!body) throw new Error('Comment is required.');
   const parentId = typeof parentIdValue === 'string' && parentIdValue.trim() ? parentIdValue.trim() : null;
   const supabase = getSupabaseServiceClient();
-  const { data: post, error: postError } = await supabase.from('riftbound_posts').select('id, author_id, visibility').eq('id', postId).neq('visibility', 'removed').maybeSingle<Pick<PostRow, 'id' | 'author_id' | 'visibility'>>();
+  const { data: post, error: postError } = await supabase.from('riftbound_posts').select('id, author_id, visibility, archived_by_staff').eq('id', postId).neq('visibility', 'removed').maybeSingle<Pick<PostRow, 'id' | 'author_id' | 'visibility' | 'archived_by_staff'>>();
   if (postError) throw postError;
   if (!post || !(await canViewRiftboundPost(post, userId))) throw new Error('Riftbound post not found.');
   if (parentId) {
@@ -701,6 +774,59 @@ export async function deleteRiftboundPost(postId: string, userId: string) {
     .maybeSingle<{ id: string }>();
   if (error) throw error;
   if (!data) throw new Error('Riftbound post not found.');
+}
+
+export async function setRiftboundPostArchiveState(postId: string, actorId: string, action: 'archive' | 'unarchive', isStaff: boolean) {
+  const supabase = getSupabaseServiceClient();
+  const { data: post, error: postError } = await supabase
+    .from('riftbound_posts')
+    .select('author_id, visibility, archived_by_staff, archived_from_visibility')
+    .eq('id', postId)
+    .neq('visibility', 'removed')
+    .maybeSingle<Pick<PostRow, 'author_id' | 'visibility' | 'archived_by_staff' | 'archived_from_visibility'>>();
+  if (postError) throw postError;
+  if (!post) throw new Error('Riftbound post not found.');
+  if (!isStaff && post.author_id !== actorId) throw new Error('Only the post owner or staff can archive this post.');
+
+  if (action === 'archive') {
+    if (post.visibility === 'archived') throw new Error('Riftbound post is already archived.');
+    const { data, error } = await supabase
+      .from('riftbound_posts')
+      .update({
+        visibility: 'archived',
+        archived_by: actorId,
+        archived_by_staff: isStaff,
+        archived_from_visibility: post.visibility,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', postId)
+      .in('visibility', ['public', 'friends', 'unlisted'])
+      .select('visibility, archived_by_staff')
+      .maybeSingle<{ visibility: 'archived'; archived_by_staff: boolean }>();
+    if (error) throw error;
+    if (!data) throw new Error('Riftbound post not found or already archived.');
+    return { visibility: data.visibility, archivedByStaff: Boolean(data.archived_by_staff) } as const;
+  }
+
+  if (post.visibility !== 'archived') throw new Error('Riftbound post is not archived.');
+  if (post.archived_by_staff && !isStaff) throw new Error('Only staff can unarchive a staff-archived post.');
+  const restoredVisibility = post.archived_from_visibility ?? 'public';
+  const { data, error } = await supabase
+    .from('riftbound_posts')
+    .update({
+      visibility: restoredVisibility,
+      archived_by: null,
+      archived_by_staff: false,
+      archived_from_visibility: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', postId)
+    .eq('visibility', 'archived')
+    .select('visibility, archived_by_staff')
+    .maybeSingle<{ visibility: 'public' | 'friends' | 'unlisted'; archived_by_staff: boolean }>();
+  if (error) throw error;
+  if (!data) throw new Error('Riftbound post not found or is no longer archived.');
+  return { visibility: data.visibility, archivedByStaff: Boolean(data.archived_by_staff) } as const;
 }
 
 export async function reactToRiftboundPost(postId: string, userId: string, reaction: RiftboundPostReaction | null) {
@@ -798,7 +924,7 @@ function buildProfileSourceSummary<T extends { id: string; name: string; created
   };
 }
 
-export async function loadRiftboundProfile(username: string, viewerId: string | null): Promise<RiftboundProfileData> {
+export async function loadRiftboundProfile(username: string, viewerId: string | null, isStaff = false): Promise<RiftboundProfileData> {
   const supabase = getSupabaseServiceClient();
   const profile = await resolveProfile(decodeURIComponent(username).trim(), supabase);
   const isOwner = profile.id === viewerId;
@@ -814,7 +940,7 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
     supabase.from('riftbound_profile_favorite_sets').select('set_id').eq('user_id', profile.id).order('created_at', { ascending: true }),
     supabase.from('riftbound_profile_favorite_decks').select('deck_id').eq('user_id', profile.id).order('created_at', { ascending: true }),
     supabase.from('riftbound_profile_wishlist_cards').select('card_id, desired_quantity, note, display_order, created_at, updated_at').eq('user_id', profile.id).order('display_order', { ascending: true }).order('created_at', { ascending: true }).returns<Array<{ card_id: string; desired_quantity: number; note: string; display_order: number; created_at: string; updated_at: string }>>(),
-    loadRecentRiftboundPosts(profile.id, 12, isOwner, viewerId),
+    loadRecentRiftboundPosts(profile.id, 12, isOwner, viewerId, isStaff || isOwner),
     loadLatestRiftboundPrices(supabase, viewerId),
   ]);
   if (favoriteCardsResult.error) throw favoriteCardsResult.error;
@@ -863,6 +989,7 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
     })),
     posts,
     cardTiers: prices.cardTiers ?? {},
+    prices: prices.prices,
     entitlement: {
       plan: entitlement.plan,
       status: entitlement.status,

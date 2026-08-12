@@ -2,7 +2,6 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft,
   Award,
   BadgeCheck,
   Check,
@@ -16,13 +15,13 @@ import {
   Pencil,
   RotateCcw,
   Save,
+  ShieldBan,
   Trophy,
   UserPlus,
   Search,
   Upload,
   X,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achievement-client';
 import { ACHIEVEMENT_GAME_OPTIONS, getAchievementGameLabel, getEarnedRewards, getRewardById, getRewardDescription, isUnachievedHiddenAchievement, type AchievementListItem } from '@/lib/achievements';
@@ -89,6 +88,8 @@ type IncomingRequest = {
     username: string;
     displayName: string;
     online: boolean;
+    avatarUrl: string | null;
+    chatColor: string;
   };
 };
 type CachedProfileScreenState = {
@@ -549,6 +550,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const [avatarCropNaturalSize, setAvatarCropNaturalSize] = useState({ width: 0, height: 0 });
   const [avatarDragStart, setAvatarDragStart] = useState<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null);
   const [requestsOpen, setRequestsOpen] = useState(false);
+  const [requestActionBusyId, setRequestActionBusyId] = useState<string | null>(null);
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [friendSearchResults, setFriendSearchResults] = useState<FriendCandidate[]>([]);
@@ -1634,6 +1636,46 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     }
   };
 
+  const blockRequest = async (request: IncomingRequest) => {
+    if (requestActionBusyId) {
+      return;
+    }
+
+    setRequestActionBusyId(request.id);
+    try {
+      const supabase = getOptionalSupabaseClient();
+      const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+      if (!data.session) {
+        setMessage('Login required to block users.');
+        return;
+      }
+
+      const response = await fetch(`/api/users/${request.requester.id}/block`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) {
+        throw new Error(body.error ?? 'Unable to block this user.');
+      }
+
+      setIncomingRequests((requests) => {
+        const nextRequests = requests.filter((entry) => entry.id !== request.id);
+        if (cachedProfileScreenState?.userId === userId) {
+          cachedProfileScreenState = { ...cachedProfileScreenState, incomingRequests: nextRequests };
+        }
+        return nextRequests;
+      });
+      setRequestsOpen(incomingRequests.length > 1);
+      setMessage('User blocked.');
+      window.dispatchEvent(new Event('knowleague:friends-refresh'));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to block this user.');
+    } finally {
+      setRequestActionBusyId(null);
+    }
+  };
+
   useEffect(() => {
     if (!addFriendOpen || friendSearchQuery.trim().length < 3) {
       setFriendSearchResults([]);
@@ -2040,13 +2082,6 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       <section className="mx-auto flex min-h-[100dvh] min-w-0 w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-12 lg:py-8">
         <header className="relative z-30 flex min-w-0 flex-col items-stretch gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-            <Link
-              href="/"
-              aria-label="Back to game hub"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900"
-            >
-              <ArrowLeft size={20} />
-            </Link>
             <div className="grid min-w-0 gap-1">
               <h1 className="min-w-0 text-lg font-semibold text-white sm:text-xl">
                 Profile{profile?.username || usernameDraft ? (
@@ -2085,23 +2120,37 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                 Add Friend
               </button>
               {requestsOpen ? (
-                <div className="absolute right-0 top-14 z-30 grid max-h-[calc(100dvh-8rem)] w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3">
+                <div className="absolute right-0 top-14 z-30 grid max-h-[min(24rem,calc(100dvh-8rem))] w-[min(calc(100vw-2rem),42rem)] max-w-[calc(100vw-2rem)] gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-200">Incoming Friend Requests</p>
+                  <div className="max-h-[min(18rem,calc(100dvh-14rem))] overflow-x-auto overflow-y-auto pr-1">
+                    <div className="grid gap-2">
                   {incomingRequests.map((request) => (
-                    <div key={request.id} className="grid gap-2 rounded-xl bg-slate-900 p-3">
-                      <p className="text-sm font-semibold text-white">{request.requester.displayName}</p>
-                      <div className="flex gap-2">
+                    <div key={request.id} className="flex min-w-max items-center justify-between gap-2 rounded-xl bg-slate-900 p-3">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950 bg-cover bg-center text-xs font-black text-amber-200"
+                          style={request.requester.avatarUrl ? { backgroundImage: `url(${request.requester.avatarUrl})` } : undefined}
+                        >
+                          {request.requester.avatarUrl ? null : request.requester.displayName.slice(0, 1).toUpperCase()}
+                        </span>
+                        <p className="max-w-48 truncate text-sm font-semibold" style={getChatNameStyle(request.requester.chatColor)}>{request.requester.displayName}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
                           onClick={() => openPublicProfilePage(request.requester.username)}
-                          className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-800 active:scale-[0.98]"
+                          className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-800"
                         >
                           View
                         </button>
-                        <button type="button" onClick={() => respondToRequest(request.id, 'accept')} className="rounded-xl bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300 active:scale-[0.98]">Accept</button>
-                        <button type="button" onClick={() => respondToRequest(request.id, 'decline')} className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/20 active:scale-[0.98]">Decline</button>
+                        <button type="button" disabled={Boolean(requestActionBusyId)} onClick={() => void respondToRequest(request.id, 'accept')} className="rounded-xl bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60">Accept</button>
+                        <button type="button" disabled={Boolean(requestActionBusyId)} onClick={() => void respondToRequest(request.id, 'decline')} className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60">Decline</button>
+                        <button type="button" disabled={Boolean(requestActionBusyId)} onClick={() => void blockRequest(request)} aria-label={`Block ${request.requester.displayName}`} className="inline-flex items-center justify-center gap-1 rounded-xl border border-red-300/30 bg-red-950/30 px-3 py-2 text-xs font-bold text-red-100 transition hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-60"><ShieldBan size={14} />Block</button>
                       </div>
                     </div>
-                  ))}
+                    ))}
+                    </div>
+                  </div>
                 </div>
               ) : null}
               {addFriendOpen ? (

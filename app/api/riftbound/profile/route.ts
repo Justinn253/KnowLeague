@@ -1,7 +1,8 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
-import { getAuthenticatedUserId } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAuthenticatedUserId } from '@/lib/auth-server';
+import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { getRiftboundProfileUsername, loadRiftboundProfile, updateRiftboundProfilePreference } from '@/lib/riftbound-community';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
@@ -21,9 +22,10 @@ type PreferenceBody = {
 
 export const GET = withApiMetrics('/api/riftbound/profile', async function GET(request: Request) {
   try {
-    const userId = await getAuthenticatedUserId(request);
+    const user = await getAuthenticatedUser(request);
+    const userId = user.id;
     const username = await getRiftboundProfileUsername(userId);
-    const profile = await loadRiftboundProfile(username, userId);
+    const profile = await loadRiftboundProfile(username, userId, canAccessModeration(await getAuthenticatedAppRole(user)));
     const response = NextResponse.json({ profile });
     response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
     return response;

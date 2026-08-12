@@ -1,7 +1,8 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
-import { getAuthenticatedUserId, getOptionalAuthenticatedUserId } from '@/lib/auth-server';
+import { getAuthenticatedUserId, getOptionalAuthenticatedUser } from '@/lib/auth-server';
+import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { createRiftboundComment, decodeRiftboundCommentCursor, loadRiftboundComments } from '@/lib/riftbound-community';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
@@ -15,12 +16,14 @@ export const GET = withApiMetrics('/api/riftbound/community/posts/[postId]/comme
       errorMessage: 'Too many comment requests. Please try again shortly.',
     });
     if (rateLimitResponse) return rateLimitResponse;
-    const viewerId = await getOptionalAuthenticatedUserId(request);
+    const viewer = await getOptionalAuthenticatedUser(request);
+    const viewerId = viewer?.id ?? null;
+    const isStaff = viewer ? canAccessModeration(await getAuthenticatedAppRole(viewer)) : false;
     const url = new URL(request.url);
     const cursorValue = url.searchParams.get('cursor');
     const cursor = decodeRiftboundCommentCursor(cursorValue);
     if (cursorValue && !cursor) throw new Error('Invalid comment cursor.');
-    return NextResponse.json(await loadRiftboundComments(params.postId, cursor, 20, viewerId));
+    return NextResponse.json(await loadRiftboundComments(params.postId, cursor, 20, viewerId, isStaff));
   } catch (error) {
     return getRouteErrorResponse(error);
   }

@@ -1,7 +1,8 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
-import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
+import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
+import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { loadRiftboundProfile } from '@/lib/riftbound-community';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
@@ -16,8 +17,10 @@ export const GET = withApiMetrics('/api/riftbound/profiles/[username]', async fu
       errorMessage: 'Too many Riftbound profile requests. Please try again shortly.',
     });
     if (rateLimitResponse) return rateLimitResponse;
-    const viewerId = await getOptionalAuthenticatedUserId(request);
-    const profile = await loadRiftboundProfile(params.username, viewerId);
+    const viewer = await getOptionalAuthenticatedUser(request);
+    const viewerId = viewer?.id ?? null;
+    const isStaff = viewer ? canAccessModeration(await getAuthenticatedAppRole(viewer)) : false;
+    const profile = await loadRiftboundProfile(params.username, viewerId, isStaff);
     const response = NextResponse.json({ profile });
     response.headers.set('Cache-Control', viewerId
       ? 'private, max-age=15, stale-while-revalidate=30'

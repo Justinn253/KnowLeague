@@ -54,10 +54,6 @@ export type RiftboundLatestPricesPayload = {
   cardTiers?: Record<string, RiftboundCardTierRating>;
 };
 
-type LatestSnapshotDateRow = {
-  snapshot_date: string;
-};
-
 type LatestSnapshotRow = {
   card_id: string;
   finish: 'normal' | 'foil';
@@ -120,8 +116,8 @@ function buildLatestPricesPayload(rows: LatestSnapshotRow[], snapshotDate: strin
     current[row.finish] = row.price_cents === null ? null : row.price_cents / 100;
     current.updatedAt = row.source_snapshot_at ?? row.captured_at;
     prices[row.card_id] = current;
-    if (!resolvedSnapshotDate && row.snapshot_date) resolvedSnapshotDate = row.snapshot_date;
-    if (!sourceSnapshotAt && row.source_snapshot_at) sourceSnapshotAt = row.source_snapshot_at;
+    if (row.snapshot_date && (!resolvedSnapshotDate || row.snapshot_date > resolvedSnapshotDate)) resolvedSnapshotDate = row.snapshot_date;
+    if (row.source_snapshot_at && (!sourceSnapshotAt || row.source_snapshot_at > sourceSnapshotAt)) sourceSnapshotAt = row.source_snapshot_at;
     if (!capturedAt || row.captured_at > capturedAt) capturedAt = row.captured_at;
   });
 
@@ -172,17 +168,18 @@ async function loadLatestRiftboundPricePayload(
     || Boolean(rpcError.message && /get_riftbound_latest_price_snapshots|could not find the function|does not exist/i.test(rpcError.message));
   if (!functionMissing) throw latestRowsResult.error;
 
-  const { data: latestDateRow, error: latestDateError } = await supabase
+  const { data, error } = await supabase
     .from('riftbound_card_price_snapshots')
-    .select('snapshot_date')
+    .select('card_id, finish, snapshot_date, price_cents, source_snapshot_at, captured_at')
     .eq('source', 'tcgcsv')
     .order('snapshot_date', { ascending: false })
-    .limit(1)
-    .maybeSingle<LatestSnapshotDateRow>();
+    .order('captured_at', { ascending: false })
+    .limit(5000)
+    .returns<LatestSnapshotRow[]>();
 
-  if (latestDateError) throw latestDateError;
+  if (error) throw error;
 
-  if (!latestDateRow) {
+  if (!data || data.length === 0) {
     const payload = {
       snapshotDate: null,
       sourceSnapshotAt: null,
@@ -195,16 +192,12 @@ async function loadLatestRiftboundPricePayload(
     return payload;
   }
 
-  const { data, error } = await supabase
-    .from('riftbound_card_price_snapshots')
-    .select('card_id, finish, price_cents, source_snapshot_at, captured_at')
-    .eq('source', 'tcgcsv')
-    .eq('snapshot_date', latestDateRow.snapshot_date)
-    .returns<LatestSnapshotRow[]>();
-
-  if (error) throw error;
-
-  const payload = buildLatestPricesPayload(data ?? [], latestDateRow.snapshot_date);
+  const latestRowsByCardFinish = new Map<string, LatestSnapshotRow>();
+  data.forEach((row) => {
+    const key = `${row.card_id}:${row.finish}`;
+    if (!latestRowsByCardFinish.has(key)) latestRowsByCardFinish.set(key, row);
+  });
+  const payload = buildLatestPricesPayload(Array.from(latestRowsByCardFinish.values()));
   if (latestPricesCacheGeneration === requestGeneration) {
     setServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY, payload, RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS);
   }

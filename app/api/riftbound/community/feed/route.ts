@@ -1,7 +1,8 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
-import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
+import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
+import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { getRiftboundCardById } from '@/lib/riftbound';
 import {
   decodeRiftboundFeedCursor,
@@ -37,7 +38,9 @@ export const GET = withApiMetrics('/api/riftbound/community/feed', async functio
     });
     if (rateLimitResponse) return rateLimitResponse;
 
-    const viewerId = await getOptionalAuthenticatedUserId(request);
+    const viewer = await getOptionalAuthenticatedUser(request);
+    const viewerId = viewer?.id ?? null;
+    const includeArchived = viewer ? canAccessModeration(await getAuthenticatedAppRole(viewer)) : false;
     const url = new URL(request.url);
     const cursorValue = url.searchParams.get('cursor');
     const cursor = decodeRiftboundFeedCursor(cursorValue);
@@ -60,6 +63,7 @@ export const GET = withApiMetrics('/api/riftbound/community/feed', async functio
       battlefieldCardId: getOptionalCardId(url.searchParams.get('battlefield')),
       unitCardId: getOptionalCardId(url.searchParams.get('unit')),
       hasSideboard: getOptionalBoolean(url.searchParams.get('sideboard')),
+      includeArchived,
     });
     const response = NextResponse.json(payload);
     response.headers.set('Cache-Control', viewerId

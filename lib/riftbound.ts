@@ -97,15 +97,12 @@ export type RiftboundCard = {
 };
 
 export function mergeRiftboundCardMarketPrices(card: RiftboundCard, latest: RiftboundMarketPrices) {
-  // A snapshot can contain a temporary null while TCGPlayer is publishing a
-  // new print. Keep the generated catalogue value until a live value arrives
-  // so a transient source gap does not turn a known price into N/A.
-  const normal = latest.normal ?? card.marketPrices.normal ?? card.marketPrice;
-  const foil = latest.foil ?? card.marketPrices.foil;
-  const hasLivePrice = latest.normal !== null || latest.foil !== null;
-  const updatedAt = hasLivePrice
-    ? latest.updatedAt
-    : card.marketPrices.updatedAt ?? card.marketPriceUpdatedAt;
+  // Once a card has a captured snapshot, its nullable values are authoritative.
+  // Falling back to the generated catalogue after that point can show the
+  // acquisition-time value when the current source has no market price.
+  const normal = latest.normal;
+  const foil = latest.foil;
+  const updatedAt = latest.updatedAt;
 
   return {
     ...card,

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Ellipsis, LoaderCircle, MessageCircle, Pencil, Send, Share2, ShieldAlert, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
+import { Archive, ArrowLeft, Ellipsis, LoaderCircle, MessageCircle, Pencil, Send, Share2, ShieldAlert, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { RiftboundCardDetailsModal } from '@/components/riftbound-card-grid';
@@ -18,6 +18,7 @@ import {
   getRiftboundCommunityComments,
   getRiftboundCommunityPost,
   hasRiftboundPostBeenShared,
+  setRiftboundCommunityPostArchiveState,
   isRiftboundRateLimitError,
   markRiftboundPostShared,
   recordRiftboundPostShare,
@@ -66,11 +67,15 @@ function RiftboundCommunityPostHeader({ post }: { post: RiftboundCommunityPostDe
           {post.author.avatarUrl ? null : post.author.displayName.slice(0, 1).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-black text-white sm:text-3xl">{post.title}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-            <span>{formatDate(post.createdAt)}</span>
-            <span aria-hidden="true">·</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-black text-white sm:text-3xl">{post.title}</h1>
             <span className="inline-flex items-center rounded-lg border border-amber-200/25 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-amber-200">{postTypeLabel(post.postType)}</span>
+            {post.visibility === 'archived' ? <span className="inline-flex items-center rounded-lg border border-slate-400/30 bg-slate-500/15 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-slate-300">Archived</span> : null}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+            <Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} className="font-black hover:underline" style={getChatNameStyle(post.author.chatColor)}>{post.author.displayName || post.author.username}</Link>
+            <span aria-hidden="true">·</span>
+            <span>{formatDate(post.createdAt)}</span>
           </div>
         </div>
       </div>
@@ -142,9 +147,11 @@ function ReportMenu({
   );
 }
 
-export function RiftboundCommunityPost({ postId }: { postId: string }) {
+export function RiftboundCommunityPost({ postId, returnTo }: { postId: string; returnTo?: string }) {
   const router = useRouter();
+  const safeReturnTo = returnTo?.startsWith('/riftbound/profile/') ? returnTo : '/riftbound/community';
   const [session, setSession] = useState<Session | null>(null);
+  const [staffRole, setStaffRole] = useState<string | null>(null);
   const [tierRatings, setTierRatings] = useState<Record<string, RiftboundCardTierRating>>({});
   const [post, setPost] = useState<RiftboundCommunityPostDetail | null>(null);
   const [comments, setComments] = useState<RiftboundCommunityComment[]>([]);
@@ -166,6 +173,9 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
   const [postMenuOpen, setPostMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [archiveAction, setArchiveAction] = useState<'archive' | 'unarchive' | null>(null);
+  const [archiveSaving, setArchiveSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
@@ -187,6 +197,21 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
   useEffect(() => subscribeToAuthSession((nextSession) => setSession(nextSession)), []);
 
   useEffect(() => {
+    if (!session) {
+      setStaffRole(null);
+      return undefined;
+    }
+    let cancelled = false;
+    void fetch('/api/moderation/me', { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' })
+      .then((response) => response.json() as Promise<{ role?: string }>)
+      .then((data) => {
+        if (!cancelled) setStaffRole(data.role === 'moderator' || data.role === 'admin' ? data.role : null);
+      })
+      .catch(() => { if (!cancelled) setStaffRole(null); });
+    return () => { cancelled = true; };
+  }, [session]);
+
+  useEffect(() => {
     setShareCompleted(Boolean(session && hasRiftboundPostBeenShared(postId, session.user.id)));
   }, [postId, session]);
 
@@ -197,6 +222,8 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
         setPostMenuOpen(false);
         setReportOpen(false);
         setDeleteConfirmOpen(false);
+        setArchiveConfirmOpen(false);
+        setArchiveAction(null);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -204,6 +231,8 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
         setPostMenuOpen(false);
         setReportOpen(false);
         setDeleteConfirmOpen(false);
+        setArchiveConfirmOpen(false);
+        setArchiveAction(null);
       }
     };
     document.addEventListener('pointerdown', handlePointerDown);
@@ -373,6 +402,23 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
     }
   };
 
+  const changeArchiveState = async (action: 'archive' | 'unarchive') => {
+    if (!session || archiveSaving) return;
+    setArchiveSaving(true);
+    setActionError('');
+    try {
+      const result = await setRiftboundCommunityPostArchiveState(postId, action, session);
+      setPost((current) => current ? { ...current, visibility: result.visibility, archivedByStaff: result.archivedByStaff } : current);
+      setArchiveConfirmOpen(false);
+      setArchiveAction(null);
+      setPostMenuOpen(false);
+    } catch (archiveError) {
+      setActionError(isRiftboundRateLimitError(archiveError) ? '' : archiveError instanceof Error ? archiveError.message : action === 'archive' ? 'Unable to archive this post.' : 'Unable to unarchive this post.');
+    } finally {
+      setArchiveSaving(false);
+    }
+  };
+
   const sharePost = async () => {
     if (shareBusyRef.current) return;
     shareBusyRef.current = true;
@@ -446,14 +492,28 @@ export function RiftboundCommunityPost({ postId }: { postId: string }) {
   if (error || !post) return <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100"><div className="mx-auto grid max-w-[1600px] gap-4 rounded-3xl border border-red-300/20 bg-red-950/20 px-6 py-16 text-center text-sm font-semibold text-red-200"><p>{error || 'Riftbound post not found.'}</p><Link href="/riftbound/community" className="mx-auto rounded-xl border border-red-200/30 px-4 py-2 text-xs font-black uppercase tracking-[0.1em]">Back to Community</Link></div></main>;
   const isDeckPost = post.postType === 'deck_build' || post.postType === 'deck';
   const isOwner = session?.user.id === post.author.id;
+  const isStaff = Boolean(staffRole);
+  const archiveActionAllowed = post.visibility === 'archived'
+    ? isStaff || (isOwner && !post.archivedByStaff)
+    : isStaff || isOwner;
 
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10">
       <section className="mx-auto grid w-full max-w-[1600px] gap-6">
         <section className="grid gap-5 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
           <div ref={actionsRef} className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/riftbound/community" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200"><ArrowLeft size={15} /> Back</Link>
-            {session ? <div className="relative"><button type="button" aria-label="Post actions" aria-expanded={postMenuOpen} onClick={() => { setPostMenuOpen((current) => !current); setReportOpen(false); setDeleteConfirmOpen(false); }} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-400 transition hover:border-amber-200/50 hover:text-amber-200"><Ellipsis size={19} /></button>{postMenuOpen ? <div className="absolute right-0 top-full z-30 mt-2 grid w-52 gap-1 rounded-2xl border border-white/10 bg-slate-950 p-2">{isOwner ? <><button type="button" onClick={openEditor} className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:bg-slate-900 hover:text-amber-200"><Pencil size={15} /> Edit Post</button>{deleteConfirmOpen ? <div className="grid gap-2 rounded-xl border border-red-300/20 bg-red-950/10 p-3"><p className="text-xs font-semibold leading-5 text-red-100">Delete this post? This cannot be undone.</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setDeleteConfirmOpen(false)} className="rounded-lg px-2 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-400">Cancel</button><button type="button" onClick={() => void deletePost()} disabled={deleteSaving} className="rounded-lg border border-red-200/30 bg-red-300/10 px-2 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-red-200 disabled:opacity-50">{deleteSaving ? 'Deleting' : 'Delete'}</button></div></div> : <button type="button" onClick={() => setDeleteConfirmOpen(true)} className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.1em] text-red-200 transition hover:bg-red-300/10"><Trash2 size={15} /> Delete Post</button>}</> : null}<button type="button" onClick={() => { setPostMenuOpen(false); setReportOpen(true); }} className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:bg-slate-900 hover:text-red-200"><ShieldAlert size={15} /> Report</button></div> : null}{reportOpen ? <ReportMenu reason={reportReason} details={reportDetails} saving={reportSaving} onReasonChange={setReportReason} onDetailsChange={setReportDetails} onSubmit={() => void submitReport()} /> : null}</div> : null}
+            <Link href={safeReturnTo} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200"><ArrowLeft size={15} /> Back</Link>
+            {session ? (
+              <div className="relative">
+                <button type="button" aria-label="Post actions" aria-expanded={postMenuOpen} onClick={() => { setPostMenuOpen((current) => !current); setReportOpen(false); setDeleteConfirmOpen(false); setArchiveConfirmOpen(false); setArchiveAction(null); }} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-400 transition hover:border-amber-200/50 hover:text-amber-200"><Ellipsis size={19} /></button>
+                {postMenuOpen ? <div className="absolute right-0 top-full z-30 mt-2 grid w-52 gap-1 rounded-2xl border border-white/10 bg-slate-950 p-2">
+                  {isOwner ? <><button type="button" onClick={openEditor} className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:bg-slate-900 hover:text-amber-200"><Pencil size={15} /> Edit Post</button>{deleteConfirmOpen ? <div className="grid gap-2 rounded-xl border border-red-300/20 bg-red-950/10 p-3"><p className="text-xs font-semibold leading-5 text-red-100">Delete this post? This cannot be undone.</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setDeleteConfirmOpen(false)} className="rounded-lg px-2 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-400">Cancel</button><button type="button" onClick={() => void deletePost()} disabled={deleteSaving} className="rounded-lg border border-red-200/30 bg-red-300/10 px-2 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-red-200 disabled:opacity-50">{deleteSaving ? 'Deleting' : 'Delete'}</button></div></div> : <button type="button" onClick={() => setDeleteConfirmOpen(true)} className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.1em] text-red-200 transition hover:bg-red-300/10"><Trash2 size={15} /> Delete Post</button>}</> : null}
+                  {archiveActionAllowed ? archiveConfirmOpen ? <div className="grid gap-2 rounded-xl border border-amber-200/20 bg-amber-300/10 p-3"><p className="text-xs font-semibold leading-5 text-amber-100">{archiveAction === 'archive' ? 'Archiving will make this post private.' : 'Unarchiving will restore this post to its previous visibility.'}</p><div className="flex justify-end gap-2"><button type="button" onClick={() => { setArchiveConfirmOpen(false); setArchiveAction(null); }} className="rounded-lg px-2 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-400">Cancel</button><button type="button" onClick={() => void changeArchiveState(archiveAction ?? 'archive')} disabled={archiveSaving} className="rounded-lg border border-amber-200/30 bg-amber-300 px-2 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-950 disabled:opacity-50">{archiveSaving ? archiveAction === 'archive' ? 'Archiving' : 'Unarchiving' : archiveAction === 'archive' ? 'Archive' : 'Unarchive'}</button></div></div> : <button type="button" onClick={() => { const nextAction = post.visibility === 'archived' ? 'unarchive' : 'archive'; setArchiveAction(nextAction); setArchiveConfirmOpen(true); setDeleteConfirmOpen(false); }} className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.1em] text-amber-200 transition hover:bg-amber-300/10"><Archive size={15} /> {post.visibility === 'archived' ? 'Unarchive Post' : 'Archive Post'}</button> : null}
+                  <button type="button" onClick={() => { setPostMenuOpen(false); setReportOpen(true); }} className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:bg-slate-900 hover:text-red-200"><ShieldAlert size={15} /> Report</button>
+                </div> : null}
+                {reportOpen ? <ReportMenu reason={reportReason} details={reportDetails} saving={reportSaving} onReasonChange={setReportReason} onDetailsChange={setReportDetails} onSubmit={() => void submitReport()} /> : null}
+              </div>
+            ) : null}
           </div>
           {reportMessage ? <p className="rounded-2xl border border-amber-200/20 bg-amber-300/10 px-4 py-3 text-sm font-semibold text-amber-100">{reportMessage}</p> : null}
           {actionError ? <p className="rounded-2xl border border-red-300/20 bg-red-950/10 px-4 py-3 text-sm font-semibold text-red-100">{actionError}</p> : null}

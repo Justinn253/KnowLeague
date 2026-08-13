@@ -78,6 +78,7 @@ type CachedResponse<T> = {
 
 const REQUEST_CACHE_TTL_MS = 30_000;
 const RIFTBOUND_PRICE_HISTORY_CACHE_VERSION = 'v4';
+const RIFTBOUND_LATEST_PRICES_CACHE_VERSION = 'v2';
 const responseCache = new Map<string, CachedResponse<unknown>>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
 const cacheGenerations = new Map<string, number>();
@@ -141,14 +142,14 @@ export function invalidateRiftboundBootstrap(session: Session | null) {
 }
 
 export function invalidateRiftboundLatestPrices(session?: Session | null) {
-  const key = `latest-prices:${session?.user.id ?? 'guest'}`;
+  const key = `latest-prices:${RIFTBOUND_LATEST_PRICES_CACHE_VERSION}:${session?.user.id ?? 'guest'}`;
   cacheGenerations.set(key, getCacheGeneration(key) + 1);
   responseCache.delete(key);
 }
 
 export function getRiftboundLatestPrices(session?: Session | null) {
-  const key = `latest-prices:${session?.user.id ?? 'guest'}`;
-  return requestRiftboundData<RiftboundLatestPricesResponse>(key, '/api/riftbound/prices/latest', session, { cache: 'force-cache' });
+  const key = `latest-prices:${RIFTBOUND_LATEST_PRICES_CACHE_VERSION}:${session?.user.id ?? 'guest'}`;
+  return requestRiftboundData<RiftboundLatestPricesResponse>(key, `/api/riftbound/prices/latest?version=${RIFTBOUND_LATEST_PRICES_CACHE_VERSION}`, session, { cache: 'no-store' });
 }
 
 export function getRiftboundCardPriceHistory(cardId: string, days = 30) {

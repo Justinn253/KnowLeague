@@ -120,6 +120,10 @@ export type RiftboundCommunityComment = {
   author: RiftboundCommunityAuthor;
   createdAt: string;
   updatedAt: string;
+  likeCount: number;
+  dislikeCount: number;
+  replyCount: number;
+  viewerReaction: RiftboundPostReaction | null;
 };
 
 export type RiftboundWishlistCard = {
@@ -180,6 +184,8 @@ export type RiftboundProfileData = {
   favoriteDeckIds: string[];
   wishlist: RiftboundWishlistCard[];
   posts: RiftboundCommunityPostSummary[];
+  postCount: number;
+  postFavor: number;
   cardTiers: Record<string, import('@/lib/riftbound').RiftboundCardTierRating>;
   entitlement: {
     plan: 'free' | 'premium';

@@ -10,7 +10,7 @@ export const GET = withApiMetrics('/api/riftbound/prices/latest', async function
   try {
     const viewerId = await getOptionalAuthenticatedUserId(request);
     const response = NextResponse.json(await loadLatestRiftboundPrices(undefined, viewerId));
-    response.headers.set('Cache-Control', viewerId ? 'private, max-age=30, stale-while-revalidate=60' : 'public, max-age=300, s-maxage=300, stale-while-revalidate=900');
+    response.headers.set('Cache-Control', 'private, no-store, max-age=0');
     if (viewerId) response.headers.set('Vary', 'Authorization');
     return response;
   } catch {

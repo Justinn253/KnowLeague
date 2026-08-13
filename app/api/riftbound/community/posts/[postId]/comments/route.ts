@@ -23,7 +23,9 @@ export const GET = withApiMetrics('/api/riftbound/community/posts/[postId]/comme
     const cursorValue = url.searchParams.get('cursor');
     const cursor = decodeRiftboundCommentCursor(cursorValue);
     if (cursorValue && !cursor) throw new Error('Invalid comment cursor.');
-    return NextResponse.json(await loadRiftboundComments(params.postId, cursor, 20, viewerId, isStaff));
+    const parentIdValue = url.searchParams.get('parentId');
+    const parentId = parentIdValue?.trim() || null;
+    return NextResponse.json(await loadRiftboundComments(params.postId, cursor, parentId ? 10 : 20, viewerId, isStaff, parentId));
   } catch (error) {
     return getRouteErrorResponse(error);
   }

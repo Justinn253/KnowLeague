@@ -12,6 +12,7 @@ import type {
   RiftboundSharedDeckDetail,
 } from '@/lib/riftbound-community-types';
 import type { RiftboundCardTier } from '@/lib/riftbound';
+import type { RiftboundShareSnapshot } from '@/lib/riftbound-share-types';
 import { invalidateRiftboundBootstrap, invalidateRiftboundLatestPrices } from '@/lib/riftbound-client';
 
 type ErrorPayload = { error?: string };
@@ -38,6 +39,7 @@ const RIFTBOUND_FEED_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_POST_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_COMMENTS_CACHE_TTL_MS = 20_000;
 const RIFTBOUND_SHARED_DECK_CACHE_TTL_MS = 45_000;
+const RIFTBOUND_SHARED_SNAPSHOT_CACHE_TTL_MS = 5 * 60_000;
 const RIFTBOUND_RESPONSE_CACHE_MAX_ENTRIES = 100;
 const RIFTBOUND_SHARED_POSTS_STORAGE_KEY = 'knowleague:v1:riftbound:shared-posts';
 const RIFTBOUND_SHARED_POSTS_STORAGE_LIMIT = 500;
@@ -90,6 +92,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}, session?: Ses
 
 function getCommunityCacheTtl(url: string) {
   if (url.includes('/comments')) return RIFTBOUND_COMMENTS_CACHE_TTL_MS;
+  if (url.includes('/api/riftbound/shares/')) return RIFTBOUND_SHARED_SNAPSHOT_CACHE_TTL_MS;
   if (url.includes('/shared-decks')) return RIFTBOUND_SHARED_DECK_CACHE_TTL_MS;
   if (url.includes('/posts/')) return RIFTBOUND_POST_CACHE_TTL_MS;
   if (url.includes('/feed')) return RIFTBOUND_FEED_CACHE_TTL_MS;
@@ -164,6 +167,17 @@ export function registerRiftboundSharedDeck(body: Record<string, unknown>, sessi
   });
 }
 
+export function createRiftboundShare(snapshot: RiftboundShareSnapshot, session?: Session | null) {
+  return requestJson<{ shareKey: string; createdAt: string }>('/api/riftbound/shares', {
+    method: 'POST',
+    body: JSON.stringify({ snapshot }),
+  }, session);
+}
+
+export function getRiftboundShare(shareKey: string, session?: Session | null) {
+  return getJson<{ snapshot: RiftboundShareSnapshot }>(`/api/riftbound/shares/${encodeURIComponent(shareKey)}`, session);
+}
+
 export function updateRiftboundSharedDeckReaction(deckId: string, reaction: 'like' | 'dislike' | null, session: Session) {
   return requestJson<{ likeCount: number; dislikeCount: number; reaction: 'like' | 'dislike' | null }>(`/api/riftbound/shared-decks/${encodeURIComponent(deckId)}/reaction`, {
     method: 'POST',
@@ -178,8 +192,11 @@ export function getRiftboundCommunityPost(postId: string, session?: Session | nu
   return getJson<{ post: RiftboundCommunityPostDetail }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}`, session);
 }
 
-export function getRiftboundCommunityComments(postId: string, cursor?: string | null, session?: Session | null) {
-  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+export function getRiftboundCommunityComments(postId: string, cursor?: string | null, session?: Session | null, parentId?: string | null) {
+  const params = new URLSearchParams();
+  if (cursor) params.set('cursor', cursor);
+  if (parentId) params.set('parentId', parentId);
+  const query = params.toString() ? `?${params.toString()}` : '';
   return getJson<RiftboundCommunityCommentsResponse>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/comments${query}`, session);
 }
 
@@ -269,6 +286,7 @@ export function updateRiftboundPostReaction(postId: string, reaction: 'like' | '
     body: JSON.stringify({ reaction }),
   }, session).then((result) => {
     invalidateCommunityCache(postId);
+    invalidateRiftboundCardTierPayloads();
     return result;
   });
 }
@@ -286,6 +304,18 @@ export function createRiftboundComment(postId: string, body: string, session: Se
     body: JSON.stringify({ body, parentId: parentId ?? null }),
   }, session).then((result) => {
     invalidateCommunityCache(postId);
+    invalidateRiftboundCardTierPayloads();
+    return result;
+  });
+}
+
+export function updateRiftboundCommentReaction(postId: string, commentId: string, reaction: 'like' | 'dislike' | null, session: Session) {
+  return requestJson<{ likeCount: number; dislikeCount: number; reaction: 'like' | 'dislike' | null }>(`/api/riftbound/community/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}/reaction`, {
+    method: 'POST',
+    body: JSON.stringify({ reaction }),
+  }, session).then((result) => {
+    invalidateCommunityCache(postId);
+    invalidateRiftboundCardTierPayloads();
     return result;
   });
 }

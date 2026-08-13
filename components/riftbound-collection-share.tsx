@@ -21,10 +21,10 @@ import {
 } from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
-import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDomainTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier, type RiftboundFinish } from '@/lib/riftbound';
+import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier, type RiftboundFinish } from '@/lib/riftbound';
 import type { RiftboundCardTierRating, RiftboundSharedDeckDetail } from '@/lib/riftbound-community-types';
 import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundLatestPrice } from '@/lib/riftbound-client';
-import { getRiftboundSharedDeck, registerRiftboundSharedDeck } from '@/lib/riftbound-community-client';
+import { getRiftboundShare, getRiftboundSharedDeck, registerRiftboundSharedDeck } from '@/lib/riftbound-community-client';
 
 type SharedInventoryRow = {
   card_id: string;
@@ -368,23 +368,6 @@ function stageSharedRowsInInventoryDraft(userId: string, sharedRows: SharedInven
   }
 }
 
-async function printCollection() {
-  const images = Array.from(document.querySelectorAll<HTMLImageElement>('.riftbound-print-card-image'));
-  await Promise.all(images.map((image) => {
-    if (image.complete) return Promise.resolve();
-    return new Promise<void>((resolve) => {
-      const timeout = window.setTimeout(resolve, 5000);
-      const finish = () => {
-        window.clearTimeout(timeout);
-        resolve();
-      };
-      image.addEventListener('load', finish, { once: true });
-      image.addEventListener('error', finish, { once: true });
-    });
-  }));
-  window.print();
-}
-
 function decodeShareBytes(value: string) {
   const normalizedValue = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4);
   const binary = window.atob(normalizedValue);
@@ -613,7 +596,7 @@ function SharedDeckSection({ deck, category, label, entries: providedEntries, cl
   return <section className={`grid content-start gap-3 ${className}`}><h2 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{label ?? sharedDeckCategoryLabels[category]}</h2><SharedDeckEntries entries={entries} listView={listView} onOpen={onOpen} gridClassName={entriesClassName} highlightCardId={highlightCardId} landscapeImages={category === 'battlefields'} tierRatings={tierRatings} /></section>;
 }
 
-export function RiftboundCollectionShare() {
+export function RiftboundCollectionShare({ shareKey }: { shareKey?: string }) {
   const [snapshot, setSnapshot] = useState<SharedSnapshot>({ rows: [], kind: 'collection', title: '', createdBy: '', createdAt: '' });
   const [session, setSession] = useState<Session | null>(null);
   const [tierRatings, setTierRatings] = useState<Record<string, RiftboundCardTierRating>>({});
@@ -625,27 +608,54 @@ export function RiftboundCollectionShare() {
   const [selectedCard, setSelectedCard] = useState<RiftboundCard | null>(null);
   const [inventoryError, setInventoryError] = useState('');
   const [latestPrices, setLatestPrices] = useState<Record<string, RiftboundLatestPrice>>({});
+  const [latestPricesReady, setLatestPricesReady] = useState(false);
   const [deckViewMode, setDeckViewMode] = useState<SharedDeckViewMode>('compact');
   const [sharePageUrl, setSharePageUrl] = useState('');
+  const [shareLoading, setShareLoading] = useState(true);
+  const [shareLoadError, setShareLoadError] = useState('');
   const [sharedDeck, setSharedDeck] = useState<RiftboundSharedDeckDetail | null>(null);
   const [sharedDeckId, setSharedDeckId] = useState('');
   const [sharedDeckError, setSharedDeckError] = useState('');
   const [deckSaveState, setDeckSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [deckSaveError, setDeckSaveError] = useState('');
+  const [printMode, setPrintMode] = useState(false);
   const registeredDeckKeyRef = useRef('');
 
   useEffect(() => {
+    let cancelled = false;
     const params = new URLSearchParams(window.location.search);
     const data = params.get('d') ?? params.get('data');
     const deckId = params.get('deck') ?? '';
     setSharedDeckId(deckId);
     setSharePageUrl(window.location.href);
-    if (data) {
-      void decodeRows(data).then(setSnapshot);
+    setShareLoadError('');
+    if (shareKey) {
+      setShareLoading(true);
+      void getRiftboundShare(shareKey)
+        .then((response) => {
+          if (!cancelled) setSnapshot(response.snapshot);
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) setShareLoadError(error instanceof Error ? error.message : 'Unable to load this Riftbound share.');
+        })
+        .finally(() => {
+          if (!cancelled) setShareLoading(false);
+        });
+    } else if (data) {
+      setShareLoading(true);
+      void decodeRows(data).then((nextSnapshot) => {
+        if (!cancelled) setSnapshot(nextSnapshot);
+      }).finally(() => {
+        if (!cancelled) setShareLoading(false);
+      });
     } else if (!deckId) {
       setSnapshot({ rows: [], kind: 'collection', title: '', createdBy: '', createdAt: '' });
+      setShareLoading(false);
+    } else {
+      setShareLoading(false);
     }
-  }, []);
+    return () => { cancelled = true; };
+  }, [shareKey]);
 
   useEffect(() => subscribeToAuthSession((nextSession) => {
     setSession(nextSession);
@@ -697,6 +707,8 @@ export function RiftboundCollectionShare() {
 
   useEffect(() => {
     let cancelled = false;
+    setLatestPricesReady(false);
+    setLatestPrices({});
     void getRiftboundLatestPrices(session)
       .then((data) => {
         if (cancelled) return;
@@ -704,7 +716,10 @@ export function RiftboundCollectionShare() {
         setTierRatings(data.cardTiers ?? {});
       })
       .catch(() => {
-        // The catalogue values remain a safe fallback if the latest snapshot is unavailable.
+        // Missing current snapshots render as unavailable rather than falling back to catalogue values.
+      })
+      .finally(() => {
+        if (!cancelled) setLatestPricesReady(true);
       });
     return () => { cancelled = true; };
   }, [session]);
@@ -724,8 +739,9 @@ export function RiftboundCollectionShare() {
       .flatMap(([cardId, quantitiesForCard]): SharedCard[] => {
         const card = cardById.get(cardId);
         if (!card) return [];
-        const latest = latestPrices[card.id];
-        const currentCard = latest ? mergeRiftboundCardMarketPrices(card, latest) : card;
+        const currentCard = latestPricesReady
+          ? mergeRiftboundCardMarketPrices(card, latestPrices[card.id] ?? { normal: null, foil: null, updatedAt: null })
+          : card;
         return [{
           card: currentCard,
           ...quantitiesForCard,
@@ -750,7 +766,7 @@ export function RiftboundCollectionShare() {
         }];
       })
       .sort((left, right) => left.card.displayName.localeCompare(right.card.displayName));
-  }, [latestPrices, rows]);
+  }, [latestPrices, latestPricesReady, rows]);
 
   useEffect(() => {
     if (!selectedCard) return;
@@ -762,6 +778,13 @@ export function RiftboundCollectionShare() {
   const totalValue = useMemo(() => cards.reduce((total, entry) => total
     + ((entry.card.marketPrices.normal ?? 0) * entry.normal)
     + ((entry.card.marketPrices.foil ?? 0) * entry.foil), 0), [cards]);
+  const rarityCounts = useMemo(() => {
+    const counts = new Map<string, number>(RIFTBOUND_RARITY_ORDER.map((rarity) => [rarity, 0]));
+    cards.forEach(({ card, normal, foil }) => {
+      if (counts.has(card.rarity)) counts.set(card.rarity, (counts.get(card.rarity) ?? 0) + normal + foil);
+    });
+    return counts;
+  }, [cards]);
   const filterOptionsByField = useMemo(() => {
     const setNames = new Map(cards.map(({ card }) => [card.setCode, card.setName]));
     return {
@@ -844,6 +867,34 @@ export function RiftboundCollectionShare() {
     }
   };
 
+  const printShare = async () => {
+    setPrintMode(true);
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+    const images = Array.from(document.querySelectorAll<HTMLImageElement>('.riftbound-print-card-image'));
+    await Promise.all(images.map((image) => {
+      if (image.complete) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const timeout = window.setTimeout(resolve, 5000);
+        const finish = () => {
+          window.clearTimeout(timeout);
+          resolve();
+        };
+        image.addEventListener('load', finish, { once: true });
+        image.addEventListener('error', finish, { once: true });
+      });
+    }));
+    window.print();
+    setPrintMode(false);
+  };
+
+  if (shareLoading) {
+    return <main className="grid min-h-screen place-items-center bg-[#030712] px-4 py-8 text-slate-100"><p className="rounded-2xl border border-white/10 bg-slate-950/80 px-5 py-4 text-sm font-semibold text-slate-400">Loading shared Riftbound snapshot...</p></main>;
+  }
+
+  if (shareLoadError) {
+    return <main className="grid min-h-screen place-items-center bg-[#030712] px-4 py-8 text-slate-100"><section className="grid w-full max-w-xl gap-3 rounded-3xl border border-red-300/20 bg-slate-950/80 p-6 text-center"><h1 className="text-xl font-black text-white">Share unavailable</h1><p className="text-sm font-semibold text-red-200">{shareLoadError}</p><Link href="/riftbound/inventory" className="mx-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> Back to inventory</Link></section></main>;
+  }
+
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10 print:bg-white print:px-2 print:py-2 print:text-black">
       <div className="mx-auto grid w-full max-w-[1600px] gap-6 print:max-w-none print:gap-2">
@@ -863,7 +914,7 @@ export function RiftboundCollectionShare() {
               <Link href={snapshot.kind === 'deck' ? '/riftbound/inventory?tab=sets' : '/riftbound/inventory'} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> {snapshot.kind === 'deck' ? 'Decks' : 'Inventory'}</Link>
               {snapshot.kind === 'deck' && snapshot.deck && authResolved && session ? <button type="button" onClick={() => void saveSharedDeck()} disabled={deckSaveState !== 'idle'} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition disabled:cursor-wait disabled:opacity-70 ${deckSaveState === 'saved' ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-amber-200/50 bg-amber-300 text-slate-950 hover:bg-amber-200'}`}>{deckSaveState === 'saving' ? <LoaderCircle size={14} className="animate-spin" /> : deckSaveState === 'saved' ? <Check size={14} /> : <Plus size={14} />} {deckSaveState === 'saved' ? 'Saved to Decks' : 'Save Deck'}</button> : null}
               {snapshot.kind === 'deck' && snapshot.deck && authResolved && !session ? <Link href="/login" className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><Plus size={14} /> Log in to Save</Link> : null}
-              <button type="button" onClick={() => void printCollection()} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Print / Save PDF</button>
+              <button type="button" onClick={() => void printShare()} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200"><FileDown size={14} /> Print / Save PDF</button>
             </div>
           </div>
           {snapshot.kind === 'deck' && deckSaveError ? <p role="alert" className="mt-3 text-sm font-semibold text-red-200 print:hidden">{deckSaveError}</p> : null}
@@ -899,6 +950,23 @@ export function RiftboundCollectionShare() {
           ) : null}
           {snapshot.kind !== 'deck' ? <p className="mt-5 max-w-3xl text-xs leading-5 text-slate-500 print:hidden">Values are estimated from captured market prices provided by our pricing source and are not guaranteed sale prices. This read-only link is a snapshot of the collection at the time it was created.</p> : null}
         </header>
+
+        {snapshot.kind !== 'deck' && cards.length > 0 ? (
+          <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6" aria-label="Shared collection rarity breakdown">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Collection breakdown</p>
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{totalCopies} total cards</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+              {RIFTBOUND_RARITY_ORDER.map((rarity) => (
+                <button key={rarity} type="button" onClick={() => toggleFilter('rarity', rarity)} className={`rounded-2xl border px-3 py-3 text-center transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${filters.rarity.includes(rarity) ? 'border-amber-200/70 bg-amber-300/10' : 'border-white/10 bg-slate-900/70 hover:border-amber-200/50 hover:bg-slate-800'}`}>
+                  <p className={`text-xs font-black uppercase tracking-[0.12em] ${getRiftboundRarityTextClass(rarity)}`}>{rarity}</p>
+                  <p className="mt-1 text-xl font-black text-white">{rarityCounts.get(rarity) ?? 0}</p>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {snapshot.kind === 'deck' && snapshot.deck ? (
           deckViewMode === 'compact' ? <RiftboundCompactDeckView
@@ -1011,27 +1079,9 @@ export function RiftboundCollectionShare() {
             <p className="text-sm font-semibold text-slate-400">No cards match your search.</p>
             <button type="button" onClick={() => setQuery('')} className="rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200">Clear search</button>
           </section>
-        ) : snapshot.kind === 'set' ? (
-          <div className="riftbound-card-grid">
-            {filteredCards.map(({ card, normal, foil }) => <RiftboundCardRow key={card.id} card={card} normalQuantity={normal} foilQuantity={foil} mode="collection-view" pendingChange={false} pending={false} onOpen={setSelectedCard} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} />)}
-          </div>
         ) : snapshot.kind !== 'deck' ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
-            {filteredCards.map(({ card, normal, foil }) => (
-              <article key={card.id} className="flex min-w-0 break-inside-avoid flex-col rounded-2xl border border-white/10 bg-slate-950/80 p-4 transition focus-within:border-amber-200/80 print:rounded-lg print:border-slate-300 print:bg-white print:p-2">
-                <button type="button" onClick={() => setSelectedCard(card)} className="flex min-w-0 flex-1 flex-col items-center text-center focus:outline-none print:pointer-events-none">
-                <h2 className={`w-full truncate text-center text-lg font-black ${getRiftboundCardRarityTextClass(card)} print:text-[10px] print:leading-tight print:text-black`} title={card.displayName}>{card.displayName}</h2>
-                <p className="mt-1 text-center text-xs font-bold uppercase tracking-[0.1em] text-slate-500 print:mt-0.5 print:text-[8px] print:text-slate-600">{card.setCode} · {card.numberLabel}{tierRatings[getRiftboundCardTierGroupId(card)]?.tier ? ` · ${tierRatings[getRiftboundCardTierGroupId(card)]?.tier}` : ''}</p>
-                <div className="relative mx-auto mt-3 aspect-[744/1039] w-full max-w-[11rem] overflow-hidden rounded-xl bg-slate-900 print:mt-1 print:max-w-[4.5rem] print:rounded print:bg-slate-100">
-                  <RiftboundCardImage card={card} sizes="176px" loading="eager" className="riftbound-print-card-image object-cover" />
-                </div>
-                </button>
-                <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-400 print:mt-1 print:gap-0.5 print:text-[8px] print:text-slate-600">
-                  {card.finishOptions.includes('normal') ? <p className="flex justify-between gap-2"><span>Normal · {normal}</span><span>{formatMarketPrice(card.marketPrices.normal)}</span></p> : null}
-                  {card.finishOptions.includes('foil') ? <p className="flex justify-between gap-2 text-amber-200 print:text-amber-700"><span>Foil · {foil}</span><span>{formatMarketPrice(card.marketPrices.foil)}</span></p> : null}
-                </div>
-              </article>
-            ))}
+          <div className="riftbound-card-grid">
+            {filteredCards.map(({ card, normal, foil }) => <RiftboundCardRow key={card.id} card={card} normalQuantity={normal} foilQuantity={foil} mode="collection-view" pendingChange={false} pending={false} onOpen={setSelectedCard} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} imageClassName="riftbound-print-card-image" imageLoading={printMode ? 'eager' : 'lazy'} />)}
           </div>
         ) : null}
         {selectedCard ? <SharedCardDetailsModal card={selectedCard} showMarketDetails={snapshot.kind !== 'deck'} preferenceSession={session} tierRating={tierRatings[getRiftboundCardTierGroupId(selectedCard)]} onTierChange={(rating) => setTierRatings((current) => { const next = { ...current }; const groupId = getRiftboundCardTierGroupId(selectedCard); if (rating) next[groupId] = rating; else delete next[groupId]; return next; })} onClose={() => setSelectedCard(null)} /> : null}

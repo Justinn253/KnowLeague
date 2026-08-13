@@ -12,11 +12,13 @@ import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, type RiftboundCardTier } from '@/lib/riftbound';
 import { isRiftboundChampionUnit } from '@/lib/riftbound-decks';
+import { formatRelativeTime } from '@/lib/relative-time';
 import {
   createRiftboundComment,
   deleteRiftboundCommunityPost,
   getRiftboundCommunityComments,
   getRiftboundCommunityPost,
+  updateRiftboundCommentReaction,
   hasRiftboundPostBeenShared,
   setRiftboundCommunityPostArchiveState,
   isRiftboundRateLimitError,
@@ -47,9 +49,27 @@ const reportOptions = [
   { value: 'other', label: 'Other' },
 ] as const;
 
-function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Unknown date' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+const moderationRoleCache = new Map<string, { role: string | null; expiresAt: number }>();
+const moderationRoleRequests = new Map<string, Promise<string | null>>();
+
+function loadRiftboundModerationRole(session: Session) {
+  const key = `${session.user.id}:${session.access_token}`;
+  const cached = moderationRoleCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.role);
+  const existing = moderationRoleRequests.get(key);
+  if (existing) return existing;
+  const request = fetch('/api/moderation/me', { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' })
+    .then((response) => response.json() as Promise<{ role?: string }>)
+    .then((data) => {
+      const role = data.role === 'moderator' || data.role === 'admin' ? data.role : null;
+      moderationRoleCache.set(key, { role, expiresAt: Date.now() + 60_000 });
+      return role;
+    })
+    .finally(() => {
+      if (moderationRoleRequests.get(key) === request) moderationRoleRequests.delete(key);
+    });
+  moderationRoleRequests.set(key, request);
+  return request;
 }
 
 function postTypeLabel(type: RiftboundCommunityPostDetail['postType']) {
@@ -75,7 +95,7 @@ function RiftboundCommunityPostHeader({ post }: { post: RiftboundCommunityPostDe
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
             <Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} className="font-black hover:underline" style={getChatNameStyle(post.author.chatColor)}>{post.author.displayName || post.author.username}</Link>
             <span aria-hidden="true">·</span>
-            <span>{formatDate(post.createdAt)}</span>
+            <span>{formatRelativeTime(post.createdAt)}</span>
           </div>
         </div>
       </div>
@@ -100,17 +120,90 @@ function RiftboundPostCardRow({ entry, tierVote }: { entry: RiftboundPostSnapsho
   );
 }
 
-function CommentItem({ comment }: { comment: RiftboundCommunityComment }) {
-  return (
-    <article className="grid gap-2 rounded-2xl border border-white/10 bg-slate-900/50 p-3">
+type RiftboundCommentItemProps = {
+  comment: RiftboundCommunityComment;
+  subComments: RiftboundCommunityComment[];
+  isSubComment: boolean;
+  session: Session | null;
+  replyTarget: RiftboundCommunityComment | null;
+  expanded: boolean;
+  hasLoadedReplies: boolean;
+  hasMoreReplies: boolean;
+  replyingTo: string | null;
+  replyBodies: Record<string, string>;
+  replyLoadingIds: Set<string>;
+  replySaving: boolean;
+  highlighted: boolean;
+  commentById: ReadonlyMap<string, RiftboundCommunityComment>;
+  highlightedCommentId: string | null;
+  onCommentRef: (commentId: string, element: HTMLElement | null) => void;
+  onToggleReplies: (commentId: string) => void;
+  onShowMoreReplies: (commentId: string) => void;
+  onStartReply: (commentId: string) => void;
+  onReplyBodyChange: (commentId: string, value: string) => void;
+  onSubmitReply: (commentId: string) => void;
+  onReaction: (comment: RiftboundCommunityComment, reaction: 'like' | 'dislike') => void;
+  onJumpToComment: (commentId: string) => void;
+};
+
+function CommentItem({
+  comment,
+  subComments,
+  isSubComment,
+  session,
+  replyTarget,
+  expanded,
+  hasLoadedReplies,
+  hasMoreReplies,
+  replyingTo,
+  replyBodies,
+  replyLoadingIds,
+  replySaving,
+  highlighted,
+  commentById,
+  highlightedCommentId,
+  onCommentRef,
+  onToggleReplies,
+  onShowMoreReplies,
+  onStartReply,
+  onReplyBodyChange,
+  onSubmitReply,
+  onReaction,
+  onJumpToComment,
+}: RiftboundCommentItemProps) {
+  const content = (
+    <div className="grid gap-3">
       <div className="flex items-center gap-2">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-950 text-xs font-black text-amber-200" style={comment.author.avatarUrl ? { backgroundImage: `url(${comment.author.avatarUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
           {comment.author.avatarUrl ? null : comment.author.displayName.slice(0, 1).toUpperCase()}
         </div>
         <Link href={`/riftbound/profile/${encodeURIComponent(comment.author.username)}`} className="text-sm font-black hover:underline" style={getChatNameStyle(comment.author.chatColor)}>{comment.author.displayName || comment.author.username}</Link>
-        <span className="text-xs font-semibold text-slate-600">{formatDate(comment.createdAt)}</span>
+        <span className="text-xs font-semibold text-slate-600">{formatRelativeTime(comment.createdAt)}</span>
       </div>
+      {replyTarget ? <button type="button" onClick={() => onJumpToComment(replyTarget.id)} className="justify-self-start text-xs font-semibold text-slate-500 transition hover:text-amber-200">Replying to <span className="font-black" style={getChatNameStyle(replyTarget.author.chatColor)}>{replyTarget.author.displayName || replyTarget.author.username}</span></button> : null}
       <p className="whitespace-pre-line text-sm leading-6 text-slate-300">{comment.body}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => onReaction(comment, 'like')} disabled={!session} aria-label={`Like comment (${comment.likeCount})`} aria-pressed={comment.viewerReaction === 'like'} className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${comment.viewerReaction === 'like' ? 'border-amber-200/60 bg-amber-300/15 text-amber-200' : 'border-white/10 bg-slate-950/60 text-slate-500 hover:border-amber-200/50 hover:text-amber-200'}`}><ThumbsUp size={13} /> {comment.likeCount}</button>
+        <button type="button" onClick={() => onReaction(comment, 'dislike')} disabled={!session} aria-label={`Dislike comment (${comment.dislikeCount})`} aria-pressed={comment.viewerReaction === 'dislike'} className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${comment.viewerReaction === 'dislike' ? 'border-red-200/60 bg-red-300/15 text-red-200' : 'border-white/10 bg-slate-950/60 text-slate-500 hover:border-red-200/50 hover:text-red-200'}`}><ThumbsDown size={13} /> {comment.dislikeCount}</button>
+        {session ? <button type="button" onClick={() => onStartReply(comment.id)} className="rounded-lg border border-white/10 bg-slate-950/60 px-2 py-1.5 text-xs font-black text-slate-500 transition hover:border-amber-200/50 hover:text-amber-200">Reply</button> : null}
+        {!isSubComment && comment.replyCount > 0 ? <button type="button" onClick={() => onToggleReplies(comment.id)} className="rounded-lg border border-white/10 bg-slate-950/60 px-2 py-1.5 text-xs font-black text-slate-500 transition hover:border-amber-200/50 hover:text-amber-200">{expanded ? 'Hide Comments' : `View Comments (${comment.replyCount})`}</button> : null}
+      </div>
+      {replyingTo === comment.id && session ? <div className="grid gap-2 rounded-xl border border-amber-200/15 bg-slate-950/50 p-2"><textarea value={replyBodies[comment.id] ?? ''} onChange={(event) => onReplyBodyChange(comment.id, event.target.value)} maxLength={1000} rows={2} placeholder="Write a reply" className="resize-y rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm leading-6 text-white outline-none focus:border-amber-300" /><div className="flex justify-end gap-2"><button type="button" onClick={() => onStartReply(comment.id)} disabled={replySaving} className="rounded-lg px-2 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-500">Cancel</button><button type="button" onClick={() => onSubmitReply(comment.id)} disabled={replySaving || !(replyBodies[comment.id] ?? '').trim()} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200/50 bg-amber-300 px-2.5 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-950 disabled:opacity-50">{replySaving ? <LoaderCircle size={13} className="animate-spin" /> : <Send size={13} />} Reply</button></div></div> : null}
+    </div>
+  );
+
+  if (isSubComment) {
+    return <div ref={(element) => onCommentRef(comment.id, element)} data-comment-id={comment.id} className={`border-t border-white/10 pt-3 transition-colors ${highlighted ? 'rounded-xl border-amber-200/80 bg-amber-300/10 px-2 ring-2 ring-amber-300/20' : ''}`}>{content}</div>;
+  }
+
+  return (
+    <article ref={(element) => onCommentRef(comment.id, element)} data-comment-id={comment.id} className={`grid gap-3 rounded-2xl border bg-slate-900/50 p-3 transition-colors ${highlighted ? 'border-amber-200/80 bg-amber-300/10 ring-2 ring-amber-300/20' : 'border-white/10'}`}>
+      {content}
+      {expanded ? <div className="grid gap-3 pt-3">
+        {subComments.map((subComment) => <CommentItem key={subComment.id} comment={subComment} subComments={[]} isSubComment session={session} replyTarget={subComment.parentId ? commentById.get(subComment.parentId) ?? null : null} expanded={false} hasLoadedReplies={false} hasMoreReplies={false} replyingTo={replyingTo} replyBodies={replyBodies} replyLoadingIds={replyLoadingIds} replySaving={replySaving} highlighted={highlightedCommentId === subComment.id} commentById={commentById} highlightedCommentId={highlightedCommentId} onCommentRef={onCommentRef} onToggleReplies={onToggleReplies} onShowMoreReplies={onShowMoreReplies} onStartReply={onStartReply} onReplyBodyChange={onReplyBodyChange} onSubmitReply={onSubmitReply} onReaction={onReaction} onJumpToComment={onJumpToComment} />)}
+        {replyLoadingIds.has(comment.id) && !hasLoadedReplies ? <p className="text-xs font-semibold text-slate-500">Loading comments...</p> : null}
+        {hasMoreReplies ? <button type="button" onClick={() => onShowMoreReplies(comment.id)} disabled={replyLoadingIds.has(comment.id)} className="justify-self-start rounded-lg border border-white/10 bg-slate-950/60 px-2.5 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-slate-400 transition hover:border-amber-200/50 hover:text-amber-200 disabled:opacity-50">{replyLoadingIds.has(comment.id) ? 'Loading' : 'Show More'}</button> : null}
+      </div> : null}
     </article>
   );
 }
@@ -151,12 +244,20 @@ export function RiftboundCommunityPost({ postId, returnTo }: { postId: string; r
   const router = useRouter();
   const safeReturnTo = returnTo?.startsWith('/riftbound/profile/') ? returnTo : '/riftbound/community';
   const [session, setSession] = useState<Session | null>(null);
+  const [authResolved, setAuthResolved] = useState(false);
   const [staffRole, setStaffRole] = useState<string | null>(null);
   const [tierRatings, setTierRatings] = useState<Record<string, RiftboundCardTierRating>>({});
   const [post, setPost] = useState<RiftboundCommunityPostDetail | null>(null);
   const [comments, setComments] = useState<RiftboundCommunityComment[]>([]);
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
   const commentsCursorRef = useRef<string | null>(null);
+  const [repliesByParent, setRepliesByParent] = useState<Record<string, RiftboundCommunityComment[]>>({});
+  const [replyCursors, setReplyCursors] = useState<Record<string, string | null>>({});
+  const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(new Set());
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyBodies, setReplyBodies] = useState<Record<string, string>>({});
+  const [replyLoadingIds, setReplyLoadingIds] = useState<Set<string>>(new Set());
+  const [replySaving, setReplySaving] = useState(false);
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [commentsLoading, setCommentsLoading] = useState(true);
@@ -193,23 +294,31 @@ export function RiftboundCommunityPost({ postId, returnTo }: { postId: string; r
   const [shareBusy, setShareBusy] = useState(false);
   const shareBusyRef = useRef(false);
   const [shareCompleted, setShareCompleted] = useState(false);
+  const commentElementsRef = useRef(new Map<string, HTMLElement>());
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commentReactionRequestsRef = useRef(new Map<string, Promise<unknown>>());
+  const commentReactionStateRef = useRef(new Map<string, { reaction: RiftboundPostReaction | null; likeCount: number; dislikeCount: number }>());
 
-  useEffect(() => subscribeToAuthSession((nextSession) => setSession(nextSession)), []);
+  useEffect(() => subscribeToAuthSession((nextSession) => {
+    setSession(nextSession);
+    setAuthResolved(true);
+  }), []);
 
   useEffect(() => {
+    if (!authResolved) return undefined;
     if (!session) {
       setStaffRole(null);
       return undefined;
     }
     let cancelled = false;
-    void fetch('/api/moderation/me', { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' })
-      .then((response) => response.json() as Promise<{ role?: string }>)
-      .then((data) => {
-        if (!cancelled) setStaffRole(data.role === 'moderator' || data.role === 'admin' ? data.role : null);
+    void loadRiftboundModerationRole(session)
+      .then((role) => {
+        if (!cancelled) setStaffRole(role);
       })
       .catch(() => { if (!cancelled) setStaffRole(null); });
     return () => { cancelled = true; };
-  }, [session]);
+  }, [authResolved, session]);
 
   useEffect(() => {
     setShareCompleted(Boolean(session && hasRiftboundPostBeenShared(postId, session.user.id)));
@@ -248,6 +357,7 @@ export function RiftboundCommunityPost({ postId, returnTo }: { postId: string; r
   }, [postId]);
 
   useEffect(() => {
+    if (!authResolved) return undefined;
     let cancelled = false;
     setLoading(true);
     setError('');
@@ -266,15 +376,21 @@ export function RiftboundCommunityPost({ postId, returnTo }: { postId: string; r
       .catch((loadError) => { if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Unable to load this Riftbound post.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [postId, session]);
+  }, [authResolved, postId, session]);
 
   const loadComments = useCallback(async (append = false) => {
+    if (!authResolved) return;
     if (append) setCommentsMoreLoading(true);
     else setCommentsLoading(true);
     setCommentError('');
     try {
       const data = await getRiftboundCommunityComments(postId, append ? commentsCursorRef.current : null, session);
       setComments((current) => append ? [...current, ...data.comments] : data.comments);
+      if (!append) {
+        setRepliesByParent({});
+        setReplyCursors({});
+        setExpandedCommentIds(new Set());
+      }
       commentsCursorRef.current = data.nextCursor;
       setCommentsCursor(data.nextCursor);
     } catch (loadError) {
@@ -283,7 +399,171 @@ export function RiftboundCommunityPost({ postId, returnTo }: { postId: string; r
       setCommentsLoading(false);
       setCommentsMoreLoading(false);
     }
-  }, [postId, session]);
+  }, [authResolved, postId, session]);
+
+  const loadReplies = useCallback(async (commentId: string, append = false) => {
+    if (!authResolved || replyLoadingIds.has(commentId)) return;
+    setReplyLoadingIds((current) => new Set(current).add(commentId));
+    setCommentError('');
+    try {
+      const data = await getRiftboundCommunityComments(postId, append ? replyCursors[commentId] : null, session, commentId);
+      setRepliesByParent((current) => ({ ...current, [commentId]: append ? [...(current[commentId] ?? []), ...data.comments] : data.comments }));
+      setReplyCursors((current) => ({ ...current, [commentId]: data.nextCursor }));
+    } catch (loadError) {
+      setCommentError(isRiftboundRateLimitError(loadError) ? '' : loadError instanceof Error ? loadError.message : 'Unable to load comment replies.');
+    } finally {
+      setReplyLoadingIds((current) => {
+        const next = new Set(current);
+        next.delete(commentId);
+        return next;
+      });
+    }
+  }, [authResolved, postId, replyCursors, replyLoadingIds, session]);
+
+  const updateCommentState = useCallback((commentId: string, update: (comment: RiftboundCommunityComment) => RiftboundCommunityComment) => {
+    setComments((current) => current.map((comment) => comment.id === commentId ? update(comment) : comment));
+    setRepliesByParent((current) => Object.fromEntries(Object.entries(current).map(([parentId, rows]) => [parentId, rows.map((comment) => comment.id === commentId ? update(comment) : comment)])));
+  }, []);
+
+  const incrementReplyCounts = useCallback((parentId: string) => {
+    const loadedComments = new Map<string, RiftboundCommunityComment>();
+    comments.forEach((comment) => loadedComments.set(comment.id, comment));
+    Object.values(repliesByParent).flat().forEach((comment) => loadedComments.set(comment.id, comment));
+    const ancestorIds = new Set<string>();
+    let currentId: string | null = parentId;
+    while (currentId && !ancestorIds.has(currentId)) {
+      ancestorIds.add(currentId);
+      currentId = loadedComments.get(currentId)?.parentId ?? null;
+    }
+    setComments((current) => current.map((comment) => ancestorIds.has(comment.id) ? { ...comment, replyCount: comment.replyCount + 1 } : comment));
+    setRepliesByParent((current) => Object.fromEntries(Object.entries(current).map(([commentId, rows]) => [commentId, rows.map((comment) => ancestorIds.has(comment.id) ? { ...comment, replyCount: comment.replyCount + 1 } : comment)])));
+  }, [comments, repliesByParent]);
+
+  const toggleCommentReplies = useCallback((commentId: string) => {
+    setExpandedCommentIds((current) => {
+      const next = new Set(current);
+      if (next.has(commentId)) next.delete(commentId);
+      else next.add(commentId);
+      return next;
+    });
+    if (!expandedCommentIds.has(commentId) && !(repliesByParent[commentId]?.length)) void loadReplies(commentId);
+  }, [expandedCommentIds, loadReplies, repliesByParent]);
+
+  const startCommentReply = useCallback((commentId: string) => {
+    setReplyingTo((current) => current === commentId ? null : commentId);
+  }, []);
+
+  const submitCommentReply = useCallback(async (parentId: string) => {
+    if (!session || replySaving || !(replyBodies[parentId] ?? '').trim()) return;
+    setReplySaving(true);
+    setCommentError('');
+    try {
+      const data = await createRiftboundComment(postId, replyBodies[parentId], session, parentId);
+      const threadRootId = comments.some((comment) => comment.id === parentId)
+        ? parentId
+        : Object.entries(repliesByParent).find(([, rows]) => rows.some((comment) => comment.id === parentId))?.[0] ?? null;
+      if (threadRootId) {
+        setRepliesByParent((current) => ({ ...current, [threadRootId]: [data.comment, ...(current[threadRootId] ?? [])] }));
+        setExpandedCommentIds((current) => new Set(current).add(threadRootId));
+      }
+      incrementReplyCounts(parentId);
+      setReplyBodies((current) => ({ ...current, [parentId]: '' }));
+      setReplyingTo(null);
+      setPost((current) => current ? { ...current, commentCount: current.commentCount + 1 } : current);
+    } catch (saveError) {
+      setCommentError(isRiftboundRateLimitError(saveError) ? '' : saveError instanceof Error ? saveError.message : 'Unable to add your reply.');
+    } finally {
+      setReplySaving(false);
+    }
+  }, [comments, incrementReplyCounts, postId, repliesByParent, replyBodies, replySaving, session]);
+
+  const reactToComment = useCallback((comment: RiftboundCommunityComment, nextReaction: 'like' | 'dislike') => {
+    if (!session) return;
+    const previous = commentReactionStateRef.current.get(comment.id) ?? {
+      reaction: comment.viewerReaction,
+      likeCount: comment.likeCount,
+      dislikeCount: comment.dislikeCount,
+    };
+    const reaction = previous.reaction === nextReaction ? null : nextReaction;
+    const nextLikeCount = Math.max(0, previous.likeCount - (previous.reaction === 'like' ? 1 : 0) + (reaction === 'like' ? 1 : 0));
+    const nextDislikeCount = Math.max(0, previous.dislikeCount - (previous.reaction === 'dislike' ? 1 : 0) + (reaction === 'dislike' ? 1 : 0));
+    commentReactionStateRef.current.set(comment.id, { reaction, likeCount: nextLikeCount, dislikeCount: nextDislikeCount });
+    updateCommentState(comment.id, (current) => ({ ...current, likeCount: nextLikeCount, dislikeCount: nextDislikeCount, viewerReaction: reaction }));
+
+    const request = (commentReactionRequestsRef.current.get(comment.id) ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => updateRiftboundCommentReaction(postId, comment.id, reaction, session));
+    commentReactionRequestsRef.current.set(comment.id, request);
+    void request.then((result) => {
+      const latest = commentReactionStateRef.current.get(comment.id);
+      if (!latest || latest.reaction !== reaction) return;
+      commentReactionStateRef.current.set(comment.id, { reaction: result.reaction, likeCount: result.likeCount, dislikeCount: result.dislikeCount });
+      updateCommentState(comment.id, (current) => ({ ...current, likeCount: result.likeCount, dislikeCount: result.dislikeCount, viewerReaction: result.reaction }));
+    }).catch((reactionError) => {
+      const latest = commentReactionStateRef.current.get(comment.id);
+      if (!latest || latest.reaction !== reaction) return;
+      commentReactionStateRef.current.set(comment.id, previous);
+      updateCommentState(comment.id, (current) => ({ ...current, likeCount: previous.likeCount, dislikeCount: previous.dislikeCount, viewerReaction: previous.reaction }));
+      setCommentError(isRiftboundRateLimitError(reactionError) ? '' : reactionError instanceof Error ? reactionError.message : 'Unable to update the comment reaction.');
+    });
+  }, [postId, session, updateCommentState]);
+
+  const loadedCommentsById = useMemo(() => {
+    const result = new Map<string, RiftboundCommunityComment>();
+    comments.forEach((comment) => result.set(comment.id, comment));
+    Object.values(repliesByParent).flat().forEach((comment) => result.set(comment.id, comment));
+    return result;
+  }, [comments, repliesByParent]);
+
+  const commentColumns = useMemo(() => {
+    const columns: [RiftboundCommunityComment[], RiftboundCommunityComment[]] = [[], []];
+    const estimatedHeights = [0, 0];
+    comments.forEach((comment) => {
+      const columnIndex = estimatedHeights[0] <= estimatedHeights[1] ? 0 : 1;
+      columns[columnIndex].push(comment);
+      estimatedHeights[columnIndex] += Math.max(1, Math.ceil(comment.body.length / 80)) + comment.replyCount;
+    });
+    return columns;
+  }, [comments]);
+
+  const jumpToComment = useCallback((commentId: string) => {
+    const element = commentElementsRef.current.get(commentId);
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedCommentId(commentId);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => setHighlightedCommentId(null), 1800);
+  }, []);
+
+  const renderComment = (comment: RiftboundCommunityComment) => <CommentItem
+    key={comment.id}
+    comment={comment}
+    subComments={repliesByParent[comment.id] ?? []}
+    isSubComment={false}
+    session={session}
+    replyTarget={comment.parentId ? loadedCommentsById.get(comment.parentId) ?? null : null}
+    expanded={expandedCommentIds.has(comment.id)}
+    hasLoadedReplies={Object.prototype.hasOwnProperty.call(repliesByParent, comment.id)}
+    hasMoreReplies={Boolean(replyCursors[comment.id])}
+    replyingTo={replyingTo}
+    replyBodies={replyBodies}
+    replyLoadingIds={replyLoadingIds}
+    replySaving={replySaving}
+    highlighted={highlightedCommentId === comment.id}
+    commentById={loadedCommentsById}
+    highlightedCommentId={highlightedCommentId}
+    onCommentRef={(commentId, element) => {
+      if (element) commentElementsRef.current.set(commentId, element);
+      else commentElementsRef.current.delete(commentId);
+    }}
+    onToggleReplies={toggleCommentReplies}
+    onShowMoreReplies={(commentId) => void loadReplies(commentId, true)}
+    onStartReply={startCommentReply}
+    onReplyBodyChange={(commentId, value) => setReplyBodies((current) => ({ ...current, [commentId]: value }))}
+    onSubmitReply={(commentId) => void submitCommentReply(commentId)}
+    onReaction={reactToComment}
+    onJumpToComment={jumpToComment}
+  />;
 
   useEffect(() => {
     commentsCursorRef.current = null;
@@ -544,7 +824,10 @@ export function RiftboundCommunityPost({ postId, returnTo }: { postId: string; r
             <div className="flex items-center gap-2"><MessageCircle size={18} className="text-amber-300" /><h2 className="text-xl font-black text-white">Comments</h2><span className="inline-flex min-w-6 items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-1 text-xs font-black text-amber-200">{post.commentCount}</span></div>
           {session ? <div className="grid gap-2"><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} maxLength={1000} rows={3} placeholder="Add a comment" className="resize-y rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-semibold leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20" /><div className="flex justify-end"><button type="button" onClick={() => void addComment()} disabled={commentSaving || !commentBody.trim()} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">{commentSaving ? <LoaderCircle size={14} className="animate-spin" /> : <Send size={14} />} Comment</button></div></div> : <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-slate-400">Sign in to join the conversation.</p>}
           {commentError ? <p className="text-sm font-semibold text-red-200">{commentError}</p> : null}
-          {commentsLoading ? <p className="text-sm text-slate-500">Loading comments...</p> : comments.length === 0 ? <p className="text-sm text-slate-500">No comments yet.</p> : <div className="grid gap-2">{comments.map((comment) => <CommentItem key={comment.id} comment={comment} />)}</div>}
+          {commentsLoading ? <p className="text-sm text-slate-500">Loading comments...</p> : comments.length === 0 ? <p className="text-sm text-slate-500">No comments yet.</p> : <>
+            <div className="grid gap-3 lg:hidden">{comments.map(renderComment)}</div>
+            <div className="hidden items-start gap-4 lg:grid lg:grid-cols-2"><div className="grid content-start gap-3">{commentColumns[0].map(renderComment)}</div><div className="grid content-start gap-3">{commentColumns[1].map(renderComment)}</div></div>
+          </>}
           {commentsCursor ? <button type="button" onClick={() => void loadComments(true)} disabled={commentsMoreLoading} className="mx-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-200 disabled:opacity-50">{commentsMoreLoading ? <LoaderCircle size={14} className="animate-spin" /> : null} Load More Comments</button> : null}
           </div>
         </section>

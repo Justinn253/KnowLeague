@@ -51,7 +51,10 @@ export function RiftboundCardImage({ card, sizes, className = 'object-cover', or
   const [visible, setVisible] = useState(eager);
 
   useEffect(() => {
-    if (eager) return undefined;
+    if (eager) {
+      setVisible(true);
+      return undefined;
+    }
     const target = imageContainerRef.current;
     if (!target) return undefined;
     return observeCardImage(target, setVisible);

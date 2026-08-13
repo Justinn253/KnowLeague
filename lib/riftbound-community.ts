@@ -94,6 +94,8 @@ type CommentRow = {
   status: 'visible' | 'hidden' | 'deleted';
   created_at: string;
   updated_at: string;
+  like_count: number;
+  dislike_count: number;
 };
 
 type Cursor = {
@@ -665,7 +667,7 @@ export async function loadRecentRiftboundPosts(authorId: string, limit = 12, inc
   }).map((row) => mapPostRow(row, author));
 }
 
-export async function loadRiftboundComments(postId: string, cursor: CommentCursor | null, limit = 20, viewerId: string | null = null, allowArchived = false) {
+export async function loadRiftboundComments(postId: string, cursor: CommentCursor | null, limit = 20, viewerId: string | null = null, allowArchived = false, parentId: string | null = null) {
   const supabase = getSupabaseServiceClient();
   const { data: post, error: postError } = await supabase
     .from('riftbound_posts')
@@ -677,24 +679,86 @@ export async function loadRiftboundComments(postId: string, cursor: CommentCurso
   if (!post || !(await canViewRiftboundPost(post, viewerId, allowArchived))) throw new Error('Riftbound post not found.');
   let query = supabase
     .from('riftbound_post_comments')
-    .select('id, post_id, author_id, parent_id, body, status, created_at, updated_at')
+    .select('id, post_id, author_id, parent_id, body, status, created_at, updated_at, like_count, dislike_count')
     .eq('post_id', postId)
     .eq('status', 'visible')
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(Math.max(1, Math.min(limit, 50)));
-  if (cursor) {
-    query = query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`);
+    ;
+  if (!parentId) {
+    query = query
+      .is('parent_id', null)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(Math.max(1, Math.min(limit, 50)));
+    if (cursor) {
+      query = query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`);
+    }
   }
   const { data, error } = await query.returns<CommentRow[]>();
   if (error) throw error;
-  const rows = data ?? [];
+  let rows = data ?? [];
+  if (parentId) {
+    const childRowsByParent = new Map<string, CommentRow[]>();
+    rows.forEach((row) => {
+      if (!row.parent_id) return;
+      const children = childRowsByParent.get(row.parent_id) ?? [];
+      children.push(row);
+      childRowsByParent.set(row.parent_id, children);
+    });
+    const descendantIds = new Set<string>();
+    const pendingParents = [parentId];
+    while (pendingParents.length > 0) {
+      const currentParentId = pendingParents.shift();
+      if (!currentParentId) continue;
+      (childRowsByParent.get(currentParentId) ?? []).forEach((child) => {
+        if (descendantIds.has(child.id)) return;
+        descendantIds.add(child.id);
+        pendingParents.push(child.id);
+      });
+    }
+    rows = rows
+      .filter((row) => descendantIds.has(row.id))
+      .sort((left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id));
+    if (cursor) {
+      rows = rows.filter((row) => row.created_at < cursor.createdAt || (row.created_at === cursor.createdAt && row.id < cursor.id));
+    }
+    rows = rows.slice(0, Math.max(1, Math.min(limit, 50)));
+  }
   const authorIds = unique(rows.map((row) => row.author_id));
-  const { data: profiles, error: profilesError } = authorIds.length > 0
-    ? await supabase.from('profiles').select('id, username, display_name, avatar_url, chat_color').in('id', authorIds).returns<Array<{ id: string; username: string; display_name: string; avatar_url: string | null; chat_color: string | null }>>()
-    : { data: [], error: null };
+  const commentIds = rows.map((row) => row.id);
+  const [{ data: profiles, error: profilesError }, { data: allComments, error: allCommentsError }, { data: reactions, error: reactionsError }] = await Promise.all([
+    authorIds.length > 0
+      ? supabase.from('profiles').select('id, username, display_name, avatar_url, chat_color').in('id', authorIds).returns<Array<{ id: string; username: string; display_name: string; avatar_url: string | null; chat_color: string | null }>>()
+      : Promise.resolve({ data: [], error: null }),
+    commentIds.length > 0
+      ? supabase.from('riftbound_post_comments').select('id, parent_id').eq('post_id', postId).eq('status', 'visible').returns<Array<{ id: string; parent_id: string | null }>>()
+      : Promise.resolve({ data: [], error: null }),
+    viewerId && commentIds.length > 0
+      ? supabase.from('riftbound_post_comment_reactions').select('comment_id, reaction_type').eq('user_id', viewerId).in('comment_id', commentIds).returns<Array<{ comment_id: string; reaction_type: RiftboundPostReaction }>>()
+      : Promise.resolve({ data: [], error: null }),
+  ]);
   if (profilesError) throw profilesError;
+  if (allCommentsError) throw allCommentsError;
+  if (reactionsError) throw reactionsError;
   const authors = new Map((profiles ?? []).map((profile) => [profile.id, mapAuthor(profile)]));
+  const childIdsByParent = new Map<string, string[]>();
+  (allComments ?? []).forEach((comment) => {
+    if (!comment.parent_id) return;
+    const children = childIdsByParent.get(comment.parent_id) ?? [];
+    children.push(comment.id);
+    childIdsByParent.set(comment.parent_id, children);
+  });
+  const replyCounts = new Map<string, number>();
+  const countDescendants = (commentId: string, visiting = new Set<string>()): number => {
+    const cached = replyCounts.get(commentId);
+    if (cached !== undefined) return cached;
+    if (visiting.has(commentId)) return 0;
+    const nextVisiting = new Set(visiting).add(commentId);
+    const total = (childIdsByParent.get(commentId) ?? []).reduce((count, childId) => count + 1 + countDescendants(childId, nextVisiting), 0);
+    replyCounts.set(commentId, total);
+    return total;
+  };
+  commentIds.forEach((commentId) => countDescendants(commentId));
+  const viewerReactions = new Map((reactions ?? []).map((reaction) => [reaction.comment_id, reaction.reaction_type]));
   const comments: RiftboundCommunityComment[] = rows.map((row) => ({
     id: row.id,
     postId: row.post_id,
@@ -704,6 +768,10 @@ export async function loadRiftboundComments(postId: string, cursor: CommentCurso
     author: authors.get(row.author_id) ?? { id: row.author_id, username: 'Unknown', displayName: 'Unknown', avatarUrl: null, chatColor: 'amber' },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    likeCount: row.like_count,
+    dislikeCount: row.dislike_count,
+    replyCount: replyCounts.get(row.id) ?? 0,
+    viewerReaction: viewerReactions.get(row.id) ?? null,
   }));
   return {
     comments,
@@ -729,7 +797,7 @@ export async function createRiftboundComment(postId: string, userId: string, bod
   const { data, error } = await supabase
     .from('riftbound_post_comments')
     .insert({ post_id: postId, author_id: userId, parent_id: parentId, body, status: 'visible' })
-    .select('id, post_id, author_id, parent_id, body, status, created_at, updated_at')
+    .select('id, post_id, author_id, parent_id, body, status, created_at, updated_at, like_count, dislike_count')
     .single<CommentRow>();
   if (error) throw error;
   const author = await loadAuthor(userId, supabase);
@@ -742,6 +810,10 @@ export async function createRiftboundComment(postId: string, userId: string, bod
     author,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
+    likeCount: data.like_count,
+    dislikeCount: data.dislike_count,
+    replyCount: 0,
+    viewerReaction: null,
   } satisfies RiftboundCommunityComment;
 }
 
@@ -839,6 +911,39 @@ export async function reactToRiftboundPost(postId: string, userId: string, react
   return { likeCount: row.like_count, dislikeCount: row.dislike_count, reaction: row.reaction ?? null };
 }
 
+export async function reactToRiftboundComment(postId: string, commentId: string, userId: string, reaction: RiftboundPostReaction | null, allowArchived = false) {
+  const supabase = getSupabaseServiceClient();
+  const { data: comment, error: commentError } = await supabase
+    .from('riftbound_post_comments')
+    .select('id, post_id, status')
+    .eq('id', commentId)
+    .eq('post_id', postId)
+    .eq('status', 'visible')
+    .maybeSingle<{ id: string; post_id: string; status: 'visible' }>();
+  if (commentError) throw commentError;
+  if (!comment) throw new Error('Riftbound comment not found.');
+
+  const { data: post, error: postError } = await supabase
+    .from('riftbound_posts')
+    .select('author_id, visibility, archived_by_staff')
+    .eq('id', postId)
+    .neq('visibility', 'removed')
+    .maybeSingle<Pick<PostRow, 'author_id' | 'visibility' | 'archived_by_staff'>>();
+  if (postError) throw postError;
+  if (!post || !(await canViewRiftboundPost(post, userId, allowArchived))) throw new Error('Riftbound post not found.');
+
+  const { data, error } = await supabase.rpc('react_riftbound_comment', {
+    p_comment_id: commentId,
+    p_user_id: userId,
+    p_reaction: reaction,
+  });
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data as unknown as Array<{ like_count: number; dislike_count: number; reaction: RiftboundPostReaction | null }> : [];
+  const row = rows[0];
+  if (!row) throw new Error('Unable to update the comment reaction.');
+  return { likeCount: row.like_count, dislikeCount: row.dislike_count, reaction: row.reaction ?? null };
+}
+
 export async function recordRiftboundPostShare(postId: string, userId: string) {
   const { data, error } = await getSupabaseServiceClient().rpc('record_riftbound_post_share', { p_post_id: postId, p_user_id: userId });
   if (error) throw error;
@@ -932,7 +1037,7 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
   if (settingsResult.error) throw settingsResult.error;
   if (settingsResult.data?.visibility === 'private' && !isOwner) throw new Error('This Riftbound profile is private.');
 
-  const [inventory, sets, decks, favoriteCardsResult, favoriteSetsResult, favoriteDecksResult, wishlistResult, posts, prices] = await Promise.all([
+  const [inventory, sets, decks, favoriteCardsResult, favoriteSetsResult, favoriteDecksResult, wishlistResult, posts, postStatsResult, commentStatsResult, prices] = await Promise.all([
     loadRiftboundInventory(profile.id),
     loadRiftboundSets(profile.id),
     loadRiftboundDecks(profile.id),
@@ -941,12 +1046,19 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
     supabase.from('riftbound_profile_favorite_decks').select('deck_id').eq('user_id', profile.id).order('created_at', { ascending: true }),
     supabase.from('riftbound_profile_wishlist_cards').select('card_id, desired_quantity, note, display_order, created_at, updated_at').eq('user_id', profile.id).order('display_order', { ascending: true }).order('created_at', { ascending: true }).returns<Array<{ card_id: string; desired_quantity: number; note: string; display_order: number; created_at: string; updated_at: string }>>(),
     loadRecentRiftboundPosts(profile.id, 12, isOwner, viewerId, isStaff || isOwner),
+    supabase.from('riftbound_posts').select('id, visibility, like_count, dislike_count').eq('author_id', profile.id).neq('visibility', 'removed').returns<Array<{ id: string; visibility: PostRow['visibility']; like_count: number; dislike_count: number }>>(),
+    supabase.from('riftbound_post_comments').select('post_id, like_count, dislike_count').eq('author_id', profile.id).eq('status', 'visible').returns<Array<{ post_id: string; like_count: number; dislike_count: number }>>(),
     loadLatestRiftboundPrices(supabase, viewerId),
   ]);
   if (favoriteCardsResult.error) throw favoriteCardsResult.error;
   if (favoriteSetsResult.error) throw favoriteSetsResult.error;
   if (favoriteDecksResult.error) throw favoriteDecksResult.error;
   if (wishlistResult.error) throw wishlistResult.error;
+  if (postStatsResult.error) throw postStatsResult.error;
+  if (commentStatsResult.error) throw commentStatsResult.error;
+  const profilePostStats = (postStatsResult.data ?? []).filter((row) => row.visibility !== 'archived' || isOwner || isStaff);
+  const visibleProfilePostIds = new Set(profilePostStats.map((row) => row.id));
+  const profileCommentStats = (commentStatsResult.data ?? []).filter((row) => visibleProfilePostIds.has(row.post_id));
 
   const totalValueCents = inventory.reduce((total, row) => {
     const card = getRiftboundCardById(row.card_id);
@@ -988,6 +1100,9 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
       updatedAt: row.updated_at,
     })),
     posts,
+    postCount: profilePostStats.length,
+    postFavor: profilePostStats.reduce((total, row) => total + row.like_count - row.dislike_count, 0)
+      + profileCommentStats.reduce((total, row) => total + row.like_count - row.dislike_count, 0),
     cardTiers: prices.cardTiers ?? {},
     prices: prices.prices,
     entitlement: {

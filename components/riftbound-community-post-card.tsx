@@ -8,13 +8,9 @@ import type { Session } from '@supabase/supabase-js';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass } from '@/lib/riftbound';
 import { getChatNameStyle } from '@/lib/chat-colors';
+import { formatRelativeTime } from '@/lib/relative-time';
 import { hasRiftboundPostBeenShared, markRiftboundPostShared, recordRiftboundPostShare, updateRiftboundPostReaction } from '@/lib/riftbound-community-client';
 import type { RiftboundCommunityPostSummary, RiftboundPostReaction } from '@/lib/riftbound-community-types';
-
-function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Unknown date' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date);
-}
 
 function postTypeLabel(type: RiftboundCommunityPostSummary['postType']) {
   if (type === 'general') return 'General';
@@ -141,7 +137,7 @@ export function RiftboundCommunityPostCard({ post, session, onPostChange, openHr
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
             <Link href={`/riftbound/profile/${encodeURIComponent(post.author.username)}`} onClick={(event) => event.stopPropagation()} className="font-black hover:underline" style={getChatNameStyle(post.author.chatColor)}>{post.author.displayName || post.author.username}</Link>
             <span aria-hidden="true">·</span>
-            <span>{formatDate(post.createdAt)}</span>
+            <span>{formatRelativeTime(post.createdAt)}</span>
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">

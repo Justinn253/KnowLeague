@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, FileDown, Grid2X2, Info, LayoutList, LoaderCircle, Minus, PackageOpen, Pencil, Plus, QrCode, RotateCcw, Save, Search, Share2, SlidersHorizontal, Star, Trash2, TrendingUp, Upload, X } from 'lucide-react';
+import { ArrowLeft, Camera, Check, CheckCircle2, CircleDollarSign, Copy, ExternalLink, FileDown, Grid2X2, Info, LayoutList, LoaderCircle, Minus, PackageOpen, Pencil, Plus, QrCode, RotateCcw, Save, Search, Share2, SlidersHorizontal, Star, Trash2, TrendingUp, Upload, X } from 'lucide-react';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type Tesseract from 'tesseract.js';
@@ -12,6 +12,7 @@ import { RiftboundBinderBoard } from '@/components/riftbound-binder-board';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-view';
+import { RiftboundInventorySaleEditor, RiftboundSaleReceipt, RiftboundSaleReviewModal, RiftboundSalesHistory, type RiftboundPendingSaleItem, type RiftboundSaleEditorDraft } from '@/components/riftbound-sales';
 import {
   getRiftboundHistoryRangeDays,
   RiftboundCollectionValueHistoryChart,
@@ -26,9 +27,10 @@ import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER as RIFTBOUND_CARD_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
 import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
-import { getRiftboundBootstrap, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
+import { getRiftboundBootstrap, getRiftboundLatestPrices, getRiftboundSales, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
 import { getRiftboundInventoryChanges, rebaseRiftboundInventoryDraft, type RiftboundInventoryItem } from '@/lib/riftbound-inventory';
+import { type RiftboundInventoryMetadata, type RiftboundSale, type RiftboundSaleFinish } from '@/lib/riftbound-sales';
 import { createRiftboundShareUrl } from '@/lib/riftbound-share-client';
 import { buildRiftboundCollectionShareSnapshot, buildRiftboundDeckShareSnapshot } from '@/lib/riftbound-share-types';
 import {
@@ -51,7 +53,7 @@ import {
   type RiftboundDeckCardSelection,
 } from '@/lib/riftbound-decks';
 
-type InventoryTab = 'global' | 'inventory' | 'binders' | 'decks';
+type InventoryTab = 'global' | 'inventory' | 'sales' | 'binders' | 'decks';
 type RiftboundDeckViewMode = 'card' | 'list' | 'compact';
 
 type CatalogueSourceTab = 'global' | 'inventory';
@@ -682,7 +684,7 @@ const RIFTBOUND_DRAFT_STORAGE_PREFIX = 'knowleague:riftbound-inventory-draft:';
 const RIFTBOUND_CARD_IDS = new Set(RIFTBOUND_CARDS.map((card) => card.id));
 
 function parseInventoryTab(value: string | null): InventoryTab | null {
-  return value === 'global' || value === 'inventory' || value === 'binders' || value === 'decks' ? value : null;
+  return value === 'global' || value === 'inventory' || value === 'sales' || value === 'binders' || value === 'decks' ? value : null;
 }
 
 const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
@@ -1386,6 +1388,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   pendingChange,
   pending,
   onOpen,
+  onInventoryMenu,
   onAdjust,
   onSetAdjust,
   highlighted = false,
@@ -1408,6 +1411,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   pendingChange: boolean;
   pending: boolean;
   onOpen?: (card: RiftboundCard) => void;
+  onInventoryMenu?: (card: RiftboundCard) => void;
   onAdjust?: (card: RiftboundCard, finish: InventoryItem['finish'], delta: 1 | -1) => void;
   onSetAdjust?: (card: RiftboundCard, delta: 1 | -1) => void;
   highlighted?: boolean;
@@ -1426,7 +1430,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   const isInventory = mode === 'inventory';
   const isCollection = mode === 'collection-view';
   return (
-    <article id={`riftbound-card-${card.id}`} draggable={draggable} onDragStart={(event) => onDragStart?.(event, card)} onDragEnd={(event) => onDragEnd?.(event, card)} className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors focus-within:border-amber-200/80 hover:bg-slate-950 ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
+    <article id={`riftbound-card-${card.id}`} draggable={draggable} onContextMenu={(event) => { if (isInventory && onInventoryMenu) { event.preventDefault(); onInventoryMenu(card); } }} onDragStart={(event) => onDragStart?.(event, card)} onDragEnd={(event) => onDragEnd?.(event, card)} className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors focus-within:border-amber-200/80 hover:bg-slate-950 ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
       {ownership ? <div className={`mb-2 inline-flex items-center gap-1 self-end text-[0.6rem] font-black uppercase tracking-[0.12em] ${ownership === 'owned' ? 'text-emerald-300' : 'text-red-300'}`}><CheckCircle2 size={12} /> {ownership}</div> : null}
       <button
         type="button"
@@ -2269,12 +2273,23 @@ export function RiftboundCardGrid() {
   const [filters, setFilters] = useState<RiftboundCardFilters>(emptyFilters);
   const [inventoryRows, setInventoryRows] = useState<InventoryItem[]>([]);
   const [savedInventoryRows, setSavedInventoryRows] = useState<InventoryItem[]>([]);
+  const [inventoryMetadata, setInventoryMetadata] = useState<RiftboundInventoryMetadata[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [tierRatings, setTierRatings] = useState<Record<string, RiftboundCardTierRating>>({});
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryReady, setInventoryReady] = useState(false);
   const [inventoryError, setInventoryError] = useState('');
   const [inventorySaving, setInventorySaving] = useState(false);
+  const [sales, setSales] = useState<RiftboundSale[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesLoaded, setSalesLoaded] = useState(false);
+  const [salesError, setSalesError] = useState('');
+  const [saleFinalizing, setSaleFinalizing] = useState(false);
+  const [saleEditorCard, setSaleEditorCard] = useState<RiftboundCard | null>(null);
+  const [saleEditorInitialFinish, setSaleEditorInitialFinish] = useState<RiftboundSaleFinish>('normal');
+  const [pendingSaleItems, setPendingSaleItems] = useState<RiftboundPendingSaleItem[]>([]);
+  const [saleReviewOpen, setSaleReviewOpen] = useState(false);
+  const [finalizedSale, setFinalizedSale] = useState<RiftboundSale | null>(null);
   const [selectedCard, setSelectedCard] = useState<RiftboundCard | null>(null);
   const [selectedCardCanAdjustInventory, setSelectedCardCanAdjustInventory] = useState(true);
   const [selectedCardShowMarketDetails, setSelectedCardShowMarketDetails] = useState(true);
@@ -2347,6 +2362,14 @@ export function RiftboundCardGrid() {
 
     setInventoryRows(storedDraft?.rows ?? []);
     setSavedInventoryRows(storedDraft?.savedRows ?? []);
+    setInventoryMetadata([]);
+    setSales([]);
+    setSalesLoaded(false);
+    setSalesError('');
+    setPendingSaleItems([]);
+    setSaleEditorCard(null);
+    setSaleReviewOpen(false);
+    setFinalizedSale(null);
     setLatestPricesReady(false);
     setInventoryLoading(Boolean(nextSession));
     setInventoryReady(!nextSession);
@@ -2364,6 +2387,7 @@ export function RiftboundCardGrid() {
       const latestPrices = latestPricesResult.status === 'fulfilled' ? latestPricesResult.value : null;
       const pricePayload = latestPrices && Object.keys(latestPrices.prices ?? {}).length > 0 ? latestPrices : data;
       const savedRows = data.inventory?.items ?? [];
+      const metadata = data.inventory?.metadata ?? [];
       const latestStoredDraft = storageKey ? readStoredInventoryDraft(storageKey) : null;
       const rebasedRows = latestStoredDraft
         ? rebaseRiftboundInventoryDraft(
@@ -2381,6 +2405,7 @@ export function RiftboundCardGrid() {
       setTierRatings(data.cardTiers ?? {});
       setInventoryRows(rebasedRows);
       setSavedInventoryRows(savedRows);
+      setInventoryMetadata(metadata);
       setBinders(data.binders?.binders ?? []);
       setBinderLimit(data.binders?.limit ?? 4);
       setDecks(data.decks?.decks ?? []);
@@ -2414,6 +2439,27 @@ export function RiftboundCardGrid() {
     void loadRiftboundBootstrap(nextSession);
   }), [loadRiftboundBootstrap]);
 
+  useEffect(() => {
+    if (activeTab !== 'sales' || !session || salesLoaded) return undefined;
+    let cancelled = false;
+    setSalesLoading(true);
+    setSalesError('');
+    void getRiftboundSales(session)
+      .then((response) => {
+        if (!cancelled) {
+          setSales(response.sales ?? []);
+          setSalesLoaded(true);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setSalesError(error instanceof Error ? error.message : 'Unable to load sales history.');
+      })
+      .finally(() => {
+        if (!cancelled) setSalesLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeTab, salesLoaded, session]);
+
   const inventoryByCard = useMemo(() => {
     const quantities = new Map<string, number>();
     inventoryRows.forEach((row) => quantities.set(row.card_id, (quantities.get(row.card_id) ?? 0) + row.quantity));
@@ -2437,6 +2483,16 @@ export function RiftboundCardGrid() {
     savedInventoryRows.forEach((row) => quantities.set(getInventoryKey(row.card_id, row.finish), row.quantity));
     return quantities;
   }, [savedInventoryRows]);
+
+  const inventoryMetadataByKey = useMemo(() => new Map(inventoryMetadata.map((metadata) => [`${metadata.card_id}:${metadata.finish}`, metadata])), [inventoryMetadata]);
+  const pendingSaleQuantitiesByFinish = useMemo(() => {
+    const quantities = new Map<string, number>();
+    pendingSaleItems.forEach((item) => {
+      const key = getInventoryKey(item.cardId, item.finish);
+      quantities.set(key, (quantities.get(key) ?? 0) + item.quantity);
+    });
+    return quantities;
+  }, [pendingSaleItems]);
 
   const deferredQuery = useDeferredValue(query);
   const cardSearchIndex = useMemo(() => (activeTab === 'global' ? globalCatalogueCards : cards).map((card) => ({
@@ -2552,6 +2608,8 @@ export function RiftboundCardGrid() {
   const displayedInventoryValue = inventoryFilterActive ? filteredSavedMarketValue : savedMarketValue;
   const displayedPendingAddedMarketValue = inventoryFilterActive ? filteredPendingAddedMarketValue : pendingAddedMarketValue;
   const hasUnsavedInventoryChanges = inventoryChanges.length > 0;
+  const pendingSaleHasAvailableInventory = useMemo(() => pendingSaleItems.length > 0
+    && pendingSaleItems.every((item) => item.quantity <= getFinishQuantity(savedInventoryByFinish, item.cardId, item.finish)), [pendingSaleItems, savedInventoryByFinish]);
   const selectedDeck = decks.find((deck) => deck.id === selectedDeckId) ?? null;
   const selectedDeckCards = selectedDeck ? expandRiftboundDeckCards(selectedDeck, cards) : [];
   const selectedDeckLegendCards = selectedDeckCards.filter(({ category }) => category === 'legend');
@@ -2677,6 +2735,97 @@ export function RiftboundCardGrid() {
     } finally {
       setInventorySaving(false);
     }
+  };
+
+  const saveInventoryMetadata = async (finish: RiftboundSaleFinish, acquisitionDate: string | null, acquisitionCostCents: number | null, salePriceCents: number | null) => {
+    if (!session || !saleEditorCard) throw new Error('Sign in to save acquisition details.');
+    const response = await fetch('/api/riftbound/inventory', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'metadata', cardId: saleEditorCard.id, finish, acquisitionDate, acquisitionCostCents, salePriceCents }),
+    });
+    const data = await response.json() as { metadata?: RiftboundInventoryMetadata[]; error?: string };
+    if (!response.ok) throw new Error(data.error || 'Unable to save acquisition details.');
+    setInventoryMetadata(data.metadata ?? []);
+    setPendingSaleItems((current) => current.map((item) => item.cardId === saleEditorCard.id && item.finish === finish
+      ? { ...item, acquisitionDate, acquisitionCostCents, salePriceCents: salePriceCents ?? item.salePriceCents }
+      : item));
+    invalidateRiftboundBootstrap(session);
+  };
+
+  const openInventorySaleEditor = (card: RiftboundCard) => {
+    if (!session) {
+      setInventoryError('Sign in to track card sales.');
+      setActiveTab('inventory');
+      return;
+    }
+    const finishOptions = card.finishOptions.filter((candidate): candidate is RiftboundSaleFinish => candidate === 'normal' || candidate === 'foil');
+    const initialFinish = finishOptions.find((finish) => getFinishQuantity(inventoryByFinish, card.id, finish) > (pendingSaleQuantitiesByFinish.get(getInventoryKey(card.id, finish)) ?? 0))
+      ?? (finishOptions[0] ?? (card.defaultFinish as RiftboundSaleFinish));
+    setSaleEditorInitialFinish(initialFinish);
+    setSaleEditorCard(card);
+    setFinalizedSale(null);
+  };
+
+  const addPendingSale = async (draft: RiftboundSaleEditorDraft) => {
+    const card = cardsById.get(draft.cardId);
+    if (!card) throw new Error('Riftbound card not found.');
+    const existing = pendingSaleItems.find((item) => item.cardId === draft.cardId && item.finish === draft.finish);
+    const ownedQuantity = getFinishQuantity(inventoryByFinish, draft.cardId, draft.finish);
+    const remainingQuantity = Math.max(0, ownedQuantity - (existing?.quantity ?? 0));
+    if (remainingQuantity < 1) {
+      throw new Error('All available copies of this finish are already pending sale.');
+    }
+    setPendingSaleItems((current) => {
+      const existing = current.find((item) => item.cardId === draft.cardId && item.finish === draft.finish);
+      const availableQuantity = getFinishQuantity(inventoryByFinish, draft.cardId, draft.finish);
+      const remainingQuantity = Math.max(0, availableQuantity - (existing?.quantity ?? 0));
+      const nextItem = { ...draft, card, quantity: (existing?.quantity ?? 0) + Math.min(remainingQuantity, draft.quantity) };
+      return existing
+        ? current.map((item) => item.cardId === draft.cardId && item.finish === draft.finish ? nextItem : item)
+        : [...current, nextItem];
+    });
+    setSaleEditorCard(null);
+  };
+
+  const confirmSale = async (soldAt: string, adjustmentCents: number) => {
+    if (!session || pendingSaleItems.length === 0) throw new Error('There are no cards pending sale.');
+    setSaleFinalizing(true);
+    try {
+      const response = await fetch('/api/riftbound/sales', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          soldAt,
+          adjustmentCents,
+          items: pendingSaleItems.map(({ cardId, finish, quantity, salePriceCents, acquisitionDate, acquisitionCostCents }) => ({ cardId, finish, quantity, salePriceCents, acquisitionDate, acquisitionCostCents })),
+        }),
+      });
+      const data = await response.json() as { sale?: RiftboundSale; items?: InventoryItem[]; error?: string };
+      if (!response.ok || !data.sale) throw new Error(data.error || 'Unable to finalize this sale.');
+      const nextRows = data.items ?? [];
+      clearInventoryDraft(getInventoryDraftStorageKey(session.user.id));
+      invalidateRiftboundBootstrap(session);
+      setInventoryRows(nextRows);
+      setSavedInventoryRows(nextRows);
+      setPendingSaleItems([]);
+      setSaleReviewOpen(false);
+      setSales((current) => [data.sale as RiftboundSale, ...current.filter((sale) => sale.id !== data.sale?.id)]);
+      setSalesLoaded(true);
+      setFinalizedSale(data.sale);
+    } finally {
+      setSaleFinalizing(false);
+    }
+  };
+
+  const cancelPendingSale = () => {
+    setPendingSaleItems([]);
+    setSaleReviewOpen(false);
+  };
+
+  const removePendingSaleItem = (cardId: string, finish: RiftboundSaleFinish) => {
+    setPendingSaleItems((current) => current.filter((item) => item.cardId !== cardId || item.finish !== finish));
+    if (pendingSaleItems.length <= 1) setSaleReviewOpen(false);
   };
 
   const resetFilters = () => {
@@ -2902,6 +3051,8 @@ export function RiftboundCardGrid() {
     }
   };
 
+  const inventoryWorkspaceActive = activeTab === 'inventory' || activeTab === 'sales';
+
   return (
     <main className="min-h-screen min-w-0 w-full overflow-x-clip bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
       <section className="mx-auto grid w-full min-w-0 max-w-[1600px] gap-6">
@@ -2910,12 +3061,12 @@ export function RiftboundCardGrid() {
             <div>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Riftbound Collection Tools</p>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">Riftbound Card Database and Collection Tracker</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-400 xl:whitespace-nowrap">Browse the Riftbound card catalogue, track normal and foil copies, organize binders and decks, and compare captured market details.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-400 xl:whitespace-nowrap">Browse the Riftbound card catalogue, track normal and foil copies, record purchases and sales, organize binders and decks, and compare captured market details.</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1 sm:grid-cols-4">
             {(['global', 'inventory', 'decks', 'binders'] as InventoryTab[]).map((tab) => {
-              const active = activeTab === tab;
+              const active = tab === 'inventory' ? inventoryWorkspaceActive : activeTab === tab;
               const label = tab === 'global' ? 'Global' : tab === 'inventory' ? 'Inventory' : tab === 'binders' ? 'Binders' : 'Decks';
               const count = tab === 'global' ? globalCatalogueCards.length : tab === 'inventory' ? ownedUniqueCount : tab === 'decks' ? decks.length : null;
               return (
@@ -2932,6 +3083,10 @@ export function RiftboundCardGrid() {
                       setActiveTab('decks');
                       return;
                     }
+                    if (tab === 'sales') {
+                      setActiveTab('sales');
+                      return;
+                    }
                     setActiveTab(tab);
                     if (tab === 'global' && sortMode.startsWith('quantity-')) setSortMode(defaultSortMode);
                   }}
@@ -2944,7 +3099,15 @@ export function RiftboundCardGrid() {
             })}
           </div>
 
-          {activeTab !== 'binders' ? <div className="mt-5 grid gap-4">
+          {inventoryWorkspaceActive ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-300/15 bg-emerald-300/5 px-3 py-3 sm:px-4">
+            <p className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-emerald-200">Inventory workspace</p>
+            <div className="flex rounded-xl border border-white/10 bg-slate-950/60 p-1" role="tablist" aria-label="Inventory views">
+              <button type="button" role="tab" aria-selected={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'inventory' ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Collection</button>
+              <button type="button" role="tab" aria-selected={activeTab === 'sales'} onClick={() => setActiveTab('sales')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'sales' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Sales {salesLoaded ? `(${sales.length})` : ''}</button>
+            </div>
+          </div> : null}
+
+          {activeTab !== 'binders' && activeTab !== 'sales' ? <div className="mt-5 grid gap-4">
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,15rem)_auto]">
               <div className="relative">
                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -3101,6 +3264,19 @@ export function RiftboundCardGrid() {
               </button>
             </div>
           </section>
+        ) : null}
+
+        {activeTab === 'sales' && !session ? (
+          <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
+            <CircleDollarSign size={38} className="text-emerald-200" />
+            <div>
+              <h2 className="text-2xl font-black text-white">Sign in to view your sales</h2>
+              <p className="mt-2 text-sm text-slate-400">Your finalized Riftbound sale receipts are saved to your KnowLeague account.</p>
+            </div>
+            <Link href="/login" className="rounded-xl border border-emerald-200/40 bg-emerald-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-emerald-200">Sign in</Link>
+          </section>
+        ) : activeTab === 'sales' && session ? (
+          <RiftboundSalesHistory sales={sales} cards={cards} loading={salesLoading} error={salesError} />
         ) : null}
 
         {activeTab === 'binders' && !session ? (
@@ -3292,7 +3468,7 @@ export function RiftboundCardGrid() {
               </section>
             </div>
           )
-        ) : activeTab === 'binders' ? null : activeTab === 'inventory' && !session ? (
+        ) : activeTab === 'binders' || activeTab === 'sales' ? null : activeTab === 'inventory' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
             <PackageOpen size={38} className="text-amber-200" />
             <div>
@@ -3327,6 +3503,7 @@ export function RiftboundCardGrid() {
                 }
                 pending={inventoryControlsPending}
                 onOpen={openCardDetails}
+                onInventoryMenu={activeTab === 'inventory' ? openInventorySaleEditor : undefined}
                 onAdjust={adjustInventory}
                 tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier}
               />
@@ -3356,6 +3533,42 @@ export function RiftboundCardGrid() {
           onAdjust={adjustInventory}
         />
       ) : null}
+      {saleEditorCard ? (
+        <RiftboundInventorySaleEditor
+          key={`${saleEditorCard.id}:${saleEditorInitialFinish}`}
+          card={saleEditorCard}
+          initialFinish={saleEditorInitialFinish}
+          quantitiesByFinish={{
+            normal: getFinishQuantity(inventoryByFinish, saleEditorCard.id, 'normal'),
+            foil: getFinishQuantity(inventoryByFinish, saleEditorCard.id, 'foil'),
+          }}
+          pendingQuantitiesByFinish={{
+            normal: pendingSaleQuantitiesByFinish.get(getInventoryKey(saleEditorCard.id, 'normal')) ?? 0,
+            foil: pendingSaleQuantitiesByFinish.get(getInventoryKey(saleEditorCard.id, 'foil')) ?? 0,
+          }}
+          metadataByFinish={{
+            normal: inventoryMetadataByKey.get(`${saleEditorCard.id}:normal`),
+            foil: inventoryMetadataByKey.get(`${saleEditorCard.id}:foil`),
+          }}
+          marketPricesByFinish={{ normal: saleEditorCard.marketPrices.normal, foil: saleEditorCard.marketPrices.foil }}
+          pending={inventoryControlsPending || saleFinalizing}
+          hasUnsavedInventoryChanges={hasUnsavedInventoryChanges}
+          onClose={() => setSaleEditorCard(null)}
+          onSaveMetadata={saveInventoryMetadata}
+          onSell={addPendingSale}
+        />
+      ) : null}
+      {saleReviewOpen ? (
+        <RiftboundSaleReviewModal
+          items={pendingSaleItems}
+          pending={saleFinalizing}
+          onClose={() => setSaleReviewOpen(false)}
+          onConfirm={confirmSale}
+          onCancelSale={cancelPendingSale}
+          onRemoveItem={removePendingSaleItem}
+        />
+      ) : null}
+      {finalizedSale ? <RiftboundSaleReceipt sale={finalizedSale} cards={cards} onClose={() => setFinalizedSale(null)} /> : null}
       {collectionHistoryOpen && session ? (
         <RiftboundCollectionValueHistoryModal session={session} onClose={() => setCollectionHistoryOpen(false)} />
       ) : null}
@@ -3380,16 +3593,12 @@ export function RiftboundCardGrid() {
           onExportJson={collectionShareKind === 'deck' && collectionShareDeck ? () => downloadDeckJson(collectionShareDeck) : undefined}
         />
       ) : null}
-      {hasUnsavedInventoryChanges ? (
-        <button
-          type="button"
-          onClick={() => void saveInventory()}
-          disabled={inventoryControlsPending}
-          className="fixed bottom-4 left-4 z-40 inline-flex items-center gap-2 rounded-2xl border border-amber-200/50 bg-amber-300 px-4 py-3 text-sm font-black text-slate-950 shadow-2xl shadow-amber-950/40 transition hover:bg-amber-200 disabled:cursor-wait disabled:opacity-70 sm:bottom-6 sm:left-6"
-        >
-          {inventorySaving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}
-          {inventorySaving ? 'Updating...' : 'Update Inventory'}
-        </button>
+      {hasUnsavedInventoryChanges || pendingSaleItems.length > 0 ? (
+        <div className="fixed bottom-4 left-4 z-40 flex flex-wrap gap-2 sm:bottom-6 sm:left-6">
+          {pendingSaleItems.length > 0 ? <button type="button" onClick={() => setSaleReviewOpen(true)} disabled={inventoryControlsPending || hasUnsavedInventoryChanges || !pendingSaleHasAvailableInventory} title={hasUnsavedInventoryChanges ? 'Update inventory before reviewing a sale.' : !pendingSaleHasAvailableInventory ? 'One or more pending sale quantities are no longer available.' : undefined} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/50 bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-70"><CircleDollarSign size={17} /> Review Sale ({pendingSaleItems.length})</button> : null}
+          {pendingSaleItems.length > 0 && !pendingSaleHasAvailableInventory ? <button type="button" onClick={cancelPendingSale} disabled={inventoryControlsPending} className="inline-flex items-center gap-2 rounded-2xl border border-red-300/30 bg-red-300/10 px-4 py-3 text-sm font-black text-red-100 transition hover:bg-red-300/20 disabled:cursor-not-allowed disabled:opacity-70">Clear Pending Sale</button> : null}
+          {hasUnsavedInventoryChanges ? <button type="button" onClick={() => void saveInventory()} disabled={inventoryControlsPending} className="inline-flex items-center gap-2 rounded-2xl border border-amber-200/50 bg-amber-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-wait disabled:opacity-70">{inventorySaving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{inventorySaving ? 'Updating...' : 'Update Inventory'}</button> : null}
+        </div>
       ) : null}
     </main>
   );

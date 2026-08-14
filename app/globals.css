@@ -380,7 +380,115 @@ select {
   position: relative;
 }
 
+.riftbound-sale-receipt > div.mt-5.grid.gap-2 > div > div > p:nth-child(3) {
+  display: none;
+}
+
+[aria-label="Riftbound sales history"] h2,
+[aria-label="Riftbound sales history"] h2 + p {
+  display: none;
+}
+
+[aria-label="Riftbound sales history"] > div:first-child {
+  align-items: center;
+}
+
+[aria-label="Riftbound sales history"] > div:nth-child(2) {
+  align-items: end;
+}
+
+[aria-label="Riftbound sales history"] label[aria-label="Sales from date"],
+[aria-label="Riftbound sales history"] label[aria-label="Sales through date"] {
+  display: grid;
+  gap: 0.375rem;
+}
+
+[aria-label="Riftbound sales history"] label[aria-label="Sales from date"]::before,
+[aria-label="Riftbound sales history"] label[aria-label="Sales through date"]::before {
+  color: rgb(100 116 139);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+[aria-label="Riftbound sales history"] label[aria-label="Sales from date"]::before {
+  content: 'From date';
+}
+
+[aria-label="Riftbound sales history"] label[aria-label="Sales through date"]::before {
+  content: 'Through date';
+}
+
+[aria-label="Riftbound sales history"] label[aria-label="Sales from date"] > svg,
+[aria-label="Riftbound sales history"] label[aria-label="Sales through date"] > svg {
+  display: none;
+}
+
+[aria-label="Riftbound sales history"] label[aria-label="Sales from date"] input,
+[aria-label="Riftbound sales history"] label[aria-label="Sales through date"] input {
+  padding-left: 0.75rem;
+}
+
 @media print {
+  body.riftbound-printing-sale > * {
+    visibility: hidden !important;
+  }
+
+  body.riftbound-printing-sale main {
+    visibility: visible !important;
+  }
+
+  body.riftbound-printing-sale main > * {
+    display: none !important;
+  }
+
+  body.riftbound-printing-sale main > *:has(.riftbound-sale-receipt) {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  body.riftbound-printing-sale .riftbound-sale-receipt,
+  body.riftbound-printing-sale .riftbound-sale-receipt * {
+    visibility: visible !important;
+  }
+
+  body.riftbound-printing-sale .riftbound-sale-receipt {
+    position: static !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+
+  .riftbound-sale-receipt {
+    display: none !important;
+  }
+
+  body.riftbound-printing-sale .riftbound-sale-receipt { display: block !important; }
+
+  body.riftbound-printing-sale .riftbound-sale-receipt {
+    padding: 1.25rem !important;
+    font-size: 0.9rem !important;
+  }
+
+  body.riftbound-printing-sale .riftbound-sale-receipt .mt-5 {
+    margin-top: 0.75rem !important;
+  }
+
+  body.riftbound-printing-sale .riftbound-sale-receipt .mt-6 {
+    margin-top: 1rem !important;
+  }
+
+  body.riftbound-printing-sale .riftbound-sale-receipt .pb-2 {
+    padding-bottom: 0.25rem !important;
+  }
+
+  body.riftbound-printing-sale .riftbound-sale-receipt > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .riftbound-binder-print-viewport {
     display: grid !important;
     overflow: visible !important;

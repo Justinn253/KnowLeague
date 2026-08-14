@@ -373,3 +373,27 @@ select {
 .animate-mastery-badge-reveal {
   animation: mastery-badge-reveal 220ms ease-out 850ms both;
 }
+
+/* RiftboundCardImage uses a fill image, so every binder catalogue frame must
+   establish its own containing block before the image is mounted. */
+.riftbound-binder-board span.block[class~="aspect-[744/1039]"] {
+  position: relative;
+}
+
+@media print {
+  .riftbound-binder-print-viewport {
+    display: grid !important;
+    overflow: visible !important;
+  }
+
+  .riftbound-binder-print-page {
+    width: 100% !important;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .riftbound-binder-print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}

@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
 import type { RiftboundCardTierRating } from '@/lib/riftbound';
 import type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
+import type { RiftboundBinder } from '@/lib/riftbound-binders';
 
 export type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 
@@ -11,18 +12,6 @@ export type RiftboundLatestPrice = {
   normal: number | null;
   foil: number | null;
   updatedAt: string | null;
-};
-
-export type RiftboundSetCard = {
-  card_id: string;
-  quantity: number;
-};
-
-export type RiftboundSet = {
-  id: string;
-  name: string;
-  created_at: string;
-  cards: RiftboundSetCard[];
 };
 
 export type RiftboundDeckCard = {
@@ -67,7 +56,7 @@ type RiftboundPriceHistoryResponse = {
 
 export type RiftboundBootstrapResponse = RiftboundLatestPricesResponse & {
   inventory?: { items?: RiftboundInventoryItem[] };
-  sets?: { sets?: RiftboundSet[] };
+  binders?: { binders?: RiftboundBinder[]; limit?: number };
   decks?: { decks?: RiftboundDeck[] };
 };
 

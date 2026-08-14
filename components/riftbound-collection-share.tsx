@@ -11,6 +11,7 @@ import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-pref
 import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
 import { RiftboundSharedDeckReactions } from '@/components/riftbound-shared-deck-reactions';
+import { RiftboundBinderShareView } from '@/components/riftbound-binder-share';
 import {
   getRiftboundHistoryRangeDays,
   RiftboundHistoryChartLoading,
@@ -23,6 +24,7 @@ import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier, type RiftboundFinish } from '@/lib/riftbound';
 import type { RiftboundCardTierRating, RiftboundSharedDeckDetail } from '@/lib/riftbound-community-types';
+import type { RiftboundShareBinder } from '@/lib/riftbound-share-types';
 import { getRiftboundCardPriceHistory, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundLatestPrice } from '@/lib/riftbound-client';
 import { getRiftboundShare, getRiftboundSharedDeck, registerRiftboundSharedDeck } from '@/lib/riftbound-community-client';
 
@@ -93,11 +95,12 @@ type SharedCategoricalFilterField = Exclude<keyof SharedFilters, 'minPrice' | 'm
 
 type SharedSnapshot = {
   rows: SharedInventoryRow[];
-  kind: 'collection' | 'set' | 'deck';
+  kind: 'collection' | 'set' | 'deck' | 'binder';
   title: string;
   createdBy: string;
   createdAt: string;
   deck?: SharedDeck;
+  binder?: RiftboundShareBinder;
 };
 
 const cardById = new Map(RIFTBOUND_CARDS.map((card) => [card.id, card]));
@@ -587,7 +590,7 @@ function SharedDeckEntries({ entries, listView, onOpen, gridClassName = 'riftbou
     return <div className={listGridClassName}>{entries.map(({ card, key }) => <SharedDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier ?? undefined} />)}</div>;
   }
   const cardGridClassName = gridClassName === 'riftbound-card-grid' ? 'riftbound-deck-card-grid' : gridClassName;
-  return <div className={cardGridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} landscapeImage={landscapeImages} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
+  return <div className={cardGridClassName}>{entries.map(({ card, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="deck-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} landscapeImage={landscapeImages} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
 }
 
 function SharedDeckSection({ deck, category, label, entries: providedEntries, className = '', entriesClassName, highlightCardId, listView, onOpen, tierRatings = {} }: { deck: SharedDeck; category: SharedDeckCategory; label?: string; entries?: Array<{ card: RiftboundCard; key: string }>; className?: string; entriesClassName?: string; highlightCardId?: string; listView: boolean; onOpen: (card: RiftboundCard) => void; tierRatings?: Record<string, RiftboundCardTierRating> }) {
@@ -893,6 +896,10 @@ export function RiftboundCollectionShare({ shareKey }: { shareKey?: string }) {
 
   if (shareLoadError) {
     return <main className="grid min-h-screen place-items-center bg-[#030712] px-4 py-8 text-slate-100"><section className="grid w-full max-w-xl gap-3 rounded-3xl border border-red-300/20 bg-slate-950/80 p-6 text-center"><h1 className="text-xl font-black text-white">Share unavailable</h1><p className="text-sm font-semibold text-red-200">{shareLoadError}</p><Link href="/riftbound/inventory" className="mx-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><ArrowLeft size={14} /> Back to inventory</Link></section></main>;
+  }
+
+  if (snapshot.kind === 'binder' && snapshot.binder) {
+    return <RiftboundBinderShareView binder={snapshot.binder} createdBy={snapshot.createdBy} createdAt={snapshot.createdAt} />;
   }
 
   return (

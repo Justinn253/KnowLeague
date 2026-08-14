@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, FileDown, Grid2X2, Info, LayoutList, LoaderCircle, Minus, PackageOpen, Pencil, Plus, QrCode, RotateCcw, Save, Search, Share2, SlidersHorizontal, Star, Trash2, TrendingUp, Upload, X } from 'lucide-react';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type Tesseract from 'tesseract.js';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
+import { RiftboundBinderBoard } from '@/components/riftbound-binder-board';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-view';
@@ -26,6 +27,7 @@ import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@
 import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER as RIFTBOUND_CARD_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
 import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
 import { getRiftboundBootstrap, getRiftboundLatestPrices, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
+import type { RiftboundBinder } from '@/lib/riftbound-binders';
 import { getRiftboundInventoryChanges, rebaseRiftboundInventoryDraft, type RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 import { createRiftboundShareUrl } from '@/lib/riftbound-share-client';
 import { buildRiftboundCollectionShareSnapshot, buildRiftboundDeckShareSnapshot } from '@/lib/riftbound-share-types';
@@ -49,38 +51,19 @@ import {
   type RiftboundDeckCardSelection,
 } from '@/lib/riftbound-decks';
 
-type InventoryTab = 'global' | 'inventory' | 'sets';
+type InventoryTab = 'global' | 'inventory' | 'binders' | 'decks';
 type RiftboundDeckViewMode = 'card' | 'list' | 'compact';
 
-type SetSourceTab = 'global' | 'inventory';
-type CollectionShareKind = 'collection' | 'set' | 'deck';
+type CatalogueSourceTab = 'global' | 'inventory';
+type CollectionShareKind = 'collection' | 'deck';
 type CollectionShareMetadata = {
   createdBy: string;
   createdAt: string;
 };
-type SetOwnershipFilter = 'all' | 'owned' | 'missing';
-
 type InventoryItem = RiftboundInventoryItem;
 
 type InventoryMutationResponse = {
   items?: InventoryItem[];
-  error?: string;
-};
-
-type RiftboundSetCard = {
-  card_id: string;
-  quantity: number;
-};
-
-type RiftboundSet = {
-  id: string;
-  name: string;
-  created_at: string;
-  cards: RiftboundSetCard[];
-};
-
-type SetMutationResponse = {
-  set?: RiftboundSet;
   error?: string;
 };
 
@@ -699,7 +682,7 @@ const RIFTBOUND_DRAFT_STORAGE_PREFIX = 'knowleague:riftbound-inventory-draft:';
 const RIFTBOUND_CARD_IDS = new Set(RIFTBOUND_CARDS.map((card) => card.id));
 
 function parseInventoryTab(value: string | null): InventoryTab | null {
-  return value === 'global' || value === 'inventory' || value === 'sets' ? value : null;
+  return value === 'global' || value === 'inventory' || value === 'binders' || value === 'decks' ? value : null;
 }
 
 const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
@@ -720,27 +703,6 @@ function downloadCollectionJson(rows: InventoryItem[]) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `knowleague-riftbound-collection-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.URL.revokeObjectURL(url);
-}
-
-const RIFTBOUND_SET_JSON_FORMAT = 'knowleague-riftbound-set';
-
-function downloadSetJson(rows: InventoryItem[], name?: string) {
-  const payload = {
-    format: RIFTBOUND_SET_JSON_FORMAT,
-    version: 1,
-    name: name?.trim() || 'Riftbound Set',
-    exportedAt: new Date().toISOString(),
-    cards: rows.map((row) => ({ card_id: row.card_id, quantity: row.quantity })),
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = window.URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `${(name?.trim() || 'riftbound-set').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'riftbound-set'}.json`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -803,38 +765,6 @@ function parseCollectionJson(value: unknown) {
       updated_at: new Date().toISOString(),
     };
   });
-}
-
-function parseSetJson(value: unknown) {
-  const source = value && typeof value === 'object' ? value as { name?: unknown; title?: unknown; cards?: unknown; rows?: unknown } : null;
-  const rawCards = Array.isArray(source?.cards) ? source.cards : Array.isArray(source?.rows) ? source.rows : null;
-  if (!rawCards) throw new Error('This file is not a valid KnowLeague Riftbound set JSON file.');
-  if (rawCards.length > 5000) throw new Error('The set JSON contains too many card entries.');
-
-  const quantities = new Map<string, number>();
-  rawCards.forEach((item, index) => {
-    if (!item || typeof item !== 'object') throw new Error(`Invalid set card entry at index ${index}.`);
-    const candidate = item as { card_id?: unknown; quantity?: unknown };
-    const card = typeof candidate.card_id === 'string'
-      ? RIFTBOUND_CARDS.find((entry) => entry.id === candidate.card_id)
-      : null;
-    if (!card || !RIFTBOUND_CARD_IDS.has(card.id)) throw new Error(`Unknown Riftbound card at index ${index}.`);
-    if (typeof candidate.quantity !== 'number' || !Number.isInteger(candidate.quantity) || candidate.quantity < 1 || candidate.quantity > 1000) {
-      throw new Error(`Invalid set quantity at index ${index}; quantities must be whole numbers from 1 to 1000.`);
-    }
-    quantities.set(card.id, (quantities.get(card.id) ?? 0) + candidate.quantity);
-  });
-
-  const cards = Array.from(quantities, ([card_id, quantity]) => ({ card_id, quantity }));
-  const totalCopies = cards.reduce((total, card) => total + card.quantity, 0);
-  if (cards.length === 0 || totalCopies > 5000) throw new Error('A set must contain between 1 and 5000 total card copies.');
-
-  const rawName = typeof source?.name === 'string' ? source.name : typeof source?.title === 'string' ? source.title : '';
-  const name = rawName.trim();
-  if (!name) throw new Error('The imported set is missing a name.');
-  if (name.length > 80) throw new Error('Set names cannot exceed 80 characters.');
-
-  return { name, cards };
 }
 
 function parseDeckJson(value: unknown) {
@@ -1042,22 +972,6 @@ export function matchesFilter(values: string[], candidates: string | string[]) {
   return candidateValues.some((candidate) => values.includes(candidate));
 }
 
-function updateSetBuilderRows(rows: Record<string, number>, cardId: string, delta: 1 | -1) {
-  const nextQuantity = (rows[cardId] ?? 0) + delta;
-  const nextRows = { ...rows };
-  if (nextQuantity <= 0) delete nextRows[cardId];
-  else nextRows[cardId] = nextQuantity;
-  return nextRows;
-}
-
-function expandSetCards(set: RiftboundSet, cards: RiftboundCard[] = RIFTBOUND_CARDS) {
-  return set.cards.flatMap((entry) => {
-    const card = cards.find((candidate) => candidate.id === entry.card_id);
-    if (!card) return [];
-    return Array.from({ length: entry.quantity }, (_, index) => ({ card, copyIndex: index, key: `${set.id}:${entry.card_id}:${index}` }));
-  });
-}
-
 type DeckBuilderRows = Record<RiftboundDeckCategory, Record<string, number>>;
 
 function createEmptyDeckBuilderRows(): DeckBuilderRows {
@@ -1233,19 +1147,6 @@ function updateDeckBuilderRows(
   return nextRows;
 }
 
-function getSetShareRows(set: RiftboundSet, cards: RiftboundCard[] = RIFTBOUND_CARDS): InventoryItem[] {
-  return set.cards.flatMap((entry) => {
-    const card = cards.find((candidate) => candidate.id === entry.card_id);
-    if (!card) return [];
-    return [{
-      card_id: card.id,
-      finish: card.defaultFinish,
-      quantity: entry.quantity,
-      updated_at: set.created_at,
-    }];
-  });
-}
-
 function getDeckShareRows(deck: RiftboundDeck, cards: RiftboundCard[] = RIFTBOUND_CARDS): InventoryItem[] {
   const quantities = new Map<string, InventoryItem>();
   deck.cards.forEach((entry) => {
@@ -1389,7 +1290,7 @@ function FinishInventoryControls({
   );
 }
 
-function SetCardControls({
+function DeckCardControls({
   card,
   quantity,
   onAdjust,
@@ -1400,9 +1301,9 @@ function SetCardControls({
 }) {
   return (
     <div className="flex items-center justify-center gap-0.5 rounded-xl border border-amber-200/30 bg-amber-300/10 p-0.5">
-      <InventoryAdjustButton label={`Remove ${card.displayName} from set`} disabled={quantity === 0} compact onAdjust={() => onAdjust(-1)}><Minus size={14} /></InventoryAdjustButton>
+      <InventoryAdjustButton label={`Remove ${card.displayName} from deck`} disabled={quantity === 0} compact onAdjust={() => onAdjust(-1)}><Minus size={14} /></InventoryAdjustButton>
       <span className="min-w-5 text-center text-sm font-black text-amber-200" aria-label={`${quantity} copies selected`}>{quantity}</span>
-      <InventoryAdjustButton label={`Add ${card.displayName} to set`} disabled={false} compact onAdjust={() => onAdjust(1)}><Plus size={14} /></InventoryAdjustButton>
+      <InventoryAdjustButton label={`Add ${card.displayName} to deck`} disabled={false} compact onAdjust={() => onAdjust(1)}><Plus size={14} /></InventoryAdjustButton>
     </div>
   );
 }
@@ -1472,7 +1373,7 @@ function RiftboundDeckEntries({ entries, listView, onOpen, gridClassName = 'rift
     return <div className={listGridClassName}>{entries.map(({ card, key }) => <RiftboundDeckListRow key={key} card={card} onOpen={onOpen} highlighted={card.id === highlightCardId} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier ?? undefined} />)}</div>;
   }
   const cardGridClassName = gridClassName === 'riftbound-card-grid' ? 'riftbound-deck-card-grid' : gridClassName;
-  return <div className={cardGridClassName}>{entries.map(({ card, category, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} showDeckMetadata landscapeImage={category === 'battlefields'} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
+  return <div className={cardGridClassName}>{entries.map(({ card, category, key }) => <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="deck-view" pendingChange={false} pending={false} onOpen={onOpen} highlighted={card.id === highlightCardId} showDeckMetadata landscapeImage={category === 'battlefields'} tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier} className="w-full max-w-[18rem]" />)}</div>;
 }
 
 export const RiftboundCardRow = memo(function RiftboundCardRow({
@@ -1493,12 +1394,15 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   tierVote,
   imageClassName,
   imageLoading = 'lazy',
+  draggable = false,
+  onDragStart,
+  onDragEnd,
   className = '',
 }: {
   card: RiftboundCard;
   normalQuantity: number;
   foilQuantity: number;
-  mode?: 'inventory' | 'set-selection' | 'set-view' | 'collection-view';
+  mode?: 'inventory' | 'deck-selection' | 'deck-view' | 'collection-view';
   setQuantity?: number;
   ownership?: 'owned' | 'missing';
   pendingChange: boolean;
@@ -1512,14 +1416,17 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
   tierVote?: RiftboundCardTier | null;
   imageClassName?: string;
   imageLoading?: 'lazy' | 'eager';
+  draggable?: boolean;
+  onDragStart?: (event: ReactDragEvent<HTMLElement>, card: RiftboundCard) => void;
+  onDragEnd?: (event: ReactDragEvent<HTMLElement>, card: RiftboundCard) => void;
   className?: string;
 }) {
   const finishOptions = getCardFinishOptions(card);
-  const isSelection = mode === 'set-selection';
+  const isSelection = mode === 'deck-selection';
   const isInventory = mode === 'inventory';
   const isCollection = mode === 'collection-view';
   return (
-    <article id={`riftbound-card-${card.id}`} className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors focus-within:border-amber-200/80 hover:bg-slate-950 sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
+    <article id={`riftbound-card-${card.id}`} draggable={draggable} onDragStart={(event) => onDragStart?.(event, card)} onDragEnd={(event) => onDragEnd?.(event, card)} className={`riftbound-card-item flex min-w-0 flex-col rounded-2xl border bg-slate-950/80 p-3 transition-colors focus-within:border-amber-200/80 hover:bg-slate-950 ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} sm:p-4 ${highlighted ? 'border-amber-300/90 bg-amber-300/5' : pendingChange || (isSelection && setQuantity > 0) ? 'border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.12)]' : ownership === 'owned' ? 'border-emerald-300/70 shadow-[0_0_18px_rgba(52,211,153,0.1)]' : ownership === 'missing' ? 'border-red-300/50 shadow-[0_0_18px_rgba(248,113,113,0.08)]' : 'border-white/10 hover:border-white/20'} ${className}`}>
       {ownership ? <div className={`mb-2 inline-flex items-center gap-1 self-end text-[0.6rem] font-black uppercase tracking-[0.12em] ${ownership === 'owned' ? 'text-emerald-300' : 'text-red-300'}`}><CheckCircle2 size={12} /> {ownership}</div> : null}
       <button
         type="button"
@@ -1557,7 +1464,7 @@ export const RiftboundCardRow = memo(function RiftboundCardRow({
       </div>
       ) : isSelection ? (
         <div className="mt-3 shrink-0">
-          <SetCardControls card={card} quantity={setQuantity} onAdjust={(delta) => onSetAdjust?.(card, delta)} />
+          <DeckCardControls card={card} quantity={setQuantity} onAdjust={(delta) => onSetAdjust?.(card, delta)} />
         </div>
       ) : isCollection ? (
         <div className="mt-3 flex min-h-8 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900/70 px-2 py-1.5">
@@ -1909,7 +1816,7 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, metad
         <button type="button" aria-label="Close share collection dialog" onClick={onClose} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
         <div className="pr-14">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{kind === 'collection' ? 'Collection tools' : `${kind} tools`}</p>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{kind === 'collection' ? 'Export / Import your collection' : kind === 'deck' ? 'Share / Export this game deck' : 'Share / Export this set'}</h2>
+          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{kind === 'collection' ? 'Export / Import your collection' : 'Share / Export this game deck'}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">The share link is a read-only snapshot. Anyone with the link can see the cards and quantities included in it.</p>
         </div>
         <div className="mt-6 grid gap-3">
@@ -1923,9 +1830,9 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, metad
             <FileDown size={17} />
             Open print / Save as PDF view
           </button>
-          <button type="button" onClick={() => kind === 'collection' ? downloadCollectionJson(rows) : kind === 'set' ? downloadSetJson(rows, title) : onExportJson?.()} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
+          <button type="button" onClick={() => kind === 'collection' ? downloadCollectionJson(rows) : onExportJson?.()} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
             <FileDown size={17} />
-            {kind === 'collection' ? 'Export collection JSON' : kind === 'set' ? 'Export set JSON' : 'Export game deck JSON'}
+            {kind === 'collection' ? 'Export collection JSON' : 'Export game deck JSON'}
           </button>
           {kind === 'collection' ? (
             <>
@@ -2379,25 +2286,15 @@ export function RiftboundCardGrid() {
   const [collectionShareTitle, setCollectionShareTitle] = useState('');
   const [collectionShareDeck, setCollectionShareDeck] = useState<RiftboundDeck | null>(null);
   const [collectionShareMetadata, setCollectionShareMetadata] = useState<CollectionShareMetadata>({ createdBy: 'KnowLeague user', createdAt: '' });
-  const [sets, setSets] = useState<RiftboundSet[]>([]);
+  const [binders, setBinders] = useState<RiftboundBinder[]>([]);
+  const [_binderLimit, setBinderLimit] = useState(4);
   const [decks, setDecks] = useState<RiftboundDeck[]>([]);
-  const [setsLoading, setSetsLoading] = useState(false);
-  const [setsError, setSetsError] = useState('');
-  const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
+  const [decksLoading, setDecksLoading] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
-  const [setBuilderOpen, setSetBuilderOpen] = useState(false);
-  const [setBuilderSource, setSetBuilderSource] = useState<SetSourceTab>('global');
-  const [setBuilderName, setSetBuilderName] = useState('');
-  const [setBuilderRows, setSetBuilderRows] = useState<Record<string, number>>({});
-  const [setBuilderShowSelectedCards, setSetBuilderShowSelectedCards] = useState(false);
-  const [setSaving, setSetSaving] = useState(false);
-  const [setDeleting, setSetDeleting] = useState(false);
-  const [editingSetId, setEditingSetId] = useState<string | null>(null);
-  const [setOwnershipFilter, setSetOwnershipFilter] = useState<SetOwnershipFilter>('all');
   const [deckBuilderOpen, setDeckBuilderOpen] = useState(false);
   const [deckBuilderName, setDeckBuilderName] = useState('');
   const [deckBuilderDescription, setDeckBuilderDescription] = useState('');
-  const [deckBuilderSource, setDeckBuilderSource] = useState<SetSourceTab>('global');
+  const [deckBuilderSource, setDeckBuilderSource] = useState<CatalogueSourceTab>('global');
   const [deckBuilderCategory, setDeckBuilderCategory] = useState<RiftboundDeckCategory>('legend');
   const [deckBuilderRows, setDeckBuilderRows] = useState<DeckBuilderRows>(() => createEmptyDeckBuilderRows());
   const [deckBuilderShowSelectedCards, setDeckBuilderShowSelectedCards] = useState(false);
@@ -2405,7 +2302,6 @@ export function RiftboundCardGrid() {
   const [deckSaving, setDeckSaving] = useState(false);
   const [deckDeleting, setDeckDeleting] = useState(false);
   const [decksError, setDecksError] = useState('');
-  const setImportInputRef = useRef<HTMLInputElement>(null);
   const deckImportInputRef = useRef<HTMLInputElement>(null);
   const bootstrapLoadIdRef = useRef(0);
   const [deckViewMode, setDeckViewMode] = useState<RiftboundDeckViewMode>('compact');
@@ -2454,9 +2350,9 @@ export function RiftboundCardGrid() {
     setLatestPricesReady(false);
     setInventoryLoading(Boolean(nextSession));
     setInventoryReady(!nextSession);
-    setSetsLoading(Boolean(nextSession));
+    setDecksLoading(Boolean(nextSession));
     setInventoryError('');
-    setSetsError('');
+    setDecksError('');
 
     try {
       const [bootstrapResult, latestPricesResult] = await Promise.allSettled([
@@ -2485,7 +2381,8 @@ export function RiftboundCardGrid() {
       setTierRatings(data.cardTiers ?? {});
       setInventoryRows(rebasedRows);
       setSavedInventoryRows(savedRows);
-      setSets(data.sets?.sets ?? []);
+      setBinders(data.binders?.binders ?? []);
+      setBinderLimit(data.binders?.limit ?? 4);
       setDecks(data.decks?.decks ?? []);
       setInventoryReady(true);
     } catch (error) {
@@ -2493,11 +2390,12 @@ export function RiftboundCardGrid() {
       const message = error instanceof Error ? error.message : 'Unable to load your Riftbound collection.';
       if (nextSession) {
         setInventoryError(message);
-        setSetsError(message);
+        setDecksError(message);
       }
       setInventoryRows(storedDraft?.rows ?? []);
       setSavedInventoryRows(storedDraft?.savedRows ?? []);
-      setSets([]);
+      setBinders([]);
+      setBinderLimit(4);
       setDecks([]);
       setLatestPrices({});
       setLatestSnapshotDate(null);
@@ -2506,7 +2404,7 @@ export function RiftboundCardGrid() {
     } finally {
       if (bootstrapLoadIdRef.current === loadId) {
         setInventoryLoading(false);
-        setSetsLoading(false);
+        setDecksLoading(false);
       }
     }
   }, []);
@@ -2591,8 +2489,7 @@ export function RiftboundCardGrid() {
       const quantity = getCardQuantity(inventoryByCard, card.id);
       const savedQuantity = getCardQuantity(savedInventoryByCard, card.id);
     const inventoryOnly = activeTab === 'inventory'
-      || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory')
-      || (activeTab === 'sets' && deckBuilderOpen && deckBuilderSource === 'inventory');
+      || (activeTab === 'decks' && deckBuilderOpen && deckBuilderSource === 'inventory');
       if (inventoryOnly && quantity === 0 && savedQuantity === 0) return false;
       if (!matchesFilter(filters.setCode, card.setCode)) return false;
       if (!matchesFilter(filters.rarity, card.rarity)) return false;
@@ -2607,7 +2504,7 @@ export function RiftboundCardGrid() {
     }).map(({ card }) => card);
 
     return matchingCards.sort((left, right) => compareRiftboundCards(left, right, sortMode, inventoryByCard));
-  }, [activeTab, cardSearchIndex, deckBuilderOpen, deckBuilderSource, deferredQuery, filters, inventoryByCard, savedInventoryByCard, setBuilderOpen, setBuilderSource, sortMode]);
+  }, [activeTab, cardSearchIndex, deckBuilderOpen, deckBuilderSource, deferredQuery, filters, inventoryByCard, savedInventoryByCard, sortMode]);
 
   const ownedUniqueCount = inventoryByCard.size;
   const ownedCopyCount = useMemo(() => Array.from(inventoryByCard.values()).reduce((total, quantity) => total + quantity, 0), [inventoryByCard]);
@@ -2655,25 +2552,6 @@ export function RiftboundCardGrid() {
   const displayedInventoryValue = inventoryFilterActive ? filteredSavedMarketValue : savedMarketValue;
   const displayedPendingAddedMarketValue = inventoryFilterActive ? filteredPendingAddedMarketValue : pendingAddedMarketValue;
   const hasUnsavedInventoryChanges = inventoryChanges.length > 0;
-  const selectedSet = sets.find((set) => set.id === selectedSetId) ?? null;
-  const selectedSetCards = selectedSet ? expandSetCards(selectedSet, cards) : [];
-  const selectedSetCardsWithOwnership = selectedSetCards.map((entry) => ({
-    ...entry,
-    owned: getCardQuantity(inventoryByCard, entry.card.id) > entry.copyIndex,
-  }));
-  const displayedSetCards = selectedSetCardsWithOwnership.filter((entry) => setOwnershipFilter === 'all' || (setOwnershipFilter === 'owned' ? entry.owned : !entry.owned));
-  const selectedSetRarityCounts = useMemo(() => {
-    const counts = new Map(inventoryRarityOrder.map((rarity) => [rarity, 0]));
-    selectedSet?.cards.forEach((entry) => {
-      const card = cardsById.get(entry.card_id);
-      if (card && counts.has(card.rarity)) counts.set(card.rarity, (counts.get(card.rarity) ?? 0) + entry.quantity);
-    });
-    return counts;
-  }, [cardsById, selectedSet]);
-  const selectedSetValue = useMemo(() => selectedSet?.cards.reduce((total, entry) => {
-    const card = cardsById.get(entry.card_id);
-    return total + (card ? (getMarketPriceForFinish(card, card.defaultFinish) ?? 0) * entry.quantity : 0);
-  }, 0) ?? 0, [cardsById, selectedSet]);
   const selectedDeck = decks.find((deck) => deck.id === selectedDeckId) ?? null;
   const selectedDeckCards = selectedDeck ? expandRiftboundDeckCards(selectedDeck, cards) : [];
   const selectedDeckLegendCards = selectedDeckCards.filter(({ category }) => category === 'legend');
@@ -2719,16 +2597,8 @@ export function RiftboundCardGrid() {
       : deckBuilderCards,
     [deckBuilderCards, deckBuilderCategory, deckBuilderRows, deckBuilderShowSelectedCards],
   );
-  const setBuilderTotalCopies = useMemo(() => Object.values(setBuilderRows).reduce((total, quantity) => total + quantity, 0), [setBuilderRows]);
-  const setBuilderVisibleCards = useMemo(
-    () => setBuilderShowSelectedCards
-      ? filteredCards.filter((card) => (setBuilderRows[card.id] ?? 0) > 0)
-      : filteredCards,
-    [filteredCards, setBuilderRows, setBuilderShowSelectedCards],
-  );
   const availableSortOptions = activeTab === 'inventory'
-    || (activeTab === 'sets' && setBuilderOpen && setBuilderSource === 'inventory')
-    || (activeTab === 'sets' && deckBuilderOpen && deckBuilderSource === 'inventory')
+    || (activeTab === 'decks' && deckBuilderOpen && deckBuilderSource === 'inventory')
     ? orderedSortOptions
     : orderedSortOptions.filter((option) => !option.value.startsWith('quantity-'));
 
@@ -2827,19 +2697,17 @@ export function RiftboundCardGrid() {
 
   const applyRarityFilter = (rarity: string) => {
     setActiveTab('inventory');
-    setSetBuilderOpen(false);
     setFilters((current) => ({ ...current, rarity: toggleFilterValue(current.rarity, rarity) }));
   };
 
   const startDeckBuilder = () => {
     if (!session) {
       setDecksError('Sign in to create a Riftbound deck.');
-      setActiveTab('sets');
+      setActiveTab('decks');
       return;
     }
 
     setSelectedDeckId(null);
-    setSelectedSetId(null);
     setDeckViewMode('compact');
     setEditingDeckId(null);
     setDeckBuilderOpen(true);
@@ -2855,7 +2723,6 @@ export function RiftboundCardGrid() {
 
   const editDeck = (deck: RiftboundDeck) => {
     setSelectedDeckId(null);
-    setSelectedSetId(null);
     setDeckViewMode('compact');
     setEditingDeckId(deck.id);
     setDeckBuilderOpen(true);
@@ -2952,39 +2819,6 @@ export function RiftboundCardGrid() {
     }
   };
 
-  const startSetBuilder = () => {
-    if (!session) {
-      setSetsError('Sign in to create a Riftbound set.');
-      setActiveTab('sets');
-      return;
-    }
-    if (sets.length >= 6) {
-      setSetsError('You can create up to 6 Riftbound sets.');
-      return;
-    }
-    setSelectedSetId(null);
-    setEditingSetId(null);
-    setSetBuilderOpen(true);
-    setSetBuilderSource('global');
-    setSetBuilderName('');
-    setSetBuilderRows({});
-    setSetBuilderShowSelectedCards(false);
-    setSetsError('');
-    resetFilters();
-  };
-
-  const editSet = (set: RiftboundSet) => {
-    setSelectedSetId(null);
-    setEditingSetId(set.id);
-    setSetBuilderOpen(true);
-    setSetBuilderSource('global');
-    setSetBuilderName(set.name);
-    setSetBuilderRows(Object.fromEntries(set.cards.map((card) => [card.card_id, card.quantity])));
-    setSetBuilderShowSelectedCards(false);
-    setSetsError('');
-    resetFilters();
-  };
-
   const openCollectionShare = (rows: InventoryItem[], kind: CollectionShareKind = 'collection', title = '') => {
     setCollectionShareRows(rows);
     setCollectionShareKind(kind);
@@ -3020,41 +2854,6 @@ export function RiftboundCardGrid() {
     setCollectionShareOpen(false);
   };
 
-  const importSetJson = async (file: File) => {
-    if (!session) throw new Error('Sign in to import a set.');
-    if (sets.length >= 6) throw new Error('You can create up to 6 Riftbound sets.');
-
-    let parsedValue: unknown;
-    try {
-      parsedValue = JSON.parse(await file.text()) as unknown;
-    } catch {
-      throw new Error('The selected file is not valid JSON.');
-    }
-
-    const importedSet = parseSetJson(parsedValue);
-    const response = await fetch('/api/riftbound/sets', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: importedSet.name,
-        cards: importedSet.cards.map((card) => ({ cardId: card.card_id, quantity: card.quantity })),
-      }),
-    });
-    const data = await response.json() as SetMutationResponse;
-    if (!response.ok || !data.set) throw new Error(data.error || 'Unable to import this set.');
-
-    setSets((current) => [...current, data.set as RiftboundSet]);
-    invalidateRiftboundBootstrap(session);
-    setSelectedSetId(data.set.id);
-    setSetOwnershipFilter('all');
-    setActiveTab('sets');
-    setSetsError('');
-    setCollectionShareOpen(false);
-  };
-
   const importDeckJson = async (file: File) => {
     if (!session) throw new Error('Sign in to import a Riftbound game deck.');
 
@@ -3086,51 +2885,9 @@ export function RiftboundCardGrid() {
     setDecks((current) => [...current, data.deck as RiftboundDeck]);
     invalidateRiftboundBootstrap(session);
     setSelectedDeckId(data.deck.id);
-    setSelectedSetId(null);
     setDeckViewMode('compact');
-    setActiveTab('sets');
+    setActiveTab('decks');
     setDecksError('');
-  };
-
-  const deleteSet = async (set: RiftboundSet) => {
-    if (!session || setDeleting) return;
-    if (!window.confirm(`Delete "${set.name}"? This cannot be undone.`)) return;
-
-    setSetDeleting(true);
-    setSetsError('');
-    try {
-      const response = await fetch('/api/riftbound/sets', {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ setId: set.id }),
-      });
-      const data = await response.json() as { deletedSetId?: string; error?: string };
-      if (!response.ok) throw new Error(data.error || 'Unable to delete this set.');
-
-      setSets((current) => current.filter((candidate) => candidate.id !== set.id));
-      invalidateRiftboundBootstrap(session);
-      setSelectedSetId(null);
-      setSetOwnershipFilter('all');
-    } catch (error) {
-      setSetsError(error instanceof Error ? error.message : 'Unable to delete this set.');
-    } finally {
-      setSetDeleting(false);
-    }
-  };
-
-  const handleSetImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
-    try {
-      await importSetJson(file);
-    } catch (error) {
-      setSetsError(error instanceof Error ? error.message : 'Unable to import this set.');
-    }
   };
 
   const handleDeckImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -3145,117 +2902,49 @@ export function RiftboundCardGrid() {
     }
   };
 
-  const adjustSetCard = (card: RiftboundCard, delta: 1 | -1) => {
-    setSetBuilderRows((rows) => updateSetBuilderRows(rows, card.id, delta));
-  };
-
-  const addAllSetCards = () => {
-    setSetBuilderRows((rows) => {
-      const nextRows = { ...rows };
-      filteredCards.forEach((card) => {
-        nextRows[card.id] = (nextRows[card.id] ?? 0) + 1;
-      });
-      return nextRows;
-    });
-  };
-
-  const removeAllSetCards = () => {
-    setSetBuilderRows((rows) => {
-      const nextRows = { ...rows };
-      filteredCards.forEach((card) => delete nextRows[card.id]);
-      return nextRows;
-    });
-  };
-
-  const createSet = async () => {
-    if (!session) {
-      setSetsError('Sign in to create a Riftbound set.');
-      return;
-    }
-    const name = setBuilderName.trim();
-    const cards = Object.entries(setBuilderRows).map(([cardId, quantity]) => ({ cardId, quantity }));
-    if (!name || cards.length === 0) {
-      setSetsError('Enter a set name and select at least one card.');
-      return;
-    }
-    if (setBuilderTotalCopies > 5000) {
-      setSetsError('A set cannot contain more than 5000 total card copies.');
-      return;
-    }
-
-    setSetSaving(true);
-    setSetsError('');
-    try {
-      const response = await fetch('/api/riftbound/sets', {
-        method: editingSetId ? 'PATCH' : 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ setId: editingSetId ?? undefined, name, cards }),
-      });
-      const data = await response.json() as SetMutationResponse;
-      if (!response.ok || !data.set) throw new Error(data.error || 'Unable to create Riftbound set.');
-      setSets((current) => editingSetId
-        ? current.map((set) => set.id === editingSetId ? data.set as RiftboundSet : set)
-        : [...current, data.set as RiftboundSet]);
-      invalidateRiftboundBootstrap(session);
-      setSelectedSetId(data.set.id);
-      setSetBuilderOpen(false);
-      setSetBuilderRows({});
-      setSetBuilderName('');
-      setSetBuilderShowSelectedCards(false);
-      setEditingSetId(null);
-    } catch (error) {
-      setSetsError(error instanceof Error ? error.message : 'Unable to create Riftbound set.');
-    } finally {
-      setSetSaving(false);
-    }
-  };
-
   return (
-    <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
-      <section className="mx-auto grid w-full max-w-[1600px] gap-6">
-        <header className="relative z-40 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-7">
+    <main className="min-h-screen min-w-0 w-full overflow-x-clip bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
+      <section className="mx-auto grid w-full min-w-0 max-w-[1600px] gap-6">
+        <header className="relative z-40 min-w-0 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-7">
           <div className="mb-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Riftbound Collection Tools</p>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">Riftbound Card Database and Collection Tracker</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-400 xl:whitespace-nowrap">Browse the Riftbound card catalogue, track normal and foil copies, build sets and decks, and compare captured market details.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-400 xl:whitespace-nowrap">Browse the Riftbound card catalogue, track normal and foil copies, organize binders and decks, and compare captured market details.</p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
-            {(['global', 'inventory', 'sets'] as InventoryTab[]).map((tab) => {
+          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1 sm:grid-cols-4">
+            {(['global', 'inventory', 'decks', 'binders'] as InventoryTab[]).map((tab) => {
               const active = activeTab === tab;
-              const label = tab === 'global' ? 'Global' : tab === 'inventory' ? 'Inventory' : 'Decks';
-              const count = tab === 'global' ? globalCatalogueCards.length : tab === 'inventory' ? ownedUniqueCount : decks.length;
+              const label = tab === 'global' ? 'Global' : tab === 'inventory' ? 'Inventory' : tab === 'binders' ? 'Binders' : 'Decks';
+              const count = tab === 'global' ? globalCatalogueCards.length : tab === 'inventory' ? ownedUniqueCount : tab === 'decks' ? decks.length : null;
               return (
                 <button
                   key={tab}
                   type="button"
-                  disabled={(setBuilderOpen || deckBuilderOpen) && tab !== 'sets'}
+                  disabled={deckBuilderOpen && tab !== 'decks'}
                   onClick={() => {
-                    if (tab === 'sets') {
-                      setActiveTab('sets');
-                      setSetBuilderOpen(false);
-                      setEditingSetId(null);
-                      setSelectedSetId(null);
+                    if (tab === 'binders') {
+                      setActiveTab('binders');
                       return;
                     }
-                    if (setBuilderOpen) return;
+                    if (tab === 'decks') {
+                      setActiveTab('decks');
+                      return;
+                    }
                     setActiveTab(tab);
                     if (tab === 'global' && sortMode.startsWith('quantity-')) setSortMode(defaultSortMode);
                   }}
                   className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-black transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${active ? 'border-amber-200/50 bg-amber-300 text-slate-950 shadow-lg shadow-amber-950/20' : 'border-transparent text-slate-400 hover:border-white/15 hover:bg-slate-800/80 hover:text-white'}`}
                 >
                   {label}
-                  <span className={`rounded-md px-1.5 py-0.5 text-[0.65rem] ${active ? 'bg-slate-950/15' : 'bg-slate-950 text-slate-500'}`}>{count}</span>
+                  {count !== null ? <span className={`rounded-md px-1.5 py-0.5 text-[0.65rem] ${active ? 'bg-slate-950/15' : 'bg-slate-950 text-slate-500'}`}>{count}</span> : null}
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-5 grid gap-4">
+          {activeTab !== 'binders' ? <div className="mt-5 grid gap-4">
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,15rem)_auto]">
               <div className="relative">
                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -3365,7 +3054,7 @@ export function RiftboundCardGrid() {
                 </button>
               </div>
             </div>
-          </div>
+          </div> : null}
         </header>
 
         {activeTab === 'inventory' && session && !inventoryLoading && !inventoryError ? (
@@ -3414,18 +3103,35 @@ export function RiftboundCardGrid() {
           </section>
         ) : null}
 
-        {activeTab === 'sets' && !session ? (
+        {activeTab === 'binders' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
             <PackageOpen size={38} className="text-amber-200" />
             <div>
-              <h2 className="text-2xl font-black text-white">Sign in to view your sets</h2>
-              <p className="mt-2 text-sm text-slate-400">Your Riftbound sets are saved to your KnowLeague account.</p>
+              <h2 className="text-2xl font-black text-white">Sign in to view your binders</h2>
+              <p className="mt-2 text-sm text-slate-400">Your Riftbound binders are saved to your KnowLeague account.</p>
             </div>
             <Link href="/login" className="rounded-xl border border-amber-200/40 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200">Sign in</Link>
           </section>
-        ) : activeTab === 'sets' && session && setsLoading ? (
-          <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading your game decks and sets...</section>
-        ) : activeTab === 'sets' && session ? (
+        ) : activeTab === 'binders' && session && inventoryLoading ? (
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading your binders...</section>
+        ) : activeTab === 'binders' && session && inventoryError ? (
+          <section className="rounded-3xl border border-red-300/20 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-red-200">{inventoryError}</section>
+        ) : activeTab === 'binders' && session ? (
+          <RiftboundBinderBoard binders={binders} cards={globalCatalogueCards} session={session} onBindersChange={(nextBinders) => { setBinders(nextBinders); invalidateRiftboundBootstrap(session); }} />
+        ) : null}
+
+        {activeTab === 'decks' && !session ? (
+          <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
+            <PackageOpen size={38} className="text-amber-200" />
+            <div>
+              <h2 className="text-2xl font-black text-white">Sign in to view your game decks</h2>
+              <p className="mt-2 text-sm text-slate-400">Your Riftbound game decks are saved to your KnowLeague account.</p>
+            </div>
+            <Link href="/login" className="rounded-xl border border-amber-200/40 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200">Sign in</Link>
+          </section>
+        ) : activeTab === 'decks' && session && decksLoading ? (
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading your game decks...</section>
+        ) : activeTab === 'decks' && session ? (
           deckBuilderOpen ? (
             <section className="grid gap-5 rounded-3xl border border-amber-200/20 bg-slate-950/80 p-5 sm:p-6" aria-label="Create Riftbound game deck">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -3465,7 +3171,7 @@ export function RiftboundCardGrid() {
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-slate-900/70 p-1">
-                    {(['global', 'inventory'] as SetSourceTab[]).map((source) => (
+                    {(['global', 'inventory'] as CatalogueSourceTab[]).map((source) => (
                       <button key={source} type="button" onClick={() => setDeckBuilderSource(source)} className={`rounded-lg px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition ${deckBuilderSource === source ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{source}</button>
                     ))}
                   </div>
@@ -3490,7 +3196,7 @@ export function RiftboundCardGrid() {
                     card={card}
                     normalQuantity={0}
                     foilQuantity={0}
-                    mode="set-selection"
+                    mode="deck-selection"
                     setQuantity={deckBuilderRows[deckBuilderCategory][card.id] ?? 0}
                     pendingChange={false}
                     pending={false}
@@ -3501,66 +3207,6 @@ export function RiftboundCardGrid() {
                 ))}
               </div>
               {deckBuilderVisibleCards.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">{deckBuilderShowSelectedCards ? 'No cards are selected in this category.' : 'No catalogue cards match this category and your current filters.'}</p> : null}
-            </section>
-          ) : setBuilderOpen ? (
-            <section className="grid gap-4 rounded-3xl border border-amber-200/20 bg-slate-950/80 p-5 sm:p-6" aria-label="Create Riftbound set">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Set builder</p>
-                  <h2 className="mt-2 text-2xl font-black text-white">{editingSetId ? 'Edit set' : 'Create a new set'}</h2>
-                  <p className="mt-1 text-sm text-slate-400">Select cards from the {setBuilderSource} catalogue. Filters apply to Add All and Remove All.</p>
-                </div>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button type="button" onClick={() => { setSetBuilderOpen(false); setSetBuilderRows({}); setSetBuilderName(''); setSetBuilderShowSelectedCards(false); setEditingSetId(null); setSetsError(''); }} className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-300 transition hover:border-white/25 hover:text-white">Cancel</button>
-                  <button type="button" onClick={() => void createSet()} disabled={setSaving || setBuilderTotalCopies === 0} title={setBuilderTotalCopies === 0 ? 'Select at least one card first' : undefined} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">{setSaving ? <LoaderCircle size={16} className="animate-spin" /> : null} {editingSetId ? 'Save Changes' : 'Create Set'}</button>
-                </div>
-              </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
-                <input value={setBuilderName} onChange={(event) => setSetBuilderName(event.target.value)} maxLength={80} placeholder="Set Name" aria-label="Set Name" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false} className="h-12 rounded-2xl border border-white/10 bg-slate-900/80 px-4 text-base font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20 sm:text-sm" />
-                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-900/70 p-1">
-                  {(['global', 'inventory'] as SetSourceTab[]).map((source) => (
-                    <button key={source} type="button" onClick={() => setSetBuilderSource(source)} className={`rounded-xl px-4 py-2 text-xs font-black uppercase tracking-[0.1em] transition ${setBuilderSource === source ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{source}</button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <button type="button" onClick={addAllSetCards} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white">Add All</button>
-                  <button type="button" onClick={removeAllSetCards} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white">Remove All</button>
-                </div>
-              </div>
-              {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-                <p className="text-sm font-black text-white">Card selection</p>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={setBuilderShowSelectedCards}
-                  onClick={() => setSetBuilderShowSelectedCards((current) => !current)}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${setBuilderShowSelectedCards ? 'border-amber-200/60 bg-amber-300/10 text-amber-100' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}
-                >
-                  <span>Selected cards</span>
-                  <span className={`relative h-5 w-9 rounded-full border transition ${setBuilderShowSelectedCards ? 'border-amber-200 bg-amber-300' : 'border-white/20 bg-slate-950'}`} aria-hidden="true">
-                    <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition ${setBuilderShowSelectedCards ? 'left-[1.05rem] bg-slate-950' : 'left-0.5 bg-slate-500'}`} />
-                  </span>
-                </button>
-              </div>
-              <div className="riftbound-card-grid">
-                {setBuilderVisibleCards.map((card) => (
-                  <RiftboundCardRow
-                    key={card.id}
-                    card={card}
-                    normalQuantity={0}
-                    foilQuantity={0}
-                    mode="set-selection"
-                    setQuantity={setBuilderRows[card.id] ?? 0}
-                    pendingChange={false}
-                    pending={false}
-                    onOpen={(card) => openCardDetails(card, false, true)}
-                    onSetAdjust={adjustSetCard}
-                    tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier}
-                  />
-                ))}
-              </div>
-              {setBuilderVisibleCards.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">{setBuilderShowSelectedCards ? 'No cards are selected in this view.' : 'No catalogue cards match your current filters.'}</p> : null}
             </section>
           ) : selectedDeck ? (
             <>
@@ -3620,53 +3266,6 @@ export function RiftboundCardGrid() {
                 </>
               )}
             </>
-          ) : selectedSet ? (
-            <>
-              <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
-                <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-                  <div>
-                    <button type="button" onClick={() => { setSelectedSetId(null); setSetOwnershipFilter('all'); }} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-amber-200/50 hover:text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"><ArrowLeft size={14} /> All Sets</button>
-                    <h2 className="mt-3 text-2xl font-black text-white">{selectedSet.name}</h2>
-                    <p className="mt-1 text-xs italic text-slate-500">Created {formatDeckCreatedDate(selectedSet.created_at)}</p>
-                    <p className="mt-1 text-sm text-slate-400">{selectedSetCards.length} total cards</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => openCollectionShare(getSetShareRows(selectedSet), 'set', selectedSet.name)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><Share2 size={14} /> Share / Export</button>
-                    <button type="button" onClick={() => editSet(selectedSet)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white"><Pencil size={14} /> Edit Set</button>
-                    <button type="button" onClick={() => void deleteSet(selectedSet)} disabled={setDeleting} className="inline-flex items-center gap-2 rounded-xl border border-red-300/30 bg-red-950/30 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-red-200 transition hover:border-red-200/60 hover:bg-red-950/50 disabled:cursor-wait disabled:opacity-60"><Trash2 size={14} /> {setDeleting ? 'Deleting...' : 'Delete Set'}</button>
-                  </div>
-                </div>
-                {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_1px_14rem] lg:items-stretch">
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-                    {inventoryRarityOrder.map((rarity) => (
-                      <div key={rarity} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center">
-                        <p className={`text-xs font-black uppercase tracking-[0.12em] ${getRiftboundRarityTextClass(rarity)}`}>{rarity}</p>
-                        <p className="mt-1 text-xl font-black text-white">{selectedSetRarityCounts.get(rarity) ?? 0}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="h-px bg-white/10 lg:h-full" aria-hidden="true" />
-                  <div className="flex flex-col justify-center rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3">
-                    <div className="flex items-center gap-2"><p className="text-[0.6rem] font-black uppercase tracking-[0.14em] text-slate-500">Set value</p><MarketValueSourceInfo /></div>
-                    <p className="mt-1 text-2xl font-black text-emerald-300">{formatMarketPrice(selectedSetValue)}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Inventory ownership</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(['all', 'owned', 'missing'] as SetOwnershipFilter[]).map((ownershipFilter) => (
-                      <button key={ownershipFilter} type="button" onClick={() => setSetOwnershipFilter(ownershipFilter)} className={`rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.1em] transition ${setOwnershipFilter === ownershipFilter ? 'border-amber-200/50 bg-amber-300 text-slate-950' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-white/25 hover:text-white'}`}>{ownershipFilter === 'all' ? 'All cards' : ownershipFilter}</button>
-                    ))}
-                  </div>
-                </div>
-              </section>
-              <div className="riftbound-card-grid">
-                {displayedSetCards.map(({ card, key, owned }) => (
-                  <RiftboundCardRow key={key} card={card} normalQuantity={0} foilQuantity={0} mode="set-view" ownership={owned ? 'owned' : 'missing'} pendingChange={false} pending={false} onOpen={openCardDetails} />
-                ))}
-              </div>
-            </>
           ) : (
             <div className="grid gap-5">
               <section className="grid gap-4 rounded-3xl border border-amber-200/20 bg-slate-950/80 p-5 sm:p-6" aria-label="Riftbound game decks">
@@ -3686,33 +3285,14 @@ export function RiftboundCardGrid() {
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {decks.map((deck) => {
                       const legend = cardsById.get(deck.legend_card_id);
-                      return <article key={deck.id} className="relative rounded-2xl border border-white/10 bg-slate-900/70 p-4 transition focus-within:border-amber-200/70 hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => { setSelectedDeckId(deck.id); setSelectedSetId(null); setDeckViewMode('compact'); setDecksError(''); }} className="block w-full rounded-xl p-1 text-left focus:outline-none"><p className="truncate pr-12 text-lg font-black text-white">{deck.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Legend: {legend?.displayName ?? 'Unknown'}</p><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-300">{deck.description || 'No description'}</p><p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Created {formatDeckCreatedDate(deck.created_at)}</p></button><div className="absolute right-4 top-4"><RiftboundDeckFavoriteButton deckId={deck.id} session={session} /></div></article>;
+                      return <article key={deck.id} className="relative rounded-2xl border border-white/10 bg-slate-900/70 p-4 transition focus-within:border-amber-200/70 hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => { setSelectedDeckId(deck.id); setDeckViewMode('compact'); setDecksError(''); }} className="block w-full rounded-xl p-1 text-left focus:outline-none"><p className="truncate pr-12 text-lg font-black text-white">{deck.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Legend: {legend?.displayName ?? 'Unknown'}</p><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-300">{deck.description || 'No description'}</p><p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Created {formatDeckCreatedDate(deck.created_at)}</p></button><div className="absolute right-4 top-4"><RiftboundDeckFavoriteButton deckId={deck.id} session={session} /></div></article>;
                     })}
-                  </div>
-                )}
-              </section>
-              <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6" aria-label="Riftbound sets">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Your sets</p>
-                    <p className="mt-1 text-sm text-slate-400">Create up to 6 card sets with any cards and quantities.</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input ref={setImportInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => void handleSetImportFile(event)} />
-                    <button type="button" onClick={() => setImportInputRef.current?.click()} disabled={sets.length >= 6} className="rounded-xl border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-black text-slate-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">Import Set</button>
-                    <button type="button" onClick={startSetBuilder} disabled={sets.length >= 6} className="rounded-xl border border-amber-200/50 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Create Set</button>
-                  </div>
-                </div>
-                {setsError ? <p className="text-sm font-semibold text-red-200">{setsError}</p> : null}
-                {sets.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">You have not created any sets yet.</p> : (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {sets.map((set) => <button key={set.id} type="button" onClick={() => { setSelectedSetId(set.id); setSelectedDeckId(null); setDeckViewMode('compact'); setSetOwnershipFilter('all'); }} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><p className="truncate text-lg font-black text-white">{set.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">{expandSetCards(set).length} cards</p></button>)}
                   </div>
                 )}
               </section>
             </div>
           )
-        ) : activeTab === 'inventory' && !session ? (
+        ) : activeTab === 'binders' ? null : activeTab === 'inventory' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
             <PackageOpen size={38} className="text-amber-200" />
             <div>
@@ -3725,25 +3305,9 @@ export function RiftboundCardGrid() {
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading your inventory...</section>
         ) : activeTab === 'inventory' && inventoryError ? (
           <section className="rounded-3xl border border-red-300/20 bg-red-950/20 px-6 py-16 text-center text-sm font-semibold text-red-200">{inventoryError}</section>
-        ) : activeTab === 'sets' && selectedSet ? (
-          <div className="riftbound-card-grid">
-            {selectedSetCards.map(({ card, key }) => (
-              <RiftboundCardRow
-                key={key}
-                card={card}
-                normalQuantity={0}
-                foilQuantity={0}
-                mode="set-view"
-                pendingChange={false}
-                pending={false}
-                onOpen={openCardDetails}
-                tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier}
-              />
-            ))}
-          </div>
         ) : filteredCards.length === 0 ? (
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">
-            {activeTab === 'inventory' ? 'Your inventory does not match these filters yet.' : activeTab === 'sets' ? 'No cards match these filters.' : 'No cards match these filters.'}
+            {activeTab === 'inventory' ? 'Your inventory does not match these filters yet.' : 'No cards match these filters.'}
           </section>
         ) : (
           <div className="riftbound-card-grid">
@@ -3753,18 +3317,17 @@ export function RiftboundCardGrid() {
                 card={card}
                 normalQuantity={getFinishQuantity(inventoryByFinish, card.id, 'normal')}
                 foilQuantity={getFinishQuantity(inventoryByFinish, card.id, 'foil')}
-                mode={activeTab === 'sets' && setBuilderOpen ? 'set-selection' : 'inventory'}
-                setQuantity={setBuilderRows[card.id] ?? 0}
+                mode="inventory"
+                setQuantity={0}
                 pendingChange={
-                  activeTab !== 'sets'
+                  activeTab !== 'decks'
                   && (getFinishQuantity(inventoryByFinish, card.id, 'normal') !== getFinishQuantity(savedInventoryByFinish, card.id, 'normal')
                   || getFinishQuantity(inventoryByFinish, card.id, 'foil') !== getFinishQuantity(savedInventoryByFinish, card.id, 'foil')
                   )
                 }
                 pending={inventoryControlsPending}
-                onOpen={setBuilderOpen ? (card) => openCardDetails(card, false, true) : openCardDetails}
-                onAdjust={setBuilderOpen ? undefined : adjustInventory}
-                onSetAdjust={setBuilderOpen ? adjustSetCard : undefined}
+                onOpen={openCardDetails}
+                onAdjust={adjustInventory}
                 tierVote={tierRatings[getRiftboundCardTierGroupId(card)]?.tier}
               />
             ))}
@@ -3813,7 +3376,7 @@ export function RiftboundCardGrid() {
           deck={collectionShareDeck}
           session={session}
           onClose={() => setCollectionShareOpen(false)}
-          onImport={collectionShareKind === 'collection' ? importCollectionJson : collectionShareKind === 'set' ? importSetJson : undefined}
+          onImport={collectionShareKind === 'collection' ? importCollectionJson : undefined}
           onExportJson={collectionShareKind === 'deck' && collectionShareDeck ? () => downloadDeckJson(collectionShareDeck) : undefined}
         />
       ) : null}

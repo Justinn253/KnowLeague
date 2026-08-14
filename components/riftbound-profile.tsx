@@ -30,7 +30,7 @@ import { RiftboundCommunityPostCard } from '@/components/riftbound-community-pos
 import { navigateToPublicProfile } from '@/lib/profile-navigation';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
-import { getRiftboundCardById, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
+import { getRiftboundCardById, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
 import { isRiftboundChampionUnit } from '@/lib/riftbound-decks';
 import { getRiftboundOwnerProfile, getRiftboundPublicProfile, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import { createRiftboundShareUrl } from '@/lib/riftbound-share-client';
@@ -90,12 +90,6 @@ function ProfileStat({ label, value, onClick, title }: { label: string; value: s
   return <button type="button" onClick={onClick} title={title} className="rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-3 text-left transition hover:border-amber-200/50 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200">{content}</button>;
 }
 
-function CardPreview({ cardId, quantity, tierVote, cardsById }: { cardId: string; quantity?: number; tierVote?: RiftboundCardTier; cardsById: ReadonlyMap<string, RiftboundCard> }) {
-  const card = cardsById.get(cardId);
-  if (!card) return null;
-  return <div className="min-w-0 rounded-xl border border-white/10 bg-slate-900/60 p-2"><div className="relative aspect-[744/1039] overflow-hidden rounded-lg bg-slate-950"><RiftboundCardImage card={card} sizes="120px" loading="lazy" className="object-cover" /></div><p className={`mt-1 truncate text-[0.65rem] font-black ${getRiftboundCardRarityTextClass(card)}`} title={card.displayName}>{card.displayName}</p><p className="mt-1 truncate text-[0.58rem] font-bold uppercase tracking-[0.08em] text-slate-500">{card.setCode} · {card.numberLabel}{tierVote ? ` · ${tierVote}` : ''}</p>{quantity ? <p className="mt-1 text-[0.65rem] font-bold text-amber-200">×{quantity}</p> : null}</div>;
-}
-
 function getProfileCollectionFilterOptions() {
   const setNames = new Map(RIFTBOUND_CARDS.map((card) => [card.setCode, card.setName]));
   return {
@@ -135,11 +129,6 @@ function OverviewPreferenceButton({ label, onClick, active, pending = false, chi
 }
 
 type ProfileDeckSource = RiftboundProfileData['decks'][number];
-type ProfileSetSource = RiftboundProfileData['sets'][number];
-
-function getProfileCardMarketValue(card: RiftboundCard) {
-  return card.marketPrices?.[card.defaultFinish] ?? card.marketPrice ?? 0;
-}
 
 function getDeckPreviewCards(source: ProfileDeckSource, cardsById: ReadonlyMap<string, RiftboundCard>) {
   const previewCardIds: string[] = [];
@@ -165,20 +154,8 @@ function getDeckPreviewCards(source: ProfileDeckSource, cardsById: ReadonlyMap<s
   });
 }
 
-function getSetPreviewCards(source: ProfileSetSource, cardsById: ReadonlyMap<string, RiftboundCard>) {
-  return source.cards
-    .flatMap((entry) => {
-      const card = cardsById.get(entry.card_id);
-      return card ? [{ card, value: getProfileCardMarketValue(card) * entry.quantity }] : [];
-    })
-    .sort((left, right) => right.value - left.value || left.card.displayName.localeCompare(right.card.displayName))
-    .slice(0, 4)
-    .map(({ card }) => card);
-}
-
 type ProfileSourceCardProps =
   | {
-    sourceType: 'deck';
     source: ProfileDeckSource;
     favorite: boolean;
     owner: boolean;
@@ -187,23 +164,14 @@ type ProfileSourceCardProps =
     tierRatings: Record<string, RiftboundCardTierRating>;
     onFavorite: () => void;
     onOpen: () => void;
-  }
-  | {
-    sourceType: 'set';
-    source: ProfileSetSource;
-    cardsById: ReadonlyMap<string, RiftboundCard>;
-    tierRatings: Record<string, RiftboundCardTierRating>;
-    onOpen: () => void;
   };
 
 function ProfileSourceCard(props: ProfileSourceCardProps) {
-  const { sourceType, source, onOpen } = props;
-  const previewCards = sourceType === 'deck' ? getDeckPreviewCards(source, props.cardsById) : getSetPreviewCards(source, props.cardsById);
-  const favoriteControl = sourceType === 'deck'
-    ? props.owner
+  const { source, onOpen } = props;
+  const previewCards = getDeckPreviewCards(source, props.cardsById);
+  const favoriteControl = props.owner
       ? <OverviewPreferenceButton label={props.favorite ? 'Remove from favorites' : 'Add to favorites'} onClick={props.onFavorite} active={props.favorite} pending={props.pending ?? false}><Star size={15} className={props.favorite ? 'fill-current' : ''} /></OverviewPreferenceButton>
       : props.favorite ? <span title="Favorite source" aria-label="Favorite source" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-amber-200/50 bg-amber-300/10 text-amber-200"><Star size={15} className="fill-current" /></span> : null
-    : null;
 
   return (
     <article className="relative grid gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition focus-within:border-amber-200/70 hover:border-amber-200/40">
@@ -235,7 +203,6 @@ export function RiftboundProfile({ username }: { username?: string }) {
   const [section, setSection] = useState<ProfileSection>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedSource, setSelectedSource] = useState<{ type: 'set' | 'deck'; id: string } | null>(null);
   const [selectedCard, setSelectedCard] = useState<RiftboundCard | null>(null);
   const [descriptionEditing, setDescriptionEditing] = useState(false);
   const [profileAbout, setProfileAbout] = useState('');
@@ -367,13 +334,6 @@ export function RiftboundProfile({ username }: { username?: string }) {
     [cardsById, profile],
   );
 
-  const activeSource = useMemo(() => {
-    if (!profile || !selectedSource) return null;
-    return selectedSource.type === 'set'
-      ? profile.sets.find((source) => source.id === selectedSource.id) ?? null
-      : profile.decks.find((source) => source.id === selectedSource.id) ?? null;
-  }, [profile, selectedSource]);
-
   const savePreference = async (body: Record<string, unknown>, actionKey: string) => {
     if (!session || !profile?.isOwner || savingAction) return false;
     setSavingAction(actionKey);
@@ -490,19 +450,17 @@ export function RiftboundProfile({ username }: { username?: string }) {
     });
   };
 
-  const toggleFavoriteSource = (type: 'set' | 'deck', id: string) => {
+  const toggleFavoriteSource = (type: 'deck', id: string) => {
     if (!profile) return;
-    const favorites = type === 'set' ? profile.favoriteSetIds : profile.favoriteDeckIds;
+    const favorites = profile.favoriteDeckIds;
     const enabled = !favorites.includes(id);
     if (type === 'deck' && enabled && profile.favoriteDeckIds.length >= 4) return;
     const previousProfile = profile;
     const previousRecentlyUnfavoritedDecks = recentlyUnfavoritedDeckIds;
     const nextFavorites = enabled ? [...favorites, id] : favorites.filter((sourceId) => sourceId !== id);
-    setProfile(type === 'set' ? { ...profile, favoriteSetIds: nextFavorites } : { ...profile, favoriteDeckIds: nextFavorites });
-    if (type === 'deck') {
-      setRecentlyUnfavoritedDeckIds((current) => enabled ? current.filter((sourceId) => sourceId !== id) : current.includes(id) ? current : [...current, id]);
-    }
-    void savePreference({ action: type === 'set' ? 'favorite-set' : 'favorite-deck', sourceId: id, enabled }, `${type}:${id}`).then((saved) => {
+    setProfile({ ...profile, favoriteDeckIds: nextFavorites });
+    setRecentlyUnfavoritedDeckIds((current) => enabled ? current.filter((sourceId) => sourceId !== id) : current.includes(id) ? current : [...current, id]);
+    void savePreference({ action: 'favorite-deck', sourceId: id, enabled }, `deck:${id}`).then((saved) => {
       if (!saved) {
         setProfile(previousProfile);
         setRecentlyUnfavoritedDeckIds(previousRecentlyUnfavoritedDecks);
@@ -572,8 +530,8 @@ export function RiftboundProfile({ username }: { username?: string }) {
             </div>
           </div>
           {preferenceError && descriptionEditing ? <p className="text-sm font-semibold text-red-200">{preferenceError}</p> : null}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><ProfileStat label="Card Count" value={profile.collection.totalCopies} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Collection Value" value={`~${formatValue(estimatedCollectionValueCents)}`} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Decks" value={profile.decks.length} onClick={() => navigateSection('sources')} title="View sets and decks" /><ProfileStat label="Sets" value={profile.sets.length} onClick={() => navigateSection('sources')} title="View sets and decks" /></div>
-          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1 sm:grid-cols-4">{profileSections.map((tab) => <button key={tab} type="button" onClick={() => navigateSection(tab)} className={`rounded-xl px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition ${section === tab ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{tab === 'sources' ? 'Sets & Decks' : tab}</button>)}</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><ProfileStat label="Card Count" value={profile.collection.totalCopies} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Collection Value" value={`~${formatValue(estimatedCollectionValueCents)}`} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Decks" value={profile.decks.length} onClick={() => navigateSection('sources')} title="View decks" /></div>
+          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1 sm:grid-cols-4">{profileSections.map((tab) => <button key={tab} type="button" onClick={() => navigateSection(tab)} className={`rounded-xl px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition ${section === tab ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{tab}</button>)}</div>
         </header>
 
         {section === 'overview' ? <div className="grid gap-6">
@@ -581,7 +539,7 @@ export function RiftboundProfile({ username }: { username?: string }) {
             <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5"><div className="flex items-center justify-between gap-3"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Favorite Cards</p>{profile.isOwner && favoriteCards.length > 1 ? <span className="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-500">Drag to reorder</span> : null}</div>{favoriteCards.length > 0 ? <div className="grid gap-3"><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{favoriteCards.map((cardId) => { const favorite = profile.favoriteCardIds.includes(cardId); const pending = savingAction === `card:${cardId}`; return <ReorderableOverviewCardTile key={cardId} cardId={cardId} onOpen={openProfileCard} tierRatings={tierRatings} draggable={profile.isOwner && favorite} dragging={draggedPreference?.list === 'favorite' && draggedPreference.cardId === cardId} onDragStart={(event) => startPreferenceDrag('favorite', cardId, event)} onDragOver={(event) => allowPreferenceDrop('favorite', cardId, event)} onDrop={(event) => dropPreference('favorite', cardId, event)} onDragEnd={() => setDraggedPreference(null)} action={profile.isOwner ? <OverviewPreferenceButton label={favorite ? 'Remove from favorites' : 'Add to favorites'} onClick={() => toggleFavoriteCard(cardId)} active={favorite} pending={pending}><Star size={14} className={favorite ? 'fill-current' : ''} /></OverviewPreferenceButton> : undefined} />; })}</div>{favoriteCards.length === 4 ? <p className="text-center text-xs font-semibold text-slate-500">Premium users can have up to 8 favorites</p> : null}</div> : <p className="text-sm text-slate-500">No favorite cards selected yet.</p>}</section>
             <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5"><div className="flex items-center justify-between gap-3"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Wishlist</p>{profile.isOwner && visibleWishlist.length > 1 ? <span className="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-500">Drag to reorder</span> : null}</div>{visibleWishlist.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{visibleWishlist.map((entry) => { const wishlisted = profile.wishlist.some((current) => current.cardId === entry.cardId); const pending = savingAction === `wishlist:${entry.cardId}`; return <ReorderableOverviewCardTile key={entry.cardId} cardId={entry.cardId} onOpen={openProfileCard} tierRatings={tierRatings} draggable={profile.isOwner && wishlisted} dragging={draggedPreference?.list === 'wishlist' && draggedPreference.cardId === entry.cardId} onDragStart={(event) => startPreferenceDrag('wishlist', entry.cardId, event)} onDragOver={(event) => allowPreferenceDrop('wishlist', entry.cardId, event)} onDrop={(event) => dropPreference('wishlist', entry.cardId, event)} onDragEnd={() => setDraggedPreference(null)} action={profile.isOwner ? <OverviewPreferenceButton label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'} onClick={() => toggleWishlist(entry.cardId)} active={wishlisted} pending={pending}>{wishlisted ? <Minus size={14} /> : <Plus size={14} />}</OverviewPreferenceButton> : undefined} />; })}</div> : <p className="text-sm text-slate-500">No wishlist cards yet.</p>}</section>
           </div>
-            <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Favorite Decks</p></div>{favoriteDecks.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{favoriteDecks.map((source) => { const favorite = profile.favoriteDeckIds.includes(source.id); return <ProfileSourceCard key={source.id} sourceType="deck" source={source} cardsById={cardsById} favorite={favorite} owner={profile.isOwner} pending={savingAction === `deck:${source.id}`} tierRatings={tierRatings} onFavorite={() => toggleFavoriteSource('deck', source.id)} onOpen={() => openRiftboundDeckShare(source, profile.profile.displayName || profile.profile.username, session)} />; })}</div> : <p className="text-sm text-slate-500">No favorite decks selected yet.</p>}</section>
+            <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Favorite Decks</p></div>{favoriteDecks.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{favoriteDecks.map((source) => { const favorite = profile.favoriteDeckIds.includes(source.id); return <ProfileSourceCard key={source.id} source={source} cardsById={cardsById} favorite={favorite} owner={profile.isOwner} pending={savingAction === `deck:${source.id}`} tierRatings={tierRatings} onFavorite={() => toggleFavoriteSource('deck', source.id)} onOpen={() => openRiftboundDeckShare(source, profile.profile.displayName || profile.profile.username, session)} />; })}</div> : <p className="text-sm text-slate-500">No favorite decks selected yet.</p>}</section>
         </div> : null}
 
         {section === 'collection' ? (
@@ -671,13 +629,8 @@ export function RiftboundProfile({ username }: { username?: string }) {
           <div className="grid gap-6">
             <section className="order-1 grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5">
               <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Game Decks</p></div>
-              {profile.decks.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{profile.decks.map((source) => <ProfileSourceCard key={source.id} sourceType="deck" source={source} cardsById={cardsById} favorite={profile.favoriteDeckIds.includes(source.id)} owner={profile.isOwner} pending={savingAction === `deck:${source.id}`} tierRatings={tierRatings} onFavorite={() => toggleFavoriteSource('deck', source.id)} onOpen={() => openRiftboundDeckShare(source, profile.profile.displayName || profile.profile.username, session)} />)}</div> : <p className="text-sm text-slate-500">No decks saved yet.</p>}
+              {profile.decks.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{profile.decks.map((source) => <ProfileSourceCard key={source.id} source={source} cardsById={cardsById} favorite={profile.favoriteDeckIds.includes(source.id)} owner={profile.isOwner} pending={savingAction === `deck:${source.id}`} tierRatings={tierRatings} onFavorite={() => toggleFavoriteSource('deck', source.id)} onOpen={() => openRiftboundDeckShare(source, profile.profile.displayName || profile.profile.username, session)} />)}</div> : <p className="text-sm text-slate-500">No decks saved yet.</p>}
             </section>
-            <section className="order-2 grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5">
-              <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Sets</p></div>
-              {profile.sets.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{profile.sets.map((source) => <ProfileSourceCard key={source.id} sourceType="set" source={source} cardsById={cardsById} tierRatings={tierRatings} onOpen={() => setSelectedSource({ type: 'set', id: source.id })} />)}</div> : <p className="text-sm text-slate-500">No sets saved yet.</p>}
-            </section>
-            {activeSource && selectedSource?.type !== 'deck' ? <section className="order-3 grid gap-4 rounded-3xl border border-amber-200/20 bg-slate-950/80 p-5"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Set Details</p><h2 className="mt-1 text-xl font-black text-white">{activeSource.name}</h2></div><button type="button" onClick={() => setSelectedSource(null)} aria-label="Close source details" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-400"><X size={15} /></button></div><div className="riftbound-card-grid">{activeSource.cards.map((entry) => <CardPreview key={`${entry.card_id}:${entry.quantity}`} cardId={entry.card_id} cardsById={cardsById} quantity={entry.quantity} tierVote={cardsById.get(entry.card_id) ? tierRatings[getRiftboundCardTierGroupId(cardsById.get(entry.card_id)!)]?.tier ?? undefined : undefined} />)}</div></section> : null}
           </div>
         ) : null}
 

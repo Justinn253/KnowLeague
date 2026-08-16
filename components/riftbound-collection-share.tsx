@@ -12,6 +12,7 @@ import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView, type RiftboundCompactDeckEntry } from '@/components/riftbound-compact-deck-view';
 import { RiftboundSharedDeckReactions } from '@/components/riftbound-shared-deck-reactions';
 import { RiftboundBinderShareView } from '@/components/riftbound-binder-share';
+import { RiftboundMasterSetShare } from '@/components/riftbound-master-set-share';
 import {
   getRiftboundHistoryRangeDays,
   RiftboundHistoryChartLoading,
@@ -95,7 +96,7 @@ type SharedCategoricalFilterField = Exclude<keyof SharedFilters, 'minPrice' | 'm
 
 type SharedSnapshot = {
   rows: SharedInventoryRow[];
-  kind: 'collection' | 'set' | 'deck' | 'binder';
+  kind: 'collection' | 'set' | 'master-set' | 'deck' | 'binder';
   title: string;
   createdBy: string;
   createdAt: string;
@@ -900,6 +901,10 @@ export function RiftboundCollectionShare({ shareKey }: { shareKey?: string }) {
 
   if (snapshot.kind === 'binder' && snapshot.binder) {
     return <RiftboundBinderShareView binder={snapshot.binder} createdBy={snapshot.createdBy} createdAt={snapshot.createdAt} />;
+  }
+
+  if (snapshot.kind === 'master-set') {
+    return <RiftboundMasterSetShare snapshot={snapshot} session={session} authResolved={authResolved} />;
   }
 
   return (

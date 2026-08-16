@@ -4,6 +4,8 @@ import {
   RIFTBOUND_DECK_BATTLEFIELD_SIZE,
   RIFTBOUND_DECK_MAIN_SIZE,
   RIFTBOUND_DECK_RUNE_SIZE,
+  isRiftboundDeckRuneCatalogueCard,
+  sortRiftboundDeckRuneCards,
   validateRiftboundDeck,
   type RiftboundDeckCardSelection,
 } from '@/lib/riftbound-decks';
@@ -45,6 +47,25 @@ function validAhriDeck() {
 }
 
 describe('Riftbound game deck validation', () => {
+  it('keeps only Origins normal runes and groups rune foil variants alphabetically', () => {
+    const runeCards = sortRiftboundDeckRuneCards(RIFTBOUND_CARDS.filter((card) => card.cardType === 'Rune' && isRiftboundDeckRuneCatalogueCard(card)));
+    const normalBasicRunes = runeCards.filter((card) => card.cardTypeLabels.includes('Basic') && card.rarity === 'Common' && card.defaultFinish === 'normal');
+
+    expect(normalBasicRunes.every((card) => card.setCode === 'OGN')).toBe(true);
+    expect(runeCards.slice(0, 5).map((card) => `${card.displayName}:${card.defaultFinish}`)).toEqual([
+      'Body Rune:normal',
+      'Body Rune:foil',
+      'Body Rune:foil',
+      'Body Rune:foil',
+      'Body Rune:foil',
+    ]);
+    expect(runeCards.map((card) => card.displayName).slice(0, 15)).toEqual([
+      'Body Rune', 'Body Rune', 'Body Rune', 'Body Rune', 'Body Rune',
+      'Calm Rune', 'Calm Rune', 'Calm Rune', 'Calm Rune', 'Calm Rune',
+      'Chaos Rune', 'Chaos Rune', 'Chaos Rune', 'Chaos Rune', 'Chaos Rune',
+    ]);
+  });
+
   it('accepts a constructed deck with the required categories', () => {
     const draft = validAhriDeck();
     const result = validateRiftboundDeck(draft, cardsById);

@@ -42,7 +42,7 @@ function normalizeDate(value: unknown) {
 }
 
 function normalizeKind(value: unknown): RiftboundShareKind {
-  if (value === 'collection' || value === 'set' || value === 'deck' || value === 'binder') return value;
+  if (value === 'collection' || value === 'set' || value === 'master-set' || value === 'deck' || value === 'binder') return value;
   throw new Error('Invalid Riftbound share type.');
 }
 

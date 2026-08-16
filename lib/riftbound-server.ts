@@ -169,24 +169,32 @@ async function loadLatestRiftboundPricePayload(
     const latestRows = Array.isArray(latestRowsResult.data)
       ? latestRowsResult.data as LatestSnapshotRow[]
       : [];
-    const payload = buildLatestPricesPayload(latestRows);
-    if (latestPricesCacheGeneration === requestGeneration) {
-      setServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY, payload, RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS);
+    const rpcReturnedNullSnapshot = latestRows.some((row) => row.price_cents === null);
+    if (!rpcReturnedNullSnapshot) {
+      const payload = buildLatestPricesPayload(latestRows);
+      if (latestPricesCacheGeneration === requestGeneration) {
+        setServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY, payload, RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS);
+      }
+      return payload;
     }
-    return payload;
   }
 
   // The fallback keeps a deployment usable while the append-only migration
-  // is being applied across environments.
-  const rpcError = latestRowsResult.error as { code?: string; message?: string };
+  // is being applied across environments, and also repairs responses from
+  // older versions of the RPC that return a null latest snapshot.
+  const rpcError = (latestRowsResult.error ?? {}) as { code?: string; message?: string };
   const functionMissing = rpcError.code === '42883' || rpcError.code === 'PGRST202'
     || Boolean(rpcError.message && /get_riftbound_latest_price_snapshots|could not find the function|does not exist/i.test(rpcError.message));
-  if (!functionMissing) throw latestRowsResult.error;
+  const rpcReturnedNullSnapshot = !latestRowsResult.error
+    && Array.isArray(latestRowsResult.data)
+    && (latestRowsResult.data as LatestSnapshotRow[]).some((row) => row.price_cents === null);
+  if (!functionMissing && !rpcReturnedNullSnapshot) throw latestRowsResult.error;
 
   const { data, error } = await supabase
     .from('riftbound_card_price_snapshots')
     .select('card_id, finish, snapshot_date, price_cents, source_snapshot_at, captured_at')
     .eq('source', 'tcgcsv')
+    .not('price_cents', 'is', null)
     .order('snapshot_date', { ascending: false })
     .order('captured_at', { ascending: false })
     .limit(5000)

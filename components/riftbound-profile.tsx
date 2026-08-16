@@ -27,19 +27,23 @@ import {
   type RiftboundSortMode,
 } from '@/components/riftbound-card-grid';
 import { RiftboundCommunityPostCard } from '@/components/riftbound-community-post-card';
+import { RiftboundMasterSet } from '@/components/riftbound-master-set';
+import { RiftboundMasterSetComparison } from '@/components/riftbound-master-set-comparison';
 import { navigateToPublicProfile } from '@/lib/profile-navigation';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
 import { isRiftboundChampionUnit } from '@/lib/riftbound-decks';
+import { getRiftboundBootstrap } from '@/lib/riftbound-client';
 import { getRiftboundOwnerProfile, getRiftboundPublicProfile, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import { createRiftboundShareUrl } from '@/lib/riftbound-share-client';
 import { buildRiftboundDeckShareSnapshot } from '@/lib/riftbound-share-types';
+import { buildRiftboundMasterSetInventoryMap, isRiftboundMasterSetCatalogueCard } from '@/lib/riftbound-master-set';
 import type { RiftboundCardTierRating, RiftboundProfileData, RiftboundWishlistCard } from '@/lib/riftbound-community-types';
 
-type ProfileSection = 'overview' | 'collection' | 'sources' | 'posts';
+type ProfileSection = 'overview' | 'collection' | 'master-set' | 'sources' | 'posts';
 
-const profileSections: ProfileSection[] = ['overview', 'collection', 'sources', 'posts'];
+const profileSections: ProfileSection[] = ['overview', 'collection', 'master-set', 'sources', 'posts'];
 
 function openRiftboundDeckShare(source: RiftboundProfileData['decks'][number], creatorName: string, session: Session | null) {
   const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
@@ -204,6 +208,10 @@ export function RiftboundProfile({ username }: { username?: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCard, setSelectedCard] = useState<RiftboundCard | null>(null);
+  const [masterSetComparisonOpen, setMasterSetComparisonOpen] = useState(false);
+  const [masterSetComparisonInventory, setMasterSetComparisonInventory] = useState<ReadonlyMap<string, number> | null>(null);
+  const [masterSetComparisonLoading, setMasterSetComparisonLoading] = useState(false);
+  const [masterSetComparisonError, setMasterSetComparisonError] = useState('');
   const [descriptionEditing, setDescriptionEditing] = useState(false);
   const [profileAbout, setProfileAbout] = useState('');
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
@@ -298,6 +306,9 @@ export function RiftboundProfile({ username }: { username?: string }) {
     () => new Map(collectionCardEntries.map((entry) => [entry.card.id, entry.totalQuantity])),
     [collectionCardEntries],
   );
+
+  const masterSetCards = useMemo(() => Array.from(cardsById.values()).filter(isRiftboundMasterSetCatalogueCard), [cardsById]);
+  const profileMasterSetInventory = useMemo(() => buildRiftboundMasterSetInventoryMap(profile?.collection.items ?? []), [profile]);
 
   const collectionFilterOptions = useMemo(() => getProfileCollectionFilterOptions(), []);
   const deferredCollectionQuery = useDeferredValue(collectionQuery);
@@ -502,6 +513,28 @@ export function RiftboundProfile({ username }: { username?: string }) {
     setSelectedCard(cardsById.get(card.id) ?? card);
   }, [cardsById]);
 
+  const compareProfileMasterSetWithMine = async () => {
+    if (!session || !profile) {
+      setMasterSetComparisonError('Sign in to compare this Master Set with your own.');
+      return;
+    }
+    if (masterSetComparisonInventory) {
+      setMasterSetComparisonOpen(true);
+      return;
+    }
+    setMasterSetComparisonLoading(true);
+    setMasterSetComparisonError('');
+    try {
+      const response = await getRiftboundBootstrap(session);
+      setMasterSetComparisonInventory(buildRiftboundMasterSetInventoryMap(response.inventory?.items ?? []));
+      setMasterSetComparisonOpen(true);
+    } catch (comparisonError) {
+      setMasterSetComparisonError(comparisonError instanceof Error ? comparisonError.message : 'Unable to load your Master Set for comparison.');
+    } finally {
+      setMasterSetComparisonLoading(false);
+    }
+  };
+
   const openKnowLeagueProfile = () => {
     if (profile) {
       navigateToPublicProfile(profile.profile.username, (href) => router.push(href));
@@ -531,7 +564,7 @@ export function RiftboundProfile({ username }: { username?: string }) {
           </div>
           {preferenceError && descriptionEditing ? <p className="text-sm font-semibold text-red-200">{preferenceError}</p> : null}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><ProfileStat label="Card Count" value={profile.collection.totalCopies} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Collection Value" value={`~${formatValue(estimatedCollectionValueCents)}`} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Decks" value={profile.decks.length} onClick={() => navigateSection('sources')} title="View decks" /></div>
-          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1 sm:grid-cols-4">{profileSections.map((tab) => <button key={tab} type="button" onClick={() => navigateSection(tab)} className={`rounded-xl px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition ${section === tab ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{tab}</button>)}</div>
+          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1 sm:grid-cols-5">{profileSections.map((tab) => <button key={tab} type="button" onClick={() => navigateSection(tab)} className={`rounded-xl px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition ${section === tab ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{tab === 'master-set' ? 'Master Set' : tab}</button>)}</div>
         </header>
 
         {section === 'overview' ? <div className="grid gap-6">
@@ -625,6 +658,20 @@ export function RiftboundProfile({ username }: { username?: string }) {
           </section>
         ) : null}
 
+        {section === 'master-set' ? (
+          <div className="grid gap-3">
+            {masterSetComparisonError ? <p role="alert" className="text-sm font-semibold text-red-200">{masterSetComparisonError}</p> : null}
+            <RiftboundMasterSet
+              cards={masterSetCards}
+              inventoryByCard={profileMasterSetInventory}
+              selectedCardId={selectedCard?.id}
+              onOpen={openProfileCard}
+              onCompare={!profile.isOwner && session ? () => void compareProfileMasterSetWithMine() : undefined}
+              compareLabel={masterSetComparisonLoading ? 'Loading my Master Set...' : 'Compare with my Master Set'}
+            />
+          </div>
+        ) : null}
+
         {section === 'sources' ? (
           <div className="grid gap-6">
             <section className="order-1 grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5">
@@ -635,7 +682,8 @@ export function RiftboundProfile({ username }: { username?: string }) {
         ) : null}
 
         {section === 'posts' ? <section className="grid gap-4">{profile.posts.length > 0 ? profile.posts.map((post) => <RiftboundCommunityPostCard key={post.id} post={post} session={session} openHref={`/riftbound/community/${encodeURIComponent(post.id)}?returnTo=${encodeURIComponent(`/riftbound/profile/${encodeURIComponent(profile.profile.username)}?tab=posts`)}`} />) : <div className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm text-slate-500">No Riftbound posts yet.</div>}</section> : null}
-        {selectedCard ? <RiftboundCardDetailsModal card={selectedCard} normalQuantity={0} foilQuantity={0} latestSnapshotDate={null} pending={Boolean(savingAction)} showInventoryControls={false} showMarketDetails preferenceSession={session} tierRating={tierRatings[getRiftboundCardTierGroupId(selectedCard)]} onTierChange={(rating) => setTierRatings((current) => { const next = { ...current }; const groupId = getRiftboundCardTierGroupId(selectedCard); if (rating) next[groupId] = rating; else delete next[groupId]; return next; })} onClose={() => setSelectedCard(null)} onAdjust={() => undefined} /> : null}
+         {selectedCard ? <RiftboundCardDetailsModal card={selectedCard} normalQuantity={0} foilQuantity={0} latestSnapshotDate={null} pending={Boolean(savingAction)} showInventoryControls={false} showMarketDetails preferenceSession={session} tierRating={tierRatings[getRiftboundCardTierGroupId(selectedCard)]} onTierChange={(rating) => setTierRatings((current) => { const next = { ...current }; const groupId = getRiftboundCardTierGroupId(selectedCard); if (rating) next[groupId] = rating; else delete next[groupId]; return next; })} onClose={() => setSelectedCard(null)} onAdjust={() => undefined} /> : null}
+         {masterSetComparisonOpen && masterSetComparisonInventory && !profile.isOwner ? <RiftboundMasterSetComparison cards={masterSetCards} leftLabel={profile.profile.username} rightLabel="You" leftInventoryByCard={profileMasterSetInventory} rightInventoryByCard={masterSetComparisonInventory} onClose={() => setMasterSetComparisonOpen(false)} /> : null}
       </section>
     </main>
   );

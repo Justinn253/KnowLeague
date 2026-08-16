@@ -3,7 +3,7 @@ import { getRiftboundCardById, type RiftboundFinish } from '@/lib/riftbound';
 import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
 
-export type RiftboundShareKind = 'collection' | 'set' | 'deck' | 'binder';
+export type RiftboundShareKind = 'collection' | 'set' | 'master-set' | 'deck' | 'binder';
 
 export type RiftboundShareInventoryRow = {
   card_id: string;
@@ -61,6 +61,19 @@ export function buildRiftboundCollectionShareSnapshot(
     rows: rows.map((row) => ({ ...row })),
     kind,
     title: title.trim(),
+    createdBy: metadata.createdBy.trim(),
+    createdAt: metadata.createdAt,
+  };
+}
+
+export function buildRiftboundMasterSetShareSnapshot(
+  rows: readonly RiftboundShareInventoryRow[],
+  metadata: RiftboundShareMetadata,
+): RiftboundShareSnapshot {
+  return {
+    rows: rows.map((row) => ({ ...row })),
+    kind: 'master-set',
+    title: 'Master Set',
     createdBy: metadata.createdBy.trim(),
     createdAt: metadata.createdAt,
   };

@@ -12,6 +12,7 @@ import { RiftboundBinderBoard } from '@/components/riftbound-binder-board';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-view';
+import { RiftboundMasterSet } from '@/components/riftbound-master-set';
 import { RiftboundInventorySaleEditor, RiftboundSaleReceipt, RiftboundSaleReviewModal, RiftboundSalesHistory, type RiftboundPendingSaleItem, type RiftboundSaleEditorDraft } from '@/components/riftbound-sales';
 import {
   getRiftboundHistoryRangeDays,
@@ -30,9 +31,10 @@ import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
 import { getRiftboundBootstrap, getRiftboundLatestPrices, getRiftboundSales, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
 import { getRiftboundInventoryChanges, rebaseRiftboundInventoryDraft, type RiftboundInventoryItem } from '@/lib/riftbound-inventory';
+import { isRiftboundMasterSetCatalogueCard } from '@/lib/riftbound-master-set';
 import { type RiftboundInventoryMetadata, type RiftboundSale, type RiftboundSaleFinish } from '@/lib/riftbound-sales';
 import { createRiftboundShareUrl } from '@/lib/riftbound-share-client';
-import { buildRiftboundCollectionShareSnapshot, buildRiftboundDeckShareSnapshot } from '@/lib/riftbound-share-types';
+import { buildRiftboundCollectionShareSnapshot, buildRiftboundDeckShareSnapshot, buildRiftboundMasterSetShareSnapshot } from '@/lib/riftbound-share-types';
 import {
   RIFTBOUND_DECK_BATTLEFIELD_SIZE,
   RIFTBOUND_DECK_CATEGORY_LABELS,
@@ -46,22 +48,25 @@ import {
   getRiftboundDeckCardCategory,
   getRiftboundDeckTotals,
   hasMatchingRiftboundChampionTag,
+  isRiftboundDeckRuneCatalogueCard,
   isRiftboundCardInLegendIdentity,
   isRiftboundChampionUnit,
+  sortRiftboundDeckRuneCards,
   validateRiftboundDeck,
   type RiftboundDeckCategory,
   type RiftboundDeckCardSelection,
 } from '@/lib/riftbound-decks';
 
-type InventoryTab = 'global' | 'inventory' | 'sales' | 'binders' | 'decks';
+type InventoryTab = 'global' | 'inventory' | 'master-set' | 'sales' | 'binders' | 'decks';
 type RiftboundDeckViewMode = 'card' | 'list' | 'compact';
 
 type CatalogueSourceTab = 'global' | 'inventory';
-type CollectionShareKind = 'collection' | 'deck';
+type CollectionShareKind = 'collection' | 'master-set' | 'deck';
 type CollectionShareMetadata = {
   createdBy: string;
   createdAt: string;
 };
+type MasterSetShareState = 'idle' | 'copying' | 'copied' | 'error';
 type InventoryItem = RiftboundInventoryItem;
 
 type InventoryMutationResponse = {
@@ -684,7 +689,7 @@ const RIFTBOUND_DRAFT_STORAGE_PREFIX = 'knowleague:riftbound-inventory-draft:';
 const RIFTBOUND_CARD_IDS = new Set(RIFTBOUND_CARDS.map((card) => card.id));
 
 function parseInventoryTab(value: string | null): InventoryTab | null {
-  return value === 'global' || value === 'inventory' || value === 'sales' || value === 'binders' || value === 'decks' ? value : null;
+  return value === 'global' || value === 'inventory' || value === 'master-set' || value === 'sales' || value === 'binders' || value === 'decks' ? value : null;
 }
 
 const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
@@ -1046,10 +1051,12 @@ function getDeckCategoryCards(
       .map(([cardId]) => cardId),
   );
 
-  return cards.filter((card) => {
+  const matchingCards = cards.filter((card) => {
     const cardCategory = getRiftboundDeckCardCategory(card);
     const isExpectedCategory = category === 'sideboard' ? cardCategory === 'main' : cardCategory === category;
     if (!isExpectedCategory) return false;
+
+    if (category === 'runes' && !isRiftboundDeckRuneCatalogueCard(card)) return false;
 
     if ((category === 'runes' || category === 'main' || category === 'sideboard') && legend && !isRiftboundCardInLegendIdentity(card, legend)) {
       return false;
@@ -1068,6 +1075,8 @@ function getDeckCategoryCards(
 
     return true;
   });
+
+  return category === 'runes' ? sortRiftboundDeckRuneCards(matchingCards) : matchingCards;
 }
 
 function updateDeckBuilderRows(
@@ -1764,6 +1773,8 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, metad
     setCopied(false);
     const snapshot = kind === 'deck' && deck
       ? buildRiftboundDeckShareSnapshot(deck, metadata)
+      : kind === 'master-set'
+        ? buildRiftboundMasterSetShareSnapshot(rows, metadata)
       : buildRiftboundCollectionShareSnapshot(rows, kind === 'deck' ? 'collection' : kind, title, metadata);
     void createRiftboundShareUrl(snapshot, session)
       .then((url) => {
@@ -1819,8 +1830,8 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, metad
       <div role="dialog" aria-modal="true" aria-label={`${kind === 'collection' ? 'Export or import collection' : `Share, export, or import ${kind}`}`} className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-4 sm:max-h-[calc(100dvh-2rem)] sm:p-7" onPointerDown={(event) => event.stopPropagation()}>
         <button type="button" aria-label="Close share collection dialog" onClick={onClose} className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"><X size={18} /></button>
         <div className="pr-14">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{kind === 'collection' ? 'Collection tools' : `${kind} tools`}</p>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{kind === 'collection' ? 'Export / Import your collection' : 'Share / Export this game deck'}</h2>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{kind === 'collection' ? 'Collection tools' : kind === 'master-set' ? 'Master Set tools' : 'Deck tools'}</p>
+          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{kind === 'collection' ? 'Export / Import your collection' : kind === 'master-set' ? 'Share your Master Set' : 'Share / Export this game deck'}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">The share link is a read-only snapshot. Anyone with the link can see the cards and quantities included in it.</p>
         </div>
         <div className="mt-6 grid gap-3">
@@ -1834,9 +1845,9 @@ function RiftboundCollectionShareModal({ rows, kind = 'collection', title, metad
             <FileDown size={17} />
             Open print / Save as PDF view
           </button>
-          <button type="button" onClick={() => kind === 'collection' ? downloadCollectionJson(rows) : onExportJson?.()} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
+          <button type="button" onClick={() => kind === 'collection' || kind === 'master-set' ? downloadCollectionJson(rows) : onExportJson?.()} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 transition hover:border-white/25 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
             <FileDown size={17} />
-            {kind === 'collection' ? 'Export collection JSON' : 'Export game deck JSON'}
+            {kind === 'collection' || kind === 'master-set' ? 'Export collection JSON' : 'Export game deck JSON'}
           </button>
           {kind === 'collection' ? (
             <>
@@ -2301,6 +2312,7 @@ export function RiftboundCardGrid() {
   const [collectionShareTitle, setCollectionShareTitle] = useState('');
   const [collectionShareDeck, setCollectionShareDeck] = useState<RiftboundDeck | null>(null);
   const [collectionShareMetadata, setCollectionShareMetadata] = useState<CollectionShareMetadata>({ createdBy: 'KnowLeague user', createdAt: '' });
+  const [masterSetShareState, setMasterSetShareState] = useState<MasterSetShareState>('idle');
   const [binders, setBinders] = useState<RiftboundBinder[]>([]);
   const [_binderLimit, setBinderLimit] = useState(4);
   const [decks, setDecks] = useState<RiftboundDeck[]>([]);
@@ -2344,7 +2356,7 @@ export function RiftboundCardGrid() {
     if (!latestPricesReady) return card;
     return mergeRiftboundCardMarketPrices(card, latestPrices[card.id] ?? { normal: null, foil: null, updatedAt: null });
   }), [latestPrices, latestPricesReady]);
-  const globalCatalogueCards = useMemo(() => cards.filter((card) => !(card.cardType === 'Rune' && card.rarity === 'Common' && card.cardTypeLabels.includes('Basic') && card.setCode !== 'OGN')), [cards]);
+  const globalCatalogueCards = useMemo(() => cards.filter(isRiftboundMasterSetCatalogueCard), [cards]);
   const cardsById = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards]);
 
   useEffect(() => {
@@ -2613,6 +2625,12 @@ export function RiftboundCardGrid() {
   const selectedDeck = decks.find((deck) => deck.id === selectedDeckId) ?? null;
   const selectedDeckCards = selectedDeck ? expandRiftboundDeckCards(selectedDeck, cards) : [];
   const selectedDeckLegendCards = selectedDeckCards.filter(({ category }) => category === 'legend');
+  const selectedDeckLegendCard = selectedDeckLegendCards[0]?.card ?? (selectedDeck ? cardsById.get(selectedDeck.legend_card_id) ?? null : null);
+  const selectedDeckLegendCardsForPreview: ExpandedRiftboundDeckCard[] = selectedDeckLegendCards.length > 0
+    ? selectedDeckLegendCards
+    : selectedDeckLegendCard && selectedDeck
+      ? [{ card: selectedDeckLegendCard, category: 'legend', copyIndex: 0, key: `${selectedDeck.id}:legend:${selectedDeckLegendCard.id}:0` }]
+      : [];
   const selectedDeckChampionCards = selectedDeckCards.filter(({ category, card }) => category === 'main' && isRiftboundChampionUnit(card));
   const selectedDeckMainCards = selectedDeckCards.filter(({ category, card }) => category === 'main' && !isRiftboundChampionUnit(card));
   const selectedDeckRuneCards = selectedDeckCards.filter(({ category }) => category === 'runes');
@@ -2977,6 +2995,24 @@ export function RiftboundCardGrid() {
     setCollectionShareOpen(true);
   };
 
+  const copyMasterSetShareLink = async () => {
+    if (!session || masterSetShareState === 'copying') return;
+    setMasterSetShareState('copying');
+    try {
+      const snapshot = buildRiftboundMasterSetShareSnapshot(inventoryRows, {
+        createdBy: getShareCreatorName(session),
+        createdAt: new Date().toISOString(),
+      });
+      const url = await createRiftboundShareUrl(snapshot, session);
+      await navigator.clipboard.writeText(url);
+      setMasterSetShareState('copied');
+      window.setTimeout(() => setMasterSetShareState('idle'), 1800);
+    } catch {
+      setMasterSetShareState('error');
+      window.setTimeout(() => setMasterSetShareState('idle'), 2200);
+    }
+  };
+
   const openDeckShare = (deck: RiftboundDeck) => {
     setCollectionShareRows(getDeckShareRows(deck));
     setCollectionShareKind('deck');
@@ -3051,7 +3087,7 @@ export function RiftboundCardGrid() {
     }
   };
 
-  const inventoryWorkspaceActive = activeTab === 'inventory' || activeTab === 'sales';
+  const inventoryWorkspaceActive = activeTab === 'inventory' || activeTab === 'master-set' || activeTab === 'sales';
 
   return (
     <main className="min-h-screen min-w-0 w-full overflow-x-clip bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
@@ -3083,10 +3119,6 @@ export function RiftboundCardGrid() {
                       setActiveTab('decks');
                       return;
                     }
-                    if (tab === 'sales') {
-                      setActiveTab('sales');
-                      return;
-                    }
                     setActiveTab(tab);
                     if (tab === 'global' && sortMode.startsWith('quantity-')) setSortMode(defaultSortMode);
                   }}
@@ -3103,11 +3135,12 @@ export function RiftboundCardGrid() {
             <p className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-emerald-200">Inventory workspace</p>
             <div className="flex rounded-xl border border-white/10 bg-slate-950/60 p-1" role="tablist" aria-label="Inventory views">
               <button type="button" role="tab" aria-selected={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'inventory' ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Collection</button>
+              <button type="button" role="tab" aria-selected={activeTab === 'master-set'} onClick={() => setActiveTab('master-set')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'master-set' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Master Set</button>
               <button type="button" role="tab" aria-selected={activeTab === 'sales'} onClick={() => setActiveTab('sales')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'sales' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Sales {salesLoaded ? `(${sales.length})` : ''}</button>
             </div>
           </div> : null}
 
-          {activeTab !== 'binders' && activeTab !== 'sales' ? <div className="mt-5 grid gap-4">
+          {activeTab !== 'binders' && activeTab !== 'sales' && activeTab !== 'master-set' ? <div className="mt-5 grid gap-4">
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,15rem)_auto]">
               <div className="relative">
                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -3279,6 +3312,31 @@ export function RiftboundCardGrid() {
           <RiftboundSalesHistory sales={sales} cards={cards} loading={salesLoading} error={salesError} />
         ) : null}
 
+        {activeTab === 'master-set' && !session ? (
+          <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
+            <PackageOpen size={38} className="text-emerald-200" />
+            <div>
+              <h2 className="text-2xl font-black text-white">Sign in to view your Master Set</h2>
+              <p className="mt-2 text-sm text-slate-400">Your acquired cards are saved to your KnowLeague account.</p>
+            </div>
+            <Link href="/login" className="rounded-xl border border-emerald-200/40 bg-emerald-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-emerald-200">Sign in</Link>
+          </section>
+        ) : activeTab === 'master-set' && session && inventoryLoading ? (
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center text-sm font-semibold text-slate-400">Loading your Master Set...</section>
+        ) : activeTab === 'master-set' && session && inventoryError ? (
+          <section className="rounded-3xl border border-red-300/20 bg-red-950/20 px-6 py-16 text-center text-sm font-semibold text-red-200">{inventoryError}</section>
+        ) : activeTab === 'master-set' && session ? (
+          <RiftboundMasterSet
+            cards={globalCatalogueCards}
+            inventoryByCard={inventoryByCard}
+            selectedCardId={selectedCard?.id}
+            onOpen={openCardDetails}
+            onShare={() => void copyMasterSetShareLink()}
+            shareDisabled={masterSetShareState === 'copying'}
+            shareLabel={masterSetShareState === 'copying' ? 'Preparing link...' : masterSetShareState === 'copied' ? 'Link copied' : masterSetShareState === 'error' ? 'Unable to copy link' : 'Share Master Set'}
+          />
+        ) : null}
+
         {activeTab === 'binders' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
             <PackageOpen size={38} className="text-amber-200" />
@@ -3420,7 +3478,7 @@ export function RiftboundCardGrid() {
                   creatorName={getShareCreatorName(session)}
                   deckName={selectedDeck.name}
                   createdAt={selectedDeck.created_at}
-                  legendEntries={collapseRiftboundDeckEntries(selectedDeckLegendCards)}
+                  legendEntries={collapseRiftboundDeckEntries(selectedDeckLegendCardsForPreview)}
                   championEntries={collapseRiftboundDeckEntries(selectedDeckChampionCards)}
                   mainEntries={collapseRiftboundDeckEntries(selectedDeckMainCards)}
                   runeEntries={collapseRiftboundDeckEntries(selectedDeckRuneCards)}
@@ -3432,7 +3490,7 @@ export function RiftboundCardGrid() {
               ) : (
                 <>
                   <div className={`grid ${deckViewMode === 'list' ? 'gap-2' : 'gap-4'} lg:grid-cols-[18rem_minmax(0,1fr)]`}>
-                    <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Legend</h3><RiftboundDeckEntries entries={selectedDeckLegendCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" highlightCardId={selectedDeck.legend_card_id} /></section>
+                    <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Legend</h3><RiftboundDeckEntries entries={selectedDeckLegendCardsForPreview} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" highlightCardId={selectedDeckLegendCard?.id ?? selectedDeck.legend_card_id} /></section>
                     <section className="grid content-start gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Champion Units</h3><RiftboundDeckEntries entries={selectedDeckChampionCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} gridClassName="riftbound-card-grid" /></section>
                   </div>
                   <section className="grid gap-3"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Main Deck</h3><RiftboundDeckEntries entries={selectedDeckMainCards} listView={deckViewMode === 'list'} tierRatings={tierRatings} onOpen={openDeckCardDetails} /></section>
@@ -3468,7 +3526,7 @@ export function RiftboundCardGrid() {
               </section>
             </div>
           )
-        ) : activeTab === 'binders' || activeTab === 'sales' ? null : activeTab === 'inventory' && !session ? (
+        ) : activeTab === 'binders' || activeTab === 'master-set' || activeTab === 'sales' ? null : activeTab === 'inventory' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
             <PackageOpen size={38} className="text-amber-200" />
             <div>

@@ -96,7 +96,13 @@ export type RiftboundCard = {
   defaultFinish: RiftboundFinish;
 };
 
-export function mergeRiftboundCardMarketPrices(card: RiftboundCard, latest: RiftboundMarketPrices) {
+export function mergeRiftboundCardMarketPrices(card: RiftboundCard, latest?: RiftboundMarketPrices) {
+  // A card that is absent from the latest snapshot payload has not been
+  // resolved by the price service. Preserve the generated catalogue value
+  // until an explicit snapshot (including an explicit unavailable value) is
+  // available for that card.
+  if (!latest) return card;
+
   // Once a card has a captured snapshot, its nullable values are authoritative.
   // Falling back to the generated catalogue after that point can show the
   // acquisition-time value when the current source has no market price.

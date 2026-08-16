@@ -37,6 +37,15 @@ describe('Riftbound showcase classification', () => {
     expect(merged.marketPrices.updatedAt).toBe('2026-08-03T00:00:00.000Z');
   });
 
+  it('preserves the catalogue value when a card is absent from the latest snapshot payload', () => {
+    const card = RIFTBOUND_CARDS.find((candidate) => candidate.id === 'unl-228-219');
+    expect(card).toBeTruthy();
+
+    const merged = mergeRiftboundCardMarketPrices(card!);
+    expect(merged.marketPrices.foil).toBe(card!.marketPrices.foil);
+    expect(merged.marketPrices.updatedAt).toBe(card!.marketPrices.updatedAt);
+  });
+
   it('includes fallback artwork for Vendetta showcase runes whose source image is pending', () => {
     for (const id of ['ven-r01a', 'ven-r03a', 'ven-r04a', 'ven-r05a', 'ven-r06a']) {
       expect(RIFTBOUND_CARDS.find((card) => card.id === id)?.imageUrl).toMatch(/^https:\/\/openrift\.app\/media\/cards\/.*-400w\.webp$/);

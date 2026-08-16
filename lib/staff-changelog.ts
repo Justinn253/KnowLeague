@@ -1440,4 +1440,32 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
+  {
+    id: 'patch-2026-08-16-riftbound-missing-price-catalogue-fallback',
+    patch: '2026.08.16-riftbound-missing-price-catalogue-fallback',
+    timestamp: '2026-08-16T06:23:48.2709800Z',
+    title: 'Preserved Riftbound catalogue values for unresolved latest prices',
+    summary: 'Fixed cards such as UNL and VEN prints showing N/A when they were absent from the latest-price payload but still had valid catalogue and historical values.',
+    details: [
+      'Changed the client market-price merge to pass through an undefined latest snapshot instead of fabricating an all-null snapshot for every card missing from the latest response.',
+      'Cards with an explicit latest snapshot continue to treat nullable normal and foil fields as authoritative, while cards absent from that payload retain their generated catalogue market values until a snapshot resolves them.',
+      'Added a regression test using UNL Bloodharbor Ripper to protect the missing-payload fallback and retain the existing all-null snapshot behavior for genuinely unavailable prices.',
+    ],
+    impact: [
+      'UNL and VEN cards with valid catalogue or historical pricing no longer display N/A solely because their card ID was omitted from the latest aggregate price response.',
+      'Explicitly unavailable snapshots remain N/A, so the UI does not invent prices when the source has confirmed no market value.',
+    ],
+    files: [
+      'components/riftbound-card-grid.tsx',
+      'lib/riftbound.ts',
+      'lib/staff-changelog.ts',
+      'tests/riftbound.test.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 41 tests passed across 14 test files.',
+      'Targeted Riftbound price tests passed: 8 tests across tests/riftbound.test.ts.',
+      'git diff --check completed with only the repository\'s existing Git LF-to-CRLF normalization warnings.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
 ];

@@ -2354,7 +2354,7 @@ export function RiftboundCardGrid() {
 
   const cards = useMemo(() => RIFTBOUND_CARDS.map((card) => {
     if (!latestPricesReady) return card;
-    return mergeRiftboundCardMarketPrices(card, latestPrices[card.id] ?? { normal: null, foil: null, updatedAt: null });
+    return mergeRiftboundCardMarketPrices(card, latestPrices[card.id]);
   }), [latestPrices, latestPricesReady]);
   const globalCatalogueCards = useMemo(() => cards.filter(isRiftboundMasterSetCatalogueCard), [cards]);
   const cardsById = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards]);

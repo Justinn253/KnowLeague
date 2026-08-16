@@ -4,6 +4,8 @@ import type { Session } from '@supabase/supabase-js';
 import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
 import type { RiftboundCardTierRating } from '@/lib/riftbound';
 import type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
+import type { RiftboundBinder } from '@/lib/riftbound-binders';
+import type { RiftboundInventoryMetadata, RiftboundSale } from '@/lib/riftbound-sales';
 
 export type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 
@@ -11,18 +13,6 @@ export type RiftboundLatestPrice = {
   normal: number | null;
   foil: number | null;
   updatedAt: string | null;
-};
-
-export type RiftboundSetCard = {
-  card_id: string;
-  quantity: number;
-};
-
-export type RiftboundSet = {
-  id: string;
-  name: string;
-  created_at: string;
-  cards: RiftboundSetCard[];
 };
 
 export type RiftboundDeckCard = {
@@ -66,9 +56,14 @@ type RiftboundPriceHistoryResponse = {
 };
 
 export type RiftboundBootstrapResponse = RiftboundLatestPricesResponse & {
-  inventory?: { items?: RiftboundInventoryItem[] };
-  sets?: { sets?: RiftboundSet[] };
+  inventory?: { items?: RiftboundInventoryItem[]; metadata?: RiftboundInventoryMetadata[] };
+  binders?: { binders?: RiftboundBinder[]; limit?: number };
   decks?: { decks?: RiftboundDeck[] };
+};
+
+export type RiftboundSalesResponse = {
+  sales?: RiftboundSale[];
+  error?: string;
 };
 
 type CachedResponse<T> = {
@@ -150,6 +145,10 @@ export function invalidateRiftboundLatestPrices(session?: Session | null) {
 export function getRiftboundLatestPrices(session?: Session | null) {
   const key = `latest-prices:${RIFTBOUND_LATEST_PRICES_CACHE_VERSION}:${session?.user.id ?? 'guest'}`;
   return requestRiftboundData<RiftboundLatestPricesResponse>(key, `/api/riftbound/prices/latest?version=${RIFTBOUND_LATEST_PRICES_CACHE_VERSION}`, session, { cache: 'no-store' });
+}
+
+export function getRiftboundSales(session: Session) {
+  return requestRiftboundData<RiftboundSalesResponse>(`sales:${session.user.id}`, '/api/riftbound/sales', session);
 }
 
 export function getRiftboundCardPriceHistory(cardId: string, days = 30) {

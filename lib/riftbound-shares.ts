@@ -5,6 +5,7 @@ import { getServerCache, setServerCache } from '@/lib/server-memory-cache';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import type {
   RiftboundShareDeck,
+  RiftboundShareBinder,
   RiftboundShareDeckEntry,
   RiftboundShareInventoryRow,
   RiftboundShareKind,
@@ -41,8 +42,42 @@ function normalizeDate(value: unknown) {
 }
 
 function normalizeKind(value: unknown): RiftboundShareKind {
-  if (value === 'collection' || value === 'set' || value === 'deck') return value;
+  if (value === 'collection' || value === 'set' || value === 'master-set' || value === 'deck' || value === 'binder') return value;
   throw new Error('Invalid Riftbound share type.');
+}
+
+function normalizeBinder(value: unknown): RiftboundShareBinder {
+  if (!value || typeof value !== 'object') throw new Error('A shared binder snapshot is required.');
+  const candidate = value as Partial<RiftboundShareBinder>;
+  if (!Array.isArray(candidate.pages) || candidate.pages.length !== 20) throw new Error('A shared binder must contain all 20 pages.');
+  const pageNumbers = new Set<number>();
+  const pages = candidate.pages.map((rawPage) => {
+    if (!rawPage || typeof rawPage !== 'object') throw new Error('Shared binder pages contain invalid values.');
+    const page = rawPage as Partial<RiftboundShareBinder['pages'][number]>;
+    const pageNumber = page.pageNumber;
+    if (typeof pageNumber !== 'number' || !Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > 20 || pageNumbers.has(pageNumber)) throw new Error('Shared binder contains invalid page numbers.');
+    pageNumbers.add(pageNumber);
+    const name = normalizeText(page.name, 'Shared binder page name', 80, true);
+    if (!Array.isArray(page.slots) || page.slots.length > 9) throw new Error('A shared binder page cannot contain more than nine cards.');
+    const slotIndexes = new Set<number>();
+    const slots = page.slots.map((rawSlot) => {
+      if (!rawSlot || typeof rawSlot !== 'object') throw new Error('Shared binder slots contain invalid values.');
+      const slot = rawSlot as Partial<RiftboundShareBinder['pages'][number]['slots'][number]>;
+      const slotIndex = slot.slotIndex;
+      if (typeof slotIndex !== 'number' || !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 8 || slotIndexes.has(slotIndex)) throw new Error('Shared binder contains invalid slot positions.');
+      slotIndexes.add(slotIndex);
+      const card = typeof slot.cardId === 'string' ? getRiftboundCardById(slot.cardId) : null;
+      if (!card || (slot.finish !== 'normal' && slot.finish !== 'foil') || !card.finishOptions.includes(slot.finish)) throw new Error('Shared binder contains an invalid card or finish.');
+      return { slotIndex, cardId: card.id, finish: slot.finish };
+    });
+    return { pageNumber, name, slots };
+  }).sort((left, right) => left.pageNumber - right.pageNumber);
+
+  return {
+    name: normalizeText(candidate.name, 'Shared binder name', 80, true),
+    description: normalizeText(candidate.description, 'Shared binder description', 500),
+    pages,
+  };
 }
 
 function normalizeRows(value: unknown) {
@@ -119,6 +154,7 @@ export function normalizeRiftboundShareSnapshot(value: unknown): RiftboundShareS
     createdAt: normalizeDate(candidate.createdAt),
   };
   if (kind === 'deck') snapshot.deck = normalizeDeck(candidate.deck);
+  if (kind === 'binder') snapshot.binder = normalizeBinder(candidate.binder);
 
   const payloadBytes = Buffer.byteLength(JSON.stringify(snapshot), 'utf8');
   if (payloadBytes > MAX_SHARE_PAYLOAD_BYTES) throw new Error('This Riftbound share is too large to store.');
@@ -136,6 +172,7 @@ function createRiftboundShareDedupeKey(ownerId: string | null | undefined, snaps
     title: snapshot.title,
     rows: snapshot.rows,
     deck: snapshot.deck ?? null,
+    binder: snapshot.binder ?? null,
   };
   return createHash('sha256').update(JSON.stringify(canonicalSnapshot)).digest('hex');
 }

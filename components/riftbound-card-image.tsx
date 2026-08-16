@@ -9,6 +9,7 @@ type RiftboundCardImageProps = Omit<ImageProps, 'src' | 'alt' | 'fill' | 'qualit
   sizes: string;
   className?: string;
   orientation?: 'portrait' | 'landscape';
+  preferHighResolution?: boolean;
 };
 
 // Keep every card/source pair on one quality cache key. The card catalogue is
@@ -45,10 +46,16 @@ function observeCardImage(target: Element, callback: CardImageViewportCallback) 
   };
 }
 
-export function RiftboundCardImage({ card, sizes, className = 'object-cover', orientation = 'portrait', ...props }: RiftboundCardImageProps) {
+export function RiftboundCardImage({ card, sizes, className = 'object-cover', orientation = 'portrait', preferHighResolution = false, onError, ...props }: RiftboundCardImageProps) {
   const eager = props.loading === 'eager';
   const imageContainerRef = useRef<HTMLSpanElement | null>(null);
   const [visible, setVisible] = useState(eager);
+  const highResolutionUrl = card.imageUrl.replace(/-\d+x\d+(\.[a-z]+)$/i, '-1488x2078$1');
+  const [imageUrl, setImageUrl] = useState(preferHighResolution ? highResolutionUrl : card.imageUrl);
+
+  useEffect(() => {
+    setImageUrl(preferHighResolution ? highResolutionUrl : card.imageUrl);
+  }, [card.imageUrl, highResolutionUrl, preferHighResolution]);
 
   useEffect(() => {
     if (eager) {
@@ -62,7 +69,7 @@ export function RiftboundCardImage({ card, sizes, className = 'object-cover', or
 
   const image = visible ? (
     <Image
-      src={card.imageUrl}
+      src={imageUrl}
       alt={`${card.displayName} card artwork`}
       fill
       sizes={sizes}
@@ -74,6 +81,10 @@ export function RiftboundCardImage({ card, sizes, className = 'object-cover', or
       // source assets are already bounded card images rather than user uploads.
       unoptimized
       quality={RIFTBOUND_CARD_IMAGE_QUALITY}
+      onError={(event) => {
+        onError?.(event);
+        if (preferHighResolution && imageUrl !== card.imageUrl) setImageUrl(card.imageUrl);
+      }}
     />
   ) : null;
 

@@ -3,6 +3,8 @@ import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-
 import type { RiftboundCardTierRating } from '@/lib/riftbound';
 import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
 import { loadRiftboundCardTierRatingMap } from '@/lib/riftbound-card-tiers';
+import { RIFTBOUND_FREE_BINDER_LIMIT, RIFTBOUND_PREMIUM_BINDER_LIMIT, type RiftboundBinder, type RiftboundBinderFinish } from '@/lib/riftbound-binders';
+import type { RiftboundInventoryMetadata, RiftboundSale, RiftboundSaleItem } from '@/lib/riftbound-sales';
 
 export type RiftboundLatestPrice = {
   normal: number | null;
@@ -15,18 +17,6 @@ export type RiftboundInventoryRow = {
   finish: 'normal' | 'foil';
   quantity: number;
   updated_at: string;
-};
-
-export type RiftboundSetCard = {
-  card_id: string;
-  quantity: number;
-};
-
-export type RiftboundSet = {
-  id: string;
-  name: string;
-  created_at: string;
-  cards: RiftboundSetCard[];
 };
 
 export type RiftboundDeckCard = {
@@ -63,16 +53,34 @@ type LatestSnapshotRow = {
   captured_at: string;
 };
 
-type SetRow = {
+type BinderRow = {
   id: string;
   name: string;
+  description: string;
   created_at: string;
+  updated_at: string;
 };
 
-type SetCardRow = {
-  set_id: string;
+type BinderPageRow = {
+  id: string;
+  binder_id: string;
+  page_number: number;
+  name: string;
+};
+
+type BinderSlotRow = {
+  page_id: string;
+  slot_index: number;
   card_id: string;
-  quantity: number;
+  finish: RiftboundBinderFinish;
+};
+
+type InventoryMetadataRow = RiftboundInventoryMetadata;
+
+type SaleRow = Omit<RiftboundSale, 'items'>;
+
+type SaleItemRow = RiftboundSaleItem & {
+  sale_id: string;
 };
 
 type DeckRow = {
@@ -98,6 +106,13 @@ const RIFTBOUND_LATEST_PRICES_CACHE_KEY = 'riftbound:latest-prices:tcgcsv';
 const RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS = 60_000;
 const latestPricesInFlight = new Map<string, Promise<RiftboundLatestPricesPayload>>();
 let latestPricesCacheGeneration = 0;
+
+function isMissingRiftboundSalesStorage(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return candidate.code === '42P01' || candidate.code === 'PGRST205'
+    || (typeof candidate.message === 'string' && /riftbound_inventory_metadata|riftbound_sales|riftbound_sale_items|sale_price_cents|does not exist/i.test(candidate.message));
+}
 
 export function invalidateLatestRiftboundPrices() {
   latestPricesCacheGeneration += 1;
@@ -154,24 +169,32 @@ async function loadLatestRiftboundPricePayload(
     const latestRows = Array.isArray(latestRowsResult.data)
       ? latestRowsResult.data as LatestSnapshotRow[]
       : [];
-    const payload = buildLatestPricesPayload(latestRows);
-    if (latestPricesCacheGeneration === requestGeneration) {
-      setServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY, payload, RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS);
+    const rpcReturnedNullSnapshot = latestRows.some((row) => row.price_cents === null);
+    if (!rpcReturnedNullSnapshot) {
+      const payload = buildLatestPricesPayload(latestRows);
+      if (latestPricesCacheGeneration === requestGeneration) {
+        setServerCache(RIFTBOUND_LATEST_PRICES_CACHE_KEY, payload, RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS);
+      }
+      return payload;
     }
-    return payload;
   }
 
   // The fallback keeps a deployment usable while the append-only migration
-  // is being applied across environments.
-  const rpcError = latestRowsResult.error as { code?: string; message?: string };
+  // is being applied across environments, and also repairs responses from
+  // older versions of the RPC that return a null latest snapshot.
+  const rpcError = (latestRowsResult.error ?? {}) as { code?: string; message?: string };
   const functionMissing = rpcError.code === '42883' || rpcError.code === 'PGRST202'
     || Boolean(rpcError.message && /get_riftbound_latest_price_snapshots|could not find the function|does not exist/i.test(rpcError.message));
-  if (!functionMissing) throw latestRowsResult.error;
+  const rpcReturnedNullSnapshot = !latestRowsResult.error
+    && Array.isArray(latestRowsResult.data)
+    && (latestRowsResult.data as LatestSnapshotRow[]).some((row) => row.price_cents === null);
+  if (!functionMissing && !rpcReturnedNullSnapshot) throw latestRowsResult.error;
 
   const { data, error } = await supabase
     .from('riftbound_card_price_snapshots')
     .select('card_id, finish, snapshot_date, price_cents, source_snapshot_at, captured_at')
     .eq('source', 'tcgcsv')
+    .not('price_cents', 'is', null)
     .order('snapshot_date', { ascending: false })
     .order('captured_at', { ascending: false })
     .limit(5000)
@@ -243,43 +266,154 @@ export async function loadRiftboundInventory(
   return data ?? [];
 }
 
-export async function loadRiftboundSets(
+export async function loadRiftboundInventoryMetadata(
   userId: string,
   supabase: RiftboundSupabaseClient = getSupabaseServiceClient(),
-): Promise<RiftboundSet[]> {
-  const { data: setData, error: setError } = await supabase
-    .from('riftbound_sets')
-    .select('id, name, created_at')
+): Promise<RiftboundInventoryMetadata[]> {
+  const { data, error } = await supabase
+    .from('riftbound_inventory_metadata')
+    .select('card_id, finish, acquisition_date, acquisition_cost_cents, sale_price_cents, updated_at')
     .eq('user_id', userId)
+    .returns<InventoryMetadataRow[]>();
+
+  if (error) {
+    // Keep the existing inventory experience available while migration 122 is
+    // being rolled out. Metadata writes and sales remain unavailable until the
+    // schema exists, but legacy inventory rows can still be viewed and edited.
+    if (isMissingRiftboundSalesStorage(error)) return [];
+    throw error;
+  }
+  return data ?? [];
+}
+
+export async function loadRiftboundSales(
+  userId: string,
+  supabase: RiftboundSupabaseClient = getSupabaseServiceClient(),
+): Promise<RiftboundSale[]> {
+  const { data: saleData, error: saleError } = await supabase
+    .from('riftbound_sales')
+    .select('id, sold_at, subtotal_cents, adjustment_cents, total_cents, created_at')
+    .eq('user_id', userId)
+    .order('sold_at', { ascending: false })
+    .order('created_at', { ascending: false })
+    .returns<SaleRow[]>();
+
+  if (saleError) throw saleError;
+  const sales = saleData ?? [];
+  if (sales.length === 0) return [];
+
+  const { data: itemData, error: itemError } = await supabase
+    .from('riftbound_sale_items')
+    .select('id, sale_id, card_id, finish, quantity, sale_price_cents, acquisition_date, acquisition_cost_cents')
+    .eq('user_id', userId)
+    .in('sale_id', sales.map((sale) => sale.id))
     .order('created_at', { ascending: true })
-    .returns<SetRow[]>();
+    .returns<SaleItemRow[]>();
 
-  if (setError) throw setError;
-  const sets = setData ?? [];
-  if (sets.length === 0) return [];
-
-  const { data: cardData, error: cardError } = await supabase
-    .from('riftbound_set_cards')
-    .select('set_id, card_id, quantity')
-    .in('set_id', sets.map((set) => set.id))
-    .returns<SetCardRow[]>();
-
-  if (cardError) throw cardError;
-
-  const cardsBySetId = new Map<string, SetCardRow[]>();
-  (cardData ?? []).forEach((card) => {
-    const rows = cardsBySetId.get(card.set_id) ?? [];
-    rows.push(card);
-    cardsBySetId.set(card.set_id, rows);
+  if (itemError) throw itemError;
+  const itemsBySaleId = new Map<string, RiftboundSaleItem[]>();
+  (itemData ?? []).forEach((item) => {
+    const items = itemsBySaleId.get(item.sale_id) ?? [];
+    const { sale_id: _saleId, ...saleItem } = item;
+    items.push(saleItem);
+    itemsBySaleId.set(item.sale_id, items);
   });
 
-  return sets.map((set) => ({
-    id: set.id,
-    name: set.name,
-    created_at: set.created_at,
-    cards: (cardsBySetId.get(set.id) ?? [])
-      .map(({ card_id, quantity }) => ({ card_id, quantity })),
+  return sales.map((sale) => ({ ...sale, items: itemsBySaleId.get(sale.id) ?? [] }));
+}
+
+export async function loadRiftboundBinders(
+  userId: string,
+  supabase: RiftboundSupabaseClient = getSupabaseServiceClient(),
+): Promise<RiftboundBinder[]> {
+  const { data: binderData, error: binderError } = await supabase
+    .from('riftbound_binders')
+    .select('id, name, description, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .returns<BinderRow[]>();
+
+  if (binderError) throw binderError;
+  let binders = binderData ?? [];
+  if (binders.length < 4) {
+    for (let index = binders.length; index < 4; index += 1) {
+      const { error: createError } = await supabase.rpc('create_riftbound_binder', {
+        p_user_id: userId,
+        p_name: `Binder ${index + 1}`,
+        p_description: '',
+      });
+      if (createError && !/up to|maximum|limit/i.test(createError.message ?? '')) throw createError;
+    }
+    const { data: refreshedBinders, error: refreshError } = await supabase
+      .from('riftbound_binders')
+      .select('id, name, description, created_at, updated_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .returns<BinderRow[]>();
+    if (refreshError) throw refreshError;
+    binders = refreshedBinders ?? [];
+  }
+  if (binders.length === 0) return [];
+
+  const { data: pageData, error: pageError } = await supabase
+    .from('riftbound_binder_pages')
+    .select('id, binder_id, page_number, name')
+    .in('binder_id', binders.map((binder) => binder.id))
+    .order('page_number', { ascending: true })
+    .returns<BinderPageRow[]>();
+  if (pageError) throw pageError;
+
+  const pages = pageData ?? [];
+  const { data: slotData, error: slotError } = await supabase
+    .from('riftbound_binder_slots')
+    .select('page_id, slot_index, card_id, finish')
+    .in('page_id', pages.map((page) => page.id))
+    .order('slot_index', { ascending: true })
+    .returns<BinderSlotRow[]>();
+  if (slotError) throw slotError;
+
+  const slotsByPageId = new Map<string, BinderSlotRow[]>();
+  (slotData ?? []).forEach((slot) => {
+    const slots = slotsByPageId.get(slot.page_id) ?? [];
+    slots.push(slot);
+    slotsByPageId.set(slot.page_id, slots);
+  });
+  const pagesByBinderId = new Map<string, BinderPageRow[]>();
+  pages.forEach((page) => {
+    const binderPages = pagesByBinderId.get(page.binder_id) ?? [];
+    binderPages.push(page);
+    pagesByBinderId.set(page.binder_id, binderPages);
+  });
+
+  return binders.map((binder) => ({
+    id: binder.id,
+    name: binder.name,
+    description: binder.description,
+    created_at: binder.created_at,
+    updated_at: binder.updated_at,
+    pages: (pagesByBinderId.get(binder.id) ?? []).map((page) => ({
+      id: page.id,
+      page_number: page.page_number,
+      name: page.name,
+      slots: (slotsByPageId.get(page.id) ?? []).map(({ slot_index, card_id, finish }) => ({ slot_index, card_id, finish })),
+    })),
   }));
+}
+
+export async function getRiftboundBinderLimit(
+  userId: string,
+  supabase: RiftboundSupabaseClient = getSupabaseServiceClient(),
+) {
+  const { data, error } = await supabase
+    .from('riftbound_entitlements')
+    .select('plan, status, premium_until')
+    .eq('user_id', userId)
+    .maybeSingle<{ plan: 'free' | 'premium'; status: 'active' | 'inactive' | 'past_due' | 'canceled'; premium_until: string | null }>();
+  if (error) throw error;
+  const premium = data?.plan === 'premium'
+    && data.status === 'active'
+    && (!data.premium_until || new Date(data.premium_until).getTime() > Date.now());
+  return premium ? RIFTBOUND_PREMIUM_BINDER_LIMIT : RIFTBOUND_FREE_BINDER_LIMIT;
 }
 
 export async function loadRiftboundDecks(
@@ -334,17 +468,19 @@ export async function loadRiftboundBootstrap(userId: string | null) {
       throw error;
     })
     : Promise.resolve([] as RiftboundDeck[]);
-  const [prices, inventory, sets, decks] = await Promise.all([
+  const [prices, inventory, inventoryMetadata, binders, binderLimit, decks] = await Promise.all([
     loadLatestRiftboundPrices(supabase, userId),
     userId ? loadRiftboundInventory(userId, supabase) : Promise.resolve([] as RiftboundInventoryRow[]),
-    userId ? loadRiftboundSets(userId, supabase) : Promise.resolve([] as RiftboundSet[]),
+    userId ? loadRiftboundInventoryMetadata(userId, supabase) : Promise.resolve([] as RiftboundInventoryMetadata[]),
+    userId ? loadRiftboundBinders(userId, supabase) : Promise.resolve([] as RiftboundBinder[]),
+    userId ? getRiftboundBinderLimit(userId, supabase) : Promise.resolve(RIFTBOUND_FREE_BINDER_LIMIT),
     deckPromise,
   ]);
 
   return {
     ...prices,
-    inventory: { items: inventory },
-    sets: { sets },
+    inventory: { items: inventory, metadata: inventoryMetadata },
+    binders: { binders, limit: binderLimit },
     decks: { decks },
   };
 }

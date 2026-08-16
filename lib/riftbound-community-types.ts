@@ -1,4 +1,4 @@
-import type { RiftboundDeck, RiftboundInventoryItem, RiftboundSet } from '@/lib/riftbound-client';
+import type { RiftboundDeck, RiftboundInventoryItem } from '@/lib/riftbound-client';
 export type { RiftboundCardTierRating } from '@/lib/riftbound';
 
 export const RIFTBOUND_POST_TYPES = ['general', 'question', 'deck_build', 'collection', 'set', 'deck'] as const;
@@ -137,7 +137,6 @@ export type RiftboundWishlistCard = {
 export type RiftboundCardPreferences = {
   favoriteCardIds: string[];
   wishlist: RiftboundWishlistCard[];
-  favoriteSetIds?: string[];
   favoriteDeckIds?: string[];
 };
 
@@ -177,10 +176,8 @@ export type RiftboundProfileData = {
     foil: number | null;
     updatedAt: string | null;
   }>;
-  sets: Array<RiftboundSet & RiftboundProfileSourceSummary>;
   decks: Array<RiftboundDeck & RiftboundProfileSourceSummary>;
   favoriteCardIds: string[];
-  favoriteSetIds: string[];
   favoriteDeckIds: string[];
   wishlist: RiftboundWishlistCard[];
   posts: RiftboundCommunityPostSummary[];

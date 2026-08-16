@@ -56,6 +56,24 @@ export function getRiftboundDeckCardCategory(card: RiftboundCard): Exclude<Riftb
   return null;
 }
 
+export function isRiftboundDeckRuneCatalogueCard(card: RiftboundCard) {
+  const isNormalBasicRune = card.cardType === 'Rune'
+    && card.rarity === 'Common'
+    && card.cardTypeLabels.includes('Basic')
+    && card.defaultFinish === 'normal';
+  return !isNormalBasicRune || card.setCode === 'OGN';
+}
+
+export function sortRiftboundDeckRuneCards(cards: readonly RiftboundCard[]) {
+  return cards.slice().sort((left, right) => (
+    left.displayName.localeCompare(right.displayName)
+    || Number(left.defaultFinish === 'foil') - Number(right.defaultFinish === 'foil')
+    || left.setCode.localeCompare(right.setCode)
+    || left.collectorNumber.localeCompare(right.collectorNumber, undefined, { numeric: true })
+    || left.id.localeCompare(right.id)
+  ));
+}
+
 export function isRiftboundChampionUnit(card: RiftboundCard) {
   return card.cardType === 'Unit' && card.cardTypeLabels.includes('Champion');
 }

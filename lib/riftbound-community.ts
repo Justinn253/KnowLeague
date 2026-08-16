@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { getFriendRelationship } from '@/lib/friends';
 import { getRiftboundCardById, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
 import { sanitizeChatMessage } from '@/lib/chat-filter';
-import { loadLatestRiftboundPrices, loadRiftboundDecks, loadRiftboundInventory, loadRiftboundSets } from '@/lib/riftbound-server';
+import { loadLatestRiftboundPrices, loadRiftboundDecks, loadRiftboundInventory } from '@/lib/riftbound-server';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { loadRiftboundCardTierRatingMap } from '@/lib/riftbound-card-tiers';
 import { attachRiftboundPostSharedDeck, loadRiftboundSharedDeck, upsertRiftboundSharedDeck } from '@/lib/riftbound-shared-decks';
@@ -244,7 +244,8 @@ async function buildPostSnapshot(userId: string, sourceTypeValue: unknown, sourc
   const sourceId = sourceType === 'collection'
     ? null
     : typeof sourceIdValue === 'string' && sourceIdValue.trim() ? sourceIdValue.trim() : null;
-  if (sourceType !== 'collection' && !sourceId) throw new Error('Choose a Riftbound set or deck to publish.');
+  if (sourceType !== 'collection' && sourceType !== 'deck') throw new Error('Riftbound sets have been replaced by binders.');
+  if (sourceType !== 'collection' && !sourceId) throw new Error('Choose a Riftbound deck to publish.');
 
   const pricesPayload = await loadLatestRiftboundPrices();
   const prices = pricesPayload.prices;
@@ -263,18 +264,6 @@ async function buildPostSnapshot(userId: string, sourceTypeValue: unknown, sourc
     }));
     if (!title) title = 'My Riftbound Collection';
     snapshotTitle = title;
-  } else if (sourceType === 'set') {
-    const sets = await loadRiftboundSets(userId);
-    const source = sets.find((candidate) => candidate.id === sourceId);
-    if (!source) throw new Error('Riftbound set not found.');
-    snapshotTitle = source.name;
-    if (allowSourceTitleFallback) title = title || source.name;
-    rows = source.cards.map((row) => ({
-      cardId: row.card_id,
-      finish: getRiftboundCardById(row.card_id)?.defaultFinish ?? 'normal',
-      category: 'set' as const,
-      quantity: row.quantity,
-    }));
   } else {
     const decks = await loadRiftboundDecks(userId);
     const source = decks.find((candidate) => candidate.id === sourceId);
@@ -996,19 +985,16 @@ export async function getRiftboundProfileUsername(userId: string) {
 
 export async function loadRiftboundCardPreferences(userId: string): Promise<import('@/lib/riftbound-community-types').RiftboundCardPreferences> {
   const supabase = getSupabaseServiceClient();
-  const [favoriteCardsResult, favoriteSetsResult, favoriteDecksResult, wishlistResult] = await Promise.all([
+  const [favoriteCardsResult, favoriteDecksResult, wishlistResult] = await Promise.all([
     supabase.from('riftbound_profile_favorite_cards').select('card_id, display_order, created_at').eq('user_id', userId).order('display_order', { ascending: true }).order('created_at', { ascending: true }).returns<Array<{ card_id: string; display_order: number; created_at: string }>>(),
-    supabase.from('riftbound_profile_favorite_sets').select('set_id').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ set_id: string }>>(),
     supabase.from('riftbound_profile_favorite_decks').select('deck_id').eq('user_id', userId).order('created_at', { ascending: true }).returns<Array<{ deck_id: string }>>(),
     supabase.from('riftbound_profile_wishlist_cards').select('card_id, desired_quantity, note, display_order, created_at, updated_at').eq('user_id', userId).order('display_order', { ascending: true }).order('created_at', { ascending: true }).returns<Array<{ card_id: string; desired_quantity: number; note: string; display_order: number; created_at: string; updated_at: string }>>(),
   ]);
   if (favoriteCardsResult.error) throw favoriteCardsResult.error;
-  if (favoriteSetsResult.error) throw favoriteSetsResult.error;
   if (favoriteDecksResult.error) throw favoriteDecksResult.error;
   if (wishlistResult.error) throw wishlistResult.error;
   return {
     favoriteCardIds: (favoriteCardsResult.data ?? []).map((row) => row.card_id),
-    favoriteSetIds: (favoriteSetsResult.data ?? []).map((row) => row.set_id),
     favoriteDeckIds: (favoriteDecksResult.data ?? []).map((row) => row.deck_id),
     wishlist: (wishlistResult.data ?? []).map((row) => ({
       cardId: row.card_id,
@@ -1037,12 +1023,10 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
   if (settingsResult.error) throw settingsResult.error;
   if (settingsResult.data?.visibility === 'private' && !isOwner) throw new Error('This Riftbound profile is private.');
 
-  const [inventory, sets, decks, favoriteCardsResult, favoriteSetsResult, favoriteDecksResult, wishlistResult, posts, postStatsResult, commentStatsResult, prices] = await Promise.all([
+  const [inventory, decks, favoriteCardsResult, favoriteDecksResult, wishlistResult, posts, postStatsResult, commentStatsResult, prices] = await Promise.all([
     loadRiftboundInventory(profile.id),
-    loadRiftboundSets(profile.id),
     loadRiftboundDecks(profile.id),
     supabase.from('riftbound_profile_favorite_cards').select('card_id, display_order, created_at').eq('user_id', profile.id).order('display_order', { ascending: true }).order('created_at', { ascending: true }),
-    supabase.from('riftbound_profile_favorite_sets').select('set_id').eq('user_id', profile.id).order('created_at', { ascending: true }),
     supabase.from('riftbound_profile_favorite_decks').select('deck_id').eq('user_id', profile.id).order('created_at', { ascending: true }),
     supabase.from('riftbound_profile_wishlist_cards').select('card_id, desired_quantity, note, display_order, created_at, updated_at').eq('user_id', profile.id).order('display_order', { ascending: true }).order('created_at', { ascending: true }).returns<Array<{ card_id: string; desired_quantity: number; note: string; display_order: number; created_at: string; updated_at: string }>>(),
     loadRecentRiftboundPosts(profile.id, 12, isOwner, viewerId, isStaff || isOwner),
@@ -1051,7 +1035,6 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
     loadLatestRiftboundPrices(supabase, viewerId),
   ]);
   if (favoriteCardsResult.error) throw favoriteCardsResult.error;
-  if (favoriteSetsResult.error) throw favoriteSetsResult.error;
   if (favoriteDecksResult.error) throw favoriteDecksResult.error;
   if (wishlistResult.error) throw wishlistResult.error;
   if (postStatsResult.error) throw postStatsResult.error;
@@ -1087,10 +1070,8 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
     },
     isOwner,
     collection: { items: inventory, totalCopies, totalValueCents },
-    sets: sets.map(buildProfileSourceSummary),
     decks: decks.map(buildProfileSourceSummary),
     favoriteCardIds: (favoriteCardsResult.data ?? []).map((row) => row.card_id),
-    favoriteSetIds: (favoriteSetsResult.data ?? []).map((row) => row.set_id),
     favoriteDeckIds: (favoriteDecksResult.data ?? []).map((row) => row.deck_id),
     wishlist: (wishlistResult.data ?? []).map((row): RiftboundWishlistCard => ({
       cardId: row.card_id,
@@ -1113,11 +1094,11 @@ export async function loadRiftboundProfile(username: string, viewerId: string | 
   };
 }
 
-async function assertOwnSetOrDeck(userId: string, kind: 'set' | 'deck', id: string) {
-  const table = kind === 'set' ? 'riftbound_sets' : 'riftbound_decks';
+async function assertOwnDeck(userId: string, id: string) {
+  const table = 'riftbound_decks';
   const { data, error } = await getSupabaseServiceClient().from(table).select('id').eq('id', id).eq('user_id', userId).maybeSingle<{ id: string }>();
   if (error) throw error;
-  if (!data) throw new Error(`Riftbound ${kind} not found.`);
+  if (!data) throw new Error('Riftbound deck not found.');
 }
 
 type RiftboundOrderedCardTable = 'riftbound_profile_favorite_cards' | 'riftbound_profile_wishlist_cards';
@@ -1217,17 +1198,16 @@ export async function updateRiftboundProfilePreference(userId: string, input: {
     return;
   }
 
-  if (action === 'favorite-set' || action === 'favorite-deck') {
+  if (action === 'favorite-deck') {
     const sourceId = typeof input.sourceId === 'string' ? input.sourceId : '';
-    const kind = action === 'favorite-set' ? 'set' : 'deck';
-    if (!sourceId) throw new Error(`A Riftbound ${kind} is required.`);
-    await assertOwnSetOrDeck(userId, kind, sourceId);
-    const table = kind === 'set' ? 'riftbound_profile_favorite_sets' : 'riftbound_profile_favorite_decks';
-    const column = kind === 'set' ? 'set_id' : 'deck_id';
+    if (!sourceId) throw new Error('A Riftbound deck is required.');
+    await assertOwnDeck(userId, sourceId);
+    const table = 'riftbound_profile_favorite_decks';
+    const column = 'deck_id';
     if (input.enabled === true) {
       const { count, error: countError } = await supabase.from(table).select(column, { count: 'exact', head: true }).eq('user_id', userId);
       if (countError) throw countError;
-      if ((count ?? 0) >= entitlement.favoriteSourceLimit) throw new Error(`You have reached your limit of 4 favorite ${kind}s.`);
+      if ((count ?? 0) >= entitlement.favoriteSourceLimit) throw new Error('You have reached your limit of 4 favorite decks.');
       const { error } = await supabase.from(table).upsert({ user_id: userId, [column]: sourceId }, { onConflict: `user_id,${column}` });
       if (error) throw error;
     } else {

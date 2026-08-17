@@ -1618,4 +1618,32 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Provider monitoring, Supabase backup/PITR, MFA enforcement, browser E2E, and load testing remain external setup tasks documented in docs/production-readiness.md.',
     ],
   },
+  {
+    id: 'patch-2026-08-17-riftbound-market-history-restoration',
+    patch: '2026.08.17-riftbound-market-history-restoration',
+    timestamp: '2026-08-17T20:40:27.6958401Z',
+    title: 'Restored Riftbound market history after canonical reset',
+    summary: 'Fixed the historical importer’s rolling daily window and repopulated canonical Riftbound market snapshots so current prices and value charts resolve again.',
+    details: [
+      'Diagnosed the empty production snapshot table after migration 126: the canonical latest-price RPC returned zero rows, so the application correctly fell back to generated catalogue values while history had no database data to render.',
+      'Changed the historical importer to calculate its daily window from the requested --to date. The most recent 90 days are now stored as daily rows for 30-day and 90-day charts, while older requested dates are retained as monthly peak rows for longer ranges.',
+      'Ran the verified canonical TCGCSV backfill from 2025-10-31 through 2026-08-17. All 291 archive dates were available; 128,013 daily rows and 6,925 monthly rows were restored into the tcgcsv source.',
+      'Confirmed the restored latest RPC and history rows for representative OGN, SFD, UNL, and VEN cards, including UNL Bloodharbor Ripper at $92.27 and VEN Draven, Showboat at $94.19 on the 2026-08-17 snapshot.',
+    ],
+    impact: [
+      'Riftbound card previews now have canonical current values again instead of stale generated-catalogue values after the reset.',
+      'Card value-history charts have recent daily points and longer-range monthly points available again.',
+      'Future historical imports will keep the recent daily window aligned with the run date instead of permanently aging the daily range around the original import start date.',
+    ],
+    files: [
+      'lib/staff-changelog.ts',
+      'scripts/import-riftbound-price-history.mjs',
+    ],
+    verification: [
+      'The non-writing 90-day importer dry-run completed with 90 available archives and 128,013 daily rows ready for restore.',
+      'The full database backfill completed with archiveCount 291, missingArchiveCount 0, dailyRowCount 128013, and monthlyRowCount 6925.',
+      'Read-only Supabase verification reported 134,938 canonical snapshot rows, latest snapshot date 2026-08-17, and restored UNL/VEN latest values through both paginated RPC pages and direct history reads.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
 ];

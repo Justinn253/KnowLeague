@@ -1,23 +1,10 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRiftboundCardById } from '@/lib/riftbound';
-import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { loadRiftboundPriceHistorySnapshotRows } from '@/lib/riftbound-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-type PriceSnapshotRow = {
-  snapshot_date: string;
-  finish: 'normal' | 'foil';
-  price_cents: number | null;
-  low_price_cents: number | null;
-  high_price_cents: number | null;
-  currency: string;
-  source: string;
-  source_snapshot_at: string | null;
-  capture_status: string;
-  captured_at: string;
-};
 
 type PriceHistoryEntry = {
   date: string;
@@ -91,18 +78,11 @@ export const GET = withApiMetrics('/api/riftbound/prices/[cardId]', async functi
 
     const cutoffDate = new Date(Date.now() - ((days - 1) * 24 * 60 * 60 * 1000));
     const cutoff = cutoffDate.toISOString().slice(0, 10);
-    let query = getSupabaseServiceClient()
-      .from('riftbound_card_price_snapshots')
-      .select('snapshot_date, finish, price_cents, low_price_cents, high_price_cents, currency, source, source_snapshot_at, capture_status, captured_at')
-      .eq('card_id', card.id)
-      .gte('snapshot_date', cutoff)
-      .order('snapshot_date', { ascending: true })
-      .order('finish', { ascending: true });
-
-    if (finish) query = query.eq('finish', finish);
-
-    const { data, error } = await query.returns<PriceSnapshotRow[]>();
-    if (error) throw error;
+    const data = await loadRiftboundPriceHistorySnapshotRows(
+      card.id,
+      cutoff,
+      finish === 'normal' || finish === 'foil' ? finish : undefined,
+    );
 
     const granularity = getHistoryGranularity(days);
     const dailyHistory: PriceHistoryEntry[] = (data ?? []).map((row) => ({

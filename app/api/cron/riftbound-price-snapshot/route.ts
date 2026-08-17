@@ -3,12 +3,11 @@ import { NextResponse } from 'next/server';
 import { buildRiftboundPriceSnapshotRows, fetchRiftboundPriceSnapshot } from '@/lib/riftbound-price-source';
 import { RIFTBOUND_CARDS } from '@/lib/riftbound';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { RIFTBOUND_MARKET_VALUE_SOURCE } from '@/lib/riftbound-market-values';
 import { invalidateLatestRiftboundPrices } from '@/lib/riftbound-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const PRICE_SOURCE = 'tcgcsv';
 
 function isAuthorizedCronRequest(request: Request) {
   const expectedSecret = process.env.CRON_SECRET;
@@ -40,7 +39,7 @@ async function captureSnapshot(request: Request) {
     const { data: affectedRows, error } = await supabase.rpc('record_riftbound_price_snapshot', {
       p_snapshot_date: sourceSnapshot.snapshotDate,
       p_source_snapshot_at: sourceSnapshot.sourceSnapshotAt,
-      p_source: PRICE_SOURCE,
+      p_source: RIFTBOUND_MARKET_VALUE_SOURCE,
       p_rows: rows,
     }).returns<number>();
 
@@ -52,7 +51,7 @@ async function captureSnapshot(request: Request) {
     const unavailableCount = rows.filter((row) => row.capture_status !== 'live' && row.capture_status !== 'catalog_fallback').length;
 
     return NextResponse.json({
-      source: PRICE_SOURCE,
+      source: RIFTBOUND_MARKET_VALUE_SOURCE,
       sourceSnapshotAt: sourceSnapshot.sourceSnapshotAt,
       snapshotDate: sourceSnapshot.snapshotDate,
       cards: RIFTBOUND_CARDS.length,

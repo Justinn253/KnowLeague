@@ -5,15 +5,12 @@ import type { RiftboundDeckCategory } from '@/lib/riftbound-decks';
 import type { RiftboundCardTierRating } from '@/lib/riftbound';
 import type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
+import type { RiftboundLatestPrice } from '@/lib/riftbound-market-values';
 import type { RiftboundInventoryMetadata, RiftboundSale } from '@/lib/riftbound-sales';
 
 export type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 
-export type RiftboundLatestPrice = {
-  normal: number | null;
-  foil: number | null;
-  updatedAt: string | null;
-};
+export type { RiftboundLatestPrice } from '@/lib/riftbound-market-values';
 
 export type RiftboundDeckCard = {
   card_id: string;
@@ -72,8 +69,8 @@ type CachedResponse<T> = {
 };
 
 const REQUEST_CACHE_TTL_MS = 30_000;
-const RIFTBOUND_PRICE_HISTORY_CACHE_VERSION = 'v4';
-const RIFTBOUND_LATEST_PRICES_CACHE_VERSION = 'v2';
+const RIFTBOUND_PRICE_HISTORY_CACHE_VERSION = 'v5';
+const RIFTBOUND_LATEST_PRICES_CACHE_VERSION = 'v3';
 const responseCache = new Map<string, CachedResponse<unknown>>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
 const cacheGenerations = new Map<string, number>();

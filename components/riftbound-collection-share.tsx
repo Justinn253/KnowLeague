@@ -284,7 +284,7 @@ function SharedCardDetailsModal({ card, onClose, showMarketDetails = true, prefe
           <div className="grid min-w-0 gap-5">
             <div className="min-w-0 pr-14"><div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p><span className="rounded-lg border border-amber-200/20 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-amber-200">Tier {tierRating?.tier ?? '—'}</span></div><div className="mt-2 flex flex-wrap items-center justify-start gap-2"><h2 className="min-w-0 text-3xl font-black tracking-tight text-white">{card.displayName}</h2>{preferenceSession ? <RiftboundCardPreferenceActions cardId={card.id} session={preferenceSession} /> : null}</div><p className={`mt-2 text-sm font-black ${rarityClassName}`}>{card.rarity}</p></div>
             {showMarketDetails ? <div className="grid gap-3 sm:grid-cols-2">
-              {(['normal', 'foil'] as const).map((finish) => <div key={finish} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><div className="flex items-center gap-2"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{finish} market value</p><SharedMarketValueSourceInfo /></div><p className="mt-1 text-2xl font-black text-emerald-300">{card.finishOptions.includes(finish) ? formatMarketPrice(card.marketPrices[finish]) : 'N/A'}</p><p className="mt-2 text-xs text-slate-500">{card.marketPrices.updatedAt ? 'Latest daily snapshot' : 'No price available'}</p><p className="mt-2 text-[0.65rem] font-semibold text-slate-500">Daily refresh at 6:00 AM EST.</p></div>)}
+              {(['normal', 'foil'] as const).map((finish) => <div key={finish} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><div className="flex items-center gap-2"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{finish} market value</p><SharedMarketValueSourceInfo /></div><p className="mt-1 text-2xl font-black text-emerald-300">{card.finishOptions.includes(finish) ? formatMarketPrice(card.marketPrices[finish]) : 'N/A'}</p><p className="mt-2 text-xs text-slate-500">{card.marketPrices.updatedAt ? 'Latest known snapshot' : 'No price available'}</p><p className="mt-2 text-[0.65rem] font-semibold text-slate-500">Daily refresh at 6:00 AM EST.</p></div>)}
             </div> : null}
             <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-3">
               <SharedDetailValue label="Number" value={`${card.setCode} ${card.numberLabel}`} /><SharedDetailValue label="Tag" value={card.tags.join('; ') || 'N/A'} /><SharedDetailValue label="Energy" value={String(card.energyCost)} />
@@ -720,7 +720,7 @@ export function RiftboundCollectionShare({ shareKey }: { shareKey?: string }) {
         setTierRatings(data.cardTiers ?? {});
       })
       .catch(() => {
-        // Missing current snapshots render as unavailable rather than falling back to catalogue values.
+        // Keep catalogue values visible if canonical current values are temporarily unavailable.
       })
       .finally(() => {
         if (!cancelled) setLatestPricesReady(true);
@@ -744,7 +744,7 @@ export function RiftboundCollectionShare({ shareKey }: { shareKey?: string }) {
         const card = cardById.get(cardId);
         if (!card) return [];
         const currentCard = latestPricesReady
-          ? mergeRiftboundCardMarketPrices(card, latestPrices[card.id] ?? { normal: null, foil: null, updatedAt: null })
+          ? mergeRiftboundCardMarketPrices(card, latestPrices[card.id])
           : card;
         return [{
           card: currentCard,

@@ -31,6 +31,7 @@ import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
 import { getRiftboundBootstrap, getRiftboundLatestPrices, getRiftboundSales, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
 import { getRiftboundInventoryChanges, rebaseRiftboundInventoryDraft, type RiftboundInventoryItem } from '@/lib/riftbound-inventory';
+import type { RiftboundLatestPrice } from '@/lib/riftbound-market-values';
 import { isRiftboundMasterSetCatalogueCard } from '@/lib/riftbound-master-set';
 import { type RiftboundInventoryMetadata, type RiftboundSale, type RiftboundSaleFinish } from '@/lib/riftbound-sales';
 import { createRiftboundShareUrl } from '@/lib/riftbound-share-client';
@@ -89,12 +90,6 @@ type RiftboundCollectionValueHistoryResponse = {
   error?: string;
 };
 
-type RiftboundLatestPrice = {
-  normal: number | null;
-  foil: number | null;
-  updatedAt: string | null;
-};
-
 type RiftboundScanMatch = {
   card: RiftboundCard;
   score: number;
@@ -151,7 +146,7 @@ export type RiftboundCategoricalFilterField = Exclude<keyof RiftboundCardFilters
 
 const ALL_FILTER_VALUE = 'all';
 const PRICE_HISTORY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const PRICE_HISTORY_CACHE_VERSION = 'v4';
+const PRICE_HISTORY_CACHE_VERSION = 'v5';
 const PRICE_HISTORY_STORAGE_PREFIX = `knowleague:riftbound-price-history:${PRICE_HISTORY_CACHE_VERSION}:`;
 const PRICE_HISTORY_STORAGE_LIMIT = 100;
 const RIFTBOUND_MARKET_VALUE_REFRESH_NOTE = 'Daily refresh at 6:00 AM EST.';
@@ -1623,7 +1618,7 @@ export function RiftboundCardDetailsModal({
               </div>
             </div>
             {showMarketDetails ? <div className="grid gap-3 sm:grid-cols-2">
-              {(['normal', 'foil'] as const).map((finish) => {
+              {getCardFinishOptions(card).map((finish) => {
                 const price = getMarketPriceForFinish(card, finish);
                 return (
                   <div key={finish} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
@@ -1632,7 +1627,7 @@ export function RiftboundCardDetailsModal({
                       <MarketValueSourceInfo />
                     </div>
                     <p className="mt-1 text-2xl font-black text-emerald-300">{formatMarketPriceOrUnavailable(price)}</p>
-                    <p className="mt-2 text-xs text-slate-500">{getMarketPriceUpdatedAt(card) ? 'Latest daily snapshot' : 'No price available'}</p>
+                    <p className="mt-2 text-xs text-slate-500">{getMarketPriceUpdatedAt(card) ? 'Latest known snapshot' : 'No price available'}</p>
                     <MarketValueRefreshNote />
                   </div>
                 );

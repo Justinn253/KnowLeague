@@ -97,11 +97,11 @@ export type RiftboundCard = {
 };
 
 export function mergeRiftboundCardMarketPrices(card: RiftboundCard, latest?: RiftboundMarketPrices) {
-  // A card that is absent from the latest snapshot payload has not been
-  // resolved by the price service. Preserve the generated catalogue value
-  // until an explicit snapshot (including an explicit unavailable value) is
-  // available for that card.
-  if (!latest) return card;
+  // A card that is absent from the latest payload, or has an entry without a
+  // timestamp, has not been resolved by the canonical service yet. Preserve
+  // the generated catalogue value until a real snapshot (including an
+  // explicit unavailable snapshot) is available.
+  if (!latest || !latest.updatedAt) return card;
 
   // Once a card has a captured snapshot, its nullable values are authoritative.
   // Falling back to the generated catalogue after that point can show the

@@ -34,6 +34,7 @@ type PublicProfileRecord = {
   riot_account_name: string | null;
   selected_title_reward_id: string | null;
   displayed_badge_reward_ids: string[];
+  linked_accounts_visible: boolean;
   achievements: AchievementListItem[];
   created_at: string;
   relationship: FriendCandidate['relationship'];
@@ -1163,6 +1164,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
     .map((rewardId) => earnedBadgeRewards.find((reward) => reward.id === rewardId))
     .filter((reward): reward is (typeof earnedBadgeRewards)[number] => Boolean(reward)), [earnedBadgeRewards, profile?.displayed_badge_reward_ids]);
   const liveGameNote = getLiveGameNote(liveGameStatus, now);
+  const linkedAccountsVisible = profile?.linked_accounts_visible === true;
   const riotViewerHref = profile?.riot_account_name?.trim()
     ? `/riot-account-viewer?riotId=${encodeURIComponent(profile.riot_account_name.trim())}`
     : null;
@@ -1511,20 +1513,22 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
                       {profile.about_me || 'This player has not added an about me section yet.'}
                     </p>
                   </section>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <DiscordPublicCard
-                      profile={profile}
-                      isAdmin={isAdmin && ownerView === false}
-                      onUnlink={() => void runAdminAction('unlink_discord', {}, 'Discord unlinked.')}
-                      unlinkBusy={adminBusy === 'unlink_discord'}
-                    />
-                    <RiotPublicCard
-                      profile={profile}
-                      isAdmin={isAdmin && ownerView === false}
-                      onUnlink={() => void runAdminAction('unlink_riot', {}, 'Riot account unlinked.')}
-                      unlinkBusy={adminBusy === 'unlink_riot'}
-                    />
-                  </div>
+                  {linkedAccountsVisible ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <DiscordPublicCard
+                        profile={profile}
+                        isAdmin={isAdmin && ownerView === false}
+                        onUnlink={() => void runAdminAction('unlink_discord', {}, 'Discord unlinked.')}
+                        unlinkBusy={adminBusy === 'unlink_discord'}
+                      />
+                      <RiotPublicCard
+                        profile={profile}
+                        isAdmin={isAdmin && ownerView === false}
+                        onUnlink={() => void runAdminAction('unlink_riot', {}, 'Riot account unlinked.')}
+                        unlinkBusy={adminBusy === 'unlink_riot'}
+                      />
+                    </div>
+                  ) : null}
                   <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Linked Profiles</p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1538,7 +1542,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
                         </span>
                         <ExternalLink size={16} className="shrink-0 text-slate-500" />
                       </Link>
-                      {riotViewerHref ? (
+                      {linkedAccountsVisible && riotViewerHref ? (
                         <Link
                           href={riotViewerHref}
                           className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 transition hover:border-amber-300/40 hover:bg-slate-900"

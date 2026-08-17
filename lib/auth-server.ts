@@ -1,11 +1,12 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { getAuthTokenIssuedAt } from '@/lib/auth-session';
+import { ApiError } from '@/lib/api-utils';
 
 async function getUserFromToken(token: string) {
   const supabase = getSupabaseServiceClient();
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
-    throw new Error('Authentication is required.');
+    throw new ApiError(401, 'Authentication is required.');
   }
 
   const { data: sessionControl, error: sessionControlError } = await supabase
@@ -17,7 +18,7 @@ async function getUserFromToken(token: string) {
     if (sessionControlError.code === '42P01' || sessionControlError.code === 'PGRST205') {
       return data.user;
     }
-    throw new Error('Authentication is required.');
+    throw new ApiError(401, 'Authentication is required.');
   }
 
   const revokedAt = sessionControl?.sessions_revoked_at
@@ -25,7 +26,7 @@ async function getUserFromToken(token: string) {
     : null;
   const issuedAt = getAuthTokenIssuedAt(token);
   if (revokedAt !== null && (!Number.isFinite(revokedAt) || issuedAt === null || issuedAt < revokedAt)) {
-    throw new Error('Authentication is required.');
+    throw new ApiError(401, 'Authentication is required.');
   }
 
   return data.user;
@@ -36,7 +37,7 @@ export async function getAuthenticatedUser(request: Request) {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
 
   if (!token) {
-    throw new Error('Authentication is required.');
+    throw new ApiError(401, 'Authentication is required.');
   }
 
   return getUserFromToken(token);

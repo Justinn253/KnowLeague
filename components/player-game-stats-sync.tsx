@@ -33,6 +33,8 @@ export function PlayerGameStatsSync() {
   const sessionRef = useRef<Session | null>(null);
   const hydratingRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
+  const queuedPayloadRef = useRef<string | null>(null);
+  const lastSentPayloadRef = useRef<string | null>(null);
 
   useEffect(() => {
     const saveAccountStats = (stats: PlayerGameStatsByGame, detailedStats = loadDetailedGameStats()) => {
@@ -41,10 +43,16 @@ export function PlayerGameStatsSync() {
         return;
       }
 
+      const payload = JSON.stringify({ stats, detailedStats });
+      if (queuedPayloadRef.current === payload || lastSentPayloadRef.current === payload) {
+        return;
+      }
+
       if (saveTimeoutRef.current) {
         window.clearTimeout(saveTimeoutRef.current);
       }
 
+      queuedPayloadRef.current = payload;
       saveTimeoutRef.current = window.setTimeout(() => {
         saveTimeoutRef.current = null;
         void fetch('/api/profile/player-game-stats', {
@@ -53,8 +61,13 @@ export function PlayerGameStatsSync() {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ stats, detailedStats }),
-        }).catch(() => undefined);
+          body: payload,
+        }).then(() => {
+          lastSentPayloadRef.current = payload;
+          if (queuedPayloadRef.current === payload) queuedPayloadRef.current = null;
+        }).catch(() => {
+          if (queuedPayloadRef.current === payload) queuedPayloadRef.current = null;
+        });
       }, 250);
     };
 

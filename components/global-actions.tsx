@@ -14,6 +14,8 @@ import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwa
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { AppRole } from '@/lib/moderation';
 
+const SESSION_VALIDATION_INTERVAL_MS = 5 * 60_000;
+
 function dispatchAchievementNotification(row: unknown) {
   const achievement = toAchievementNotification(row as Parameters<typeof toAchievementNotification>[0]);
   if (!achievement) {
@@ -37,7 +39,6 @@ export function GlobalActions({ children }: { children: ReactNode }) {
   const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
   const activeSessionRef = useRef<Session | null>(null);
-  const profileAppRoleRef = useRef<string | null>(null);
   const pathnameRef = useRef(pathname);
 
   pathnameRef.current = pathname;
@@ -78,11 +79,18 @@ export function GlobalActions({ children }: { children: ReactNode }) {
     }
     let sessionValidationInterval: number | null = null;
     let sessionValidationInFlight = false;
+    let lastSessionValidationAt = 0;
+    let lastValidatedAccessToken: string | null = null;
     let profileChannel: ReturnType<typeof supabase.channel> | null = null;
     let subscribedProfileId: string | null = null;
 
-    const validateSession = async (session: Session) => {
+    const validateSession = async (session: Session, force = false) => {
       if (sessionValidationInFlight) return;
+      if (!force
+        && lastValidatedAccessToken === session.access_token
+        && Date.now() - lastSessionValidationAt < SESSION_VALIDATION_INTERVAL_MS) {
+        return;
+      }
       sessionValidationInFlight = true;
       try {
         const response = await fetch('/api/auth/session', {
@@ -90,6 +98,10 @@ export function GlobalActions({ children }: { children: ReactNode }) {
           cache: 'no-store',
         });
         if (response.ok || activeSessionRef.current?.access_token !== session.access_token) {
+          if (response.ok) {
+            lastSessionValidationAt = Date.now();
+            lastValidatedAccessToken = session.access_token;
+          }
           return;
         }
 
@@ -110,12 +122,19 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       }
       if (!session) return;
 
-      void validateSession(session);
+      void validateSession(session, true);
       sessionValidationInterval = window.setInterval(() => {
         const activeSession = activeSessionRef.current;
         if (activeSession) void validateSession(activeSession);
-      }, 60_000);
+      }, SESSION_VALIDATION_INTERVAL_MS);
     };
+
+    const validateVisibleSession = () => {
+      if (document.visibilityState !== 'visible') return;
+      const activeSession = activeSessionRef.current;
+      if (activeSession) void validateSession(activeSession);
+    };
+    document.addEventListener('visibilitychange', validateVisibleSession);
 
     const updateModerationRole = async (session: Session, force = false) => {
       try {
@@ -141,7 +160,6 @@ export function GlobalActions({ children }: { children: ReactNode }) {
     ) => {
       activeSessionRef.current = session ?? null;
       if (!session) {
-        profileAppRoleRef.current = null;
         setProfileAway(false);
         setProfileAvatarUrl(null);
         setProfileUsername(null);
@@ -167,11 +185,10 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       }
       const profileResult = await getSessionScopedRequest('global-profile', session, async () => supabase
         .from('profiles')
-        .select('username, display_name, avatar_url, app_role')
+        .select('username, display_name, avatar_url')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string; avatar_url: string | null; app_role: string | null }>(), { force: forceProfile || forceModeration });
+        .maybeSingle<{ username: string; display_name: string; avatar_url: string | null }>(), { force: forceProfile || forceModeration });
       const { data } = profileResult;
-      profileAppRoleRef.current = data?.app_role ?? null;
       setProfileUsername(data?.username?.trim() || null);
       setProfileAvatarUrl(data?.avatar_url ?? null);
     };
@@ -199,18 +216,13 @@ export function GlobalActions({ children }: { children: ReactNode }) {
           schema: 'public',
           table: 'profiles',
           filter: `id=eq.${userId}`,
-        }, (payload) => {
-          const nextProfile = payload.new as { app_role?: string };
+        }, () => {
           const activeSession = activeSessionRef.current;
           if (!activeSession || activeSession.user.id !== userId) {
             return;
           }
 
-          const roleChanged = typeof nextProfile.app_role === 'string'
-            && profileAppRoleRef.current !== null
-            && profileAppRoleRef.current !== nextProfile.app_role;
-          profileAppRoleRef.current = nextProfile.app_role ?? profileAppRoleRef.current;
-          void updateProfileAction(activeSession, true, roleChanged);
+          void updateProfileAction(activeSession, true, true);
         })
         .on('postgres_changes', {
           event: 'INSERT',
@@ -253,6 +265,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       if (sessionValidationInterval) {
         window.clearInterval(sessionValidationInterval);
       }
+      document.removeEventListener('visibilitychange', validateVisibleSession);
       unsubscribeFromAuthSession();
       if (profileChannel) {
         void supabase.removeChannel(profileChannel);
@@ -272,7 +285,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <PlayerGameStatsSync />
+      {!pathname.startsWith('/riftbound') ? <PlayerGameStatsSync /> : null}
       <CumulativeAchievementTracker />
 
       <AppHeader

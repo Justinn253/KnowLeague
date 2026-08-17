@@ -284,7 +284,7 @@ export function RiftboundProfile({ username }: { username?: string }) {
 
   const cardsById = useMemo(() => new Map(RIFTBOUND_CARDS.map((card) => {
     if (!profile) return [card.id, card] as const;
-    return [card.id, mergeRiftboundCardMarketPrices(card, profile.prices?.[card.id] ?? { normal: null, foil: null, updatedAt: null })] as const;
+    return [card.id, mergeRiftboundCardMarketPrices(card, profile.prices?.[card.id])] as const;
   })), [profile]);
 
   const collectionCardEntries = useMemo<ProfileCollectionCard[]>(() => {

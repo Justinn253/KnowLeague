@@ -3,6 +3,7 @@ import { getFriendRelationship } from '@/lib/friends';
 import { getRiftboundCardById, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
 import { sanitizeChatMessage } from '@/lib/chat-filter';
 import { loadLatestRiftboundPrices, loadRiftboundDecks, loadRiftboundInventory } from '@/lib/riftbound-server';
+import type { RiftboundLatestPrice } from '@/lib/riftbound-market-values';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { loadRiftboundCardTierRatingMap } from '@/lib/riftbound-card-tiers';
 import { attachRiftboundPostSharedDeck, loadRiftboundSharedDeck, upsertRiftboundSharedDeck } from '@/lib/riftbound-shared-decks';
@@ -203,13 +204,13 @@ export function normalizeRiftboundPostSort(value: string | null): RiftboundCommu
     : 'recent';
 }
 
-function getCardPrice(card: RiftboundCard, finish: 'normal' | 'foil', prices: Record<string, { normal: number | null; foil: number | null }>) {
+function getCardPrice(card: RiftboundCard, finish: 'normal' | 'foil', prices: Record<string, RiftboundLatestPrice>) {
   const latest = prices[card.id];
-  const value = latest ? latest[finish] : card.marketPrices[finish];
+  const value = latest?.updatedAt ? latest[finish] : card.marketPrices[finish];
   return value ?? 0;
 }
 
-function buildSnapshotSummary(rows: BuildRow[], title: string, description: string, prices: Record<string, { normal: number | null; foil: number | null }>) {
+function buildSnapshotSummary(rows: BuildRow[], title: string, description: string, prices: Record<string, RiftboundLatestPrice>) {
   const cards = rows.flatMap((row) => {
     const card = getRiftboundCardById(row.cardId);
     return card ? [{ row, card }] : [];

@@ -9,8 +9,7 @@ const execFileAsync = promisify(execFile);
 const TCGCSV_CATEGORY_ID = 89;
 const TCGCSV_ARCHIVE_BASE_URL = 'https://tcgcsv.com/archive/tcgplayer';
 const TCGCSV_API_BASE_URL = `https://tcgcsv.com/tcgplayer/${TCGCSV_CATEGORY_ID}`;
-const TCGCSV_ARCHIVE_DAILY_SOURCE = 'tcgcsv_archive_daily';
-const TCGCSV_ARCHIVE_MONTHLY_SOURCE = 'tcgcsv_archive_monthly';
+const RIFTBOUND_MARKET_VALUE_SOURCE = 'tcgcsv';
 const DEFAULT_START_DATE = '2025-10-31';
 const DAILY_HISTORY_DAYS = 90;
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -233,7 +232,7 @@ async function readArchivePrices(extractPath, entries, date, productMap) {
   return { pricesByCardFinish, sourcePriceCount, matchedPriceCount };
 }
 
-function toDatabaseRow(entry, source) {
+function toDatabaseRow(entry) {
   const capturedAt = `${entry.date}T20:00:00.000Z`;
   return {
     card_id: entry.cardId,
@@ -243,7 +242,7 @@ function toDatabaseRow(entry, source) {
     low_price_cents: entry.lowPriceCents,
     high_price_cents: entry.highPriceCents,
     currency: 'USD',
-    source,
+    source: RIFTBOUND_MARKET_VALUE_SOURCE,
     source_snapshot_at: capturedAt,
     capture_status: entry.priceCents === null ? 'no_market_price' : 'live',
     captured_at: capturedAt,
@@ -315,7 +314,7 @@ async function main() {
       matchedPriceCount += archivePrices.matchedPriceCount;
 
       if (currentDate <= DAILY_HISTORY_END_DATE) {
-        const rows = Array.from(archivePrices.pricesByCardFinish.values()).map((entry) => toDatabaseRow(entry, TCGCSV_ARCHIVE_DAILY_SOURCE));
+        const rows = Array.from(archivePrices.pricesByCardFinish.values()).map(toDatabaseRow);
         await upsertRows(supabase, rows, options.dryRun);
         dailyRowCount += rows.length;
       } else {
@@ -334,7 +333,7 @@ async function main() {
       await sleep(REQUEST_DELAY_MS);
     }
 
-    const monthlyRows = Array.from(monthlyPeaks.values()).map((entry) => toDatabaseRow(entry, TCGCSV_ARCHIVE_MONTHLY_SOURCE));
+    const monthlyRows = Array.from(monthlyPeaks.values()).map(toDatabaseRow);
     await upsertRows(supabase, monthlyRows, options.dryRun);
     monthlyRowCount = monthlyRows.length;
 

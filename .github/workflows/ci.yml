@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: knowleague-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, typecheck, test, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SITE_URL: https://ci.invalid
+      NEXT_PUBLIC_SUPABASE_URL: https://ci.invalid
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      RIOT_API_KEY: ci-riot-api-key
+      CRON_SECRET: ci-cron-secret
+      RATE_LIMIT_REQUIRE_SHARED: 'false'
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ''
+      TURNSTILE_SECRET_KEY: ''
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run application checks
+        run: npm run check
+
+      - name: Build production bundle
+        run: npm run build

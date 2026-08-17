@@ -10,6 +10,13 @@ export const config = {
 };
 
 export async function middleware(request: NextRequest) {
+  const isHealthPath = request.nextUrl.pathname === '/api/health';
+  if (isHealthPath && (request.method === 'GET' || request.method === 'HEAD')) {
+    // Liveness must remain available while Redis or Supabase is degraded. It
+    // performs no dependency work and returns only the process status.
+    return NextResponse.next();
+  }
+
   // Browsers and API clients may use OPTIONS for CORS negotiation. It does
   // not execute an application route and should not consume a request slot.
   if (request.method === 'OPTIONS') {

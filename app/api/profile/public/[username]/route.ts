@@ -162,8 +162,9 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
       throw new Error('Profile not found.');
     }
 
+    const canViewLinkedAccountDetails = viewerIsAdmin || viewerId === profile.id;
     const [privateDetails, relationshipDetails, achievements, moderationProfile] = await Promise.all([
-      fetchPrivateDetails(profile.id),
+      canViewLinkedAccountDetails ? fetchPrivateDetails(profile.id) : Promise.resolve(null),
       viewerId ? getFriendRelationshipDetails(viewerId, profile.id) : { relationship: 'none' as const, friendNote: '', blocked: false, blockedByViewer: false },
       getUserAchievements(profile.id),
       viewerIsAdmin
@@ -179,6 +180,7 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
       },
       profile: {
         ...profile,
+        linked_accounts_visible: canViewLinkedAccountDetails,
         discord_username: privateDetails?.discord_username ?? null,
         discord_avatar_url: privateDetails?.discord_avatar_url ?? null,
         discord_banner_url: privateDetails?.discord_banner_url ?? null,

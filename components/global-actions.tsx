@@ -39,7 +39,6 @@ export function GlobalActions({ children }: { children: ReactNode }) {
   const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
   const activeSessionRef = useRef<Session | null>(null);
-  const profileAppRoleRef = useRef<string | null>(null);
   const pathnameRef = useRef(pathname);
 
   pathnameRef.current = pathname;
@@ -161,7 +160,6 @@ export function GlobalActions({ children }: { children: ReactNode }) {
     ) => {
       activeSessionRef.current = session ?? null;
       if (!session) {
-        profileAppRoleRef.current = null;
         setProfileAway(false);
         setProfileAvatarUrl(null);
         setProfileUsername(null);
@@ -187,11 +185,10 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       }
       const profileResult = await getSessionScopedRequest('global-profile', session, async () => supabase
         .from('profiles')
-        .select('username, display_name, avatar_url, app_role')
+        .select('username, display_name, avatar_url')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string; avatar_url: string | null; app_role: string | null }>(), { force: forceProfile || forceModeration });
+        .maybeSingle<{ username: string; display_name: string; avatar_url: string | null }>(), { force: forceProfile || forceModeration });
       const { data } = profileResult;
-      profileAppRoleRef.current = data?.app_role ?? null;
       setProfileUsername(data?.username?.trim() || null);
       setProfileAvatarUrl(data?.avatar_url ?? null);
     };
@@ -219,18 +216,13 @@ export function GlobalActions({ children }: { children: ReactNode }) {
           schema: 'public',
           table: 'profiles',
           filter: `id=eq.${userId}`,
-        }, (payload) => {
-          const nextProfile = payload.new as { app_role?: string };
+        }, () => {
           const activeSession = activeSessionRef.current;
           if (!activeSession || activeSession.user.id !== userId) {
             return;
           }
 
-          const roleChanged = typeof nextProfile.app_role === 'string'
-            && profileAppRoleRef.current !== null
-            && profileAppRoleRef.current !== nextProfile.app_role;
-          profileAppRoleRef.current = nextProfile.app_role ?? profileAppRoleRef.current;
-          void updateProfileAction(activeSession, true, roleChanged);
+          void updateProfileAction(activeSession, true, true);
         })
         .on('postgres_changes', {
           event: 'INSERT',

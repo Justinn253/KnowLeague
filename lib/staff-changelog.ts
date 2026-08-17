@@ -1646,4 +1646,29 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
+  {
+    id: 'patch-2026-08-17-riftbound-production-history-cache-refresh',
+    patch: '2026.08.17-riftbound-production-history-cache-refresh',
+    timestamp: '2026-08-17T21:08:13.9596374Z',
+    title: 'Forced fresh Riftbound history responses after production restore',
+    summary: 'Bumped the Riftbound history cache version so clients and the CDN cannot reuse the empty response generated before the production backfill.',
+    details: [
+      'Confirmed the linked production project was separate from the development project and initially contained zero Riftbound price snapshots; restored production with the verified canonical TCGCSV backfill.',
+      'Incremented the client and local card-grid history cache version from v5 to v6. This changes the history request URL and local-storage namespace, bypassing previously cached empty responses while preserving the canonical API implementation.',
+    ],
+    impact: [
+      'After deployment and a normal page reload, production card details request fresh history data instead of reusing the empty pre-backfill response.',
+      'Existing development and production snapshot rows remain canonical tcgcsv data; no inventory or sales data is affected.',
+    ],
+    files: [
+      'components/riftbound-card-grid.tsx',
+      'lib/riftbound-client.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Linked production verification reported 134,938 canonical snapshot rows, latest date 2026-08-17, source tcgcsv, and three restored Bloodharbor Ripper history points.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings, typecheck passed, and 47 tests passed across 17 test files.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
 ];

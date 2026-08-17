@@ -388,9 +388,13 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }, 80);
   }, [scrollMessagesToBottom]);
 
-  const refreshDashboard = useCallback(async () => {
+  const refreshDashboard = useCallback(async (force = false) => {
     if (dashboardRefreshPromiseRef.current) {
       return dashboardRefreshPromiseRef.current;
+    }
+
+    if (!force && dashboardRef.current && Date.now() - lastDashboardRefreshAtRef.current < 10_000) {
+      return;
     }
 
     const refreshPromise = (async () => {
@@ -938,7 +942,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
 
   useEffect(() => {
     const refreshFriendsFromExternalAction = () => {
-      void refreshDashboard();
+      void refreshDashboard(true);
     };
 
     window.addEventListener('knowleague:friends-refresh', refreshFriendsFromExternalAction);
@@ -1079,7 +1083,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
         body: JSON.stringify({ action }),
       });
       setStatus(action === 'accept' ? 'Friend request accepted.' : 'Friend request declined.');
-      await refreshDashboard();
+      await refreshDashboard(true);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to respond to friend request.');
     } finally {
@@ -1096,7 +1100,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     try {
       await fetchAuthedJson(`/api/users/${request.requester.id}/block`, { method: 'POST' });
       setStatus('User blocked.');
-      await refreshDashboard();
+      await refreshDashboard(true);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to block user.');
     } finally {
@@ -1214,7 +1218,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }
     setContextFriend(null);
     setConfirmUnfriendFriendId(null);
-    await refreshDashboard();
+    await refreshDashboard(true);
   };
 
   const blockFriend = async (friend: FriendSummary) => {
@@ -1225,7 +1229,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       setSnapshotConfirmAction(null);
       setContextFriend(null);
       setStatus('User blocked.');
-      await refreshDashboard();
+      await refreshDashboard(true);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to block user.');
     }

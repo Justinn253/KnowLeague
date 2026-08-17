@@ -29,6 +29,7 @@ function LandingCard({ href, title, description, icon, theme, backgroundImage, c
       <div className="flex min-w-0 flex-1 flex-col md:flex-row">
         <Link
           href={href}
+          prefetch={false}
           onMouseEnter={() => playUiSound('autocomplete-hover')}
           onFocus={() => playUiSound('autocomplete-hover')}
           onClick={() => playUiSound('autocomplete-select')}
@@ -72,6 +73,7 @@ function SmallActionLink({ href, children, icon, className = '', fullWidth = fal
   return (
     <Link
       href={href}
+      prefetch={false}
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
       onClick={() => playUiSound('autocomplete-select')}

@@ -35,6 +35,7 @@ const inFlightGets = new Map<string, Promise<unknown>>();
 const responseCache = new Map<string, { value: unknown; expiresAt: number }>();
 const preferenceCache = new Map<string, { value: RiftboundCardPreferences; expiresAt: number }>();
 const RIFTBOUND_PREFERENCE_CACHE_TTL_MS = 15_000;
+const RIFTBOUND_PROFILE_CACHE_TTL_MS = 30_000;
 const RIFTBOUND_FEED_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_POST_CACHE_TTL_MS = 45_000;
 const RIFTBOUND_COMMENTS_CACHE_TTL_MS = 20_000;
@@ -91,6 +92,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}, session?: Ses
 }
 
 function getCommunityCacheTtl(url: string) {
+  if (url === '/api/riftbound/profile' || url.includes('/api/riftbound/profiles/')) return RIFTBOUND_PROFILE_CACHE_TTL_MS;
   if (url.includes('/comments')) return RIFTBOUND_COMMENTS_CACHE_TTL_MS;
   if (url.includes('/api/riftbound/shares/')) return RIFTBOUND_SHARED_SNAPSHOT_CACHE_TTL_MS;
   if (url.includes('/shared-decks')) return RIFTBOUND_SHARED_DECK_CACHE_TTL_MS;
@@ -102,7 +104,11 @@ function getCommunityCacheTtl(url: string) {
 function invalidateCommunityCache(postId?: string) {
   const postPath = postId ? `/api/riftbound/community/posts/${encodeURIComponent(postId)}` : null;
   responseCache.forEach((_entry, key) => {
-    if (key.includes('/api/riftbound/community/feed') || key.includes('/api/riftbound/shared-decks') || (postPath && key.includes(postPath))) {
+    if (key.includes('/api/riftbound/profile')
+      || key.includes('/api/riftbound/profiles/')
+      || key.includes('/api/riftbound/community/feed')
+      || key.includes('/api/riftbound/shared-decks')
+      || (postPath && key.includes(postPath))) {
       responseCache.delete(key);
     }
   });
@@ -237,6 +243,7 @@ export function updateRiftboundProfilePreference(body: Record<string, unknown>, 
     body: JSON.stringify(body),
   }, session).then((result) => {
     preferenceCache.delete(`riftbound-card-preferences:${session.user.id}`);
+    invalidateCommunityCache();
     return result;
   });
 }

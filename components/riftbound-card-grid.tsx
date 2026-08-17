@@ -12,6 +12,7 @@ import { RiftboundBinderBoard } from '@/components/riftbound-binder-board';
 import { RiftboundCardPreferenceActions } from '@/components/riftbound-card-preference-actions';
 import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-view';
+import { RiftboundDeckPreview } from '@/components/riftbound-deck-preview';
 import { RiftboundMasterSet } from '@/components/riftbound-master-set';
 import { RiftboundInventorySaleEditor, RiftboundSaleReceipt, RiftboundSaleReviewModal, RiftboundSalesHistory, type RiftboundPendingSaleItem, type RiftboundSaleEditorDraft } from '@/components/riftbound-sales';
 import {
@@ -2326,6 +2327,7 @@ export function RiftboundCardGrid() {
   const [decksError, setDecksError] = useState('');
   const deckImportInputRef = useRef<HTMLInputElement>(null);
   const bootstrapLoadIdRef = useRef(0);
+  const loadedBootstrapUserIdRef = useRef<string | null>(null);
   const [deckViewMode, setDeckViewMode] = useState<RiftboundDeckViewMode>('compact');
   const [selectedDeckCompactShareUrl, setSelectedDeckCompactShareUrl] = useState('');
 
@@ -2416,6 +2418,7 @@ export function RiftboundCardGrid() {
       setBinders(data.binders?.binders ?? []);
       setBinderLimit(data.binders?.limit ?? 4);
       setDecks(data.decks?.decks ?? []);
+      loadedBootstrapUserIdRef.current = nextSession?.user.id ?? null;
       setInventoryReady(true);
     } catch (error) {
       if (bootstrapLoadIdRef.current !== loadId) return;
@@ -2441,8 +2444,11 @@ export function RiftboundCardGrid() {
     }
   }, []);
 
-  useEffect(() => subscribeToAuthSession((nextSession) => {
+  useEffect(() => subscribeToAuthSession((nextSession, event) => {
     setSession(nextSession);
+    if (event === 'TOKEN_REFRESHED' && nextSession?.user.id === loadedBootstrapUserIdRef.current) {
+      return;
+    }
     void loadRiftboundBootstrap(nextSession);
   }), [loadRiftboundBootstrap]);
 
@@ -3512,10 +3518,16 @@ export function RiftboundCardGrid() {
                 {decksError ? <p className="text-sm font-semibold text-red-200">{decksError}</p> : null}
                 {decks.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">You have not created any game decks yet.</p> : (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {decks.map((deck) => {
-                      const legend = cardsById.get(deck.legend_card_id);
-                      return <article key={deck.id} className="relative rounded-2xl border border-white/10 bg-slate-900/70 p-4 transition focus-within:border-amber-200/70 hover:border-amber-200/50 hover:bg-slate-800"><button type="button" onClick={() => { setSelectedDeckId(deck.id); setDeckViewMode('compact'); setDecksError(''); }} className="block w-full rounded-xl p-1 text-left focus:outline-none"><p className="truncate pr-12 text-lg font-black text-white">{deck.name}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Legend: {legend?.displayName ?? 'Unknown'}</p><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-300">{deck.description || 'No description'}</p><p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Created {formatDeckCreatedDate(deck.created_at)}</p></button><div className="absolute right-4 top-4"><RiftboundDeckFavoriteButton deckId={deck.id} session={session} /></div></article>;
-                    })}
+                    {decks.map((deck) => (
+                      <RiftboundDeckPreview
+                        key={deck.id}
+                        deck={deck}
+                        cardsById={cardsById}
+                        tierRatings={tierRatings}
+                        favoriteControl={<RiftboundDeckFavoriteButton deckId={deck.id} session={session} />}
+                        onOpen={() => { setSelectedDeckId(deck.id); setDeckViewMode('compact'); setDecksError(''); }}
+                      />
+                    ))}
                   </div>
                 )}
               </section>

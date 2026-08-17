@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Clock3, FileText, Search, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Clock3, FileText, Search, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import type { StaffChangelogEntry } from '@/lib/staff-changelog';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -27,8 +27,6 @@ function entryMatchesSearch(entry: StaffChangelogEntry, search: string) {
     entry.summary,
     ...entry.details,
     ...entry.impact,
-    ...entry.files,
-    ...entry.verification,
   ].join(' ').toLowerCase();
 
   return searchableText.includes(search);
@@ -116,7 +114,7 @@ export function StaffChangelogScreen() {
                 Change log
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                A precise record of impactful product, data, security, and operational patches made to KnowLeague.
+                A readable record of the important product changes made to KnowLeague.
               </p>
             </div>
           </div>
@@ -137,7 +135,7 @@ export function StaffChangelogScreen() {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search patches, files, impact, or verification notes"
+              placeholder="Search patches, changes, or impact"
               className="min-h-12 w-full rounded-xl border border-white/10 bg-slate-950 pl-11 pr-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/20"
             />
           </div>
@@ -168,7 +166,7 @@ export function StaffChangelogScreen() {
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
               {entries.length === 0
-                ? 'Future impactful patches will be documented here with exact details, affected files, verification, and the UTC time they were made.'
+                ? 'Future impactful patches will be documented here with a short explanation of what changed and when.'
                 : 'Try a broader search term or clear the search field.'}
             </p>
           </section>
@@ -192,35 +190,10 @@ export function StaffChangelogScreen() {
                 </time>
               </header>
 
-              <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <div className="mt-5">
                 <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">Specific changes</h3>
-                  <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-300">
-                    {entry.details.map((detail) => <li key={detail}>• {detail}</li>)}
-                  </ul>
-                </section>
-                <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">Impact</h3>
-                  <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-300">
-                    {entry.impact.map((impact) => <li key={impact}>• {impact}</li>)}
-                  </ul>
-                </section>
-                <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">Affected files</h3>
-                  <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-400">
-                    {entry.files.map((file) => <li key={file} className="font-mono text-xs">{file}</li>)}
-                  </ul>
-                </section>
-                <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">Verification</h3>
-                  <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-300">
-                    {entry.verification.map((check) => (
-                      <li key={check} className="flex items-start gap-2">
-                        <CheckCircle2 size={15} className="mt-1 shrink-0 text-emerald-300" />
-                        <span>{check}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <h3 className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">What changed</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">{entry.summary}</p>
                 </section>
               </div>
             </article>

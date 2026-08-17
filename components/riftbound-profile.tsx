@@ -7,6 +7,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
 import { RiftboundCardImage } from '@/components/riftbound-card-image';
+import { getRiftboundDeckPreviewCards } from '@/components/riftbound-deck-preview';
 import {
   compareRiftboundCards,
   createRiftboundCardFilters,
@@ -33,7 +34,6 @@ import { navigateToPublicProfile } from '@/lib/profile-navigation';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getRiftboundCardById, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, type RiftboundCard } from '@/lib/riftbound';
-import { isRiftboundChampionUnit } from '@/lib/riftbound-decks';
 import { getRiftboundBootstrap } from '@/lib/riftbound-client';
 import { getRiftboundOwnerProfile, getRiftboundPublicProfile, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import { createRiftboundShareUrl } from '@/lib/riftbound-share-client';
@@ -41,9 +41,9 @@ import { buildRiftboundDeckShareSnapshot } from '@/lib/riftbound-share-types';
 import { buildRiftboundMasterSetInventoryMap, isRiftboundMasterSetCatalogueCard } from '@/lib/riftbound-master-set';
 import type { RiftboundCardTierRating, RiftboundProfileData, RiftboundWishlistCard } from '@/lib/riftbound-community-types';
 
-type ProfileSection = 'overview' | 'collection' | 'master-set' | 'sources' | 'posts';
+type ProfileSection = 'overview' | 'collection' | 'master-set' | 'decks' | 'posts';
 
-const profileSections: ProfileSection[] = ['overview', 'collection', 'master-set', 'sources', 'posts'];
+const profileSections: ProfileSection[] = ['overview', 'collection', 'master-set', 'decks', 'posts'];
 
 function openRiftboundDeckShare(source: RiftboundProfileData['decks'][number], creatorName: string, session: Session | null) {
   const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
@@ -59,6 +59,7 @@ function openRiftboundDeckShare(source: RiftboundProfileData['decks'][number], c
 }
 
 function parseProfileSection(value: string | null) {
+  if (value === 'sources') return 'decks';
   return profileSections.includes(value as ProfileSection) ? value as ProfileSection : 'overview';
 }
 
@@ -134,30 +135,6 @@ function OverviewPreferenceButton({ label, onClick, active, pending = false, chi
 
 type ProfileDeckSource = RiftboundProfileData['decks'][number];
 
-function getDeckPreviewCards(source: ProfileDeckSource, cardsById: ReadonlyMap<string, RiftboundCard>) {
-  const previewCardIds: string[] = [];
-  const addCard = (cardId: string) => {
-    if (previewCardIds.length >= 4 || previewCardIds.includes(cardId)) return;
-    if (cardsById.has(cardId)) previewCardIds.push(cardId);
-  };
-
-  addCard(source.legend_card_id);
-  source.cards
-    .filter((entry) => entry.category === 'main')
-    .forEach((entry) => {
-      const card = cardsById.get(entry.card_id);
-      if (card && isRiftboundChampionUnit(card)) addCard(card.id);
-    });
-  source.cards
-    .filter((entry) => entry.category === 'battlefields')
-    .forEach((entry) => addCard(entry.card_id));
-
-  return previewCardIds.flatMap((cardId) => {
-    const card = cardsById.get(cardId);
-    return card ? [card] : [];
-  });
-}
-
 type ProfileSourceCardProps =
   | {
     source: ProfileDeckSource;
@@ -172,7 +149,7 @@ type ProfileSourceCardProps =
 
 function ProfileSourceCard(props: ProfileSourceCardProps) {
   const { source, onOpen } = props;
-  const previewCards = getDeckPreviewCards(source, props.cardsById);
+  const previewCards = getRiftboundDeckPreviewCards(source, props.cardsById);
   const favoriteControl = props.owner
       ? <OverviewPreferenceButton label={props.favorite ? 'Remove from favorites' : 'Add to favorites'} onClick={props.onFavorite} active={props.favorite} pending={props.pending ?? false}><Star size={15} className={props.favorite ? 'fill-current' : ''} /></OverviewPreferenceButton>
       : props.favorite ? <span title="Favorite source" aria-label="Favorite source" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-amber-200/50 bg-amber-300/10 text-amber-200"><Star size={15} className="fill-current" /></span> : null
@@ -228,8 +205,20 @@ export function RiftboundProfile({ username }: { username?: string }) {
   const [collectionSortMode, setCollectionSortMode] = useState<RiftboundSortMode>('market-desc');
   const [collectionFiltersOpen, setCollectionFiltersOpen] = useState(false);
   const [collectionFilters, setCollectionFilters] = useState<RiftboundCardFilters>(() => createRiftboundCardFilters());
+  const profileLoadedRef = useRef(false);
+  const profileViewerIdRef = useRef<string | null>(null);
+  const profileRef = useRef<RiftboundProfileData | null>(null);
 
-  useEffect(() => subscribeToAuthSession((nextSession) => setSession(nextSession)), []);
+  useEffect(() => subscribeToAuthSession((nextSession) => {
+    const nextViewerId = nextSession?.user.id ?? null;
+    if (profileViewerIdRef.current !== nextViewerId) {
+      profileViewerIdRef.current = nextViewerId;
+      profileLoadedRef.current = false;
+      profileRef.current = null;
+      setLoading(true);
+    }
+    setSession(nextSession);
+  }), []);
 
   useEffect(() => {
     const syncSectionFromUrl = () => setSection(parseProfileSection(new URLSearchParams(window.location.search).get('tab')));
@@ -260,21 +249,29 @@ export function RiftboundProfile({ username }: { username?: string }) {
     input.setSelectionRange(input.value.length, input.value.length);
   }, [descriptionEditing]);
 
-  const loadProfile = useCallback(async (showLoading = true) => {
+  const loadProfile = useCallback(async (showLoading = !profileLoadedRef.current) => {
     if (!username && !session) {
       setProfile(null);
       setLoading(false);
+      profileLoadedRef.current = true;
       return;
     }
     if (showLoading) setLoading(true);
     setError('');
     try {
       const data = username ? await getRiftboundPublicProfile(username, session) : await getRiftboundOwnerProfile(session as Session);
+      profileRef.current = data.profile;
       setProfile(data.profile);
       setTierRatings(data.profile.cardTiers ?? {});
       setProfileAbout(data.profile.settings.about);
+      profileLoadedRef.current = true;
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load this Riftbound profile.');
+      if (profileRef.current) {
+        setError('');
+      } else {
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load this Riftbound profile.');
+      }
+      profileLoadedRef.current = true;
     } finally {
       setLoading(false);
     }
@@ -563,8 +560,8 @@ export function RiftboundProfile({ username }: { username?: string }) {
             </div>
           </div>
           {preferenceError && descriptionEditing ? <p className="text-sm font-semibold text-red-200">{preferenceError}</p> : null}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><ProfileStat label="Card Count" value={profile.collection.totalCopies} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Collection Value" value={`~${formatValue(estimatedCollectionValueCents)}`} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Decks" value={profile.decks.length} onClick={() => navigateSection('sources')} title="View decks" /></div>
-          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1 sm:grid-cols-5">{profileSections.map((tab) => <button key={tab} type="button" onClick={() => navigateSection(tab)} className={`rounded-xl px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition ${section === tab ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{tab === 'master-set' ? 'Master Set' : tab}</button>)}</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><ProfileStat label="Card Count" value={profile.collection.totalCopies} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Collection Value" value={`~${formatValue(estimatedCollectionValueCents)}`} onClick={() => navigateSection('collection')} title="View collection" /><ProfileStat label="Decks" value={profile.decks.length} onClick={() => navigateSection('decks')} title="View decks" /></div>
+          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/70 p-1 sm:grid-cols-5">{profileSections.map((tab) => <button key={tab} type="button" onClick={() => navigateSection(tab)} className={`rounded-xl px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition ${section === tab ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{tab === 'master-set' ? 'Master Set' : tab === 'decks' ? 'Decks' : tab}</button>)}</div>
         </header>
 
         {section === 'overview' ? <div className="grid gap-6">
@@ -672,7 +669,7 @@ export function RiftboundProfile({ username }: { username?: string }) {
           </div>
         ) : null}
 
-        {section === 'sources' ? (
+        {section === 'decks' ? (
           <div className="grid gap-6">
             <section className="order-1 grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-5">
               <div><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Game Decks</p></div>

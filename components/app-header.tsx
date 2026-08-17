@@ -111,6 +111,7 @@ function HeaderMenuLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
       onClick={() => {
@@ -292,6 +293,7 @@ function ProfileAction({
   return (
     <Link
       href={profileUsername ? getPublicProfileHref(profileUsername) : '/profile'}
+      prefetch={false}
       target={shouldOpenProfileInNewTab() ? '_blank' : undefined}
       rel={shouldOpenProfileInNewTab() ? 'noopener noreferrer' : undefined}
       onMouseEnter={() => playUiSound('autocomplete-hover')}
@@ -323,6 +325,7 @@ function LoginAction({ mobile = false }: { mobile?: boolean }) {
   return (
     <Link
       href="/login"
+      prefetch={false}
       aria-label="Log in"
       title="Log in"
       onMouseEnter={() => playUiSound('autocomplete-hover')}
@@ -434,6 +437,7 @@ function GamesMenu() {
       headerAction={(
         <Link
           href="/games"
+          prefetch={false}
           onMouseEnter={() => playUiSound('autocomplete-hover')}
           onFocus={() => playUiSound('autocomplete-hover')}
           onClick={() => playUiSound('autocomplete-select')}
@@ -680,10 +684,10 @@ function MobileHeaderMenu({
         title="Navigation"
         aria-expanded={open}
         aria-haspopup="menu"
-        className="inline-flex h-9 w-auto items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
+        className="inline-flex h-9 w-9 items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-0 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 md:w-auto md:px-3"
       >
         <Menu size={18} />
-        <span className="text-xs font-black uppercase tracking-[0.12em]">Navigation</span>
+        <span className="hidden text-xs font-black uppercase tracking-[0.12em] md:inline">Navigation</span>
       </button>
 
       {open ? (
@@ -908,6 +912,7 @@ export function AppHeader({
 
         <Link
           href="/"
+          prefetch={false}
           aria-label="KnowLeague home"
           onMouseEnter={() => playUiSound('autocomplete-hover')}
           onFocus={() => playUiSound('autocomplete-hover')}

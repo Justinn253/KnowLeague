@@ -17,7 +17,6 @@ const REQUEST_ATTEMPTS = 3;
 const REQUEST_DELAY_MS = 125;
 const DATABASE_BATCH_SIZE = 500;
 const USER_AGENT = 'KnowLeague Riftbound historical price importer/1.0';
-const DAILY_HISTORY_END_DATE = addDays(new Date(`${DEFAULT_START_DATE}T00:00:00Z`), DAILY_HISTORY_DAYS - 1);
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -277,13 +276,14 @@ async function main() {
   const cards = JSON.parse(await readFile(new URL('../data/catalogs/riftbound-cards.json', import.meta.url), 'utf8'));
   const { groups, productMap } = await loadProductMap(cards);
   const monthlyPeaks = new Map();
+  const dailyHistoryStartDate = addDays(options.endDate, -(DAILY_HISTORY_DAYS - 1));
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'knowleague-riftbound-history-'));
   const supabase = options.dryRun
     ? null
     : createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
   console.log(`Matched ${productMap.size} TCGCSV products across ${groups.length} Riftbound groups.`);
-  console.log(`Importing ${formatDate(options.startDate)} through ${formatDate(options.endDate)}; daily through ${formatDate(DAILY_HISTORY_END_DATE)}, then monthly peaks.`);
+  console.log(`Importing ${formatDate(options.startDate)} through ${formatDate(options.endDate)}; daily from ${formatDate(dailyHistoryStartDate)}, then monthly peaks.`);
 
   let archiveCount = 0;
   let missingArchiveCount = 0;
@@ -313,7 +313,7 @@ async function main() {
       sourcePriceCount += archivePrices.sourcePriceCount;
       matchedPriceCount += archivePrices.matchedPriceCount;
 
-      if (currentDate <= DAILY_HISTORY_END_DATE) {
+      if (currentDate >= dailyHistoryStartDate) {
         const rows = Array.from(archivePrices.pricesByCardFinish.values()).map(toDatabaseRow);
         await upsertRows(supabase, rows, options.dryRun);
         dailyRowCount += rows.length;

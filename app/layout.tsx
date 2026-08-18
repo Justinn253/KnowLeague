@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { GlobalActions } from '@/components/global-actions';
 import { SiteStructuredData } from '@/components/seo-structured-data';
 import { SiteFooter } from '@/components/site-footer';
@@ -39,6 +40,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <Script
+          id="google-adsense"
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7559752825656959"
+          crossOrigin="anonymous"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body className="flex min-h-screen flex-col">
         <GlobalActions>
           <div className="flex min-h-0 flex-1 flex-col">{children}</div>

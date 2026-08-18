@@ -1671,4 +1671,26 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
+  {
+    id: 'patch-2026-08-18-adsense-site-verification-meta-tag',
+    patch: '2026.08.18-adsense-site-verification-meta-tag',
+    timestamp: '2026-08-18T00:51:09.6338334Z',
+    title: 'Added AdSense site verification metadata',
+    summary: 'Moved the AdSense ownership marker into the document metadata so Google can verify the site without placing the marker inside the page body.',
+    details: [
+      'Added the public AdSense account identifier through Next.js metadata.other so the generated verification meta element is emitted in the document head on the shared root layout.',
+      'Removed the body-level verification element and the unused Next.js Script import; no ad unit, Auto ads setting, or visible advertisement was enabled.',
+    ],
+    impact: [
+      'AdSense ownership verification can use the supported head metadata method while advertising remains disabled pending Riot approval.',
+      'The application document structure no longer contains a verification element in the body.',
+    ],
+    files: [
+      'app/layout.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'The metadata entry was added without running a production build because this change only affects generated head metadata and repository guidance reserves local builds for an explicitly stopped dev-server state.',
+    ],
+  },
 ];

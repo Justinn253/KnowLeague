@@ -266,7 +266,7 @@ async function loadDailySkin() {
     return existingRequest;
   }
 
-  const request = fetch('/api/skindle/target')
+  const request = fetch('/api/splash-scramble/target')
     .then((response) => {
       if (!response.ok) {
         throw new Error('Unable to load daily splash art.');

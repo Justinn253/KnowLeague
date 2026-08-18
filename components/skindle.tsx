@@ -1397,7 +1397,7 @@ export function Skindle() {
                           <GameSplashImage src={skin.imageUrl} alt="" fill sizes="64px" className="object-cover" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-semibold text-white">{skin.answer}</span>
+                          <span className="block truncate font-semibold text-white">{skin.answer}{skin.releaseDate ? ` (${skin.releaseDate})` : ''}</span>
                           <span className="block truncate text-xs text-slate-500">{skin.champion}</span>
                         </span>
                       </button>

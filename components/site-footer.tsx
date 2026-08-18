@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PrivacySettingsButton } from '@/components/privacy-settings-button';
 
 export function SiteFooter() {
   return (
@@ -9,6 +10,7 @@ export function SiteFooter() {
           <Link href="/riftbound/community" prefetch={false} className="transition hover:text-amber-200">Riftbound Community</Link>
           <Link href="/privacy" prefetch={false} className="transition hover:text-amber-200">Privacy Policy</Link>
           <Link href="/terms" prefetch={false} className="transition hover:text-amber-200">Terms of Service</Link>
+          <PrivacySettingsButton />
           <Link href="https://developer.riotgames.com/" prefetch={false} className="transition hover:text-amber-200">Riot Developer Portal</Link>
         </div>
         <p>

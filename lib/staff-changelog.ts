@@ -1716,4 +1716,27 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
+  {
+    id: 'patch-2026-08-18-cmp-privacy-settings-reopen',
+    patch: '2026.08.18-cmp-privacy-settings-reopen',
+    timestamp: '2026-08-18T01:18:57.7417958Z',
+    title: 'Added a privacy settings reopen control',
+    summary: 'Added a persistent footer control that lets visitors reopen the published Google consent settings after their initial decision.',
+    details: [
+      'Added a focused client component that calls Google Funding Choices’ revocation callback when the published CMP is available, while safely doing nothing if the external consent runtime has not initialized.',
+      'Added the control beside the existing Privacy Policy and Terms of Service links in the shared site footer; consent choices and persistence remain owned by the Google CMP rather than duplicated in application storage.',
+    ],
+    impact: [
+      'Visitors can return to their privacy and cookie choices from any page after the initial consent decision.',
+      'The application does not create a second consent state that could conflict with Google’s TCF record.',
+    ],
+    files: [
+      'components/privacy-settings-button.tsx',
+      'components/site-footer.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'The normal repository check remains required after this component change; production CMP behavior still requires deployment and browser verification against the published AdSense message.',
+    ],
+  },
 ];

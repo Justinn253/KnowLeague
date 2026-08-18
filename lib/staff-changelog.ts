@@ -1693,4 +1693,27 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'The metadata entry was added without running a production build because this change only affects generated head metadata and repository guidance reserves local builds for an explicitly stopped dev-server state.',
     ],
   },
+  {
+    id: 'patch-2026-08-18-adsense-cmp-script',
+    patch: '2026.08.18-adsense-cmp-script',
+    timestamp: '2026-08-18T01:04:58.8490091Z',
+    title: 'Connected the published AdSense consent message',
+    summary: 'Restored the AdSense publisher script in the shared document head so the published consent message can reach eligible visitors while ad inventory remains disabled.',
+    details: [
+      'Added the AdSense publisher script through next/script with a stable identifier, anonymous cross-origin loading, and the beforeInteractive strategy in the root layout.',
+      'Retained the AdSense ownership meta tag and did not add ad units, enable Auto ads, or create any visible advertising placement.',
+    ],
+    impact: [
+      'The published Google consent message can load on pages that include the shared root layout.',
+      'The application remains free of visible ads until ad units or Auto ads are intentionally enabled after Riot approval.',
+    ],
+    files: [
+      'app/layout.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained the repository\'s existing img-element warnings, typecheck passed, and 47 tests passed across 17 test files.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
 ];

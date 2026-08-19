@@ -1,6 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 
 type ViewportPopoverProps = {
   anchorRef: RefObject<HTMLElement | null>;
@@ -74,5 +75,17 @@ export function ViewportPopover({
 
   if (!open) return null;
 
-  return <div className={className} style={position}>{children}</div>;
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className={className}
+      style={position}
+      onPointerDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
 }

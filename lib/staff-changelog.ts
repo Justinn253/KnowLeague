@@ -1802,4 +1802,30 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
+  {
+    id: 'patch-2026-08-18-game-popover-portal-positioning',
+    patch: '2026.08.18-game-popover-portal-positioning',
+    timestamp: '2026-08-18T23:30:39.2648913Z',
+    title: 'Fixed game menu positioning across responsive layouts',
+    summary: 'Moved shared game viewport popovers to the document body so Player Stats, Top Guesses, game instructions, difficulty, and modifier menus remain anchored beneath their buttons instead of inheriting offset coordinates from blurred game panels.',
+    details: [
+      'ViewportPopover now renders through a React portal attached to document.body. This prevents fixed viewport coordinates from being interpreted relative to ancestors that establish a containing block through backdrop blur or other visual effects.',
+      'The shared popover retains viewport clamping, narrow-screen width limits, above-the-anchor fallback, and max-height scrolling so menus remain usable on mobile devices and short viewports.',
+      'Pointer and mouse down events inside a portaled menu stop before reaching each game\'s document-level outside-click handler, preserving interactive menu controls after the DOM ownership changes.',
+    ],
+    impact: [
+      'Skindle Player Stats and Top Guesses now open directly below their respective controls at the correct viewport position.',
+      'The same positioning correction applies to shared Game Info, Ability Blitz difficulty/modifier, and Skin Champion difficulty/modifier menus without duplicating fixes across individual games.',
+      'Desktop layout remains viewport-aligned while mobile menus stay within an eight-pixel viewport margin and scroll within the available height.',
+    ],
+    files: [
+      'components/viewport-popover.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'The shared ViewportPopover usage audit found all game instruction, stats, Top Guesses, difficulty, and modifier menus route through the corrected component.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed, and 47 tests passed across 17 test files.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
 ];

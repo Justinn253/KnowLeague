@@ -23,6 +23,7 @@ The games are organized by gameplay responsibility rather than by visual similar
 - `daily-guess`: Skindle owns deterministic daily targeting, progressive guess comparison, personal statistics, and daily completion behavior.
 - `splash-puzzle`: Splash Scramble owns tile reconstruction, puzzle controls, deterministic daily targeting, and puzzle-specific persistence/statistics.
 - `multiplayer-session`: Skincognito, Carving Revelation, and Category Clash share lobby, presence, reconnect, host, chat, moderation, and result-recording contracts while retaining distinct rules engines.
+- Carving Revelation uses server-authoritative carving and guessing phases: connected active players submit the required carve lines, the server advances the phase from persisted actions or expiry, and secret skin data is revealed only after match completion (active image access is served through the player-checked skin-image route).
 - `standalone`: Mastery Master remains isolated until its gameplay contracts justify a shared family.
 
 The first shared solo-quiz contract lives in `lib/solo-quiz.ts`. It centralizes difficulty rules, entry-count options, game definitions, and the persisted round-state shape without changing existing storage keys, routes, seeds, or game behavior.

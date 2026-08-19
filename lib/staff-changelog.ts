@@ -1892,4 +1892,38 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
+  {
+    id: 'patch-2026-08-19-carving-revelation-phase-refactor',
+    patch: '2026.08.19-carving-revelation-phase-refactor',
+    timestamp: '2026-08-19T17:25:56.7157350Z',
+    title: 'Reworked Carving Revelation phase authority and reconnect flow',
+    summary: 'Refactored Carving Revelation around its current simultaneous carving/guessing phase model and corrected match lifecycle, secret-data visibility, reconnect, power-up, and action-response defects.',
+    details: [
+      'Added lib/carving-revelation-rules.ts as the pure rules layer for active connected player selection, persisted action ordering, first-correct winner selection, per-player submission counts, all-player phase completion, and viewer-safe lobby secret sanitization.',
+      'Carving Revelation lobby views now redact secret_skin_id and skin metadata while a match is active. Active splash access remains available only through the connected-player-checked skin-image route; finished views continue to reveal the answer and image.',
+      'Corrected reconnect eligibility consumption to use the domain response fields and reconnect deadline, and allowed eligible existing active players to rejoin through the normal join command while continuing to reject expired, eliminated, or invalid reconnects.',
+      'Made first-correct resolution deterministic from the persisted action identity, marked non-winners eliminated at match completion, and removed the previous fallback that selected an arbitrary connected player as a winner when everyone forfeited. Pending reconnect windows now prevent premature give-up/phase completion.',
+      'Returned the submitting player’s authoritative guess action in non-terminal responses, aligned client skip-turn UI with server-validated non-conflicted power-up claims, and kept Insight power-up coordinates private to their owner.',
+      'Updated Carving Revelation navigation fallback destinations to /games and documented the phase/secret-data contract in docs/architecture.md.',
+    ],
+    impact: [
+      'Players no longer receive secret skin identifiers or direct splash URLs from active lobby JSON, reducing information leakage and keeping reveal access behind the intended player check.',
+      'Players can recover from an eligible disconnect, see correct personal guess outcomes immediately, and avoid being incorrectly blocked by contested or invalid Skip Turn effects.',
+      'First-correct games have one deterministic winner, while all-forfeit matches finish without displaying a phantom winner; disconnected players retain their reconnect window before the match is finalized.',
+    ],
+    files: [
+      'components/carving-revelation.tsx',
+      'docs/architecture.md',
+      'lib/carving-revelation-rules.ts',
+      'lib/carving-revelation.ts',
+      'lib/staff-changelog.ts',
+      'tests/carving-revelation-rules.test.ts',
+    ],
+    verification: [
+      'npm run lint passed with only the repository’s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
+      'npm run typecheck passed.',
+      'npm run test:run passed: 51 tests across 18 test files, including four new Carving Revelation rules/security regression tests.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
 ];

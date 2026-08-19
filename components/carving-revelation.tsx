@@ -904,13 +904,18 @@ export function CarvingRevelation() {
       : null
   );
   const isStartCountdownPending = Boolean(computedStartCountdownSeconds && computedStartCountdownSeconds > 0);
-  const skipTurnBlockedByPowerUp = Boolean(view?.requestingPlayer && view.actions.some((action) => (
-    action.action_type === 'power_up' &&
-    Number(action.payload.targetRoundNumber) === view.lobby.round_number &&
-    action.payload.targetPhase === 'carve' &&
-    view.lobby.phase === 'guess' &&
-    action.player_id !== view.requestingPlayer?.id &&
-    action.payload.kind === 'skip_turns'
+  const skipTurnBlockedByPowerUp = Boolean(view?.requestingPlayer && view.lobby.phase === 'guess' && view.powerUps.some((powerUp) => (
+    powerUp.kind === 'skip_turns' &&
+    !powerUp.conflicted &&
+    powerUp.claimedByPlayerId &&
+    powerUp.claimedByPlayerId !== view.requestingPlayer?.id &&
+    view.actions.some((action) => (
+      action.action_type === 'power_up' &&
+      action.player_id === powerUp.claimedByPlayerId &&
+      action.payload.powerUpId === powerUp.id &&
+      Number(action.payload.targetRoundNumber) === view.lobby.round_number &&
+      action.payload.targetPhase === 'carve'
+    ))
   )));
   const currentPlayerDrawCount = view?.requestingPlayer
     ? view.actions.filter((action) => (
@@ -962,10 +967,10 @@ export function CarvingRevelation() {
     activeModifiers.has('greyscale') ? 'grayscale' : '',
     activeModifiers.has('blurred') ? 'blur-sm' : '',
   ].filter(Boolean).join(' ');
-  const displayedSkinImageUrl = view?.skin?.imageUrl
-    ? view.lobby.status === 'active' && clientId
+  const displayedSkinImageUrl = view
+    ? view.lobby.status === 'active' && clientId && view.requestingPlayer?.connected && view.requestingPlayer.result !== 'eliminated'
       ? `${API_BASE}/${view.lobby.code}/skin-image?clientId=${encodeURIComponent(clientId)}`
-      : view.skin.imageUrl
+      : view.skin?.imageUrl ?? null
     : null;
   const imageModifierStyle = displayedSkinImageUrl
     ? {
@@ -1219,7 +1224,7 @@ export function CarvingRevelation() {
       window.localStorage.removeItem(STORAGE_KEY);
       setRejoinCandidate(null);
       setView(null);
-      router.replace('/');
+      router.replace('/games');
       return;
     }
     setRejoinCandidate(null);
@@ -1349,10 +1354,17 @@ export function CarvingRevelation() {
       if (!storedCode) return;
       try {
         const response = await fetch(`${API_BASE}/${storedCode}/rejoin?clientId=${encodeURIComponent(nextClientId)}`);
-        const eligibility = await response.json() as ReconnectCandidate & { eligible: boolean };
+        const eligibility = await response.json() as {
+          eligible: boolean;
+          lobbyCode?: string;
+          disconnectedAt?: string | null;
+        };
         if (cancelled) return;
-        if (eligibility.eligible) {
-          setRejoinCandidate({ code: eligibility.code, expiresAt: eligibility.expiresAt });
+        if (eligibility.eligible && eligibility.lobbyCode && eligibility.disconnectedAt) {
+          setRejoinCandidate({
+            code: eligibility.lobbyCode,
+            expiresAt: new Date(getReconnectDeadline(eligibility.disconnectedAt)).toISOString(),
+          });
           return;
         }
         await refreshLobby(storedCode, nextClientId);
@@ -1455,7 +1467,7 @@ export function CarvingRevelation() {
         clearTransientState();
         window.localStorage.removeItem(STORAGE_KEY);
         setView(null);
-        router.replace('/');
+        router.replace('/games');
         return;
       }
       setMessage(error instanceof Error ? error.message : 'Unable to update lobby presence.');
@@ -2172,7 +2184,7 @@ export function CarvingRevelation() {
       statusLabel={headerStatus}
       infoSteps={[
         'A secret skin line is selected when the host starts the game.',
-        'Players take turns carving one reveal line into the shared canvas or guessing the skin line.',
+        'Players carve one reveal area each, then everyone guesses the skin line before the phase ends.',
         'The reveal line limit grows each round until someone finds the answer.',
       ]}
       onBack={handleBack}

@@ -10,11 +10,14 @@ import {
 } from 'lucide-react';
 import type { MultiplayerPlayerCountGameId } from '@/lib/multiplayer-player-counts';
 import type { StreakGameId } from '@/lib/game-storage';
+import type { GameFamily, GameRouteId } from '@/lib/game-families';
 
 export type Accent = 'gold' | 'cyan' | 'rose' | 'violet' | 'emerald' | 'sky';
 export type GameMode = 'solo' | 'multiplayer' | 'hybrid';
 
 export type GameLink = {
+  id: GameRouteId;
+  family: GameFamily;
   title: string;
   href: string;
   description: string;
@@ -33,6 +36,8 @@ export type GameLink = {
 
 export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   {
+    id: 'skindle',
+    family: 'daily-guess',
     title: 'Skindle',
     href: '/skindle',
     description: 'Solve the daily League of Legends skin with each guess revealing more information.',
@@ -47,6 +52,8 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     mostPlayed: true,
   },
   {
+    id: 'splash-scramble',
+    family: 'splash-puzzle',
     title: 'Splash Scramble',
     href: '/splash-scramble',
     description: 'Rebuild a scrambled League of Legends skin by swapping pieces.',
@@ -59,6 +66,8 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     kicker: 'Tile Puzzle',
   },
   {
+    id: 'ability-blitz',
+    family: 'solo-quiz',
     title: 'Ability Blitz',
     href: '/multiplayer/ability-blitz',
     description: 'Play solo or with friends through League of Legends ability icons.',
@@ -73,6 +82,8 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     kicker: 'Solo or Race',
   },
   {
+    id: 'skin-champion',
+    family: 'solo-quiz',
     title: 'Skin Champion',
     href: '/multiplayer/skin-champion',
     description: 'Play solo or with friends to identify League of Legends skin lines.',
@@ -87,6 +98,8 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     kicker: 'Solo or Sprint',
   },
   {
+    id: 'skincognito',
+    family: 'multiplayer-session',
     title: 'Skincognito',
     href: '/skincognito',
     description: 'Try to guess your opponents League of Legends skin before they can guess yours.',
@@ -99,6 +112,8 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     feature: true,
   },
   {
+    id: 'carving-revelation',
+    family: 'multiplayer-session',
     title: 'Carving Revelation',
     href: '/carving-revelation',
     description: 'Carve through a hidden League of Legends skin line and figure it out before your opponents do.',
@@ -110,6 +125,8 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     kicker: 'Shared Canvas',
   },
   {
+    id: 'category-clash',
+    family: 'multiplayer-session',
     title: 'Category Clash',
     href: '/category-clash',
     description: 'Name unique League answers from rotating categories and be the last player standing.',
@@ -121,6 +138,8 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     kicker: 'Last Player Standing',
   },
   {
+    id: 'mastery-master',
+    family: 'standalone',
     title: 'Mastery Master',
     href: '/mastery-master',
     description: "Put a League account's champion mastery knowledge to the test.",

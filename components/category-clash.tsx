@@ -922,7 +922,7 @@ export function CategoryClash() {
         <div className="mx-auto max-w-6xl">
           <header className="mb-5 flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-              <button type="button" onClick={() => { window.location.href = '/'; }} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to home">
+              <button type="button" onClick={() => { window.location.href = '/games'; }} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to games">
                 <ArrowLeft size={22} />
               </button>
               <div className="min-w-0">

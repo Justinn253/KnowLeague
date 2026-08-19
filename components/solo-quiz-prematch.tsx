@@ -9,6 +9,7 @@ import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-n
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import {
   CHAOS_DIFFICULTY,
+  getSoloQuizGameDefinition,
   isLeaderboardMode,
   soloQuizModes,
   type SoloLeaderboardEntry,
@@ -83,7 +84,7 @@ export function SoloQuizPrematch({
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [resetLabel, setResetLabel] = useState('--:--:--');
   const leaderboardEnabled = isLeaderboardMode(selectedMode);
-  const gameLabel = gameId === 'ability-blitz' ? 'Ability Blitz' : 'Skin Champion';
+  const gameLabel = getSoloQuizGameDefinition(gameId).label;
   const selectedModeName = useMemo(
     () => soloQuizModes.find((mode) => mode.id === selectedMode)?.name ?? 'Daily',
     [selectedMode],

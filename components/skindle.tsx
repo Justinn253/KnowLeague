@@ -988,8 +988,8 @@ export function Skindle() {
         <header className="relative z-30 flex flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link
-              href="/"
-              aria-label="Back to game hub"
+              href="/games"
+              aria-label="Back to games"
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900 sm:h-12 sm:w-12"
             >
               <ArrowLeft size={20} />

@@ -292,7 +292,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId: activeLobby.clientId, forfeit: true }),
     }).catch(() => undefined);
-    router.push('/');
+    router.push('/games');
   });
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
@@ -658,7 +658,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
   const leaveLobby = async () => {
     if (!view || !clientId) {
-      router.push('/');
+      router.push('/games');
       return;
     }
     const code = view.lobby.code;
@@ -936,7 +936,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         subtitle={view ? 'Lobby' : 'Create or join a lobby'}
         statusLabel={statusLabel}
         infoSteps={infoSteps}
-        onBack={view ? leaveLobby : () => router.push('/')}
+        onBack={view ? leaveLobby : () => router.push('/games')}
       />
 
       <MultiplayerLobbyCard>

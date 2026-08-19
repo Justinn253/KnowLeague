@@ -1875,7 +1875,7 @@ export function CarvingRevelation() {
     if (!window.confirm('Leave this game permanently? You will not be able to reconnect to this match.')) return;
     playUiSound('timer-expired');
     await leaveCurrentLobby(true);
-    router.push('/');
+    router.push('/games');
   };
 
   const returnToLobby = async () => {
@@ -1899,14 +1899,14 @@ export function CarvingRevelation() {
 
   const handleBack = async () => {
     if (!view) {
-      router.push('/');
+      router.push('/games');
       return;
     }
     if (view.lobby.status === 'active' || view.lobby.status === 'finished') {
       await leaveCurrentLobby(true);
       return;
     }
-    router.push('/');
+    router.push('/games');
   };
 
   const giveUp = async () => {
@@ -2176,7 +2176,7 @@ export function CarvingRevelation() {
         'The reveal line limit grows each round until someone finds the answer.',
       ]}
       onBack={handleBack}
-      backLabel={view?.lobby.status === 'active' || view?.lobby.status === 'finished' ? 'Back to lobby' : 'Back to home'}
+      backLabel={view?.lobby.status === 'active' || view?.lobby.status === 'finished' ? 'Back to lobby' : 'Back to games'}
       actions={(
         <>
           {view?.lobby.status === 'finished' ? (

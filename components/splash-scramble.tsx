@@ -2472,7 +2472,7 @@ export function SplashScramble() {
     if (phase === 'prematch') {
       return (
         <Link
-          href="/"
+          href="/games"
           aria-label="Back to games"
           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-12 sm:w-12"
         >

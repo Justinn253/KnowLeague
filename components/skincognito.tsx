@@ -473,7 +473,7 @@ export function Skincognito() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId: activeLobby.clientId, forfeit: true }),
     }).catch(() => undefined);
-    router.push('/');
+    router.push('/games');
   });
 
   const requestingPlayer = lobbyView?.requestingPlayer ?? null;
@@ -1308,7 +1308,7 @@ export function Skincognito() {
 
   const leaveLobby = async () => {
     if (!lobbyView) {
-      router.push('/');
+      router.push('/games');
       return;
     }
 
@@ -1493,7 +1493,7 @@ export function Skincognito() {
           "Identify your opponent's selected skin before they identify yours.",
         ]}
         onBack={leaveLobby}
-        backLabel="Back to game hub"
+        backLabel="Back to games"
         actions={(
           <>
             {lobbyView?.lobby.status === 'finished' && isHost ? (

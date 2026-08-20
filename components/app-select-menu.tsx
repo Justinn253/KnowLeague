@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { playUiSound } from '@/lib/ui-sounds';
 
-export type AppSelectOption<T extends string | number> = {
+const APP_SELECT_MENU_OPEN_EVENT = 'knowleague:app-select-menu-open';
+
+export type AppSelectOption<T extends string | number | null> = {
   value: T;
   label: string;
   description?: string;
 };
 
-type AppSelectMenuProps<T extends string | number> = {
+type AppSelectMenuProps<T extends string | number | null> = {
   label: string;
   value: T;
   options: AppSelectOption<T>[];
@@ -29,7 +31,7 @@ type AppSelectMenuProps<T extends string | number> = {
   menuClassName?: string;
 };
 
-export function AppSelectMenu<T extends string | number>({
+export function AppSelectMenu<T extends string | number | null>({
   label,
   value,
   options,
@@ -48,6 +50,7 @@ export function AppSelectMenu<T extends string | number>({
   menuClassName = '',
 }: AppSelectMenuProps<T>) {
   const [open, setOpen] = useState(false);
+  const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const activeValues = multiple ? (selectedValues ?? [value]) : [value];
   const selectedOption = options.find((option) => option.value === value) ?? options[0];
@@ -58,9 +61,17 @@ export function AppSelectMenu<T extends string | number>({
     const closeWhenOutside = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
+    const closeWhenAnotherMenuOpens = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail !== menuId) setOpen(false);
+    };
     document.addEventListener('pointerdown', closeWhenOutside);
-    return () => document.removeEventListener('pointerdown', closeWhenOutside);
-  }, []);
+    window.addEventListener(APP_SELECT_MENU_OPEN_EVENT, closeWhenAnotherMenuOpens);
+    return () => {
+      document.removeEventListener('pointerdown', closeWhenOutside);
+      window.removeEventListener(APP_SELECT_MENU_OPEN_EVENT, closeWhenAnotherMenuOpens);
+    };
+  }, [menuId]);
 
   return (
     <div ref={rootRef} className={`relative grid gap-2 ${open ? 'z-[100]' : 'z-0'} ${disabledDescription ? 'group' : ''} ${className}`}>
@@ -69,7 +80,14 @@ export function AppSelectMenu<T extends string | number>({
         <button
           type="button"
           disabled={disabled}
-          onClick={() => setOpen((current) => !current)}
+          onClick={() => {
+            if (open) {
+              setOpen(false);
+              return;
+            }
+            window.dispatchEvent(new CustomEvent(APP_SELECT_MENU_OPEN_EVENT, { detail: menuId }));
+            setOpen(true);
+          }}
           aria-label={hideLabel ? label : undefined}
           title={disabled ? disabledDescription : undefined}
           aria-haspopup="listbox"

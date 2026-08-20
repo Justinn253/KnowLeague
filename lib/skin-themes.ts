@@ -24,6 +24,7 @@ const WORLD_CHAMPION_TEAMS_BY_SKIN_LINE: Record<string, string> = {
 };
 
 const skinThemeAnswerListCache = new WeakMap<readonly QuizItem[], string[]>();
+const skinThemeAndSkinAnswerListCache = new WeakMap<readonly QuizItem[], string[]>();
 const skinThemeQuizItemCache = new WeakMap<readonly QuizItem[], QuizItem[]>();
 
 function inferWorldChampionTeam(item: QuizItem) {
@@ -76,6 +77,19 @@ export function getSkinThemeAnswerList(items: readonly QuizItem[]) {
   ).sort();
 
   skinThemeAnswerListCache.set(items, answers);
+  return answers;
+}
+
+export function getSkinThemeAndSkinAnswerList(items: readonly QuizItem[]) {
+  const cachedAnswers = skinThemeAndSkinAnswerListCache.get(items);
+  if (cachedAnswers) return cachedAnswers;
+
+  const answers = Array.from(new Set([
+    ...getSkinThemeAnswerList(items),
+    ...items.map((item) => item.title.trim()).filter(Boolean),
+  ])).sort();
+
+  skinThemeAndSkinAnswerListCache.set(items, answers);
   return answers;
 }
 

@@ -12,11 +12,11 @@ type UseMultiplayerHeartbeatOptions = {
 };
 
 /**
- * Maintains multiplayer presence while a game tab is visible. Background tabs
- * resume with an immediate heartbeat instead of continuing periodic requests.
- * Active matches may also provide a bounded reconciliation callback so a
- * missed Realtime event is repaired without turning every heartbeat into a
- * full lobby read.
+ * Maintains multiplayer presence for the lifetime of the game page. Browser
+ * visibility changes are not treated as disconnects: players may tab away and
+ * return without forfeiting or entering a reconnect window. Active matches
+ * may also provide a bounded reconciliation callback so a missed Realtime
+ * event is repaired without turning every heartbeat into a full lobby read.
  */
 export function useMultiplayerHeartbeat({
   enabled,
@@ -43,7 +43,7 @@ export function useMultiplayerHeartbeat({
     let heartbeatInFlight = false;
     let reconcileInFlight = false;
     const sendHeartbeat = () => {
-      if (document.visibilityState === 'hidden' || heartbeatInFlight) return;
+      if (heartbeatInFlight) return;
 
       heartbeatInFlight = true;
       void Promise.resolve(onHeartbeatRef.current())
@@ -53,7 +53,7 @@ export function useMultiplayerHeartbeat({
         });
     };
     const reconcile = () => {
-      if (document.visibilityState === 'hidden' || reconcileInFlight || !onReconcileRef.current) return;
+      if (reconcileInFlight || !onReconcileRef.current) return;
 
       reconcileInFlight = true;
       void Promise.resolve(onReconcileRef.current())

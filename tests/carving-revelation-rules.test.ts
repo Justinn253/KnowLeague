@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  compareCarvingRevelationViewVersions,
   getActiveConnectedPlayerIds,
+  getCarvingRevelationAnswerCandidates,
+  getCarvingRevelationHint,
   getCorrectGuessPlayerIds,
   getFirstCorrectGuessPlayerId,
+  getCarvingRevelationMatchKey,
   haveAllPlayersSubmitted,
   sanitizeCarvingRevelationLobbyForViewer,
 } from '@/lib/carving-revelation-rules';
@@ -23,6 +27,37 @@ const action = (overrides: Partial<{
 });
 
 describe('Carving Revelation round rules', () => {
+  it('orders snapshots by match generation before mutable lobby timestamps', () => {
+    const firstMatch = {
+      id: 'lobby-1',
+      status: 'finished',
+      round_number: 3,
+      phase: 'guess',
+      created_at: '2026-08-19T10:00:00.000Z',
+      started_at: '2026-08-19T10:01:00.000Z',
+      updated_at: '2026-08-19T10:04:00.000Z',
+    };
+    const nextMatch = { ...firstMatch, status: 'active', round_number: 1, phase: 'carve', started_at: '2026-08-19T10:05:00.000Z', updated_at: '2026-08-19T10:05:00.001Z' };
+    const staleResponse = { ...firstMatch, updated_at: '2026-08-19T10:06:00.000Z' };
+
+    expect(getCarvingRevelationMatchKey(nextMatch)).not.toBe(getCarvingRevelationMatchKey(firstMatch));
+    expect(compareCarvingRevelationViewVersions(nextMatch, firstMatch)).toBeGreaterThan(0);
+    expect(compareCarvingRevelationViewVersions(staleResponse, nextMatch)).toBeLessThan(0);
+  });
+
+  it('accepts both the skin-line answer and the specific skin title', () => {
+    expect(getCarvingRevelationAnswerCandidates('Worldbreaker', 'Worldbreaker Nautilus'))
+      .toEqual(['Worldbreaker', 'Worldbreaker Nautilus']);
+  });
+
+  it('reveals progressive hints only when their configured round interval is reached', () => {
+    expect(getCarvingRevelationHint('Worldbreaker', 1, 1)).toBe('W');
+    expect(getCarvingRevelationHint('Worldbreaker', 1, 3)).toBe('Wor');
+    expect(getCarvingRevelationHint('Worldbreaker', 2, 1)).toBeNull();
+    expect(getCarvingRevelationHint('Worldbreaker', 2, 4)).toBe('Wo');
+    expect(getCarvingRevelationHint('Worldbreaker', 0, 4)).toBeNull();
+  });
+
   it('keeps only connected active players in the current round progress', () => {
     expect(getActiveConnectedPlayerIds([
       { id: 'active-connected', result: 'active', connected: true },

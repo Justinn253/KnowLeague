@@ -8,6 +8,7 @@ type SettingsBody = {
   isPublic?: boolean;
   phaseDurationSeconds?: number | null;
   winCondition?: string;
+  hintFrequency?: number;
   modifiers?: unknown;
   powerUpsEnabled?: boolean;
   powerUpCount?: number;
@@ -27,6 +28,7 @@ export const POST = withApiMetrics('/api/carving-revelation/lobbies/[code]/setti
         isPublic: body.isPublic === true,
         phaseDurationSeconds: body.phaseDurationSeconds,
         winCondition: body.winCondition,
+        hintFrequency: body.hintFrequency,
         modifiers: body.modifiers,
         powerUpsEnabled: body.powerUpsEnabled,
         powerUpCount: body.powerUpCount,

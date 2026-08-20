@@ -1313,10 +1313,11 @@ export function Skincognito() {
     }
 
     const wasWaiting = lobbyView.lobby.status === 'waiting';
+    const forfeit = !wasWaiting;
     const code = lobbyView.lobby.code;
     isLeavingLobbyRef.current = true;
     latestLobbyRef.current = null;
-    if (wasWaiting) window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+    window.localStorage.removeItem(LOBBY_STORAGE_KEY);
     setLobbyView(null);
     setSelectedSkin(null);
     setSkinQuery('');
@@ -1327,21 +1328,14 @@ export function Skincognito() {
       await fetch(`/api/skincognito/lobbies/${code}/leave`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({ clientId, forfeit }),
+        keepalive: true,
       }).catch(() => undefined);
     }
     window.history.replaceState(null, '', '/skincognito');
-    if (wasWaiting) {
-      isLeavingLobbyRef.current = false;
-      await loadPublicLobbies();
-    } else {
-      setRejoinCandidate({
-        code,
-        expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      });
-      isLeavingLobbyRef.current = false;
-      await loadPublicLobbies();
-    }
+    setRejoinCandidate(null);
+    isLeavingLobbyRef.current = false;
+    await loadPublicLobbies();
   };
 
   const kickPlayer = (targetPlayerId: string) => {

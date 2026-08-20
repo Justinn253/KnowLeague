@@ -6,6 +6,7 @@ import type { RiftboundCardTierRating } from '@/lib/riftbound';
 import type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
 import type { RiftboundLatestPrice } from '@/lib/riftbound-market-values';
+import type { RiftboundInventoryHistoryGroup } from '@/lib/riftbound-inventory-history';
 import type { RiftboundInventoryMetadata, RiftboundSale } from '@/lib/riftbound-sales';
 
 export type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
@@ -60,6 +61,11 @@ export type RiftboundBootstrapResponse = RiftboundLatestPricesResponse & {
 
 export type RiftboundSalesResponse = {
   sales?: RiftboundSale[];
+  error?: string;
+};
+
+export type RiftboundInventoryHistoryResponse = {
+  history?: RiftboundInventoryHistoryGroup[];
   error?: string;
 };
 
@@ -146,6 +152,17 @@ export function getRiftboundLatestPrices(session?: Session | null) {
 
 export function getRiftboundSales(session: Session) {
   return requestRiftboundData<RiftboundSalesResponse>(`sales:${session.user.id}`, '/api/riftbound/sales', session);
+}
+
+export function getRiftboundInventoryHistory(session: Session) {
+  return requestRiftboundData<RiftboundInventoryHistoryResponse>(`inventory-history:${session.user.id}`, '/api/riftbound/inventory/history', session);
+}
+
+export function invalidateRiftboundInventoryHistory(session: Session | null) {
+  if (!session) return;
+  const key = `inventory-history:${session.user.id}`;
+  cacheGenerations.set(key, getCacheGeneration(key) + 1);
+  responseCache.delete(key);
 }
 
 export function getRiftboundCardPriceHistory(cardId: string, days = 30) {

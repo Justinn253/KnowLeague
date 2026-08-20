@@ -12,6 +12,81 @@ export type CarvingRevelationRuleAction = {
   payload: Record<string, unknown>;
 };
 
+export type CarvingRevelationHintFrequency = 0 | 1 | 2 | 3 | 4;
+
+export type CarvingRevelationViewLobbyVersion = {
+  id: string;
+  status: string;
+  round_number: number;
+  phase: string;
+  created_at: string;
+  started_at: string | null;
+  updated_at: string;
+};
+
+function getTimestamp(value: string | null | undefined) {
+  const timestamp = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getStatusRank(status: string) {
+  return status === 'waiting' ? 0
+    : status === 'active' ? 1
+      : status === 'finished' ? 2
+        : status === 'terminated' ? 3
+          : -1;
+}
+
+/** Identifies a complete Carving Revelation match, including a next round. */
+export function getCarvingRevelationMatchKey(lobby: Pick<CarvingRevelationViewLobbyVersion, 'id' | 'created_at' | 'started_at'>) {
+  return `${lobby.id}:${lobby.started_at ?? lobby.created_at}`;
+}
+
+/**
+ * Compares two lobby snapshots. A negative result means `next` is older and
+ * must not replace the already-rendered snapshot.
+ */
+export function compareCarvingRevelationViewVersions(
+  next: CarvingRevelationViewLobbyVersion,
+  current: CarvingRevelationViewLobbyVersion,
+) {
+  const nextMatchStart = getTimestamp(next.started_at ?? next.created_at);
+  const currentMatchStart = getTimestamp(current.started_at ?? current.created_at);
+  if (nextMatchStart !== currentMatchStart) return nextMatchStart - currentMatchStart;
+
+  const statusDifference = getStatusRank(next.status) - getStatusRank(current.status);
+  if (statusDifference !== 0) return statusDifference;
+
+  if (next.round_number !== current.round_number) return next.round_number - current.round_number;
+
+  const phaseDifference = (next.phase === 'guess' ? 1 : 0) - (current.phase === 'guess' ? 1 : 0);
+  if (phaseDifference !== 0) return phaseDifference;
+
+  return getTimestamp(next.updated_at) - getTimestamp(current.updated_at);
+}
+
+export function getCarvingRevelationAnswerCandidates(
+  answer: string | null | undefined,
+  title: string | null | undefined,
+) {
+  return [...new Set([answer, title]
+    .filter((candidate): candidate is string => typeof candidate === 'string')
+    .map((candidate) => candidate.trim())
+    .filter(Boolean))];
+}
+
+export function getCarvingRevelationHint(
+  answer: string | null | undefined,
+  frequency: CarvingRevelationHintFrequency,
+  roundNumber: number,
+) {
+  const trimmedAnswer = answer?.trim() ?? '';
+  if (!trimmedAnswer || frequency === 0 || roundNumber < frequency) return null;
+
+  const revealedCharacterCount = Math.min(trimmedAnswer.length, Math.floor(roundNumber / frequency));
+  return trimmedAnswer.slice(0, revealedCharacterCount) || null;
+}
+
 export function sanitizeCarvingRevelationLobbyForViewer<
   TLobby extends { status: string; secret_skin_id: string | null },
 >(lobby: TLobby): TLobby {

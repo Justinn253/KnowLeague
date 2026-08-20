@@ -3,6 +3,7 @@
 import { FormEvent, PointerEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, LogOut, PencilLine, RefreshCw, Sparkles, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { AppSelectMenu } from '@/components/app-select-menu';
 import { GameSettingsSection } from '@/components/game-settings-section';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import {
@@ -29,7 +30,8 @@ import { getOrCreateClientId, recordAppWin } from '@/lib/game-storage';
 import { addMultiplayerDisconnectListeners, disconnectMultiplayerSession } from '@/lib/multiplayer-client-session';
 import { getReconnectDeadline } from '@/lib/multiplayer-lifecycle';
 import { normalizeAnswer } from '@/lib/quiz';
-import type { CarvingRevelationAction, CarvingRevelationLobbyView, CarvingRevelationModifier, CarvingRevelationPowerUpState, CarvingRevelationPublicLobby, CarvingRevelationRoutineActionResponse, CarvingRevelationWinCondition } from '@/lib/carving-revelation';
+import type { CarvingRevelationAction, CarvingRevelationHintFrequency, CarvingRevelationLobbyView, CarvingRevelationModifier, CarvingRevelationPowerUpState, CarvingRevelationPublicLobby, CarvingRevelationRoutineActionResponse, CarvingRevelationWinCondition } from '@/lib/carving-revelation';
+import { compareCarvingRevelationViewVersions, getCarvingRevelationMatchKey } from '@/lib/carving-revelation-rules';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound } from '@/lib/ui-sounds';
@@ -49,8 +51,8 @@ let carvingPublicLobbiesRequest: Promise<CarvingRevelationPublicLobby[]> | null 
 
 function loadCarvingSkinAnswers() {
   if (!carvingSkinAnswersRequest) {
-    carvingSkinAnswersRequest = fetch('/api/skin-champion/quiz-answers?answerMode=skin-line')
-      .then((response) => response.ok ? response.json() as Promise<string[]> : Promise.reject(new Error('Unable to load skin lines.')))
+    carvingSkinAnswersRequest = fetch('/api/skin-champion/quiz-answers?answerMode=skin-line-and-skin')
+      .then((response) => response.ok ? response.json() as Promise<string[]> : Promise.reject(new Error('Unable to load skin answers.')))
       .catch((error) => {
         carvingSkinAnswersRequest = null;
         throw error;
@@ -86,23 +88,26 @@ const CARVING_MODIFIERS: Array<{ id: CarvingRevelationModifier; name: string; de
   { id: 'blurred', name: 'Blurred', description: 'Splash art is slightly blurred.' },
   { id: 'cropped', name: 'Cropped', description: 'Only a cropped section of the splash art is shown.' },
 ];
-const STARTING_LINE_LENGTH_OPTIONS = [5, 8, 10, 15, 20];
-const LINE_LENGTH_INCREMENT_OPTIONS = [1, 2, 3, 4, 5];
+const STARTING_LINE_LENGTH_OPTIONS = [8, 12, 15, 20];
+const LINE_LENGTH_INCREMENT_OPTIONS = [2, 3, 4, 5, 6];
+const HINT_OPTIONS: Array<{ value: CarvingRevelationHintFrequency; label: string }> = [
+  { value: 0, label: 'None' },
+  { value: 1, label: 'Every round' },
+  { value: 2, label: 'Every 2 rounds' },
+  { value: 3, label: 'Every 3 rounds' },
+  { value: 4, label: 'Every 4 rounds' },
+];
 const POWER_UP_COUNT_OPTIONS = Array.from({ length: MAX_CARVING_REVELATION_POWER_UP_COUNT }, (_, index) => index + 1);
 
 type DraftCarvingSettings = {
   phaseDurationSeconds: number | null;
   winCondition: CarvingRevelationWinCondition;
+  hintFrequency: CarvingRevelationHintFrequency;
   modifiers: CarvingRevelationModifier[];
   powerUpsEnabled: boolean;
   powerUpCount: number;
   startingLineLengthPercent: number;
   lineLengthIncrementPercent: number;
-};
-
-type SettingOption<T extends string | number | null> = {
-  value: T;
-  label: string;
 };
 
 type Stroke = {
@@ -293,16 +298,13 @@ function createDraftSettings(view: CarvingRevelationLobbyView): DraftCarvingSett
   return {
     phaseDurationSeconds: view.lobby.phase_duration_seconds,
     winCondition: view.lobby.win_condition,
+    hintFrequency: view.lobby.hint_frequency,
     modifiers: view.lobby.modifiers,
     powerUpsEnabled: view.lobby.power_ups_enabled,
     powerUpCount: view.lobby.power_up_count,
     startingLineLengthPercent: view.lobby.starting_line_length_percent,
     lineLengthIncrementPercent: view.lobby.line_length_increment_percent,
   };
-}
-
-function getSettingOptionKey(value: string | number | null) {
-  return value === null ? 'none' : String(value);
 }
 
 function haveSameModifiers(first: CarvingRevelationModifier[], second: CarvingRevelationModifier[]) {
@@ -463,66 +465,6 @@ function CarvingRevelationPowerUpMenu({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function SettingDropdown<T extends string | number | null>({
-  label,
-  value,
-  options,
-  disabled,
-  onSelect,
-}: {
-  label: string;
-  value: T;
-  options: Array<SettingOption<T>>;
-  disabled?: boolean;
-  onSelect: (value: T) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selectedOption = options.find((option) => getSettingOptionKey(option.value) === getSettingOptionKey(value)) ?? options[0];
-
-  return (
-    <label className="relative grid gap-2">
-      <span className="text-sm font-bold text-white">{label}</span>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => {
-          playUiSound('autocomplete-select');
-          setOpen((current) => !current);
-        }}
-        className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900 px-3 text-left text-sm font-semibold text-white outline-none transition hover:bg-slate-800 focus:border-amber-300/60 disabled:cursor-not-allowed disabled:opacity-65"
-      >
-        <span className="truncate">{selectedOption?.label}</span>
-        <ChevronDown size={16} className="shrink-0 text-slate-500" />
-      </button>
-      {open && !disabled ? (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 grid overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1  ">
-          {options.map((option) => (
-            <button
-              key={getSettingOptionKey(option.value)}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onMouseEnter={() => playUiSound('autocomplete-hover')}
-              onFocus={() => playUiSound('autocomplete-hover')}
-              onClick={() => {
-                playUiSound('autocomplete-select');
-                setOpen(false);
-                onSelect(option.value);
-              }}
-              className={`rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
-                getSettingOptionKey(option.value) === getSettingOptionKey(value)
-                  ? 'bg-amber-300/15 text-amber-100'
-                  : 'text-slate-200 hover:bg-slate-800'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </label>
   );
 }
 
@@ -822,6 +764,7 @@ export function CarvingRevelation() {
   const previousRosterSnapshotRef = useRef<{ hostId: string | null; roles: Map<string, string>; playerIds: Set<string> } | null>(null);
   const lobbyRefreshInFlightRef = useRef<Promise<CarvingRevelationLobbyView> | null>(null);
   const lobbyRefreshVersionRef = useRef(0);
+  const latestAcceptedViewRef = useRef<CarvingRevelationLobbyView | null>(null);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [view, setView] = useState<CarvingRevelationLobbyView | null>(null);
@@ -943,6 +886,7 @@ export function CarvingRevelation() {
   const settingsChanged = Boolean(view && visibleSettings && (
     visibleSettings.phaseDurationSeconds !== view.lobby.phase_duration_seconds ||
     visibleSettings.winCondition !== view.lobby.win_condition ||
+    visibleSettings.hintFrequency !== view.lobby.hint_frequency ||
     visibleSettings.startingLineLengthPercent !== view.lobby.starting_line_length_percent ||
     visibleSettings.lineLengthIncrementPercent !== view.lobby.line_length_increment_percent ||
     visibleSettings.powerUpsEnabled !== view.lobby.power_ups_enabled ||
@@ -969,7 +913,7 @@ export function CarvingRevelation() {
   ].filter(Boolean).join(' ');
   const displayedSkinImageUrl = view
     ? view.lobby.status === 'active' && clientId && view.requestingPlayer?.connected && view.requestingPlayer.result !== 'eliminated'
-      ? `${API_BASE}/${view.lobby.code}/skin-image?clientId=${encodeURIComponent(clientId)}`
+      ? `${API_BASE}/${view.lobby.code}/skin-image?clientId=${encodeURIComponent(clientId)}&version=${encodeURIComponent(view.lobby.started_at ?? view.lobby.created_at)}`
       : view.skin?.imageUrl ?? null
     : null;
   const imageModifierStyle = displayedSkinImageUrl
@@ -1219,19 +1163,29 @@ export function CarvingRevelation() {
 
   const applyView = useCallback((nextView: CarvingRevelationLobbyView) => {
     if (isLeavingLobbyRef.current) return;
+    const currentView = latestAcceptedViewRef.current;
+    if (currentView && currentView.lobby.id === nextView.lobby.id && compareCarvingRevelationViewVersions(nextView.lobby, currentView.lobby) < 0) {
+      return;
+    }
     if (nextView.lobby.status === 'terminated') {
       clearTransientState();
+      latestAcceptedViewRef.current = null;
       window.localStorage.removeItem(STORAGE_KEY);
       setRejoinCandidate(null);
       setView(null);
       router.replace('/games');
       return;
     }
+    const matchChanged = Boolean(currentView && currentView.lobby.id === nextView.lobby.id && (
+      getCarvingRevelationMatchKey(nextView.lobby) !== getCarvingRevelationMatchKey(currentView.lobby)
+    ));
+    const viewToApply = matchChanged ? { ...nextView, actions: [], nextRoundVotes: [] } : nextView;
+    latestAcceptedViewRef.current = viewToApply;
     setRejoinCandidate(null);
     setMessage('');
-    setView(nextView);
-    if (nextView.lobby.status === 'waiting' || nextView.lobby.status === 'active') {
-      window.localStorage.setItem(STORAGE_KEY, nextView.lobby.code);
+    setView(viewToApply);
+    if (viewToApply.lobby.status === 'waiting' || viewToApply.lobby.status === 'active') {
+      window.localStorage.setItem(STORAGE_KEY, viewToApply.lobby.code);
     } else {
       window.localStorage.removeItem(STORAGE_KEY);
     }
@@ -1324,6 +1278,7 @@ export function CarvingRevelation() {
     if (!session) return;
     clearTransientState();
     isLeavingLobbyRef.current = true;
+    latestAcceptedViewRef.current = null;
     latestSessionRef.current = null;
     if (forfeit || session.status === 'waiting') {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -1395,6 +1350,7 @@ export function CarvingRevelation() {
     settingsDirty,
     view,
     view?.lobby.line_length_increment_percent,
+    view?.lobby.hint_frequency,
     view?.lobby.modifiers,
     view?.lobby.phase_duration_seconds,
     view?.lobby.power_up_count,
@@ -1748,6 +1704,7 @@ export function CarvingRevelation() {
     isPublic?: boolean;
     phaseDurationSeconds?: number | null;
     winCondition?: CarvingRevelationWinCondition;
+    hintFrequency?: CarvingRevelationHintFrequency;
     modifiers?: CarvingRevelationModifier[];
     powerUpsEnabled?: boolean;
     powerUpCount?: number;
@@ -1767,6 +1724,7 @@ export function CarvingRevelation() {
           isPublic: settings.isPublic ?? view.lobby.is_public,
           phaseDurationSeconds: settings.phaseDurationSeconds !== undefined ? settings.phaseDurationSeconds : view.lobby.phase_duration_seconds,
           winCondition: settings.winCondition ?? view.lobby.win_condition,
+          hintFrequency: settings.hintFrequency ?? view.lobby.hint_frequency,
           modifiers: settings.modifiers ?? view.lobby.modifiers,
           powerUpsEnabled: settings.powerUpsEnabled ?? view.lobby.power_ups_enabled,
           powerUpCount: settings.powerUpCount ?? view.lobby.power_up_count,
@@ -1794,6 +1752,7 @@ export function CarvingRevelation() {
     const applied = await updateSettings({
       phaseDurationSeconds: draftSettings.phaseDurationSeconds,
       winCondition: draftSettings.winCondition,
+      hintFrequency: draftSettings.hintFrequency,
       modifiers: draftSettings.modifiers,
       powerUpsEnabled: draftSettings.powerUpsEnabled,
       powerUpCount: draftSettings.powerUpCount,
@@ -1918,6 +1877,7 @@ export function CarvingRevelation() {
       await leaveCurrentLobby(true);
       return;
     }
+    await leaveCurrentLobby(false);
     router.push('/games');
   };
 
@@ -2346,35 +2306,42 @@ export function CarvingRevelation() {
                     <GameSettingsSection title="Settings" defaultOpen summary={`${phaseTimeSummary} - ${winConditionSummary}`}>
                       <div className="grid gap-4">
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <SettingDropdown
+                          <AppSelectMenu
                             label="Phase Time"
                             value={visibleSettings?.phaseDurationSeconds ?? null}
                             options={PHASE_TIME_OPTIONS}
                             disabled={!isHost || busy}
-                            onSelect={(value) => updateDraftSettings((current) => ({ ...current, phaseDurationSeconds: value }))}
+                            onChange={(value) => updateDraftSettings((current) => ({ ...current, phaseDurationSeconds: value }))}
                           />
-                          <SettingDropdown
+                          <AppSelectMenu
                             label="Win Condition"
                             value={visibleSettings?.winCondition ?? 'everyone_correct'}
                             options={WIN_CONDITION_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
                             disabled={!isHost || busy}
-                            onSelect={(value) => updateDraftSettings((current) => ({ ...current, winCondition: value }))}
+                            onChange={(value) => updateDraftSettings((current) => ({ ...current, winCondition: value }))}
+                          />
+                          <AppSelectMenu
+                            label="Hints"
+                            value={visibleSettings?.hintFrequency ?? 0}
+                            options={HINT_OPTIONS}
+                            disabled={!isHost || busy}
+                            onChange={(value) => updateDraftSettings((current) => ({ ...current, hintFrequency: value }))}
                           />
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <SettingDropdown
+                          <AppSelectMenu
                             label="Starting Line Length"
-                            value={visibleSettings?.startingLineLengthPercent ?? 8}
+                            value={visibleSettings?.startingLineLengthPercent ?? 12}
                             options={STARTING_LINE_LENGTH_OPTIONS.map((option) => ({ value: option, label: `${option}%` }))}
                             disabled={!isHost || busy}
-                            onSelect={(value) => updateDraftSettings((current) => ({ ...current, startingLineLengthPercent: value }))}
+                            onChange={(value) => updateDraftSettings((current) => ({ ...current, startingLineLengthPercent: value }))}
                           />
-                          <SettingDropdown
+                          <AppSelectMenu
                             label="Round Increment"
-                            value={visibleSettings?.lineLengthIncrementPercent ?? 2}
+                            value={visibleSettings?.lineLengthIncrementPercent ?? 4}
                             options={LINE_LENGTH_INCREMENT_OPTIONS.map((option) => ({ value: option, label: `${option}%` }))}
                             disabled={!isHost || busy}
-                            onSelect={(value) => updateDraftSettings((current) => ({ ...current, lineLengthIncrementPercent: value }))}
+                            onChange={(value) => updateDraftSettings((current) => ({ ...current, lineLengthIncrementPercent: value }))}
                           />
                         </div>
                       </div>
@@ -2389,12 +2356,12 @@ export function CarvingRevelation() {
                         onToggle={() => updateDraftSettings((current) => ({ ...current, powerUpsEnabled: !current.powerUpsEnabled }))}
                       />
                       <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                        <SettingDropdown
+                        <AppSelectMenu
                           label="Power Up Count"
                            value={Math.min(MAX_CARVING_REVELATION_POWER_UP_COUNT, visibleSettings?.powerUpCount ?? 3)}
                           options={POWER_UP_COUNT_OPTIONS.map((option) => ({ value: option, label: String(option) }))}
                           disabled={!isHost || busy || !(visibleSettings?.powerUpsEnabled ?? true)}
-                          onSelect={(value) => updateDraftSettings((current) => ({ ...current, powerUpCount: value }))}
+                          onChange={(value) => updateDraftSettings((current) => ({ ...current, powerUpCount: value }))}
                         />
                       </div>
                       {CARVING_MODIFIERS.map((modifier) => {
@@ -2622,7 +2589,9 @@ export function CarvingRevelation() {
                     enterKeyHint="done"
                     aria-label="Carving guess"
                     className="min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300 disabled:opacity-60"
-                    placeholder={canGuess ? 'Type the skin line' : skipTurnBlockedByPowerUp ? 'Turn skipped by power up' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
+                    placeholder={canGuess
+                      ? view.hintText ? `Type the skin line (hint: ${view.hintText})` : 'Type the skin line'
+                      : skipTurnBlockedByPowerUp ? 'Turn skipped by power up' : view.lobby.phase === 'carve' ? 'Carving phase in progress' : 'Waiting'}
                   />
                   {suggestions.length > 0 && canGuess ? (
                     <div id="carving-revelation-guess-suggestions" role="listbox" className="absolute left-0 top-full z-50 mt-2 grid max-h-64 w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">

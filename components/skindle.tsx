@@ -96,7 +96,8 @@ type SkindleDailyStats = {
 type RecordSkindleGuessResponse = {
   snapshot: SkindleDailyStats;
   accepted: boolean;
-  firstForSkin: boolean;
+  acceptedCount: number;
+  firstForSkinIds: string[];
   clientAlreadySolved: boolean;
 };
 
@@ -191,6 +192,10 @@ function formatCategoryValue(value: string) {
   return toDisplayTitleCase(value);
 }
 
+function formatLaneValue(value: string) {
+  return formatCategoryValue(value.replace(/\s*\/\s*/g, ', '));
+}
+
 function getCategoryValues(item: QuizItem): Record<CategoryId, string> {
   return {
     champion: formatCategoryValue(item.champion || 'Unknown'),
@@ -200,7 +205,7 @@ function getCategoryValues(item: QuizItem): Record<CategoryId, string> {
     gender: formatCategoryValue(item.gender || 'Unknown'),
     role: formatCategoryValue(item.role || 'Unknown'),
     race: formatCategoryValue(item.race || 'Unknown'),
-    lane: formatCategoryValue(item.lane || 'Unknown'),
+    lane: formatLaneValue(item.lane || 'Unknown'),
     resourceType: formatCategoryValue(item.resourceType || 'Unknown'),
   };
 }
@@ -355,7 +360,7 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
       }`}
     >
       <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold leading-5 ${compact ? 'text-sm' : 'text-base'}`}>
-        <span className="line-clamp-2 min-w-0">{guess.values[categoryId]}</span>
+        <span className="line-clamp-2 min-w-0 break-words">{guess.values[categoryId]}</span>
         {categoryId === 'releaseYear' && guess.releaseYearDirection === 'higher' ? (
           <ArrowUp size={compact ? 15 : 18} strokeWidth={2.5} aria-label="Target year is higher" className="shrink-0" />
         ) : null}
@@ -475,7 +480,7 @@ const SkindleMobileGuessRow = memo(function SkindleMobileGuessRow({
         {categoryById[categoryId].label}
       </p>
       <span className="mt-1 flex min-w-0 items-center gap-1 text-sm font-semibold leading-5">
-        <span className="line-clamp-2 min-w-0">{guess.values[categoryId]}</span>
+        <span className="line-clamp-2 min-w-0 break-words">{guess.values[categoryId]}</span>
         {categoryId === 'releaseYear' && guess.releaseYearDirection === 'higher' ? (
           <ArrowUp size={15} strokeWidth={2.5} aria-label="Target year is higher" className="shrink-0" />
         ) : null}
@@ -589,6 +594,8 @@ export function Skindle() {
   const achievementRecordedRef = useRef(false);
   const manyGuessesAchievementRecordedRef = useRef(false);
   const correctGuessStatsPendingRef = useRef(false);
+  const submittedStatsGuessCountRef = useRef(0);
+  const latestAppliedStatsGuessCountRef = useRef(0);
   const activeDateKeyRef = useRef(activeDateKey);
 
   const solved = Boolean(target && guesses.some((guess) => guess.item.id === target.id));
@@ -819,6 +826,9 @@ export function Skindle() {
     hasRestoredStateRef.current = false;
     achievementRecordedRef.current = false;
     manyGuessesAchievementRecordedRef.current = false;
+    correctGuessStatsPendingRef.current = false;
+    submittedStatsGuessCountRef.current = 0;
+    latestAppliedStatsGuessCountRef.current = 0;
     activeDateKeyRef.current = nextDateKey;
     setActiveDateKey(nextDateKey);
     if (hadUnfinishedRound) {
@@ -892,6 +902,50 @@ export function Skindle() {
 
   const openSkinPreview = useCallback((skin: QuizItem) => setPreviewSkin(skin), []);
 
+  const submitStatsBatch = useCallback(async (batch: GuessResult[], batchEnd: number) => {
+    if (!clientId || batch.length === 0) {
+      return false;
+    }
+
+    try {
+      const response = await fetch('/api/skindle/stats', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clientId,
+          guesses: batch.map((guess) => ({
+            skinId: guess.item.id,
+            answer: guess.item.answer,
+            isCorrect: guess.item.id === target?.id,
+          })),
+        }),
+      });
+      if (!response.ok) throw new Error('Unable to record Skindle guesses.');
+
+      const data = await response.json() as RecordSkindleGuessResponse;
+      submittedStatsGuessCountRef.current = Math.max(submittedStatsGuessCountRef.current, batchEnd);
+      if (data.snapshot && batchEnd >= latestAppliedStatsGuessCountRef.current) {
+        latestAppliedStatsGuessCountRef.current = batchEnd;
+        setDailyStats(data.snapshot);
+      }
+
+      if (data.firstForSkinIds?.length) {
+        setFirstGlobalGuessSkinIds((current) => {
+          const next = new Set(current);
+          data.firstForSkinIds.forEach((skinId) => next.add(skinId));
+          return next;
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to record Skindle guess batch', error);
+      return false;
+    }
+  }, [clientId, target]);
+
   const submitGuess = (skin: QuizItem | undefined) => {
     if (!skin || !target || solved) {
       return;
@@ -910,8 +964,8 @@ export function Skindle() {
     const result = compareGuess(skin, target);
     const isCorrectGuess = skin.id === target.id;
     const nextGuessCount = guesses.length + 1;
-    correctGuessStatsPendingRef.current = Boolean(clientId && isCorrectGuess);
-    setGuesses((current) => [...current, result]);
+    const nextGuesses = [...guesses, result];
+    setGuesses(nextGuesses);
     setInputValue('');
     setSuggestions([]);
     scheduleSound(
@@ -929,44 +983,30 @@ export function Skindle() {
       }
       void submitAchievementEvents(achievementEvents);
     }
-    if (clientId) {
-      let statsRecorded = false;
-      fetch('/api/skindle/stats', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          clientId,
-          skinId: skin.id,
-          answer: skin.answer,
-          isCorrect: isCorrectGuess,
-        }),
-      })
-        .then((response) => {
-          if (!response.ok) throw new Error('Unable to record Skindle guess.');
-          return response.json();
-        })
-        .then((data: RecordSkindleGuessResponse) => {
-          statsRecorded = true;
-          if (data.snapshot) {
-            setDailyStats(data.snapshot);
+    if (clientId && (isCorrectGuess || nextGuessCount % 5 === 0)) {
+      const submittedGuessCount = submittedStatsGuessCountRef.current;
+      const batch = isCorrectGuess
+        ? nextGuesses.slice(submittedGuessCount)
+        : submittedGuessCount < nextGuessCount - 5
+          ? nextGuesses.slice(submittedGuessCount)
+          : nextGuesses.slice(-5);
+
+      if (batch.length > 0) {
+        if (isCorrectGuess) {
+          correctGuessStatsPendingRef.current = true;
+        }
+
+        void submitStatsBatch(batch, nextGuessCount).then((statsRecorded) => {
+          if (!isCorrectGuess) {
+            return;
           }
 
-          if (data.firstForSkin) {
-            setFirstGlobalGuessSkinIds((current) => new Set(current).add(skin.id));
-          }
-        })
-        .catch((error) => {
-          console.error('Failed to record Skindle guess', error);
-        })
-        .finally(() => {
-          if (!isCorrectGuess) return;
           correctGuessStatsPendingRef.current = false;
           if (!statsRecorded) {
             void refreshDailyStats(true);
           }
         });
+      }
     }
   };
 

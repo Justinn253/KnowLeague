@@ -123,7 +123,9 @@ const DAILY_COMPLETION_STORAGE_KEY_PREFIX = 'knowleague:v1:splash-scramble:daily
 const STATS_STORAGE_KEY = 'knowleague:v1:splash-scramble:stats';
 const SKIN_SEARCH_ROW_HEIGHT = 56;
 const SKIN_SEARCH_MAX_HEIGHT = 360;
-const SKIN_SEARCH_OVERSCAN = 4;
+const SKIN_SEARCH_MIN_QUERY_LENGTH = 3;
+const SKIN_SEARCH_RESULT_LIMIT = 12;
+const SKIN_SEARCH_OVERSCAN = 1;
 const CLOCKWISE_ROTATION_KEYS = new Set(['arrowup', 'arrowleft', 'w', 'a']);
 const COUNTER_CLOCKWISE_ROTATION_KEYS = new Set(['arrowdown', 'arrowright', 's', 'd']);
 const DEFAULT_SETTINGS: SplashScrambleSettings = {
@@ -857,13 +859,14 @@ export function SplashScramble() {
   ), [skinCatalog]);
   const filteredSkins = useMemo(() => {
     const query = deferredSkinSearch.trim().toLowerCase();
-    if (!query) {
+    if (query.length < SKIN_SEARCH_MIN_QUERY_LENGTH) {
       return [];
     }
 
     return skinSearchIndex
       .filter((entry) => entry.searchText.includes(query))
-      .map((entry) => entry.skin);
+      .map((entry) => entry.skin)
+      .slice(0, SKIN_SEARCH_RESULT_LIMIT);
   }, [deferredSkinSearch, skinSearchIndex]);
   const skinSearchListHeight = Math.min(SKIN_SEARCH_MAX_HEIGHT, filteredSkins.length * SKIN_SEARCH_ROW_HEIGHT);
   const skinSearchStartIndex = Math.max(0, Math.floor(skinSearchScrollTop / SKIN_SEARCH_ROW_HEIGHT) - SKIN_SEARCH_OVERSCAN);
@@ -1977,7 +1980,7 @@ export function SplashScramble() {
                   ))}
                 </div>
               </div>
-            ) : skinSearchIsUpdating && skinSearch.trim() ? (
+            ) : skinSearchIsUpdating && skinSearch.trim().length >= SKIN_SEARCH_MIN_QUERY_LENGTH ? (
               <div className="absolute left-0 right-0 top-12 z-40 rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm font-semibold text-slate-400">
                 Searching...
               </div>

@@ -59,7 +59,9 @@ const SKINDLE_REVEAL_DURATION_MS = 336;
 const SKINDLE_REVEAL_TOTAL_MS = SKINDLE_REVEAL_DURATION_MS * (categories.length + 1);
 const SKINDLE_SUGGESTION_ROW_HEIGHT = 64;
 const SKINDLE_SUGGESTION_MAX_HEIGHT = 360;
-const SKINDLE_SUGGESTION_OVERSCAN = 4;
+const SKINDLE_SUGGESTION_MIN_QUERY_LENGTH = 3;
+const SKINDLE_SUGGESTION_LIMIT = 12;
+const SKINDLE_SUGGESTION_OVERSCAN = 1;
 const CATEGORY_NOTE_TOOLTIP_HALF_WIDTH = 128;
 
 const categoryById = Object.fromEntries(categories.map((category) => [category.id, category])) as Record<CategoryId, CategoryDefinition>;
@@ -318,6 +320,14 @@ function CategoryHeaderLabel({
   );
 }
 
+const mobileCategoryGroups = [
+  ['champion', 'skinLine'],
+  ['rarity', 'race'],
+  ['gender', 'role'],
+  ['lane', 'releaseYear'],
+  ['resourceType'],
+] as const satisfies readonly (readonly CategoryId[])[];
+
 const SkindleGuessRow = memo(function SkindleGuessRow({
   guess,
   isLatestGuess,
@@ -349,7 +359,7 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
   const renderCategoryCell = (categoryId: CategoryId, compact = false) => (
     <div
       key={categoryId}
-      className={`relative flex items-center justify-center overflow-hidden rounded-lg border text-center  ${
+      className={`relative flex items-center justify-center overflow-hidden rounded-lg border text-center ${
         compact ? 'min-h-0 px-2 py-2' : 'min-h-28 px-2 py-3'
       } ${
         guess.matches[categoryId]
@@ -372,100 +382,7 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
     </div>
   );
 
-  return (
-    <div
-      className={`relative overflow-hidden rounded-xl ${isLatestGuess ? 'animate-slide-in' : ''} ${
-        isCorrectGuess && revealed ? 'skindle-gradient-border  ' : ''
-      }`}
-    >
-      <div
-        className={`grid grid-cols-[minmax(8.5rem,1.25fr)_minmax(6.5rem,0.9fr)_repeat(4,minmax(7rem,1fr))] gap-2 ${
-          isCorrectGuess && revealed ? 'skindle-gradient-border-content' : ''
-        }`}
-      >
-        <div
-          className={`relative flex min-h-28 flex-col items-center justify-between overflow-hidden rounded-lg border px-2 py-3 text-center  ${
-            isCorrectGuess
-              ? 'border-slate-300/70 bg-[#00c800] text-white '
-              : 'border-slate-300/70 bg-red-500/85 text-white '
-          }`}
-        >
-          <span className="line-clamp-2 text-base font-semibold leading-5">{guess.item.answer}</span>
-          <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-white/80">
-            {globalGuessCount > 1 ? `${globalGuessCount} global guesses` : null}
-            {globalGuessCount === 1 || firstGlobalGuess ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.12em] text-slate-950">
-                <Sparkles size={11} />
-                First
-              </span>
-            ) : null}
-          </span>
-          <button
-            type="button"
-            onClick={() => onPreview(guess.item)}
-            className="mt-2 w-full cursor-zoom-in ring-1 ring-white/30 transition hover:ring-white/70"
-            aria-label={`Open ${guess.item.answer} splash art`}
-          >
-            <GameSplashImage
-              src={guess.item.imageUrl}
-              alt=""
-              width={243}
-              height={143}
-              sizes="(min-width: 640px) 243px, 100vw"
-              className="aspect-[1215/717] w-full shrink-0 object-contain"
-            />
-          </button>
-          {getRevealOverlay(0)}
-        </div>
-        {renderCategoryCell('champion')}
-        {revealColumnGroups.slice(1).map((group) => (
-          <div key={group.join('-')} className="grid min-h-28 grid-rows-2 gap-2">
-            {group.map((categoryId) => renderCategoryCell(categoryId, true))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-});
-
-const mobileCategoryGroups = [
-  ['champion', 'skinLine'],
-  ['rarity', 'race'],
-  ['gender', 'role'],
-  ['lane', 'releaseYear'],
-  ['resourceType'],
-] as const satisfies readonly (readonly CategoryId[])[];
-
-const SkindleMobileGuessRow = memo(function SkindleMobileGuessRow({
-  guess,
-  isLatestGuess,
-  isCorrectGuess,
-  revealed,
-  globalGuessCount,
-  firstGlobalGuess,
-  onPreview,
-}: {
-  guess: GuessResult;
-  isLatestGuess: boolean;
-  isCorrectGuess: boolean;
-  revealed: boolean;
-  globalGuessCount: number;
-  firstGlobalGuess: boolean;
-  onPreview: (skin: QuizItem) => void;
-}) {
-  const getRevealOverlay = (cellIndex: number) => isLatestGuess ? (
-    <div
-      className="skindle-cell-reveal pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-800"
-      style={{
-        animationDelay: `${cellIndex * SKINDLE_REVEAL_DURATION_MS}ms`,
-        animationDuration: `${SKINDLE_REVEAL_DURATION_MS}ms`,
-      }}
-    >
-      <QuestionPingMark />
-    </div>
-  ) : null;
-
-  const renderCategory = (categoryId: CategoryId) => (
+  const renderMobileCategory = (categoryId: CategoryId) => (
     <div
       key={categoryId}
       className={`relative min-h-14 overflow-hidden rounded-lg border px-2 py-2 ${
@@ -498,40 +415,58 @@ const SkindleMobileGuessRow = memo(function SkindleMobileGuessRow({
         isCorrectGuess && revealed ? 'skindle-gradient-border' : ''
       }`}
     >
-      <div className={`rounded-lg border border-white/10 bg-slate-900/80 p-3 ${isCorrectGuess && revealed ? 'skindle-gradient-border-content' : ''}`}>
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={() => onPreview(guess.item)}
-            className="w-24 shrink-0 cursor-zoom-in overflow-hidden rounded-lg ring-1 ring-white/30 transition hover:ring-white/70 focus:outline-none focus:ring-2 focus:ring-amber-200 active:scale-[0.98]"
-            aria-label={`Open ${guess.item.answer} splash art`}
-          >
-            <GameSplashImage
-              src={guess.item.imageUrl}
-              alt=""
-              width={243}
-              height={143}
-              sizes="96px"
-              className="aspect-[1215/717] w-full object-cover"
-            />
-          </button>
-          <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-base font-semibold leading-5 text-white">{guess.item.answer}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-white/80">
-              {globalGuessCount > 1 ? `${globalGuessCount} global guesses` : null}
-              {globalGuessCount === 1 || firstGlobalGuess ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.12em] text-slate-950">
-                  <Sparkles size={11} />
-                  First
-                </span>
-              ) : null}
+      <div
+        className={`grid gap-2 sm:grid-cols-[minmax(8.5rem,1.25fr)_minmax(6.5rem,0.9fr)_repeat(4,minmax(7rem,1fr))] ${
+          isCorrectGuess && revealed ? 'skindle-gradient-border-content' : ''
+        }`}
+      >
+        <div
+          className={`relative overflow-hidden rounded-lg border bg-slate-900/80 text-white sm:flex sm:min-h-28 sm:flex-col sm:items-center sm:justify-between sm:px-2 sm:py-3 sm:text-center ${
+            isCorrectGuess
+              ? 'border-white/10 sm:border-slate-300/70 sm:bg-[#00c800] '
+              : 'border-white/10 sm:border-slate-300/70 sm:bg-red-500/85 '
+          }`}
+        >
+          <div className="grid min-h-28 grid-cols-[6rem_minmax(0,1fr)] items-center gap-3 px-3 py-3 sm:contents">
+            <button
+              type="button"
+              onClick={() => onPreview(guess.item)}
+              className="order-1 w-24 shrink-0 cursor-zoom-in overflow-hidden rounded-lg ring-1 ring-white/30 transition hover:ring-white/70 focus:outline-none focus:ring-2 focus:ring-amber-200 active:scale-[0.98] sm:order-2 sm:mt-2 sm:w-full"
+              aria-label={`Open ${guess.item.answer} splash art`}
+            >
+              <GameSplashImage
+                src={guess.item.imageUrl}
+                alt=""
+                width={243}
+                height={143}
+                sizes="(min-width: 640px) 243px, 96px"
+                className="aspect-[1215/717] w-full object-cover sm:object-contain"
+              />
+            </button>
+            <div className="order-2 min-w-0 text-left sm:order-1 sm:text-center">
+              <span className="line-clamp-2 text-base font-semibold leading-5">{guess.item.answer}</span>
+              <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-white/80">
+                {globalGuessCount > 1 ? `${globalGuessCount} global guesses` : null}
+                {globalGuessCount === 1 || firstGlobalGuess ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.12em] text-slate-950">
+                    <Sparkles size={11} />
+                    First
+                  </span>
+                ) : null}
+              </span>
             </div>
           </div>
+          {getRevealOverlay(0)}
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {mobileCategoryGroups.flatMap((group) => group.map(renderCategory))}
+        <div className="hidden sm:block">{renderCategoryCell('champion')}</div>
+        {revealColumnGroups.slice(1).map((group) => (
+          <div key={group.join('-')} className="hidden min-h-28 grid-rows-2 gap-2 sm:grid">
+            {group.map((categoryId) => renderCategoryCell(categoryId, true))}
+          </div>
+        ))}
+        <div className="grid grid-cols-2 gap-2 sm:hidden">
+          {mobileCategoryGroups.flatMap((group) => group.map(renderMobileCategory))}
         </div>
-        {getRevealOverlay(0)}
       </div>
     </div>
   );
@@ -583,7 +518,7 @@ export function Skindle() {
   const [activeCategoryNote, setActiveCategoryNote] = useState<ActiveCategoryNote | null>(null);
   const inputAreaRef = useRef<HTMLDivElement>(null);
   const guessesPanelRef = useRef<HTMLDivElement>(null);
-  const mobileGuessesPanelRef = useRef<HTMLDivElement>(null);
+  const latestGuessRowRef = useRef<HTMLDivElement>(null);
   const topGuessesMenuRef = useRef<HTMLDivElement>(null);
   const playerStatsMenuRef = useRef<HTMLDivElement>(null);
   const playerStatsButtonRef = useRef<HTMLButtonElement>(null);
@@ -660,12 +595,13 @@ export function Skindle() {
 
   const getMatchingSuggestions = useCallback((value: string) => {
     const query = normalizeAnswer(value);
-    if (value.trim().length < 2 || !query || solved) {
+    if (value.trim().length < SKINDLE_SUGGESTION_MIN_QUERY_LENGTH || !query || solved) {
       return [];
     }
     return skinSearchIndex
       .filter(({ skin, normalizedAnswer }) => !guessedSkinIds.has(skin.id) && normalizedAnswer.includes(query))
-      .map(({ skin }) => skin);
+      .map(({ skin }) => skin)
+      .slice(0, SKINDLE_SUGGESTION_LIMIT);
   }, [guessedSkinIds, skinSearchIndex, solved]);
 
   useEffect(() => {
@@ -850,16 +786,10 @@ export function Skindle() {
     }
 
     window.requestAnimationFrame(() => {
-      guessesPanelRef.current?.scrollTo({
-        top: 0,
+      latestGuessRowRef.current?.scrollIntoView({
         behavior: 'smooth',
+        block: 'nearest',
       });
-      if (mobileGuessesPanelRef.current) {
-        mobileGuessesPanelRef.current.scrollTo({
-          top: mobileGuessesPanelRef.current.scrollHeight,
-          behavior: 'smooth',
-        });
-      }
     });
   }, [guesses.length]);
 
@@ -1305,32 +1235,9 @@ export function Skindle() {
               </button>
             ) : null}
 
-            <div ref={mobileGuessesPanelRef} className={`max-h-[34rem] overflow-y-auto overscroll-contain pr-1 sm:hidden ${THEMED_SCROLLBAR_CLASS}`}>
-              {guesses.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6 text-center text-sm text-slate-500">
-                  Your guesses will appear here.
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {guesses.map((guess) => (
-                    <SkindleMobileGuessRow
-                      key={guess.item.id}
-                      guess={guess}
-                      isLatestGuess={guess.item.id === guesses[guesses.length - 1]?.item.id}
-                      isCorrectGuess={target?.id === guess.item.id}
-                      revealed={revealedSolvedGuessId === guess.item.id}
-                      globalGuessCount={dailyStats?.guessesBySkin[guess.item.id] ?? 0}
-                      firstGlobalGuess={firstGlobalGuessSkinIds.has(guess.item.id)}
-                      onPreview={openSkinPreview}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className={`hidden overflow-x-auto overscroll-x-contain sm:block ${THEMED_SCROLLBAR_CLASS}`}>
-              <div className="w-full min-w-[58rem]">
-                <div className="grid grid-cols-[minmax(8.5rem,1.25fr)_minmax(6.5rem,0.9fr)_repeat(4,minmax(7rem,1fr))] gap-2 pb-3 pl-1 pr-5 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
+            <div className={`overflow-x-auto sm:overscroll-x-contain ${THEMED_SCROLLBAR_CLASS}`}>
+              <div className="w-full sm:min-w-[58rem]">
+                <div className="hidden grid-cols-[minmax(8.5rem,1.25fr)_minmax(6.5rem,0.9fr)_repeat(4,minmax(7rem,1fr))] gap-2 pb-3 pl-1 pr-5 text-center text-xs uppercase tracking-[0.18em] text-slate-500 sm:grid">
                   <div>Guess</div>
                   {revealColumnGroups.map((group) => (
                     <div key={group.join('-')} className={group.length > 1 ? 'grid grid-rows-2 gap-1' : ''}>
@@ -1347,24 +1254,28 @@ export function Skindle() {
                   ))}
                 </div>
 
-                <div ref={guessesPanelRef} className={`max-h-[34rem] overflow-y-auto pr-2 [scrollbar-gutter:stable] ${THEMED_SCROLLBAR_CLASS}`}>
+                <div ref={guessesPanelRef} className={`max-h-[34rem] overflow-y-auto overscroll-contain pr-1 sm:pr-2 sm:[scrollbar-gutter:stable] ${THEMED_SCROLLBAR_CLASS}`}>
                   {guesses.length === 0 ? (
-                    <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-8 text-center text-sm text-slate-500">
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6 text-center text-sm text-slate-500 sm:p-8">
                       Your guesses will appear here.
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col-reverse gap-3 sm:flex-col">
                       {displayedGuesses.map((guess) => (
-                        <SkindleGuessRow
+                        <div
                           key={guess.item.id}
-                          guess={guess}
-                          isLatestGuess={guess.item.id === guesses[guesses.length - 1]?.item.id}
-                          isCorrectGuess={target?.id === guess.item.id}
-                          revealed={revealedSolvedGuessId === guess.item.id}
-                          globalGuessCount={dailyStats?.guessesBySkin[guess.item.id] ?? 0}
-                          firstGlobalGuess={firstGlobalGuessSkinIds.has(guess.item.id)}
-                          onPreview={openSkinPreview}
-                        />
+                          ref={guess.item.id === guesses[guesses.length - 1]?.item.id ? latestGuessRowRef : undefined}
+                        >
+                          <SkindleGuessRow
+                            guess={guess}
+                            isLatestGuess={guess.item.id === guesses[guesses.length - 1]?.item.id}
+                            isCorrectGuess={target?.id === guess.item.id}
+                            revealed={revealedSolvedGuessId === guess.item.id}
+                            globalGuessCount={dailyStats?.guessesBySkin[guess.item.id] ?? 0}
+                            firstGlobalGuess={firstGlobalGuessSkinIds.has(guess.item.id)}
+                            onPreview={openSkinPreview}
+                          />
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1444,7 +1355,7 @@ export function Skindle() {
                     ))}
                   </div>
                 </div>
-              ) : suggestionsAreUpdating && inputValue.trim().length >= 2 ? (
+              ) : suggestionsAreUpdating && inputValue.trim().length >= SKINDLE_SUGGESTION_MIN_QUERY_LENGTH ? (
                 <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm font-semibold text-slate-400 sm:w-[calc(100%-8rem)]">
                   Searching...
                 </div>

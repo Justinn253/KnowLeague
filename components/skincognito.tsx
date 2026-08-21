@@ -85,7 +85,8 @@ type NormalizedAnswer<T> = {
 
 const LOBBY_STORAGE_KEY = SKINCOGNITO_LOBBY_STORAGE_KEY;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
-const SKIN_SUGGESTION_LIMIT = 12;
+const SKIN_SUGGESTION_MIN_QUERY_LENGTH = 3;
+const SKIN_SUGGESTION_LIMIT = 8;
 
 const CATEGORY_DEFINITIONS: Array<{ id: Exclude<SkincognitoCategoryId, 'skin'>; label: string }> = [
   { id: 'champion', label: 'Champion' },
@@ -556,7 +557,7 @@ export function Skincognito() {
   }), [answers]);
   const suggestions = useMemo(() => {
     const query = normalizeAnswer(skinQuery);
-    if (query.length < 2 || selectedSkin?.label === skinQuery) {
+    if (query.length < SKIN_SUGGESTION_MIN_QUERY_LENGTH || selectedSkin?.label === skinQuery) {
       return [];
     }
 
@@ -568,7 +569,7 @@ export function Skincognito() {
 
   const guessSuggestions = useMemo(() => {
     const query = normalizeAnswer(guessQuery);
-    if (selectedCategory === 'skin' && query.length < 2) {
+    if (selectedCategory === 'skin' && query.length < SKIN_SUGGESTION_MIN_QUERY_LENGTH) {
       return [];
     }
 

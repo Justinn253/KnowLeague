@@ -2126,4 +2126,34 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
+  {
+    id: 'patch-2026-08-21-autocomplete-image-transformations',
+    patch: '2026.08.21-autocomplete-image-transformations',
+    timestamp: '2026-08-21T19:01:30.2411344Z',
+    title: 'Reduced responsive and autocomplete image transformations',
+    summary: 'Removed Skindle’s duplicate desktop/mobile guess-image mount and bounded image-backed autocomplete searches across Skindle, Splash Scramble, and Skincognito.',
+    details: [
+      'Replaced Skindle’s separate mobile and desktop guess-row components with one responsive row that contains one shared GameSplashImage element per guess. The desktop grid and mobile category layout remain responsive, and latest-guess scrolling now follows the single shared row reference.',
+      'Splash Scramble skin search now waits for three characters, caps results at 12, and uses one overscan row instead of four. This prevents broad one- and two-character searches from mounting up to 15 new splash thumbnails on every keystroke.',
+      'Skindle autocomplete now waits for three characters, caps results at 12, and uses one overscan row instead of four. Skincognito’s skin-selection and skin-guess dropdowns now wait for three characters and cap image-backed results at eight; non-skin category suggestions remain text-only and unchanged.',
+      'Kept large selected, target, preview, board-reference, and completed-game artwork optimized. No global unoptimized override was added, avoiding a transformation reduction that would instead download the original large splash source for every thumbnail.',
+    ],
+    impact: [
+      'A normal Skindle guess no longer mounts separate mobile and desktop optimized splash variants; the browser selects one responsive image variant for the shared row.',
+      'Splash Scramble searches such as a → am → amu no longer transform images for the first two broad queries. The likely 37-transformation pattern from the reported test should be bounded to the matching results after the third character, with at most nine initial thumbnails mounted.',
+      'Image-backed dropdowns remain available, but require a more specific query and expose bounded result sets, reducing transformation spikes while preserving skin selection and guessing behavior.',
+    ],
+    files: [
+      'components/skindle.tsx',
+      'components/splash-scramble.tsx',
+      'components/skincognito.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npx tsc --noEmit --incremental false passed after the responsive row and autocomplete changes.',
+      'git diff --check passed; CRLF normalization warnings from Git were informational only.',
+      'npm run check passed: lint retained only the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 54 tests passed across 18 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
 ];

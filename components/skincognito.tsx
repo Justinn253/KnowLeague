@@ -2,7 +2,7 @@
 
 import { forwardRef, memo, type CSSProperties, FormEvent, type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, Shuffle } from 'lucide-react';
-import { GameSplashImage } from '@/components/game-asset-image';
+import { GAME_SKIN_THUMBNAIL_SIZES, GameSplashImage } from '@/components/game-asset-image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import {
@@ -85,6 +85,7 @@ type NormalizedAnswer<T> = {
 
 const LOBBY_STORAGE_KEY = SKINCOGNITO_LOBBY_STORAGE_KEY;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
+const SKIN_SUGGESTION_LIMIT = 12;
 
 const CATEGORY_DEFINITIONS: Array<{ id: Exclude<SkincognitoCategoryId, 'skin'>; label: string }> = [
   { id: 'champion', label: 'Champion' },
@@ -561,7 +562,8 @@ export function Skincognito() {
 
     return normalizedSkinAnswers
       .filter((entry) => entry.normalized.includes(query))
-      .map((entry) => entry.value);
+      .map((entry) => entry.value)
+      .slice(0, SKIN_SUGGESTION_LIMIT);
   }, [normalizedSkinAnswers, selectedSkin?.label, skinQuery]);
 
   const guessSuggestions = useMemo(() => {
@@ -573,7 +575,8 @@ export function Skincognito() {
     if (selectedCategory === 'skin') {
       return normalizedSkinAnswers
         .filter((entry) => entry.normalized.includes(query) && !guessedValues.has(entry.normalized))
-        .map(({ value: skin }) => ({ id: skin.id, label: skin.label, imageUrl: skin.imageUrl }));
+        .map(({ value: skin }) => ({ id: skin.id, label: skin.label, imageUrl: skin.imageUrl }))
+        .slice(0, SKIN_SUGGESTION_LIMIT);
     }
 
     return normalizedCategoryAnswers[selectedCategory]
@@ -1682,7 +1685,7 @@ export function Skincognito() {
                                   alt=""
                                   width={72}
                                   height={42}
-                                  sizes="64px"
+                                  sizes={GAME_SKIN_THUMBNAIL_SIZES}
                                   className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
                                 />
                                 <span className="min-w-0 truncate">{skin.label}</span>
@@ -2098,7 +2101,7 @@ export function Skincognito() {
                                     alt=""
                                     width={72}
                                     height={42}
-                                    sizes="64px"
+                                    sizes={GAME_SKIN_THUMBNAIL_SIZES}
                                     className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
                                   />
                                 ) : null}

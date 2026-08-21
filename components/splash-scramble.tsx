@@ -22,7 +22,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { GameSplashImage } from '@/components/game-asset-image';
+import { GAME_SKIN_THUMBNAIL_SIZES, GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { SplashScrambleDailyLeaderboard } from '@/components/splash-scramble-daily-leaderboard';
@@ -1967,7 +1967,7 @@ export function SplashScramble() {
                       }}
                     >
                       <span className="relative h-10 overflow-hidden rounded-xl bg-slate-900">
-                        <GameSplashImage src={skin.imageUrl} alt="" fill sizes="48px" className="object-cover" />
+                        <GameSplashImage src={skin.imageUrl} alt="" fill sizes={GAME_SKIN_THUMBNAIL_SIZES} className="object-cover" />
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-white">{skin.answer}</span>

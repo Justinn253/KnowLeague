@@ -1626,6 +1626,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     completedClassName="border-emerald-500/30 bg-emerald-500/10"
                     pendingClassName="border-white/10 bg-slate-950/70"
                     pendingImageClassName="blur-sm brightness-75 scale-105"
+                    showImage={active || completed}
                     titleClassName="text-white"
                   />
                 );

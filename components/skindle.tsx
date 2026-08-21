@@ -2,7 +2,7 @@
 
 import { FormEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, X } from 'lucide-react';
-import { GameSplashImage } from '@/components/game-asset-image';
+import { GAME_SKIN_THUMBNAIL_SIZES, GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -1394,7 +1394,7 @@ export function Skindle() {
                         }}
                       >
                         <span className="relative h-12 overflow-hidden rounded-xl bg-slate-900">
-                          <GameSplashImage src={skin.imageUrl} alt="" fill sizes="64px" className="object-cover" />
+                          <GameSplashImage src={skin.imageUrl} alt="" fill sizes={GAME_SKIN_THUMBNAIL_SIZES} className="object-cover" />
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate font-semibold text-white">{skin.answer}{skin.releaseDate ? ` (${skin.releaseDate})` : ''}</span>

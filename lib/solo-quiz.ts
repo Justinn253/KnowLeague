@@ -1,11 +1,92 @@
 import { dailySeed, seededShuffle } from '@/lib/daily-set';
 import { getAbilityCatalog, getSkinCatalog } from '@/lib/catalogs';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
-import { shuffle } from '@/lib/quiz';
+import { shuffle, type CompletedTime, type QuizItem } from '@/lib/quiz';
 
-export type SoloQuizGameId = 'ability-blitz' | 'skin-champion';
+export const SOLO_QUIZ_GAME_IDS = ['ability-blitz', 'skin-champion'] as const;
+export type SoloQuizGameId = (typeof SOLO_QUIZ_GAME_IDS)[number];
 export type SoloQuizMode = 'casual' | 'daily' | 'chaos';
 export type SoloQuizDifficulty = 'iron' | 'gold' | 'diamond' | 'challenger';
+
+export const SOLO_QUIZ_ENTRY_COUNT_OPTIONS = [10, 25, 50, 75, 100] as const;
+
+export type SoloQuizDifficultyRule = {
+  hintDelaySeconds: number | null;
+  wrongGuess: 'none' | 'flat-five' | 'scaled' | 'game-over';
+  upcomingVisibility: 'clear' | 'blurred' | 'blocked';
+  autocomplete: boolean;
+};
+
+export const SOLO_QUIZ_DIFFICULTY_RULES: Record<SoloQuizDifficulty, SoloQuizDifficultyRule> = {
+  iron: {
+    hintDelaySeconds: 0,
+    wrongGuess: 'none',
+    upcomingVisibility: 'clear',
+    autocomplete: true,
+  },
+  gold: {
+    hintDelaySeconds: 10,
+    wrongGuess: 'flat-five',
+    upcomingVisibility: 'blurred',
+    autocomplete: true,
+  },
+  diamond: {
+    hintDelaySeconds: 30,
+    wrongGuess: 'scaled',
+    upcomingVisibility: 'blocked',
+    autocomplete: true,
+  },
+  challenger: {
+    hintDelaySeconds: null,
+    wrongGuess: 'game-over',
+    upcomingVisibility: 'blocked',
+    autocomplete: false,
+  },
+};
+
+export type SoloQuizRoundState<
+  TModifiers extends Record<string, boolean>,
+  TExtra extends object = {},
+> = {
+  items: QuizItem[];
+  soloMode?: SoloQuizMode;
+  selectedDifficulty: SoloQuizDifficulty;
+  activeModifiers: TModifiers;
+  entryCount: number;
+  started: boolean;
+  activeIndex: number;
+  currentTime: number;
+  totalTime: number;
+  completedTimes: Record<string, CompletedTime>;
+  finished: boolean;
+  failed: boolean;
+} & TExtra;
+
+export type SoloQuizGameDefinition = {
+  id: SoloQuizGameId;
+  label: string;
+  catalog: 'ability' | 'skin';
+  answerMode: 'ability' | 'skin-line';
+};
+
+export const SOLO_QUIZ_GAME_DEFINITIONS: Record<SoloQuizGameId, SoloQuizGameDefinition> = {
+  'ability-blitz': {
+    id: 'ability-blitz',
+    label: 'Ability Blitz',
+    catalog: 'ability',
+    answerMode: 'ability',
+  },
+  'skin-champion': {
+    id: 'skin-champion',
+    label: 'Skin Champion',
+    catalog: 'skin',
+    answerMode: 'skin-line',
+  },
+};
+
+export function getSoloQuizGameDefinition(gameId: SoloQuizGameId) {
+  return SOLO_QUIZ_GAME_DEFINITIONS[gameId];
+}
 
 export type SoloLeaderboardEntry = {
   id: string;
@@ -93,7 +174,7 @@ export function getSoloQuizItems(input: {
   difficulty: SoloQuizDifficulty;
   entryCount: number;
 }) {
-  const catalog = input.gameId === 'ability-blitz' ? getAbilityCatalog() : getSkinCatalog();
+  const catalog = getSoloQuizGameDefinition(input.gameId).catalog === 'ability' ? getAbilityCatalog() : getSkinCatalog();
   const count = Math.max(1, Math.min(100, Math.floor(input.entryCount)));
 
   if (input.mode === 'casual') {

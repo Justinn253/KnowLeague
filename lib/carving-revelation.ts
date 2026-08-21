@@ -29,6 +29,16 @@ import {
   MAX_CARVING_REVELATION_POWER_UP_COUNT,
   type CarvingRevelationPowerUpKind,
 } from '@/lib/carving-revelation-power-ups';
+import {
+  getActiveConnectedPlayerIds,
+  getCarvingRevelationAnswerCandidates,
+  getCarvingRevelationHint,
+  getCorrectGuessPlayerIds,
+  getFirstCorrectGuessPlayerId,
+  haveAllPlayersSubmitted,
+  sanitizeCarvingRevelationLobbyForViewer,
+  type CarvingRevelationHintFrequency,
+} from '@/lib/carving-revelation-rules';
 
 export type {
   CarvingRevelationPowerUpActivationPhase,
@@ -41,6 +51,7 @@ export type CarvingRevelationActionType = 'draw' | 'guess' | 'next_round_vote' |
 export type CarvingRevelationPhase = 'carve' | 'guess';
 export type CarvingRevelationWinCondition = 'everyone_correct' | 'first_correct';
 export type CarvingRevelationModifier = 'greyscale' | 'blurred' | 'cropped';
+export type { CarvingRevelationHintFrequency } from '@/lib/carving-revelation-rules';
 
 export type CarvingRevelationPowerUp = {
   id: string;
@@ -86,6 +97,7 @@ export type CarvingRevelationLobby = {
   phase_deadline_at: string | null;
   phase_duration_seconds: number | null;
   win_condition: CarvingRevelationWinCondition;
+  hint_frequency: CarvingRevelationHintFrequency;
   modifiers: CarvingRevelationModifier[];
   power_ups_enabled: boolean;
   power_up_count: number;
@@ -170,6 +182,7 @@ export type CarvingRevelationLobbyView = {
   powerUpMessages: CarvingRevelationPowerUpMessage[];
   revealedChampionName: string | null;
   insightSquares: CarvingRevelationInsightSquare[];
+  hintText: string | null;
 };
 
 export type CarvingRevelationPublicLobby = {
@@ -210,8 +223,9 @@ const DEFAULT_PHASE_SECONDS = 30;
 const PHASE_DURATION_OPTIONS = new Set<number | null>([10, 20, 30, 45, 60, null]);
 const WIN_CONDITIONS = new Set<CarvingRevelationWinCondition>(['everyone_correct', 'first_correct']);
 const MODIFIERS = new Set<CarvingRevelationModifier>(['greyscale', 'blurred', 'cropped']);
-const STARTING_LINE_LENGTH_OPTIONS = new Set([5, 8, 10, 15, 20]);
-const LINE_LENGTH_INCREMENT_OPTIONS = new Set([1, 2, 3, 4, 5]);
+const HINT_FREQUENCIES = new Set<CarvingRevelationHintFrequency>([0, 1, 2, 3, 4]);
+const STARTING_LINE_LENGTH_OPTIONS = new Set([8, 12, 15, 20]);
+const LINE_LENGTH_INCREMENT_OPTIONS = new Set([2, 3, 4, 5, 6]);
 const DEFAULT_POWER_UP_COUNT = 3;
 const POWER_UP_RADIUS = 0.035;
 const ALL_PLAYERS_BLOCKED_GUESS_SECONDS = 5;
@@ -231,6 +245,13 @@ function normalizeWinCondition(value: unknown): CarvingRevelationWinCondition {
   return typeof value === 'string' && WIN_CONDITIONS.has(value as CarvingRevelationWinCondition)
     ? value as CarvingRevelationWinCondition
     : 'everyone_correct';
+}
+
+function normalizeHintFrequency(value: unknown): CarvingRevelationHintFrequency {
+  const numericValue = Number(value);
+  return HINT_FREQUENCIES.has(numericValue as CarvingRevelationHintFrequency)
+    ? numericValue as CarvingRevelationHintFrequency
+    : 0;
 }
 
 function normalizeModifiers(value: unknown): CarvingRevelationModifier[] {
@@ -291,12 +312,12 @@ function normalizePowerUps(value: unknown): CarvingRevelationPowerUp[] {
 
 function normalizeStartingLineLength(value: unknown) {
   const numericValue = Number(value);
-  return STARTING_LINE_LENGTH_OPTIONS.has(numericValue) ? numericValue : 8;
+  return STARTING_LINE_LENGTH_OPTIONS.has(numericValue) ? numericValue : 12;
 }
 
 function normalizeLineLengthIncrement(value: unknown) {
   const numericValue = Number(value);
-  return LINE_LENGTH_INCREMENT_OPTIONS.has(numericValue) ? numericValue : 2;
+  return LINE_LENGTH_INCREMENT_OPTIONS.has(numericValue) ? numericValue : 4;
 }
 
 function normalizeLobbySettings<TLobby extends CarvingRevelationLobby>(lobby: TLobby): TLobby {
@@ -305,6 +326,7 @@ function normalizeLobbySettings<TLobby extends CarvingRevelationLobby>(lobby: TL
     turn_order: sanitizeTurnOrder(lobby.turn_order),
     phase_duration_seconds: normalizePhaseDuration(lobby.phase_duration_seconds),
     win_condition: normalizeWinCondition(lobby.win_condition),
+    hint_frequency: normalizeHintFrequency(lobby.hint_frequency),
     modifiers: normalizeModifiers(lobby.modifiers),
     power_ups_enabled: lobby.power_ups_enabled !== false,
     power_up_count: normalizePowerUpCount(lobby.power_up_count),
@@ -775,10 +797,6 @@ function getFallbackCarveColor(playerId: string) {
   return CHAT_COLOR_HEX[CHAT_COLOR_VALUES[hashString(playerId) % CHAT_COLOR_VALUES.length]];
 }
 
-function isActiveMatchPlayer(player: CarvingRevelationPlayerRecord) {
-  return player.result === 'active' && player.connected;
-}
-
 async function fetchLobby(code: string) {
   assertSupabaseConfigured();
   const { data, error } = await getSupabaseServiceClient()
@@ -871,21 +889,48 @@ async function addLobbyEvent(lobbyId: string, eventType: string, payload?: Recor
 }
 
 function getActivePlayerIds(players: CarvingRevelationPlayerRecord[]) {
-  return players
-    .filter(isActiveMatchPlayer)
-    .map((player) => player.id);
+  return getActiveConnectedPlayerIds(players);
+}
+
+function hasReconnectableActivePlayers(players: CarvingRevelationPlayerRecord[], now = Date.now()) {
+  return players.some((player) => (
+    player.result === 'active' &&
+    !player.connected &&
+    canReconnect(player.disconnected_at, now)
+  ));
 }
 
 async function finishCarvingRevelationMatch(
   lobby: CarvingRevelationLobby,
   players: CarvingRevelationPlayerRecord[],
+  winnerPlayerId: string | null = players.find((player) => player.result === 'won')?.id ?? null,
 ) {
-  const wonPlayers = players.filter((player) => player.result === 'won');
-  const fallbackWinner = wonPlayers[0] ?? players.find((player) => player.connected) ?? null;
   const now = new Date().toISOString();
+
+  if (winnerPlayerId) {
+    const { error: winnerError } = await getSupabaseServiceClient()
+      .from('carving_revelation_players')
+      .update({ result: 'won', updated_at: now })
+      .eq('id', winnerPlayerId)
+      .eq('lobby_id', lobby.id);
+    if (winnerError) throw winnerError;
+  }
+
+  const eliminatedPlayerIds = players
+    .filter((player) => player.result === 'active' && player.id !== winnerPlayerId)
+    .map((player) => player.id);
+  if (eliminatedPlayerIds.length > 0) {
+    const { error: eliminatedError } = await getSupabaseServiceClient()
+      .from('carving_revelation_players')
+      .update({ result: 'eliminated', updated_at: now })
+      .in('id', eliminatedPlayerIds)
+      .eq('lobby_id', lobby.id);
+    if (eliminatedError) throw eliminatedError;
+  }
+
   const { data, error } = await getSupabaseServiceClient()
     .from('carving_revelation_lobbies')
-    .update({ status: 'finished', winner_player_id: fallbackWinner?.id ?? null, finished_at: now, updated_at: now })
+    .update({ status: 'finished', winner_player_id: winnerPlayerId, finished_at: now, updated_at: now })
     .eq('id', lobby.id)
     .select('*')
     .single<CarvingRevelationLobby>();
@@ -896,16 +941,14 @@ async function finishCarvingRevelationMatch(
 
 async function resolveGuessPhase(lobby: CarvingRevelationLobby, players: CarvingRevelationPlayerRecord[]) {
   const actions = await fetchActions(lobby.id);
-  const correctPlayerIds = actions
-    .filter((action) => (
-      action.action_type === 'guess' &&
-      action.round_number === lobby.round_number &&
-      action.payload.correct === true &&
-      action.player_id
-    ))
-    .map((action) => action.player_id as string);
-  const uniqueCorrectPlayerIds = [...new Set(correctPlayerIds)];
+  const uniqueCorrectPlayerIds = getCorrectGuessPlayerIds(actions, lobby.round_number);
+  const firstCorrectPlayerId = getFirstCorrectGuessPlayerId(actions, lobby.round_number);
   const now = new Date().toISOString();
+
+  if (lobby.win_condition === 'first_correct' && firstCorrectPlayerId) {
+    await markPowerUpApplications(lobby);
+    return finishCarvingRevelationMatch(lobby, players, firstCorrectPlayerId);
+  }
 
   if (uniqueCorrectPlayerIds.length > 0) {
     const { error } = await getSupabaseServiceClient()
@@ -914,14 +957,16 @@ async function resolveGuessPhase(lobby: CarvingRevelationLobby, players: Carving
       .in('id', uniqueCorrectPlayerIds);
     if (error) throw error;
     players = await fetchPlayers(lobby.id);
-    if (lobby.win_condition === 'first_correct') {
-      return finishCarvingRevelationMatch(lobby, players);
-    }
   }
 
   const activePlayerIds = getActivePlayerIds(players);
   if (activePlayerIds.length === 0) {
-    return finishCarvingRevelationMatch(lobby, players);
+    if (hasReconnectableActivePlayers(players)) return lobby;
+    return finishCarvingRevelationMatch(
+      lobby,
+      players,
+      uniqueCorrectPlayerIds[0] ?? players.find((player) => player.result === 'won')?.id ?? null,
+    );
   }
 
   await markPowerUpApplications(lobby);
@@ -1080,10 +1125,10 @@ async function reconcileCarvingRevelationLobby(lobby: CarvingRevelationLobby, in
   }
 
   const lifecycle = resolveMultiplayerLifecycle(players, nextLobby.host_player_id);
-  const hasReconnectableActivePlayers = nextLobby.status === 'active' && players.some((player) => (
+  const hasReconnectablePlayers = nextLobby.status === 'active' && players.some((player) => (
     player.result === 'active' && !player.connected && canReconnect(player.disconnected_at, nowMs)
   ));
-  if (lifecycle.shouldTerminate && !hasReconnectableActivePlayers) {
+  if (lifecycle.shouldTerminate && !hasReconnectablePlayers) {
     const { data, error } = await getSupabaseServiceClient()
       .from('carving_revelation_lobbies')
       .update({ status: 'terminated', host_player_id: null, is_public: false, terminated_at: now, updated_at: now })
@@ -1154,11 +1199,23 @@ async function reconcileCarvingRevelationLobby(lobby: CarvingRevelationLobby, in
       await addLobbyEvent(lobby.id, 'lobby_terminated');
       return normalizeLobbySettings(data);
     }
+
+    if (getActivePlayerIds(players).length === 0 && !hasReconnectableActivePlayers(players, nowMs)) {
+      return finishCarvingRevelationMatch(nextLobby, players);
+    }
   }
 
   nextLobby = await advanceExpiredCarvingPhase(nextLobby, players, nowMs);
 
   return nextLobby;
+}
+
+function hasCarvingRevelationRoundSnapshotChanged(first: CarvingRevelationLobby, second: CarvingRevelationLobby) {
+  return first.status !== second.status ||
+    first.round_number !== second.round_number ||
+    first.phase !== second.phase ||
+    first.started_at !== second.started_at ||
+    first.secret_skin_id !== second.secret_skin_id;
 }
 
 function getPublicDrawAction(
@@ -1204,13 +1261,23 @@ function getPublicDrawAction(
   return action;
 }
 
-async function getLobbyView(lobby: CarvingRevelationLobby, clientId?: string | null): Promise<CarvingRevelationLobbyView> {
+async function getLobbyView(
+  lobby: CarvingRevelationLobby,
+  clientId?: string | null,
+  consistencyAttempt = 0,
+): Promise<CarvingRevelationLobbyView> {
   const reconciledLobby = await reconcileCarvingRevelationLobby(lobby);
-  const [players, actions] = await Promise.all([
+  const [players, actions, latestLobby] = await Promise.all([
     fetchPlayers(reconciledLobby.id),
     fetchActions(reconciledLobby.id),
+    reconciledLobby.status === 'waiting' ? Promise.resolve(null) : fetchLobby(reconciledLobby.code),
   ]);
+  if (latestLobby && hasCarvingRevelationRoundSnapshotChanged(reconciledLobby, latestLobby) && consistencyAttempt < 2) {
+    return getLobbyView(latestLobby, clientId, consistencyAttempt + 1);
+  }
   const requestingPlayer = players.find((player) => player.client_id === clientId) ?? null;
+  const publicLobby = sanitizeCarvingRevelationLobbyForViewer(reconciledLobby);
+  const secretSkin = getSkinById(reconciledLobby.secret_skin_id);
   const cosmeticsByUserId = await fetchProfileCosmetics(players.map((player) => player.auth_user_id));
   const nextRoundVotes = actions
     .filter((action) => action.action_type === 'next_round_vote' && action.player_id)
@@ -1225,7 +1292,10 @@ async function getLobbyView(lobby: CarvingRevelationLobby, clientId?: string | n
     }
     if (action.action_type === 'power_up') {
       const targetRoundNumber = Number(action.payload.targetRoundNumber);
-      const visibleToEveryone = reconciledLobby.phase === 'guess' && targetRoundNumber === reconciledLobby.round_number;
+      const powerUpKind = getPowerUpActionKind(action);
+      const visibleToEveryone = reconciledLobby.phase === 'guess' &&
+        targetRoundNumber === reconciledLobby.round_number &&
+        powerUpKind !== 'insight';
       const visibleToRequester = requestingPlayer && action.player_id === requestingPlayer.id;
       if (visibleToEveryone || visibleToRequester) {
         return action;
@@ -1266,11 +1336,11 @@ async function getLobbyView(lobby: CarvingRevelationLobby, clientId?: string | n
   };
 
   return {
-    lobby: reconciledLobby,
+    lobby: publicLobby,
     requestingPlayer: requestingPlayer ? toPublicPlayer(requestingPlayer) : null,
     players: players.map(toPublicPlayer),
     actions: publicActions,
-    skin: toPublicSkin(reconciledLobby),
+    skin: reconciledLobby.status === 'finished' ? toPublicSkin(reconciledLobby) : null,
     currentTurnPlayerId: null,
     lineLengthLimit: getLineLengthLimitForPlayer(reconciledLobby, actions, requestingPlayer?.id ?? null),
     maxLineLength: requestingPlayer && getLineLengthLimitForPlayer(reconciledLobby, actions, requestingPlayer.id) > MAX_LINE_LENGTH
@@ -1283,6 +1353,13 @@ async function getLobbyView(lobby: CarvingRevelationLobby, clientId?: string | n
     powerUpMessages: getPowerUpMessages(actions),
     revealedChampionName: getRevealedChampionName(reconciledLobby, actions, requestingPlayer?.id ?? null),
     insightSquares: getInsightSquares(reconciledLobby, actions, requestingPlayer?.id ?? null),
+    hintText: reconciledLobby.status === 'active' && reconciledLobby.phase === 'guess'
+      ? getCarvingRevelationHint(
+        secretSkin?.answer ?? secretSkin?.title,
+        reconciledLobby.hint_frequency,
+        reconciledLobby.round_number,
+      )
+      : null,
   };
 }
 
@@ -1355,7 +1432,10 @@ export async function joinCarvingRevelationLobby(code: string, input: CreateOrJo
   }
   const existingPlayer = players.find((player) => player.client_id === input.clientId);
   if (existingPlayer) {
-    if (lobby.status === 'active') {
+    if (lobby.status === 'active' && (
+      existingPlayer.result !== 'active' ||
+      (!existingPlayer.connected && !canReconnect(existingPlayer.disconnected_at))
+    )) {
       throw new Error('This player cannot rejoin the active game.');
     }
     const now = new Date().toISOString();
@@ -1423,7 +1503,7 @@ export async function getCarvingRevelationSkinImageSource(code: string, clientId
   }
   const players = await fetchPlayers(lobby.id);
   const player = players.find((candidate) => candidate.client_id === clientId);
-  if (!player || !player.connected) {
+  if (!player || !player.connected || (lobby.status === 'active' && player.result === 'eliminated')) {
     throw new Error('Player not found.');
   }
   const skin = getSkinById(lobby.secret_skin_id);
@@ -1480,6 +1560,7 @@ export async function updateCarvingRevelationSettings(
     isPublic: boolean;
     phaseDurationSeconds?: unknown;
     winCondition?: unknown;
+    hintFrequency?: unknown;
     modifiers?: unknown;
     powerUpsEnabled?: unknown;
     powerUpCount?: unknown;
@@ -1500,6 +1581,7 @@ export async function updateCarvingRevelationSettings(
   assertMultiplayerHost(players, lobby.host_player_id, clientId, 'Only the host can change lobby settings.');
   const phaseDurationSeconds = normalizePhaseDuration(input.phaseDurationSeconds ?? lobby.phase_duration_seconds);
   const winCondition = normalizeWinCondition(input.winCondition ?? lobby.win_condition);
+  const hintFrequency = normalizeHintFrequency(input.hintFrequency ?? lobby.hint_frequency);
   const modifiers = normalizeModifiers(input.modifiers ?? lobby.modifiers);
   const powerUpsEnabled = typeof input.powerUpsEnabled === 'boolean' ? input.powerUpsEnabled : lobby.power_ups_enabled !== false;
   const powerUpCount = normalizePowerUpCount(input.powerUpCount ?? lobby.power_up_count);
@@ -1512,6 +1594,7 @@ export async function updateCarvingRevelationSettings(
       is_public: input.isPublic,
       phase_duration_seconds: phaseDurationSeconds,
       win_condition: winCondition,
+      hint_frequency: hintFrequency,
       modifiers,
       power_ups_enabled: powerUpsEnabled,
       power_up_count: powerUpCount,
@@ -1584,6 +1667,7 @@ export async function startCarvingRevelationLobby(code: string, clientId: string
       updated_at: now,
     })
     .eq('id', lobby.id)
+    .eq('status', 'waiting')
     .select('*')
     .single<CarvingRevelationLobby>();
   if (error) throw error;
@@ -1617,7 +1701,9 @@ export async function startNextCarvingRevelationRound(code: string, clientId: st
   const { error: actionError } = await getSupabaseServiceClient()
     .from('carving_revelation_actions')
     .delete()
-    .eq('lobby_id', fetchedLobby.id);
+    .eq('lobby_id', fetchedLobby.id)
+    // Do not let a delayed duplicate transition delete actions from the new match.
+    .lte('created_at', fetchedLobby.finished_at ?? now);
   if (actionError) throw actionError;
 
   const { error: connectedPlayerError } = await getSupabaseServiceClient()
@@ -1652,6 +1738,7 @@ export async function startNextCarvingRevelationRound(code: string, clientId: st
       updated_at: now,
     })
     .eq('id', fetchedLobby.id)
+    .eq('status', 'finished')
     .select('*')
     .single<CarvingRevelationLobby>();
   if (error) throw error;
@@ -1692,7 +1779,9 @@ export async function returnCarvingRevelationToLobby(code: string, clientId: str
   const { error: actionError } = await getSupabaseServiceClient()
     .from('carving_revelation_actions')
     .delete()
-    .eq('lobby_id', fetchedLobby.id);
+    .eq('lobby_id', fetchedLobby.id)
+    // Do not let a delayed return-to-lobby request delete actions from a new match.
+    .lte('created_at', fetchedLobby.finished_at ?? now);
   if (actionError) throw actionError;
 
   const { data: updatedLobby, error } = await getSupabaseServiceClient()
@@ -1711,6 +1800,7 @@ export async function returnCarvingRevelationToLobby(code: string, clientId: str
       updated_at: now,
     })
     .eq('id', fetchedLobby.id)
+    .eq('status', 'finished')
     .select('*')
     .single<CarvingRevelationLobby>();
   if (error) throw error;
@@ -1782,7 +1872,7 @@ export async function giveUpCarvingRevelationMatch(code: string, clientId: strin
     await addLobbyEvent(lobby.id, 'player_gave_up');
   }
   const nextPlayers = await fetchPlayers(lobby.id);
-  if (getActivePlayerIds(nextPlayers).length === 0) {
+  if (getActivePlayerIds(nextPlayers).length === 0 && !hasReconnectableActivePlayers(nextPlayers)) {
     const finishedLobby = await finishCarvingRevelationMatch(lobby, nextPlayers);
     return getLobbyView(finishedLobby, clientId);
   }
@@ -2124,17 +2214,15 @@ export async function drawCarvingRevealStroke(code: string, clientId: string, in
   if (error) throw error;
   const activePlayerIds = getActivePlayerIds(players);
   const nextActions = await fetchActions(lobby.id);
-  const allPlayersFinishedCarving = activePlayerIds.every((playerId) => {
-    const drawCount = nextActions.filter((action) => (
-      action.action_type === 'draw' &&
-      action.round_number === lobby.round_number &&
-      action.player_id === playerId
-    )).length;
-    const requiresDoubleLine = getNextCarvePowerUpActions(nextActions, 'double_line', lobby.round_number)
-      .some((action) => action.player_id === playerId);
-    return drawCount >= (requiresDoubleLine ? 2 : 1);
-  });
-  if (activePlayerIds.length > 0 && allPlayersFinishedCarving) {
+  const allPlayersFinishedCarving = haveAllPlayersSubmitted(
+    nextActions,
+    activePlayerIds,
+    'draw',
+    lobby.round_number,
+    (playerId) => getNextCarvePowerUpActions(nextActions, 'double_line', lobby.round_number)
+      .some((action) => action.player_id === playerId) ? 2 : 1,
+  );
+  if (allPlayersFinishedCarving) {
     const skippedPlayerIds = getSkipTurnBlockedPlayerIds(lobby, nextActions, players);
     const allRemainingGuessersBlocked = activePlayerIds.every((playerId) => (
       skippedPlayerIds.has(playerId)
@@ -2175,7 +2263,8 @@ export async function guessCarvingRevelationSkin(code: string, clientId: string,
   if (!skin) {
     throw new Error('Secret skin is unavailable.');
   }
-  const correct = answerMatches(trimmedGuess, skin.answer);
+  const correct = getCarvingRevelationAnswerCandidates(skin.answer, skin.title)
+    .some((answer) => answerMatches(trimmedGuess, answer));
   const actions = await fetchActions(lobby.id);
   const skipTurnBlockedPlayerIds = getSkipTurnBlockedPlayerIds(lobby, actions, players);
   if (skipTurnBlockedPlayerIds.has(player.id)) {
@@ -2232,6 +2321,7 @@ export async function guessCarvingRevelationSkin(code: string, clientId: string,
     actionType: 'guess' as const,
     playerId: player.id,
     roundNumber: lobby.round_number,
+    action: insertedAction,
   } satisfies CarvingRevelationRoutineActionResponse;
 }
 

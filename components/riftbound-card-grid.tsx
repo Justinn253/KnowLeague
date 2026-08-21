@@ -14,6 +14,7 @@ import { RiftboundCardTierVote } from '@/components/riftbound-card-tier-vote';
 import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-view';
 import { RiftboundDeckPreview } from '@/components/riftbound-deck-preview';
 import { RiftboundMasterSet } from '@/components/riftbound-master-set';
+import { RiftboundInventoryHistory } from '@/components/riftbound-inventory-history';
 import { RiftboundInventorySaleEditor, RiftboundSaleReceipt, RiftboundSaleReviewModal, RiftboundSalesHistory, type RiftboundPendingSaleItem, type RiftboundSaleEditorDraft } from '@/components/riftbound-sales';
 import {
   getRiftboundHistoryRangeDays,
@@ -29,8 +30,9 @@ import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER as RIFTBOUND_CARD_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
 import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
-import { getRiftboundBootstrap, getRiftboundLatestPrices, getRiftboundSales, invalidateRiftboundBootstrap, type RiftboundDeck } from '@/lib/riftbound-client';
+import { getRiftboundBootstrap, getRiftboundInventoryHistory, getRiftboundLatestPrices, getRiftboundSales, invalidateRiftboundBootstrap, invalidateRiftboundInventoryHistory, type RiftboundDeck } from '@/lib/riftbound-client';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
+import type { RiftboundInventoryHistoryGroup } from '@/lib/riftbound-inventory-history';
 import { getRiftboundInventoryChanges, rebaseRiftboundInventoryDraft, type RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 import type { RiftboundLatestPrice } from '@/lib/riftbound-market-values';
 import { isRiftboundMasterSetCatalogueCard } from '@/lib/riftbound-master-set';
@@ -59,7 +61,7 @@ import {
   type RiftboundDeckCardSelection,
 } from '@/lib/riftbound-decks';
 
-type InventoryTab = 'global' | 'inventory' | 'master-set' | 'sales' | 'binders' | 'decks';
+type InventoryTab = 'global' | 'inventory' | 'master-set' | 'sales' | 'history' | 'binders' | 'decks';
 type RiftboundDeckViewMode = 'card' | 'list' | 'compact';
 
 type CatalogueSourceTab = 'global' | 'inventory';
@@ -685,7 +687,7 @@ const RIFTBOUND_DRAFT_STORAGE_PREFIX = 'knowleague:riftbound-inventory-draft:';
 const RIFTBOUND_CARD_IDS = new Set(RIFTBOUND_CARDS.map((card) => card.id));
 
 function parseInventoryTab(value: string | null): InventoryTab | null {
-  return value === 'global' || value === 'inventory' || value === 'master-set' || value === 'sales' || value === 'binders' || value === 'decks' ? value : null;
+  return value === 'global' || value === 'inventory' || value === 'master-set' || value === 'sales' || value === 'history' || value === 'binders' || value === 'decks' ? value : null;
 }
 
 const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
@@ -2291,6 +2293,10 @@ export function RiftboundCardGrid() {
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesLoaded, setSalesLoaded] = useState(false);
   const [salesError, setSalesError] = useState('');
+  const [inventoryHistory, setInventoryHistory] = useState<RiftboundInventoryHistoryGroup[]>([]);
+  const [inventoryHistoryLoading, setInventoryHistoryLoading] = useState(false);
+  const [inventoryHistoryLoaded, setInventoryHistoryLoaded] = useState(false);
+  const [inventoryHistoryError, setInventoryHistoryError] = useState('');
   const [saleFinalizing, setSaleFinalizing] = useState(false);
   const [saleEditorCard, setSaleEditorCard] = useState<RiftboundCard | null>(null);
   const [saleEditorInitialFinish, setSaleEditorInitialFinish] = useState<RiftboundSaleFinish>('normal');
@@ -2375,6 +2381,9 @@ export function RiftboundCardGrid() {
     setSales([]);
     setSalesLoaded(false);
     setSalesError('');
+    setInventoryHistory([]);
+    setInventoryHistoryLoaded(false);
+    setInventoryHistoryError('');
     setPendingSaleItems([]);
     setSaleEditorCard(null);
     setSaleReviewOpen(false);
@@ -2472,6 +2481,27 @@ export function RiftboundCardGrid() {
       });
     return () => { cancelled = true; };
   }, [activeTab, salesLoaded, session]);
+
+  useEffect(() => {
+    if (activeTab !== 'history' || !session || inventoryHistoryLoaded) return undefined;
+    let cancelled = false;
+    setInventoryHistoryLoading(true);
+    setInventoryHistoryError('');
+    void getRiftboundInventoryHistory(session)
+      .then((response) => {
+        if (!cancelled) {
+          setInventoryHistory(response.history ?? []);
+          setInventoryHistoryLoaded(true);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setInventoryHistoryError(error instanceof Error ? error.message : 'Unable to load inventory history.');
+      })
+      .finally(() => {
+        if (!cancelled) setInventoryHistoryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeTab, inventoryHistoryLoaded, session]);
 
   const inventoryByCard = useMemo(() => {
     const quantities = new Map<string, number>();
@@ -2747,6 +2777,8 @@ export function RiftboundCardGrid() {
       const nextRows = data.items ?? [];
       clearInventoryDraft(getInventoryDraftStorageKey(session.user.id));
       invalidateRiftboundBootstrap(session);
+      invalidateRiftboundInventoryHistory(session);
+      setInventoryHistoryLoaded(false);
       setInventoryRows(nextRows);
       setSavedInventoryRows(nextRows);
     } catch (error) {
@@ -2825,6 +2857,8 @@ export function RiftboundCardGrid() {
       const nextRows = data.items ?? [];
       clearInventoryDraft(getInventoryDraftStorageKey(session.user.id));
       invalidateRiftboundBootstrap(session);
+      invalidateRiftboundInventoryHistory(session);
+      setInventoryHistoryLoaded(false);
       setInventoryRows(nextRows);
       setSavedInventoryRows(nextRows);
       setPendingSaleItems([]);
@@ -3088,7 +3122,7 @@ export function RiftboundCardGrid() {
     }
   };
 
-  const inventoryWorkspaceActive = activeTab === 'inventory' || activeTab === 'master-set' || activeTab === 'sales';
+  const inventoryWorkspaceActive = activeTab === 'inventory' || activeTab === 'master-set' || activeTab === 'sales' || activeTab === 'history';
 
   return (
     <main className="min-h-screen min-w-0 w-full overflow-x-clip bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
@@ -3138,10 +3172,11 @@ export function RiftboundCardGrid() {
               <button type="button" role="tab" aria-selected={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'inventory' ? 'bg-amber-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Collection</button>
               <button type="button" role="tab" aria-selected={activeTab === 'master-set'} onClick={() => setActiveTab('master-set')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'master-set' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Master Set</button>
               <button type="button" role="tab" aria-selected={activeTab === 'sales'} onClick={() => setActiveTab('sales')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'sales' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Sales {salesLoaded ? `(${sales.length})` : ''}</button>
+              <button type="button" role="tab" aria-selected={activeTab === 'history'} onClick={() => setActiveTab('history')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'history' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>History</button>
             </div>
           </div> : null}
 
-          {activeTab !== 'binders' && activeTab !== 'sales' && activeTab !== 'master-set' ? <div className="mt-5 grid gap-4">
+          {activeTab !== 'binders' && activeTab !== 'sales' && activeTab !== 'master-set' && activeTab !== 'history' ? <div className="mt-5 grid gap-4">
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,15rem)_auto]">
               <div className="relative">
                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -3311,6 +3346,19 @@ export function RiftboundCardGrid() {
           </section>
         ) : activeTab === 'sales' && session ? (
           <RiftboundSalesHistory sales={sales} cards={cards} loading={salesLoading} error={salesError} />
+        ) : null}
+
+        {activeTab === 'history' && !session ? (
+          <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
+            <PackageOpen size={38} className="text-emerald-200" />
+            <div>
+              <h2 className="text-2xl font-black text-white">Sign in to view your inventory history</h2>
+              <p className="mt-2 text-sm text-slate-400">Your inventory updates and finalized sales are saved to your KnowLeague account.</p>
+            </div>
+            <Link href="/login" className="rounded-xl border border-emerald-200/40 bg-emerald-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-emerald-200">Sign in</Link>
+          </section>
+        ) : activeTab === 'history' && session ? (
+          <RiftboundInventoryHistory history={inventoryHistory} cards={cards} loading={inventoryHistoryLoading} error={inventoryHistoryError} />
         ) : null}
 
         {activeTab === 'master-set' && !session ? (
@@ -3533,7 +3581,7 @@ export function RiftboundCardGrid() {
               </section>
             </div>
           )
-        ) : activeTab === 'binders' || activeTab === 'master-set' || activeTab === 'sales' ? null : activeTab === 'inventory' && !session ? (
+        ) : activeTab === 'binders' || activeTab === 'master-set' || activeTab === 'sales' || activeTab === 'history' ? null : activeTab === 'inventory' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
             <PackageOpen size={38} className="text-amber-200" />
             <div>

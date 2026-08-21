@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, memo } from 'react';
-import { GameSplashImage } from '@/components/game-asset-image';
+import { GameIconImage, GameSplashImage } from '@/components/game-asset-image';
 import type { QuizItem } from '@/lib/quiz';
 
 type QuizProgressCardProps = {
@@ -14,6 +14,7 @@ type QuizProgressCardProps = {
   pendingClassName: string;
   pendingImageClassName: string;
   titleClassName?: string;
+  showImage?: boolean;
 };
 
 export const QuizProgressCard = memo(forwardRef<HTMLDivElement, QuizProgressCardProps>(function QuizProgressCard({
@@ -26,6 +27,7 @@ export const QuizProgressCard = memo(forwardRef<HTMLDivElement, QuizProgressCard
   pendingClassName,
   pendingImageClassName,
   titleClassName = 'text-slate-100',
+  showImage = true,
 }, ref) {
   const stateClassName = state === 'current'
     ? activeClassName
@@ -40,8 +42,17 @@ export const QuizProgressCard = memo(forwardRef<HTMLDivElement, QuizProgressCard
     >
       <div className={`text-sm font-semibold ${titleClassName}`}>{title}</div>
       <p className="mt-2 text-sm leading-5 text-slate-400">{detail}</p>
-      {item.imageUrl ? (
+      {showImage && item.imageUrl ? item.type === 'skin' ? (
         <GameSplashImage
+          src={item.imageUrl}
+          alt=""
+          width={40}
+          height={40}
+          sizes="40px"
+          className={`absolute right-3 top-3 h-10 w-10 rounded-xl border border-white/10 object-cover ${state === 'pending' ? pendingImageClassName : ''}`}
+        />
+      ) : (
+        <GameIconImage
           src={item.imageUrl}
           alt=""
           width={40}

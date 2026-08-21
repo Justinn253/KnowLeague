@@ -1,7 +1,7 @@
 {
   "Lux": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Support"
   },
   "Aatrox": {
     "resourceType": "No Mana",
@@ -13,11 +13,11 @@
   },
   "Akali": {
     "resourceType": "Energy",
-    "lane": "Top"
+    "lane": "Top/Middle"
   },
   "Akshan": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Middle"
   },
   "Alistar": {
     "resourceType": "Mana",
@@ -25,7 +25,7 @@
   },
   "Amumu": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Jungle/Support"
   },
   "Anivia": {
     "resourceType": "Mana",
@@ -41,7 +41,7 @@
   },
   "Ashe": {
     "resourceType": "Mana",
-    "lane": "Bottom"
+    "lane": "Bottom/Support"
   },
   "Aurelion Sol": {
     "resourceType": "Mana",
@@ -61,7 +61,7 @@
   },
   "Brand": {
     "resourceType": "Mana",
-    "lane": "Support"
+    "lane": "Jungle/Middle/Support"
   },
   "Braum": {
     "resourceType": "Mana",
@@ -73,7 +73,7 @@
   },
   "Camille": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Support"
   },
   "Cassiopeia": {
     "resourceType": "Mana",
@@ -93,7 +93,7 @@
   },
   "Diana": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Jungle/Middle"
   },
   "Dr. Mundo": {
     "resourceType": "Health costs",
@@ -133,7 +133,7 @@
   },
   "Galio": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Support"
   },
   "Gangplank": {
     "resourceType": "Mana",
@@ -149,7 +149,7 @@
   },
   "Gragas": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Jungle/Middle"
   },
   "Graves": {
     "resourceType": "Mana",
@@ -165,7 +165,7 @@
   },
   "Heimerdinger": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Top/Middle/Support"
   },
   "Illaoi": {
     "resourceType": "Mana",
@@ -173,7 +173,7 @@
   },
   "Irelia": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Middle"
   },
   "Ivern": {
     "resourceType": "Mana",
@@ -189,11 +189,11 @@
   },
   "Jax": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Top/Jungle"
   },
   "Jayce": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Top/Middle"
   },
   "Jhin": {
     "resourceType": "Mana",
@@ -213,7 +213,7 @@
   },
   "Karma": {
     "resourceType": "Mana",
-    "lane": "Support"
+    "lane": "Top/Middle/Support"
   },
   "Karthus": {
     "resourceType": "Mana",
@@ -269,7 +269,7 @@
   },
   "Lillia": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Jungle"
   },
   "Lissandra": {
     "resourceType": "Mana",
@@ -285,7 +285,7 @@
   },
   "Malphite": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Middle/Support"
   },
   "Malzahar": {
     "resourceType": "Mana",
@@ -293,7 +293,7 @@
   },
   "Maokai": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Jungle/Support"
   },
   "Master Yi": {
     "resourceType": "Mana",
@@ -325,7 +325,7 @@
   },
   "Neeko": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Support"
   },
   "Nidalee": {
     "resourceType": "Mana",
@@ -353,11 +353,11 @@
   },
   "Pantheon": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Top/Jungle/Middle/Support"
   },
   "Poppy": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Jungle"
   },
   "Pyke": {
     "resourceType": "Mana",
@@ -365,7 +365,7 @@
   },
   "Qiyana": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Middle"
   },
   "Quinn": {
     "resourceType": "Mana",
@@ -393,7 +393,7 @@
   },
   "Rengar": {
     "resourceType": "Ferocity",
-    "lane": "Top"
+    "lane": "Top/Jungle"
   },
   "Riven": {
     "resourceType": "No Mana",
@@ -401,11 +401,11 @@
   },
   "Rumble": {
     "resourceType": "Heat",
-    "lane": "Top"
+    "lane": "Top/Middle"
   },
   "Ryze": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Middle"
   },
   "Samira": {
     "resourceType": "Mana",
@@ -413,15 +413,15 @@
   },
   "Sejuani": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Jungle"
   },
   "Senna": {
     "resourceType": "Mana",
-    "lane": "Support"
+    "lane": "Bottom/Support"
   },
   "Seraphine": {
     "resourceType": "Mana",
-    "lane": "Support"
+    "lane": "Bottom/Support"
   },
   "Sett": {
     "resourceType": "Grit",
@@ -429,11 +429,11 @@
   },
   "Shaco": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Jungle/Support"
   },
   "Shen": {
     "resourceType": "Energy",
-    "lane": "Top"
+    "lane": "Top/Support"
   },
   "Shyvana": {
     "resourceType": "Fury",
@@ -453,7 +453,7 @@
   },
   "Skarner": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Top/Jungle"
   },
   "Sona": {
     "resourceType": "Mana",
@@ -465,11 +465,11 @@
   },
   "Swain": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Support"
   },
   "Sylas": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Top/Middle"
   },
   "Syndra": {
     "resourceType": "Mana",
@@ -477,23 +477,23 @@
   },
   "Tahm Kench": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Support"
   },
   "Taliyah": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Jungle/Middle"
   },
   "Talon": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Jungle/Middle"
   },
   "Taric": {
     "resourceType": "Mana",
-    "lane": "Support"
+    "lane": "Middle/Support"
   },
   "Teemo": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Jungle/Support"
   },
   "Thresh": {
     "resourceType": "Mana",
@@ -501,11 +501,11 @@
   },
   "Tristana": {
     "resourceType": "Mana",
-    "lane": "Bottom"
+    "lane": "Middle/Bottom"
   },
   "Trundle": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Jungle"
   },
   "Tryndamere": {
     "resourceType": "Fury",
@@ -513,15 +513,15 @@
   },
   "Twisted Fate": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Top/Middle/Bottom"
   },
   "Twitch": {
     "resourceType": "Mana",
-    "lane": "Bottom"
+    "lane": "Bottom/Support"
   },
   "Udyr": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Top/Jungle"
   },
   "Urgot": {
     "resourceType": "Mana",
@@ -533,15 +533,15 @@
   },
   "Vayne": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Bottom"
   },
   "Veigar": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Support"
   },
   "Vel'Koz": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Support"
   },
   "Vex": {
     "resourceType": "Mana",
@@ -561,19 +561,19 @@
   },
   "Vladimir": {
     "resourceType": "Bloodthirst",
-    "lane": "Middle"
+    "lane": "Top/Middle"
   },
   "Volibear": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Jungle"
   },
   "Warwick": {
     "resourceType": "Mana",
-    "lane": "Jungle"
+    "lane": "Top/Jungle"
   },
   "Wukong": {
     "resourceType": "Mana",
-    "lane": "Top"
+    "lane": "Top/Jungle"
   },
   "Xayah": {
     "resourceType": "Mana",
@@ -581,7 +581,7 @@
   },
   "Xerath": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Support"
   },
   "Xin Zhao": {
     "resourceType": "Mana",
@@ -589,11 +589,11 @@
   },
   "Yasuo": {
     "resourceType": "Flow",
-    "lane": "Middle"
+    "lane": "Top/Middle/Bottom"
   },
   "Yone": {
     "resourceType": "No Mana",
-    "lane": "Top"
+    "lane": "Top/Middle"
   },
   "Yorick": {
     "resourceType": "Mana",
@@ -605,11 +605,11 @@
   },
   "Zac": {
     "resourceType": "Health costs",
-    "lane": "Jungle"
+    "lane": "Top/Jungle/Support"
   },
   "Zed": {
     "resourceType": "Energy",
-    "lane": "Middle"
+    "lane": "Jungle/Middle"
   },
   "Zeri": {
     "resourceType": "Mana",
@@ -617,7 +617,7 @@
   },
   "Ziggs": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Bottom"
   },
   "Zilean": {
     "resourceType": "Mana",
@@ -649,11 +649,11 @@
   },
   "Ambessa": {
     "resourceType": "Energy",
-    "lane": "Top"
+    "lane": "Middle"
   },
   "Aurora": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Top/Middle"
   },
   "Briar": {
     "resourceType": "Health",
@@ -661,7 +661,7 @@
   },
   "Hwei": {
     "resourceType": "Mana",
-    "lane": "Middle"
+    "lane": "Middle/Support"
   },
   "Mel": {
     "resourceType": "Mana",
@@ -677,7 +677,7 @@
   },
   "Smolder": {
     "resourceType": "Mana",
-    "lane": "Bottom"
+    "lane": "Top/Middle/Bottom"
   },
   "Yunara": {
     "resourceType": "Mana",

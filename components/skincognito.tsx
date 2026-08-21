@@ -2,7 +2,7 @@
 
 import { forwardRef, memo, type CSSProperties, FormEvent, type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, Shuffle } from 'lucide-react';
-import { GameSplashImage } from '@/components/game-asset-image';
+import { GAME_SKIN_THUMBNAIL_SIZES, GameSplashImage } from '@/components/game-asset-image';
 import { useRouter } from 'next/navigation';
 import { MultiplayerLobbyRoster } from '@/components/multiplayer-lobby-roster';
 import {
@@ -85,6 +85,7 @@ type NormalizedAnswer<T> = {
 
 const LOBBY_STORAGE_KEY = SKINCOGNITO_LOBBY_STORAGE_KEY;
 const CHAT_MESSAGE_MAX_LENGTH = 240;
+const SKIN_SUGGESTION_LIMIT = 12;
 
 const CATEGORY_DEFINITIONS: Array<{ id: Exclude<SkincognitoCategoryId, 'skin'>; label: string }> = [
   { id: 'champion', label: 'Champion' },
@@ -473,7 +474,7 @@ export function Skincognito() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId: activeLobby.clientId, forfeit: true }),
     }).catch(() => undefined);
-    router.push('/');
+    router.push('/games');
   });
 
   const requestingPlayer = lobbyView?.requestingPlayer ?? null;
@@ -561,7 +562,8 @@ export function Skincognito() {
 
     return normalizedSkinAnswers
       .filter((entry) => entry.normalized.includes(query))
-      .map((entry) => entry.value);
+      .map((entry) => entry.value)
+      .slice(0, SKIN_SUGGESTION_LIMIT);
   }, [normalizedSkinAnswers, selectedSkin?.label, skinQuery]);
 
   const guessSuggestions = useMemo(() => {
@@ -573,7 +575,8 @@ export function Skincognito() {
     if (selectedCategory === 'skin') {
       return normalizedSkinAnswers
         .filter((entry) => entry.normalized.includes(query) && !guessedValues.has(entry.normalized))
-        .map(({ value: skin }) => ({ id: skin.id, label: skin.label, imageUrl: skin.imageUrl }));
+        .map(({ value: skin }) => ({ id: skin.id, label: skin.label, imageUrl: skin.imageUrl }))
+        .slice(0, SKIN_SUGGESTION_LIMIT);
     }
 
     return normalizedCategoryAnswers[selectedCategory]
@@ -1308,15 +1311,16 @@ export function Skincognito() {
 
   const leaveLobby = async () => {
     if (!lobbyView) {
-      router.push('/');
+      router.push('/games');
       return;
     }
 
     const wasWaiting = lobbyView.lobby.status === 'waiting';
+    const forfeit = !wasWaiting;
     const code = lobbyView.lobby.code;
     isLeavingLobbyRef.current = true;
     latestLobbyRef.current = null;
-    if (wasWaiting) window.localStorage.removeItem(LOBBY_STORAGE_KEY);
+    window.localStorage.removeItem(LOBBY_STORAGE_KEY);
     setLobbyView(null);
     setSelectedSkin(null);
     setSkinQuery('');
@@ -1327,21 +1331,14 @@ export function Skincognito() {
       await fetch(`/api/skincognito/lobbies/${code}/leave`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({ clientId, forfeit }),
+        keepalive: true,
       }).catch(() => undefined);
     }
     window.history.replaceState(null, '', '/skincognito');
-    if (wasWaiting) {
-      isLeavingLobbyRef.current = false;
-      await loadPublicLobbies();
-    } else {
-      setRejoinCandidate({
-        code,
-        expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      });
-      isLeavingLobbyRef.current = false;
-      await loadPublicLobbies();
-    }
+    setRejoinCandidate(null);
+    isLeavingLobbyRef.current = false;
+    await loadPublicLobbies();
   };
 
   const kickPlayer = (targetPlayerId: string) => {
@@ -1493,7 +1490,7 @@ export function Skincognito() {
           "Identify your opponent's selected skin before they identify yours.",
         ]}
         onBack={leaveLobby}
-        backLabel="Back to game hub"
+        backLabel="Back to games"
         actions={(
           <>
             {lobbyView?.lobby.status === 'finished' && isHost ? (
@@ -1688,7 +1685,7 @@ export function Skincognito() {
                                   alt=""
                                   width={72}
                                   height={42}
-                                  sizes="64px"
+                                  sizes={GAME_SKIN_THUMBNAIL_SIZES}
                                   className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
                                 />
                                 <span className="min-w-0 truncate">{skin.label}</span>
@@ -2104,7 +2101,7 @@ export function Skincognito() {
                                     alt=""
                                     width={72}
                                     height={42}
-                                    sizes="64px"
+                                    sizes={GAME_SKIN_THUMBNAIL_SIZES}
                                     className="aspect-[1215/717] w-16 shrink-0 object-cover ring-1 ring-white/10"
                                   />
                                 ) : null}

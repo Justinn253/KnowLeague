@@ -22,7 +22,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { GameSplashImage } from '@/components/game-asset-image';
+import { GAME_SKIN_THUMBNAIL_SIZES, GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { SplashScrambleDailyLeaderboard } from '@/components/splash-scramble-daily-leaderboard';
@@ -266,7 +266,7 @@ async function loadDailySkin() {
     return existingRequest;
   }
 
-  const request = fetch('/api/skindle/target')
+  const request = fetch('/api/splash-scramble/target')
     .then((response) => {
       if (!response.ok) {
         throw new Error('Unable to load daily splash art.');
@@ -1967,7 +1967,7 @@ export function SplashScramble() {
                       }}
                     >
                       <span className="relative h-10 overflow-hidden rounded-xl bg-slate-900">
-                        <GameSplashImage src={skin.imageUrl} alt="" fill sizes="48px" className="object-cover" />
+                        <GameSplashImage src={skin.imageUrl} alt="" fill sizes={GAME_SKIN_THUMBNAIL_SIZES} className="object-cover" />
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-white">{skin.answer}</span>
@@ -2472,7 +2472,7 @@ export function SplashScramble() {
     if (phase === 'prematch') {
       return (
         <Link
-          href="/"
+          href="/games"
           aria-label="Back to games"
           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-12 sm:w-12"
         >

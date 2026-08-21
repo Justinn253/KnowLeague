@@ -2,7 +2,7 @@
 
 import { FormEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, X } from 'lucide-react';
-import { GameSplashImage } from '@/components/game-asset-image';
+import { GAME_SKIN_THUMBNAIL_SIZES, GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -988,8 +988,8 @@ export function Skindle() {
         <header className="relative z-30 flex flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link
-              href="/"
-              aria-label="Back to game hub"
+              href="/games"
+              aria-label="Back to games"
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900 sm:h-12 sm:w-12"
             >
               <ArrowLeft size={20} />
@@ -1394,10 +1394,10 @@ export function Skindle() {
                         }}
                       >
                         <span className="relative h-12 overflow-hidden rounded-xl bg-slate-900">
-                          <GameSplashImage src={skin.imageUrl} alt="" fill sizes="64px" className="object-cover" />
+                          <GameSplashImage src={skin.imageUrl} alt="" fill sizes={GAME_SKIN_THUMBNAIL_SIZES} className="object-cover" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-semibold text-white">{skin.answer}</span>
+                          <span className="block truncate font-semibold text-white">{skin.answer}{skin.releaseDate ? ` (${skin.releaseDate})` : ''}</span>
                           <span className="block truncate text-xs text-slate-500">{skin.champion}</span>
                         </span>
                       </button>

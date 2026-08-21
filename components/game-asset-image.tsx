@@ -8,6 +8,9 @@ type GameIconImageProps = Omit<ImageProps, 'loading' | 'unoptimized'> & {
   loading?: ImageProps['loading'];
 };
 
+/** Keep catalog autocomplete thumbnails on one reusable optimized width. */
+export const GAME_SKIN_THUMBNAIL_SIZES = '64px';
+
 /**
  * Full-size Riot splash art benefits from responsive resizing. Keep its
  * quality and loading behavior consistent so the app reuses a small set of

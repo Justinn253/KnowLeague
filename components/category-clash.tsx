@@ -732,9 +732,10 @@ export function CategoryClash() {
     await joinLobbyByCode(joinCode);
   };
 
-  const leaveLobby = async (forfeit = false) => {
+  const leaveLobby = async () => {
     if (!view || !clientId) return;
     const leavingView = view;
+    const forfeit = leavingView.lobby.status !== 'waiting';
     isLeavingLobbyRef.current = true;
     ignoredLobbyCodeRef.current = leavingView.lobby.code;
     window.localStorage.removeItem(STORAGE_KEY);
@@ -747,6 +748,7 @@ export function CategoryClash() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId, forfeit }),
+        keepalive: true,
       });
     } finally {
       isLeavingLobbyRef.current = false;
@@ -922,7 +924,7 @@ export function CategoryClash() {
         <div className="mx-auto max-w-6xl">
           <header className="mb-5 flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-              <button type="button" onClick={() => { window.location.href = '/'; }} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to home">
+              <button type="button" onClick={() => { window.location.href = '/games'; }} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to games">
                 <ArrowLeft size={22} />
               </button>
               <div className="min-w-0">
@@ -1016,7 +1018,7 @@ export function CategoryClash() {
       <section className={`mx-auto flex min-h-[100dvh] w-full flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-12 ${view.lobby.status === 'waiting' ? 'max-w-6xl' : 'max-w-7xl'}`}>
         <header className="relative z-30 flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-4 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <button type="button" onClick={() => void leaveLobby(view.lobby.status === 'active')} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900" aria-label="Leave lobby">
+              <button type="button" onClick={() => void leaveLobby()} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 transition hover:bg-slate-900" aria-label="Leave lobby">
                 <ArrowLeft size={20} />
               </button>
               <div className="min-w-0">

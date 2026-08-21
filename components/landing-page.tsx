@@ -40,7 +40,6 @@ function LandingCard({ href, title, description, icon, theme, backgroundImage, c
               src={backgroundImage}
               alt=""
               fill
-              quality={90}
               sizes="(min-width: 1280px) 22rem, (min-width: 768px) 20rem, 100vw"
               className="object-contain p-2"
             />

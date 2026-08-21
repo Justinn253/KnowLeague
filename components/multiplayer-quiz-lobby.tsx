@@ -292,7 +292,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId: activeLobby.clientId, forfeit: true }),
     }).catch(() => undefined);
-    router.push('/');
+    router.push('/games');
   });
 
   const isHost = Boolean(view?.requestingPlayer && view.lobby.host_player_id === view.requestingPlayer.id);
@@ -658,35 +658,29 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
 
   const leaveLobby = async () => {
     if (!view || !clientId) {
-      router.push('/');
+      router.push('/games');
       return;
     }
     const code = view.lobby.code;
     const wasWaiting = view.lobby.status === 'waiting';
+    const forfeit = !wasWaiting;
     queuePendingMultiplayerQuizLoss(gameMode, latestLobbyRef.current);
     isLeavingLobbyRef.current = true;
     latestLobbyRef.current = null;
     setView(null);
     setMessage('');
     window.history.replaceState(null, '', config.route);
-    if (wasWaiting) window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
+    window.localStorage.removeItem(getMultiplayerQuizLobbyStorageKey(gameMode));
     setPublicLobbies((current) => current.filter((lobby) => lobby.code !== code));
     await fetch(`/api/multiplayer/lobbies/${code}/leave`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId }),
+      body: JSON.stringify({ clientId, forfeit }),
+      keepalive: true,
     }).catch(() => undefined);
-    if (wasWaiting) {
-      isLeavingLobbyRef.current = false;
-      await loadPublicLobbies();
-    } else {
-      setRejoinCandidate({
-        code,
-        expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      });
-      isLeavingLobbyRef.current = false;
-      await loadPublicLobbies();
-    }
+    setRejoinCandidate(null);
+    isLeavingLobbyRef.current = false;
+    await loadPublicLobbies();
   };
 
   const updateSettings = async (
@@ -936,7 +930,7 @@ export function MultiplayerQuizLobby({ gameMode }: { gameMode: MultiplayerQuizGa
         subtitle={view ? 'Lobby' : 'Create or join a lobby'}
         statusLabel={statusLabel}
         infoSteps={infoSteps}
-        onBack={view ? leaveLobby : () => router.push('/')}
+        onBack={view ? leaveLobby : () => router.push('/games')}
       />
 
       <MultiplayerLobbyCard>

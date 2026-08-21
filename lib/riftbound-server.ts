@@ -10,6 +10,7 @@ import {
   type RiftboundLatestPricesPayload as RiftboundMarketValuesPayload,
   type RiftboundLatestSnapshotRow,
 } from '@/lib/riftbound-market-values';
+import type { RiftboundInventoryHistoryEventType, RiftboundInventoryHistoryGroup, RiftboundInventoryHistoryItem } from '@/lib/riftbound-inventory-history';
 import type { RiftboundInventoryMetadata, RiftboundSale, RiftboundSaleItem } from '@/lib/riftbound-sales';
 
 export type RiftboundInventoryRow = {
@@ -70,6 +71,12 @@ type SaleItemRow = RiftboundSaleItem & {
   sale_id: string;
 };
 
+type InventoryHistoryGroupRow = Omit<RiftboundInventoryHistoryGroup, 'items'>;
+
+type InventoryHistoryItemRow = RiftboundInventoryHistoryItem & {
+  group_id: string;
+};
+
 type DeckRow = {
   id: string;
   name: string;
@@ -92,6 +99,8 @@ type RiftboundSupabaseClient = ReturnType<typeof getSupabaseServiceClient>;
 const RIFTBOUND_LATEST_PRICES_CACHE_KEY = 'riftbound:market-values:canonical-v1';
 const RIFTBOUND_LATEST_PRICES_CACHE_TTL_MS = 60_000;
 const RIFTBOUND_MARKET_VALUE_PAGE_SIZE = 1000;
+const RIFTBOUND_INVENTORY_HISTORY_PAGE_SIZE = 1000;
+const RIFTBOUND_INVENTORY_HISTORY_GROUP_CHUNK_SIZE = 500;
 const latestPricesInFlight = new Map<string, Promise<RiftboundLatestPricesPayload>>();
 let latestPricesCacheGeneration = 0;
 
@@ -317,6 +326,62 @@ export async function loadRiftboundSales(
   });
 
   return sales.map((sale) => ({ ...sale, items: itemsBySaleId.get(sale.id) ?? [] }));
+}
+
+export async function loadRiftboundInventoryHistory(
+  userId: string,
+  supabase: RiftboundSupabaseClient = getSupabaseServiceClient(),
+): Promise<RiftboundInventoryHistoryGroup[]> {
+  const groups: InventoryHistoryGroupRow[] = [];
+  for (let offset = 0; ; offset += RIFTBOUND_INVENTORY_HISTORY_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('riftbound_inventory_history_groups')
+      .select('id, event_type, occurred_at, sale_id')
+      .eq('user_id', userId)
+      .order('occurred_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + RIFTBOUND_INVENTORY_HISTORY_PAGE_SIZE - 1)
+      .returns<InventoryHistoryGroupRow[]>();
+
+    if (error) throw error;
+    const page = (data ?? []).map((group) => ({
+      ...group,
+      event_type: group.event_type as RiftboundInventoryHistoryEventType,
+    }));
+    groups.push(...page);
+    if (page.length < RIFTBOUND_INVENTORY_HISTORY_PAGE_SIZE) break;
+  }
+
+  if (groups.length === 0) return [];
+
+  const items: InventoryHistoryItemRow[] = [];
+  for (let start = 0; start < groups.length; start += RIFTBOUND_INVENTORY_HISTORY_GROUP_CHUNK_SIZE) {
+    const groupIds = groups.slice(start, start + RIFTBOUND_INVENTORY_HISTORY_GROUP_CHUNK_SIZE).map((group) => group.id);
+    for (let offset = 0; ; offset += RIFTBOUND_INVENTORY_HISTORY_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('riftbound_inventory_history_items')
+        .select('id, group_id, card_id, finish, delta, sale_price_cents')
+        .eq('user_id', userId)
+        .in('group_id', groupIds)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + RIFTBOUND_INVENTORY_HISTORY_PAGE_SIZE - 1)
+        .returns<InventoryHistoryItemRow[]>();
+
+      if (error) throw error;
+      const page = data ?? [];
+      items.push(...page);
+      if (page.length < RIFTBOUND_INVENTORY_HISTORY_PAGE_SIZE) break;
+    }
+  }
+
+  const itemsByGroupId = new Map<string, RiftboundInventoryHistoryItem[]>();
+  items.forEach(({ group_id: groupId, ...item }) => {
+    const groupItems = itemsByGroupId.get(groupId) ?? [];
+    groupItems.push(item);
+    itemsByGroupId.set(groupId, groupItems);
+  });
+
+  return groups.map((group) => ({ ...group, items: itemsByGroupId.get(group.id) ?? [] }));
 }
 
 export async function loadRiftboundBinders(

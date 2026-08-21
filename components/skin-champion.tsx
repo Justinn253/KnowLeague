@@ -41,7 +41,16 @@ import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achieveme
 import type { AchievementEventSubmission } from '@/lib/achievements';
 import { getSkinThemeAnswer } from '@/lib/skin-themes';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
+import {
+  CHAOS_DIFFICULTY,
+  CHAOS_ROUND_TIME_LIMIT_SECONDS,
+  forceAllModifiers,
+  isLeaderboardMode,
+  SOLO_QUIZ_DIFFICULTY_RULES as difficultyRules,
+  SOLO_QUIZ_ENTRY_COUNT_OPTIONS as entryCountOptions,
+  type SoloQuizMode,
+  type SoloQuizRoundState,
+} from '@/lib/solo-quiz';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const modifiers = [
@@ -81,61 +90,13 @@ type OpenMenu = 'difficulty' | 'modifiers' | null;
 type ModifierState = Record<ModifierId, boolean>;
 type ModeStatus = 'not-started' | 'in-progress' | 'completed';
 
-type SkinChampionDailyState = {
-  items: QuizItem[];
-  soloMode?: SoloQuizMode;
-  selectedDifficulty: DifficultyId;
-  activeModifiers: ModifierState;
-  entryCount: number;
-  started: boolean;
-  activeIndex: number;
-  currentTime: number;
-  totalTime: number;
-  completedTimes: Record<string, CompletedTime>;
-  finished: boolean;
-  failed: boolean;
-};
-
-type DifficultyRule = {
-  hintDelaySeconds: number | null;
-  wrongGuess: 'none' | 'flat-five' | 'scaled' | 'game-over';
-  upcomingVisibility: 'clear' | 'blurred' | 'blocked';
-  autocomplete: boolean;
-};
-
-const difficultyRules: Record<DifficultyId, DifficultyRule> = {
-  iron: {
-    hintDelaySeconds: 0,
-    wrongGuess: 'none',
-    upcomingVisibility: 'clear',
-    autocomplete: true,
-  },
-  gold: {
-    hintDelaySeconds: 10,
-    wrongGuess: 'flat-five',
-    upcomingVisibility: 'blurred',
-    autocomplete: true,
-  },
-  diamond: {
-    hintDelaySeconds: 30,
-    wrongGuess: 'scaled',
-    upcomingVisibility: 'blocked',
-    autocomplete: true,
-  },
-  challenger: {
-    hintDelaySeconds: null,
-    wrongGuess: 'game-over',
-    upcomingVisibility: 'blocked',
-    autocomplete: false,
-  },
-};
+type SkinChampionDailyState = SoloQuizRoundState<ModifierState>;
 
 const defaultModifiers = modifiers.reduce(
   (state, modifier) => ({ ...state, [modifier.id]: false }),
   {} as ModifierState,
 );
 
-const entryCountOptions = [10, 25, 50, 75, 100] as const;
 let skinChampionAnswersRequest: Promise<string[]> | null = null;
 const skinChampionItemsRequests = new Map<string, Promise<QuizItem[]>>();
 
@@ -1665,6 +1626,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     completedClassName="border-emerald-500/30 bg-emerald-500/10"
                     pendingClassName="border-white/10 bg-slate-950/70"
                     pendingImageClassName="blur-sm brightness-75 scale-105"
+                    showImage={active || completed}
                     titleClassName="text-white"
                   />
                 );

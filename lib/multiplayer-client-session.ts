@@ -26,20 +26,21 @@ export function getMultiplayerQuizLobbyStorageKey(gameMode: MultiplayerQuizGameM
 }
 
 export function disconnectMultiplayerSession(session: ActiveMultiplayerSession) {
-  const endpoint = session.status === 'waiting' ? 'leave' : 'heartbeat';
-  if (endpoint === 'leave') {
-    window.localStorage.removeItem(session.storageKey);
-  }
-
+  const endpoint = 'leave';
+  const forfeit = session.status !== 'waiting';
+  window.localStorage.removeItem(session.storageKey);
   const body = JSON.stringify({
     clientId: session.clientId,
-    ...(endpoint === 'heartbeat' ? { connected: false } : {}),
+    forfeit,
   });
   const url = `${session.baseUrl}/${session.code}/${endpoint}`;
 
-  if (navigator.sendBeacon) {
-    navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-    return;
+  try {
+    if (navigator.sendBeacon?.(url, new Blob([body], { type: 'application/json' }))) {
+      return;
+    }
+  } catch {
+    // Fall through to keepalive fetch when Beacon is unavailable or rejects the payload.
   }
 
   void fetch(url, {
@@ -57,20 +58,18 @@ export function addMultiplayerDisconnectListeners(disconnect: DisconnectHandler)
     disconnected = true;
     disconnect();
   };
-  const disconnectWhenHidden = () => {
-    if (document.visibilityState === 'hidden') {
+  const disconnectOnPageHide = (event: PageTransitionEvent) => {
+    if (!event.persisted) {
       disconnectOnce();
     }
   };
 
-  window.addEventListener('pagehide', disconnectOnce);
+  window.addEventListener('pagehide', disconnectOnPageHide);
   window.addEventListener('beforeunload', disconnectOnce);
-  document.addEventListener('visibilitychange', disconnectWhenHidden);
 
   return () => {
-    window.removeEventListener('pagehide', disconnectOnce);
+    window.removeEventListener('pagehide', disconnectOnPageHide);
     window.removeEventListener('beforeunload', disconnectOnce);
-    document.removeEventListener('visibilitychange', disconnectWhenHidden);
   };
 }
 
@@ -116,14 +115,6 @@ function isOnSessionRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
-async function readOptionalJson(response: Response) {
-  try {
-    return await response.json() as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
 export async function reconcileStoredMultiplayerSessionsAwayFromGame(pathname: string) {
   if (typeof window === 'undefined') return;
 
@@ -137,41 +128,17 @@ export async function reconcileStoredMultiplayerSessionsAwayFromGame(pathname: s
     if (!code) return;
 
     try {
-      const rejoinResponse = await fetch(`${session.baseUrl}/${code}/rejoin?clientId=${encodeURIComponent(clientId)}`, {
-        cache: 'no-store',
+      const response = await fetch(`${session.baseUrl}/${code}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, forfeit: true }),
+        keepalive: true,
       });
-      const eligibility = await readOptionalJson(rejoinResponse);
-      if (eligibility.eligible === true) {
-        return;
-      }
-
-      const lobbyResponse = await fetch(`${session.baseUrl}/${code}?clientId=${encodeURIComponent(clientId)}`, {
-        cache: 'no-store',
-      });
-      if (!lobbyResponse.ok) {
-        window.localStorage.removeItem(session.storageKey);
-        return;
-      }
-
-      const view = await readOptionalJson(lobbyResponse);
-      const lobby = view.lobby as { status?: string } | undefined;
-      const requestingPlayer = view.requestingPlayer as { connected?: boolean } | null | undefined;
-      if (lobby?.status === 'active' && requestingPlayer) {
-        window.localStorage.removeItem(session.storageKey);
-        await fetch(`${session.baseUrl}/${code}/leave`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId, forfeit: true }),
-          keepalive: true,
-        }).catch(() => undefined);
-        return;
-      }
-
-      if (lobby?.status !== 'waiting') {
+      if (response.ok || response.status === 404) {
         window.localStorage.removeItem(session.storageKey);
       }
     } catch {
-      // Keep the pointer if the network is unavailable; the game page will ask the server again.
+      // Keep the pointer so a later route transition can retry the authoritative leave.
     }
   }));
 }

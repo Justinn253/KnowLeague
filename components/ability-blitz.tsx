@@ -35,7 +35,16 @@ import { ViewportPopover } from '@/components/viewport-popover';
 import { DifficultyLabel, getDifficultyStyle } from '@/components/difficulty-style';
 import { ABILITY_SLOTS as abilitySlots, filterItemsByAbilitySlots, type AbilitySlotId, type AbilitySlotState } from '@/lib/ability-slots';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-import { CHAOS_DIFFICULTY, CHAOS_ROUND_TIME_LIMIT_SECONDS, forceAllModifiers, isLeaderboardMode, type SoloQuizMode } from '@/lib/solo-quiz';
+import {
+  CHAOS_DIFFICULTY,
+  CHAOS_ROUND_TIME_LIMIT_SECONDS,
+  forceAllModifiers,
+  isLeaderboardMode,
+  SOLO_QUIZ_DIFFICULTY_RULES as difficultyRules,
+  SOLO_QUIZ_ENTRY_COUNT_OPTIONS as entryCountOptions,
+  type SoloQuizMode,
+  type SoloQuizRoundState,
+} from '@/lib/solo-quiz';
 import { SoloQuizPrematch } from '@/components/solo-quiz-prematch';
 import { QuizItemCarousel, type QuizCarouselRole } from '@/components/quiz-item-carousel';
 import { QuizProgressCard } from '@/components/quiz-progress-card';
@@ -117,57 +126,10 @@ type ModifierId = (typeof modifiers)[number]['id'];
 type OpenMenu = 'difficulty' | 'modifiers' | null;
 type ModifierState = Record<ModifierId, boolean>;
 type ModeStatus = 'not-started' | 'in-progress' | 'completed';
-type UpcomingVisibility = 'clear' | 'blurred' | 'blocked';
 
-type AbilityBlitzDailyState = {
-  items: QuizItem[];
-  soloMode?: SoloQuizMode;
-  selectedDifficulty: DifficultyId;
-  activeModifiers: ModifierState;
+type AbilityBlitzDailyState = SoloQuizRoundState<ModifierState, {
   selectedAbilitySlots: AbilitySlotState;
-  entryCount: number;
-  started: boolean;
-  activeIndex: number;
-  currentTime: number;
-  totalTime: number;
-  completedTimes: Record<string, CompletedTime>;
-  finished: boolean;
-  failed: boolean;
-};
-
-type DifficultyRule = {
-  hintDelaySeconds: number | null;
-  wrongGuess: 'none' | 'flat-five' | 'scaled' | 'game-over';
-  upcomingVisibility: UpcomingVisibility;
-  autocomplete: boolean;
-};
-
-const difficultyRules: Record<DifficultyId, DifficultyRule> = {
-  iron: {
-    hintDelaySeconds: 0,
-    wrongGuess: 'none',
-    upcomingVisibility: 'clear',
-    autocomplete: true,
-  },
-  gold: {
-    hintDelaySeconds: 10,
-    wrongGuess: 'flat-five',
-    upcomingVisibility: 'blurred',
-    autocomplete: true,
-  },
-  diamond: {
-    hintDelaySeconds: 30,
-    wrongGuess: 'scaled',
-    upcomingVisibility: 'blocked',
-    autocomplete: true,
-  },
-  challenger: {
-    hintDelaySeconds: null,
-    wrongGuess: 'game-over',
-    upcomingVisibility: 'blocked',
-    autocomplete: false,
-  },
-};
+}>;
 
 const defaultModifiers = modifiers.reduce(
   (state, modifier) => ({ ...state, [modifier.id]: false }),
@@ -186,7 +148,6 @@ const defaultAbilitySlots = abilitySlots.reduce(
   {} as AbilitySlotState,
 );
 
-const entryCountOptions = [10, 25, 50, 75, 100] as const;
 let abilityAnswersRequest: Promise<string[]> | null = null;
 const abilityItemsRequests = new Map<string, Promise<QuizItem[]>>();
 

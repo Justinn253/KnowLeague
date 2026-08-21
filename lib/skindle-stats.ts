@@ -1,5 +1,4 @@
-import { promises as fs } from 'fs';
-import path from 'path';
+import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export type SkindleTopGuess = {
   skinId: string;
@@ -14,28 +13,6 @@ export type SkindleDailyStatsSnapshot = {
   averageGuessesToSolve: number;
   topGuesses: SkindleTopGuess[];
   guessesBySkin: Record<string, number>;
-};
-
-type SkindleSkinGuessRecord = {
-  skinId: string;
-  answer: string;
-  count: number;
-  firstClientId: string;
-};
-
-type SkindleClientRecord = {
-  guessIds: string[];
-  solved: boolean;
-  solvedGuessCount: number | null;
-};
-
-type SkindleDailyStatsRecord = {
-  dateKey: string;
-  totalGuesses: number;
-  correctGuesses: number;
-  totalWinningGuesses: number;
-  guessedSkins: Record<string, SkindleSkinGuessRecord>;
-  clients: Record<string, SkindleClientRecord>;
 };
 
 export type RecordSkindleGuessInput = {
@@ -53,130 +30,108 @@ export type RecordSkindleGuessResult = {
   clientAlreadySolved: boolean;
 };
 
-const STATS_PATH = path.join(process.cwd(), 'data', 'runtime', 'skindle-stats.json');
-let writeQueue = Promise.resolve();
-let statsCache: Record<string, SkindleDailyStatsRecord> | null = null;
+type SupabaseStatsRow = {
+  date_key?: string;
+  total_guesses?: number | string;
+  correct_guesses?: number | string;
+  average_guesses_to_solve?: number | string;
+  top_guesses?: unknown;
+  guesses_by_skin?: unknown;
+  accepted?: boolean;
+  first_for_skin?: boolean;
+  client_already_solved?: boolean;
+};
 
-function createEmptyDailyRecord(dateKey: string): SkindleDailyStatsRecord {
-  return {
-    dateKey,
-    totalGuesses: 0,
-    correctGuesses: 0,
-    totalWinningGuesses: 0,
-    guessedSkins: {},
-    clients: {},
-  };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-async function readStatsFile() {
-  if (statsCache) {
-    return statsCache;
+function toFiniteNumber(value: unknown, fallback = 0) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function toTopGuesses(value: unknown): SkindleTopGuess[] {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  try {
-    const rawStats = await fs.readFile(STATS_PATH, 'utf8');
-    statsCache = JSON.parse(rawStats) as Record<string, SkindleDailyStatsRecord>;
-    return statsCache;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      statsCache = {};
-      return statsCache;
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.skinId !== 'string' || typeof entry.answer !== 'string') {
+      return [];
     }
 
+    return [{
+      skinId: entry.skinId,
+      answer: entry.answer,
+      count: toFiniteNumber(entry.count),
+    }];
+  });
+}
+
+function toGuessesBySkin(value: unknown): Record<string, number> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([skinId, count]) => {
+      const numericCount = toFiniteNumber(count, -1);
+      return numericCount >= 0 ? [[skinId, numericCount]] : [];
+    }),
+  );
+}
+
+function getFirstRow(data: unknown): SupabaseStatsRow {
+  if (Array.isArray(data)) {
+    return isRecord(data[0]) ? data[0] as SupabaseStatsRow : {};
+  }
+
+  return isRecord(data) ? data as SupabaseStatsRow : {};
+}
+
+function toSnapshot(row: SupabaseStatsRow, fallbackDateKey: string): SkindleDailyStatsSnapshot {
+  return {
+    dateKey: typeof row.date_key === 'string' ? row.date_key : fallbackDateKey,
+    totalGuesses: toFiniteNumber(row.total_guesses),
+    correctGuesses: toFiniteNumber(row.correct_guesses),
+    averageGuessesToSolve: toFiniteNumber(row.average_guesses_to_solve),
+    topGuesses: toTopGuesses(row.top_guesses),
+    guessesBySkin: toGuessesBySkin(row.guesses_by_skin),
+  };
+}
+
+async function callStatsRpc<T extends SupabaseStatsRow>(functionName: string, args: Record<string, unknown>) {
+  const { data, error } = await getSupabaseServiceClient().rpc(functionName, args);
+  if (error) {
     throw error;
   }
-}
 
-async function writeStatsFile(stats: Record<string, SkindleDailyStatsRecord>) {
-  await fs.mkdir(path.dirname(STATS_PATH), { recursive: true });
-  await fs.writeFile(STATS_PATH, JSON.stringify(stats), 'utf8');
-  statsCache = stats;
-}
-
-function toSnapshot(record: SkindleDailyStatsRecord, includeTopGuesses = true): SkindleDailyStatsSnapshot {
-  const topGuesses = includeTopGuesses
-    ? Object.values(record.guessedSkins)
-        .sort((a, b) => b.count - a.count || a.answer.localeCompare(b.answer))
-        .slice(0, 10)
-        .map(({ skinId, answer, count }) => ({ skinId, answer, count }))
-    : [];
-
-  const guessesBySkin = Object.fromEntries(
-    Object.values(record.guessedSkins).map((guess) => [guess.skinId, guess.count]),
-  );
-
-  return {
-    dateKey: record.dateKey,
-    totalGuesses: record.totalGuesses,
-    correctGuesses: record.correctGuesses,
-    averageGuessesToSolve: record.correctGuesses > 0 ? record.totalWinningGuesses / record.correctGuesses : 0,
-    topGuesses,
-    guessesBySkin,
-  };
+  return getFirstRow(data) as T;
 }
 
 export async function getSkindleDailyStats(dateKey: string, includeTopGuesses = true): Promise<SkindleDailyStatsSnapshot> {
-  const stats = await readStatsFile();
-  return toSnapshot(stats[dateKey] ?? createEmptyDailyRecord(dateKey), includeTopGuesses);
-}
-
-export function recordSkindleGuess(input: RecordSkindleGuessInput, includeTopGuesses = true): Promise<RecordSkindleGuessResult> {
-  const operation = writeQueue.then(async () => {
-    const stats = await readStatsFile();
-    const dailyRecord = stats[input.dateKey] ?? createEmptyDailyRecord(input.dateKey);
-    const clientRecord = dailyRecord.clients[input.clientId] ?? {
-      guessIds: [],
-      solved: false,
-      solvedGuessCount: null,
-    };
-
-    let accepted = false;
-    let firstForSkin = false;
-    const clientAlreadySolved = clientRecord.solved;
-
-    if (!clientRecord.solved && !clientRecord.guessIds.includes(input.skinId)) {
-      accepted = true;
-      dailyRecord.totalGuesses += 1;
-      clientRecord.guessIds.push(input.skinId);
-
-      const skinRecord = dailyRecord.guessedSkins[input.skinId] ?? {
-        skinId: input.skinId,
-        answer: input.answer,
-        count: 0,
-        firstClientId: input.clientId,
-      };
-
-      skinRecord.answer = input.answer;
-      skinRecord.count += 1;
-      firstForSkin = skinRecord.count === 1 && skinRecord.firstClientId === input.clientId;
-      dailyRecord.guessedSkins[input.skinId] = skinRecord;
-
-      if (input.isCorrect) {
-        clientRecord.solved = true;
-        clientRecord.solvedGuessCount = clientRecord.guessIds.length;
-        dailyRecord.correctGuesses += 1;
-        dailyRecord.totalWinningGuesses += clientRecord.guessIds.length;
-      }
-    }
-
-    if (accepted) {
-      dailyRecord.clients[input.clientId] = clientRecord;
-      stats[input.dateKey] = dailyRecord;
-      await writeStatsFile(stats);
-    }
-
-    return {
-      snapshot: toSnapshot(dailyRecord, includeTopGuesses),
-      accepted,
-      firstForSkin,
-      clientAlreadySolved,
-    };
+  const row = await callStatsRpc('get_skindle_daily_stats', {
+    p_date_key: dateKey,
+    p_include_top_guesses: includeTopGuesses,
   });
 
-  writeQueue = operation.then(
-    () => undefined,
-    () => undefined,
-  );
+  return toSnapshot(row, dateKey);
+}
 
-  return operation;
+export async function recordSkindleGuess(input: RecordSkindleGuessInput): Promise<RecordSkindleGuessResult> {
+  const row = await callStatsRpc('record_skindle_guess', {
+    p_date_key: input.dateKey,
+    p_client_id: input.clientId,
+    p_skin_id: input.skinId,
+    p_answer: input.answer,
+    p_is_correct: input.isCorrect,
+  });
+
+  return {
+    snapshot: toSnapshot(row, input.dateKey),
+    accepted: row.accepted === true,
+    firstForSkin: row.first_for_skin === true,
+    clientAlreadySolved: row.client_already_solved === true,
+  };
 }

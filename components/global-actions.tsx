@@ -8,8 +8,9 @@ import { CumulativeAchievementTracker } from '@/components/cumulative-achievemen
 import { AppHeader } from '@/components/app-header';
 import { PlayerGameStatsSync } from '@/components/player-game-stats-sync';
 import { submitAchievementEvent, toAchievementNotification } from '@/lib/achievement-client';
+import { subscribeToAppActivity, useAppActivity, type AppActivitySnapshot } from '@/lib/app-activity';
 import { getSessionScopedRequest, subscribeToAuthSession } from '@/lib/auth-session-client';
-import { consumeAuthReturnPath, rememberAuthReturnPath } from '@/lib/auth-redirect';
+import { consumeAuthReturnPath, isActiveGamePath, rememberAuthReturnPath } from '@/lib/auth-redirect';
 import { forfeitStoredMultiplayerSessions, reconcileStoredMultiplayerSessionsAwayFromGame } from '@/lib/multiplayer-client-session';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { AppRole } from '@/lib/moderation';
@@ -30,6 +31,7 @@ function dispatchAchievementNotification(row: unknown) {
 export function GlobalActions({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const appActivity = useAppActivity();
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [profileAway, setProfileAway] = useState(false);
@@ -39,8 +41,10 @@ export function GlobalActions({ children }: { children: ReactNode }) {
   const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
   const activeSessionRef = useRef<Session | null>(null);
+  const appActivityRef = useRef<AppActivitySnapshot>(appActivity);
   const pathnameRef = useRef(pathname);
 
+  appActivityRef.current = appActivity;
   pathnameRef.current = pathname;
 
   useEffect(() => {
@@ -115,6 +119,10 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       }
     };
 
+    const shouldRunBackgroundValidation = () => (
+      isActiveGamePath(pathnameRef.current) || appActivityRef.current.isActive
+    );
+
     const updateSessionValidation = (session: Session | null) => {
       if (sessionValidationInterval) {
         window.clearInterval(sessionValidationInterval);
@@ -125,7 +133,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       void validateSession(session, true);
       sessionValidationInterval = window.setInterval(() => {
         const activeSession = activeSessionRef.current;
-        if (activeSession) void validateSession(activeSession);
+        if (activeSession && shouldRunBackgroundValidation()) void validateSession(activeSession);
       }, SESSION_VALIDATION_INTERVAL_MS);
     };
 
@@ -135,6 +143,12 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       if (activeSession) void validateSession(activeSession);
     };
     document.addEventListener('visibilitychange', validateVisibleSession);
+
+    const unsubscribeFromAppActivity = subscribeToAppActivity((activity: AppActivitySnapshot) => {
+      if (!activity.isActive || isActiveGamePath(pathnameRef.current)) return;
+      const activeSession = activeSessionRef.current;
+      if (activeSession) void validateSession(activeSession);
+    });
 
     const updateModerationRole = async (session: Session, force = false) => {
       try {
@@ -266,6 +280,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
         window.clearInterval(sessionValidationInterval);
       }
       document.removeEventListener('visibilitychange', validateVisibleSession);
+      unsubscribeFromAppActivity();
       unsubscribeFromAuthSession();
       if (profileChannel) {
         void supabase.removeChannel(profileChannel);

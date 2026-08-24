@@ -632,13 +632,12 @@ function FriendsHeaderButton({ pendingFriendRequests }: { pendingFriendRequests:
 }
 
 function MobileHeaderMenu({
-  isLoggedIn,
-  pendingFriendRequests,
   moderationRole,
-}: Pick<AppHeaderProps, 'isLoggedIn' | 'pendingFriendRequests' | 'moderationRole'>) {
+}: Pick<AppHeaderProps, 'moderationRole'>) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [openSection, setOpenSection] = useState<'games' | 'lav' | 'riftbound' | null>(null);
+  const [openMiscPanel, setOpenMiscPanel] = useState<'sound' | 'help' | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -648,12 +647,14 @@ function MobileHeaderMenu({
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
         setOpenSection(null);
+        setOpenMiscPanel(null);
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpen(false);
         setOpenSection(null);
+        setOpenMiscPanel(null);
       }
     };
 
@@ -668,6 +669,7 @@ function MobileHeaderMenu({
   const closeMenu = () => {
     setOpen(false);
     setOpenSection(null);
+    setOpenMiscPanel(null);
   };
 
   return (
@@ -709,6 +711,14 @@ function MobileHeaderMenu({
               open={openSection === 'games'}
               onClick={() => setOpenSection((current) => current === 'games' ? null : 'games')}
             >
+              <HeaderMenuLink
+                href="/games"
+                label="View All"
+                description="All KnowLeague games"
+                icon={Gamepad2}
+                iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
+                onSelect={closeMenu}
+              />
               {gamesForHeader.map((game) => {
                 const GameIcon = game.gameIcon;
                 return (
@@ -723,14 +733,6 @@ function MobileHeaderMenu({
                   />
                 );
               })}
-              <HeaderMenuLink
-                href="/games"
-                label="View All"
-                description="All KnowLeague games"
-                icon={Gamepad2}
-                iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
-                onSelect={closeMenu}
-              />
             </MobileMenuDisclosure>
             <MobileMenuDisclosure
               label="League Account Viewer"
@@ -819,60 +821,41 @@ function MobileHeaderMenu({
 
           <section className="mt-4 border-t border-white/10 pt-3" aria-label="Miscellaneous">
             <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Miscellaneous</p>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-start gap-2">
               {moderationRole ? (
-                <HeaderIconButton
-                  label="Staff change log"
-                  icon={<FileText size={17} />}
-                  onClick={() => {
-                    closeMenu();
-                    router.push('/staff/changelog');
-                  }}
-                  className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
-                />
+                <>
+                  <HeaderIconButton
+                    label="Staff change log"
+                    icon={<FileText size={17} />}
+                    onClick={() => {
+                      closeMenu();
+                      router.push('/staff/changelog');
+                    }}
+                    className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
+                  />
+                  <HeaderIconButton
+                    label="API metrics"
+                    icon={<Activity size={17} />}
+                    onClick={() => {
+                      closeMenu();
+                      router.push('/staff/api-metrics');
+                    }}
+                    className="border-cyan-300/30 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-300/10"
+                  />
+                  <ModerationWidget role={moderationRole} variant="header-icon" />
+                </>
               ) : null}
-              {moderationRole ? (
-                <HeaderIconButton
-                  label="API metrics"
-                  icon={<Activity size={17} />}
-                  onClick={() => {
-                    closeMenu();
-                    router.push('/staff/api-metrics');
-                  }}
-                  className="border-cyan-300/30 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-300/10"
-                />
-              ) : null}
-              <SoundSettingsMenu variant="header-icon" />
-              <ContactUsWidget variant="header-icon" />
-              {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
+              <SoundSettingsMenu
+                variant="navigation"
+                isOpen={openMiscPanel === 'sound'}
+                onOpenChange={(nextOpen) => setOpenMiscPanel(nextOpen ? 'sound' : null)}
+              />
+              <ContactUsWidget
+                variant="navigation"
+                isOpen={openMiscPanel === 'help'}
+                onOpenChange={(nextOpen) => setOpenMiscPanel(nextOpen ? 'help' : null)}
+              />
             </div>
-          </section>
-
-          <section className="mt-4 grid gap-2 border-t border-white/10 pt-3" aria-label="Account">
-            <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Account</p>
-            {isLoggedIn ? (
-              <button
-                type="button"
-                onMouseEnter={() => playUiSound('autocomplete-hover')}
-                onFocus={() => playUiSound('autocomplete-hover')}
-                onClick={() => {
-                  playUiSound('autocomplete-select');
-                  window.dispatchEvent(new Event('knowleague:toggle-friends'));
-                  closeMenu();
-                }}
-                aria-label="Friends"
-                data-friends-trigger="true"
-                className="relative inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
-              >
-                <Users size={18} />
-                <span>Friends</span>
-                {pendingFriendRequests > 0 ? (
-                  <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[0.65rem] font-black text-white">
-                    {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
-                  </span>
-                ) : null}
-              </button>
-            ) : null}
           </section>
         </div>
       ) : null}
@@ -897,8 +880,6 @@ export function AppHeader({
       <div className="relative flex h-14 w-full items-center justify-between px-2 xl:grid xl:min-h-14 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4 xl:px-6">
         <div className="flex items-center gap-1 xl:hidden">
           <MobileHeaderMenu
-            isLoggedIn={isLoggedIn}
-            pendingFriendRequests={pendingFriendRequests}
             moderationRole={moderationRole}
           />
           {isLoggedIn ? <FriendsHeaderButton pendingFriendRequests={pendingFriendRequests} /> : null}

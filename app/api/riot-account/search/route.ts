@@ -2,6 +2,7 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { isRiotPlatformRoute, parseRiotId, recordRiotAccountSearch } from '@/lib/riot-account-viewer';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { NextResponse } from 'next/server';
+import { readJsonBody } from '@/lib/api-utils';
 
 const rateLimitWindowMs = 60_000;
 const rateLimitRequests = 30;
@@ -27,7 +28,7 @@ export const POST = withApiMetrics('/api/riot-account/search', async function PO
   }
 
   try {
-    const body = await request.json() as Record<string, unknown>;
+    const body = await readJsonBody<Record<string, unknown>>(request);
     const riotId = typeof body.riotId === 'string' ? body.riotId.trim() : '';
     const platform = typeof body.platform === 'string' ? body.platform.trim().toUpperCase() : '';
     if (!riotId || !isRiotPlatformRoute(platform)) {

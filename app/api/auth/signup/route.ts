@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { getDualRateLimit } from '@/lib/abuse-controls';
 import { enforceEmailDeliveryProtection } from '@/lib/email-delivery';
@@ -27,13 +27,13 @@ async function findAuthUserByEmail(email: string) {
 
 export const POST = withApiMetrics('/api/auth/signup', async function POST(request: Request) {
   try {
-    const body = await request.json() as {
+    const body = await readJsonBody<{
       email?: unknown;
       password?: unknown;
       username?: unknown;
       emailRedirectTo?: unknown;
       turnstileToken?: unknown;
-    };
+    }>(request);
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const username = typeof body.username === 'string' ? body.username.trim() : '';

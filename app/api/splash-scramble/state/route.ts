@@ -1,7 +1,7 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { isDeepStrictEqual } from 'node:util';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
@@ -69,7 +69,7 @@ export const GET = withApiMetrics('/api/splash-scramble/state', async function G
 export const PUT = withApiMetrics('/api/splash-scramble/state', async function PUT(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    const body = await request.json() as { state?: unknown; stats?: unknown };
+    const body = await readJsonBody<{ state?: unknown; stats?: unknown }>(request);
     if (!('state' in body) && !('stats' in body)) {
       throw new Error('No splash scramble data was provided.');
     }

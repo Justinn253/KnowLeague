@@ -13,9 +13,164 @@ export type StaffChangelogEntry = {
 
 /**
  * Internal, version-controlled changelog entries. New impactful patches must
- * be appended with a precise UTC timestamp and operational/security detail.
+ * be added at the beginning with a precise UTC timestamp and operational/security detail.
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
+  {
+    id: 'patch-2026-08-24-api-abuse-hardening',
+    patch: '2026.08.24-api-abuse-hardening',
+    timestamp: '2026-08-24T20:57:07.4158941Z',
+    title: 'Hardened API abuse controls and request parsing',
+    summary: 'Audited the complete API surface and added centralized route-family rate limits plus bounded JSON request parsing for high-risk and previously broad endpoints.',
+    details: [
+      'Kept the existing global IP and bearer-subject middleware limits on all 156 API routes and added static route-family buckets for anonymous game submissions, game actions, account writes, social writes, expensive reads, public lobby discovery, privileged endpoints, and scheduled jobs.',
+      'Excluded multiplayer heartbeat and progress endpoints from the additional game-action bucket so normal active-game synchronization keeps its existing throughput contract.',
+      'Added a 4 MiB API request-body ceiling in middleware and a streaming readJsonBody implementation that enforces the same limit for chunked requests before JSON parsing; malformed JSON retains the existing empty-body behavior.',
+      'Replaced every direct request.json call in app/api with the bounded shared parser and added a client identifier length bound to Splash Scramble anonymous stats submissions.',
+      'Kept rate-limit keys aggregate and non-sensitive: route scopes are static, bearer subjects remain hashed, and no request body, query value, header, token, IP address, user ID, or dynamic identifier is stored by the policy layer.',
+      'Reviewed authentication boundaries, service-role usage, route metrics coverage, validation, external-call surfaces, and existing route-specific limits across all API route files; no auth or multiplayer lifecycle contract was broadened.',
+    ],
+    impact: [
+      'Anonymous result endpoints and authenticated game, account, social, staff, and cron mutations have bounded abuse budgets before handler work or external calls execute.',
+      'Large JSON payloads cannot consume unbounded memory through direct or chunked request parsing; the existing Riftbound scan and Splash Scramble state-specific validation remains stricter than the shared ceiling.',
+      'Normal page reads, active game heartbeats, multiplayer progress, authentication flows, and already stricter route-specific protections remain available under their existing limits.',
+      'Staff API telemetry continues to receive only aggregate static route data and remains independent of request payload contents.',
+    ],
+    files: [
+      'middleware.ts',
+      'lib/abuse-controls.ts',
+      'lib/api-utils.ts',
+      'app/api/auth/email-delivery/route.ts',
+      'app/api/auth/password-reset/authenticated/route.ts',
+      'app/api/auth/signup/route.ts',
+      'app/api/riot-account/search/route.ts',
+      'app/api/skindle/stats/route.ts',
+      'app/api/solo-quiz/attempt/route.ts',
+      'app/api/solo-quiz/leaderboard/route.ts',
+      'app/api/splash-scramble/leaderboard/route.ts',
+      'app/api/splash-scramble/state/route.ts',
+      'app/api/splash-scramble/stats/route.ts',
+      'tests/abuse-controls.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Static security review completed: all 156 app/api route files were inventoried, all retained withApiMetrics coverage, existing route-specific limiters were catalogued, and every direct request.json call was replaced before repository checks.',
+      'npm run check passed: lint completed with the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-24-navigation-misc-icon-alignment',
+    patch: '2026.08.24-navigation-misc-icon-alignment',
+    timestamp: '2026-08-24T20:04:48.830Z',
+    title: 'Aligned responsive Miscellaneous icon controls',
+    summary: 'Restored the Help Center icon-only treatment and placed all responsive Miscellaneous icon controls in one shared row.',
+    details: [
+      'Changed the responsive Miscellaneous layout so staff controls, Sound settings, and Help Center share one wrapping flex row instead of being split across separate rows.',
+      'Restored Help Center to its original icon-only navigation presentation while retaining its accessible label and title for assistive technology and hover context.',
+      'Kept the Sound and Help inline panels as order-two full-width flex items so opening a tab still places its content below the complete icon row.',
+    ],
+    impact: [
+      'Responsive navigation users see a consistent single row of Miscellaneous icon buttons, including the Help Center message icon.',
+      'The selected Sound or Help panel remains below the controls without changing the desktop header, drawer, or form behavior.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'components/contact-us-widget.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint completed with the repository existing img-element warnings, typecheck passed, and 57 tests passed across 19 test files; git diff --check completed with only existing LF-to-CRLF normalization warnings.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-24-navigation-misc-icon-tabs',
+    patch: '2026.08.24-navigation-misc-icon-tabs',
+    timestamp: '2026-08-24T19:39:32.314Z',
+    title: 'Restored icon-tab navigation for Sound and Help',
+    summary: 'Kept Sound settings and Help Center as compact Miscellaneous icon controls while moving their content into a shared inline tab section below the icon row.',
+    details: [
+      'Changed the responsive navigation menu to keep Sound settings and Help Center as accessible icon-only controls with the same compact sizing and visual treatment as the other Miscellaneous actions.',
+      'Added shared responsive-menu state so selecting Sound or Help opens one corresponding panel below the icon row, selecting the active icon closes it, and selecting the other icon switches panels.',
+      'Added optional controlled open-state callbacks to the Sound settings and Help Center widgets while preserving their existing standalone floating, drawer, mobile, and desktop header behavior.',
+      'Kept outside-click, Escape-key, report-form, form submission, sound preference persistence, and panel close behavior connected to the new controlled state.',
+    ],
+    impact: [
+      'Mobile and responsive-menu users can access Sound settings and Help Center without large full-width controls taking over the Miscellaneous row.',
+      'The selected panel stays inside the navigation surface and expands below the icon tabs instead of behaving like a nested popup.',
+      'The desktop header controls, navigation ordering, Account/Friends removal, and existing settings/contact data flows remain unchanged.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'components/contact-us-widget.tsx',
+      'components/sound-settings-menu.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint completed with the repository existing img-element warnings, typecheck passed, and 57 tests passed across 19 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-21-app-inactivity-throttling',
+    patch: '2026.08.21-app-inactivity-throttling',
+    timestamp: '2026-08-21T21:35:34.967Z',
+    title: 'Paused non-game background polling during inactivity',
+    summary: 'Added shared visibility, focus, and interaction tracking so non-game polling pauses after inactivity and resumes with a refresh, while active game and lobby behavior remains unchanged.',
+    details: [
+      'Added a client-safe app activity store with a five-minute inactivity timeout, immediate hidden or blurred-window suspension, meaningful-input reactivation, and a single scheduled timeout rather than a recurring activity poll.',
+      'Changed the global authentication validation interval to skip inactive non-game pages and validate again when activity resumes; active game and lobby routes continue using their existing validation behavior.',
+      'Changed multiplayer player-count polling to stop its interval while the app is inactive and perform one immediate refresh when the user returns; it remains limited to the existing optional Games-page feature.',
+      'Guarded cumulative achievement queue retries and visible-time tracking so failed background submissions pause on inactive non-game pages and resume on activity, while active game routes remain exempt.',
+      'Added regression coverage for visible/focused activity, hidden or blurred windows, exact timeout expiry, and future timestamps.',
+    ],
+    impact: [
+      'Home, profile, and Riftbound-style non-game pages no longer keep optional polling active after five minutes without interaction or while hidden.',
+      'Returning users receive fresh player-count data and a deferred session validation without changing multiplayer heartbeat, reconciliation, reconnect, or leave behavior.',
+      'No request payloads, session tokens, user identifiers, or sensitive data are stored by the activity tracker.',
+    ],
+    files: [
+      'components/global-actions.tsx',
+      'components/multiplayer-player-count-badge.tsx',
+      'components/cumulative-achievement-tracker.tsx',
+      'lib/app-activity.ts',
+      'lib/staff-changelog.ts',
+      'tests/app-activity.test.ts',
+    ],
+    verification: [
+      'npm run check passed: lint completed with the repository existing img-element warnings, typecheck passed, and 57 tests passed across 19 test files.',
+      'Active multiplayer heartbeat and reconciliation components were not modified.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-21-navigation-metrics-changelog-maintenance',
+    patch: '2026.08.21-navigation-metrics-changelog-maintenance',
+    timestamp: '2026-08-21T20:51:26.0823221Z',
+    title: 'Improved navigation controls, API metrics sorting, and changelog maintenance',
+    summary: 'Reorganized the responsive navigation menu, made API metric columns sortable, and documented the required workflow for keeping the staff change log current.',
+    details: [
+      'Moved the responsive Games menu View All link ahead of individual game links so the all-games destination is consistently first.',
+      'Changed Sound settings and Help Center controls in the responsive navigation menu to render their panels inline within the menu flow, preventing overflow and positioning issues from nested popups.',
+      'Removed the responsive navigation menu Account section and its Friends action; the standalone header Friends control remains unchanged.',
+      'Added click sorting to every API metrics route-table header with accessible sort state and stable display-value comparisons for route, methods, request totals, client errors, server errors, and slow responses.',
+      'Strengthened AGENTS.md so impactful patches update the version-controlled STAFF_CHANGELOG_ENTRIES array in the same change and newest entries remain first.',
+    ],
+    impact: [
+      'Players can reach all games immediately and use Sound settings or Help Center without leaving the responsive navigation surface.',
+      'Staff can inspect API metrics in the order most useful to an investigation by selecting any table header.',
+      'Future agent-led impactful patches have an explicit, verifiable requirement to appear on the internal staff change-log page.',
+    ],
+    files: [
+      'AGENTS.md',
+      'components/app-header.tsx',
+      'components/contact-us-widget.tsx',
+      'components/sound-settings-menu.tsx',
+      'components/staff-api-metrics-screen.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint completed with the repository existing img-element warnings, typecheck passed, and 54 tests passed across 18 test files.',
+      'git diff --check passed; only the repository existing Git LF-to-CRLF normalization warnings were reported.',
+    ],
+  },
   {
     id: 'patch-2026-08-13-riftbound-binder-tools-and-sharing',
     patch: '2026.08.13-riftbound-binder-tools-and-sharing',

@@ -360,7 +360,7 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
     <div
       key={categoryId}
       className={`relative flex items-center justify-center overflow-hidden rounded-lg border text-center ${
-        compact ? 'min-h-0 px-2 py-2' : 'min-h-28 px-2 py-3'
+        compact ? 'h-full min-h-0 px-2 py-2' : 'h-full min-h-28 px-2 py-3'
       } ${
         guess.matches[categoryId]
           ? 'border-slate-300/70 bg-[#00c800] text-white '
@@ -458,7 +458,7 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
           </div>
           {getRevealOverlay(0)}
         </div>
-        <div className="hidden sm:block">{renderCategoryCell('champion')}</div>
+        <div className="hidden h-full sm:block">{renderCategoryCell('champion')}</div>
         {revealColumnGroups.slice(1).map((group) => (
           <div key={group.join('-')} className="hidden min-h-28 grid-rows-2 gap-2 sm:grid">
             {group.map((categoryId) => renderCategoryCell(categoryId, true))}

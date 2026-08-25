@@ -17,6 +17,28 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-08-25-skindle-champion-cell-height',
+    patch: '2026.08.25-skindle-champion-cell-height',
+    timestamp: '2026-08-25T05:29:29.3756558Z',
+    title: 'Filled the Skindle Champion reveal cell',
+    summary: 'Made the desktop Skindle Champion comparison card fill the full height of the guess row like the guess card.',
+    details: [
+      'Added explicit h-full sizing to the shared desktop category cells and the Champion grid wrapper so the Champion card stretches with the full reveal row instead of stopping at its min-h-28 minimum.',
+      'Left the mobile category layout, reveal animation overlays, card content, and responsive grid columns unchanged.',
+    ],
+    impact: [
+      'Desktop Skindle reveal rows now have a continuous full-height Champion card aligned with the Guess card and the surrounding comparison cells.',
+      'Mobile Skindle cards retain their existing compact heights and layout behavior.',
+    ],
+    files: [
+      'components/skindle.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Visual layout fix applied from the supplied Skindle screenshot; npm run check passed with lint retaining the repository\'s existing image warnings, typecheck passing, and 63 tests passing across 20 test files.',
+    ],
+  },
+  {
     id: 'patch-2026-08-24-api-abuse-hardening',
     patch: '2026.08.24-api-abuse-hardening',
     timestamp: '2026-08-24T20:57:07.4158941Z',

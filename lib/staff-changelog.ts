@@ -17,6 +17,172 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-08-26-beta-badge-optical-alignment',
+    patch: '2026.08.26-beta-badge-optical-alignment',
+    timestamp: '2026-08-26T03:11:29.8991072Z',
+    title: 'Refined BETA badge alignment',
+    summary: 'Applied a one-pixel optical adjustment so the compact BETA badge aligns more naturally with the KnowLeague lettering.',
+    details: [
+      'Shifted only the BETA badge down by one pixel while preserving the centered flex alignment of the brand title and the existing badge size, colors, border, and text.',
+    ],
+    impact: [
+      'The BETA badge now sits more naturally against the visual center of the KnowLeague text at desktop and mobile header sizes.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-26-wide-medium-header-breakpoint',
+    patch: '2026.08.26-wide-medium-header-breakpoint',
+    timestamp: '2026-08-26T02:45:08.7016696Z',
+    title: 'Extended the medium header breakpoint',
+    summary: 'Kept compressed header controls active through 1679px and vertically centered the BETA badge to eliminate the remaining 1536px overlap.',
+    details: [
+      'Moved the full text-heavy header restoration from the 2xl breakpoint to the explicit 1680px breakpoint, keeping logout icon-only, Profile avatar-only, Friends icon-plus-count, compact navigation labels, and reduced spacing active below 1680px.',
+      'Updated the responsive Friends control to use the same 1680px restoration threshold so its Friends text and full desktop sizing return at the same time as the other account controls.',
+      'Changed the KnowLeague title wrapper from baseline alignment to centered flex alignment so the smaller BETA badge is vertically aligned with the brand text.',
+    ],
+    impact: [
+      'The reported 1536/1537px viewport remains in the non-overlapping compressed header tier while the larger desktop layout still restores at 1680px and above.',
+      'The home link, button actions, accessibility labels, and mobile behavior remain unchanged.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'components/friends-widget.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Static review confirmed all prior 2xl header restoration classes now use min-[1680px] and the BETA wrapper uses items-center.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-responsive-header-medium-tier',
+    patch: '2026.08.25-responsive-header-medium-tier',
+    timestamp: '2026-08-25T23:18:33.8258272Z',
+    title: 'Added a compressed medium header tier',
+    summary: 'Prevented header controls from overlapping the centered KnowLeague title at medium desktop widths and added a BETA badge.',
+    details: [
+      'Introduced a responsive xl-to-2xl compression tier: logout and login controls become icon-only, Profile becomes avatar-only, and Friends remains icon plus online count until the full 2xl layout restores text labels.',
+      'Reduced medium-width navigation/button padding and gaps while preserving the existing full desktop spacing at 2xl and above.',
+      'Reduced the medium header title size and added a smaller BETA badge to the right of KnowLeague without changing the home link destination or accessible name.',
+    ],
+    impact: [
+      'Medium desktop widths retain the full navigation and account functionality without the right-side controls covering the centered site title.',
+      'Full desktop and mobile layouts retain their existing interaction model, with the BETA badge visible in both title presentations.',
+      'Friends continues to expose its online count in the compressed tier, and all compressed controls retain accessible labels and existing actions.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'components/friends-widget.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Static review confirmed the compressed classes apply only between the xl and 2xl Tailwind breakpoints and full 2xl sizing/text classes remain in place.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-header-custom-hover-notes',
+    patch: '2026.08.25-header-custom-hover-notes',
+    timestamp: '2026-08-25T20:23:41.9010416Z',
+    title: 'Replaced native header hover notes',
+    summary: 'Added the shared custom hover note treatment to the Sound, Help Center, and Discord header buttons.',
+    details: [
+      'Removed the browser title tooltip from the desktop header variants of Sound settings, Help Center, and Join Discord server while preserving their accessible aria-label values and existing click behavior.',
+      'Added a reusable HeaderHoverNote component with the application border, dark surface, compact typography, hover visibility, and keyboard-focus visibility treatment.',
+      'Kept the navigation, drawer, and other non-header variants scoped to their prior title behavior so their existing layouts and interaction contracts remain unchanged.',
+    ],
+    impact: [
+      'Desktop header users now receive a consistent in-app hover note instead of browser-default tooltip styling for all three requested controls.',
+      'Keyboard users see the same note on focus, while assistive technology continues to receive the button labels through aria-label.',
+    ],
+    files: [
+      'components/header-hover-note.tsx',
+      'components/app-header.tsx',
+      'components/sound-settings-menu.tsx',
+      'components/contact-us-widget.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Static diff review confirmed title is omitted only for the three desktop header controls and the reusable tooltip uses role="tooltip" with hover and focus-within states.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-adsense-ads-txt',
+    patch: '2026.08.25-adsense-ads-txt',
+    timestamp: '2026-08-25T19:56:37.5837581Z',
+    title: 'Added the AdSense ads.txt declaration',
+    summary: 'Published the authorized Google seller record for the configured KnowLeague AdSense publisher account.',
+    details: [
+      'Added public/ads.txt with the Google DIRECT seller record for publisher ID pub-7559752825656959, matching the publisher ID already used by the shared AdSense script and verification metadata.',
+      'Kept visible advertising disabled: this patch does not add ad units, enable Auto ads, or change the existing AdSense consent/review flow.',
+    ],
+    impact: [
+      'Google can now discover the site\'s authorized AdSense seller declaration at the standard /ads.txt path, addressing the current Not found status after deployment and recrawl.',
+      'The AdSense site remains in Google\'s Getting ready review state, and this file alone does not cause ads to appear before the site is approved or ad placements are enabled.',
+    ],
+    files: [
+      'public/ads.txt',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Confirmed the publisher ID matches app/layout.tsx\'s google-adsense-account metadata and pagead script client value.',
+      'Repository check run after the file and changelog updates.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-discord-header-style',
+    patch: '2026.08.25-discord-header-style',
+    timestamp: '2026-08-25T19:59:00.8930101Z',
+    title: 'Matched Discord header button styling',
+    summary: 'Updated the enabled Discord header button to use the same visible styling as the Sound and Help controls.',
+    details: [
+      'Changed the Discord icon button from muted slate styling to the shared visible header-icon border, background, text, and amber hover treatment used by Sound and Help.',
+      'Preserved the existing Discord icon, accessible Join Discord server label, fixed invite destination, and new-tab security features.',
+    ],
+    impact: [
+      'The Discord, Sound, and Help header controls now appear as one consistent visible support/control group.',
+      'Users can still open the Discord server invite directly from the header without any change to navigation behavior.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained the repository\'s existing image warnings, typecheck passed, and 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-discord-header-invite',
+    patch: '2026.08.25-discord-header-invite',
+    timestamp: '2026-08-25T19:50:38.8061246Z',
+    title: 'Enabled the Discord server header invite',
+    summary: 'Enabled the header Discord icon so users can join the configured KnowLeague Discord server.',
+    details: [
+      'Replaced the disabled coming-soon Discord header control with an active Join Discord server action.',
+      'Configured the action to open https://discord.gg/vgMHq2KCsK in a new tab with noopener and noreferrer window features.',
+      'Updated the accessible label and hover title to describe the join action while preserving the existing Discord icon and header styling.',
+    ],
+    impact: [
+      'All header users can now open the KnowLeague Discord server invite directly from the Discord icon.',
+      'The invite is a fixed application-owned destination and does not accept user-controlled redirect input.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained the repository\'s existing image warnings, typecheck passed, and 63 tests passed across 20 test files.',
+    ],
+  },
+  {
     id: 'patch-2026-08-25-skindle-champion-cell-height',
     patch: '2026.08.25-skindle-champion-cell-height',
     timestamp: '2026-08-25T05:29:29.3756558Z',

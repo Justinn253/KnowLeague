@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, X } from 'lucide-react';
+import { HeaderHoverNote } from '@/components/header-hover-note';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { ContactSubmissionCategory } from '@/lib/contact';
@@ -145,7 +146,7 @@ export function ContactUsWidget({ variant = 'floating', isOpen: controlledOpen, 
   };
 
   return (
-    <div ref={rootRef} className={variant === 'navigation' ? 'contents' : 'relative'}>
+    <div ref={rootRef} className={variant === 'navigation' ? 'contents' : variant === 'header-icon' ? 'group relative' : 'relative'}>
       {isOpen ? (
         <div
           className={variant === 'navigation'
@@ -258,7 +259,7 @@ export function ContactUsWidget({ variant = 'floating', isOpen: controlledOpen, 
             setMenuOpen(!isOpen);
           }}
           aria-label="Help Center"
-          title="Help Center"
+          title={variant === 'header-icon' ? undefined : 'Help Center'}
           aria-expanded={variant === 'navigation' ? isOpen : undefined}
           className={variant === 'navigation'
             ? 'order-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 ' + (isOpen ? 'border-amber-200/70 bg-slate-900 ring-1 ring-amber-200/50' : '')
@@ -275,6 +276,7 @@ export function ContactUsWidget({ variant = 'floating', isOpen: controlledOpen, 
           ) : <MessageSquare size={18} />}
           {variant !== 'header-icon' && variant !== 'navigation' ? 'Help Center' : null}
       </button>
+      {variant === 'header-icon' ? <HeaderHoverNote>Help Center</HeaderHoverNote> : null}
     </div>
   );
 }

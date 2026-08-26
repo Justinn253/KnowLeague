@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageCircle, MousePointer2, Volume2, VolumeX, UserPlus } from 'lucide-react';
+import { HeaderHoverNote } from '@/components/header-hover-note';
 import type { Session } from '@supabase/supabase-js';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getProfileBootstrap } from '@/lib/profile-bootstrap-client';
@@ -158,7 +159,7 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
   });
 
   return (
-    <div ref={menuRef} className={variant === 'navigation' ? 'contents' : 'relative'}>
+    <div ref={menuRef} className={variant === 'navigation' ? 'contents' : variant === 'header-icon' ? 'group relative' : 'relative'}>
       <button
         type="button"
         onMouseEnter={() => playUiSound('autocomplete-hover')}
@@ -168,7 +169,7 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
           setMenuOpen(!open);
         }}
         aria-label="Sound settings"
-        title="Sound settings"
+        title={variant === 'header-icon' ? undefined : 'Sound settings'}
         aria-expanded={variant === 'navigation' ? open : undefined}
         className={variant === 'navigation'
           ? 'order-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 ' + (open ? 'border-amber-200/70 bg-slate-900 ring-1 ring-amber-200/50' : '')
@@ -183,6 +184,8 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
         {settings.muted || settings.volume <= 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
         {variant === 'drawer' || variant === 'mobile' ? <span>Volume</span> : null}
       </button>
+
+      {variant === 'header-icon' ? <HeaderHoverNote>Sound settings</HeaderHoverNote> : null}
 
       {open ? (
         <div className={variant === 'navigation'

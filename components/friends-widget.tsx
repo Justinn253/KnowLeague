@@ -2094,13 +2094,13 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
           });
         }}
         className={variant === 'responsive'
-          ? 'relative hidden h-9 items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 xl:inline-flex xl:h-10 xl:px-3'
+          ? 'relative hidden h-9 items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 xl:inline-flex xl:h-9 xl:px-2.5 min-[1680px]:h-10 min-[1680px]:px-3'
           : variant === 'header'
           ? 'relative inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-10 sm:px-3'
           : 'relative inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-100 transition hover:border-white/20 hover:bg-slate-900'}
       >
         <Users size={18} />
-        <span className={variant === 'header' || variant === 'responsive' ? 'hidden 2xl:inline' : ''}>Friends</span>
+        <span className={variant === 'header' || variant === 'responsive' ? 'hidden min-[1680px]:inline' : ''}>Friends</span>
         <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-100">
           {onlineCount}
         </span>

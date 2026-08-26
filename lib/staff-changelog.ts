@@ -13,9 +13,352 @@ export type StaffChangelogEntry = {
 
 /**
  * Internal, version-controlled changelog entries. New impactful patches must
- * be appended with a precise UTC timestamp and operational/security detail.
+ * be added at the beginning with a precise UTC timestamp and operational/security detail.
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
+  {
+    id: 'patch-2026-08-26-beta-badge-optical-alignment',
+    patch: '2026.08.26-beta-badge-optical-alignment',
+    timestamp: '2026-08-26T03:11:29.8991072Z',
+    title: 'Refined BETA badge alignment',
+    summary: 'Applied a one-pixel optical adjustment so the compact BETA badge aligns more naturally with the KnowLeague lettering.',
+    details: [
+      'Shifted only the BETA badge down by one pixel while preserving the centered flex alignment of the brand title and the existing badge size, colors, border, and text.',
+    ],
+    impact: [
+      'The BETA badge now sits more naturally against the visual center of the KnowLeague text at desktop and mobile header sizes.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-26-wide-medium-header-breakpoint',
+    patch: '2026.08.26-wide-medium-header-breakpoint',
+    timestamp: '2026-08-26T02:45:08.7016696Z',
+    title: 'Extended the medium header breakpoint',
+    summary: 'Kept compressed header controls active through 1679px and vertically centered the BETA badge to eliminate the remaining 1536px overlap.',
+    details: [
+      'Moved the full text-heavy header restoration from the 2xl breakpoint to the explicit 1680px breakpoint, keeping logout icon-only, Profile avatar-only, Friends icon-plus-count, compact navigation labels, and reduced spacing active below 1680px.',
+      'Updated the responsive Friends control to use the same 1680px restoration threshold so its Friends text and full desktop sizing return at the same time as the other account controls.',
+      'Changed the KnowLeague title wrapper from baseline alignment to centered flex alignment so the smaller BETA badge is vertically aligned with the brand text.',
+    ],
+    impact: [
+      'The reported 1536/1537px viewport remains in the non-overlapping compressed header tier while the larger desktop layout still restores at 1680px and above.',
+      'The home link, button actions, accessibility labels, and mobile behavior remain unchanged.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'components/friends-widget.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Static review confirmed all prior 2xl header restoration classes now use min-[1680px] and the BETA wrapper uses items-center.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-responsive-header-medium-tier',
+    patch: '2026.08.25-responsive-header-medium-tier',
+    timestamp: '2026-08-25T23:18:33.8258272Z',
+    title: 'Added a compressed medium header tier',
+    summary: 'Prevented header controls from overlapping the centered KnowLeague title at medium desktop widths and added a BETA badge.',
+    details: [
+      'Introduced a responsive xl-to-2xl compression tier: logout and login controls become icon-only, Profile becomes avatar-only, and Friends remains icon plus online count until the full 2xl layout restores text labels.',
+      'Reduced medium-width navigation/button padding and gaps while preserving the existing full desktop spacing at 2xl and above.',
+      'Reduced the medium header title size and added a smaller BETA badge to the right of KnowLeague without changing the home link destination or accessible name.',
+    ],
+    impact: [
+      'Medium desktop widths retain the full navigation and account functionality without the right-side controls covering the centered site title.',
+      'Full desktop and mobile layouts retain their existing interaction model, with the BETA badge visible in both title presentations.',
+      'Friends continues to expose its online count in the compressed tier, and all compressed controls retain accessible labels and existing actions.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'components/friends-widget.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Static review confirmed the compressed classes apply only between the xl and 2xl Tailwind breakpoints and full 2xl sizing/text classes remain in place.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-header-custom-hover-notes',
+    patch: '2026.08.25-header-custom-hover-notes',
+    timestamp: '2026-08-25T20:23:41.9010416Z',
+    title: 'Replaced native header hover notes',
+    summary: 'Added the shared custom hover note treatment to the Sound, Help Center, and Discord header buttons.',
+    details: [
+      'Removed the browser title tooltip from the desktop header variants of Sound settings, Help Center, and Join Discord server while preserving their accessible aria-label values and existing click behavior.',
+      'Added a reusable HeaderHoverNote component with the application border, dark surface, compact typography, hover visibility, and keyboard-focus visibility treatment.',
+      'Kept the navigation, drawer, and other non-header variants scoped to their prior title behavior so their existing layouts and interaction contracts remain unchanged.',
+    ],
+    impact: [
+      'Desktop header users now receive a consistent in-app hover note instead of browser-default tooltip styling for all three requested controls.',
+      'Keyboard users see the same note on focus, while assistive technology continues to receive the button labels through aria-label.',
+    ],
+    files: [
+      'components/header-hover-note.tsx',
+      'components/app-header.tsx',
+      'components/sound-settings-menu.tsx',
+      'components/contact-us-widget.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Static diff review confirmed title is omitted only for the three desktop header controls and the reusable tooltip uses role="tooltip" with hover and focus-within states.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-adsense-ads-txt',
+    patch: '2026.08.25-adsense-ads-txt',
+    timestamp: '2026-08-25T19:56:37.5837581Z',
+    title: 'Added the AdSense ads.txt declaration',
+    summary: 'Published the authorized Google seller record for the configured KnowLeague AdSense publisher account.',
+    details: [
+      'Added public/ads.txt with the Google DIRECT seller record for publisher ID pub-7559752825656959, matching the publisher ID already used by the shared AdSense script and verification metadata.',
+      'Kept visible advertising disabled: this patch does not add ad units, enable Auto ads, or change the existing AdSense consent/review flow.',
+    ],
+    impact: [
+      'Google can now discover the site\'s authorized AdSense seller declaration at the standard /ads.txt path, addressing the current Not found status after deployment and recrawl.',
+      'The AdSense site remains in Google\'s Getting ready review state, and this file alone does not cause ads to appear before the site is approved or ad placements are enabled.',
+    ],
+    files: [
+      'public/ads.txt',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Confirmed the publisher ID matches app/layout.tsx\'s google-adsense-account metadata and pagead script client value.',
+      'Repository check run after the file and changelog updates.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-discord-header-style',
+    patch: '2026.08.25-discord-header-style',
+    timestamp: '2026-08-25T19:59:00.8930101Z',
+    title: 'Matched Discord header button styling',
+    summary: 'Updated the enabled Discord header button to use the same visible styling as the Sound and Help controls.',
+    details: [
+      'Changed the Discord icon button from muted slate styling to the shared visible header-icon border, background, text, and amber hover treatment used by Sound and Help.',
+      'Preserved the existing Discord icon, accessible Join Discord server label, fixed invite destination, and new-tab security features.',
+    ],
+    impact: [
+      'The Discord, Sound, and Help header controls now appear as one consistent visible support/control group.',
+      'Users can still open the Discord server invite directly from the header without any change to navigation behavior.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained the repository\'s existing image warnings, typecheck passed, and 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-discord-header-invite',
+    patch: '2026.08.25-discord-header-invite',
+    timestamp: '2026-08-25T19:50:38.8061246Z',
+    title: 'Enabled the Discord server header invite',
+    summary: 'Enabled the header Discord icon so users can join the configured KnowLeague Discord server.',
+    details: [
+      'Replaced the disabled coming-soon Discord header control with an active Join Discord server action.',
+      'Configured the action to open https://discord.gg/vgMHq2KCsK in a new tab with noopener and noreferrer window features.',
+      'Updated the accessible label and hover title to describe the join action while preserving the existing Discord icon and header styling.',
+    ],
+    impact: [
+      'All header users can now open the KnowLeague Discord server invite directly from the Discord icon.',
+      'The invite is a fixed application-owned destination and does not accept user-controlled redirect input.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained the repository\'s existing image warnings, typecheck passed, and 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-25-skindle-champion-cell-height',
+    patch: '2026.08.25-skindle-champion-cell-height',
+    timestamp: '2026-08-25T05:29:29.3756558Z',
+    title: 'Filled the Skindle Champion reveal cell',
+    summary: 'Made the desktop Skindle Champion comparison card fill the full height of the guess row like the guess card.',
+    details: [
+      'Added explicit h-full sizing to the shared desktop category cells and the Champion grid wrapper so the Champion card stretches with the full reveal row instead of stopping at its min-h-28 minimum.',
+      'Left the mobile category layout, reveal animation overlays, card content, and responsive grid columns unchanged.',
+    ],
+    impact: [
+      'Desktop Skindle reveal rows now have a continuous full-height Champion card aligned with the Guess card and the surrounding comparison cells.',
+      'Mobile Skindle cards retain their existing compact heights and layout behavior.',
+    ],
+    files: [
+      'components/skindle.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Visual layout fix applied from the supplied Skindle screenshot; npm run check passed with lint retaining the repository\'s existing image warnings, typecheck passing, and 63 tests passing across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-24-api-abuse-hardening',
+    patch: '2026.08.24-api-abuse-hardening',
+    timestamp: '2026-08-24T20:57:07.4158941Z',
+    title: 'Hardened API abuse controls and request parsing',
+    summary: 'Audited the complete API surface and added centralized route-family rate limits plus bounded JSON request parsing for high-risk and previously broad endpoints.',
+    details: [
+      'Kept the existing global IP and bearer-subject middleware limits on all 156 API routes and added static route-family buckets for anonymous game submissions, game actions, account writes, social writes, expensive reads, public lobby discovery, privileged endpoints, and scheduled jobs.',
+      'Excluded multiplayer heartbeat and progress endpoints from the additional game-action bucket so normal active-game synchronization keeps its existing throughput contract.',
+      'Added a 4 MiB API request-body ceiling in middleware and a streaming readJsonBody implementation that enforces the same limit for chunked requests before JSON parsing; malformed JSON retains the existing empty-body behavior.',
+      'Replaced every direct request.json call in app/api with the bounded shared parser and added a client identifier length bound to Splash Scramble anonymous stats submissions.',
+      'Kept rate-limit keys aggregate and non-sensitive: route scopes are static, bearer subjects remain hashed, and no request body, query value, header, token, IP address, user ID, or dynamic identifier is stored by the policy layer.',
+      'Reviewed authentication boundaries, service-role usage, route metrics coverage, validation, external-call surfaces, and existing route-specific limits across all API route files; no auth or multiplayer lifecycle contract was broadened.',
+    ],
+    impact: [
+      'Anonymous result endpoints and authenticated game, account, social, staff, and cron mutations have bounded abuse budgets before handler work or external calls execute.',
+      'Large JSON payloads cannot consume unbounded memory through direct or chunked request parsing; the existing Riftbound scan and Splash Scramble state-specific validation remains stricter than the shared ceiling.',
+      'Normal page reads, active game heartbeats, multiplayer progress, authentication flows, and already stricter route-specific protections remain available under their existing limits.',
+      'Staff API telemetry continues to receive only aggregate static route data and remains independent of request payload contents.',
+    ],
+    files: [
+      'middleware.ts',
+      'lib/abuse-controls.ts',
+      'lib/api-utils.ts',
+      'app/api/auth/email-delivery/route.ts',
+      'app/api/auth/password-reset/authenticated/route.ts',
+      'app/api/auth/signup/route.ts',
+      'app/api/riot-account/search/route.ts',
+      'app/api/skindle/stats/route.ts',
+      'app/api/solo-quiz/attempt/route.ts',
+      'app/api/solo-quiz/leaderboard/route.ts',
+      'app/api/splash-scramble/leaderboard/route.ts',
+      'app/api/splash-scramble/state/route.ts',
+      'app/api/splash-scramble/stats/route.ts',
+      'tests/abuse-controls.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Static security review completed: all 156 app/api route files were inventoried, all retained withApiMetrics coverage, existing route-specific limiters were catalogued, and every direct request.json call was replaced before repository checks.',
+      'npm run check passed: lint completed with the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-24-navigation-misc-icon-alignment',
+    patch: '2026.08.24-navigation-misc-icon-alignment',
+    timestamp: '2026-08-24T20:04:48.830Z',
+    title: 'Aligned responsive Miscellaneous icon controls',
+    summary: 'Restored the Help Center icon-only treatment and placed all responsive Miscellaneous icon controls in one shared row.',
+    details: [
+      'Changed the responsive Miscellaneous layout so staff controls, Sound settings, and Help Center share one wrapping flex row instead of being split across separate rows.',
+      'Restored Help Center to its original icon-only navigation presentation while retaining its accessible label and title for assistive technology and hover context.',
+      'Kept the Sound and Help inline panels as order-two full-width flex items so opening a tab still places its content below the complete icon row.',
+    ],
+    impact: [
+      'Responsive navigation users see a consistent single row of Miscellaneous icon buttons, including the Help Center message icon.',
+      'The selected Sound or Help panel remains below the controls without changing the desktop header, drawer, or form behavior.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'components/contact-us-widget.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint completed with the repository existing img-element warnings, typecheck passed, and 57 tests passed across 19 test files; git diff --check completed with only existing LF-to-CRLF normalization warnings.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-24-navigation-misc-icon-tabs',
+    patch: '2026.08.24-navigation-misc-icon-tabs',
+    timestamp: '2026-08-24T19:39:32.314Z',
+    title: 'Restored icon-tab navigation for Sound and Help',
+    summary: 'Kept Sound settings and Help Center as compact Miscellaneous icon controls while moving their content into a shared inline tab section below the icon row.',
+    details: [
+      'Changed the responsive navigation menu to keep Sound settings and Help Center as accessible icon-only controls with the same compact sizing and visual treatment as the other Miscellaneous actions.',
+      'Added shared responsive-menu state so selecting Sound or Help opens one corresponding panel below the icon row, selecting the active icon closes it, and selecting the other icon switches panels.',
+      'Added optional controlled open-state callbacks to the Sound settings and Help Center widgets while preserving their existing standalone floating, drawer, mobile, and desktop header behavior.',
+      'Kept outside-click, Escape-key, report-form, form submission, sound preference persistence, and panel close behavior connected to the new controlled state.',
+    ],
+    impact: [
+      'Mobile and responsive-menu users can access Sound settings and Help Center without large full-width controls taking over the Miscellaneous row.',
+      'The selected panel stays inside the navigation surface and expands below the icon tabs instead of behaving like a nested popup.',
+      'The desktop header controls, navigation ordering, Account/Friends removal, and existing settings/contact data flows remain unchanged.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'components/contact-us-widget.tsx',
+      'components/sound-settings-menu.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint completed with the repository existing img-element warnings, typecheck passed, and 57 tests passed across 19 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-21-app-inactivity-throttling',
+    patch: '2026.08.21-app-inactivity-throttling',
+    timestamp: '2026-08-21T21:35:34.967Z',
+    title: 'Paused non-game background polling during inactivity',
+    summary: 'Added shared visibility, focus, and interaction tracking so non-game polling pauses after inactivity and resumes with a refresh, while active game and lobby behavior remains unchanged.',
+    details: [
+      'Added a client-safe app activity store with a five-minute inactivity timeout, immediate hidden or blurred-window suspension, meaningful-input reactivation, and a single scheduled timeout rather than a recurring activity poll.',
+      'Changed the global authentication validation interval to skip inactive non-game pages and validate again when activity resumes; active game and lobby routes continue using their existing validation behavior.',
+      'Changed multiplayer player-count polling to stop its interval while the app is inactive and perform one immediate refresh when the user returns; it remains limited to the existing optional Games-page feature.',
+      'Guarded cumulative achievement queue retries and visible-time tracking so failed background submissions pause on inactive non-game pages and resume on activity, while active game routes remain exempt.',
+      'Added regression coverage for visible/focused activity, hidden or blurred windows, exact timeout expiry, and future timestamps.',
+    ],
+    impact: [
+      'Home, profile, and Riftbound-style non-game pages no longer keep optional polling active after five minutes without interaction or while hidden.',
+      'Returning users receive fresh player-count data and a deferred session validation without changing multiplayer heartbeat, reconciliation, reconnect, or leave behavior.',
+      'No request payloads, session tokens, user identifiers, or sensitive data are stored by the activity tracker.',
+    ],
+    files: [
+      'components/global-actions.tsx',
+      'components/multiplayer-player-count-badge.tsx',
+      'components/cumulative-achievement-tracker.tsx',
+      'lib/app-activity.ts',
+      'lib/staff-changelog.ts',
+      'tests/app-activity.test.ts',
+    ],
+    verification: [
+      'npm run check passed: lint completed with the repository existing img-element warnings, typecheck passed, and 57 tests passed across 19 test files.',
+      'Active multiplayer heartbeat and reconciliation components were not modified.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-21-navigation-metrics-changelog-maintenance',
+    patch: '2026.08.21-navigation-metrics-changelog-maintenance',
+    timestamp: '2026-08-21T20:51:26.0823221Z',
+    title: 'Improved navigation controls, API metrics sorting, and changelog maintenance',
+    summary: 'Reorganized the responsive navigation menu, made API metric columns sortable, and documented the required workflow for keeping the staff change log current.',
+    details: [
+      'Moved the responsive Games menu View All link ahead of individual game links so the all-games destination is consistently first.',
+      'Changed Sound settings and Help Center controls in the responsive navigation menu to render their panels inline within the menu flow, preventing overflow and positioning issues from nested popups.',
+      'Removed the responsive navigation menu Account section and its Friends action; the standalone header Friends control remains unchanged.',
+      'Added click sorting to every API metrics route-table header with accessible sort state and stable display-value comparisons for route, methods, request totals, client errors, server errors, and slow responses.',
+      'Strengthened AGENTS.md so impactful patches update the version-controlled STAFF_CHANGELOG_ENTRIES array in the same change and newest entries remain first.',
+    ],
+    impact: [
+      'Players can reach all games immediately and use Sound settings or Help Center without leaving the responsive navigation surface.',
+      'Staff can inspect API metrics in the order most useful to an investigation by selecting any table header.',
+      'Future agent-led impactful patches have an explicit, verifiable requirement to appear on the internal staff change-log page.',
+    ],
+    files: [
+      'AGENTS.md',
+      'components/app-header.tsx',
+      'components/contact-us-widget.tsx',
+      'components/sound-settings-menu.tsx',
+      'components/staff-api-metrics-screen.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint completed with the repository existing img-element warnings, typecheck passed, and 54 tests passed across 18 test files.',
+      'git diff --check passed; only the repository existing Git LF-to-CRLF normalization warnings were reported.',
+    ],
+  },
   {
     id: 'patch-2026-08-13-riftbound-binder-tools-and-sharing',
     patch: '2026.08.13-riftbound-binder-tools-and-sharing',

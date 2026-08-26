@@ -1,17 +1,20 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import {
   discardStaleSessionAchievementProgress,
   flushAchievementProgressQueue,
   submitAchievementProgress,
 } from '@/lib/achievement-client';
+import { subscribeToAppActivity, useAppActivity } from '@/lib/app-activity';
 import {
   DETAILED_GAME_STATS_CHANGED_EVENT,
   loadDetailedGameStats,
 } from '@/lib/game-storage';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
+import { isActiveGamePath } from '@/lib/auth-redirect';
 
 const APP_TIME_STORAGE_PREFIX = 'knowleague:v1:achievement:session-time:';
 const APP_SESSION_STORAGE_KEY = 'knowleague:v1:achievement:session-id';
@@ -77,6 +80,8 @@ function clearAppTime(userId: string) {
 }
 
 export function CumulativeAchievementTracker() {
+  const pathname = usePathname();
+  const appActivity = useAppActivity();
   const sessionRef = useRef<Session | null>(null);
   const activeSecondsRef = useRef(0);
   const sessionIdRef = useRef<string | null>(null);
@@ -84,7 +89,16 @@ export function CumulativeAchievementTracker() {
   const lastTimeSubmissionRef = useRef(0);
   const lastWinCountRef = useRef<number | null>(null);
 
+  const pathnameRef = useRef(pathname);
+  const appActivityRef = useRef(appActivity);
+
+  pathnameRef.current = pathname;
+  appActivityRef.current = appActivity;
   useEffect(() => {
+    const shouldRunBackgroundSync = () => (
+      isActiveGamePath(pathnameRef.current) || appActivityRef.current.isActive
+    );
+
     const submitTimeProgress = () => {
       if (!sessionRef.current || activeSecondsRef.current <= 0) {
         return;
@@ -153,6 +167,7 @@ export function CumulativeAchievementTracker() {
     };
 
     const handleOnline = () => {
+      if (!shouldRunBackgroundSync()) return;
       void flushAchievementProgressQueue();
       submitWinProgress();
       submitTimeProgress();
@@ -164,6 +179,7 @@ export function CumulativeAchievementTracker() {
     };
 
     const handleDetailedStatsChanged = () => {
+      if (!shouldRunBackgroundSync()) return;
       submitWinProgress();
     };
 
@@ -199,7 +215,18 @@ export function CumulativeAchievementTracker() {
     };
 
     const unsubscribeFromAuthSession = subscribeToAuthSession(handleSession);
+    const unsubscribeFromAppActivity = subscribeToAppActivity((activity) => {
+      if (!activity.isActive && !isActiveGamePath(pathnameRef.current)) {
+        lastTickAtRef.current = null;
+        return;
+      }
+      if (activity.isActive && !isActiveGamePath(pathnameRef.current)) {
+        void flushAchievementProgressQueue();
+        submitWinProgress();
+      }
+    });
     const interval = window.setInterval(() => {
+      if (!shouldRunBackgroundSync()) return;
       recordVisibleTime();
       void flushAchievementProgressQueue();
       submitWinProgress();
@@ -212,6 +239,7 @@ export function CumulativeAchievementTracker() {
     window.addEventListener(DETAILED_GAME_STATS_CHANGED_EVENT, handleDetailedStatsChanged);
     return () => {
       unsubscribeFromAuthSession();
+      unsubscribeFromAppActivity();
       window.clearInterval(interval);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);

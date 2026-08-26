@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { logServerEvent } from '@/lib/server-log';
+import { MAX_API_BODY_BYTES } from '@/lib/abuse-controls';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -125,9 +126,44 @@ export function getRouteErrorResponse(error: unknown) {
   );
 }
 
-export async function readJsonBody<TBody>(request: Request): Promise<Partial<TBody>> {
+export async function readJsonBody<TBody>(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<Partial<TBody>> {
+  const contentLength = request.headers.get('content-length');
+  const declaredBodyBytes = contentLength ? Number(contentLength) : 0;
+  if (Number.isFinite(declaredBodyBytes) && declaredBodyBytes > maxBytes) {
+    throw new ApiError(413, 'Request body is too large.');
+  }
+
+  if (!request.body) {
+    return {};
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
   try {
-    return (await request.json()) as Partial<TBody>;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new ApiError(413, 'Request body is too large.');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes)) as Partial<TBody>;
   } catch {
     return {};
   }

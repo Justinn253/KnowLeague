@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { UsersRound } from 'lucide-react';
+import { getAppActivitySnapshot, subscribeToAppActivity, type AppActivitySnapshot } from '@/lib/app-activity';
 import {
   MULTIPLAYER_PLAYER_COUNT_REFRESH_INTERVAL_MS,
   getPlaceholderMultiplayerPlayerCounts,
@@ -35,6 +36,7 @@ let snapshot: PlayerCountSnapshot = {
 };
 let refreshPromise: Promise<void> | null = null;
 let intervalId: number | null = null;
+let activityUnsubscribe: (() => void) | null = null;
 
 function emitPlayerCountChange() {
   listeners.forEach((listener) => listener());
@@ -80,19 +82,42 @@ function subscribeToPlayerCounts(listener: () => void) {
   listeners.add(listener);
 
   if (featureEnabled && listeners.size === 1) {
-    void refreshPlayerCounts();
-    intervalId = window.setInterval(() => {
-      void refreshPlayerCounts();
-    }, MULTIPLAYER_PLAYER_COUNT_REFRESH_INTERVAL_MS);
+    const handleActivityChange = (activity: AppActivitySnapshot) => {
+      if (activity.isActive) {
+        startPlayerCountPolling();
+      } else {
+        stopPlayerCountPolling();
+      }
+    };
+    activityUnsubscribe = subscribeToAppActivity(handleActivityChange);
+    handleActivityChange(getAppActivitySnapshot());
   }
 
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0 && intervalId !== null) {
-      window.clearInterval(intervalId);
-      intervalId = null;
+    if (listeners.size === 0) {
+      stopPlayerCountPolling();
+      activityUnsubscribe?.();
+      activityUnsubscribe = null;
     }
   };
+}
+
+function startPlayerCountPolling() {
+  if (!featureEnabled || intervalId !== null || !getAppActivitySnapshot().isActive) {
+    return;
+  }
+
+  void refreshPlayerCounts();
+  intervalId = window.setInterval(() => {
+    if (getAppActivitySnapshot().isActive) void refreshPlayerCounts();
+  }, MULTIPLAYER_PLAYER_COUNT_REFRESH_INTERVAL_MS);
+}
+
+function stopPlayerCountPolling() {
+  if (intervalId === null) return;
+  window.clearInterval(intervalId);
+  intervalId = null;
 }
 
 export function MultiplayerPlayerCountBadge({ gameId, className }: MultiplayerPlayerCountBadgeProps) {

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageCircle, MousePointer2, Volume2, VolumeX, UserPlus } from 'lucide-react';
+import { HeaderHoverNote } from '@/components/header-hover-note';
 import type { Session } from '@supabase/supabase-js';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getProfileBootstrap } from '@/lib/profile-bootstrap-client';
@@ -26,16 +27,27 @@ function ToggleSwitch({ enabled }: { enabled: boolean }) {
 }
 
 type SoundSettingsMenuProps = {
-  variant?: 'floating' | 'drawer' | 'mobile' | 'drawer-icon' | 'header-icon';
+  variant?: 'floating' | 'drawer' | 'mobile' | 'drawer-icon' | 'header-icon' | 'navigation';
+  isOpen?: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
 };
 
-export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuProps) {
-  const [open, setOpen] = useState(false);
+export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }: SoundSettingsMenuProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = isOpen ?? uncontrolledOpen;
   const [settings, setSettings] = useState<UiSoundSettings>(() => DEFAULT_UI_SOUND_SETTINGS);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
   const hydratingRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
+  const setMenuOpen = useCallback((nextOpen: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(nextOpen);
+      return;
+    }
+
+    setUncontrolledOpen(nextOpen);
+  }, [onOpenChange]);
 
   const saveAccountSettings = (nextSettings: UiSoundSettings) => {
     const token = sessionRef.current?.access_token;
@@ -119,12 +131,12 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
         return;
       }
 
-      setOpen(false);
+      setMenuOpen(false);
     };
 
     document.addEventListener('pointerdown', closeMenu);
     return () => document.removeEventListener('pointerdown', closeMenu);
-  }, [open]);
+  }, [open, setMenuOpen]);
 
   const updateSettings = (updates: Partial<UiSoundSettings>) => {
     setSettings((current) => {
@@ -147,18 +159,21 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
   });
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className={variant === 'navigation' ? 'contents' : variant === 'header-icon' ? 'group relative' : 'relative'}>
       <button
         type="button"
         onMouseEnter={() => playUiSound('autocomplete-hover')}
         onFocus={() => playUiSound('autocomplete-hover')}
         onClick={() => {
           playUiSound('autocomplete-select');
-          setOpen((value) => !value);
+          setMenuOpen(!open);
         }}
         aria-label="Sound settings"
-        title="Sound settings"
-        className={variant === 'drawer' || variant === 'mobile'
+        title={variant === 'header-icon' ? undefined : 'Sound settings'}
+        aria-expanded={variant === 'navigation' ? open : undefined}
+        className={variant === 'navigation'
+          ? 'order-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 ' + (open ? 'border-amber-200/70 bg-slate-900 ring-1 ring-amber-200/50' : '')
+          : variant === 'drawer' || variant === 'mobile'
           ? 'flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-800'
           : variant === 'drawer-icon'
             ? 'inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-800'
@@ -170,8 +185,12 @@ export function SoundSettingsMenu({ variant = 'floating' }: SoundSettingsMenuPro
         {variant === 'drawer' || variant === 'mobile' ? <span>Volume</span> : null}
       </button>
 
-          {open ? (
-        <div className={variant === 'mobile'
+      {variant === 'header-icon' ? <HeaderHoverNote>Sound settings</HeaderHoverNote> : null}
+
+      {open ? (
+        <div className={variant === 'navigation'
+          ? 'order-2 basis-full rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+          : variant === 'mobile'
           ? 'fixed left-2 right-2 top-14 z-[105] max-h-[calc(100dvh-4.5rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
           : variant === 'drawer'
           ? 'absolute bottom-14 left-0 right-0 z-[105] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'

@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getDailyDateKey } from '@/lib/game-storage';
 import { getSkindleDailyStats, recordSkindleGuess } from '@/lib/skindle-stats';
 
@@ -62,7 +62,7 @@ export const GET = withApiMetrics('/api/skindle/stats', async function GET(reque
 
 export const POST = withApiMetrics('/api/skindle/stats', async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => null);
+    const body = await readJsonBody<Record<string, unknown>>(request);
 
     if (
       !body ||

@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import {
   CHAOS_DIFFICULTY,
@@ -33,7 +33,7 @@ function assertScope(body: { gameId?: SoloQuizGameId; mode?: SoloQuizMode; diffi
 export const POST = withApiMetrics('/api/solo-quiz/attempt', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    const body = await request.json() as {
+    const body = await readJsonBody<{
       action?: 'start' | 'finish';
       gameId?: SoloQuizGameId;
       mode?: SoloQuizMode;
@@ -43,7 +43,7 @@ export const POST = withApiMetrics('/api/solo-quiz/attempt', async function POST
       elapsedSeconds?: number;
       wrongGuesses?: number;
       result?: 'completed' | 'failed' | 'abandoned';
-    };
+    }>(request);
     const scope = assertScope(body);
 
     if (body.action === 'start') {

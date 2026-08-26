@@ -20,6 +20,28 @@ function getSlowRequestCount(route: ApiMetricRouteSummary) {
   return route.durationBuckets['1-4.9s'] + route.durationBuckets['5s-plus'];
 }
 
+type RouteSortKey = 'route' | 'methods' | 'totalRequests' | 'clientErrors' | 'serverErrors' | 'slowRequests';
+type RouteSortState = {
+  key: RouteSortKey;
+  direction: 'asc' | 'desc';
+};
+
+function methodsLabel(route: ApiMetricRouteSummary) {
+  return Object.entries(route.methods)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([method, count]) => [method, number(count)].join(' '))
+    .join(String.fromCharCode(32, 183, 32));
+}
+
+function getRouteSortValue(route: ApiMetricRouteSummary, key: RouteSortKey) {
+  if (key === 'route') return route.route;
+  if (key === 'methods') return methodsLabel(route);
+  if (key === 'totalRequests') return route.totalRequests;
+  if (key === 'clientErrors') return route.clientErrors;
+  if (key === 'serverErrors') return route.serverErrors;
+  return getSlowRequestCount(route);
+}
+
 function durationLabel(bucket: ApiMetricDurationBucket) {
   return bucket === 'under-50ms'
     ? '<50ms'
@@ -75,6 +97,46 @@ export function StaffApiMetricsScreen() {
   }, [hours, loadMetrics]);
 
   const routeRows = useMemo(() => summary?.routes ?? [], [summary]);
+  const [routeSort, setRouteSort] = useState<RouteSortState>({
+    key: 'totalRequests',
+    direction: 'desc',
+  });
+
+  const sortedRouteRows = useMemo(() => {
+    return [...routeRows].sort((left, right) => {
+      const leftValue = getRouteSortValue(left, routeSort.key);
+      const rightValue = getRouteSortValue(right, routeSort.key);
+      const comparison = typeof leftValue === 'string' && typeof rightValue === 'string'
+        ? leftValue.localeCompare(rightValue)
+        : Number(leftValue) - Number(rightValue);
+      return routeSort.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [routeRows, routeSort]);
+
+  const toggleRouteSort = (key: RouteSortKey) => {
+    setRouteSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  const sortButton = (key: RouteSortKey, label: string, align: 'left' | 'right' = 'left') => {
+    const isActive = routeSort.key === key;
+    const directionLabel = isActive ? (routeSort.direction === 'asc' ? 'ascending' : 'descending') : 'not sorted';
+    return (
+      <button
+        type="button"
+        onClick={() => toggleRouteSort(key)}
+        aria-label={['Sort by', label, '; currently', directionLabel].join(' ')}
+        className={['inline-flex items-center gap-1.5 font-black uppercase tracking-[0.14em] transition hover:text-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200', align === 'right' ? 'ml-auto justify-end' : ''].join(' ')}
+      >
+        <span>{label}</span>
+        <span aria-hidden="true" className={isActive ? 'text-amber-300' : 'text-slate-600'}>
+          {isActive ? (routeSort.direction === 'asc' ? String.fromCharCode(8593) : String.fromCharCode(8595)) : String.fromCharCode(8597)}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-12">
@@ -181,16 +243,28 @@ export function StaffApiMetricsScreen() {
                   <table className="w-full min-w-[760px] text-left text-sm">
                     <thead className="bg-slate-950/60 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
                       <tr>
-                        <th className="px-5 py-3">Route template</th>
-                        <th className="px-3 py-3">Methods</th>
-                        <th className="px-3 py-3 text-right">Requests</th>
-                        <th className="px-3 py-3 text-right">4xx</th>
-                        <th className="px-3 py-3 text-right">5xx</th>
-                        <th className="px-5 py-3 text-right" title={durationLabel('1-4.9s')}>1s+ responses</th>
+                        <th aria-sort={routeSort.key === 'route' ? (routeSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-3">
+                          {sortButton('route', 'Route template')}
+                        </th>
+                        <th aria-sort={routeSort.key === 'methods' ? (routeSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-3 py-3">
+                          {sortButton('methods', 'Methods')}
+                        </th>
+                        <th aria-sort={routeSort.key === 'totalRequests' ? (routeSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-3 py-3 text-right">
+                          {sortButton('totalRequests', 'Requests', 'right')}
+                        </th>
+                        <th aria-sort={routeSort.key === 'clientErrors' ? (routeSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-3 py-3 text-right">
+                          {sortButton('clientErrors', '4xx', 'right')}
+                        </th>
+                        <th aria-sort={routeSort.key === 'serverErrors' ? (routeSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-3 py-3 text-right">
+                          {sortButton('serverErrors', '5xx', 'right')}
+                        </th>
+                        <th aria-sort={routeSort.key === 'slowRequests' ? (routeSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-3 text-right" title={durationLabel('1-4.9s')}>
+                          {sortButton('slowRequests', '1s+ responses', 'right')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
-                      {routeRows.map((route) => (
+                      {sortedRouteRows.map((route) => (
                         <tr key={route.route} className="text-slate-300">
                           <td className="px-5 py-4 font-mono text-xs text-amber-100">{route.route}</td>
                           <td className="px-3 py-4 text-xs text-slate-400">{Object.entries(route.methods).map(([method, count]) => `${method} ${number(count)}`).join(' · ')}</td>

@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { enforceEmailDeliveryProtection } from '@/lib/email-delivery';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { verifyTurnstileToken } from '@/lib/turnstile';
@@ -33,7 +33,7 @@ export const runtime = 'nodejs';
 
 export const POST = withApiMetrics('/api/auth/email-delivery', async function POST(request: Request) {
   try {
-    const body = await request.json() as EmailDeliveryBody;
+    const body = await readJsonBody<EmailDeliveryBody>(request);
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const type = body.type === 'signup' || body.type === 'password' ? body.type : null;
     const turnstileToken = typeof body.turnstileToken === 'string' ? body.turnstileToken : undefined;

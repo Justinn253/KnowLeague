@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId, getOptionalAuthenticatedUserId } from '@/lib/auth-server';
 import {
   CHAOS_DIFFICULTY,
@@ -65,14 +65,14 @@ export const POST = withApiMetrics('/api/solo-quiz/leaderboard', async function 
       errorMessage: 'Too many leaderboard submissions. Please wait a minute and try again.',
     });
     if (rateLimitResponse) return rateLimitResponse;
-    const body = await request.json() as {
+    const body = await readJsonBody<{
       gameId?: SoloQuizGameId;
       mode?: SoloQuizMode;
       difficulty?: SoloQuizDifficulty;
       itemIds?: string[];
       completionTimeSeconds?: number;
       wrongGuesses?: number;
-    };
+    }>(request);
 
     if (
       !body.gameId ||

@@ -1,4 +1,5 @@
 import { withApiMetrics } from '@/lib/api-metrics';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { NextResponse } from 'next/server';
 import { getDailyDateKey } from '@/lib/game-storage';
 import { getSplashScrambleDailyStats, recordSplashScrambleSolve } from '@/lib/splash-scramble-stats';
@@ -13,20 +14,28 @@ export const GET = withApiMetrics('/api/splash-scramble/stats', async function G
 });
 
 export const POST = withApiMetrics('/api/splash-scramble/stats', async function POST(request: Request) {
-  const body = await request.json();
+  try {
+    const body = await readJsonBody<{ clientId?: unknown }>(request);
 
-  if (!body || typeof body.clientId !== 'string' || body.clientId.trim().length === 0) {
-    return NextResponse.json({ error: 'Invalid Splash Scramble stats payload.' }, { status: 400 });
+    if (
+      typeof body.clientId !== 'string'
+      || body.clientId.trim().length === 0
+      || body.clientId.length > 128
+    ) {
+      return NextResponse.json({ error: 'Invalid Splash Scramble stats payload.' }, { status: 400 });
+    }
+
+    const result = await recordSplashScrambleSolve({
+      dateKey: getDailyDateKey(),
+      clientId: body.clientId,
+    });
+
+    return NextResponse.json({
+      ...result.snapshot,
+      accepted: result.accepted,
+      clientAlreadySolved: result.clientAlreadySolved,
+    });
+  } catch (error) {
+    return getRouteErrorResponse(error);
   }
-
-  const result = await recordSplashScrambleSolve({
-    dateKey: getDailyDateKey(),
-    clientId: body.clientId,
-  });
-
-  return NextResponse.json({
-    ...result.snapshot,
-    accepted: result.accepted,
-    clientAlreadySolved: result.clientAlreadySolved,
-  });
 });

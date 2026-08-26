@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { getDualRateLimit } from '@/lib/abuse-controls';
 import { enforceEmailDeliveryProtection } from '@/lib/email-delivery';
@@ -46,7 +46,7 @@ export const POST = withApiMetrics('/api/auth/password-reset/authenticated', asy
     const emailDeliveryResponse = await enforceEmailDeliveryProtection(request, user.email);
     if (emailDeliveryResponse) return emailDeliveryResponse;
 
-    const body = await request.json() as { redirectTo?: unknown };
+    const body = await readJsonBody<{ redirectTo?: unknown }>(request);
     const { error } = await getSupabaseServiceClient().auth.resetPasswordForEmail(user.email, {
       redirectTo: getSafeRedirectUrl(request, body.redirectTo),
     });

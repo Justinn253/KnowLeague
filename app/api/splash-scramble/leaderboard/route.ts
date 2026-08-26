@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId, getOptionalAuthenticatedUserId } from '@/lib/auth-server';
 import {
   getSplashScrambleDailyLeaderboard,
@@ -44,7 +44,7 @@ export const POST = withApiMetrics('/api/splash-scramble/leaderboard', async fun
       errorMessage: 'Too many leaderboard submissions. Please wait a minute and try again.',
     });
     if (rateLimitResponse) return rateLimitResponse;
-    const body = await request.json() as { moves?: unknown; completionTimeSeconds?: unknown };
+    const body = await readJsonBody<{ moves?: unknown; completionTimeSeconds?: unknown }>(request);
     if (!isNonNegativeFiniteNumber(body.moves) || !isNonNegativeFiniteNumber(body.completionTimeSeconds)) {
       throw new Error('Invalid Splash Scramble leaderboard submission.');
     }

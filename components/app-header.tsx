@@ -28,6 +28,7 @@ import dynamic from 'next/dynamic';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { DiscordMark } from '@/components/discord-mark';
 import { GameIconImage } from '@/components/game-asset-image';
+import { HeaderHoverNote } from '@/components/header-hover-note';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { GAME_NAVIGATION_ITEMS, type Accent, type GameMode } from '@/lib/game-navigation';
 import type { AppRole } from '@/lib/moderation';
@@ -71,6 +72,7 @@ const gameModeLabels: Record<GameMode, string> = {
   hybrid: 'Solo/Multiplayer',
 };
 
+const DISCORD_INVITE_URL = 'https://discord.gg/vgMHq2KCsK';
 const masteryMasterGame = GAME_NAVIGATION_ITEMS.find((game) => game.title === 'Mastery Master');
 const gamesWithoutMasteryMaster = GAME_NAVIGATION_ITEMS.filter((game) => game !== masteryMasterGame);
 const gamesForHeader = masteryMasterGame
@@ -178,6 +180,7 @@ function HeaderIconButton({
   className = '',
   text,
   textAlwaysVisible = false,
+  hoverNote,
 }: {
   label: string;
   icon: ReactNode;
@@ -186,12 +189,13 @@ function HeaderIconButton({
   className?: string;
   text?: string;
   textAlwaysVisible?: boolean;
+  hoverNote?: string;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
-      title={label}
+      title={hoverNote ? undefined : label}
       disabled={disabled}
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
@@ -200,10 +204,11 @@ function HeaderIconButton({
         playUiSound('autocomplete-select');
         onClick?.();
       }}
-      className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/15 bg-slate-950/90 text-slate-200 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-45 md:h-10 ${text ? (textAlwaysVisible ? 'w-auto px-3' : 'w-9 px-0 md:w-auto md:px-3') : 'w-9 md:w-10'} ${className}`}
+      className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/15 bg-slate-950/90 text-slate-200 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-45 md:h-10 ${text ? (textAlwaysVisible ? 'w-auto px-3' : 'w-9 px-0 min-[1680px]:w-auto min-[1680px]:px-3') : 'w-9 md:w-10'} ${hoverNote ? 'group relative' : ''} ${className}`}
     >
       {icon}
-      {text ? <span className={`${textAlwaysVisible ? '' : 'hidden md:inline'} text-xs font-black uppercase tracking-[0.12em]`}>{text}</span> : null}
+      {text ? <span className={`${textAlwaysVisible ? '' : 'hidden min-[1680px]:inline'} text-xs font-black uppercase tracking-[0.12em]`}>{text}</span> : null}
+      {hoverNote ? <HeaderHoverNote>{hoverNote}</HeaderHoverNote> : null}
     </button>
   );
 }
@@ -303,7 +308,7 @@ function ProfileAction({
       title="Profile"
       className={mobile
         ? 'relative inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
-        : 'relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 md:h-10 md:w-auto md:gap-2 md:px-3'}
+        : 'relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 min-[1680px]:h-10 min-[1680px]:w-auto min-[1680px]:gap-2 min-[1680px]:px-3'}
     >
       <span className="relative inline-flex h-7 w-7 items-center justify-center">
         {profileAvatarUrl ? (
@@ -311,7 +316,7 @@ function ProfileAction({
         ) : <UserCircle size={17} />}
         <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-950 ${profileAway ? 'bg-amber-300' : 'bg-emerald-400'}`} />
       </span>
-      <span className={`${mobile ? '' : 'hidden md:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Profile</span>
+      <span className={`${mobile ? '' : 'hidden min-[1680px]:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Profile</span>
       {pendingFriendRequests > 0 ? (
         <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 py-0.5 text-[0.6rem] font-black leading-none text-white">
           {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
@@ -333,10 +338,10 @@ function LoginAction({ mobile = false }: { mobile?: boolean }) {
       onClick={() => playUiSound('autocomplete-select')}
       className={mobile
         ? 'inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-amber-300/40 bg-amber-300 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200'
-        : 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/40 bg-amber-300 text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 md:h-10 md:w-auto md:gap-2 md:px-3'}
+        : 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/40 bg-amber-300 text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 min-[1680px]:h-10 min-[1680px]:w-auto min-[1680px]:gap-2 min-[1680px]:px-3'}
     >
       <LogIn size={17} />
-      <span className={`${mobile ? '' : 'hidden md:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Log in</span>
+      <span className={`${mobile ? '' : 'hidden min-[1680px]:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Log in</span>
     </Link>
   );
 }
@@ -400,13 +405,13 @@ function HeaderDropdown({
         aria-controls={menuId}
         aria-expanded={open}
         aria-haspopup="menu"
-        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-2.5 text-xs font-black uppercase tracking-[0.12em] outline-none transition focus:ring-2 focus:ring-amber-200 xl:h-10 xl:px-3 ${toneClasses[tone]} ${open ? 'bg-slate-900 ring-1 ring-amber-200/50' : 'bg-slate-950/90'}`}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-2.5 text-xs font-black uppercase tracking-[0.12em] outline-none transition focus:ring-2 focus:ring-amber-200 xl:h-9 xl:px-2 min-[1680px]:h-10 min-[1680px]:px-3 ${toneClasses[tone]} ${open ? 'bg-slate-900 ring-1 ring-amber-200/50' : 'bg-slate-950/90'}`}
       >
         {iconNode ?? <Icon size={16} />}
         {compactLabel ? (
           <>
-            <span className="hidden xl:inline 2xl:hidden">{compactLabel}</span>
-            <span className="hidden 2xl:inline">{label}</span>
+            <span className="hidden xl:inline min-[1680px]:hidden">{compactLabel}</span>
+            <span className="hidden min-[1680px]:inline">{label}</span>
           </>
         ) : <span className="hidden xl:inline">{label}</span>}
         <ChevronDown size={14} className={`hidden xl:block transition ${open ? 'rotate-180 text-amber-200' : 'text-slate-400'}`} />
@@ -632,13 +637,12 @@ function FriendsHeaderButton({ pendingFriendRequests }: { pendingFriendRequests:
 }
 
 function MobileHeaderMenu({
-  isLoggedIn,
-  pendingFriendRequests,
   moderationRole,
-}: Pick<AppHeaderProps, 'isLoggedIn' | 'pendingFriendRequests' | 'moderationRole'>) {
+}: Pick<AppHeaderProps, 'moderationRole'>) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [openSection, setOpenSection] = useState<'games' | 'lav' | 'riftbound' | null>(null);
+  const [openMiscPanel, setOpenMiscPanel] = useState<'sound' | 'help' | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -648,12 +652,14 @@ function MobileHeaderMenu({
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
         setOpenSection(null);
+        setOpenMiscPanel(null);
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpen(false);
         setOpenSection(null);
+        setOpenMiscPanel(null);
       }
     };
 
@@ -668,6 +674,7 @@ function MobileHeaderMenu({
   const closeMenu = () => {
     setOpen(false);
     setOpenSection(null);
+    setOpenMiscPanel(null);
   };
 
   return (
@@ -709,6 +716,14 @@ function MobileHeaderMenu({
               open={openSection === 'games'}
               onClick={() => setOpenSection((current) => current === 'games' ? null : 'games')}
             >
+              <HeaderMenuLink
+                href="/games"
+                label="View All"
+                description="All KnowLeague games"
+                icon={Gamepad2}
+                iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
+                onSelect={closeMenu}
+              />
               {gamesForHeader.map((game) => {
                 const GameIcon = game.gameIcon;
                 return (
@@ -723,14 +738,6 @@ function MobileHeaderMenu({
                   />
                 );
               })}
-              <HeaderMenuLink
-                href="/games"
-                label="View All"
-                description="All KnowLeague games"
-                icon={Gamepad2}
-                iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
-                onSelect={closeMenu}
-              />
             </MobileMenuDisclosure>
             <MobileMenuDisclosure
               label="League Account Viewer"
@@ -819,60 +826,41 @@ function MobileHeaderMenu({
 
           <section className="mt-4 border-t border-white/10 pt-3" aria-label="Miscellaneous">
             <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Miscellaneous</p>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-start gap-2">
               {moderationRole ? (
-                <HeaderIconButton
-                  label="Staff change log"
-                  icon={<FileText size={17} />}
-                  onClick={() => {
-                    closeMenu();
-                    router.push('/staff/changelog');
-                  }}
-                  className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
-                />
+                <>
+                  <HeaderIconButton
+                    label="Staff change log"
+                    icon={<FileText size={17} />}
+                    onClick={() => {
+                      closeMenu();
+                      router.push('/staff/changelog');
+                    }}
+                    className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
+                  />
+                  <HeaderIconButton
+                    label="API metrics"
+                    icon={<Activity size={17} />}
+                    onClick={() => {
+                      closeMenu();
+                      router.push('/staff/api-metrics');
+                    }}
+                    className="border-cyan-300/30 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-300/10"
+                  />
+                  <ModerationWidget role={moderationRole} variant="header-icon" />
+                </>
               ) : null}
-              {moderationRole ? (
-                <HeaderIconButton
-                  label="API metrics"
-                  icon={<Activity size={17} />}
-                  onClick={() => {
-                    closeMenu();
-                    router.push('/staff/api-metrics');
-                  }}
-                  className="border-cyan-300/30 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-300/10"
-                />
-              ) : null}
-              <SoundSettingsMenu variant="header-icon" />
-              <ContactUsWidget variant="header-icon" />
-              {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
+              <SoundSettingsMenu
+                variant="navigation"
+                isOpen={openMiscPanel === 'sound'}
+                onOpenChange={(nextOpen) => setOpenMiscPanel(nextOpen ? 'sound' : null)}
+              />
+              <ContactUsWidget
+                variant="navigation"
+                isOpen={openMiscPanel === 'help'}
+                onOpenChange={(nextOpen) => setOpenMiscPanel(nextOpen ? 'help' : null)}
+              />
             </div>
-          </section>
-
-          <section className="mt-4 grid gap-2 border-t border-white/10 pt-3" aria-label="Account">
-            <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Account</p>
-            {isLoggedIn ? (
-              <button
-                type="button"
-                onMouseEnter={() => playUiSound('autocomplete-hover')}
-                onFocus={() => playUiSound('autocomplete-hover')}
-                onClick={() => {
-                  playUiSound('autocomplete-select');
-                  window.dispatchEvent(new Event('knowleague:toggle-friends'));
-                  closeMenu();
-                }}
-                aria-label="Friends"
-                data-friends-trigger="true"
-                className="relative inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-white/15 bg-slate-950/90 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
-              >
-                <Users size={18} />
-                <span>Friends</span>
-                {pendingFriendRequests > 0 ? (
-                  <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[0.65rem] font-black text-white">
-                    {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
-                  </span>
-                ) : null}
-              </button>
-            ) : null}
           </section>
         </div>
       ) : null}
@@ -894,17 +882,15 @@ export function AppHeader({
 
   return (
     <header className="sticky top-0 z-[90] border-b border-white/10 bg-slate-950/95 text-slate-100 backdrop-blur">
-      <div className="relative flex h-14 w-full items-center justify-between px-2 xl:grid xl:min-h-14 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4 xl:px-6">
+      <div className="relative flex h-14 w-full items-center justify-between px-2 xl:grid xl:min-h-14 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-2 xl:px-3 min-[1680px]:gap-4 min-[1680px]:px-6">
         <div className="flex items-center gap-1 xl:hidden">
           <MobileHeaderMenu
-            isLoggedIn={isLoggedIn}
-            pendingFriendRequests={pendingFriendRequests}
             moderationRole={moderationRole}
           />
           {isLoggedIn ? <FriendsHeaderButton pendingFriendRequests={pendingFriendRequests} /> : null}
         </div>
 
-        <nav aria-label="Primary navigation" className="hidden min-w-0 items-center justify-start gap-1 xl:flex xl:gap-2">
+        <nav aria-label="Primary navigation" className="hidden min-w-0 items-center justify-start gap-1 xl:flex xl:gap-1 min-[1680px]:gap-2">
           <GamesMenu />
           <LavMenu />
           <RiftboundMenu />
@@ -917,13 +903,16 @@ export function AppHeader({
           onMouseEnter={() => playUiSound('autocomplete-hover')}
           onFocus={() => playUiSound('autocomplete-hover')}
           onClick={() => playUiSound('autocomplete-select')}
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-2xl font-black tracking-tight text-amber-100 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 xl:static xl:translate-x-0 xl:translate-y-0 xl:justify-self-center"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-2xl font-black tracking-tight text-amber-100 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 xl:static xl:translate-x-0 xl:translate-y-0 xl:justify-self-center xl:text-xl min-[1680px]:text-2xl"
         >
-          KnowLeague
+          <span className="inline-flex items-center gap-1.5">
+            KnowLeague
+            <span className="relative top-px rounded border border-amber-300/40 bg-amber-300/10 px-1 py-0.5 text-[0.5rem] font-black uppercase leading-none tracking-[0.14em] text-amber-200">BETA</span>
+          </span>
         </Link>
 
-        <nav aria-label="Account and support navigation" className="flex min-w-0 items-center justify-end gap-1 xl:gap-2">
-          <div className="hidden items-center gap-1 xl:flex xl:gap-2">
+        <nav aria-label="Account and support navigation" className="flex min-w-0 items-center justify-end gap-1 xl:gap-1 min-[1680px]:gap-2">
+          <div className="hidden items-center gap-1 xl:flex xl:gap-1 min-[1680px]:gap-2">
             <SoundSettingsMenu variant="header-icon" />
             <ContactUsWidget variant="header-icon" />
             {moderationRole ? (
@@ -945,14 +934,17 @@ export function AppHeader({
             {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
           </div>
 
-          <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 xl:block xl:mx-2" />
+          <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 xl:block min-[1680px]:mx-2" />
 
-          <div className="hidden items-center gap-1 xl:flex xl:gap-2">
+          <div className="hidden items-center gap-1 xl:flex xl:gap-1 min-[1680px]:gap-2">
             <HeaderIconButton
-              label="Discord account (coming soon)"
+              label="Join Discord server"
               icon={<DiscordMark className="h-[18px] w-[18px]" />}
-              disabled
-              className="border-white/10 text-slate-500 hover:border-white/20 hover:bg-slate-900"
+              hoverNote="Join Discord server"
+              onClick={() => {
+                window.open(DISCORD_INVITE_URL, '_blank', 'noopener,noreferrer');
+              }}
+              className="border-white/15 bg-slate-950/90 text-slate-100 hover:border-amber-200/50 hover:bg-slate-900"
             />
             <HeaderIconButton
               label="Support KnowLeague"
@@ -962,12 +954,12 @@ export function AppHeader({
             />
           </div>
 
-          <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 xl:block xl:mx-2" />
+          <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 xl:block min-[1680px]:mx-2" />
 
           {isLoggedIn ? (
             <FriendsWidget onPendingRequestCountChange={onPendingFriendRequestsChange} variant="responsive" />
           ) : null}
-          <div className="flex items-center gap-1 xl:gap-2">
+          <div className="flex items-center gap-1 xl:gap-1 min-[1680px]:gap-2">
             {isLoggedIn
               ? <ProfileAction profileAvatarUrl={profileAvatarUrl} profileUsername={profileUsername} profileAway={profileAway} pendingFriendRequests={pendingFriendRequests} />
               : <LoginAction />}

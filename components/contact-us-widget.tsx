@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, X } from 'lucide-react';
+import { HeaderHoverNote } from '@/components/header-hover-note';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { ContactSubmissionCategory } from '@/lib/contact';
@@ -18,11 +19,14 @@ const contactOptions: { value: ContactSubmissionCategory; label: string }[] = [
 ];
 
 type ContactUsWidgetProps = {
-  variant?: 'floating' | 'drawer' | 'header-icon';
+  variant?: 'floating' | 'drawer' | 'header-icon' | 'navigation';
+  isOpen?: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
 };
 
-export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export function ContactUsWidget({ variant = 'floating', isOpen: controlledOpen, onOpenChange }: ContactUsWidgetProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isOpen = controlledOpen ?? uncontrolledOpen;
   const [category, setCategory] = useState<ContactSubmissionCategory>('feedback');
   const [message, setMessage] = useState('');
   const [reportedUsername, setReportedUsername] = useState('');
@@ -30,6 +34,14 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
   const [errorMessage, setErrorMessage] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const reportedUsernameInputRef = useRef<HTMLInputElement | null>(null);
+  const setMenuOpen = useCallback((nextOpen: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(nextOpen);
+      return;
+    }
+
+    setUncontrolledOpen(nextOpen);
+  }, [onOpenChange]);
 
   useEffect(() => {
     const openReportForm = (event: Event) => {
@@ -39,12 +51,12 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
       setMessage('');
       setStatus('idle');
       setErrorMessage('');
-      setIsOpen(true);
+      setMenuOpen(true);
     };
 
     window.addEventListener(OPEN_CONTACT_REPORT_EVENT, openReportForm);
     return () => window.removeEventListener(OPEN_CONTACT_REPORT_EVENT, openReportForm);
-  }, []);
+  }, [setMenuOpen]);
 
   useEffect(() => {
     if (isOpen && category === 'player_report') {
@@ -59,13 +71,13 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
 
     const handlePointerDown = (event: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+        setMenuOpen(false);
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setIsOpen(false);
+        setMenuOpen(false);
       }
     };
 
@@ -75,7 +87,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, setMenuOpen]);
 
   const submitContactForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -125,7 +137,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
       setStatus('success');
       window.setTimeout(() => {
         setStatus('idle');
-        setIsOpen(false);
+        setMenuOpen(false);
       }, 1200);
     } catch (error) {
       setStatus('error');
@@ -134,10 +146,12 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
   };
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={variant === 'navigation' ? 'contents' : variant === 'header-icon' ? 'group relative' : 'relative'}>
       {isOpen ? (
         <div
-          className={variant === 'drawer'
+          className={variant === 'navigation'
+            ? 'order-2 basis-full rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+            : variant === 'drawer'
             ? 'fixed left-1/2 top-1/2 z-[110] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
             : variant === 'header-icon'
               ? 'absolute right-0 top-full z-[110] mt-2 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),26rem)] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
@@ -149,7 +163,7 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
             </div>
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
+              onClick={() => setMenuOpen(false)}
               aria-label="Close contact form"
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-900 text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
             >
@@ -242,11 +256,14 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
           onFocus={() => playUiSound('autocomplete-hover')}
           onClick={() => {
             playUiSound('autocomplete-select');
-            setIsOpen((value) => !value);
+            setMenuOpen(!isOpen);
           }}
           aria-label="Help Center"
-          title="Help Center"
-          className={variant === 'drawer'
+          title={variant === 'header-icon' ? undefined : 'Help Center'}
+          aria-expanded={variant === 'navigation' ? isOpen : undefined}
+          className={variant === 'navigation'
+            ? 'order-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 ' + (isOpen ? 'border-amber-200/70 bg-slate-900 ring-1 ring-amber-200/50' : '')
+            : variant === 'drawer'
             ? 'flex min-h-12 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-sm font-bold text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200'
             : variant === 'header-icon'
               ? 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:h-10 sm:w-10'
@@ -257,8 +274,9 @@ export function ContactUsWidget({ variant = 'floating' }: ContactUsWidgetProps) 
               <MessageSquare size={18} />
             </span>
           ) : <MessageSquare size={18} />}
-          {variant !== 'header-icon' ? 'Help Center' : null}
+          {variant !== 'header-icon' && variant !== 'navigation' ? 'Help Center' : null}
       </button>
+      {variant === 'header-icon' ? <HeaderHoverNote>Help Center</HeaderHoverNote> : null}
     </div>
   );
 }

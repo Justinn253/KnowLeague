@@ -17,6 +17,29 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-08-26-google-auth-coming-soon',
+    patch: '2026.08.26-google-auth-coming-soon',
+    timestamp: '2026-08-26T16:53:18.6408242Z',
+    title: 'Marked Google authentication as coming soon',
+    summary: 'Disabled the Google continuation option on the shared login and sign-up screen and removed the unused Google sign-in explanation.',
+    details: [
+      'Changed the shared AuthScreen Google button to remain disabled for both login and sign-up modes and added an inline Coming soon badge to communicate its availability state.',
+      'Removed the client-side Google OAuth click handler so a disabled control cannot initiate an authentication redirect until the feature is intentionally reintroduced.',
+      'Removed the explanatory Google account/password paragraph while leaving the existing email/password login, registration, reset, Turnstile, and email-delivery flows unchanged.',
+    ],
+    impact: [
+      'Users now see a clear Coming soon state instead of an actionable Google authentication option on both auth screens.',
+      'Email/password authentication remains the only active authentication path in the current UI.',
+    ],
+    files: [
+      'components/auth-screen.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 63 tests passed across 20 test files.',
+    ],
+  },
+  {
     id: 'patch-2026-08-26-beta-badge-optical-alignment',
     patch: '2026.08.26-beta-badge-optical-alignment',
     timestamp: '2026-08-26T03:11:29.8991072Z',

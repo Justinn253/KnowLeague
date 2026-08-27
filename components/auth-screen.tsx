@@ -136,29 +136,6 @@ export function AuthScreen() {
     return () => window.clearTimeout(timeout);
   }, [mode, username]);
 
-  const continueWithGoogle = async () => {
-    const supabase = getOptionalSupabaseClient();
-    setMessage('');
-
-    if (!supabase) {
-      setMessage('Supabase auth is not configured.');
-      return;
-    }
-
-    setBusy(true);
-    try {
-      await forfeitStoredMultiplayerSessions();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: getAuthRedirectUrl(peekAuthReturnPath() ?? '/') },
-      });
-      if (error) throw error;
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to continue with Google.');
-      setBusy(false);
-    }
-  };
-
   const requestEmailDelivery = useCallback(async (type: EmailDelivery['type'], targetEmail: string) => {
     if (isTurnstileClientEnabled && !turnstileToken) {
       throw new Error('Complete the verification before requesting another email.');
@@ -481,16 +458,13 @@ export function AuthScreen() {
               </div>
               <button
                 type="button"
-                onClick={() => void continueWithGoogle()}
-                disabled={busy}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-slate-950 px-5 text-sm font-bold text-white transition hover:border-white/25 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-5 text-sm font-bold text-slate-500 transition disabled:cursor-not-allowed"
               >
                 <Chrome size={18} />
-                Continue with Google
+                <span>Continue with Google</span>
+                <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-amber-200/80">Coming soon</span>
               </button>
-              <p className="text-center text-xs font-semibold leading-5 text-slate-500">
-                Google sign-in uses your Google account and does not require a KnowLeague password.
-              </p>
             </div>
           ) : null}
 

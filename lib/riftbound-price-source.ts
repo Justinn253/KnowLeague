@@ -98,7 +98,7 @@ async function fetchText(url: string) {
 
 function getPrintKeyAliases(setCode: string, collectorNumber: string) {
   const normalizedSetCode = setCode.toUpperCase();
-  const normalizedCollectorNumber = collectorNumber.trim().toUpperCase();
+  const normalizedCollectorNumber = collectorNumber.trim().toUpperCase().replace(/-STAR$/, '*');
   const unpaddedCollectorNumber = normalizedCollectorNumber.replace(/^0+(?=\d)/, '');
 
   return Array.from(new Set([

@@ -45,7 +45,7 @@ function addDays(date, days) {
 
 function getPrintKeyAliases(setCode, collectorNumber) {
   const normalizedSetCode = String(setCode).trim().toUpperCase();
-  const normalizedCollectorNumber = String(collectorNumber).trim().toUpperCase();
+  const normalizedCollectorNumber = String(collectorNumber).trim().toUpperCase().replace(/-STAR$/, '*');
   const unpaddedCollectorNumber = normalizedCollectorNumber.replace(/^0+(?=\d)/, '');
   return [
     `${normalizedSetCode}:${normalizedCollectorNumber}`,

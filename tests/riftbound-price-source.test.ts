@@ -67,6 +67,31 @@ describe('Riftbound price snapshots', () => {
     ]);
   });
 
+  it('matches the official -STAR catalogue spelling to the source asterisk print key', () => {
+    const signatureCard = card({
+      id: 'ven-190-star-166',
+      setCode: 'VEN',
+      collectorNumber: '190-STAR',
+      numberLabel: '190-STAR/166',
+      finishOptions: ['foil'],
+      defaultFinish: 'foil',
+    });
+    const prices: RiftboundTcgPriceMap = new Map([
+      ['VEN:190*', new Map([
+        ['foil', { price_cents: 48611, low_price_cents: 44300, high_price_cents: 68055 }],
+      ])],
+    ]);
+
+    expect(buildRiftboundPriceSnapshotRows([signatureCard], prices)).toEqual([{
+      card_id: 'ven-190-star-166',
+      finish: 'foil',
+      price_cents: 48611,
+      low_price_cents: 44300,
+      high_price_cents: 68055,
+      capture_status: 'live',
+    }]);
+  });
+
   it('uses the generated catalogue only when the source cannot match a print', () => {
     const rows = buildRiftboundPriceSnapshotRows([card({ marketPrices: { normal: 0.22, foil: null, updatedAt: null } })], new Map());
 

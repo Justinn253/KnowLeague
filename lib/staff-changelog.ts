@@ -17,6 +17,40 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-08-27-vendetta-signature-catalogue',
+    patch: '2026.08.27-vendetta-signature-catalogue',
+    timestamp: '2026-08-27T16:57:56.5850636Z',
+    title: 'Added Vendetta Signature cards and synchronized price updates',
+    summary: 'Refreshed the Riftbound catalogue with the nine Signature Vendetta Legends, fixed their price-source matching, and added one repeatable catalogue/history update command.',
+    details: [
+      'Regenerated data/catalogs/riftbound-cards.json from the official gallery and market sources, adding the nine VEN Signature prints 189-STAR through 197-STAR with their official artwork and current foil market values.',
+      'Normalized the official -STAR collector-number spelling to the TCGCSV asterisk print key in both live cron snapshots and historical archive imports, so Signature foil prices are captured as live source values instead of catalogue fallbacks.',
+      'Added data:update:riftbound, which runs catalogue generation before the idempotent historical importer and accepts bounded --from/--to dates plus --dry-run for new-set maintenance.',
+      'Adjusted the League Account Viewer Mastery Viewer Play Mastery Master link to a fixed h-11 control aligned to the bottom of the adjacent inputs, preventing the label column from stretching it vertically.',
+    ],
+    impact: [
+      'Users can browse, inventory, and track the nine Signature Vendetta Legends as distinct foil-only card records.',
+      'The daily Riftbound snapshot and historical backfill workflows now resolve Signature prices against the correct TCGCSV products and preserve low/high source ranges where available.',
+      'The Mastery Viewer action matches the height and baseline of the champion selector and Show/Hide All controls at desktop and responsive widths.',
+    ],
+    files: [
+      'data/catalogs/riftbound-cards.json',
+      'lib/riftbound-price-source.ts',
+      'scripts/import-riftbound-price-history.mjs',
+      'scripts/update-riftbound-data.mjs',
+      'package.json',
+      'docs/riftbound-price-history.md',
+      'components/riot-account-viewer.tsx',
+      'tests/riftbound.test.ts',
+      'tests/riftbound-price-source.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:update:riftbound -- --from 2026-07-31 --to 2026-08-27 completed: 27 TCGCSV archives were imported, 46,041 daily snapshot rows were upserted, and the unavailable current-day archive was skipped without failing the idempotent import.',
+      'npm run check passed: next lint retained the repository\'s existing no-img-element warnings in components/profile-screen.tsx, components/public-profile-screen.tsx, and components/riftbound-compact-deck-view.tsx; typecheck passed; 64 tests passed across 20 test files. The focused Riftbound regression run also passed with 11 tests across 2 files.',
+    ],
+  },
+  {
     id: 'patch-2026-08-26-google-auth-coming-soon',
     patch: '2026.08.26-google-auth-coming-soon',
     timestamp: '2026-08-26T16:53:18.6408242Z',

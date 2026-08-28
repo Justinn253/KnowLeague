@@ -14,6 +14,21 @@ describe('Riftbound showcase classification', () => {
     expect(RIFTBOUND_CARDS.find((card) => card.id === 'unl-228-star-219')).toMatchObject({ rarity: 'Signature', finishOptions: ['foil'], defaultFinish: 'foil' });
     expect(RIFTBOUND_CARDS.find((card) => card.id === 'ven-sp1-006')).toMatchObject({ rarity: 'Showcase', finishOptions: ['foil'], defaultFinish: 'foil' });
     expect(RIFTBOUND_CARDS.find((card) => card.id === 'ven-169-166')).toMatchObject({ rarity: 'Overnumbered', finishOptions: ['foil'], defaultFinish: 'foil' });
+
+    const vendettaSignatureIds = RIFTBOUND_CARDS
+      .filter((card) => card.setCode === 'VEN' && card.rarity === 'Signature')
+      .map((card) => card.id);
+    expect(vendettaSignatureIds).toEqual([
+      'ven-189-star-166',
+      'ven-190-star-166',
+      'ven-191-star-166',
+      'ven-192-star-166',
+      'ven-193-star-166',
+      'ven-194-star-166',
+      'ven-195-star-166',
+      'ven-196-star-166',
+      'ven-197-star-166',
+    ]);
   });
 
   it('classifies rarity variants in descending collector rarity order', () => {

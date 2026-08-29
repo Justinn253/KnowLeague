@@ -1,5 +1,6 @@
 'use client';
 
+import { ImageOff } from 'lucide-react';
 import Image, { type ImageProps } from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import type { RiftboundCard } from '@/lib/riftbound';
@@ -52,10 +53,12 @@ export function RiftboundCardImage({ card, sizes, className = 'object-cover', or
   const [visible, setVisible] = useState(eager);
   const highResolutionUrl = card.imageUrl.replace(/-\d+x\d+(\.[a-z]+)$/i, '-1488x2078$1');
   const [imageUrl, setImageUrl] = useState(preferHighResolution ? highResolutionUrl : card.imageUrl);
+  const [imageFailed, setImageFailed] = useState(card.imageAvailable === false);
 
   useEffect(() => {
     setImageUrl(preferHighResolution ? highResolutionUrl : card.imageUrl);
-  }, [card.imageUrl, highResolutionUrl, preferHighResolution]);
+    setImageFailed(card.imageAvailable === false);
+  }, [card.imageUrl, card.imageAvailable, highResolutionUrl, preferHighResolution]);
 
   useEffect(() => {
     if (eager) {
@@ -67,7 +70,7 @@ export function RiftboundCardImage({ card, sizes, className = 'object-cover', or
     return observeCardImage(target, setVisible);
   }, [eager]);
 
-  const image = visible ? (
+  const image = visible && !imageFailed ? (
     <Image
       src={imageUrl}
       alt={`${card.displayName} card artwork`}
@@ -83,12 +86,23 @@ export function RiftboundCardImage({ card, sizes, className = 'object-cover', or
       quality={RIFTBOUND_CARD_IMAGE_QUALITY}
       onError={(event) => {
         onError?.(event);
-        if (preferHighResolution && imageUrl !== card.imageUrl) setImageUrl(card.imageUrl);
+        if (preferHighResolution && imageUrl !== card.imageUrl) {
+          setImageUrl(card.imageUrl);
+          return;
+        }
+        setImageFailed(true);
       }}
     />
   ) : null;
 
-  const imageWithViewportGuard = <span ref={imageContainerRef} className="absolute inset-0">{image}</span>;
+  const imageFallback = imageFailed ? (
+    <span role="img" aria-label={`${card.displayName} artwork unavailable`} className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900 px-3 text-center text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-400">
+      <ImageOff size={22} aria-hidden="true" />
+      <span>Artwork unavailable</span>
+    </span>
+  ) : null;
+
+  const imageWithViewportGuard = <span ref={imageContainerRef} className="absolute inset-0">{image}{imageFallback}</span>;
 
   if (orientation === 'landscape' || (!card.cardTypeLabels.includes('Battlefield') && card.cardType !== 'Battlefield')) return imageWithViewportGuard;
 

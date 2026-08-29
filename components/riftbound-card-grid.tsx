@@ -28,7 +28,7 @@ import {
 } from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
-import { getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER as RIFTBOUND_CARD_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
+import { getRiftboundCardDetailSetName, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER as RIFTBOUND_CARD_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
 import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
 import { getRiftboundBootstrap, getRiftboundInventoryHistory, getRiftboundLatestPrices, getRiftboundSales, invalidateRiftboundBootstrap, invalidateRiftboundInventoryHistory, type RiftboundDeck } from '@/lib/riftbound-client';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
@@ -1614,7 +1614,7 @@ export function RiftboundCardDetailsModal({
           <div className="grid min-w-0 gap-5">
             <div className="min-w-0 pr-4 sm:pr-44">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{card.setName} · {card.setCode} {card.numberLabel}</p><span className="rounded-lg border border-amber-200/20 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-amber-200">Tier {tierRating?.tier ?? '—'}</span></div>
+                <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">{getRiftboundCardDetailSetName(card)} · {card.setCode} {card.numberLabel}</p><span className="rounded-lg border border-amber-200/20 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-amber-200">Tier {tierRating?.tier ?? '—'}</span></div>
                 <div className="mt-2 flex flex-wrap items-center justify-start gap-2"><h2 className="min-w-0 text-3xl font-black tracking-tight text-white">{card.displayName}</h2>{preferenceSession ? <RiftboundCardPreferenceActions cardId={card.id} session={preferenceSession} onChange={onPreferenceChange} /> : null}</div>
                 <p className={`mt-2 text-sm font-black ${rarityClassName}`}>{card.rarity}</p>
                 {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}

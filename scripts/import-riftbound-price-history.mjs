@@ -167,6 +167,11 @@ async function loadProductMap(cards) {
   const requestedSetCodes = new Set(cards.map((card) => String(card.setCode).toUpperCase()));
   const groups = (groupsPayload.results ?? []).filter((group) => requestedSetCodes.has(String(group.abbreviation ?? '').toUpperCase()));
   const cardsByPrintKey = new Map();
+  const cardsBySourceProductId = new Map(
+    cards
+      .filter((card) => card.sourceProductId !== undefined)
+      .map((card) => [`${String(card.setCode).toUpperCase()}:${card.sourceProductId}`, card]),
+  );
 
   cards.forEach((card) => {
     getPrintKeyAliases(card.setCode, card.collectorNumber).forEach((printKey) => {
@@ -180,10 +185,12 @@ async function loadProductMap(cards) {
     const productsPayload = await fetchJson(`${TCGCSV_API_BASE_URL}/${group.groupId}/products`);
     for (const product of productsPayload.results ?? []) {
       const cardNumber = getExtendedDataValue(product, 'Number');
-      if (!cardNumber) continue;
-      const card = getPrintKeyAliases(group.abbreviation, cardNumber.split('/')[0])
-        .map((printKey) => cardsByPrintKey.get(printKey))
-        .find(Boolean);
+      const card = (group.abbreviation
+        ? cardsBySourceProductId.get(`${String(group.abbreviation).toUpperCase()}:${product.productId}`)
+        : null)
+        ?? (cardNumber ? getPrintKeyAliases(group.abbreviation, cardNumber.split('/')[0])
+          .map((printKey) => cardsByPrintKey.get(printKey))
+          .find(Boolean) : null);
       if (!card) continue;
       productMap.set(`${group.groupId}:${product.productId}`, {
         cardId: card.id,

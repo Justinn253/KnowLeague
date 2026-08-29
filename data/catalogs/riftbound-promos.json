@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "description": "TCGCSV source policy for Riftbound promotional card groups. Products are refreshed into riftbound-cards.json by the catalogue generator.",
+  "tcgcsvGroups": [
+    {
+      "setCode": "PR",
+      "setName": "Riftbound Promotional Cards",
+      "includeRarity": "Promo"
+    },
+    {
+      "setCode": "OPP",
+      "setName": "Riftbound Organized Play Promotional Cards",
+      "includeRarity": "Promo"
+    },
+    {
+      "setCode": "JDG",
+      "setName": "Riftbound Judge Promotional Cards",
+      "includeRarity": "Promo"
+    }
+  ],
+  "collectorNumberOverrides": [
+    {
+      "setCode": "PR",
+      "sourceProductId": 663004,
+      "collectorNumber": "FIST-BUMP",
+      "reason": "TCGCSV has no printed Number field for the Buff // Buff Fist Bump promo."
+    }
+  ]
+}

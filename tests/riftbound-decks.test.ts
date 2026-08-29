@@ -50,6 +50,7 @@ describe('Riftbound game deck validation', () => {
   it('keeps only Origins normal runes and groups rune foil variants alphabetically', () => {
     const runeCards = sortRiftboundDeckRuneCards(RIFTBOUND_CARDS.filter((card) => card.cardType === 'Rune' && isRiftboundDeckRuneCatalogueCard(card)));
     const normalBasicRunes = runeCards.filter((card) => card.cardTypeLabels.includes('Basic') && card.rarity === 'Common' && card.defaultFinish === 'normal');
+    const legacyRuneCards = runeCards.filter((card) => card.rarity !== 'Promo');
 
     expect(normalBasicRunes.every((card) => card.setCode === 'OGN')).toBe(true);
     expect(runeCards.slice(0, 5).map((card) => `${card.displayName}:${card.defaultFinish}`)).toEqual([
@@ -59,7 +60,7 @@ describe('Riftbound game deck validation', () => {
       'Body Rune:foil',
       'Body Rune:foil',
     ]);
-    expect(runeCards.map((card) => card.displayName).slice(0, 15)).toEqual([
+    expect(legacyRuneCards.map((card) => card.displayName).slice(0, 15)).toEqual([
       'Body Rune', 'Body Rune', 'Body Rune', 'Body Rune', 'Body Rune',
       'Calm Rune', 'Calm Rune', 'Calm Rune', 'Calm Rune', 'Calm Rune',
       'Chaos Rune', 'Chaos Rune', 'Chaos Rune', 'Chaos Rune', 'Chaos Rune',

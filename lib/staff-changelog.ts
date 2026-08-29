@@ -17,6 +17,57 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-08-29-riftbound-promo-display',
+    patch: '2026.08.29-riftbound-promo-display',
+    timestamp: '2026-08-29T01:36:01.9799693Z',
+    title: 'Refined promotional rarity and artwork availability handling',
+    summary: 'Placed Promo rarity between Showcase and Overnumbered, shortened promotional set labels in card details, and made unavailable promo artwork fail gracefully.',
+    details: ['Changed the shared Riftbound rarity order so filters and rarity-sorted views present Showcase, Promo, then Overnumbered.', 'Added a card-detail-only Promotional Cards display label for all Promo records while preserving source set names for catalogue filters, inventory, and master-set views.', 'Persisted TCGCSV imageCount as imageAvailable for promo records. TCGCSV currently exposes image URLs for all 209 records, but its source metadata reports artwork availability for only the subset with imageCount greater than zero; no alternate image fields were present in the inspected source records.', 'Known-unavailable promo images are now skipped at runtime and unexpected failures render an accessible artwork-unavailable placeholder instead of leaving an empty card surface.'],
+    impact: ['Promo rarity filters now follow the requested order and the card detail popup uses the concise Promotional Cards label.', 'The catalogue remains ready to adopt artwork automatically when TCGCSV starts reporting it, while users receive a stable visual state for promotional records that currently have no source artwork.'],
+    files: ['lib/riftbound.ts', 'scripts/riftbound-promo-catalog.mjs', 'data/catalogs/riftbound-cards.json', 'components/riftbound-card-image.tsx', 'components/riftbound-card-grid.tsx', 'tests/riftbound.test.ts', 'docs/riftbound-price-history.md', 'lib/staff-changelog.ts'],
+    verification: [
+      'Audited the live TCGCSV promo product metadata and confirmed that the feed exposes imageUrl fields but no alternate image fields for records reporting imageCount=0.',
+      'npm run data:generate:riftbound completed successfully and wrote 1,427 records; validation confirmed 209 promo records, 61 imageAvailable=true, and 148 imageAvailable=false.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 67 tests passed across 20 test files.',
+    ],
+  },
+  {
+    id: 'patch-2026-08-28-riftbound-promo-catalogue',
+    patch: '2026.08.28-riftbound-promo-catalogue',
+    timestamp: '2026-08-28T20:07:00.1085589Z',
+    title: 'Added a maintained Riftbound promotional catalogue',
+    summary: 'Added 209 TCGCSV-backed promotional Riftbound card records with stable source-product identities, automated catalogue refreshes, and exact live/archive price matching.',
+    details: [
+      'Added data/catalogs/riftbound-promos.json as the checked-in source policy for the PR, OPP, and JDG TCGCSV groups, including only products whose source Rarity is Promo. The current generated counts are PR=14, OPP=192, and JDG=3.',
+      'Added the TCGCSV promo parser and generator integration. Each generated promo uses its TCGCSV product ID as its stable record identity, preserves source finish availability, and fails generation when a newly introduced promo lacks an image or collector number instead of silently creating incomplete data.',
+      'Added the explicit PR product 663004 collector-number override for the Buff // Buff Fist Bump promo because its public source record has no Number field. Sealed products, non-promo rarity rows, and the unnumbered non-promo token are excluded by policy.',
+      'Extended the Riftbound domain rarity type, ordering, styling, runtime classification, live price snapshots, and archive importer to recognize Promo records. Exact source-product price keys take precedence over printed-number fallbacks so duplicate promotional print numbers cannot share the wrong value history.',
+      'Documented the refresh workflow so products added to an existing configured group flow into the catalogue automatically; a new promo group requires one manifest entry and any missing source number requires an explicit override.',
+    ],
+    impact: [
+      'Users can browse, inventory, value, and track history for the currently published promotional Riftbound products as distinct cards, including duplicate-number variants.',
+      'Running npm run data:generate:riftbound refreshes promotional products and current values without adding runtime dependence on the upstream catalogue feeds. The combined maintenance command can regenerate the catalogue before an intentional archive backfill.',
+      'The generator validates unique card IDs, unique source product IDs, and non-empty finish options, reducing the chance that future source changes silently corrupt catalogue data.',
+    ],
+    files: [
+      'data/catalogs/riftbound-promos.json',
+      'data/catalogs/riftbound-cards.json',
+      'scripts/riftbound-promo-catalog.mjs',
+      'scripts/generate-riftbound-catalog.mjs',
+      'lib/riftbound.ts',
+      'lib/riftbound-price-source.ts',
+      'scripts/import-riftbound-price-history.mjs',
+      'docs/riftbound-price-history.md',
+      'tests/riftbound.test.ts',
+      'tests/riftbound-price-source.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:riftbound completed successfully and wrote 1,427 records. Generated validation confirmed 209 promo records, 209 unique source product IDs, Promo rarity on every promo record, no missing images, and no empty finish-options arrays.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 66 tests passed across 20 test files.',
+    ],
+  },
+  {
     id: 'patch-2026-08-27-vendetta-signature-catalogue',
     patch: '2026.08.27-vendetta-signature-catalogue',
     timestamp: '2026-08-27T16:57:56.5850636Z',

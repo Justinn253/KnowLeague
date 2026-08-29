@@ -2,7 +2,7 @@ import riftboundCards from '@/data/catalogs/riftbound-cards.json';
 
 export type RiftboundFinish = 'normal' | 'foil';
 
-export const RIFTBOUND_RARITY_ORDER = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase', 'Overnumbered', 'Signature'] as const;
+export const RIFTBOUND_RARITY_ORDER = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase', 'Promo', 'Overnumbered', 'Signature'] as const;
 export type RiftboundCardRarity = typeof RIFTBOUND_RARITY_ORDER[number];
 
 export const RIFTBOUND_CARD_TIERS = ['S', 'A', 'B', 'C', 'D'] as const;
@@ -31,6 +31,7 @@ const RIFTBOUND_RARITY_TEXT_CLASSES: Record<string, string> = {
   Uncommon: 'text-blue-300',
   Rare: 'text-violet-300',
   Epic: 'text-amber-300',
+  Promo: 'text-cyan-200',
   Showcase: 'text-yellow-200',
   Overnumbered: 'text-orange-300',
   Signature: 'text-fuchsia-300',
@@ -47,6 +48,10 @@ export function getRiftboundCardDomainTextClass(card: Pick<RiftboundCard, 'domai
 
 export function getRiftboundRarityTextClass(rarity: string | undefined) {
   return RIFTBOUND_RARITY_TEXT_CLASSES[rarity ?? ''] ?? 'text-slate-300';
+}
+
+export function getRiftboundCardDetailSetName(card: Pick<RiftboundCard, 'setName' | 'rarity'>) {
+  return card.rarity === 'Promo' ? 'Promotional Cards' : card.setName;
 }
 
 export function getRiftboundCardRarityTextClass(card: Pick<RiftboundCard, 'rarity'>) {
@@ -67,6 +72,7 @@ export type RiftboundMarketPrices = {
 
 export type RiftboundCard = {
   id: string;
+  sourceProductId?: number;
   displayName: string;
   name: string;
   fullName: string;
@@ -81,6 +87,7 @@ export type RiftboundCard = {
   might: number;
   cardType: string;
   cardTypeLabels: string[];
+  imageAvailable?: boolean;
   tags: string[];
   domains: string[];
   productDetails: string;
@@ -172,6 +179,7 @@ export function isRiftboundShowcasePrint(card: Pick<RiftboundCard, 'collectorNum
 
 export function getRiftboundCardRarity(card: Pick<RiftboundCard, 'rarity' | 'collectorNumber' | 'printedTotal'>) {
   if (isRiftboundSignaturePrint(card)) return 'Signature';
+  if (card.rarity === 'Promo') return 'Promo';
   if (isRiftboundOvernumberedPrint(card)) return 'Overnumbered';
   if (card.rarity === 'Showcase' || isRiftboundShowcasePrint(card)) return 'Showcase';
   return card.rarity;

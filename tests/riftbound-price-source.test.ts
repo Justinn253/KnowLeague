@@ -92,6 +92,27 @@ describe('Riftbound price snapshots', () => {
     }]);
   });
 
+  it('prefers exact TCGCSV source product prices for duplicate promo print numbers', () => {
+    const promo = card({
+      id: 'opp-662881',
+      setCode: 'OPP',
+      sourceProductId: 662881,
+      collectorNumber: '246',
+      numberLabel: '246/298',
+      finishOptions: ['foil'],
+      defaultFinish: 'foil',
+    });
+    const prices: RiftboundTcgPriceMap = new Map([
+      ['OPP:product:662881', new Map([
+        ['foil', { price_cents: 12345, low_price_cents: 11000, high_price_cents: 15000 }],
+      ])],
+      ['OPP:246', new Map([
+        ['foil', { price_cents: 999, low_price_cents: 900, high_price_cents: 1200 }],
+      ])],
+    ]);
+
+    expect(buildRiftboundPriceSnapshotRows([promo], prices)[0].price_cents).toBe(12345);
+  });
   it('uses the generated catalogue only when the source cannot match a print', () => {
     const rows = buildRiftboundPriceSnapshotRows([card({ marketPrices: { normal: 0.22, foil: null, updatedAt: null } })], new Map());
 

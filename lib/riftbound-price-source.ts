@@ -107,6 +107,10 @@ function getPrintKeyAliases(setCode: string, collectorNumber: string) {
   ]));
 }
 
+function getProductPriceKey(setCode: string, sourceProductId: number) {
+  return `${setCode.trim().toUpperCase()}:product:${sourceProductId}`;
+}
+
 function getExtendedDataValue(product: TcgCsvProduct, fieldName: string) {
   const field = (product.extendedData ?? []).find((entry) => String(entry.name).toLowerCase() === fieldName.toLowerCase());
   return typeof field?.value === 'string' ? field.value : null;
@@ -169,7 +173,10 @@ async function fetchGroupPriceMap(group: TcgCsvGroup) {
   for (const product of productResponse.results ?? []) {
     const cardNumber = getExtendedDataValue(product, 'Number');
     const productPrices = pricesByProductId.get(product.productId);
-    if (!cardNumber || !productPrices || !group.abbreviation) continue;
+    if (!productPrices || !group.abbreviation) continue;
+
+    pricesByPrintKey.set(getProductPriceKey(group.abbreviation, product.productId), productPrices);
+    if (!cardNumber) continue;
 
     for (const printKey of getPrintKeyAliases(group.abbreviation, cardNumber.split('/')[0])) {
       const existing = pricesByPrintKey.get(printKey) ?? new Map<RiftboundFinish, RiftboundTcgPricePoint>();
@@ -211,7 +218,11 @@ export function buildRiftboundPriceSnapshotRows(
   pricesByPrintKey: RiftboundTcgPriceMap,
 ): RiftboundPriceSnapshotRow[] {
   return cards.flatMap((card) => card.finishOptions.map((finish) => {
-    const aliasPrices = getPrintKeyAliases(card.setCode, card.collectorNumber)
+    const lookupKeys = [
+      ...(card.sourceProductId === undefined ? [] : [getProductPriceKey(card.setCode, card.sourceProductId)]),
+      ...getPrintKeyAliases(card.setCode, card.collectorNumber),
+    ];
+    const aliasPrices = lookupKeys
       .map((printKey) => pricesByPrintKey.get(printKey)?.get(finish))
       .filter((pricePoint): pricePoint is RiftboundTcgPricePoint => pricePoint !== undefined);
     const sourcePricePoint = aliasPrices.find((pricePoint) => pricePoint.price_cents !== null) ?? aliasPrices[0];

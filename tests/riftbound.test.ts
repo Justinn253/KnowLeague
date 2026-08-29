@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRiftboundCardRarity, getRiftboundCardTierGroupId, isRiftboundOvernumberedPrint, isRiftboundShowcasePrint, isRiftboundSignaturePrint, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS } from '@/lib/riftbound';
+import { getRiftboundCardDetailSetName, getRiftboundCardRarity, getRiftboundCardTierGroupId, isRiftboundOvernumberedPrint, isRiftboundShowcasePrint, isRiftboundSignaturePrint, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER } from '@/lib/riftbound';
 
 describe('Riftbound showcase classification', () => {
   it('recognizes alternate, overnumbered, signature, and SP prints as showcase-family variants', () => {
@@ -31,6 +31,26 @@ describe('Riftbound showcase classification', () => {
     ]);
   });
 
+  it('loads TCGCSV promotional products with stable source identities', () => {
+    const promoSetCodes = new Set(['PR', 'OPP', 'JDG']);
+    const promoCards = RIFTBOUND_CARDS.filter((card) => promoSetCodes.has(card.setCode));
+    expect(promoCards).toHaveLength(209);
+    expect(new Set(promoCards.map((card) => card.sourceProductId)).size).toBe(209);
+    expect(promoCards.every((card) => card.rarity === 'Promo')).toBe(true);
+    expect(RIFTBOUND_CARDS.find((card) => card.id === 'pr-663004')).toMatchObject({
+      displayName: 'Buff // Buff (Fist Bump Promo)',
+      collectorNumber: 'FIST-BUMP',
+      finishOptions: ['foil'],
+    });
+  });
+  it('orders promo rarity between showcase and overnumbered and uses a concise promo detail label', () => {
+    expect(RIFTBOUND_RARITY_ORDER).toEqual(['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase', 'Promo', 'Overnumbered', 'Signature']);
+    expect(getRiftboundCardDetailSetName({ setName: 'Riftbound Organized Play Promotional Cards', rarity: 'Promo' })).toBe('Promotional Cards');
+    expect(getRiftboundCardDetailSetName({ setName: 'Origins', rarity: 'Rare' })).toBe('Origins');
+
+    const promoCards = RIFTBOUND_CARDS.filter((card) => ['PR', 'OPP', 'JDG'].includes(card.setCode));
+    expect(promoCards.every((card) => typeof card.imageAvailable === 'boolean')).toBe(true);
+  });
   it('classifies rarity variants in descending collector rarity order', () => {
     expect(getRiftboundCardRarity({ rarity: 'Epic', collectorNumber: '169', printedTotal: 166 })).toBe('Overnumbered');
     expect(getRiftboundCardRarity({ rarity: 'Showcase', collectorNumber: '299-STAR', printedTotal: 298 })).toBe('Signature');

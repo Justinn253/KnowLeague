@@ -35,6 +35,13 @@ const sections = [
     ],
   },
   {
+    title: 'Content and Attribution',
+    body: [
+      'KnowLeague creates its own game rules, interface, explanations, and data transformations. Some names, images, statistics, and card information come from Riot Games, Riftbound-related sources, market feeds, or other third-party providers and remain subject to their respective rights and terms.',
+      'We may correct, remove, or temporarily hide content when a source changes, a result cannot be verified, or a page no longer provides a reliable user experience.',
+    ],
+  },
+  {
     title: 'User Content',
     body: [
       'Profile text, chat messages, contact submissions, and similar content must be lawful and respectful.',
@@ -68,7 +75,7 @@ export default function TermsPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">KnowLeague Alpha</p>
           <h1 className="mt-3 text-4xl font-black text-white">Terms of Service</h1>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            Last updated: June 24, 2026.
+            Last updated: August 28, 2026.
           </p>
         </header>
 

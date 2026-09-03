@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import GamesHome from '@/components/games-home';
+import { GamesOverviewContent } from '@/components/public-site-content';
 import { WebApplicationStructuredData } from '@/components/seo-structured-data';
 import { createPageMetadata } from '@/lib/seo';
 
@@ -14,6 +15,7 @@ export default function GamesPage() {
     <>
       <WebApplicationStructuredData name="KnowLeague Games" path="/games" />
       <GamesHome />
+      <GamesOverviewContent />
     </>
   );
 }

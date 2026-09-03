@@ -22,9 +22,15 @@ type ContactUsWidgetProps = {
   variant?: 'floating' | 'drawer' | 'header-icon' | 'navigation';
   isOpen?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
+  drawerPlacement?: 'center' | 'top-left';
 };
 
-export function ContactUsWidget({ variant = 'floating', isOpen: controlledOpen, onOpenChange }: ContactUsWidgetProps) {
+export function ContactUsWidget({
+  variant = 'floating',
+  isOpen: controlledOpen,
+  onOpenChange,
+  drawerPlacement = 'center',
+}: ContactUsWidgetProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isOpen = controlledOpen ?? uncontrolledOpen;
   const [category, setCategory] = useState<ContactSubmissionCategory>('feedback');
@@ -152,7 +158,9 @@ export function ContactUsWidget({ variant = 'floating', isOpen: controlledOpen, 
           className={variant === 'navigation'
             ? 'order-2 basis-full rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
             : variant === 'drawer'
-            ? 'fixed left-1/2 top-1/2 z-[110] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
+            ? drawerPlacement === 'top-left'
+              ? 'fixed left-1/2 top-1/2 z-[110] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4 lg:left-6 lg:top-20 lg:translate-x-0 lg:translate-y-0'
+              : 'fixed left-1/2 top-1/2 z-[110] max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
             : variant === 'header-icon'
               ? 'absolute right-0 top-full z-[110] mt-2 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-1rem),26rem)] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
             : 'absolute bottom-full right-0 mb-3 max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2.5rem),26rem)] max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'}

@@ -1,27 +1,59 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 type GoogleFundingChoices = {
-  callbackQueue?: unknown[];
+  callbackQueue?: Array<(() => void) | { CONSENT_API_READY: () => void }>;
   showRevocationMessage?: () => void;
 };
 
-export function PrivacySettingsButton() {
-  const openPrivacySettings = () => {
-    const googlefc = (window as Window & { googlefc?: GoogleFundingChoices }).googlefc;
-    const showRevocationMessage = googlefc?.showRevocationMessage;
+type WindowWithGoogleFundingChoices = Window & { googlefc?: GoogleFundingChoices };
 
-    if (googlefc?.callbackQueue && showRevocationMessage) {
-      googlefc.callbackQueue.push(showRevocationMessage);
+export function PrivacySettingsButton() {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'unavailable'>('idle');
+
+  useEffect(() => {
+    if (status !== 'loading') {
+      return undefined;
     }
+
+    const timeoutId = window.setTimeout(() => setStatus('unavailable'), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [status]);
+
+  const openPrivacySettings = () => {
+    const windowWithGooglefc = window as WindowWithGoogleFundingChoices;
+    const googlefc = windowWithGooglefc.googlefc ?? {};
+    windowWithGooglefc.googlefc = googlefc;
+    googlefc.callbackQueue ??= [];
+
+    if (googlefc.showRevocationMessage) {
+      googlefc.showRevocationMessage();
+      setStatus('idle');
+      return;
+    }
+
+    googlefc.callbackQueue.push({
+      CONSENT_API_READY: () => {
+        setStatus('idle');
+        windowWithGooglefc.googlefc?.showRevocationMessage?.();
+      },
+    });
+    setStatus('loading');
   };
 
   return (
-    <button
-      type="button"
-      onClick={openPrivacySettings}
-      className="transition hover:text-amber-200"
-    >
-      Privacy and cookie settings
-    </button>
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      <button
+        type="button"
+        onClick={openPrivacySettings}
+        className="transition hover:text-amber-200"
+        aria-describedby={status === 'unavailable' ? 'privacy-settings-status' : undefined}
+      >
+        Privacy and cookie settings
+      </button>
+      {status === 'loading' ? <span className="text-slate-500">Loading…</span> : null}
+      {status === 'unavailable' ? <span id="privacy-settings-status" className="text-slate-500">Unavailable right now</span> : null}
+    </span>
   );
 }

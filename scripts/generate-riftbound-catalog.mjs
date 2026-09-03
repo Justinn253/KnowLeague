@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { createTcgCsvPromoCards, validateRiftboundCatalog } from './riftbound-promo-catalog.mjs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const OFFICIAL_GALLERY_SNAPSHOT_URL = 'https://huggingface.co/datasets/Wysme/riftbound-cards/resolve/main/cards.json?download=true';
@@ -7,6 +8,7 @@ const TCGCSV_CATEGORY_ID = 89;
 const TCGCSV_BASE_URL = `https://tcgcsv.com/tcgplayer/${TCGCSV_CATEGORY_ID}`;
 const TCGCSV_LAST_UPDATED_URL = 'https://tcgcsv.com/last-updated.txt';
 const OUTPUT_PATH = path.join(process.cwd(), 'data', 'catalogs', 'riftbound-cards.json');
+const PROMO_MANIFEST_PATH = path.join(process.cwd(), 'data', 'catalogs', 'riftbound-promos.json');
 const DOMAIN_PAGE_SIZE = 100;
 const MARKET_PAGE_SIZE = 100;
 
@@ -118,6 +120,14 @@ async function fetchDomainCards() {
   }
 
   return pages.flatMap((page) => page.cards ?? []);
+
+}
+async function readPromoManifest() {
+  const manifest = JSON.parse(await readFile(PROMO_MANIFEST_PATH, 'utf8'));
+  if (!Array.isArray(manifest.tcgcsvGroups) || !Array.isArray(manifest.collectorNumberOverrides)) {
+    throw new Error('The Riftbound promo manifest must define tcgcsvGroups and collectorNumberOverrides arrays.');
+  }
+  return manifest;
 }
 
 async function fetchMarketCards(setCodes) {
@@ -218,6 +228,7 @@ async function fetchTcgCsvMarketPrices(setCodes) {
   const groups = (groupResponse.results ?? []).filter((group) => requestedSetCodes.has(String(group.abbreviation ?? '').toUpperCase()));
   const pricesByPrintKey = new Map();
   const productsByPrintKey = new Map();
+  const products = [];
   const snapshotText = (await fetchText(TCGCSV_LAST_UPDATED_URL)).trim();
   const snapshotDate = Number.isNaN(Date.parse(snapshotText)) ? new Date().toISOString() : new Date(snapshotText).toISOString();
 
@@ -232,7 +243,8 @@ async function fetchTcgCsvMarketPrices(setCodes) {
       const finish = getTcgFinishName(price.subTypeName);
       if (!finish) continue;
 
-      const productPrices = pricesByProductId.get(price.productId) ?? { normal: null, foil: null };
+      const productPrices = pricesByProductId.get(price.productId) ?? { normal: null, foil: null, finishes: new Set() };
+      productPrices.finishes.add(finish);
       if (typeof price.marketPrice === 'number') {
         productPrices[finish] = price.marketPrice;
       }
@@ -242,7 +254,10 @@ async function fetchTcgCsvMarketPrices(setCodes) {
     for (const product of productResponse.results ?? []) {
       const cardNumber = getExtendedDataValue(product, 'Number');
       const productPrices = pricesByProductId.get(product.productId);
-      if (!cardNumber || !group.abbreviation) continue;
+      if (!group.abbreviation) continue;
+
+      products.push({ groupCode: group.abbreviation, groupName: group.name, groupId: group.groupId, product, productPrices: productPrices ?? new Map() });
+      if (!cardNumber) continue;
 
       for (const printKey of getPrintKeyAliases(group.abbreviation, cardNumber.split('/')[0])) {
         productsByPrintKey.set(printKey, { groupCode: group.abbreviation, groupName: group.name, product });
@@ -257,7 +272,7 @@ async function fetchTcgCsvMarketPrices(setCodes) {
     }
   }
 
-  return { pricesByPrintKey, productsByPrintKey };
+  return { pricesByPrintKey, productsByPrintKey, products, snapshotDate };
 }
 
 function normalizeCard(card, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey) {
@@ -312,13 +327,14 @@ function normalizeCard(card, domainCardsByKey, marketPriceByPrintKey, tcgMarketP
   };
 }
 
-function createTcgCsvRuneCards(officialCards, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey, tcgProductsByPrintKey) {
+function createTcgCsvRuneCards(officialCards, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey, tcgProductsByPrintKey, officialSetCodes) {
   const officialCardsByPrintKey = new Map(officialCards.map((card) => [getPrintKey(card), card]));
   const normalizedCardsByPrintKey = new Map();
   const existingCardIds = new Set(officialCards.map((card) => card.cardCode));
   const runeProducts = new Map();
 
   tcgProductsByPrintKey.forEach(({ groupCode, groupName, product }) => {
+    if (!officialSetCodes.has(String(groupCode).toUpperCase())) return;
     const rarity = getExtendedDataValue(product, 'Rarity');
     const cardType = getExtendedDataValue(product, 'Card Type');
     const cardNumber = getExtendedDataValue(product, 'Number');
@@ -407,10 +423,12 @@ async function main() {
     fetchJson(OFFICIAL_GALLERY_SNAPSHOT_URL),
     fetchDomainCards(),
   ]);
+  const promoManifest = await readPromoManifest();
   const setCodes = Array.from(new Set(officialCards.map((card) => card.setCode)));
+  const promoSetCodes = promoManifest.tcgcsvGroups.map((group) => String(group.setCode).toUpperCase());
   const [marketCards, tcgPriceSnapshot] = await Promise.all([
     fetchMarketCards(setCodes),
-    fetchTcgCsvMarketPrices(setCodes),
+    fetchTcgCsvMarketPrices([...setCodes, ...promoSetCodes]),
   ]);
   const { pricesByPrintKey: tcgMarketPricesByPrintKey, productsByPrintKey: tcgProductsByPrintKey } = tcgPriceSnapshot;
   const marketPriceByPrintKey = createMarketPriceByPrintKey(marketCards);
@@ -425,8 +443,10 @@ async function main() {
 
   const catalog = applyCanonicalStandardRuneImages(officialCards
     .map((card) => normalizeCard(card, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey))
-    .concat(createTcgCsvRuneCards(officialCards, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey, tcgProductsByPrintKey))
+    .concat(createTcgCsvRuneCards(officialCards, domainCardsByKey, marketPriceByPrintKey, tcgMarketPricesByPrintKey, tcgProductsByPrintKey, new Set(setCodes.map((setCode) => setCode.toUpperCase()))))
+    .concat(createTcgCsvPromoCards(promoManifest, tcgPriceSnapshot.products, marketPriceByPrintKey, tcgPriceSnapshot.snapshotDate))
     .sort((left, right) => left.id.localeCompare(right.id)), officialCards);
+  validateRiftboundCatalog(catalog);
 
   await mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
   await writeFile(OUTPUT_PATH, `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');

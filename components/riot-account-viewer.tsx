@@ -1000,7 +1000,7 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-3">
-          <a href={buildMasteryMasterUrl(data)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 text-sm font-black text-slate-950   transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+          <a href={buildMasteryMasterUrl(data)} className="inline-flex h-11 shrink-0 self-end items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
             <Play size={15} fill="currentColor" />
             Play Mastery Master
           </a>

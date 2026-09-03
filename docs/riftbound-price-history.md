@@ -35,6 +35,22 @@ The card and collection history charts default to 30 days and support 30 days, 3
 
 The first successful collection capture establishes the beginning of accurate collection history. Price snapshots from before migration `089` do not contain historical inventory state and are not used to fabricate collection values.
 
+## Promotional card catalogue
+
+`data/catalogs/riftbound-promos.json` is the checked-in source policy for promotional groups. The generator currently includes only products marked `Rarity=Promo` from TCGCSV groups `PR`, `OPP`, and `JDG`, and gives each record the source product ID so duplicate printed numbers remain distinct.
+
+Run `npm run data:generate:riftbound` (or the combined maintenance command below) to refresh the catalogue. New promo products in those groups flow in automatically. If the source omits a collector number, add a `collectorNumberOverrides` entry rather than guessing a print key. The exact source product ID is also used by live and archive price matching, so value history remains attached to the correct variant.
+
+TCGCSV can publish an image URL while reporting `imageCount=0`; those records are retained so a future source update can supply artwork, but the generated `imageAvailable` flag prevents the application from repeatedly requesting a known-unavailable URL. The shared card-image component also shows an explicit artwork-unavailable state after an unexpected image failure. The current official gallery source does not provide a complete promotional-card image feed, so records without artwork from TCGCSV have no authoritative local fallback.
+
 ## Historical card-price backfill
+
+For a catalogue release, use the combined maintenance command so the generated catalogue and archive history use the same card IDs:
+
+```text
+npm run data:update:riftbound -- --from YYYY-MM-DD --to YYYY-MM-DD
+```
+
+The command refreshes `data/catalogs/riftbound-cards.json` from the official gallery and market sources, then runs the idempotent TCGCSV archive importer. Set `--from` to the new set's release date when backfilling a newly introduced set; archives before a print existed are skipped when no source product matches. Add `--dry-run` to validate the source matching and archive processing without database writes. Review the generated catalogue and deploy it after the command completes. The daily price-snapshot cron automatically captures future prices for every generated card after deployment.
 
 `npm run data:import:riftbound-price-history` imports TCGCSV archives from October 31, 2025 onward. The importer is idempotent and can be scoped with `--from` and `--to`; it requires `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. It stores daily market, low, and high values through January 28, 2026, then stores only the observation with the highest market price for each card finish in each month, including that observation's low and high values. Migration `090` excludes archive price sources from the normal 365-day cleanup. The import intentionally bypasses `record_riftbound_price_snapshot` because that function also captures user collection values for live cron snapshots.

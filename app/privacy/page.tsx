@@ -38,6 +38,14 @@ const sections = [
     ],
   },
   {
+    title: 'Advertising and Consent',
+    body: [
+      'KnowLeague is preparing for possible Google AdSense use, but visible advertising is not active while the site addresses its AdSense content review.',
+      'If advertising is enabled, Google may process information such as cookies or similar device signals to provide, measure, and limit advertising, subject to the consent choices shown by our privacy controls and the settings available from Google.',
+      'You can revisit the site privacy choices through the Privacy and cookie settings control in the footer. We will update this policy before introducing a new advertising or analytics service.',
+    ],
+  },
+  {
     title: 'Storage and Retention',
     body: [
       'Some preferences, game progress, recent searches, and lobby pointers are stored in browser localStorage. Riot profile lookup responses may be cached in browser sessionStorage until the browser session closes.',
@@ -49,7 +57,7 @@ const sections = [
     title: 'Sharing',
     body: [
       'Public profile information may be visible to other users. Private account fields are intended to remain available only to the owner and server-side features.',
-      'We do not sell personal information. Future analytics, ads, or payments will require updated disclosures before launch.',
+      'We do not sell personal information. Any future advertising, analytics, or payments will be disclosed before launch and handled according to the applicable service settings and consent choices.',
       'We may disclose information when required for security, abuse prevention, legal compliance, or service operation.',
     ],
   },
@@ -74,7 +82,7 @@ export default function PrivacyPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">KnowLeague Alpha</p>
           <h1 className="mt-3 text-4xl font-black text-white">Privacy Policy</h1>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            Last updated: June 24, 2026.
+            Last updated: August 28, 2026.
           </p>
         </header>
 

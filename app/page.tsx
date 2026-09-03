@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { LandingPage } from '@/components/landing-page';
+import { HomeContent } from '@/components/public-site-content';
 import { createPageMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = createPageMetadata({
@@ -9,5 +10,10 @@ export const metadata: Metadata = createPageMetadata({
 });
 
 export default function HomePage() {
-  return <LandingPage />;
+  return (
+    <>
+      <LandingPage />
+      <HomeContent />
+    </>
+  );
 }

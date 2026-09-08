@@ -17,6 +17,90 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-09-08-mobile-login-label',
+    patch: '2026.09.08-mobile-login-label',
+    timestamp: '2026-09-08T16:23:49.9542486Z',
+    title: 'Displayed the mobile login label',
+    summary: 'Made the unauthenticated mobile header action show its Log in label while retaining the icon-only mobile logout control.',
+    details: [
+      'Updated the shared LoginAction responsive classes so the top-right authentication control uses an auto-width button and visible Log in text below the desktop xl breakpoint, while preserving the compact icon-only treatment from xl through the wide desktop label breakpoint.',
+      'Left LogoutControl on its existing default responsive mode, so mobile users continue to see only the logout icon and its accessible Log out label remains available through aria-label and title.',
+      'No authentication flow, routes, session handling, account data, navigation destinations, or desktop wide-header behavior were changed.',
+    ],
+    impact: [
+      'Unauthenticated mobile users can identify the top-right action as Log in without relying on the icon alone.',
+      'Authenticated mobile users retain the existing icon-only logout presentation.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed the shared LoginAction, LogoutControl, and responsive header breakpoint structure before editing.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 70 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-04-skindle-autocomplete-controls',
+    patch: '2026.09.04-skindle-autocomplete-controls',
+    timestamp: '2026-09-04T18:48:50.0848700Z',
+    title: 'Added opt-in Skindle clue filtering and grouped suggestions',
+    summary: 'Made Skindle autocomplete clue filtering optional, excluded subjective role clues from that filter, and grouped results by champion with chronological release ordering.',
+    details: [
+      'Added an off-by-default “Filter dropdown results based on guesses” switch directly below the Skindle guess input. When enabled, autocomplete applies the previously revealed exact and partial clue constraints; when disabled, it returns all unguessed skin matches as before.',
+      'Removed Role from autocomplete clue filtering because role assignments can be subjective. Role still compares and displays normally on reveal cards, and all other exact or partial filterable columns retain their constraints.',
+      'Grouped the bounded autocomplete result set by champion name in alphabetical order and sorted each champion group from oldest to newest by release date, with undated skins placed after dated skins and stable answer/id tie-breakers.',
+      'Kept the existing 12-result cap, one-row overscan rendering, direct-CDN thumbnail delivery, answer validation, daily state, and stats behavior unchanged.',
+    ],
+    impact: [
+      'Players can choose whether revealed clues should narrow autocomplete results instead of having that behavior forced on every round.',
+      'Subjective Role clues no longer hide potentially valid skin answers when clue filtering is enabled.',
+      'Players can scan matching skins more easily because related champion results are adjacent and each champion’s skins follow release chronology.',
+    ],
+    files: [
+      'components/skindle.tsx',
+      'lib/skindle.ts',
+      'lib/staff-changelog.ts',
+      'tests/skindle.test.ts',
+    ],
+    verification: [
+      'Added focused Vitest coverage for the role-filter exception and champion grouping/release-date ordering.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 70 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-04-skindle-clue-filtering',
+    patch: '2026.09.04-skindle-clue-filtering',
+    timestamp: '2026-09-04T17:24:31.7813706Z',
+    title: 'Fixed Skindle lane clues and autocomplete narrowing',
+    summary: 'Added partial lane matching, narrowed skin autocomplete results using revealed exact or partial clues, and served autocomplete thumbnails without Vercel image transformations.',
+    details: [
+      'Skindle now treats overlapping multi-lane values such as Middle and Middle, Support as a partial match, so the lane reveal cell uses the orange indicator when the values are not identical but share a lane.',
+      'Moved Skindle comparison and clue-filter logic into a typed domain helper. Exact and partial values already revealed across champion, skin line, rarity, species, gender, role, lane, release year, and resource now constrain subsequent autocomplete candidates; release-year direction arrows remain informational until the year is exact.',
+      'Added a dedicated catalogue thumbnail image wrapper with Next Image unoptimized so Skindle autocomplete rows request the source CDN image directly and do not create Vercel image optimization transformations. Full-size Skindle artwork remains on the existing optimized splash-image path.',
+      'Added regression coverage for partial lane matching and combined exact/partial autocomplete clue filtering. No catalogue records, API payloads, daily target selection, persistence keys, or user-authored data were changed.',
+    ],
+    impact: [
+      'Players receive the expected orange feedback for guesses that share one or more lanes with the daily target while listing additional lanes.',
+      'As clues accumulate, Skindle autocomplete becomes more useful by excluding skins that contradict already revealed characteristics.',
+      'Autocomplete thumbnails bypass Vercel image optimization while the larger gameplay and preview images retain their existing responsive optimization behavior.',
+    ],
+    files: [
+      'components/game-asset-image.tsx',
+      'components/skindle.tsx',
+      'lib/skindle.ts',
+      'lib/staff-changelog.ts',
+      'tests/skindle.test.ts',
+    ],
+    verification: [
+      'Added focused Vitest coverage for overlapping lane values and exact/partial clue filtering.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 69 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
     id: 'patch-2026-09-02-public-content-polish',
     patch: '2026.09.02-public-content-polish',
     timestamp: '2026-09-02T19:00:00.000Z',

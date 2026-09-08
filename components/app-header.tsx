@@ -338,10 +338,10 @@ function LoginAction({ mobile = false }: { mobile?: boolean }) {
       onClick={() => playUiSound('autocomplete-select')}
       className={mobile
         ? 'inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-amber-300/40 bg-amber-300 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200'
-        : 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/40 bg-amber-300 text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 min-[1680px]:h-10 min-[1680px]:w-auto min-[1680px]:gap-2 min-[1680px]:px-3'}
+        : 'inline-flex h-9 w-auto items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-300 px-3 text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 xl:w-9 xl:gap-0 xl:px-0 min-[1680px]:h-10 min-[1680px]:w-auto min-[1680px]:gap-2 min-[1680px]:px-3'}
     >
       <LogIn size={17} />
-      <span className={`${mobile ? '' : 'hidden min-[1680px]:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Log in</span>
+      <span className={`${mobile ? '' : 'inline xl:hidden min-[1680px]:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Log in</span>
     </Link>
   );
 }

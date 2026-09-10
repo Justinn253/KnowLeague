@@ -26,6 +26,7 @@ const WORLD_CHAMPION_TEAMS_BY_SKIN_LINE: Record<string, string> = {
 const skinThemeAnswerListCache = new WeakMap<readonly QuizItem[], string[]>();
 const skinThemeAndSkinAnswerListCache = new WeakMap<readonly QuizItem[], string[]>();
 const skinThemeQuizItemCache = new WeakMap<readonly QuizItem[], QuizItem[]>();
+const skinThemeAnswersByChampionCache = new WeakMap<readonly QuizItem[], Record<string, string[]>>();
 
 function inferWorldChampionTeam(item: QuizItem) {
   const normalizedAnswer = item.answer.replace(/^Prestige\s+/i, '').trim();
@@ -78,6 +79,38 @@ export function getSkinThemeAnswerList(items: readonly QuizItem[]) {
 
   skinThemeAnswerListCache.set(items, answers);
   return answers;
+}
+
+export function getSkinThemeAnswersByChampion(items: readonly QuizItem[]) {
+  const cachedAnswers = skinThemeAnswersByChampionCache.get(items);
+
+  if (cachedAnswers) {
+    return cachedAnswers;
+  }
+
+  const answersByChampion = new Map<string, Set<string>>();
+  items.forEach((item) => {
+    const champion = item.champion.trim();
+    if (!champion) {
+      return;
+    }
+
+    const championAnswers = answersByChampion.get(champion) ?? new Set<string>();
+    const themeAnswer = getSkinThemeAnswer(item);
+    if (themeAnswer) {
+      championAnswers.add(themeAnswer);
+    }
+    answersByChampion.set(champion, championAnswers);
+  });
+
+  const result = Object.fromEntries(
+    [...answersByChampion.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([champion, answers]) => [champion, [...answers].sort((left, right) => left.localeCompare(right))]),
+  );
+
+  skinThemeAnswersByChampionCache.set(items, result);
+  return result;
 }
 
 export function getSkinThemeAndSkinAnswerList(items: readonly QuizItem[]) {

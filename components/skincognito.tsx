@@ -437,7 +437,6 @@ export function Skincognito() {
   const guessSearchRef = useRef<HTMLDivElement>(null);
   const guessesScrollRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
-  const wasGuessesAtBottomRef = useRef(true);
   const wasChatAtBottomRef = useRef(true);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const lobbyRefreshInFlightRef = useRef<Promise<void> | null>(null);
@@ -522,6 +521,7 @@ export function Skincognito() {
       : null
   );
   const canSubmitAction = Boolean(lobbyView?.lobby.status === 'active' && !isStartCountdownPending && !startCountdownSeconds && requestingPlayer?.role !== 'spectator' && isTurn);
+  const canUseGuessInput = Boolean(lobbyView?.lobby.status === 'active' && !isStartCountdownPending && !startCountdownSeconds && requestingPlayer?.role !== 'spectator');
   const lobbyProfileSubscriptionKey = useMemo(() => (
     (lobbyView?.players ?? [])
       .map((player) => player.auth_user_id)
@@ -586,7 +586,7 @@ export function Skincognito() {
   }, [guessedValues, guessQuery, normalizedCategoryAnswers, normalizedSkinAnswers, selectedCategory]);
 
   const recentActions = useMemo(() => (
-    (lobbyView?.actions ?? []).slice(-8)
+    lobbyView?.actions ?? []
   ), [lobbyView?.actions]);
   const visibleChatMessages = useMemo(() => (
     (lobbyView?.chatMessages ?? []).filter((chat) => chat.message_type !== 'system')
@@ -1097,7 +1097,7 @@ export function Skincognito() {
     }
 
     guessesElement.scrollTop = guessesElement.scrollHeight;
-  }, [recentActions.length]);
+  }, [lobbyView?.actions.length]);
 
   useEffect(() => {
     const chatElement = chatScrollRef.current;
@@ -1423,7 +1423,10 @@ export function Skincognito() {
   const chooseGuess = (label: string) => {
     playUiSound('autocomplete-select');
     setGuessQuery(label);
-    submitGuessValue(label);
+    setGuessMenuOpen(false);
+    if (canSubmitAction) {
+      submitGuessValue(label);
+    }
   };
 
   const submitGuess = (event: FormEvent<HTMLFormElement>) => {
@@ -1804,9 +1807,6 @@ export function Skincognito() {
 
                   <div
                     ref={guessesScrollRef}
-                    onScroll={(event) => {
-                      wasGuessesAtBottomRef.current = isScrolledToBottom(event.currentTarget);
-                    }}
                     className={`mt-3 grid flex-1 content-start gap-2 overflow-y-auto pr-3 ${THEMED_SCROLLBAR_CLASS}`}
                   >
                     {recentActions.map((action) => {
@@ -2019,7 +2019,7 @@ export function Skincognito() {
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Submit a guess</p>
                     <h3 className="mt-1 text-base font-semibold text-white">
-                      {canSubmitAction ? 'Choose a category and answer' : 'Wait for your turn'}
+                      {canSubmitAction ? 'Choose a category and answer' : canUseGuessInput ? 'Browse categories and answers' : 'Wait for your turn'}
                     </h3>
                   </div>
 
@@ -2028,7 +2028,7 @@ export function Skincognito() {
                       <div ref={categoryDropdownRef} className="relative">
                         <button
                           type="button"
-                          disabled={!canSubmitAction || availableInputCategories.length === 0}
+                          disabled={!canUseGuessInput || availableInputCategories.length === 0}
                           onClick={() => {
                             playUiSound('autocomplete-select');
                             setCategoryMenuOpen((open) => !open);
@@ -2040,7 +2040,7 @@ export function Skincognito() {
                           <ChevronDown size={16} className="shrink-0 text-slate-500" />
                         </button>
 
-                        {categoryMenuOpen && canSubmitAction && availableInputCategories.length > 0 ? (
+                        {categoryMenuOpen && canUseGuessInput && availableInputCategories.length > 0 ? (
                           <div className="absolute left-0 right-0 top-full z-40 mt-2 grid overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1">
                             {availableInputCategories.map((category) => (
                               <button
@@ -2080,11 +2080,11 @@ export function Skincognito() {
                           autoCapitalize="none"
                           spellCheck={false}
                           placeholder={selectedCategory === 'skin' ? 'Guess a skin' : `Guess ${INPUT_CATEGORIES.find((category) => category.id === selectedCategory)?.label.toLowerCase()}`}
-                          disabled={!canSubmitAction || availableInputCategories.length === 0}
+                          disabled={!canUseGuessInput || availableInputCategories.length === 0}
                           className="min-h-11 w-full rounded-2xl border border-white/10 bg-slate-950 px-11 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20 focus:ring-1 focus:ring-white/15 disabled:cursor-not-allowed disabled:opacity-60"
                         />
 
-                        {guessMenuOpen && guessSuggestions.length > 0 && canSubmitAction ? (
+                        {guessMenuOpen && guessSuggestions.length > 0 && canUseGuessInput ? (
                           <div className="absolute left-0 right-0 top-full z-40 mt-2 grid max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-2">
                             {guessSuggestions.map((suggestion) => (
                               <button

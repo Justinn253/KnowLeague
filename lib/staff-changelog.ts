@@ -17,6 +17,94 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-09-09-skin-champion-champion-autofill',
+    patch: '2026.09.09-skin-champion-champion-autofill',
+    timestamp: '2026-09-09T00:12:55.5931339Z',
+    title: 'Added champion-aware Skin Champion autofill',
+    summary: 'Skin Champion now narrows autocomplete suggestions to skin lines associated with an exact champion-name query while preserving normal substring search for partial input.',
+    details: [
+      'Extended the existing skin-line answer endpoint with a server-generated champion-to-skin-line map built from the same transformed catalogue used to generate quiz answers, including skin-line overrides and omitted-line handling.',
+      'The Skin Champion client normalizes the input and applies the champion map only when the full normalized query exactly matches a champion name. Queries such as “Yasu” continue to search all skin-line answers by substring, while “Yasuo” searches only Yasuo’s associated skin lines.',
+      'Kept answer submission unchanged: entering a champion name narrows the list but does not make the champion itself a valid skin-line answer.',
+      'No quiz item selection, scoring, difficulty behavior, multiplayer state, authentication, or catalogue records were changed.',
+    ],
+    impact: [
+      'Players can use a known champion name to quickly find the relevant skin lines without losing the existing partial-text autocomplete behavior.',
+      'Champion filtering stays aligned with the server’s authoritative Skin Champion answer transformations and full catalogue.',
+    ],
+    files: [
+      'app/api/skin-champion/quiz-answers/route.ts',
+      'components/skin-champion.tsx',
+      'lib/skin-themes.ts',
+      'lib/staff-changelog.ts',
+      'tests/skin-themes.test.ts',
+    ],
+    verification: [
+      'Added focused coverage for deduplicated champion-to-skin-line mapping.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 71 tests passed across 22 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-08-blocked-progress-current-item',
+    patch: '2026.09.08-blocked-progress-current-item',
+    timestamp: '2026-09-08T17:18:49.9972700Z',
+    title: 'Hid current blocked quiz progress artwork',
+    summary: 'Extended the high-difficulty round progress privacy fix so current as well as pending Ability Blitz and Skin Champion items remain hidden.',
+    details: [
+      'Updated both quiz progress-card call sites so Diamond, Challenger, and Chaos show artwork only for completed items; the current and pending answer images are omitted.',
+      'Preserved the existing Iron clear previews, Gold blurred upcoming previews, completed-item artwork, answer text, timers, and carousel visibility behavior.',
+      'No quiz scoring, difficulty configuration, multiplayer state, catalogue data, or server/API behavior changed.',
+    ],
+    impact: [
+      'High-difficulty players cannot infer the current answer from the round progress section before submitting it.',
+      'Completed progress remains reviewable while upcoming and active answer artwork stays hidden under blocked visibility rules.',
+    ],
+    files: [
+      'components/ability-blitz.tsx',
+      'components/skin-champion.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed both QuizProgressCard call sites and the shared difficulty visibility rules before editing.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 70 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-08-misc-game-fixes',
+    patch: '2026.09.08-misc-game-fixes',
+    timestamp: '2026-09-08T16:46:15.0903803Z',
+    title: 'Fixed daily resumes, progress visibility, lobby navigation, and Skincognito turns',
+    summary: 'Prevented stale Splash Scramble daily resumes, hid blocked quiz progress artwork, kept Carving Revelation in its create/join flow, and improved Skincognito guess history, scrolling, and turn-aware input.',
+    details: [
+      'Splash Scramble now validates the saved round mode and UTC date key whenever a daily round is read, loaded from profile state, or resumed. Solved, expired, and stale-date daily candidates are not offered as Resume Daily, and locally stored stale or expired entries are removed.',
+      'Ability Blitz and Skin Champion now apply each difficulty’s upcoming-visibility rule to round progress artwork: Iron shows pending artwork, Gold keeps its blurred preview, and Diamond, Challenger, and Chaos omit pending ability or skin images entirely.',
+      'Carving Revelation now leaves a waiting lobby without routing away, so the existing page returns directly to its create/join lobby screen. The active and finished game leave behavior remains unchanged.',
+      'Skincognito now renders the complete guess action history, scrolls the guess panel to the bottom whenever the action list changes regardless of its prior scroll position, and lets a non-spectating player browse categories and autofill suggestions during the other player’s turn without enabling submission.',
+      'No API contracts, server-side turn validation, catalogue data, authentication behavior, or persisted user-authored data were changed.',
+    ],
+    impact: [
+      'Daily Splash Scramble cannot resume a round from a reset day.',
+      'High-difficulty quiz players no longer receive visual previews of blocked upcoming answers in round progress.',
+      'Carving Revelation waiting-lobby back navigation is consistent with the other multiplayer game lobby flows.',
+      'Skincognito players can review all guesses and prepare their next answer while waiting, while the server and client continue to prevent out-of-turn submissions.',
+    ],
+    files: [
+      'components/ability-blitz.tsx',
+      'components/carving-revelation.tsx',
+      'components/skin-champion.tsx',
+      'components/skincognito.tsx',
+      'components/splash-scramble.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed the affected daily state, progress-card, lobby navigation, Skincognito action, scrolling, and turn-permission paths before editing.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 70 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
     id: 'patch-2026-09-08-mobile-login-label',
     patch: '2026.09.08-mobile-login-label',
     timestamp: '2026-09-08T16:23:49.9542486Z',

@@ -92,20 +92,48 @@ type ModeStatus = 'not-started' | 'in-progress' | 'completed';
 
 type SkinChampionDailyState = SoloQuizRoundState<ModifierState>;
 
+type SkinChampionAnswerData = {
+  answers: string[];
+  skinLinesByChampion: Record<string, string[]>;
+};
+
 const defaultModifiers = modifiers.reduce(
   (state, modifier) => ({ ...state, [modifier.id]: false }),
   {} as ModifierState,
 );
 
-let skinChampionAnswersRequest: Promise<string[]> | null = null;
+let skinChampionAnswersRequest: Promise<SkinChampionAnswerData> | null = null;
 const skinChampionItemsRequests = new Map<string, Promise<QuizItem[]>>();
 
 function loadSkinChampionAnswers() {
   if (!skinChampionAnswersRequest) {
-    skinChampionAnswersRequest = fetch('/api/skin-champion/quiz-answers?answerMode=skin-line')
+    skinChampionAnswersRequest = fetch('/api/skin-champion/quiz-answers?answerMode=skin-line-with-champions')
       .then((response) => {
         if (!response.ok) throw new Error('Unable to load skin line answers.');
-        return response.json() as Promise<string[]>;
+        return response.json() as Promise<unknown>;
+      })
+      .then((value) => {
+        if (!value || typeof value !== 'object') {
+          throw new Error('Invalid skin line answer data.');
+        }
+
+        const data = value as {
+          answers?: unknown;
+          skinLinesByChampion?: unknown;
+        };
+        const answers = Array.isArray(data.answers)
+          ? data.answers.filter((answer): answer is string => typeof answer === 'string')
+          : [];
+        const skinLinesByChampion: Record<string, string[]> = {};
+        if (data.skinLinesByChampion && typeof data.skinLinesByChampion === 'object' && !Array.isArray(data.skinLinesByChampion)) {
+          Object.entries(data.skinLinesByChampion as Record<string, unknown>).forEach(([champion, lines]) => {
+            if (Array.isArray(lines)) {
+              skinLinesByChampion[champion] = lines.filter((line): line is string => typeof line === 'string');
+            }
+          });
+        }
+
+        return { answers, skinLinesByChampion };
       })
       .catch((error) => {
         skinChampionAnswersRequest = null;
@@ -165,6 +193,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     guessed: index < multiplayer.initialProgress,
   })) ?? []);
   const [answers, setAnswers] = useState<string[]>([]);
+  const [skinLinesByChampion, setSkinLinesByChampion] = useState<Record<string, string[]>>({});
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>((multiplayer?.difficulty as DifficultyId) ?? 'gold');
   const [activeModifiers, setActiveModifiers] = useState<ModifierState>(multiplayer ? createModifierState(multiplayer.modifiers) : defaultModifiers);
   const [soloMode, setSoloMode] = useState<SoloQuizMode>('daily');
@@ -332,6 +361,12 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
     () => autocompleteAnswers.map((answer) => ({ answer, normalized: normalizeAnswer(answer) })),
     [autocompleteAnswers],
   );
+  const skinLinesByChampionIndex = useMemo(
+    () => new Map(
+      Object.entries(skinLinesByChampion).map(([champion, lines]) => [normalizeAnswer(champion), lines]),
+    ),
+    [skinLinesByChampion],
+  );
   const carouselSlots = useMemo(() => ([
     {
       id: 'next',
@@ -446,9 +481,8 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
   useEffect(() => {
     loadSkinChampionAnswers()
       .then((data) => {
-        if (Array.isArray(data)) {
-          setAnswers(data);
-        }
+        setAnswers(data.answers);
+        setSkinLinesByChampion(data.skinLinesByChampion);
       })
       .catch((error) => {
         console.error('Failed to load skin answer suggestions', error);
@@ -644,12 +678,16 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
       return;
     }
 
-    setSuggestions(
-      autocompleteSearchIndex
-        .filter((entry) => entry.normalized.includes(query))
-        .map((entry) => entry.answer),
-    );
-  }, [autocompleteEnabled, autocompleteSearchIndex, currentItem, inputValue]);
+    const championSkinLines = skinLinesByChampionIndex.get(query);
+    if (championSkinLines) {
+      setSuggestions(championSkinLines);
+      return;
+    }
+
+    setSuggestions(autocompleteSearchIndex
+      .filter((entry) => entry.normalized.includes(query))
+      .map((entry) => entry.answer));
+  }, [autocompleteEnabled, autocompleteSearchIndex, currentItem, inputValue, skinLinesByChampionIndex]);
 
   useEffect(() => {
     if (!currentItem) {
@@ -1626,7 +1664,7 @@ export function SkinChampion({ multiplayer }: { multiplayer?: MultiplayerGameRun
                     completedClassName="border-emerald-500/30 bg-emerald-500/10"
                     pendingClassName="border-white/10 bg-slate-950/70"
                     pendingImageClassName="blur-sm brightness-75 scale-105"
-                    showImage={active || completed}
+                    showImage={completed || difficultyRule.upcomingVisibility !== 'blocked'}
                     titleClassName="text-white"
                   />
                 );

@@ -5,6 +5,7 @@ export function getPublicProfileHref(username: string) {
 const profileProtectedGameRoutes = [
   '/skindle',
   '/splash-scramble',
+  '/randodraft',
   '/ability-blitz',
   '/multiplayer/ability-blitz',
   '/skin-champion',

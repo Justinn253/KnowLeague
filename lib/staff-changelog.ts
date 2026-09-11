@@ -17,6 +17,117 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-09-11-randodraft-always-enabled-builds',
+    patch: '2026.09.11-randodraft-always-enabled-builds',
+    timestamp: '2026-09-11T18:39:07.330Z',
+    title: 'Made Randodraft build paths always available',
+    summary: 'Removed the Random build path toggle and all disabled-build branches so every completed pick offers the item-build spinner.',
+    details: [
+      'Removed the lobby toggle, its explanatory text, and the unused Shield icon import. The separate Random Build Type selector remains configurable.',
+      'Removed randomBuild from DraftSettings, defaults, history payload validation, and normalized saved settings. Old extra settings fields are ignored by history input normalization.',
+      'Removed build-disabled checks from the draft reducer, build-spinner rendering, and progression hint. Build availability now depends only on locking the three pick categories; validation, one-roll locking, and spinner busy guards remain enforced.',
+      'Assigned distinct per-pick keys to the category controls and build spinner, preventing stale duplicate manual controls when advancing with builds available.',
+      'Updated existing domain/UI tests to remove disabled-mode cases and verify that manual picks also expose the build spinner. Rolling or skipping an available build remains supported.',
+      'Updated docs/randodraft.md. No catalogue or database migration changes are required by this patch.'
+    ],
+    impact: [
+      'Players can roll an item build for every pick without enabling a lobby setting.',
+      'Staff no longer need to support or diagnose a disabled-build configuration.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: typecheck and all 106 tests across 27 files passed, including manual-pick advancement with builds available. Lint retained only existing img-element warnings. Confirmed no remaining randomBuild code references; git diff --check passed. No production build or migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-lobby-history',
+    patch: '2026.09.11-randodraft-lobby-history',
+    timestamp: '2026-09-11T18:16:42.669Z',
+    title: 'Aligned Randodraft lobby and added account draft history',
+    summary: 'Moved draft settings and Play to the left, replaced the right panel with five recent account drafts, and added configurable Random build types.',
+    details: [
+      'Removed the Pre-game lobby subtitle, Ready to draft status, splash artwork, promotional copy, counters, and build-type glossary. The lobby now uses the Ability Blitz width and two-column proportions with shared AppSelectMenu controls.',
+      'Added Random Build Type with No random build types (default), Allow random build types, and All build types are random. Random mixes item types while retaining six unique items, boots, item-group exclusions, and champion purchase restrictions. The existing random build path toggle remains independent.',
+      'Completed drafts save their five picks, optional item builds, settings, catalogue version, and a stable retry ID through an authenticated, aggregate-metered /api/randodraft/history route. The database stamps completion time and serializes saves per account, retaining at most five entries and deduplicating retained draft IDs.',
+      'Added migration 131 with a private RLS-enabled history table and service-role-only storage function. Reads and writes derive account identity from bearer authentication; payloads are replayed through the draft reducer to validate picks, budgets, uniqueness, build legality, and type settings.',
+      'Recent draft cards expand to show each champion, lane, type, and item build. Guests see a login link; loading, empty, failed-save, and retry states are explicit. Account changes clear displayed history and discard stale responses; drafts started under a different account are not saved.',
+      'Migration is prepared locally and has not been pushed. Account history requires migration 131 to be applied.'
+    ],
+    impact: [
+      'Players get a consistent settings-first lobby and can inspect their last five completed drafts across signed-in sessions after the migration is applied.',
+      'Staff must apply migration 131 before enabling account history in an environment; no catalogue regeneration or production build is required.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-history.tsx',
+      'components/use-randodraft-history.ts',
+      'components/multiplayer-lobby-layout.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'app/api/randodraft/history/route.ts',
+      'supabase/migrations/131_randodraft_history.sql',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'tests/randodraft-history.test.ts',
+      'tests/use-randodraft-history.test.tsx',
+      'tests/randodraft-history-api.test.ts',
+      'docs/architecture.md',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: typecheck and all 106 tests across 27 files passed; lint retained only existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
+      'Tests cover all Random build modes, legal mixed-item builds, completed-draft validation, authenticated account boundaries, guest behavior, stale responses, StrictMode/remount loading, stable retry payloads, and an account switch immediately before saving.',
+      'Headless Chrome on the existing port-3000 dev server verified 1440px desktop panel alignment, 390px mobile stacking, removed lobby labels, the guest login note, all three selector options, and a locked Random type after Play. No runtime exceptions or horizontal overflow were observed.',
+      'git diff --check passed. No production build or catalogue regeneration was run. Migration 131 was created locally and not pushed; live database retention and cross-device persistence remain unverified until it is applied.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-10-randodraft-solo-draft',
+    patch: '2026.09.10-randodraft-solo-draft',
+    timestamp: '2026-09-10T23:42:48Z',
+    title: 'Added Randodraft solo team drafting',
+    summary: 'Added a five-pick solo draft with vertical category reels, configurable manual selections, optional legal item builds, and a Summoner\'s Rift team reveal.',
+    details: [
+      'Registered /randodraft immediately after Splash Scramble in the game hub and header. Added page metadata, structured data, sitemap registration, and profile/auth game-route handling.',
+      'Reused the shared lobby shell/header and AppSelectMenu. The pre-game lobby offers zero, one, or two manual categories per pick and an enabled-by-default optional build spinner.',
+      'Champion, Lane, and Type can be chosen in any order. Each result locks, manual allowances reset per pick, and champions/lanes cannot repeat. Next requires three completed categories; the fifth pick exposes Finish.',
+      'Build rolls produce six unique equipment items, with one pair of standard upgraded boots exempt from the stat type. Source item-group ownership limits and attack identities prevent incompatible builds. Builds can be skipped.',
+      'Added an independent pinned catalogue of 173 champions and 114 items from Data Dragon 16.18.1 and CommunityDragon 16.18. Runtime uses local JSON; no existing catalogues or database schemas were regenerated.',
+      'Added a locally stored sample Riot minimap with five lane-positioned champion markers and hover, keyboard, and touch build inspection. Draft state stays local to the mounted page.',
+      'Separated draft invariants, item eligibility, animation, and map presentation to support revisions. Vertical reels respect reduced motion and cancel pending callbacks on unmount.',
+    ],
+    impact: [
+      'Players can create a complete randomized League team without signing in, choose how much control to retain, and inspect the final builds on the map.',
+      'Staff can maintain the new catalogue independently with npm run data:generate:randodraft; docs/randodraft.md records assumptions, data provenance, and maintenance steps.',
+    ],
+    files: [
+      'app/randodraft/page.tsx', 'app/sitemap.ts', 'components/app-header.tsx',
+      'components/randodraft.tsx', 'components/randodraft-spinner.tsx',
+      'components/randodraft-spinner.module.css', 'components/randodraft-results.tsx',
+      'lib/randodraft.ts', 'lib/game-navigation.ts', 'lib/game-families.ts',
+      'lib/auth-redirect.ts', 'lib/profile-navigation.ts', 'lib/staff-changelog.ts',
+      'data/catalogs/randodraft.json', 'scripts/generate-randodraft-catalog.mjs',
+      'public/maps/summoners-rift.png', 'package.json', 'docs/architecture.md',
+      'docs/randodraft.md', 'tests/randodraft.test.ts', 'tests/randodraft.test.tsx',
+    ],
+    verification: [
+      'Generated and inspected the pinned champion/item catalogue and purchase restrictions.',
+      'Added domain coverage for manual budgets, every category order, lock enforcement, unique lanes/champions, optional builds, conflicting item groups, and complete builds across all champions and types.',
+      'Added UI coverage for the complete five-pick flow, manual picks, build disabling/skipping, map inspection, in-spin locks, callback cancellation, and lobby navigation.',
+      'Verified /randodraft on the existing port-3000 development server in headless Chrome at 1440px and 390px: lobby, reels, all five build rolls, Finish, and the map rendered with no runtime errors, broken final images, or horizontal overflow.',
+      'npm run check passed: lint retained only the existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; all 91 tests passed across 24 files. No production build was run while the development server was active.',
+    ],
+  },
+  {
     id: 'patch-2026-09-09-skin-champion-champion-autofill',
     patch: '2026.09.09-skin-champion-champion-autofill',
     timestamp: '2026-09-09T00:12:55.5931339Z',

@@ -76,7 +76,7 @@ const DISCORD_INVITE_URL = 'https://discord.gg/vgMHq2KCsK';
 const masteryMasterGame = GAME_NAVIGATION_ITEMS.find((game) => game.title === 'Mastery Master');
 const gamesWithoutMasteryMaster = GAME_NAVIGATION_ITEMS.filter((game) => game !== masteryMasterGame);
 const gamesForHeader = masteryMasterGame
-  ? [...gamesWithoutMasteryMaster.slice(0, 2), masteryMasterGame, ...gamesWithoutMasteryMaster.slice(2)]
+  ? [...gamesWithoutMasteryMaster.slice(0, 3), masteryMasterGame, ...gamesWithoutMasteryMaster.slice(3)]
   : GAME_NAVIGATION_ITEMS;
 
 const menuItemClass = 'group flex min-h-11 w-full items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-sm text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-200';

@@ -1,5 +1,6 @@
 import {
   Clock3,
+  Dices,
   Eye,
   Search,
   ShieldQuestion,
@@ -64,6 +65,18 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     streakStyle: 'daily-pair',
     accent: 'sky',
     kicker: 'Tile Puzzle',
+  },
+  {
+    id: 'randodraft',
+    family: 'standalone',
+    title: 'Randodraft',
+    href: '/randodraft',
+    description: 'Roll champions, lanes, and build types to draft the best team luck allows.',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/TwistedFate_0.jpg',
+    gameIcon: Dices,
+    mode: 'solo',
+    accent: 'emerald',
+    kicker: 'Random Team Draft',
   },
   {
     id: 'ability-blitz',

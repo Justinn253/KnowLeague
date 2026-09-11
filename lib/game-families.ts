@@ -8,6 +8,7 @@ export type GameFamily =
 export type GameRouteId =
   | 'skindle'
   | 'splash-scramble'
+  | 'randodraft'
   | 'ability-blitz'
   | 'skin-champion'
   | 'skincognito'
@@ -58,6 +59,7 @@ export const GAME_FAMILY_DEFINITIONS: Record<GameFamily, GameFamilyDefinition> =
 export const GAME_FAMILY_BY_ROUTE: Record<GameRouteId, GameFamily> = {
   skindle: 'daily-guess',
   'splash-scramble': 'splash-puzzle',
+  randodraft: 'standalone',
   'ability-blitz': 'solo-quiz',
   'skin-champion': 'solo-quiz',
   skincognito: 'multiplayer-session',

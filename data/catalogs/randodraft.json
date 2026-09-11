@@ -1,0 +1,2949 @@
+{
+  "version": "16.18.1",
+  "sources": [
+    "https://ddragon.leagueoflegends.com/cdn/16.18.1/data/en_US/champion.json",
+    "https://ddragon.leagueoflegends.com/cdn/16.18.1/data/en_US/item.json",
+    "https://raw.communitydragon.org/16.18/game/items.cdtb.bin.json"
+  ],
+  "champions": [
+    {
+      "id": "Aatrox",
+      "name": "Aatrox",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Aatrox.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Ahri",
+      "name": "Ahri",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ahri.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Akali",
+      "name": "Akali",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Akali.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Akshan",
+      "name": "Akshan",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Akshan.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Alistar",
+      "name": "Alistar",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Alistar.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Ambessa",
+      "name": "Ambessa",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ambessa.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Amumu",
+      "name": "Amumu",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Amumu.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Anivia",
+      "name": "Anivia",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Anivia.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Annie",
+      "name": "Annie",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Annie.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Aphelios",
+      "name": "Aphelios",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Aphelios.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Ashe",
+      "name": "Ashe",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ashe.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "AurelionSol",
+      "name": "Aurelion Sol",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/AurelionSol.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Aurora",
+      "name": "Aurora",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Aurora.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Azir",
+      "name": "Azir",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Azir.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Bard",
+      "name": "Bard",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Bard.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Belveth",
+      "name": "Bel'Veth",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Belveth.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Blitzcrank",
+      "name": "Blitzcrank",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Blitzcrank.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Brand",
+      "name": "Brand",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Brand.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Braum",
+      "name": "Braum",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Braum.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Briar",
+      "name": "Briar",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Briar.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Caitlyn",
+      "name": "Caitlyn",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Caitlyn.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Camille",
+      "name": "Camille",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Camille.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Cassiopeia",
+      "name": "Cassiopeia",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Cassiopeia.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Chogath",
+      "name": "Cho'Gath",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Chogath.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Corki",
+      "name": "Corki",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Corki.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Darius",
+      "name": "Darius",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Darius.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Diana",
+      "name": "Diana",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Diana.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "DrMundo",
+      "name": "Dr. Mundo",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/DrMundo.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Draven",
+      "name": "Draven",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Draven.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Ekko",
+      "name": "Ekko",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ekko.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Elise",
+      "name": "Elise",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Elise.png",
+      "attackTypes": [
+        "melee",
+        "ranged"
+      ]
+    },
+    {
+      "id": "Evelynn",
+      "name": "Evelynn",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Evelynn.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Ezreal",
+      "name": "Ezreal",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ezreal.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Fiddlesticks",
+      "name": "Fiddlesticks",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Fiddlesticks.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Fiora",
+      "name": "Fiora",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Fiora.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Fizz",
+      "name": "Fizz",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Fizz.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Galio",
+      "name": "Galio",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Galio.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Gangplank",
+      "name": "Gangplank",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Gangplank.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Garen",
+      "name": "Garen",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Garen.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Gnar",
+      "name": "Gnar",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Gnar.png",
+      "attackTypes": [
+        "melee",
+        "ranged"
+      ]
+    },
+    {
+      "id": "Gragas",
+      "name": "Gragas",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Gragas.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Graves",
+      "name": "Graves",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Graves.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Gwen",
+      "name": "Gwen",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Gwen.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Hecarim",
+      "name": "Hecarim",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Hecarim.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Heimerdinger",
+      "name": "Heimerdinger",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Heimerdinger.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Hwei",
+      "name": "Hwei",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Hwei.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Illaoi",
+      "name": "Illaoi",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Illaoi.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Irelia",
+      "name": "Irelia",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Irelia.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Ivern",
+      "name": "Ivern",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ivern.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Janna",
+      "name": "Janna",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Janna.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "JarvanIV",
+      "name": "Jarvan IV",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/JarvanIV.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Jax",
+      "name": "Jax",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Jax.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Jayce",
+      "name": "Jayce",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Jayce.png",
+      "attackTypes": [
+        "melee",
+        "ranged"
+      ]
+    },
+    {
+      "id": "Jhin",
+      "name": "Jhin",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Jhin.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Jinx",
+      "name": "Jinx",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Jinx.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "KSante",
+      "name": "K'Sante",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/KSante.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Kaisa",
+      "name": "Kai'Sa",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Kaisa.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Kalista",
+      "name": "Kalista",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Kalista.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Karma",
+      "name": "Karma",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Karma.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Karthus",
+      "name": "Karthus",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Karthus.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Kassadin",
+      "name": "Kassadin",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Kassadin.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Katarina",
+      "name": "Katarina",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Katarina.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Kayle",
+      "name": "Kayle",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Kayle.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Kayn",
+      "name": "Kayn",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Kayn.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Kennen",
+      "name": "Kennen",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Kennen.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Khazix",
+      "name": "Kha'Zix",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Khazix.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Kindred",
+      "name": "Kindred",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Kindred.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Kled",
+      "name": "Kled",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Kled.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "KogMaw",
+      "name": "Kog'Maw",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/KogMaw.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Leblanc",
+      "name": "LeBlanc",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Leblanc.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "LeeSin",
+      "name": "Lee Sin",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/LeeSin.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Leona",
+      "name": "Leona",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Leona.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Lillia",
+      "name": "Lillia",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Lillia.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Lissandra",
+      "name": "Lissandra",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Lissandra.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Locke",
+      "name": "Locke",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Locke.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Lucian",
+      "name": "Lucian",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Lucian.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Lulu",
+      "name": "Lulu",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Lulu.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Lux",
+      "name": "Lux",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Lux.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Malphite",
+      "name": "Malphite",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Malphite.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Malzahar",
+      "name": "Malzahar",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Malzahar.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Maokai",
+      "name": "Maokai",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Maokai.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "MasterYi",
+      "name": "Master Yi",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/MasterYi.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Mel",
+      "name": "Mel",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Mel.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Milio",
+      "name": "Milio",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Milio.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "MissFortune",
+      "name": "Miss Fortune",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/MissFortune.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Mordekaiser",
+      "name": "Mordekaiser",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Mordekaiser.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Morgana",
+      "name": "Morgana",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Morgana.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Naafiri",
+      "name": "Naafiri",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Naafiri.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Nami",
+      "name": "Nami",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Nami.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Nasus",
+      "name": "Nasus",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Nasus.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Nautilus",
+      "name": "Nautilus",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Nautilus.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Neeko",
+      "name": "Neeko",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Neeko.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Nidalee",
+      "name": "Nidalee",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Nidalee.png",
+      "attackTypes": [
+        "melee",
+        "ranged"
+      ]
+    },
+    {
+      "id": "Nilah",
+      "name": "Nilah",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Nilah.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Nocturne",
+      "name": "Nocturne",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Nocturne.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Nunu",
+      "name": "Nunu & Willump",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Nunu.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Olaf",
+      "name": "Olaf",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Olaf.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Orianna",
+      "name": "Orianna",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Orianna.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Ornn",
+      "name": "Ornn",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ornn.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Pantheon",
+      "name": "Pantheon",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Pantheon.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Poppy",
+      "name": "Poppy",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Poppy.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Pyke",
+      "name": "Pyke",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Pyke.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Qiyana",
+      "name": "Qiyana",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Qiyana.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Quinn",
+      "name": "Quinn",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Quinn.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Rakan",
+      "name": "Rakan",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Rakan.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Rammus",
+      "name": "Rammus",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Rammus.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "RekSai",
+      "name": "Rek'Sai",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/RekSai.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Rell",
+      "name": "Rell",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Rell.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Renata",
+      "name": "Renata Glasc",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Renata.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Renekton",
+      "name": "Renekton",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Renekton.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Rengar",
+      "name": "Rengar",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Rengar.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Riven",
+      "name": "Riven",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Riven.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Rumble",
+      "name": "Rumble",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Rumble.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Ryze",
+      "name": "Ryze",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ryze.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Samira",
+      "name": "Samira",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Samira.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Sejuani",
+      "name": "Sejuani",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Sejuani.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Senna",
+      "name": "Senna",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Senna.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Seraphine",
+      "name": "Seraphine",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Seraphine.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Sett",
+      "name": "Sett",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Sett.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Shaco",
+      "name": "Shaco",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Shaco.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Shen",
+      "name": "Shen",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Shen.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Shyvana",
+      "name": "Shyvana",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Shyvana.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Singed",
+      "name": "Singed",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Singed.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Sion",
+      "name": "Sion",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Sion.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Sivir",
+      "name": "Sivir",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Sivir.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Skarner",
+      "name": "Skarner",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Skarner.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Smolder",
+      "name": "Smolder",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Smolder.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Sona",
+      "name": "Sona",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Sona.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Soraka",
+      "name": "Soraka",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Soraka.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Swain",
+      "name": "Swain",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Swain.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Sylas",
+      "name": "Sylas",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Sylas.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Syndra",
+      "name": "Syndra",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Syndra.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "TahmKench",
+      "name": "Tahm Kench",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/TahmKench.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Taliyah",
+      "name": "Taliyah",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Taliyah.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Talon",
+      "name": "Talon",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Talon.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Taric",
+      "name": "Taric",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Taric.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Teemo",
+      "name": "Teemo",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Teemo.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Thresh",
+      "name": "Thresh",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Thresh.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Tristana",
+      "name": "Tristana",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Tristana.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Trundle",
+      "name": "Trundle",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Trundle.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Tryndamere",
+      "name": "Tryndamere",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Tryndamere.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "TwistedFate",
+      "name": "Twisted Fate",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/TwistedFate.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Twitch",
+      "name": "Twitch",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Twitch.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Udyr",
+      "name": "Udyr",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Udyr.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Urgot",
+      "name": "Urgot",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Urgot.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Varus",
+      "name": "Varus",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Varus.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Vayne",
+      "name": "Vayne",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Vayne.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Veigar",
+      "name": "Veigar",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Veigar.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Velkoz",
+      "name": "Vel'Koz",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Velkoz.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Vex",
+      "name": "Vex",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Vex.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Vi",
+      "name": "Vi",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Vi.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Viego",
+      "name": "Viego",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Viego.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Viktor",
+      "name": "Viktor",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Viktor.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Vladimir",
+      "name": "Vladimir",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Vladimir.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Volibear",
+      "name": "Volibear",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Volibear.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Warwick",
+      "name": "Warwick",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Warwick.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "MonkeyKing",
+      "name": "Wukong",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/MonkeyKing.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Xayah",
+      "name": "Xayah",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Xayah.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Xerath",
+      "name": "Xerath",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Xerath.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "XinZhao",
+      "name": "Xin Zhao",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/XinZhao.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Yasuo",
+      "name": "Yasuo",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Yasuo.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Yone",
+      "name": "Yone",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Yone.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Yorick",
+      "name": "Yorick",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Yorick.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Yunara",
+      "name": "Yunara",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Yunara.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Yuumi",
+      "name": "Yuumi",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Yuumi.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Zaahen",
+      "name": "Zaahen",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Zaahen.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Zac",
+      "name": "Zac",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Zac.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Zed",
+      "name": "Zed",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Zed.png",
+      "attackTypes": [
+        "melee"
+      ]
+    },
+    {
+      "id": "Zeri",
+      "name": "Zeri",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Zeri.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Ziggs",
+      "name": "Ziggs",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Ziggs.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Zilean",
+      "name": "Zilean",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Zilean.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Zoe",
+      "name": "Zoe",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Zoe.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "Zyra",
+      "name": "Zyra",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/champion/Zyra.png",
+      "attackTypes": [
+        "ranged"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "8020",
+      "name": "Abyssal Mask",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/8020.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{d4211923}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2522",
+      "name": "Actualizer",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2522.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{f0405968}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3003",
+      "name": "Archangel's Staff",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3003.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/TearItems",
+        "Items/ItemGroups/LifelineItems",
+        "{2bb000ae}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3504",
+      "name": "Ardent Censer",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3504.png",
+      "types": [
+        "AD",
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{5aa31b15}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6696",
+      "name": "Axiom Arc",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6696.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{bd69c87a}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2524",
+      "name": "Bandlepipes",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2524.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{f64062da}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3102",
+      "name": "Banshee's Veil",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3102.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{103d7a0f}",
+        "{3fcdbdac}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2520",
+      "name": "Bastionbreaker",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2520.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{f2405c8e}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3006",
+      "name": "Berserker's Greaves",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3006.png",
+      "types": [
+        "AD"
+      ],
+      "boots": true,
+      "groups": [
+        "Items/ItemGroups/Boots",
+        "Items/ItemGroups/BootsWithoutActives"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3071",
+      "name": "Black Cleaver",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3071.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{24adb712}",
+        "Items/ItemGroups/LastWhisper"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2503",
+      "name": "Blackfire Torch",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2503.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{693b07b5}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3153",
+      "name": "Blade of The Ruined King",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3153.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{973182a1}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "8010",
+      "name": "Bloodletter's Curse",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/8010.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/VoidPen"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3072",
+      "name": "Bloodthirster",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3072.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{23adb57f}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3009",
+      "name": "Boots of Swiftness",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3009.png",
+      "types": [],
+      "boots": true,
+      "groups": [
+        "Items/ItemGroups/Boots",
+        "Items/ItemGroups/BootsWithoutActives"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6609",
+      "name": "Chempunk Chainsword",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6609.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{b458712e}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "4629",
+      "name": "Cosmic Drive",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4629.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{456ece4e}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3137",
+      "name": "Cryptbloom",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3137.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/VoidPen"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6621",
+      "name": "Dawncore",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6621.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{3432bd77}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3742",
+      "name": "Dead Man's Plate",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3742.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{92901b7d}",
+        "{1b1c30d5}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6333",
+      "name": "Death's Dance",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6333.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{001c1988}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2510",
+      "name": "Dusk and Dawn",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2510.png",
+      "types": [
+        "AD",
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{6c3d4b05}",
+        "{8b55a7b3}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6620",
+      "name": "Echoes of Helia",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6620.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{395dbfbb}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6692",
+      "name": "Eclipse",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6692.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{b969c22e}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3814",
+      "name": "Edge of Night",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3814.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{c6c2af47}",
+        "{3fcdbdac}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2517",
+      "name": "Endless Hunger",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2517.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{653d4000}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3508",
+      "name": "Essence Reaver",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3508.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{5ea32161}",
+        "{8b55a7b3}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3073",
+      "name": "Experimental Hexplate",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3073.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{22adb3ec}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2512",
+      "name": "Fiendhunter Bolts",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2512.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{6a3d47df}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "4401",
+      "name": "Force of Nature",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4401.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{27df203e}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3110",
+      "name": "Frozen Heart",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3110.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{0c3b352c}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3008",
+      "name": "Gluttonous Greaves",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3008.png",
+      "types": [],
+      "boots": true,
+      "groups": [
+        "Items/ItemGroups/BootsWithoutActives",
+        "Items/ItemGroups/Boots",
+        "{aba63cd2}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3026",
+      "name": "Guardian Angel",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3026.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{2da0f94a}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3124",
+      "name": "Guinsoo's Rageblade",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3124.png",
+      "types": [
+        "AD",
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{9a42d07b}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3084",
+      "name": "Heartsteel",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3084.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{9f92a236}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2523",
+      "name": "Hexoptics C44",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2523.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{f1405afb}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3146",
+      "name": "Hextech Gunblade",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3146.png",
+      "types": [
+        "AD",
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{9c33c917}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3152",
+      "name": "Hextech Rocketbelt",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3152.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{9631810e}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6664",
+      "name": "Hollow Radiance",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6664.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{ad6770b3}",
+        "Items/ItemGroups/ImmolateItems"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "4628",
+      "name": "Horizon Focus",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4628.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{466ecfe1}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6697",
+      "name": "Hubris",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6697.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{be69ca0d}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3181",
+      "name": "Hullbreaker",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3181.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{212a0d1a}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6662",
+      "name": "Iceborn Gauntlet",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6662.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{b3677a25}",
+        "{8b55a7b3}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6673",
+      "name": "Immortal Shieldbow",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6673.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/LifelineItems",
+        "{aa652d63}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "4005",
+      "name": "Imperial Mandate",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4005.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{5f2a99fe}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3031",
+      "name": "Infinity Edge",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3031.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{aca3ffce}",
+        "{0321bdeb}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3158",
+      "name": "Ionian Boots of Lucidity",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3158.png",
+      "types": [],
+      "boots": true,
+      "groups": [
+        "Items/ItemGroups/Boots",
+        "Items/ItemGroups/BootsWithoutActives"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6665",
+      "name": "Jak'Sho, The Protean",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6665.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{ac676f20}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2504",
+      "name": "Kaenic Rookern",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2504.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{623afcb0}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3109",
+      "name": "Knight's Vow",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3109.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{193d883a}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6672",
+      "name": "Kraken Slayer",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6672.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{a9652bd0}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6653",
+      "name": "Liandry's Torment",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6653.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{42600c7d}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3100",
+      "name": "Lich Bane",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3100.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{123d7d35}",
+        "{8b55a7b3}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3190",
+      "name": "Locket of the Iron Solari",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3190.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{9c26fd24}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3036",
+      "name": "Lord Dominik's Regards",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3036.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/LastWhisper"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6655",
+      "name": "Luden's Echo",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6655.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{3c60030b}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3118",
+      "name": "Malignance",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3118.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{143b41c4}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3004",
+      "name": "Manamune",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3004.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/TearItems",
+        "{29affd88}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3156",
+      "name": "Maw of Malmortius",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3156.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/LifelineItems"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3041",
+      "name": "Mejai's Soulstealer",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3041.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/Glory"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3139",
+      "name": "Mercurial Scimitar",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3139.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/Quicksilver"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3111",
+      "name": "Mercury's Treads",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3111.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": true,
+      "groups": [
+        "Items/ItemGroups/Boots",
+        "Items/ItemGroups/BootsWithoutActives"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3222",
+      "name": "Mikael's Blessing",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3222.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{bf3ed580}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6617",
+      "name": "Moonstone Renewer",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6617.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{ae562925}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3165",
+      "name": "Morellonomicon",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3165.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{0938f1dc}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3033",
+      "name": "Mortal Reminder",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3033.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{aaa3fca8}",
+        "Items/ItemGroups/LastWhisper"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3115",
+      "name": "Nashor's Tooth",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3115.png",
+      "types": [
+        "AD",
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{093b3073}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6675",
+      "name": "Navori Flickerblade",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6675.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{b06536d5}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2501",
+      "name": "Overlord's Bloodmail",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2501.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{673b048f}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3046",
+      "name": "Phantom Dancer",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3046.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{2db003d4}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3047",
+      "name": "Plated Steelcaps",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3047.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": true,
+      "groups": [
+        "Items/ItemGroups/Boots",
+        "Items/ItemGroups/BootsWithoutActives"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6698",
+      "name": "Profane Hydra",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6698.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{cf1a44c0}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2525",
+      "name": "Protoplasm Harness",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2525.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{f740646d}",
+        "Items/ItemGroups/LifelineItems"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3089",
+      "name": "Rabadon's Deathcap",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3089.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{ac92b6ad}",
+        "{bbcc250a}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3143",
+      "name": "Randuin's Omen",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3143.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{9733c138}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3094",
+      "name": "Rapid Firecannon",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3094.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{ad94f6d7}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3074",
+      "name": "Ravenous Hydra",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3074.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{cf1a44c0}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3107",
+      "name": "Redemption",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3107.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{0b3d7230}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "4633",
+      "name": "Riftmaker",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4633.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{bb6bb679}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6657",
+      "name": "Rod of Ages",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6657.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/EternityItems",
+        "{3e600631}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3085",
+      "name": "Runaan's Hurricane",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3085.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{a092a3c9}",
+        "{78ac5965}"
+      ],
+      "attackType": "ranged"
+    },
+    {
+      "id": "3116",
+      "name": "Rylai's Crystal Scepter",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3116.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{0a3b3206}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6695",
+      "name": "Serpent's Fang",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6695.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{bc69c6e7}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6694",
+      "name": "Serylda's Grudge",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6694.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/LastWhisper"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "4645",
+      "name": "Shadowflame",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4645.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{bd7d02c0}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2065",
+      "name": "Shurelya's Battlesong",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2065.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{3179bd6e}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3020",
+      "name": "Sorcerer's Shoes",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3020.png",
+      "types": [],
+      "boots": true,
+      "groups": [
+        "Items/ItemGroups/Boots",
+        "Items/ItemGroups/BootsWithoutActives"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3161",
+      "name": "Spear of Shojin",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3161.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{0538eb90}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3065",
+      "name": "Spirit Visage",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3065.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{1cab6be3}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6616",
+      "name": "Staff of Flowing Water",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6616.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{ad562792}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3087",
+      "name": "Statikk Shiv",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3087.png",
+      "types": [
+        "AD",
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{9e92a0a3}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3053",
+      "name": "Sterak's Gage",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3053.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/LifelineItems"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3095",
+      "name": "Stormrazor",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3095.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{ac94f544}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "4646",
+      "name": "Stormsurge",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4646.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "{c07d0779}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6631",
+      "name": "Stridebreaker",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6631.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{b45aafc5}",
+        "{cf1a44c0}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6610",
+      "name": "Sundered Sky",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6610.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{a7561e20}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3068",
+      "name": "Sunfire Aegis",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3068.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/ImmolateItems",
+        "{27ab7d34}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3302",
+      "name": "Terminus",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3302.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{370ee665}",
+        "Items/ItemGroups/LastWhisper",
+        "Items/ItemGroups/VoidPen"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6676",
+      "name": "The Collector",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6676.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{ad65321c}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3075",
+      "name": "Thornmail",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3075.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{20adb0c6}",
+        "{87f1e822}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3748",
+      "name": "Titanic Hydra",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3748.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{cf1a44c0}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3078",
+      "name": "Trinity Force",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3078.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{2dadc53d}",
+        "{8b55a7b3}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3179",
+      "name": "Umbral Glaive",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3179.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{993602f5}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2502",
+      "name": "Unending Despair",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2502.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{683b0622}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3135",
+      "name": "Void Staff",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3135.png",
+      "types": [
+        "AP"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/VoidPen"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "6699",
+      "name": "Voltaic Cyclosword",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6699.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{b069b403}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3083",
+      "name": "Warmog's Armor",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3083.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{a292a6ef}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "2526",
+      "name": "Whispering Circlet",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2526.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{f4405fb4}",
+        "Items/ItemGroups/TearItems",
+        "{f842a497}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3119",
+      "name": "Winter's Approach",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3119.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "Items/ItemGroups/TearItems",
+        "{153b4357}",
+        "{9d42d534}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3091",
+      "name": "Wit's End",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3091.png",
+      "types": [
+        "AD",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{a894eef8}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3142",
+      "name": "Youmuu's Ghostblade",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3142.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{9833c2cb}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3032",
+      "name": "Yun Tal Wildarrows",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3032.png",
+      "types": [
+        "AD"
+      ],
+      "boots": false,
+      "groups": [
+        "{aba3fe3b}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3050",
+      "name": "Zeke's Convergence",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3050.png",
+      "types": [
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{31b248b7}"
+      ],
+      "attackType": null
+    },
+    {
+      "id": "3157",
+      "name": "Zhonya's Hourglass",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3157.png",
+      "types": [
+        "AP",
+        "Tank"
+      ],
+      "boots": false,
+      "groups": [
+        "{9b3188ed}"
+      ],
+      "attackType": null
+    }
+  ]
+}

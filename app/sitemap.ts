@@ -9,6 +9,7 @@ const publicRoutes = [
   '/multiplayer/skin-champion',
   '/skindle',
   '/splash-scramble',
+  '/randodraft',
   '/skincognito',
   '/carving-revelation',
   '/category-clash',

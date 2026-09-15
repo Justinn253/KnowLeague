@@ -35,24 +35,26 @@ for (let start = 0; start < entries.length; start += 8) {
   })));
 }
 
+// Riot item-shop class flags from mItemAttributes; preserve every explicit membership.
+const shopClasses = { 1: 'Fighter', 2: 'Marksman', 4: 'Assassin', 8: 'Tank', 16: 'Mage', 32: 'Support' };
+
 const items = Object.entries(itemData.data).flatMap(([id, item]) => {
   const bin = itemBin[`Items/${id}`];
   const boots = item.tags.includes('Boots');
-  // Only normal, purchasable Rift equipment. Exclude mode variants, consumables,
+  // Only normal, purchasable SR/ARAM equipment. Exclude mode variants, consumables,
   // components, quest/Ornn upgrades, and items requiring a special currency.
-  if (!bin || Number(id) >= 10000 || !item.maps['11'] || !item.gold.purchasable
+  if (!bin || Number(id) >= 10000 || (!item.maps['11'] && !item.maps['12']) || !item.gold.purchasable
     || item.inStore === false || !bin.mItemDataAvailability?.mInStore
     || bin.consumed || bin.consumeOnAcquire || bin.mRequiredLevel > 18
     || bin.mRequiredPurchaseBuff || bin.mRequiredBuffCurrencyName
     || item.requiredAlly || item.requiredChampion || item.specialRecipe
     || !(bin.epicness === 5 || (boots && bin.epicness === 4))) return [];
 
-  const stats = item.stats;
-  const types = [];
-  if (stats.FlatPhysicalDamageMod > 0 || stats.PercentAttackSpeedMod > 0
-    || item.tags.includes('Damage') || item.tags.includes('AttackSpeed')) types.push('AD');
-  if (stats.FlatMagicDamageMod > 0) types.push('AP');
-  if (stats.FlatHPPoolMod > 0 || stats.FlatArmorMod > 0 || stats.FlatSpellBlockMod > 0) types.push('Tank');
+  const shopAttributes = bin.mItemAttributes ?? [];
+  if (shopAttributes.some((attribute) => !Object.hasOwn(shopClasses, attribute))) {
+    throw new Error(`Unknown shop class for ${item.name}: ${shopAttributes}`);
+  }
+  const types = [...new Set(shopAttributes.map((attribute) => shopClasses[attribute]))];
   if (!boots && !types.length) return [];
 
   const identities = bin.mRequiredPurchaseIdentities ?? [];
@@ -64,9 +66,10 @@ const items = Object.entries(itemData.data).flatMap(([id, item]) => {
     if (!definition) throw new Error(`Missing item group: ${group}`);
     return definition.mMaxGroupOwnable === 1 ? [group] : [];
   });
+  const modes = [item.maps['11'] ? 'summoners-rift' : null, item.maps['12'] ? 'aram' : null].filter((mode) => mode !== null);
   return [{
     id, name: item.name, imageUrl: `${ddragon}/img/item/${item.image.full}`,
-    types, boots, groups, attackType: identities[0]?.toLowerCase() ?? null,
+    types, shopAttributes, boots, groups, attackType: identities[0]?.toLowerCase() ?? null, modes,
   }];
 });
 

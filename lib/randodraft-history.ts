@@ -1,6 +1,6 @@
 import {
-  createDraftState, draftReducer, RANDODRAFT_TEAM_SIZE,
-  type CompleteDraftPick, type DraftCategory, type DraftSettings,
+  createDraftState, draftCategories, draftReducer, DRAFT_PICK_NAME_MAX_LENGTH, RANDODRAFT_TEAM_SIZE,
+  type CompleteDraftPick, type DraftCategory, type DraftGameMode, type DraftSettings,
 } from '@/lib/randodraft';
 
 export type DraftHistoryInput = {
@@ -11,7 +11,6 @@ export type DraftHistoryInput = {
 };
 export type DraftHistoryEntry = DraftHistoryInput & { completedAt: string };
 
-/** Replay the submitted draft to enforce the same locks, budgets, and build rules. */
 export function parseDraftHistoryInput(value: unknown): DraftHistoryInput | null {
   if (!value || typeof value !== 'object') return null;
   const input = value as Partial<DraftHistoryInput>;
@@ -19,17 +18,24 @@ export function parseDraftHistoryInput(value: unknown): DraftHistoryInput | null
     || typeof input.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(input.version)
     || !input.settings || ![0, 1, 2].includes(input.settings.manualSelections)
     || !['none', 'allow', 'all'].includes(input.settings.randomBuildType)
+    || (input.settings.gameMode !== undefined && !['summoners-rift', 'aram'].includes(input.settings.gameMode))
     || !Array.isArray(input.picks) || input.picks.length !== RANDODRAFT_TEAM_SIZE) return null;
+  const gameMode: DraftGameMode = input.settings.gameMode === 'aram' ? 'aram' : 'summoners-rift';
   const settings: DraftSettings = {
+    gameMode,
     manualSelections: input.settings.manualSelections,
     randomBuildType: input.settings.randomBuildType,
   };
   let state = draftReducer(createDraftState(), { type: 'start', settings });
-  const categories: DraftCategory[] = ['champion', 'lane', 'type'];
+  const categories: DraftCategory[] = draftCategories(gameMode);
   for (const pick of input.picks) {
     if (!pick || !Array.isArray(pick.manualCategories)
       || new Set(pick.manualCategories).size !== pick.manualCategories.length
       || pick.manualCategories.some((category) => !categories.includes(category))) return null;
+    if (pick.name !== undefined) {
+      if (typeof pick.name !== 'string' || pick.name.length > DRAFT_PICK_NAME_MAX_LENGTH) return null;
+      state = draftReducer(state, { type: 'rename', index: state.picks.length, name: pick.name });
+    }
     for (const category of categories) {
       if (typeof pick[category] !== 'string') return null;
       const next = draftReducer(state, { type: 'select', category, value: pick[category], manual: pick.manualCategories.includes(category) });
@@ -42,7 +48,9 @@ export function parseDraftHistoryInput(value: unknown): DraftHistoryInput | null
       if (next === state) return null;
       state = next;
     }
-    state = draftReducer(state, { type: 'next' });
+    const next = draftReducer(state, { type: 'next' });
+    if (next === state) return null;
+    state = next;
   }
   return { id: input.id, version: input.version, settings, picks: state.picks };
 }

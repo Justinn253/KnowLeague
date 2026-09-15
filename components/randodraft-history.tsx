@@ -5,7 +5,12 @@ import { History } from 'lucide-react';
 import { GameIconImage } from '@/components/game-asset-image';
 import { DraftBuildItems } from '@/components/randodraft-results';
 import type { useRandodraftHistory } from '@/components/use-randodraft-history';
-import { DRAFT_CHAMPION_BY_ID } from '@/lib/randodraft';
+import { DRAFT_CHAMPION_BY_ID, type DraftGameMode } from '@/lib/randodraft';
+
+
+function gameModeLabel(mode: DraftGameMode) {
+  return mode === 'aram' ? 'ARAM' : "Summoner's Rift";
+}
 
 export function RandodraftHistory({ history }: { history: ReturnType<typeof useRandodraftHistory> }) {
   return (
@@ -31,20 +36,20 @@ export function RandodraftHistory({ history }: { history: ReturnType<typeof useR
         <ol className="space-y-3">
           {history.drafts.map((draft) => (
             <li key={draft.id}>
-              <details className="rounded-2xl border border-white/10 bg-slate-900/70 p-3">
-                <summary className="cursor-pointer rounded-lg text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <time dateTime={draft.completedAt}>{new Date(draft.completedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time>
+              <details className="group rounded-2xl border border-white/10 bg-slate-900/70 p-3 transition hover:border-amber-300/50 hover:bg-slate-900 focus-within:border-amber-300/50">
+                <summary className="cursor-pointer rounded-lg text-sm text-slate-300 transition-colors group-hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <div className="flex items-center justify-between gap-3"><time dateTime={draft.completedAt}>{new Date(draft.completedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time><span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-[0.65rem] font-semibold text-amber-200">{gameModeLabel(draft.settings.gameMode)}</span></div>
                   <span className="mt-3 flex flex-wrap gap-2">
-                    {draft.picks.map((pick) => {
+                    {draft.picks.map((pick, index) => {
                       const champion = DRAFT_CHAMPION_BY_ID.get(pick.champion);
-                      return champion ? <GameIconImage key={pick.lane} src={champion.imageUrl} alt={`${champion.name}, ${pick.lane}, ${pick.type}`} width={36} height={36} className="rounded-lg" /> : null;
+                      return champion ? <GameIconImage key={index} src={champion.imageUrl} alt={`${champion.name}, ${pick.lane}, ${pick.type}`} width={36} height={36} className="rounded-lg" /> : null;
                     })}
                   </span>
                 </summary>
                 <ul className="mt-3 space-y-3 border-t border-white/10 pt-3">
-                  {draft.picks.map((pick) => (
-                    <li key={pick.lane} className="text-xs text-slate-400">
-                      <p className="mb-2"><span className="font-semibold text-white">{DRAFT_CHAMPION_BY_ID.get(pick.champion)?.name ?? pick.champion}</span> ? {pick.lane} ? {pick.type}</p>
+                  {draft.picks.map((pick, index) => (
+                    <li key={index} className="text-xs text-slate-400">
+                      <p className="mb-2">{pick.name ? <span className="mr-2 font-semibold text-slate-200">{pick.name}:</span> : null}<span className="font-semibold text-white">{DRAFT_CHAMPION_BY_ID.get(pick.champion)?.name ?? pick.champion}</span> {draft.settings.gameMode === 'aram' ? null : <> &middot; {pick.lane}</>} &middot; {pick.type}</p>
                       {pick.build ? <DraftBuildItems ids={pick.build} /> : <p>No build rolled.</p>}
                     </li>
                   ))}

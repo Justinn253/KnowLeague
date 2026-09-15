@@ -1401,33 +1401,52 @@
       "name": "Abyssal Mask",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/8020.png",
       "types": [
-        "Tank"
+        "Tank",
+        "Support"
+      ],
+      "shopAttributes": [
+        8,
+        32
       ],
       "boots": false,
       "groups": [
         "{d4211923}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2522",
       "name": "Actualizer",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2522.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{f0405968}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3003",
       "name": "Archangel's Staff",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3003.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
@@ -1435,364 +1454,575 @@
         "Items/ItemGroups/LifelineItems",
         "{2bb000ae}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3504",
       "name": "Ardent Censer",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3504.png",
       "types": [
-        "AD",
-        "AP"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
         "{5aa31b15}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
+    },
+    {
+      "id": "3039",
+      "name": "Atma's Reckoning",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3039.png",
+      "types": [
+        "Tank",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        8,
+        1
+      ],
+      "boots": false,
+      "groups": [
+        "{a4a3f336}"
+      ],
+      "attackType": null,
+      "modes": [
+        "aram"
+      ]
     },
     {
       "id": "6696",
       "name": "Axiom Arc",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6696.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{bd69c87a}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2524",
       "name": "Bandlepipes",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2524.png",
       "types": [
-        "AD",
-        "Tank"
+        "Tank",
+        "Support"
+      ],
+      "shopAttributes": [
+        8,
+        32
       ],
       "boots": false,
       "groups": [
         "{f64062da}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3102",
       "name": "Banshee's Veil",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3102.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{103d7a0f}",
         "{3fcdbdac}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2520",
       "name": "Bastionbreaker",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2520.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{f2405c8e}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift"
+      ]
     },
     {
       "id": "3006",
       "name": "Berserker's Greaves",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3006.png",
       "types": [
-        "AD"
+        "Fighter",
+        "Marksman"
+      ],
+      "shopAttributes": [
+        1,
+        2
       ],
       "boots": true,
       "groups": [
         "Items/ItemGroups/Boots",
         "Items/ItemGroups/BootsWithoutActives"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3071",
       "name": "Black Cleaver",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3071.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{24adb712}",
         "Items/ItemGroups/LastWhisper"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2503",
       "name": "Blackfire Torch",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2503.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{693b07b5}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3153",
       "name": "Blade of The Ruined King",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3153.png",
       "types": [
-        "AD"
+        "Fighter",
+        "Marksman"
+      ],
+      "shopAttributes": [
+        1,
+        2
       ],
       "boots": false,
       "groups": [
         "{973182a1}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "8010",
       "name": "Bloodletter's Curse",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/8010.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/VoidPen"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3072",
       "name": "Bloodthirster",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3072.png",
       "types": [
-        "AD"
+        "Marksman",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        2,
+        1
       ],
       "boots": false,
       "groups": [
         "{23adb57f}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3009",
       "name": "Boots of Swiftness",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3009.png",
-      "types": [],
+      "types": [
+        "Support",
+        "Marksman",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        32,
+        2,
+        1
+      ],
       "boots": true,
       "groups": [
         "Items/ItemGroups/Boots",
         "Items/ItemGroups/BootsWithoutActives"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6609",
       "name": "Chempunk Chainsword",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6609.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter",
+        "Assassin"
+      ],
+      "shopAttributes": [
+        1,
+        4
       ],
       "boots": false,
       "groups": [
         "{b458712e}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "4629",
       "name": "Cosmic Drive",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4629.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{456ece4e}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3137",
       "name": "Cryptbloom",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3137.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/VoidPen"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6621",
       "name": "Dawncore",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6621.png",
       "types": [
-        "AP"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
         "{3432bd77}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3742",
       "name": "Dead Man's Plate",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3742.png",
       "types": [
-        "Tank"
+        "Tank",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        8,
+        1
       ],
       "boots": false,
       "groups": [
         "{92901b7d}",
         "{1b1c30d5}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6333",
       "name": "Death's Dance",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6333.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{001c1988}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2510",
       "name": "Dusk and Dawn",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2510.png",
       "types": [
-        "AD",
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{6c3d4b05}",
         "{8b55a7b3}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6620",
       "name": "Echoes of Helia",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6620.png",
       "types": [
-        "AP",
-        "Tank"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
         "{395dbfbb}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6692",
       "name": "Eclipse",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6692.png",
       "types": [
-        "AD"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{b969c22e}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3814",
       "name": "Edge of Night",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3814.png",
       "types": [
-        "AD",
-        "Tank"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{c6c2af47}",
         "{3fcdbdac}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2517",
       "name": "Endless Hunger",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2517.png",
       "types": [
-        "AD"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{653d4000}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3508",
       "name": "Essence Reaver",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3508.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{5ea32161}",
         "{8b55a7b3}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3073",
       "name": "Experimental Hexplate",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3073.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{22adb3ec}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2512",
       "name": "Fiendhunter Bolts",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2512.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{6a3d47df}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "4401",
@@ -1801,65 +2031,101 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{27df203e}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3110",
       "name": "Frozen Heart",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3110.png",
       "types": [
-        "Tank"
+        "Tank",
+        "Support"
+      ],
+      "shopAttributes": [
+        8,
+        32
       ],
       "boots": false,
       "groups": [
         "{0c3b352c}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3008",
       "name": "Gluttonous Greaves",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3008.png",
       "types": [],
+      "shopAttributes": [],
       "boots": true,
       "groups": [
         "Items/ItemGroups/BootsWithoutActives",
         "Items/ItemGroups/Boots",
         "{aba63cd2}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3026",
       "name": "Guardian Angel",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3026.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter",
+        "Assassin",
+        "Marksman"
+      ],
+      "shopAttributes": [
+        1,
+        4,
+        2
       ],
       "boots": false,
       "groups": [
         "{2da0f94a}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift"
+      ]
     },
     {
       "id": "3124",
       "name": "Guinsoo's Rageblade",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3124.png",
       "types": [
-        "AD",
-        "AP"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{9a42d07b}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3084",
@@ -1868,52 +2134,80 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{9f92a236}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2523",
       "name": "Hexoptics C44",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2523.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{f1405afb}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3146",
       "name": "Hextech Gunblade",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3146.png",
       "types": [
-        "AD",
-        "AP"
+        "Mage",
+        "Assassin"
+      ],
+      "shopAttributes": [
+        16,
+        4
       ],
       "boots": false,
       "groups": [
         "{9c33c917}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3152",
       "name": "Hextech Rocketbelt",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3152.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{9631810e}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6664",
@@ -1922,119 +2216,190 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{ad6770b3}",
         "Items/ItemGroups/ImmolateItems"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "4628",
       "name": "Horizon Focus",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4628.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{466ecfe1}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6697",
       "name": "Hubris",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6697.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{be69ca0d}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift"
+      ]
     },
     {
       "id": "3181",
       "name": "Hullbreaker",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3181.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{212a0d1a}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6662",
       "name": "Iceborn Gauntlet",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6662.png",
       "types": [
-        "Tank"
+        "Tank",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        8,
+        1
       ],
       "boots": false,
       "groups": [
         "{b3677a25}",
         "{8b55a7b3}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6673",
       "name": "Immortal Shieldbow",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6673.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/LifelineItems",
         "{aa652d63}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "4005",
       "name": "Imperial Mandate",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4005.png",
       "types": [
-        "AP"
+        "Support",
+        "Mage"
+      ],
+      "shopAttributes": [
+        32,
+        16
       ],
       "boots": false,
       "groups": [
         "{5f2a99fe}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3031",
       "name": "Infinity Edge",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3031.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{aca3ffce}",
         "{0321bdeb}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3158",
       "name": "Ionian Boots of Lucidity",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3158.png",
-      "types": [],
+      "types": [
+        "Support",
+        "Mage",
+        "Assassin"
+      ],
+      "shopAttributes": [
+        32,
+        16,
+        4
+      ],
       "boots": true,
       "groups": [
         "Items/ItemGroups/Boots",
         "Items/ItemGroups/BootsWithoutActives"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6665",
@@ -2043,11 +2408,18 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{ac676f20}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2504",
@@ -2056,323 +2428,510 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{623afcb0}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3109",
       "name": "Knight's Vow",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3109.png",
       "types": [
+        "Support",
         "Tank"
+      ],
+      "shopAttributes": [
+        32,
+        8
       ],
       "boots": false,
       "groups": [
         "{193d883a}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6672",
       "name": "Kraken Slayer",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6672.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{a9652bd0}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6653",
       "name": "Liandry's Torment",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6653.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{42600c7d}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3100",
       "name": "Lich Bane",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3100.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{123d7d35}",
         "{8b55a7b3}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3190",
       "name": "Locket of the Iron Solari",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3190.png",
       "types": [
+        "Support",
         "Tank"
+      ],
+      "shopAttributes": [
+        32,
+        8
       ],
       "boots": false,
       "groups": [
         "{9c26fd24}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3036",
       "name": "Lord Dominik's Regards",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3036.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/LastWhisper"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6655",
       "name": "Luden's Echo",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6655.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{3c60030b}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3118",
       "name": "Malignance",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3118.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{143b41c4}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3004",
       "name": "Manamune",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3004.png",
       "types": [
-        "AD"
+        "Marksman",
+        "Fighter",
+        "Assassin"
+      ],
+      "shopAttributes": [
+        2,
+        1,
+        4
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/TearItems",
         "{29affd88}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3156",
       "name": "Maw of Malmortius",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3156.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter",
+        "Assassin",
+        "Marksman"
+      ],
+      "shopAttributes": [
+        1,
+        4,
+        2
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/LifelineItems"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3041",
       "name": "Mejai's Soulstealer",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3041.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/Glory"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift"
+      ]
     },
     {
       "id": "3139",
       "name": "Mercurial Scimitar",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3139.png",
       "types": [
-        "AD",
-        "Tank"
+        "Marksman",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        2,
+        1
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/Quicksilver"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3111",
       "name": "Mercury's Treads",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3111.png",
       "types": [
-        "Tank"
+        "Tank",
+        "Assassin",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        8,
+        4,
+        1
       ],
       "boots": true,
       "groups": [
         "Items/ItemGroups/Boots",
         "Items/ItemGroups/BootsWithoutActives"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3222",
       "name": "Mikael's Blessing",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3222.png",
       "types": [
-        "Tank"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
         "{bf3ed580}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6617",
       "name": "Moonstone Renewer",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6617.png",
       "types": [
-        "AP",
-        "Tank"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
         "{ae562925}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3165",
       "name": "Morellonomicon",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3165.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage",
+        "Support"
+      ],
+      "shopAttributes": [
+        16,
+        32
       ],
       "boots": false,
       "groups": [
         "{0938f1dc}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3033",
       "name": "Mortal Reminder",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3033.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{aaa3fca8}",
         "Items/ItemGroups/LastWhisper"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3115",
       "name": "Nashor's Tooth",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3115.png",
       "types": [
-        "AD",
-        "AP"
+        "Mage",
+        "Marksman"
+      ],
+      "shopAttributes": [
+        16,
+        2
       ],
       "boots": false,
       "groups": [
         "{093b3073}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6675",
       "name": "Navori Flickerblade",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6675.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{b06536d5}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2501",
       "name": "Overlord's Bloodmail",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2501.png",
       "types": [
-        "AD",
+        "Fighter",
         "Tank"
+      ],
+      "shopAttributes": [
+        1,
+        8
       ],
       "boots": false,
       "groups": [
         "{673b048f}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3046",
       "name": "Phantom Dancer",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3046.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{2db003d4}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3047",
       "name": "Plated Steelcaps",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3047.png",
       "types": [
-        "Tank"
+        "Tank",
+        "Assassin",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        8,
+        4,
+        1
       ],
       "boots": true,
       "groups": [
         "Items/ItemGroups/Boots",
         "Items/ItemGroups/BootsWithoutActives"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6698",
       "name": "Profane Hydra",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6698.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{cf1a44c0}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2525",
@@ -2381,26 +2940,40 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{f740646d}",
         "Items/ItemGroups/LifelineItems"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3089",
       "name": "Rabadon's Deathcap",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3089.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{ac92b6ad}",
         "{bbcc250a}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3143",
@@ -2409,185 +2982,300 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{9733c138}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3094",
       "name": "Rapid Firecannon",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3094.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{ad94f6d7}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3074",
       "name": "Ravenous Hydra",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3074.png",
       "types": [
-        "AD"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{cf1a44c0}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3107",
       "name": "Redemption",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3107.png",
       "types": [
-        "AP"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
         "{0b3d7230}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "4633",
       "name": "Riftmaker",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4633.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{bb6bb679}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6657",
       "name": "Rod of Ages",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6657.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/EternityItems",
         "{3e600631}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3085",
       "name": "Runaan's Hurricane",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3085.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{a092a3c9}",
         "{78ac5965}"
       ],
-      "attackType": "ranged"
+      "attackType": "ranged",
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3116",
       "name": "Rylai's Crystal Scepter",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3116.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{0a3b3206}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6695",
       "name": "Serpent's Fang",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6695.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{bc69c6e7}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6694",
       "name": "Serylda's Grudge",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6694.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/LastWhisper"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "4645",
       "name": "Shadowflame",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4645.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{bd7d02c0}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2065",
       "name": "Shurelya's Battlesong",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2065.png",
       "types": [
-        "AP"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
         "{3179bd6e}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3020",
       "name": "Sorcerer's Shoes",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3020.png",
-      "types": [],
+      "types": [
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
+      ],
       "boots": true,
       "groups": [
         "Items/ItemGroups/Boots",
         "Items/ItemGroups/BootsWithoutActives"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3161",
       "name": "Spear of Shojin",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3161.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{0538eb90}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
+    },
+    {
+      "id": "4004",
+      "name": "Spectral Cutlass",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4004.png",
+      "types": [
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
+      ],
+      "boots": false,
+      "groups": [
+        "{602a9b91}"
+      ],
+      "attackType": null,
+      "modes": [
+        "aram"
+      ]
     },
     {
       "id": "3065",
@@ -2596,107 +3284,159 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{1cab6be3}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6616",
       "name": "Staff of Flowing Water",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6616.png",
       "types": [
-        "AP"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
         "{ad562792}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3087",
       "name": "Statikk Shiv",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3087.png",
       "types": [
-        "AD",
-        "AP"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{9e92a0a3}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3053",
       "name": "Sterak's Gage",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3053.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/LifelineItems"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3095",
       "name": "Stormrazor",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3095.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{ac94f544}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "4646",
       "name": "Stormsurge",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/4646.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{c07d0779}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6631",
       "name": "Stridebreaker",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6631.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{b45aafc5}",
         "{cf1a44c0}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6610",
       "name": "Sundered Sky",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6610.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{a7561e20}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3068",
@@ -2705,19 +3445,31 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/ImmolateItems",
         "{27ab7d34}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3302",
       "name": "Terminus",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3302.png",
       "types": [
-        "AD"
+        "Marksman",
+        "Fighter"
+      ],
+      "shopAttributes": [
+        2,
+        1
       ],
       "boots": false,
       "groups": [
@@ -2725,76 +3477,119 @@
         "Items/ItemGroups/LastWhisper",
         "Items/ItemGroups/VoidPen"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6676",
       "name": "The Collector",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6676.png",
       "types": [
-        "AD"
+        "Marksman",
+        "Assassin"
+      ],
+      "shopAttributes": [
+        2,
+        4
       ],
       "boots": false,
       "groups": [
         "{ad65321c}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3075",
       "name": "Thornmail",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3075.png",
       "types": [
-        "Tank"
+        "Tank",
+        "Support"
+      ],
+      "shopAttributes": [
+        8,
+        32
       ],
       "boots": false,
       "groups": [
         "{20adb0c6}",
         "{87f1e822}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3748",
       "name": "Titanic Hydra",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3748.png",
       "types": [
-        "AD",
+        "Fighter",
         "Tank"
+      ],
+      "shopAttributes": [
+        1,
+        8
       ],
       "boots": false,
       "groups": [
         "{cf1a44c0}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3078",
       "name": "Trinity Force",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3078.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter"
+      ],
+      "shopAttributes": [
+        1
       ],
       "boots": false,
       "groups": [
         "{2dadc53d}",
         "{8b55a7b3}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3179",
       "name": "Umbral Glaive",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3179.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{993602f5}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2502",
@@ -2803,37 +3598,58 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{683b0622}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3135",
       "name": "Void Staff",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3135.png",
       "types": [
-        "AP"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/VoidPen"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "6699",
       "name": "Voltaic Cyclosword",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/6699.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{b069b403}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3083",
@@ -2842,18 +3658,28 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "{a292a6ef}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "2526",
       "name": "Whispering Circlet",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/2526.png",
       "types": [
-        "Tank"
+        "Support"
+      ],
+      "shopAttributes": [
+        32
       ],
       "boots": false,
       "groups": [
@@ -2861,7 +3687,11 @@
         "Items/ItemGroups/TearItems",
         "{f842a497}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3119",
@@ -2870,80 +3700,124 @@
       "types": [
         "Tank"
       ],
+      "shopAttributes": [
+        8
+      ],
       "boots": false,
       "groups": [
         "Items/ItemGroups/TearItems",
         "{153b4357}",
         "{9d42d534}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3091",
       "name": "Wit's End",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3091.png",
       "types": [
-        "AD",
-        "Tank"
+        "Fighter",
+        "Marksman"
+      ],
+      "shopAttributes": [
+        1,
+        2
       ],
       "boots": false,
       "groups": [
         "{a894eef8}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3142",
       "name": "Youmuu's Ghostblade",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3142.png",
       "types": [
-        "AD"
+        "Assassin"
+      ],
+      "shopAttributes": [
+        4
       ],
       "boots": false,
       "groups": [
         "{9833c2cb}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3032",
       "name": "Yun Tal Wildarrows",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3032.png",
       "types": [
-        "AD"
+        "Marksman"
+      ],
+      "shopAttributes": [
+        2
       ],
       "boots": false,
       "groups": [
         "{aba3fe3b}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3050",
       "name": "Zeke's Convergence",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3050.png",
       "types": [
+        "Support",
         "Tank"
+      ],
+      "shopAttributes": [
+        32,
+        8
       ],
       "boots": false,
       "groups": [
         "{31b248b7}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     },
     {
       "id": "3157",
       "name": "Zhonya's Hourglass",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.18.1/img/item/3157.png",
       "types": [
-        "AP",
-        "Tank"
+        "Mage"
+      ],
+      "shopAttributes": [
+        16
       ],
       "boots": false,
       "groups": [
         "{9b3188ed}"
       ],
-      "attackType": null
+      "attackType": null,
+      "modes": [
+        "summoners-rift",
+        "aram"
+      ]
     }
   ]
 }

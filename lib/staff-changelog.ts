@@ -17,6 +17,221 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-09-12-randodraft-game-modes',
+    patch: '2026.09.12-randodraft-game-modes',
+    timestamp: '2026-09-12T02:20:00.000Z',
+    title: 'Added Summoner\'s Rift and ARAM Randodraft modes',
+    summary: 'Added mode selection, lane-free ARAM drafting, ARAM item availability, Howling Abyss results, and mode labels in recent drafts.',
+    details: [
+      'The lobby now stores a typed gameMode setting with Summoner\'s Rift as the backward-compatible default and ARAM as the lane-free alternative.',
+      'ARAM drafts five unique champions and classes, hides the lane spinner, validates six-item builds against ARAM map availability, and renders the Howling Abyss map in the completed view.',
+      'The generated 16.18.1 catalogue now records per-item map modes and includes ARAM-only purchasable entries while preserving the existing Riot class, attack identity, and equipment-group constraints.',
+      'Completed history entries display the selected mode. Legacy history and local snapshots without gameMode are normalized to Summoner\'s Rift during validation.'
+    ],
+    impact: [
+      'Players can choose the map rules before starting and can distinguish SR and ARAM drafts in recent history.',
+      'The history API and database schema remain unchanged because mode is stored inside the validated draft JSON.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'app/randodraft/page.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-team.tsx',
+      'components/randodraft-history.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'lib/randodraft-progress.ts',
+      'scripts/generate-randodraft-catalog.mjs',
+      'data/catalogs/randodraft.json',
+      'public/maps/howling-abyss.png',
+      'docs/randodraft.md',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'Full npm run check passed: typecheck and all 122 tests across 29 files passed; lint retained only the existing img-element warnings. git diff --check passed. The pinned catalogue generator and map asset download completed; no production build was run while the dev server was active.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-class-lock-and-lobby-polish',
+    patch: '2026.09.11-randodraft-class-lock-and-lobby-polish',
+    timestamp: '2026-09-11T22:08:00.000Z',
+    title: 'Polished Randodraft lobby, class reels, and fresh draft flow',
+    summary: 'Hid empty resumes, added recent-draft hover treatment, renamed the category to Class, locked all-random classes automatically, and refined reel landing and pick-card presentation.',
+    details: [
+      'The lobby only offers Resume Randodraft when at least one pick is complete. New draft from the completed screen starts pick one directly and creates a fresh local draft session.',
+      'The visible Type category is now Class, the build header includes the selected class icon and name, and All build types are random initializes every new pick with a locked Random class so no spin is required.',
+      'Reel landing frames avoid adjacent duplicate lane or class outcomes when alternate choices exist. Spinner text is non-selectable, manual search focus is subdued, category cards use the updated gradient treatment, and recent draft rows expose the same hover/focus feedback as other app cards.',
+      'Completed-result hover promotion is limited to map markers; the Other picks list remains compact and click-selectable. Team card fallbacks and visible documentation use Class terminology.'
+    ],
+    impact: [
+      'Players get a clearer lobby resume state, a more consistent class vocabulary, a direct restart path, and less ambiguous spinner outcomes while preserving local progress and build restrictions.',
+      'No API, database, catalogue, or backend history schema changed.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-category.tsx',
+      'components/randodraft-spinner.tsx',
+      'components/randodraft-team.tsx',
+      'components/randodraft-history.tsx',
+      'components/randodraft-results.tsx',
+      'lib/randodraft.ts',
+      'docs/randodraft.md',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'tests/randodraft-spinner.test.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'Focused Randodraft reducer, UI, and spinner tests passed: 35 tests across 3 files.',
+      'Full npm run check passed: typecheck and all 120 tests across 29 files passed; lint retained only the existing img-element warnings. git diff --check passed. No production build, catalogue regeneration, or database migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-pick-summary-polish',
+    patch: '2026.09.11-randodraft-pick-summary-polish',
+    timestamp: '2026-09-11T21:27:48.141Z',
+    title: 'Polished Randodraft pick controls and completed summary',
+    summary: 'Smoothed reel deceleration, removed redundant spin and progress hints, added pointer-following item notes and category icons, and reorganized the completed draft details.',
+    details: [
+      'The category reel now uses a gentler ease-out curve and keeps the single clickable reel control without the bottom Click to spin hint. The visible Pick X heading is centered and the progress fraction remains available only to assistive technology.',
+      'Your team cards show role and class icons, adapt six item slots to one row when the card has room and to two rows on smaller widths, and expose champion and item names in pointer-following custom notes. The resume card no longer includes browser-storage copy.',
+      'Completed drafts move Jungle closer to its lane position, display role and class icons on map markers and the featured pick, and list the remaining picks in Top, Jungle, Mid, Support, Bot order. Hovering, focusing, or selecting another pick promotes it to the featured panel and returns the previous pick to the compact list.',
+      'All added visuals continue to use GameIconImage with unoptimized local or catalogue assets so Randodraft images do not request Vercel image transformations.'
+    ],
+    impact: [
+      'Players get a calmer spin landing, clearer category/build identity, hover notes that stay near the pointer, and a compact way to inspect every completed pick.',
+      'No API, database, catalogue, or account-history behavior changed in this patch.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-spinner.tsx',
+      'components/randodraft-spinner.module.css',
+      'components/randodraft-team.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-pointer-note.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed after the final tooltip and accessible-heading fixes; lint retained only the existing img-element warnings. The affected Randodraft flow test passed 9/9 tests.',
+      'git diff --check passed. No production build, catalogue regeneration, or database migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-required-builds-local-resume',
+    patch: '2026.09.11-randodraft-required-builds-local-resume',
+    timestamp: '2026-09-11T20:52:54.424Z',
+    title: 'Required builds, interactive reels, and local Randodraft recovery',
+    summary: 'Required locked item builds, moved Spin into the reels, slowed animation with click-to-finish, shuffled item slots, and added browser-local resume and class icons.',
+    details: [
+      'Next/Finish and the reducer now require a legal locked build after the three categories. Completed-history validation rejects picks without builds. Historical records remain readable.',
+      'Reels are accessible buttons with a highlighted Spin label, shuffle icon, and click hint. Removed the separate Spin button. Running reels say Click to finish and complete the preselected outcome once, cancelling the timeout. Animation is 2.475 seconds, 50% longer than 1.65 seconds; reduced motion remains immediate.',
+      'Build generation shuffles all six output slots using Fisher-Yates, allowing boots in any position while preserving shop membership and purchase constraints. Result text now describes item slots rather than purchase order.',
+      'In-progress state is saved locally after each committed change, including every pick completion. The lobby has a Resume Randodraft card; replay validation checks settings, unique picks, manual allowances, and builds before restoring. Account and guest keys are separate; account changes return to the lobby. Completion removes the local snapshot; only completed account history uses the existing backend write.',
+      'Hidden the remaining-manual counter when the allowance is zero. Lane reels use public/role-icons. Downloaded six Riot client class icons from pinned CommunityDragon 16.18 into public/class-icons with source documentation. Random retains its text label.',
+      'All Randodraft champion, item, lane, class, history, and map images use GameIconImage with unoptimized enabled; no Vercel image transformation URLs or responsive srcsets are generated.'
+    ],
+    impact: [
+      'Players must complete the item build, can speed through an animation by clicking it, and can resume drafts after leaving or refreshing on the same browser.',
+      'Staff retain backend writes only for completed account history. No database migration or catalogue regeneration is needed; local storage failures display a notice.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-spinner.tsx',
+      'components/randodraft-spinner.module.css',
+      'components/randodraft-category.tsx',
+      'components/randodraft-results.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-progress.ts',
+      'lib/randodraft-history.ts',
+      'public/class-icons/',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'tests/randodraft-spinner.test.tsx',
+      'tests/randodraft-progress.test.ts',
+      'tests/randodraft-history.test.ts',
+      'tests/randodraft-history-api.test.ts',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: typecheck and all 120 tests across 29 files passed; lint retained only existing img-element warnings. Coverage verifies required builds, all six boot positions, slower timing, exactly-once instant completion, cancellation, local resume with a locked build, malformed snapshots, missing-build rejection, account-specific storage keys, and unoptimized image output.',
+      'Headless Chrome on the existing dev server confirmed 2.475s animation, immediate completion, Next blocked until build locking, a one-pick local checkpoint, successful resume after reload, hidden zero-manual counter, local role/class icons, and no mobile horizontal overflow or runtime exceptions. Neither rendered Randodraft images nor observed image requests used /_next/image. git diff --check passed; no build or database migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-riot-shop-classes',
+    patch: '2026.09.11-randodraft-riot-shop-classes',
+    timestamp: '2026-09-11T20:15:41.064Z',
+    title: 'Aligned Randodraft builds with Riot item-shop classes',
+    summary: 'Replaced stat-derived AD/AP/Tank pools with Riot-assigned Fighter, Marksman, Assassin, Tank, Mage, and Support item classes.',
+    details: [
+      'Fetched the pinned 16.18 item definitions and regenerated only the Randodraft catalogue. The generator derives item membership from mItemAttributes (1 Fighter, 2 Marksman, 4 Assassin, 8 Tank, 16 Mage, 32 Support), retains source flags for auditing, and fails on unknown values.',
+      'Removed health/damage/AP stat heuristics. Items with multiple Riot class flags belong to each corresponding pool; Trinity Force is Fighter-only despite granting health, while Locket belongs to Support and Tank.',
+      'Updated draft choices, UI explanations, and domain tests for the six shop classes plus optional Random. Builds continue to sample eligible items on click while enforcing champion purchase restrictions, unique items, and incompatible groups. Boots retain the existing exception.',
+      'The pinned catalogue still contains 173 champions and 114 items. Existing saved drafts retain their historical labels; no history migration or catalogue refresh occurs during gameplay.'
+    ],
+    impact: [
+      'Players receive equipment from the selected Riot shop class instead of a broad stat-based approximation.',
+      'Staff can audit class assignments using source shopAttributes and regenerate the independent catalogue without affecting other games.'
+    ],
+    files: [
+      'scripts/generate-randodraft-catalog.mjs',
+      'data/catalogs/randodraft.json',
+     'lib/randodraft.ts',
+      'components/randodraft.tsx',
+      'tests/randodraft.test.ts',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'Regenerated the pinned Randodraft catalogue successfully (173 champions, 114 items). npm run check passed: all 113 tests across 28 files and typecheck passed; lint retained only existing img-element warnings. Source-membership assertions passed, and legal builds were verified for every champion and all seven build types across eight seeds. git diff --check passed. No production build or database migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-gameplay-controls',
+    patch: '2026.09.11-randodraft-gameplay-controls',
+    timestamp: '2026-09-11T18:50:36.006Z',
+    title: 'Refined Randodraft pick controls and independent spins',
+    summary: 'Added editable pick labels, compact gameplay controls, inline manual choices, independent category spins, stable reel landings, and item summaries in Your team.',
+    details: [
+      'Each team slot has an editable label during drafting, limited to 32 characters with whitespace normalization and a Pick X fallback. Labels persist into completed picks and account-history payloads, including later edits to completed slots before Finish.',
+      'Replaced the large pick heading and category descriptions with a compact current-pick title and manual-selection count. Removed the category-lock instruction and catalogue footer. Each new pick remounts its category controls and build spinner so previous results remain only in the team summary.',
+      'Manual choices replace the reel/control area at the same height. Toggling the manual button restores the reel, while the existing per-pick manual budget and immutable choices remain enforced.',
+      'Champion, Lane, and Type track busy state separately, allowing simultaneous spins. Next/Finish waits for all pending spins; unmounting the pick cancels pending callbacks. Locked category and build cards use green highlighting.',
+      'Reel idle labels say Spin followed by the category. Completed spins retain their actual final three frames instead of restoring catalogue endpoints.',
+      'Build preview sets are decorative. Clicking Spin generates a new winning build and independently generated animation frames. The generator samples eligible boots and then eligible equipment after each draw, preserving type, unique-item, item-group, and champion restrictions; it does not sample all complete combinations uniformly.',
+      'Rolled builds appear below lane/type in the team card. Item names use the shared custom hover note with a bounded compact variant, available on hover and keyboard focus.',
+      'Extracted focused category/team components and added regression tests. Existing build types remain pending the requested replacement definitions; no catalogue or migration changes were made.'
+    ],
+    impact: [
+      'Players can rename team slots, spin categories together, select manually without expanding the card, and keep completed pick/build information in the team summary.',
+      'Staff retain validated account history and build restrictions; the generator no longer selects a winner from a fixed preview pool.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-category.tsx',
+      'components/randodraft-team.tsx',
+      'components/randodraft-spinner.tsx',
+      'components/randodraft-history.tsx',
+      'components/header-hover-note.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'tests/randodraft-spinner.test.tsx',
+      'tests/randodraft-history.test.ts',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: typecheck and all 112 tests across 28 files passed; lint retained only existing img-element warnings. Tests cover independent concurrent spins, waiting for the final spin, stable landed neighbors, fresh on-click results, callback cancellation, manual toggling, pick labels, history validation, and team item summaries.',
+      'Headless Chrome on the existing port-3000 dev server verified desktop and 390px mobile layouts: manual mode retained the same 422px card height, the mobile pick header measured 24px, concurrent spins and exact landed neighbors were preserved, all locked cards turned green, six items appeared in the team summary with a visible custom focus note, and Next cleared the working controls while retaining the completed build. No runtime exceptions or horizontal overflow were observed.',
+      'Inspected the mobile gameplay screenshot. git diff --check passed; no production build, catalogue regeneration, or database migration was run. Replacement build-type definitions remain pending user clarification.'
+    ]
+  },
+  {
     id: 'patch-2026-09-11-randodraft-always-enabled-builds',
     patch: '2026.09.11-randodraft-always-enabled-builds',
     timestamp: '2026-09-11T18:39:07.330Z',

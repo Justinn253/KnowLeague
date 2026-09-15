@@ -5,7 +5,7 @@ import { createPageMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = createPageMetadata({
   title: 'Randodraft League Team Builder',
-  description: 'Roll champions, lanes, and build types to draft a five-champion League of Legends team.',
+  description: "Choose Summoner's Rift or ARAM, then roll champions and build classes for a five-champion League team.",
   path: '/randodraft',
 });
 

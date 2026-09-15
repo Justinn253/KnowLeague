@@ -1,5 +1,5 @@
 .reel {
-  animation: roll 1.65s cubic-bezier(0.12, 0.72, 0.12, 1) forwards;
+  animation: roll 2.475s cubic-bezier(0.22, 0.7, 0.35, 1) forwards;
   will-change: transform;
 }
 @keyframes roll {

@@ -9,7 +9,7 @@ vi.mock('@/lib/auth-server', () => ({ getAuthenticatedUserId: mocks.authenticate
 vi.mock('@/lib/supabaseClient', () => ({ getSupabaseServiceClient: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
 vi.mock('@/lib/api-metrics', () => ({ withApiMetrics: (_route: string, handler: unknown) => handler }));
 import { GET, POST } from '../app/api/randodraft/history/route';
-import { availableDraftValues, createDraftState, DEFAULT_DRAFT_SETTINGS, draftReducer, RANDODRAFT_VERSION } from '@/lib/randodraft';
+import { DRAFT_CHAMPION_BY_ID, generateDraftBuild, availableDraftValues, createDraftState, DEFAULT_DRAFT_SETTINGS, draftReducer, RANDODRAFT_VERSION } from '@/lib/randodraft';
 
 describe('Randodraft history account boundary', () => {
   beforeEach(() => {
@@ -48,7 +48,8 @@ describe('Randodraft history account boundary', () => {
       for (const category of ['champion', 'lane', 'type'] as const) {
         state = draftReducer(state, { type: 'select', category, value: availableDraftValues(category, state.picks)[0], manual: false });
       }
-      state = draftReducer(state, { type: 'next' });
+      state = draftReducer(state, { type: 'build', itemIds: generateDraftBuild(DRAFT_CHAMPION_BY_ID.get(state.current.champion!)!, state.current.type!) });
+    state = draftReducer(state, { type: 'next' });
     }
     const draft = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', version: RANDODRAFT_VERSION, settings: state.settings, picks: state.picks };
     const result = await POST(new Request('http://localhost/api/randodraft/history', {

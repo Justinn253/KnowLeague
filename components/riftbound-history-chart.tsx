@@ -343,7 +343,7 @@ export function RiftboundPriceHistoryChart({ history }: { history: RiftboundPric
   };
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/50 p-2 sm:p-3">
+    <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/50 p-2 sm:p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-2">
         <div className="flex flex-wrap items-center gap-3">
           {series.map((entry) => (

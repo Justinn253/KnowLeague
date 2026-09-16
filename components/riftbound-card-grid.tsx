@@ -1571,7 +1571,7 @@ export function RiftboundCardDetailsModal({
         role="dialog"
         aria-modal="true"
         aria-label={`${card.displayName} details`}
-        className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
+        className="relative min-w-0 max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-x-hidden overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 sm:max-h-[calc(100dvh-2rem)]"
         onPointerDown={(event) => event.stopPropagation()}
       >
         <button
@@ -1597,7 +1597,7 @@ export function RiftboundCardDetailsModal({
           </div>
         ) : null}
 
-        <div className="grid gap-6 p-5 sm:grid-cols-[14rem_minmax(0,1fr)] sm:p-7">
+        <div className="grid min-w-0 w-full gap-6 p-5 sm:grid-cols-[14rem_minmax(0,1fr)] sm:p-7">
           <div className="grid content-start justify-items-center gap-3">
             <a href={card.sourceUrl} target="_blank" rel="noreferrer" aria-label={`View official card for ${card.displayName}`} className="block rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-200">
               <div className="relative aspect-[744/1039] w-56 overflow-hidden rounded-2xl bg-slate-900">
@@ -1620,7 +1620,7 @@ export function RiftboundCardDetailsModal({
                 {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
               </div>
             </div>
-            {showMarketDetails ? <div className="grid gap-3 sm:grid-cols-2">
+            {showMarketDetails ? <div className="grid min-w-0 gap-3 sm:grid-cols-2">
               {getCardFinishOptions(card).map((finish) => {
                 const price = getMarketPriceForFinish(card, finish);
                 return (
@@ -1637,7 +1637,7 @@ export function RiftboundCardDetailsModal({
               })}
             </div> : null}
 
-            <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-3">
+            <dl className="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-3">
               <DetailValue label="Number" value={`${card.setCode} ${card.numberLabel}`} />
               <DetailValue label="Tag" value={card.tags.join('; ') || 'N/A'} />
               <DetailValue label="Energy" value={String(card.energyCost)} />
@@ -1649,17 +1649,17 @@ export function RiftboundCardDetailsModal({
               <DetailValue label="Might" value={String(card.might)} />
             </dl>
 
-            <div className="border-t border-white/10 pt-4">
+            <div className="min-w-0 border-t border-white/10 pt-4">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Product Details</p>
               <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{card.productDetails}</p>
             </div>
 
-            {showMarketDetails ? <div className="border-t border-white/10 pt-5">
+            {showMarketDetails ? <div className="min-w-0 border-t border-white/10 pt-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Value History</p>
                 <RiftboundHistoryRangeSelector value={priceHistoryRange} onChange={setPriceHistoryRange} />
               </div>
-              <div className="mt-3">
+              <div className="mt-3 min-w-0 max-w-full">
                 {priceHistoryLoading ? (
                   <RiftboundHistoryChartLoading kind="card" message="Loading market history..." />
                 ) : priceHistoryError ? (

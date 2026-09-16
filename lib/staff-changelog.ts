@@ -17,6 +17,61 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-09-16-riftbound-card-modal-width-containment',
+    patch: '2026.09.16-riftbound-card-modal-width-containment',
+    timestamp: '2026-09-16T21:28:39.8911205Z',
+    title: 'Contained Riftbound card detail modal content on phones',
+    summary: 'Constrained card detail modal descendants and value-history scrolling so loaded market data stays inside the popup with consistent mobile padding.',
+    details: [
+      'Added minimum-width and full-width constraints to the card detail dialog content, market-value section, metadata, product details, and value-history section so grid descendants cannot contribute an unbounded intrinsic width on narrow screens.',
+      'Kept the modal horizontally clipped while retaining vertical scrolling, and kept the fixed-width card history plot horizontally scrollable only within its bounded chart panel.',
+      'Kept existing Riftbound card artwork on the unoptimized image path; no Next.js or Vercel image transformation behavior was introduced.',
+    ],
+    impact: [
+      'Mobile users can view all loaded card information inside the popup borders with the existing vertical modal scrolling and local chart horizontal scrolling preserved.',
+    ],
+    files: [
+      'components/riftbound-card-grid.tsx',
+      'components/riftbound-history-chart.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint, TypeScript, and 124 tests across 29 files; lint retained only existing img-element warnings.',
+      'git diff --check passed with only the repository Git LF-to-CRLF normalization warnings.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-16-riftbound-mobile-catalogue-history-layout',
+    patch: '2026.09.16-riftbound-mobile-catalogue-history-layout',
+    timestamp: '2026-09-16T21:08:17.6601295Z',
+    title: 'Improved Riftbound phone catalogue and card-history layout',
+    summary: 'Added compact two-column phone catalogue grids, aligned mobile sort and filter controls, and isolated card value-history scrolling inside the detail modal.',
+    details: [
+      'Added a phone-only two-column grid override for the shared Riftbound collection and deck catalogue classes, preserving the existing fixed-width adaptive layouts from tablet through desktop.',
+      'Changed the mobile catalogue control layout so the search field occupies its own row and the sort menu and filter button share the row beneath it for both the inventory catalogue and Riftbound profile collection.',
+      'Bound the card detail modal and its fixed-width market-history plot to the available viewport width, keeping the chart horizontally scrollable inside its own chart panel without allowing the popup grid to expand.',
+      'Kept Riftbound card artwork on the existing unoptimized image path; no Vercel image transformation behavior was added or changed.',
+    ],
+    impact: [
+      'Phone users can browse two Riftbound cards per row with less unused space and reach sorting and filtering controls without an extra filter-only row.',
+      'Card details remain within the phone viewport after history data loads, while the full-width chart remains available through its local horizontal scroll area.',
+    ],
+    files: [
+      'app/globals.css',
+      'components/riftbound-card-grid.tsx',
+      'components/riftbound-profile.tsx',
+      'components/riftbound-history-chart.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run typecheck passed after the responsive stylesheet changes.',
+      'npm run check passed: lint, TypeScript, and the repository test suite completed successfully with only existing img-element lint warnings.',
+      'git diff --check passed with no whitespace errors.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
     id: 'patch-2026-09-16-randodraft-share-and-icon-sizing',
     patch: '2026.09.16-randodraft-share-and-icon-sizing',
     timestamp: '2026-09-16T20:00:00.000Z',

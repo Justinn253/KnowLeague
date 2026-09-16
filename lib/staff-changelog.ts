@@ -17,6 +17,71 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-09-16-public-semver-patch-notes',
+    patch: '2026.09.16-public-semver-patch-notes',
+    timestamp: '2026-09-16T22:27:31.4492858Z',
+    title: 'Formatted public updates as versioned patch notes',
+    summary: 'Started public releases at 0.1.0, grouped patch notes by change type, and compacted the home news panel.',
+    details: [
+      'Changed the first release to version 0.1.0 with the title Update 0.1.0 - Randodraft and other fixes; update versions now use a major.minor.patch TypeScript template.',
+      'Added optional typed sections rendered as semantic headings and bullet lists, retaining paragraphs for news articles.',
+      'Grouped release content under New Game, New Feature, and Bug Fixes; reduced the mobile fix to Riftbound catalogue fixes for mobile.',
+      'Added an optional preview summary and reduced home panel padding, icon size, typography, and spacing; removed the duplicate call-to-action line while preserving the full-card link.',
+    ],
+    impact: [
+      'Readers can scan release changes by type and find the latest post in a shorter home panel.',
+      'Maintainers can author structured patch notes and separate short preview summaries in lib/news.ts.',
+    ],
+    files: ['lib/news.ts', 'components/news-post.tsx', 'components/news-preview.tsx', 'lib/staff-changelog.ts'],
+    verification: ['npm run check passed: lint, TypeScript, and all 128 tests across 30 files; only existing img-element warnings remain. git diff --check passed. No production build was run.'],
+  },
+  {
+    id: 'patch-2026-09-16-first-public-release-post',
+    patch: '2026.09.16-first-public-release-post',
+    timestamp: '2026-09-16T22:20:36.4742036Z',
+    title: 'Published the first public release post and repositioned home news',
+    summary: 'Replaced the welcome announcement with the first versioned update and moved its home preview below the destination cards.',
+    details: [
+      'Moved the home News and Updates panel below Games, League Account Viewer, and Riftbound, before the account sign-up panel.',
+      'Replaced the initial news announcement with update version 2026.09.16 covering Randodraft team and build drafting, Riftbound phone catalogue and detail-view fixes, and the News and Updates feed and archive.',
+      'Added a concise opening paragraph summarizing all three topics for the home preview.',
+    ],
+    impact: [
+      'Visitors see the primary destination cards first and can read a concrete release summary below them.',
+      'Maintainers can continue authoring future releases in the existing public news registry.',
+    ],
+    files: ['components/landing-page.tsx', 'lib/news.ts', 'lib/staff-changelog.ts'],
+    verification: ['npm run check passed: lint, TypeScript, and all 128 tests across 30 files; only existing img-element warnings remain. git diff --check passed. No production build was run.'],
+  },
+  {
+    id: 'patch-2026-09-16-public-news-and-updates',
+    patch: '2026.09.16-public-news-and-updates',
+    timestamp: '2026-09-16T21:52:34.1421879Z',
+    title: 'Added public News and Updates with a production release archive',
+    summary: 'Introduced manually authored public release notes and news, a 30-day feed, and a latest-post panel on the home screen.',
+    details: [
+      'Added a typed public content registry with required versions for updates, UTC publication dates, titles, and paragraph bodies; seeded a welcome news announcement.',
+      'Recent posts render newest first at /news; posts aged exactly 30 days or older appear at /news/archive, which is loaded by explicit navigation with link prefetch disabled.',
+      'Publication filtering hides future-dated entries. Dynamic news routes evaluate age on each request; the home preview revalidates every 60 seconds and can show the latest archived post.',
+      'Updates use amber Package badges; news uses cyan Megaphone badges. Both show dates and titles, while updates also show version numbers.',
+      'Composed the server-rendered latest-post preview into the client home layout without bundling the public registry or staff changelog into that client component.',
+      'Added public page metadata and sitemap routes. No database, deployment automation, or staff-only content is exposed.',
+    ],
+    impact: [
+      'Visitors can discover announcements from the home screen and browse current and archived posts without an account.',
+      'Maintainers manually add production release posts and news in lib/news.ts; internal staff patch notes remain independent.',
+    ],
+    files: [
+      'lib/news.ts', 'components/news-post.tsx', 'components/news-preview.tsx',
+      'components/news-screen.tsx', 'components/landing-page.tsx', 'app/page.tsx',
+      'app/news/page.tsx', 'app/news/archive/page.tsx', 'app/sitemap.ts',
+      'tests/news.test.ts', 'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint, TypeScript, and 128 tests across 30 files. Only existing img-element lint warnings remain. Four new tests cover the exact 30-day boundary, ordering, future publication, empty feeds, and archived preview fallback. git diff --check passed. No production build was run.',
+    ],
+  },
+  {
     id: 'patch-2026-09-16-riftbound-card-modal-width-containment',
     patch: '2026.09.16-riftbound-card-modal-width-containment',
     timestamp: '2026-09-16T21:28:39.8911205Z',

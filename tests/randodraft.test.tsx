@@ -17,7 +17,7 @@ function start() {
 
 describe('Randodraft game flow', () => {
   beforeEach(() => { window.localStorage.clear(); vi.useFakeTimers(); vi.spyOn(Math, 'random').mockReturnValue(0); });
-  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
+  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); window.history.replaceState({}, '', '/randodraft'); });
 
   it('shows the compact settings/history lobby and all three Random build options', () => {
     render(<Randodraft />);
@@ -52,8 +52,8 @@ describe('Randodraft game flow', () => {
       }
       fireEvent.click(screen.getByRole('button', { name: nextName }));
     }
-    expect(screen.getByRole('heading', { name: 'Your team on the Rift' })).toBeInTheDocument();
-    const mapButtons = screen.getAllByRole('button', { name: /^(Top|Jungle|Mid|Support|Bot):/ });
+    expect(screen.getByText('Draft complete')).toBeInTheDocument();
+    const mapButtons = screen.getAllByRole('button').filter((button) => button.hasAttribute('aria-pressed'));
     expect(mapButtons).toHaveLength(5);
     fireEvent.click(mapButtons[1]);
     expect(mapButtons[1]).toHaveAttribute('aria-pressed', 'true');
@@ -172,6 +172,7 @@ describe('Randodraft game flow', () => {
     spin('Champion'); spin('Lane'); spin('Class'); spin('Build path');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     first.unmount();
+    window.history.replaceState({}, '', '/randodraft');
     render(<Randodraft />);
     fireEvent.click(screen.getByRole('button', { name: /Resume Randodraft/ }));
     expect(screen.getByRole('heading', { name: 'Pick 2 2/5' })).toBeInTheDocument();
@@ -195,10 +196,26 @@ describe('Randodraft game flow', () => {
       spin('Build path');
       fireEvent.click(screen.getByRole('button', { name: index === 4 ? 'Finish' : 'Next' }));
     }
-    expect(screen.getByRole('heading', { name: 'Your team on the Howling Abyss' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /^Pick [1-5]:/ })).toHaveLength(5);
+    expect(screen.getByText('Draft complete')).toBeInTheDocument();
+    expect(screen.getAllByRole('button').filter((button) => button.hasAttribute('aria-pressed'))).toHaveLength(5);
   });
 
+  it('keeps all ten two-team ARAM picks in distinct map slots', () => {
+    render(<Randodraft />);
+    fireEvent.click(screen.getByRole('button', { name: /Summoner's Rift/ }));
+    fireEvent.click(screen.getByRole('option', { name: /^ARAM/ }));
+    fireEvent.click(screen.getByRole('switch', { name: 'One Team' }));
+    start();
+    for (let index = 0; index < 10; index++) {
+      spin('Champion');
+      spin('Class');
+      spin('Build path');
+      fireEvent.click(screen.getByRole('button', { name: index === 9 ? 'Finish' : 'Next' }));
+    }
+    const mapButtons = screen.getAllByRole('button').filter((button) => button.hasAttribute('aria-pressed'));
+    expect(mapButtons).toHaveLength(10);
+    expect(new Set(mapButtons.map((button) => `${button.getAttribute('style')}`))).toHaveLength(10);
+  });
   it('renders source images directly and uses local lane and class icons', () => {
     const { container } = render(<Randodraft />);
     start();

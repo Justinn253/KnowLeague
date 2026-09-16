@@ -3,12 +3,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
-import type { DraftHistoryEntry, DraftHistoryInput } from '@/lib/randodraft-history';
+import { parseDraftHistoryInput, type DraftHistoryEntry, type DraftHistoryInput } from '@/lib/randodraft-history';
+import { RANDODRAFT_GUEST_RETENTION_MS } from '@/lib/randodraft-share';
+
+const GUEST_HISTORY_KEY = 'knowleague:randodraft:history:v1:guest';
+
+function readGuestDrafts(): DraftHistoryEntry[] {
+  try {
+    const raw = window.localStorage.getItem(GUEST_HISTORY_KEY);
+    if (!raw) return [];
+    const values = JSON.parse(raw);
+    if (!Array.isArray(values)) return [];
+    const now = Date.now();
+    return values.filter((value): value is DraftHistoryEntry => {
+      if (!value || typeof value !== 'object' || typeof value.completedAt !== 'string') return false;
+      const completed = Date.parse(value.completedAt);
+      return Number.isFinite(completed) && now - completed <= RANDODRAFT_GUEST_RETENTION_MS && Boolean(parseDraftHistoryInput(value));
+    }).slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+function writeGuestDrafts(drafts: DraftHistoryEntry[]) {
+  window.localStorage.setItem(GUEST_HISTORY_KEY, JSON.stringify(drafts.slice(0, 5)));
+}
 
 export function useRandodraftHistory() {
   const [session, setSession] = useState<Session | null>(null);
   const [resolved, setResolved] = useState(false);
   const [drafts, setDrafts] = useState<DraftHistoryEntry[]>([]);
+  const [guestDrafts, setGuestDrafts] = useState<DraftHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +71,7 @@ export function useRandodraftHistory() {
   }, []);
 
   useEffect(() => {
+    setGuestDrafts(readGuestDrafts());
     const unsubscribe = subscribeToAuthSession((nextSession) => {
       const changed = nextSession?.user.id !== sessionRef.current?.user.id;
       sessionRef.current = nextSession;
@@ -66,6 +92,13 @@ export function useRandodraftHistory() {
 
   const save = useCallback(async (draft: DraftHistoryInput, ownerId: string | null) => {
     const userId = sessionRef.current?.user.id;
+    if (!userId && ownerId === null) {
+      const entry: DraftHistoryEntry = { ...draft, completedAt: new Date().toISOString() };
+      const next = [entry, ...readGuestDrafts().filter((current) => current.id !== entry.id)].slice(0, 5);
+      writeGuestDrafts(next);
+      setGuestDrafts(next);
+      return;
+    }
     if (!userId || userId !== ownerId) return;
     pendingRef.current = { userId, draft };
     await request(draft);
@@ -76,5 +109,5 @@ export function useRandodraftHistory() {
     void request(pending?.userId === sessionRef.current?.user.id ? pending?.draft : undefined);
   }, [request]);
 
-  return { userId: session?.user.id ?? null, resolved, drafts, loading, saving, error, save, retry };
+  return { userId: session?.user.id ?? null, resolved, drafts, guestDrafts, loading, saving, error, save, retry };
 }

@@ -25,7 +25,7 @@ function seededRandom(seed: number) {
 
 describe('Randodraft draft rules', () => {
   it('starts with every category spun and standard build types', () => {
-    expect(createDraftState().settings).toEqual({ gameMode: 'summoners-rift', manualSelections: 0, randomBuildType: 'none' });
+    expect(createDraftState().settings).toEqual({ gameMode: 'summoners-rift', manualSelections: 0, randomBuildType: 'none', quickRoll: false, secondTeam: false, playersPerTeam: 5 });
     const state = start();
     expect(select(state, 'champion', 'Ahri', true)).toBe(state);
     expect(draftReducer(state, { type: 'next' })).toBe(state);
@@ -122,6 +122,23 @@ describe('Randodraft draft rules', () => {
   });
 });
 
+  it('supports configurable two-team drafts and lane reuse between teams', () => {
+    const settings: DraftSettings = { gameMode: 'summoners-rift', manualSelections: 0, randomBuildType: 'none', quickRoll: false, secondTeam: true, playersPerTeam: 2 };
+    let state = draftReducer(createDraftState(), { type: 'start', settings });
+    for (let index = 0; index < 4; index++) {
+      const champion = availableDraftValues('champion', state.picks, 'none', 'summoners-rift', settings)[0];
+      const lane = availableDraftValues('lane', state.picks, 'none', 'summoners-rift', settings)[0];
+      state = select(state, 'champion', champion);
+      state = select(state, 'lane', lane);
+      state = select(state, 'type', 'Marksman');
+      const currentChampion = DRAFT_CHAMPIONS.find((entry) => entry.id === state.current.champion)!;
+      state = draftReducer(state, { type: 'build', itemIds: generateDraftBuild(currentChampion, 'Marksman', seededRandom(index + 10)) });
+      state = draftReducer(state, { type: 'next' });
+    }
+    expect(state.phase).toBe('finished');
+    expect(state.picks).toHaveLength(4);
+    expect(state.picks.slice(0, 2).map((pick) => pick.lane)).toEqual(state.picks.slice(2).map((pick) => pick.lane));
+  });
 describe('Randodraft item catalogue and build legality', () => {
   it('has the full pinned roster and unique equipment IDs', () => {
     expect(DRAFT_CHAMPIONS).toHaveLength(173);

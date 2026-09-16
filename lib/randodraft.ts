@@ -5,11 +5,23 @@ export const RANDODRAFT_MODES = ['summoners-rift', 'aram'] as const;
 export type DraftGameMode = typeof RANDODRAFT_MODES[number];
 export const RANDODRAFT_TYPES = ['Fighter', 'Marksman', 'Assassin', 'Tank', 'Mage', 'Support', 'Random'] as const;
 export const RANDODRAFT_TEAM_SIZE = RANDODRAFT_LANES.length;
+export const DRAFT_PICK_NAME_MAX_LENGTH = 32;
+export const RANDODRAFT_PLAYER_COUNTS = [1, 2, 3, 4, 5] as const;
+export type DraftPlayersPerTeam = typeof RANDODRAFT_PLAYER_COUNTS[number];
 export type DraftLane = typeof RANDODRAFT_LANES[number];
 export type DraftType = typeof RANDODRAFT_TYPES[number];
 export type DraftCategory = 'champion' | 'lane' | 'type';
 export type RandomBuildTypeMode = 'none' | 'allow' | 'all';
-export type DraftSettings = { gameMode: DraftGameMode; manualSelections: 0 | 1 | 2; randomBuildType: RandomBuildTypeMode };
+
+export type DraftSettings = {
+  gameMode: DraftGameMode;
+  manualSelections: 0 | 1 | 2;
+  randomBuildType: RandomBuildTypeMode;
+  quickRoll?: boolean;
+  secondTeam?: boolean;
+  playersPerTeam?: DraftPlayersPerTeam;
+};
+
 export type DraftChampion = {
   id: string;
   name: string;
@@ -27,7 +39,6 @@ export type DraftItem = {
   attackType: 'melee' | 'ranged' | null;
   modes: DraftGameMode[];
 };
-export const DRAFT_PICK_NAME_MAX_LENGTH = 32;
 export type DraftPick = {
   name?: string;
   champion: string | null;
@@ -53,7 +64,14 @@ export type DraftAction =
   | { type: 'next' }
   | { type: 'lobby' };
 
-export const DEFAULT_DRAFT_SETTINGS: DraftSettings = { gameMode: 'summoners-rift', manualSelections: 0, randomBuildType: 'none' };
+export const DEFAULT_DRAFT_SETTINGS: DraftSettings = {
+  gameMode: 'summoners-rift',
+  manualSelections: 0,
+  randomBuildType: 'none',
+  quickRoll: false,
+  secondTeam: false,
+  playersPerTeam: RANDODRAFT_TEAM_SIZE,
+};
 export const RANDODRAFT_VERSION = catalog.version;
 export const DRAFT_CHAMPIONS = catalog.champions as DraftChampion[];
 export const DRAFT_ITEMS = catalog.items as DraftItem[];
@@ -69,6 +87,31 @@ export const DRAFT_TYPE_DESCRIPTIONS: Record<DraftType, string> = {
   Random: 'Items from any shop category, with the same equipment restrictions.',
 };
 
+export function normalizeDraftSettings(input?: Partial<DraftSettings> | null): DraftSettings {
+  const gameMode: DraftGameMode = input?.gameMode === 'aram' ? 'aram' : 'summoners-rift';
+  const manualSelections: 0 | 1 | 2 = input?.manualSelections === 1 || input?.manualSelections === 2 ? input.manualSelections : 0;
+  const randomBuildType: RandomBuildTypeMode = input?.randomBuildType === 'allow' || input?.randomBuildType === 'all' ? input.randomBuildType : 'none';
+  const playersPerTeam = RANDODRAFT_PLAYER_COUNTS.includes(input?.playersPerTeam as DraftPlayersPerTeam) ? input!.playersPerTeam as DraftPlayersPerTeam : RANDODRAFT_TEAM_SIZE;
+  return { gameMode, manualSelections, randomBuildType, quickRoll: input?.quickRoll === true, secondTeam: input?.secondTeam === true, playersPerTeam };
+}
+
+export function draftPlayersPerTeam(settings?: Partial<DraftSettings> | null): DraftPlayersPerTeam {
+  return normalizeDraftSettings(settings).playersPerTeam!;
+}
+export function hasSecondTeam(settings?: Partial<DraftSettings> | null): boolean {
+  return normalizeDraftSettings(settings).secondTeam === true;
+}
+export function draftTotalPicks(settings?: Partial<DraftSettings> | null): number {
+  const normalized = normalizeDraftSettings(settings);
+  return normalized.playersPerTeam! * (normalized.secondTeam ? 2 : 1);
+}
+export function draftTeamIndexForPick(pickIndex: number, settings?: Partial<DraftSettings> | null): 0 | 1 {
+  return hasSecondTeam(settings) && pickIndex >= draftPlayersPerTeam(settings) ? 1 : 0;
+}
+export function draftSlotForPick(pickIndex: number, settings?: Partial<DraftSettings> | null): number {
+  return pickIndex % draftPlayersPerTeam(settings);
+}
+
 export function draftCategories(gameMode: DraftGameMode): DraftCategory[] {
   return gameMode === 'aram' ? ['champion', 'type'] : ['champion', 'lane', 'type'];
 }
@@ -78,21 +121,40 @@ function emptyPick(randomBuildType: RandomBuildTypeMode = 'none'): DraftPick {
 }
 
 export function normalizeDraftPickName(name: string, index: number): string {
-  return name.trim().replace(/\s+/g, ' ').slice(0, DRAFT_PICK_NAME_MAX_LENGTH) || `Pick ${index + 1}`;
+  return name.trim().replace(/\s+/g, ' ').slice(0, 32) || `Pick ${index + 1}`;
 }
 
-export function createDraftState(): DraftState {
-  return { phase: 'lobby', settings: { ...DEFAULT_DRAFT_SETTINGS }, picks: [], current: emptyPick(), pickNames: Array.from({ length: RANDODRAFT_TEAM_SIZE }, (_, index) => `Pick ${index + 1}`) };
+export function createDraftState(settings: DraftSettings = DEFAULT_DRAFT_SETTINGS): DraftState {
+  const normalized = normalizeDraftSettings(settings);
+  return {
+    phase: 'lobby',
+    settings: normalized,
+    picks: [],
+    current: emptyPick(normalized.randomBuildType),
+    pickNames: Array.from({ length: draftTotalPicks(normalized) }, (_, index) => `Pick ${index + 1}`),
+  };
 }
 
 export function isCompletePick(pick: DraftPick, gameMode: DraftGameMode = 'summoners-rift'): pick is CompleteDraftPick {
   return Boolean(pick.champion && pick.type && (gameMode === 'aram' || pick.lane));
 }
 
-export function availableDraftValues(category: DraftCategory, picks: readonly DraftPick[], randomBuildType: RandomBuildTypeMode = 'none', gameMode: DraftGameMode = 'summoners-rift'): string[] {
+export function availableDraftValues(
+  category: DraftCategory,
+  picks: readonly DraftPick[],
+  randomBuildType: RandomBuildTypeMode = 'none',
+  gameMode: DraftGameMode = 'summoners-rift',
+  settings?: Partial<DraftSettings> | null,
+): string[] {
   if (category === 'champion') return DRAFT_CHAMPIONS.filter((champion) => !picks.some((pick) => pick.champion === champion.id)).map((champion) => champion.id);
   if (gameMode === 'aram' && category === 'lane') return [];
-  if (category === 'lane') return RANDODRAFT_LANES.filter((lane) => !picks.some((pick) => pick.lane === lane));
+  if (category === 'lane') {
+    const teamSize = draftPlayersPerTeam(settings);
+    const secondTeam = hasSecondTeam(settings);
+    const currentTeamStart = secondTeam ? Math.floor(picks.length / teamSize) * teamSize : 0;
+    const teamPicks = picks.slice(currentTeamStart, currentTeamStart + teamSize);
+    return RANDODRAFT_LANES.filter((lane) => !teamPicks.some((pick) => pick.lane === lane));
+  }
   if (randomBuildType === 'all') return ['Random'];
   return RANDODRAFT_TYPES.filter((type) => type !== 'Random' || randomBuildType === 'allow');
 }
@@ -106,9 +168,7 @@ export function canAddDraftItem(item: DraftItem, champion: DraftChampion, type: 
   return (item.modes?.includes(gameMode) ?? gameMode === 'summoners-rift')
     && (type === 'Random' || item.boots || item.types.includes(type))
     && (!item.attackType || champion.attackTypes.includes(item.attackType))
-    && !build.some((chosen) => chosen.id === item.id
-      || (chosen.boots && item.boots)
-      || chosen.groups.some((group) => item.groups.includes(group)));
+    && !build.some((chosen) => chosen.id === item.id || (chosen.boots && item.boots) || chosen.groups.some((group) => item.groups.includes(group)));
 }
 
 /** Six shuffled inventory slots; boots may sit outside the selected shop class. */
@@ -143,26 +203,33 @@ export function isValidDraftBuild(ids: readonly string[], champion: DraftChampio
 
 /** All locking and budget rules live here, independent of animation timing. */
 export function draftReducer(state: DraftState, action: DraftAction): DraftState {
-  if (action.type === 'resume') return action.state;
+  if (action.type === 'resume') {
+    const settings = normalizeDraftSettings(action.state.settings);
+    const total = draftTotalPicks(settings);
+    return {
+      ...action.state,
+      settings,
+      pickNames: Array.from({ length: total }, (_, index) => normalizeDraftPickName(action.state.pickNames?.[index] ?? `Pick ${index + 1}`, index)),
+    };
+  }
   if (action.type === 'lobby') return { ...state, phase: 'lobby' };
   if (action.type === 'start') {
-    return { ...createDraftState(), phase: 'drafting', settings: { ...action.settings }, current: emptyPick(action.settings.randomBuildType) };
+    const settings = normalizeDraftSettings(action.settings);
+    return { ...createDraftState(settings), phase: 'drafting', settings, current: emptyPick(settings.randomBuildType) };
   }
   if (state.phase !== 'drafting') return state;
   if (action.type === 'rename') {
-    if (!Number.isInteger(action.index) || action.index < 0 || action.index >= RANDODRAFT_TEAM_SIZE) return state;
+    const total = draftTotalPicks(state.settings);
+    if (!Number.isInteger(action.index) || action.index < 0 || action.index >= total) return state;
     const name = normalizeDraftPickName(action.name, action.index);
-    return {
-      ...state,
-      pickNames: state.pickNames.map((current, index) => index === action.index ? name : current),
-      picks: state.picks.map((pick, index) => index === action.index ? { ...pick, name } : pick),
-    };
+    return { ...state, pickNames: state.pickNames.map((current, index) => index === action.index ? name : current), picks: state.picks.map((pick, index) => index === action.index ? { ...pick, name } : pick) };
   }
   if (action.type === 'select') {
+    const categories = draftCategories(state.settings.gameMode);
     if (state.current[action.category] !== null
-      || !draftCategories(state.settings.gameMode).includes(action.category)
-      || !availableDraftValues(action.category, state.picks, state.settings.randomBuildType, state.settings.gameMode).includes(action.value)
-      || (action.manual && state.current.manualCategories.length >= state.settings.manualSelections)) return state;
+      || !categories.includes(action.category)
+      || !availableDraftValues(action.category, state.picks, state.settings.randomBuildType, state.settings.gameMode, state.settings).includes(action.value)
+      || (action.manual && state.current.manualCategories.length >= state.settings.manualSelections!)) return state;
     return {
       ...state,
       current: {
@@ -175,11 +242,10 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
   if (!isCompletePick(state.current, state.settings.gameMode)) return state;
   if (action.type === 'build') {
     const champion = DRAFT_CHAMPION_BY_ID.get(state.current.champion);
-    if (state.current.build || !champion
-      || !isValidDraftBuild(action.itemIds, champion, state.current.type, state.settings.gameMode)) return state;
+    if (state.current.build || !champion || !isValidDraftBuild(action.itemIds, champion, state.current.type, state.settings.gameMode)) return state;
     return { ...state, current: { ...state.current, build: [...action.itemIds] } };
   }
-  if (!state.current.build) return state;
+  if (!state.current.build || state.picks.length >= draftTotalPicks(state.settings)) return state;
   const picks = [...state.picks, { ...state.current, name: state.pickNames[state.picks.length] }];
-  return { ...state, picks, current: emptyPick(state.settings.randomBuildType), phase: picks.length === RANDODRAFT_TEAM_SIZE ? 'finished' : 'drafting' };
+  return { ...state, picks, current: emptyPick(state.settings.randomBuildType), phase: picks.length === draftTotalPicks(state.settings) ? 'finished' : 'drafting' };
 }

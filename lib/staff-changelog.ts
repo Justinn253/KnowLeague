@@ -17,6 +17,219 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-09-16-randodraft-share-and-icon-sizing',
+    patch: '2026.09.16-randodraft-share-and-icon-sizing',
+    timestamp: '2026-09-16T20:00:00.000Z',
+    title: 'Restored Randodraft short-link sharing and enlarged draft icons',
+    summary: 'Applied the pending short-share migration and updated completed-map and recent-draft champion icon sizing for clearer results.',
+    details: [
+      'Applied migration 133_randodraft_short_shares.sql to the linked Supabase database so POST /api/randodraft/share can persist compact seven-day references instead of returning a missing-relation error.',
+      'Increased completed-map champion icons by approximately 50 percent while retaining eager loading and icon-only overlays.',
+      'Increased recent-draft champion icons by approximately 40 percent and made single-team champion rows size to their content while preserving full-width two-team rows.',
+    ],
+    impact: [
+      'Copy link now has the durable short-share storage it expects, including anonymous seven-day retention.',
+      'Completed maps and recent drafts are easier to scan without changing hover, team coloring, or navigation behavior.',
+    ],
+    files: [
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'supabase/migrations/133_randodraft_short_shares.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npx supabase migration list confirmed migration 133 is applied remotely; npx supabase db push completed successfully.',
+      'npm run check passed: lint with existing unrelated img-element warnings, TypeScript, and 124 tests across 29 files.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-history-aram-slots',
+    patch: '2026.09.15-randodraft-history-aram-slots',
+    timestamp: '2026-09-15T22:00:00.000Z',
+    title: 'Added Randodraft browser history and fixed ARAM slot reuse',
+    summary: 'Randodraft now restores lobby, active, viewed, and shared states through browser navigation, while two-team ARAM overlays retain all five slots per team.',
+    details: [
+      'Starting, resuming, viewing a finished draft, and opening a shared draft now use play, view, and share URL states. popstate restores those states and session storage keeps locally viewed results available to forward navigation.',
+      'The in-app back control synchronously returns to the lobby and clears active timers while browser back and forward continue to restore the URL state.',
+      'Two-team ARAM map placement now indexes the selected slot within its team instead of wrapping against the number of teams, preventing picks three through five from reusing earlier positions.',
+      'Settings labels use readable category separators and the regression suite covers all ten distinct two-team ARAM overlay slots.',
+    ],
+    impact: [
+      'Players can use browser back and forward buttons while starting, resuming, and reviewing Randodraft games without losing the selected state.',
+      'Howling Abyss results display every team pick in the supplied lower-left and upper-right formations.',
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-results.tsx',
+      'tests/randodraft.test.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npx vitest run tests/randodraft.test.tsx passed: 11 tests.',
+      'npm run check passed: lint with existing unrelated img-element warnings, TypeScript, and 124 tests across 29 files; no production build was run while the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-aram-overlay-visibility',
+    patch: '2026.09.15-randodraft-aram-overlay-visibility',
+    timestamp: '2026-09-15T21:30:00.000Z',
+    title: 'Improved ARAM overlay visibility and history focus states',
+    summary: 'Eagerly loaded all completed-map champion icons and removed nested recent-draft focus borders.',
+    details: [
+      'Howling Abyss map champion icons now load eagerly so completed two-team drafts show every pick without waiting for lazy-image loading.',
+      'Recent draft header and combined champion-row buttons no longer draw their own click or focus ring; the outer draft item remains the visual hover target.',
+    ],
+    impact: [
+      'Players can verify all ARAM picks at a glance and recent drafts have a cleaner single-item interaction state.',
+    ],
+    files: [
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passed; no production build was run while the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-aram-map-layout',
+    patch: '2026.09.15-randodraft-aram-map-layout',
+    timestamp: '2026-09-15T20:45:00.000Z',
+    title: 'Aligned Howling Abyss team positions',
+    summary: 'Grouped ARAM overlays along the map diagonal with Team 1 in the lower-left and Team 2 in the upper-right.',
+    details: [
+      'Two-team ARAM results now use compact three-plus-two formations on each side of the Howling Abyss lane, matching the supplied reference layout.',
+      'Team positions remain icon-only and preserve the existing hover, keyboard, touch, and featured-pick behavior.',
+    ],
+    impact: [
+      'Howling Abyss results are easier to read at the same map size, with team picks no longer spread across or stacked on top of the map.',
+    ],
+    files: [
+      'components/randodraft-results.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passed; no production build was run while the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-map-calibration',
+    patch: '2026.09.15-randodraft-map-calibration',
+    timestamp: '2026-09-15T20:30:00.000Z',
+    title: 'Recalibrated Randodraft SummonerÃ¢â‚¬â„¢s Rift positions',
+    summary: 'Replaced mirrored lane coordinates with fixed role-specific slots that match the supplied map reference and keep all ten overlays separated.',
+    details: [
+      'Team 1 and Team 2 now use distinct points along the top, jungle, mid, and bottom-side paths instead of mirrored coordinates that placed picks on the wrong lane side.',
+      'Bot and support positions are grouped along the lower-right path while the two junglers occupy separate upper and lower central positions, preventing overlay collisions.',
+    ],
+    impact: [
+      'Completed two-team SummonerÃ¢â‚¬â„¢s Rift drafts now present champion icons in the intended map locations and remain readable at the compact map size.',
+    ],
+    files: [
+      'components/randodraft-results.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passed; no production build was run while the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-share-map-polish',
+    patch: '2026.09.15-randodraft-share-map-polish',
+    timestamp: '2026-09-15T19:30:00.000Z',
+    title: 'Polished Randodraft map overlays, sharing, and history',
+    summary: 'Corrected red/blue map positions, simplified overlays to champion icons, added expiring short share references, and made recent drafts open directly.',
+    details: [
+      'Completed maps now use explicit red-side Team 1 and blue-side Team 2 lane coordinates, with offset mid positions and compact icon-only overlays to prevent labels and lane markers from colliding.',
+      'Share creation stores validated completed drafts in a service-role-only table behind UUID references. References expire after seven days, are pruned hourly when pg_cron is available, and legacy encoded links remain readable during migration.',
+      'Copy actions display a temporary check icon. PNG exports include the KnowLeague - Randodraft title, champion icons, build item icons, and local lane/class icons.',
+      'Recent drafts no longer expand inline; clicking a draft restores its completed screen. Two-team history and pick lists identify red-side Team 1 and blue-side Team 2 with separate rows and color treatments.',
+      'The short-share migration is emitted as BOM-free UTF-8 SQL so Supabase CLI applies it without a syntax error.',
+    ],
+    impact: [
+      'Shared links are short and do not expose the draft payload in the URL; expired guest share records are removed from the database.',
+      'Players can inspect historical drafts immediately and distinguish team sides in both the team panel and completed pick list.'
+    ],
+    files: [
+      'app/api/randodraft/share/route.ts',
+      'app/api/randodraft/share/[id]/route.ts',
+      'supabase/migrations/133_randodraft_short_shares.sql',
+      'components/randodraft.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'components/randodraft-team.tsx',
+      'docs/randodraft.md',
+      'tests/randodraft.test.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passes: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passes; no production build was run while the dev server was active.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-controls-results',
+    patch: '2026.09.15-randodraft-controls-results',
+    timestamp: '2026-09-15T18:30:00.000Z',
+    title: 'Refined Randodraft controls and completed results',
+    summary: 'Reworked team settings controls, animated Quick Roll feedback, compacted multi-team map cards, and changed sharing actions to direct copy.',
+    details: [
+      'Players per team is now selected with five inline buttons, while Quick Roll and One Team/Two Teams use paired responsive controls with clear selected states.',
+      'Quick Roll hides the per-pick heading and presents Spin All progress with an animated indicator while retaining the one-second sequential draft cadence.',
+      'Completed SummonerÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Rift and ARAM maps align to the top of the results grid; two-team cards use compact sizing and dedicated ARAM rows to prevent overlap, and Other Picks rows are color coded by team.',
+      'Recent draft and completed draft actions now copy links or PNG images directly when supported, with image download as a compatibility fallback; the extra recent-draft icon and raw link display were removed.'
+    ],
+    impact: [
+      'Draft configuration is faster to scan and operates consistently on narrow and wide layouts.',
+      'Shared results can be copied directly for pasting into chats and documents without opening a browser share sheet.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passed; no production build was run while the dev server was active.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-teams-quick-roll-sharing',
+    patch: '2026.09.15-randodraft-teams-quick-roll-sharing',
+    timestamp: '2026-09-15T17:00:00.000Z',
+    title: 'Added Randodraft team settings, Quick Roll, and sharing',
+    summary: 'Added configurable team sizes, optional mirrored second teams, timed Quick Roll, completed-draft link/image sharing, and seven-day guest draft retention.',
+    details: [
+      'The lobby now supports one to five players per team, an optional second team, and Quick Roll. Legacy settings and saved drafts normalize to one five-player team with Quick Roll disabled.',
+      'Quick Roll replaces the category and build spinners with Spin All and fills each pick in order at one-second intervals, including the same champion, lane/class, build legality, uniqueness, and ARAM rules as manual drafting.',
+      'Two-team drafts render Team 1 and Team 2 in separate rows, permit lane reuse across teams while retaining per-team lane uniqueness, and mirror the second team positions on completed maps.',
+      'Completed drafts can be shared through compact validated links or exported PNG images. Guest completed drafts are stored only in browser storage and pruned after seven days; shared guest links expire on the same retention window.',
+      'Account history validation and the history RPC now accept the selected player count and total picks while continuing to retain at most five completed drafts per account.'
+    ],
+    impact: [
+      'Players can create smaller custom drafts, run both sides of a matchup, finish a draft quickly, and share results without requiring recipients to sign in.',
+      'Guest draft history remains local to the browser; no guest identity or draft payload is sent to the backend.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-team.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'components/use-randodraft-history.ts',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'lib/randodraft-progress.ts',
+      'lib/randodraft-share.ts',
+      'supabase/migrations/132_randodraft_team_settings.sql',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'Full npm run check passes: lint, TypeScript, and 123 tests across 29 files; lint retains only the existing unrelated img-element warnings. Focused reducer coverage includes configurable two-team lane reuse. No production build was run while the dev server was active.'
+    ]
+  },
+
+  {
     id: 'patch-2026-09-12-randodraft-game-modes',
     patch: '2026.09.12-randodraft-game-modes',
     timestamp: '2026-09-12T02:20:00.000Z',
@@ -350,13 +563,13 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     summary: 'Skin Champion now narrows autocomplete suggestions to skin lines associated with an exact champion-name query while preserving normal substring search for partial input.',
     details: [
       'Extended the existing skin-line answer endpoint with a server-generated champion-to-skin-line map built from the same transformed catalogue used to generate quiz answers, including skin-line overrides and omitted-line handling.',
-      'The Skin Champion client normalizes the input and applies the champion map only when the full normalized query exactly matches a champion name. Queries such as “Yasu” continue to search all skin-line answers by substring, while “Yasuo” searches only Yasuo’s associated skin lines.',
+      'The Skin Champion client normalizes the input and applies the champion map only when the full normalized query exactly matches a champion name. Queries such as ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œYasuÃƒÂ¢Ã¢â€šÂ¬Ã‚Â continue to search all skin-line answers by substring, while ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œYasuoÃƒÂ¢Ã¢â€šÂ¬Ã‚Â searches only YasuoÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s associated skin lines.',
       'Kept answer submission unchanged: entering a champion name narrows the list but does not make the champion itself a valid skin-line answer.',
       'No quiz item selection, scoring, difficulty behavior, multiplayer state, authentication, or catalogue records were changed.',
     ],
     impact: [
       'Players can use a known champion name to quickly find the relevant skin lines without losing the existing partial-text autocomplete behavior.',
-      'Champion filtering stays aligned with the server’s authoritative Skin Champion answer transformations and full catalogue.',
+      'Champion filtering stays aligned with the serverÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s authoritative Skin Champion answer transformations and full catalogue.',
     ],
     files: [
       'app/api/skin-champion/quiz-answers/route.ts',
@@ -405,9 +618,9 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     summary: 'Prevented stale Splash Scramble daily resumes, hid blocked quiz progress artwork, kept Carving Revelation in its create/join flow, and improved Skincognito guess history, scrolling, and turn-aware input.',
     details: [
       'Splash Scramble now validates the saved round mode and UTC date key whenever a daily round is read, loaded from profile state, or resumed. Solved, expired, and stale-date daily candidates are not offered as Resume Daily, and locally stored stale or expired entries are removed.',
-      'Ability Blitz and Skin Champion now apply each difficulty’s upcoming-visibility rule to round progress artwork: Iron shows pending artwork, Gold keeps its blurred preview, and Diamond, Challenger, and Chaos omit pending ability or skin images entirely.',
+      'Ability Blitz and Skin Champion now apply each difficultyÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s upcoming-visibility rule to round progress artwork: Iron shows pending artwork, Gold keeps its blurred preview, and Diamond, Challenger, and Chaos omit pending ability or skin images entirely.',
       'Carving Revelation now leaves a waiting lobby without routing away, so the existing page returns directly to its create/join lobby screen. The active and finished game leave behavior remains unchanged.',
-      'Skincognito now renders the complete guess action history, scrolls the guess panel to the bottom whenever the action list changes regardless of its prior scroll position, and lets a non-spectating player browse categories and autofill suggestions during the other player’s turn without enabling submission.',
+      'Skincognito now renders the complete guess action history, scrolls the guess panel to the bottom whenever the action list changes regardless of its prior scroll position, and lets a non-spectating player browse categories and autofill suggestions during the other playerÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s turn without enabling submission.',
       'No API contracts, server-side turn validation, catalogue data, authentication behavior, or persisted user-authored data were changed.',
     ],
     impact: [
@@ -462,7 +675,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     title: 'Added opt-in Skindle clue filtering and grouped suggestions',
     summary: 'Made Skindle autocomplete clue filtering optional, excluded subjective role clues from that filter, and grouped results by champion with chronological release ordering.',
     details: [
-      'Added an off-by-default “Filter dropdown results based on guesses” switch directly below the Skindle guess input. When enabled, autocomplete applies the previously revealed exact and partial clue constraints; when disabled, it returns all unguessed skin matches as before.',
+      'Added an off-by-default ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œFilter dropdown results based on guessesÃƒÂ¢Ã¢â€šÂ¬Ã‚Â switch directly below the Skindle guess input. When enabled, autocomplete applies the previously revealed exact and partial clue constraints; when disabled, it returns all unguessed skin matches as before.',
       'Removed Role from autocomplete clue filtering because role assignments can be subjective. Role still compares and displays normally on reveal cards, and all other exact or partial filterable columns retain their constraints.',
       'Grouped the bounded autocomplete result set by champion name in alphabetical order and sorted each champion group from oldest to newest by release date, with undated skins placed after dated skins and stable answer/id tie-breakers.',
       'Kept the existing 12-result cap, one-row overscan rendering, direct-CDN thumbnail delivery, answer validation, daily state, and stats behavior unchanged.',
@@ -470,7 +683,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     impact: [
       'Players can choose whether revealed clues should narrow autocomplete results instead of having that behavior forced on every round.',
       'Subjective Role clues no longer hide potentially valid skin answers when clue filtering is enabled.',
-      'Players can scan matching skins more easily because related champion results are adjacent and each champion’s skins follow release chronology.',
+      'Players can scan matching skins more easily because related champion results are adjacent and each championÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s skins follow release chronology.',
     ],
     files: [
       'components/skindle.tsx',
@@ -1353,7 +1566,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     patch: '2026.08.11-lav-title-and-runtime-optimization-pass',
     timestamp: '2026-08-11T19:06:10.4773836Z',
     title: 'Restored patch release titles and optimized LAV delivery',
-    summary: 'Restored Riot’s descriptive patch-release titles and reduced repeat parsing, duplicate requests, unnecessary image transformation work, and client-side patch-search races across the League Account Viewer.',
+    summary: 'Restored RiotÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s descriptive patch-release titles and reduced repeat parsing, duplicate requests, unnecessary image transformation work, and client-side patch-search races across the League Account Viewer.',
     details: [
       'Extended RiotPatchNoteSummary with a nullable descriptive title field parsed from the official release-list anchor while preserving normalized patch number, UTC publication date, article title, canonical href, and safe slug metadata. Patch list and search headings now render the descriptive release title after the requested League of Legends Patch/date prefix; the browser session-cache key was versioned so older incomplete summaries are not reused.',
       'Added bounded 15-minute server memoization and in-flight request deduplication for the Riot patch summary list and individual parsed article details, plus five-minute normalized-query memoization and in-flight deduplication for patch change searches. Existing six-hour Next fetch revalidation and short public response cache headers remain in place as the cross-instance cache layer.',
@@ -1361,7 +1574,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Converted the local LAV mastery crest and level-plate image elements to next/image with fixed dimensions, while retaining direct delivery for small immutable Data Dragon and CommunityDragon icons through the shared GameIconImage unoptimized contract. Added browser content-visibility for long patch detail bodies and abortable inline patch searches to prevent stale results and reduce offscreen rendering work.',
     ],
     impact: [
-      'Patch history rows once again show Riot’s descriptive release tagline instead of repeating the generic “League of Legends Patch X Notes” label.',
+      'Patch history rows once again show RiotÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s descriptive release tagline instead of repeating the generic ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œLeague of Legends Patch X NotesÃƒÂ¢Ã¢â€šÂ¬Ã‚Â label.',
       'Repeated patch history, detail, and search requests can reuse parsed server data without refetching or reparsing the same content within the bounded TTLs; concurrent requests for the same resource share one promise.',
       'LAV account payloads remain protected from shared HTTP caching, while non-sensitive patch-note content continues to use public caching. Small remote game icons avoid unnecessary Vercel transformation variants and local mastery assets now use the framework image pipeline.',
     ],
@@ -1717,7 +1930,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     impact: [
       'Community posts are easier to scan vertically and reply relationships remain discoverable without a visually indented tree.',
       'Users can quickly identify when content was posted and jump directly to the comment being referenced.',
-      'The profile Favor value reflects reactions received across the user’s posts and authored comment threads.',
+      'The profile Favor value reflects reactions received across the userÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s posts and authored comment threads.',
     ],
     files: [
       'components/riftbound-community-post.tsx',
@@ -1988,7 +2201,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Users no longer see an oversized duplicate card catalogue below the binder catalogue.',
       'Adding a card by click is fast and deterministic, while right-click provides compact page-specific placement without a long dropdown.',
       'Repeated binder changes no longer issue a network mutation for every add, move, or removal; users can review the binder and commit it once.',
-      'Binder page navigation uses the browser’s native horizontal scrolling behavior without the removed custom drag-scroll gesture.',
+      'Binder page navigation uses the browserÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s native horizontal scrolling behavior without the removed custom drag-scroll gesture.',
     ],
     files: [
       'app/api/riftbound/binders/route.ts',
@@ -2009,8 +2222,8 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     title: 'Refined Riftbound binder placement menus and binder drag performance',
     summary: 'Improved binder card placement controls, constrained shared binder pages to the centered layout shell, linked shared creators to their Riftbound profiles, and removed catalogue rerenders during binder-card drags.',
     details: [
-      'Added the exact “Add to binder #” header and a mobile-only Close action to the centered right-click page picker, while retaining page availability, page-name tooltips, and the compact 4-by-5 page grid.',
-      'Replaced each catalogue card’s Drag to place text with an explicit Add to binder button that uses the existing first-available-slot behavior; right-click remains available for choosing a specific page.',
+      'Added the exact ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œAdd to binder #ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â header and a mobile-only Close action to the centered right-click page picker, while retaining page availability, page-name tooltips, and the compact 4-by-5 page grid.',
+      'Replaced each catalogue cardÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Drag to place text with an explicit Add to binder button that uses the existing first-available-slot behavior; right-click remains available for choosing a specific page.',
       'Added min-width and horizontal overflow containment to the shared binder page shell so its scrollable page strip cannot stretch the surrounding share page beyond the centered content area.',
       'Removed the shared binder read-only and created-date notes, and made the shared-by username link to /riftbound/profile/[username] using the existing encoded profile route.',
       'Separated catalogue-drag state from binder-card-drag state so moving a card inside the binder no longer rerenders the full catalogue. Binder slot hover state now updates only when the target slot changes, while the memoized page and catalogue card components skip unrelated drag updates.',
@@ -2018,7 +2231,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     ],
     impact: [
       'Users can identify the placement menu, close it comfortably on mobile, and add cards through a clear labelled control.',
-      'Shared binder links remain centered and provide direct navigation to the creator’s Riftbound profile.',
+      'Shared binder links remain centered and provide direct navigation to the creatorÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Riftbound profile.',
       'Dragging existing binder cards should remain responsive even with a large catalogue loaded below the binder.',
     ],
     files: [
@@ -2340,11 +2553,11 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Added a durable master-set Riftbound share kind, snapshot builder, share normalization support, and migration 124 to extend the shared snapshot kind constraint without changing existing collection, deck, or binder share behavior.',
       'Added a read-only shared Master Set page with the sharer username/profile link, print/PDF action, shared card progress, card details, and an authenticated Compare with my Master Set action.',
       'Added a side-by-side Master Set comparison modal that keeps both inventories in identical set/card order and reports acquired or missing status for each card.',
-      'Added a Master Set section to Riftbound public profiles with the same search, visibility, rarity-sort, expand/collapse, and selected-card behavior, plus Compare with my Master Set for another user’s profile.',
+      'Added a Master Set section to Riftbound public profiles with the same search, visibility, rarity-sort, expand/collapse, and selected-card behavior, plus Compare with my Master Set for another userÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s profile.',
       'Kept Master Set card artwork on the shared unoptimized/high-resolution RiftboundCardImage path so Next/Vercel image transformations are not introduced.',
     ],
     impact: [
-      'Users can review their Master Set progressively, share a durable read-only snapshot, compare against a shared snapshot, and compare against another user’s public Master Set.',
+      'Users can review their Master Set progressively, share a durable read-only snapshot, compare against a shared snapshot, and compare against another userÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s public Master Set.',
       'Shared Master Set links preserve the existing Riftbound share URL infrastructure and deduplication behavior while remaining read-only for viewers.',
     ],
     files: [
@@ -2362,8 +2575,8 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'tests/riftbound-master-set.test.ts',
     ],
     verification: [
-      'npm run check passed: lint retained only the repository’s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
-      'git diff --check completed with only the repository’s existing Git LF-to-CRLF normalization warnings.',
+      'npm run check passed: lint retained only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
+      'git diff --check completed with only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing Git LF-to-CRLF normalization warnings.',
       'Migration 124 was created but not pushed to Supabase; applying it remains an explicit deployment operation.',
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
@@ -2379,7 +2592,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Removed Inventory and Print / Save PDF controls from the shared Master Set header while retaining authentication access to comparison and the sharer profile link.',
       'Added a shared-view-specific Master Set heading using the sharer username and removed the explanatory acquisition sentence from the shared view.',
       'Changed comparison column labels to plain usernames/You, added a comparison search field, and made each set section independently expandable or collapsible; matching sections auto-open for search results while remaining manually collapsible.',
-      'Grouped base cards with their A-suffixed foil/showcase variants in the comparison rows, preserving set/card order and displaying each grouped variant’s status side by side for both collections.',
+      'Grouped base cards with their A-suffixed foil/showcase variants in the comparison rows, preserving set/card order and displaying each grouped variantÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s status side by side for both collections.',
     ],
     impact: [
       'Sharing a Master Set is now a single-click copy workflow with immediate feedback.',
@@ -2394,8 +2607,8 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'lib/staff-changelog.ts',
     ],
     verification: [
-      'npm run check passed: lint retained only the repository’s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
-      'git diff --check completed with only the repository’s existing Git LF-to-CRLF normalization warnings.',
+      'npm run check passed: lint retained only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
+      'git diff --check completed with only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing Git LF-to-CRLF normalization warnings.',
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
@@ -2421,7 +2634,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'lib/staff-changelog.ts',
     ],
     verification: [
-      'npm run check passed: lint retained only the repository’s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
+      'npm run check passed: lint retained only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
@@ -2640,7 +2853,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     patch: '2026.08.17-riftbound-market-history-restoration',
     timestamp: '2026-08-17T20:40:27.6958401Z',
     title: 'Restored Riftbound market history after canonical reset',
-    summary: 'Fixed the historical importer’s rolling daily window and repopulated canonical Riftbound market snapshots so current prices and value charts resolve again.',
+    summary: 'Fixed the historical importerÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s rolling daily window and repopulated canonical Riftbound market snapshots so current prices and value charts resolve again.',
     details: [
       'Diagnosed the empty production snapshot table after migration 126: the canonical latest-price RPC returned zero rows, so the application correctly fell back to generated catalogue values while history had no database data to render.',
       'Changed the historical importer to calculate its daily window from the requested --to date. The most recent 90 days are now stored as daily rows for 30-day and 90-day charts, while older requested dates are retained as monthly peak rows for longer ranges.',
@@ -2740,12 +2953,12 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     title: 'Added a privacy settings reopen control',
     summary: 'Added a persistent footer control that lets visitors reopen the published Google consent settings after their initial decision.',
     details: [
-      'Added a focused client component that calls Google Funding Choices’ revocation callback when the published CMP is available, while safely doing nothing if the external consent runtime has not initialized.',
+      'Added a focused client component that calls Google Funding ChoicesÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ revocation callback when the published CMP is available, while safely doing nothing if the external consent runtime has not initialized.',
       'Added the control beside the existing Privacy Policy and Terms of Service links in the shared site footer; consent choices and persistence remain owned by the Google CMP rather than duplicated in application storage.',
     ],
     impact: [
       'Visitors can return to their privacy and cookie choices from any page after the initial consent decision.',
-      'The application does not create a second consent state that could conflict with Google’s TCF record.',
+      'The application does not create a second consent state that could conflict with GoogleÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s TCF record.',
     ],
     files: [
       'components/privacy-settings-button.tsx',
@@ -2769,7 +2982,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'If the Splash Scramble leaderboard RPC fails, the server now reads the same daily entries and profile fields through the service-role table path, applies the RPC-equivalent score/moves/time/completion ordering, and preserves top-50 plus current-user behavior. The original database error is still returned if both paths fail.',
     ],
     impact: [
-      'New daily Splash Scramble rounds no longer intentionally reuse the current day’s Skindle skin when an alternate catalog skin exists.',
+      'New daily Splash Scramble rounds no longer intentionally reuse the current dayÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Skindle skin when an alternate catalog skin exists.',
       'Players can identify skin release dates while searching the Skindle answer list.',
       'Transient RPC failures and schema/permission rollout gaps no longer immediately surface as an Unexpected API error when the underlying leaderboard tables remain readable.',
       'No Skindle champion lane values were changed; the lane audit remains a report-only investigation pending product approval.',
@@ -2783,9 +2996,9 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'lib/staff-changelog.ts',
     ],
     verification: [
-      'npm run lint passed with the repository’s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; no new lint errors were reported.',
+      'npm run lint passed with the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; no new lint errors were reported.',
       'npx tsc --noEmit --incremental false passed.',
-      'npm run check passed: lint retained the repository’s existing img-element warnings, typecheck passed, and 47 tests passed across 17 test files.',
+      'npm run check passed: lint retained the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings, typecheck passed, and 47 tests passed across 17 test files.',
     ],
   },
   {
@@ -2920,7 +3133,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Carving Revelation lobby views now redact secret_skin_id and skin metadata while a match is active. Active splash access remains available only through the connected-player-checked skin-image route; finished views continue to reveal the answer and image.',
       'Corrected reconnect eligibility consumption to use the domain response fields and reconnect deadline, and allowed eligible existing active players to rejoin through the normal join command while continuing to reject expired, eliminated, or invalid reconnects.',
       'Made first-correct resolution deterministic from the persisted action identity, marked non-winners eliminated at match completion, and removed the previous fallback that selected an arbitrary connected player as a winner when everyone forfeited. Pending reconnect windows now prevent premature give-up/phase completion.',
-      'Returned the submitting player’s authoritative guess action in non-terminal responses, aligned client skip-turn UI with server-validated non-conflicted power-up claims, and kept Insight power-up coordinates private to their owner.',
+      'Returned the submitting playerÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s authoritative guess action in non-terminal responses, aligned client skip-turn UI with server-validated non-conflicted power-up claims, and kept Insight power-up coordinates private to their owner.',
       'Updated Carving Revelation navigation fallback destinations to /games and documented the phase/secret-data contract in docs/architecture.md.',
     ],
     impact: [
@@ -2937,7 +3150,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'tests/carving-revelation-rules.test.ts',
     ],
     verification: [
-      'npm run lint passed with only the repository’s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
+      'npm run lint passed with only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
       'npm run typecheck passed.',
       'npm run test:run passed: 51 tests across 18 test files, including four new Carving Revelation rules/security regression tests.',
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
@@ -3097,7 +3310,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Normalized lane metadata separators from slash-delimited values such as Top/Jungle/Middle/Support to comma-separated values and enabled word breaking in desktop and mobile result cells so long lane lists can wrap instead of clipping at a slash.',
     ],
     impact: [
-      'Production Skindle stats no longer depend on Vercel’s non-durable/read-only application filesystem and can be updated safely by concurrent serverless requests after migration 130 is applied.',
+      'Production Skindle stats no longer depend on VercelÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s non-durable/read-only application filesystem and can be updated safely by concurrent serverless requests after migration 130 is applied.',
       'Unauthenticated players can continue contributing anonymous global guesses; a missing database migration now reports a non-sensitive 503 rather than a generic server exception.',
       'Skindle lane comparison remains equivalent while the displayed lane list is readable on narrow result cells.',
     ],
@@ -3148,16 +3361,16 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     patch: '2026.08.21-autocomplete-image-transformations',
     timestamp: '2026-08-21T19:01:30.2411344Z',
     title: 'Reduced responsive and autocomplete image transformations',
-    summary: 'Removed Skindle’s duplicate desktop/mobile guess-image mount and bounded image-backed autocomplete searches across Skindle, Splash Scramble, and Skincognito.',
+    summary: 'Removed SkindleÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s duplicate desktop/mobile guess-image mount and bounded image-backed autocomplete searches across Skindle, Splash Scramble, and Skincognito.',
     details: [
-      'Replaced Skindle’s separate mobile and desktop guess-row components with one responsive row that contains one shared GameSplashImage element per guess. The desktop grid and mobile category layout remain responsive, and latest-guess scrolling now follows the single shared row reference.',
+      'Replaced SkindleÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s separate mobile and desktop guess-row components with one responsive row that contains one shared GameSplashImage element per guess. The desktop grid and mobile category layout remain responsive, and latest-guess scrolling now follows the single shared row reference.',
       'Splash Scramble skin search now waits for three characters, caps results at 12, and uses one overscan row instead of four. This prevents broad one- and two-character searches from mounting up to 15 new splash thumbnails on every keystroke.',
-      'Skindle autocomplete now waits for three characters, caps results at 12, and uses one overscan row instead of four. Skincognito’s skin-selection and skin-guess dropdowns now wait for three characters and cap image-backed results at eight; non-skin category suggestions remain text-only and unchanged.',
+      'Skindle autocomplete now waits for three characters, caps results at 12, and uses one overscan row instead of four. SkincognitoÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s skin-selection and skin-guess dropdowns now wait for three characters and cap image-backed results at eight; non-skin category suggestions remain text-only and unchanged.',
       'Kept large selected, target, preview, board-reference, and completed-game artwork optimized. No global unoptimized override was added, avoiding a transformation reduction that would instead download the original large splash source for every thumbnail.',
     ],
     impact: [
       'A normal Skindle guess no longer mounts separate mobile and desktop optimized splash variants; the browser selects one responsive image variant for the shared row.',
-      'Splash Scramble searches such as a → am → amu no longer transform images for the first two broad queries. The likely 37-transformation pattern from the reported test should be bounded to the matching results after the third character, with at most nine initial thumbnails mounted.',
+      'Splash Scramble searches such as a ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ am ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ amu no longer transform images for the first two broad queries. The likely 37-transformation pattern from the reported test should be bounded to the matching results after the third character, with at most nine initial thumbnails mounted.',
       'Image-backed dropdowns remain available, but require a more specific query and expose bounded result sets, reducing transformation spikes while preserving skin selection and guessing behavior.',
     ],
     files: [

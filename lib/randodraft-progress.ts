@@ -1,4 +1,8 @@
-import { createDraftState, draftCategories, draftReducer, RANDODRAFT_TEAM_SIZE, RANDODRAFT_VERSION, type DraftCategory, type DraftGameMode, type DraftPick, type DraftState } from '@/lib/randodraft';
+import {
+  createDraftState, draftCategories, draftReducer, draftTotalPicks, DRAFT_PICK_NAME_MAX_LENGTH,
+  normalizeDraftSettings, RANDODRAFT_VERSION,
+  type DraftCategory, type DraftPick, type DraftState,
+} from '@/lib/randodraft';
 
 export type SavedRandodraft = { id: string; version: string; savedAt: string; state: DraftState };
 export const randodraftProgressKey = (userId: string | null) => 'knowleague:randodraft:progress:v1:' + (userId ?? 'guest');
@@ -12,17 +16,19 @@ export function parseSavedRandodraft(value: unknown): SavedRandodraft | null {
     || !input || input.phase !== 'drafting' || !input.settings
     || ![0, 1, 2].includes(input.settings.manualSelections) || !['none', 'allow', 'all'].includes(input.settings.randomBuildType)
     || (input.settings.gameMode !== undefined && !['summoners-rift', 'aram'].includes(input.settings.gameMode))
-    || !Array.isArray(input.picks) || input.picks.length >= RANDODRAFT_TEAM_SIZE
-    || !Array.isArray(input.pickNames) || input.pickNames.length !== RANDODRAFT_TEAM_SIZE
-    || input.pickNames.some((name) => typeof name !== 'string' || name.length > 32)) return null;
-  const gameMode: DraftGameMode = input.settings.gameMode === 'aram' ? 'aram' : 'summoners-rift';
-  let state = draftReducer(createDraftState(), { type: 'start', settings: {
-    gameMode, manualSelections: input.settings.manualSelections, randomBuildType: input.settings.randomBuildType,
-  } });
-  for (let index = 0; index < RANDODRAFT_TEAM_SIZE; index++) {
-    state = draftReducer(state, { type: 'rename', index, name: input.pickNames[index] });
-  }
-  const categories: DraftCategory[] = draftCategories(gameMode);
+    || (input.settings.playersPerTeam !== undefined && ![1, 2, 3, 4, 5].includes(input.settings.playersPerTeam))
+    || (input.settings.quickRoll !== undefined && typeof input.settings.quickRoll !== 'boolean')
+    || (input.settings.secondTeam !== undefined && typeof input.settings.secondTeam !== 'boolean')
+    || !Array.isArray(input.picks) || !Array.isArray(input.pickNames)
+    || input.pickNames.some((name) => typeof name !== 'string' || name.length > DRAFT_PICK_NAME_MAX_LENGTH)
+    || !input.current) return null;
+  const settings = normalizeDraftSettings(input.settings);
+  const total = draftTotalPicks(settings);
+  if (input.picks.length >= total || input.pickNames.length !== total) return null;
+
+  let state = draftReducer(createDraftState(settings), { type: 'start', settings });
+  for (let index = 0; index < total; index++) state = draftReducer(state, { type: 'rename', index, name: input.pickNames[index] });
+  const categories: DraftCategory[] = draftCategories(settings.gameMode);
   function replay(pick: DraftPick): boolean {
     if (!pick || !Array.isArray(pick.manualCategories)
       || new Set(pick.manualCategories).size !== pick.manualCategories.length

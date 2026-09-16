@@ -4,7 +4,7 @@ Solo drafting at `/randodraft`; navigation follows Splash Scramble in the hub an
 
 ## First-draft rules
 
-- Choose Summoner's Rift or ARAM in the lobby. Summoner's Rift drafts five unique champions and five unique lanes; ARAM drafts five unique champions without lanes.
+- Choose Summoner's Rift or ARAM in the lobby. Each team can have one to five players; Summoner's Rift assigns unique lanes within each team, while ARAM drafts without lanes. An optional second team drafts after Team 1; completed maps place Team 1 on red side and Team 2 on blue side.
 - The manual allowance (0–2, default 0) resets per pick and counts categories, not rerolls. Unused allowances do not carry forward. Every manual choice or spin locks that category.
 - Build types use Riot item-shop class memberships from mItemAttributes: Fighter (1), Marksman (2), Assassin (4), Tank (8), Mage (16), and Support (32). Items can belong to multiple classes; stats and icon filenames do not determine membership. The generated catalogue retains the source flags for auditing.
 - Random Build Type defaults to No random build types (the six shop classes only). Allow random build types adds Random; All build types are random restricts every pick to Random. Random builds can mix item types while preserving equipment restrictions.
@@ -13,18 +13,18 @@ Solo drafting at `/randodraft`; navigation follows Splash Scramble in the hub an
 - No consumables, trinkets, wards, mode variants, champion-only upgrades, or quest-only items.
 - Item IDs cannot repeat; all source item groups limited to one are enforced (including boots, Hydra, Lifeline, Tear, and penetration groups). Purchase identities exclude ranged-only items from melee champions; shapeshifters can use either supported attack form.
 - Rapid Firecannon follows the source purchase rules and is available to ranged champions. Runaan's Hurricane requires a ranged form.
-- The completed view uses Summoner's Rift for SR drafts and Howling Abyss for ARAM drafts. Both maps support hover, keyboard focus, and touch selection.
-- Active draft state is saved in browser localStorage after committed choices, name edits, and every completed pick. A lobby Resume Randodraft card restores validated progress after navigating away or refreshing. Account and guest snapshots use separate keys. Back returns to settings; starting again resets the draft. Completed drafts are saved for the account that started and finished the draft, keeping the five latest entries. Guests do not save history. There is no score or leaderboard.
-- Account history requires migration 131_randodraft_history.sql (prepared locally, not pushed by this change). The private table and atomic storage function are service-role-only; /api/randodraft/history validates bearer authentication and draft rules. Saves use stable draft IDs for retries and database completion timestamps.
-- The lobby places settings and Play on the left, recent expandable draft cards on the right, using Ability Blitz proportions.
+- The completed view uses Summoner's Rift for SR drafts and Howling Abyss for ARAM drafts. Map overlays show champion icons only, with explicit red-side Team 1 and blue-side Team 2 positions. Both maps support hover, keyboard focus, and touch selection.
+- Active draft state is saved in browser localStorage after committed choices, name edits, and every completed pick. A lobby Resume Randodraft card restores validated progress after navigating away or refreshing. Account and guest snapshots use separate keys. Back returns to settings; starting again resets the draft. Account history keeps five latest entries, while guest completed drafts stay in browser storage and expire after seven days. Recent drafts open directly into their completed view. Share links use short database references that expire and are pruned after seven days; copied images include champion, build, lane, and class icons. There is no score or leaderboard.
+- Account history and short shares require migrations 131_randodraft_history.sql, 132_randodraft_team_settings.sql, and 133_randodraft_short_shares.sql (prepared locally, not pushed by this change). The private table and atomic storage function are service-role-only; /api/randodraft/history validates bearer authentication and draft rules. Saves use stable draft IDs for retries and database completion timestamps.
+- The lobby places settings and Play on the left, recent clickable draft cards on the right, using Ability Blitz proportions. Two-team history cards show red-side Team 1 and blue-side Team 2 on separate rows.
 
 ## Gameplay controls
 
 - Team slots have editable labels during drafting (32 characters maximum), retained in completed drafts and account history.
-- Summoner's Rift can spin Champion, Lane, and Class simultaneously. ARAM hides Lane and spins Champion and Class. Next/Finish waits for every active spin and a locked build. New picks remount the working controls; completed picks stay in Your team.
+- Summoner's Rift can spin Champion, Lane, and Class simultaneously. ARAM hides Lane and spins Champion and Class. Next/Finish waits for every active spin and a locked build. New picks remount the working controls; completed picks stay in the team panel. Quick Roll replaces the controls with Spin All and completes picks in order one second apart.
 - Manual choices replace the reel/control area. The same button restores it. Locked cards turn green, and reels preserve their landed neighbors.
 - Rolled items appear below the lane/class in Your team, with shared custom name notes on hover or keyboard focus.
-- Build previews are decorative. The winning build is generated when Spin is clicked: eligible boots and five randomly sampled eligible items, recalculating restrictions after each choice and then shuffling all six positions. There are no authored build sets or synergy rules, and full six-item combinations are not sampled uniformly.
+- Build previews are decorative. The winning build is generated when Spin is clicked or by Quick Roll: eligible boots and five randomly sampled eligible items, recalculating restrictions after each choice and then shuffling all six positions. There are no authored build sets or synergy rules, and full six-item combinations are not sampled uniformly.
 
 ## Maintenance
 

@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 import { withApiMetrics } from '@/lib/api-metrics';
 import { ApiError, getRouteErrorResponse } from '@/lib/api-utils';
 import { parseDraftHistoryInput } from '@/lib/randodraft-history';
-import { getSupabaseServiceClient } from '@/lib/supabaseClient';
+import { randodraftShareStoreConfigured, readRandodraftShare, type StoredRandodraftShare } from '@/lib/randodraft-share-store';
 
 export const runtime = 'nodejs';
 
-type ShareRow = { id: string; draft: unknown; completed_at: string; expires_at: string };
+const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{16,64}$/;
 
 export const GET = withApiMetrics('/api/randodraft/share/[id]', async function GET(
   _request: Request,
@@ -14,24 +14,25 @@ export const GET = withApiMetrics('/api/randodraft/share/[id]', async function G
 ) {
   try {
     const id = context.params.id;
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-      throw new ApiError(404, 'Share not found.');
+    if (!SHARE_ID_PATTERN.test(id)) throw new ApiError(404, 'Share not found.');
+    if (!randodraftShareStoreConfigured()) throw new ApiError(503, 'Share storage is unavailable.');
+
+    let stored: StoredRandodraftShare | null;
+    try {
+      stored = await readRandodraftShare(id);
+    } catch {
+      throw new ApiError(503, 'Share storage is temporarily unavailable.');
     }
-    const supabase = getSupabaseServiceClient();
-    const { data, error } = await supabase
-      .from('randodraft_shares')
-      .select('id, draft, completed_at, expires_at')
-      .eq('id', id)
-      .maybeSingle<ShareRow>();
-    if (error) throw error;
-    if (!data || Date.parse(data.expires_at) <= Date.now()) {
-      if (data) await supabase.from('randodraft_shares').delete().eq('id', id);
+    if (!stored || typeof stored.completedAt !== 'string' || !Number.isFinite(Date.parse(stored.completedAt))) {
       throw new ApiError(404, 'This Randodraft share has expired or is unavailable.');
     }
-    const draft = parseDraftHistoryInput(data.draft);
+    const draft = parseDraftHistoryInput(stored.draft);
     if (!draft) throw new ApiError(404, 'This Randodraft share is invalid.');
-    const entry = { ...draft, completedAt: data.completed_at };
-    return NextResponse.json({ entry }, { headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' } });
+
+    return NextResponse.json(
+      { entry: { ...draft, completedAt: stored.completedAt } },
+      { headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' } },
+    );
   } catch (error) {
     return getRouteErrorResponse(error);
   }

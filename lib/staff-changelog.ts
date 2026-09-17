@@ -15,7 +15,61 @@ export type StaffChangelogEntry = {
  * Internal, version-controlled changelog entries. New impactful patches must
  * be added at the beginning with a precise UTC timestamp and operational/security detail.
  */
-export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
+export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [  {
+    id: 'patch-2026-09-16-randodraft-share-view-id',
+    patch: '2026.09.16-randodraft-share-view-id',
+    timestamp: '2026-09-16T23:35:00.000Z',
+    title: 'Reused Randodraft view IDs for sharing',
+    summary: 'Completed drafts are persisted under their existing view ID, so Copy link copies the current address without creating another share.',
+    details: [
+      'Persisted the completed draft as soon as the results screen is entered and reused the same ID when a history draft is opened.',
+      'Changed Copy link to copy window.location.href instead of issuing another share POST request.',
+      'Unknown view IDs now fall back to the share API, allowing the same address-bar URL to load in another browser.',
+      'Accepted pre-locked Class values during all-random completed-draft validation so valid two-team drafts no longer return Invalid completed draft.',
+    ],
+    impact: [
+      'The URL shown in the address bar opens the same draft in another browser while the seven-day Redis record remains available.',
+      'Repeated Copy link clicks no longer create duplicate records or change the URL.',
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'lib/randodraft-history.ts',
+      'app/api/randodraft/share/route.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Created an all-random two-team draft, persisted it under its view ID, and retrieved it independently with HTTP 200.',
+      'npm run check passed: lint with existing unrelated img-element warnings, TypeScript, and 128 tests across 30 files.',
+    ],
+  },
+
+  {
+    id: 'patch-2026-09-16-randodraft-share-redis-rewrite',
+    patch: '2026.09.16-randodraft-share-redis-rewrite',
+    timestamp: '2026-09-16T23:00:00.000Z',
+    title: 'Rewrote Randodraft share persistence',
+    summary: 'Completed drafts now use short random references backed by seven-day Upstash Redis records.',
+    details: [
+      'Replaced the failing PostgREST table and RPC dependency in the share API with a server-only Upstash Redis store.',
+      'Generated 16-character URL-safe references and stored only validated draft payloads with an automatic seven-day TTL.',
+      'Validated stored payloads again before returning a completed draft, while preserving legacy encoded-link decoding in the client.',
+    ],
+    impact: [
+      'Share links remain compact and work for account and guest drafts without depending on the Supabase schema cache.',
+      'Expired guest share records are removed automatically by Redis expiration.',
+    ],
+    files: [
+      'app/api/randodraft/share/route.ts',
+      'app/api/randodraft/share/[id]/route.ts',
+      'lib/randodraft-share-store.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Verified the configured Upstash Redis credentials with a write, read, and delete check.',
+      'npm run check passed: lint with existing unrelated img-element warnings, TypeScript, and 128 tests across 30 files.',
+    ],
+  },
+
   {
     id: 'patch-2026-09-16-public-semver-patch-notes',
     patch: '2026.09.16-public-semver-patch-notes',

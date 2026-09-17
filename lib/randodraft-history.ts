@@ -37,6 +37,11 @@ export function parseDraftHistoryInput(value: unknown): DraftHistoryInput | null
     if (pick.name !== undefined) state = draftReducer(state, { type: 'rename', index: state.picks.length, name: pick.name });
     for (const category of categories) {
       if (typeof pick[category] !== 'string') return null;
+      const currentValue = state.current[category];
+      if (currentValue !== null) {
+        if (currentValue !== pick[category]) return null;
+        continue;
+      }
       const next = draftReducer(state, { type: 'select', category, value: pick[category], manual: pick.manualCategories.includes(category) });
       if (next === state) return null;
       state = next;

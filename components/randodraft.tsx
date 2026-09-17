@@ -167,6 +167,7 @@ export function Randodraft() {
   const lastFinishedEntryRef = useRef<DraftHistoryEntry | null>(null);
   const copyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completionTimeRef = useRef<string | null>(null);
+  const persistedSharePromisesRef = useRef<Map<string, Promise<boolean>>>(new Map());
   function setSpinnerBusy(category: DraftCategory | 'build', busy: boolean) {
     setBusySpinners((current) => { const next = new Set(current); if (busy) next.add(category); else next.delete(category); return next; });
   }
@@ -259,6 +260,7 @@ export function Randodraft() {
         } catch { /* ignore malformed session state */ }
         const known = [...history.drafts, ...(history.guestDrafts ?? [])].find((entry) => entry.id === view);
         if (known) { restoreFinishedEntry(known); return; }
+        void loadSharedEntry(view);
         return;
       }
 
@@ -307,6 +309,29 @@ export function Randodraft() {
     setBusySpinners(new Set()); setQuickRolling(false); dispatch({ type: 'start', settings }); playUiSound('random-select');
   }
 
+  function persistShareEntry(entry: DraftHistoryEntry): Promise<boolean> {
+    const existing = persistedSharePromisesRef.current.get(entry.id);
+    if (existing) return existing;
+    const promise = (async () => {
+      try {
+        const response = await fetch('/api/randodraft/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: entry.id, draft: entry, completedAt: entry.completedAt }),
+        });
+        if (!response.ok) throw new Error('Share persistence failed.');
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    persistedSharePromisesRef.current.set(entry.id, promise);
+    void promise.then((success) => {
+      if (!success) persistedSharePromisesRef.current.delete(entry.id);
+    });
+    return promise;
+  }
+
   function saveFinished(next: { settings: DraftSettings; picks: CompleteDraftPick[] }) {
     const id = draftIdRef.current; if (!id) return;
     const input = createHistoryInput(next, id);
@@ -315,6 +340,7 @@ export function Randodraft() {
     lastFinishedEntryRef.current = entry;
     try { window.sessionStorage.setItem('knowleague:randodraft:view:' + entry.id, JSON.stringify(entry)); } catch { /* optional browser cache */ }
     replaceDraftRoute('?view=' + encodeURIComponent(entry.id), entry);
+    void persistShareEntry(entry);
     void history.save(input, draftOwnerRef.current);
   }
 
@@ -366,28 +392,17 @@ export function Randodraft() {
     }, 1600);
   }
 
-  async function shareEntry(entry: DraftHistoryEntry) {
+  async function shareCurrentLink() {
     try {
-      const response = await fetch('/api/randodraft/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft: entry, completedAt: entry.completedAt }),
-      });
-      if (!response.ok) throw new Error('Share creation failed.');
-      const payload = await response.json() as { id?: string };
-      if (!payload.id || typeof window === 'undefined') throw new Error('Share creation failed.');
-      const url = window.location.origin + '/randodraft?share=' + encodeURIComponent(payload.id);
-      await navigator.clipboard.writeText(url);
+      if (typeof window === 'undefined') throw new Error('Share link is unavailable.');
+      const completedAt = completionTimeRef.current ?? new Date().toISOString();
+      const entry: DraftHistoryEntry = { ...createHistoryInput(state, draftIdRef.current ?? crypto.randomUUID()), completedAt };
+      await persistShareEntry(entry);
+      await navigator.clipboard.writeText(window.location.href);
       showCopyFeedback('link');
     } catch {
-      // Clipboard and share records are best-effort; the draft itself remains available locally/account history.
+      // Clipboard support is optional; the draft remains available at its current URL.
     }
-  }
-
-  async function shareCurrentLink() {
-    const completedAt = completionTimeRef.current ?? new Date().toISOString();
-    const entry: DraftHistoryEntry = { ...createHistoryInput(state, draftIdRef.current ?? crypto.randomUUID()), completedAt };
-    await shareEntry(entry);
   }
 
   async function shareEntryImage(entry: DraftHistoryEntry) {
@@ -416,6 +431,7 @@ export function Randodraft() {
     draftIdRef.current = entry.id;
     completionTimeRef.current = entry.completedAt;
     setSettings(entry.settings);
+    void persistShareEntry(entry);
     setBusySpinners(new Set());
     dispatch({ type: 'resume', state: draftStateFromHistoryEntry(entry) });
   }

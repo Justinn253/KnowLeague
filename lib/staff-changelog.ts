@@ -15,7 +15,892 @@ export type StaffChangelogEntry = {
  * Internal, version-controlled changelog entries. New impactful patches must
  * be added at the beginning with a precise UTC timestamp and operational/security detail.
  */
-export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
+export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [  {
+    id: 'patch-2026-09-16-randodraft-share-view-id',
+    patch: '2026.09.16-randodraft-share-view-id',
+    timestamp: '2026-09-16T23:35:00.000Z',
+    title: 'Reused Randodraft view IDs for sharing',
+    summary: 'Completed drafts are persisted under their existing view ID, so Copy link copies the current address without creating another share.',
+    details: [
+      'Persisted the completed draft as soon as the results screen is entered and reused the same ID when a history draft is opened.',
+      'Changed Copy link to copy window.location.href instead of issuing another share POST request.',
+      'Unknown view IDs now fall back to the share API, allowing the same address-bar URL to load in another browser.',
+      'Accepted pre-locked Class values during all-random completed-draft validation so valid two-team drafts no longer return Invalid completed draft.',
+    ],
+    impact: [
+      'The URL shown in the address bar opens the same draft in another browser while the seven-day Redis record remains available.',
+      'Repeated Copy link clicks no longer create duplicate records or change the URL.',
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'lib/randodraft-history.ts',
+      'app/api/randodraft/share/route.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Created an all-random two-team draft, persisted it under its view ID, and retrieved it independently with HTTP 200.',
+      'npm run check passed: lint with existing unrelated img-element warnings, TypeScript, and 128 tests across 30 files.',
+    ],
+  },
+
+  {
+    id: 'patch-2026-09-16-randodraft-share-redis-rewrite',
+    patch: '2026.09.16-randodraft-share-redis-rewrite',
+    timestamp: '2026-09-16T23:00:00.000Z',
+    title: 'Rewrote Randodraft share persistence',
+    summary: 'Completed drafts now use short random references backed by seven-day Upstash Redis records.',
+    details: [
+      'Replaced the failing PostgREST table and RPC dependency in the share API with a server-only Upstash Redis store.',
+      'Generated 16-character URL-safe references and stored only validated draft payloads with an automatic seven-day TTL.',
+      'Validated stored payloads again before returning a completed draft, while preserving legacy encoded-link decoding in the client.',
+    ],
+    impact: [
+      'Share links remain compact and work for account and guest drafts without depending on the Supabase schema cache.',
+      'Expired guest share records are removed automatically by Redis expiration.',
+    ],
+    files: [
+      'app/api/randodraft/share/route.ts',
+      'app/api/randodraft/share/[id]/route.ts',
+      'lib/randodraft-share-store.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Verified the configured Upstash Redis credentials with a write, read, and delete check.',
+      'npm run check passed: lint with existing unrelated img-element warnings, TypeScript, and 128 tests across 30 files.',
+    ],
+  },
+
+  {
+    id: 'patch-2026-09-16-public-semver-patch-notes',
+    patch: '2026.09.16-public-semver-patch-notes',
+    timestamp: '2026-09-16T22:27:31.4492858Z',
+    title: 'Formatted public updates as versioned patch notes',
+    summary: 'Started public releases at 0.1.0, grouped patch notes by change type, and compacted the home news panel.',
+    details: [
+      'Changed the first release to version 0.1.0 with the title Update 0.1.0 - Randodraft and other fixes; update versions now use a major.minor.patch TypeScript template.',
+      'Added optional typed sections rendered as semantic headings and bullet lists, retaining paragraphs for news articles.',
+      'Grouped release content under New Game, New Feature, and Bug Fixes; reduced the mobile fix to Riftbound catalogue fixes for mobile.',
+      'Added an optional preview summary and reduced home panel padding, icon size, typography, and spacing; removed the duplicate call-to-action line while preserving the full-card link.',
+    ],
+    impact: [
+      'Readers can scan release changes by type and find the latest post in a shorter home panel.',
+      'Maintainers can author structured patch notes and separate short preview summaries in lib/news.ts.',
+    ],
+    files: ['lib/news.ts', 'components/news-post.tsx', 'components/news-preview.tsx', 'lib/staff-changelog.ts'],
+    verification: ['npm run check passed: lint, TypeScript, and all 128 tests across 30 files; only existing img-element warnings remain. git diff --check passed. No production build was run.'],
+  },
+  {
+    id: 'patch-2026-09-16-first-public-release-post',
+    patch: '2026.09.16-first-public-release-post',
+    timestamp: '2026-09-16T22:20:36.4742036Z',
+    title: 'Published the first public release post and repositioned home news',
+    summary: 'Replaced the welcome announcement with the first versioned update and moved its home preview below the destination cards.',
+    details: [
+      'Moved the home News and Updates panel below Games, League Account Viewer, and Riftbound, before the account sign-up panel.',
+      'Replaced the initial news announcement with update version 2026.09.16 covering Randodraft team and build drafting, Riftbound phone catalogue and detail-view fixes, and the News and Updates feed and archive.',
+      'Added a concise opening paragraph summarizing all three topics for the home preview.',
+    ],
+    impact: [
+      'Visitors see the primary destination cards first and can read a concrete release summary below them.',
+      'Maintainers can continue authoring future releases in the existing public news registry.',
+    ],
+    files: ['components/landing-page.tsx', 'lib/news.ts', 'lib/staff-changelog.ts'],
+    verification: ['npm run check passed: lint, TypeScript, and all 128 tests across 30 files; only existing img-element warnings remain. git diff --check passed. No production build was run.'],
+  },
+  {
+    id: 'patch-2026-09-16-public-news-and-updates',
+    patch: '2026.09.16-public-news-and-updates',
+    timestamp: '2026-09-16T21:52:34.1421879Z',
+    title: 'Added public News and Updates with a production release archive',
+    summary: 'Introduced manually authored public release notes and news, a 30-day feed, and a latest-post panel on the home screen.',
+    details: [
+      'Added a typed public content registry with required versions for updates, UTC publication dates, titles, and paragraph bodies; seeded a welcome news announcement.',
+      'Recent posts render newest first at /news; posts aged exactly 30 days or older appear at /news/archive, which is loaded by explicit navigation with link prefetch disabled.',
+      'Publication filtering hides future-dated entries. Dynamic news routes evaluate age on each request; the home preview revalidates every 60 seconds and can show the latest archived post.',
+      'Updates use amber Package badges; news uses cyan Megaphone badges. Both show dates and titles, while updates also show version numbers.',
+      'Composed the server-rendered latest-post preview into the client home layout without bundling the public registry or staff changelog into that client component.',
+      'Added public page metadata and sitemap routes. No database, deployment automation, or staff-only content is exposed.',
+    ],
+    impact: [
+      'Visitors can discover announcements from the home screen and browse current and archived posts without an account.',
+      'Maintainers manually add production release posts and news in lib/news.ts; internal staff patch notes remain independent.',
+    ],
+    files: [
+      'lib/news.ts', 'components/news-post.tsx', 'components/news-preview.tsx',
+      'components/news-screen.tsx', 'components/landing-page.tsx', 'app/page.tsx',
+      'app/news/page.tsx', 'app/news/archive/page.tsx', 'app/sitemap.ts',
+      'tests/news.test.ts', 'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint, TypeScript, and 128 tests across 30 files. Only existing img-element lint warnings remain. Four new tests cover the exact 30-day boundary, ordering, future publication, empty feeds, and archived preview fallback. git diff --check passed. No production build was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-16-riftbound-card-modal-width-containment',
+    patch: '2026.09.16-riftbound-card-modal-width-containment',
+    timestamp: '2026-09-16T21:28:39.8911205Z',
+    title: 'Contained Riftbound card detail modal content on phones',
+    summary: 'Constrained card detail modal descendants and value-history scrolling so loaded market data stays inside the popup with consistent mobile padding.',
+    details: [
+      'Added minimum-width and full-width constraints to the card detail dialog content, market-value section, metadata, product details, and value-history section so grid descendants cannot contribute an unbounded intrinsic width on narrow screens.',
+      'Kept the modal horizontally clipped while retaining vertical scrolling, and kept the fixed-width card history plot horizontally scrollable only within its bounded chart panel.',
+      'Kept existing Riftbound card artwork on the unoptimized image path; no Next.js or Vercel image transformation behavior was introduced.',
+    ],
+    impact: [
+      'Mobile users can view all loaded card information inside the popup borders with the existing vertical modal scrolling and local chart horizontal scrolling preserved.',
+    ],
+    files: [
+      'components/riftbound-card-grid.tsx',
+      'components/riftbound-history-chart.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint, TypeScript, and 124 tests across 29 files; lint retained only existing img-element warnings.',
+      'git diff --check passed with only the repository Git LF-to-CRLF normalization warnings.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-16-riftbound-mobile-catalogue-history-layout',
+    patch: '2026.09.16-riftbound-mobile-catalogue-history-layout',
+    timestamp: '2026-09-16T21:08:17.6601295Z',
+    title: 'Improved Riftbound phone catalogue and card-history layout',
+    summary: 'Added compact two-column phone catalogue grids, aligned mobile sort and filter controls, and isolated card value-history scrolling inside the detail modal.',
+    details: [
+      'Added a phone-only two-column grid override for the shared Riftbound collection and deck catalogue classes, preserving the existing fixed-width adaptive layouts from tablet through desktop.',
+      'Changed the mobile catalogue control layout so the search field occupies its own row and the sort menu and filter button share the row beneath it for both the inventory catalogue and Riftbound profile collection.',
+      'Bound the card detail modal and its fixed-width market-history plot to the available viewport width, keeping the chart horizontally scrollable inside its own chart panel without allowing the popup grid to expand.',
+      'Kept Riftbound card artwork on the existing unoptimized image path; no Vercel image transformation behavior was added or changed.',
+    ],
+    impact: [
+      'Phone users can browse two Riftbound cards per row with less unused space and reach sorting and filtering controls without an extra filter-only row.',
+      'Card details remain within the phone viewport after history data loads, while the full-width chart remains available through its local horizontal scroll area.',
+    ],
+    files: [
+      'app/globals.css',
+      'components/riftbound-card-grid.tsx',
+      'components/riftbound-profile.tsx',
+      'components/riftbound-history-chart.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run typecheck passed after the responsive stylesheet changes.',
+      'npm run check passed: lint, TypeScript, and the repository test suite completed successfully with only existing img-element lint warnings.',
+      'git diff --check passed with no whitespace errors.',
+      'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-16-randodraft-share-and-icon-sizing',
+    patch: '2026.09.16-randodraft-share-and-icon-sizing',
+    timestamp: '2026-09-16T20:00:00.000Z',
+    title: 'Restored Randodraft short-link sharing and enlarged draft icons',
+    summary: 'Applied the pending short-share migration and updated completed-map and recent-draft champion icon sizing for clearer results.',
+    details: [
+      'Applied migration 133_randodraft_short_shares.sql to the linked Supabase database so POST /api/randodraft/share can persist compact seven-day references instead of returning a missing-relation error.',
+      'Increased completed-map champion icons by approximately 50 percent while retaining eager loading and icon-only overlays.',
+      'Increased recent-draft champion icons by approximately 40 percent and made single-team champion rows size to their content while preserving full-width two-team rows.',
+    ],
+    impact: [
+      'Copy link now has the durable short-share storage it expects, including anonymous seven-day retention.',
+      'Completed maps and recent drafts are easier to scan without changing hover, team coloring, or navigation behavior.',
+    ],
+    files: [
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'supabase/migrations/133_randodraft_short_shares.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npx supabase migration list confirmed migration 133 is applied remotely; npx supabase db push completed successfully.',
+      'npm run check passed: lint with existing unrelated img-element warnings, TypeScript, and 124 tests across 29 files.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-history-aram-slots',
+    patch: '2026.09.15-randodraft-history-aram-slots',
+    timestamp: '2026-09-15T22:00:00.000Z',
+    title: 'Added Randodraft browser history and fixed ARAM slot reuse',
+    summary: 'Randodraft now restores lobby, active, viewed, and shared states through browser navigation, while two-team ARAM overlays retain all five slots per team.',
+    details: [
+      'Starting, resuming, viewing a finished draft, and opening a shared draft now use play, view, and share URL states. popstate restores those states and session storage keeps locally viewed results available to forward navigation.',
+      'The in-app back control synchronously returns to the lobby and clears active timers while browser back and forward continue to restore the URL state.',
+      'Two-team ARAM map placement now indexes the selected slot within its team instead of wrapping against the number of teams, preventing picks three through five from reusing earlier positions.',
+      'Settings labels use readable category separators and the regression suite covers all ten distinct two-team ARAM overlay slots.',
+    ],
+    impact: [
+      'Players can use browser back and forward buttons while starting, resuming, and reviewing Randodraft games without losing the selected state.',
+      'Howling Abyss results display every team pick in the supplied lower-left and upper-right formations.',
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-results.tsx',
+      'tests/randodraft.test.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npx vitest run tests/randodraft.test.tsx passed: 11 tests.',
+      'npm run check passed: lint with existing unrelated img-element warnings, TypeScript, and 124 tests across 29 files; no production build was run while the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-aram-overlay-visibility',
+    patch: '2026.09.15-randodraft-aram-overlay-visibility',
+    timestamp: '2026-09-15T21:30:00.000Z',
+    title: 'Improved ARAM overlay visibility and history focus states',
+    summary: 'Eagerly loaded all completed-map champion icons and removed nested recent-draft focus borders.',
+    details: [
+      'Howling Abyss map champion icons now load eagerly so completed two-team drafts show every pick without waiting for lazy-image loading.',
+      'Recent draft header and combined champion-row buttons no longer draw their own click or focus ring; the outer draft item remains the visual hover target.',
+    ],
+    impact: [
+      'Players can verify all ARAM picks at a glance and recent drafts have a cleaner single-item interaction state.',
+    ],
+    files: [
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passed; no production build was run while the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-aram-map-layout',
+    patch: '2026.09.15-randodraft-aram-map-layout',
+    timestamp: '2026-09-15T20:45:00.000Z',
+    title: 'Aligned Howling Abyss team positions',
+    summary: 'Grouped ARAM overlays along the map diagonal with Team 1 in the lower-left and Team 2 in the upper-right.',
+    details: [
+      'Two-team ARAM results now use compact three-plus-two formations on each side of the Howling Abyss lane, matching the supplied reference layout.',
+      'Team positions remain icon-only and preserve the existing hover, keyboard, touch, and featured-pick behavior.',
+    ],
+    impact: [
+      'Howling Abyss results are easier to read at the same map size, with team picks no longer spread across or stacked on top of the map.',
+    ],
+    files: [
+      'components/randodraft-results.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passed; no production build was run while the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-map-calibration',
+    patch: '2026.09.15-randodraft-map-calibration',
+    timestamp: '2026-09-15T20:30:00.000Z',
+    title: 'Recalibrated Randodraft SummonerÃ¢â‚¬â„¢s Rift positions',
+    summary: 'Replaced mirrored lane coordinates with fixed role-specific slots that match the supplied map reference and keep all ten overlays separated.',
+    details: [
+      'Team 1 and Team 2 now use distinct points along the top, jungle, mid, and bottom-side paths instead of mirrored coordinates that placed picks on the wrong lane side.',
+      'Bot and support positions are grouped along the lower-right path while the two junglers occupy separate upper and lower central positions, preventing overlay collisions.',
+    ],
+    impact: [
+      'Completed two-team SummonerÃ¢â‚¬â„¢s Rift drafts now present champion icons in the intended map locations and remain readable at the compact map size.',
+    ],
+    files: [
+      'components/randodraft-results.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passed; no production build was run while the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-share-map-polish',
+    patch: '2026.09.15-randodraft-share-map-polish',
+    timestamp: '2026-09-15T19:30:00.000Z',
+    title: 'Polished Randodraft map overlays, sharing, and history',
+    summary: 'Corrected red/blue map positions, simplified overlays to champion icons, added expiring short share references, and made recent drafts open directly.',
+    details: [
+      'Completed maps now use explicit red-side Team 1 and blue-side Team 2 lane coordinates, with offset mid positions and compact icon-only overlays to prevent labels and lane markers from colliding.',
+      'Share creation stores validated completed drafts in a service-role-only table behind UUID references. References expire after seven days, are pruned hourly when pg_cron is available, and legacy encoded links remain readable during migration.',
+      'Copy actions display a temporary check icon. PNG exports include the KnowLeague - Randodraft title, champion icons, build item icons, and local lane/class icons.',
+      'Recent drafts no longer expand inline; clicking a draft restores its completed screen. Two-team history and pick lists identify red-side Team 1 and blue-side Team 2 with separate rows and color treatments.',
+      'The short-share migration is emitted as BOM-free UTF-8 SQL so Supabase CLI applies it without a syntax error.',
+    ],
+    impact: [
+      'Shared links are short and do not expose the draft payload in the URL; expired guest share records are removed from the database.',
+      'Players can inspect historical drafts immediately and distinguish team sides in both the team panel and completed pick list.'
+    ],
+    files: [
+      'app/api/randodraft/share/route.ts',
+      'app/api/randodraft/share/[id]/route.ts',
+      'supabase/migrations/133_randodraft_short_shares.sql',
+      'components/randodraft.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'components/randodraft-team.tsx',
+      'docs/randodraft.md',
+      'tests/randodraft.test.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passes: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passes; no production build was run while the dev server was active.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-controls-results',
+    patch: '2026.09.15-randodraft-controls-results',
+    timestamp: '2026-09-15T18:30:00.000Z',
+    title: 'Refined Randodraft controls and completed results',
+    summary: 'Reworked team settings controls, animated Quick Roll feedback, compacted multi-team map cards, and changed sharing actions to direct copy.',
+    details: [
+      'Players per team is now selected with five inline buttons, while Quick Roll and One Team/Two Teams use paired responsive controls with clear selected states.',
+      'Quick Roll hides the per-pick heading and presents Spin All progress with an animated indicator while retaining the one-second sequential draft cadence.',
+      'Completed SummonerÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Rift and ARAM maps align to the top of the results grid; two-team cards use compact sizing and dedicated ARAM rows to prevent overlap, and Other Picks rows are color coded by team.',
+      'Recent draft and completed draft actions now copy links or PNG images directly when supported, with image download as a compatibility fallback; the extra recent-draft icon and raw link display were removed.'
+    ],
+    impact: [
+      'Draft configuration is faster to scan and operates consistently on narrow and wide layouts.',
+      'Shared results can be copied directly for pasting into chats and documents without opening a browser share sheet.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: lint with only existing unrelated img-element warnings, TypeScript, and 123 tests across 29 files. git diff --check passed; no production build was run while the dev server was active.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-15-randodraft-teams-quick-roll-sharing',
+    patch: '2026.09.15-randodraft-teams-quick-roll-sharing',
+    timestamp: '2026-09-15T17:00:00.000Z',
+    title: 'Added Randodraft team settings, Quick Roll, and sharing',
+    summary: 'Added configurable team sizes, optional mirrored second teams, timed Quick Roll, completed-draft link/image sharing, and seven-day guest draft retention.',
+    details: [
+      'The lobby now supports one to five players per team, an optional second team, and Quick Roll. Legacy settings and saved drafts normalize to one five-player team with Quick Roll disabled.',
+      'Quick Roll replaces the category and build spinners with Spin All and fills each pick in order at one-second intervals, including the same champion, lane/class, build legality, uniqueness, and ARAM rules as manual drafting.',
+      'Two-team drafts render Team 1 and Team 2 in separate rows, permit lane reuse across teams while retaining per-team lane uniqueness, and mirror the second team positions on completed maps.',
+      'Completed drafts can be shared through compact validated links or exported PNG images. Guest completed drafts are stored only in browser storage and pruned after seven days; shared guest links expire on the same retention window.',
+      'Account history validation and the history RPC now accept the selected player count and total picks while continuing to retain at most five completed drafts per account.'
+    ],
+    impact: [
+      'Players can create smaller custom drafts, run both sides of a matchup, finish a draft quickly, and share results without requiring recipients to sign in.',
+      'Guest draft history remains local to the browser; no guest identity or draft payload is sent to the backend.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-team.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-history.tsx',
+      'components/use-randodraft-history.ts',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'lib/randodraft-progress.ts',
+      'lib/randodraft-share.ts',
+      'supabase/migrations/132_randodraft_team_settings.sql',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'Full npm run check passes: lint, TypeScript, and 123 tests across 29 files; lint retains only the existing unrelated img-element warnings. Focused reducer coverage includes configurable two-team lane reuse. No production build was run while the dev server was active.'
+    ]
+  },
+
+  {
+    id: 'patch-2026-09-12-randodraft-game-modes',
+    patch: '2026.09.12-randodraft-game-modes',
+    timestamp: '2026-09-12T02:20:00.000Z',
+    title: 'Added Summoner\'s Rift and ARAM Randodraft modes',
+    summary: 'Added mode selection, lane-free ARAM drafting, ARAM item availability, Howling Abyss results, and mode labels in recent drafts.',
+    details: [
+      'The lobby now stores a typed gameMode setting with Summoner\'s Rift as the backward-compatible default and ARAM as the lane-free alternative.',
+      'ARAM drafts five unique champions and classes, hides the lane spinner, validates six-item builds against ARAM map availability, and renders the Howling Abyss map in the completed view.',
+      'The generated 16.18.1 catalogue now records per-item map modes and includes ARAM-only purchasable entries while preserving the existing Riot class, attack identity, and equipment-group constraints.',
+      'Completed history entries display the selected mode. Legacy history and local snapshots without gameMode are normalized to Summoner\'s Rift during validation.'
+    ],
+    impact: [
+      'Players can choose the map rules before starting and can distinguish SR and ARAM drafts in recent history.',
+      'The history API and database schema remain unchanged because mode is stored inside the validated draft JSON.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'app/randodraft/page.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-team.tsx',
+      'components/randodraft-history.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'lib/randodraft-progress.ts',
+      'scripts/generate-randodraft-catalog.mjs',
+      'data/catalogs/randodraft.json',
+      'public/maps/howling-abyss.png',
+      'docs/randodraft.md',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'Full npm run check passed: typecheck and all 122 tests across 29 files passed; lint retained only the existing img-element warnings. git diff --check passed. The pinned catalogue generator and map asset download completed; no production build was run while the dev server was active.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-class-lock-and-lobby-polish',
+    patch: '2026.09.11-randodraft-class-lock-and-lobby-polish',
+    timestamp: '2026-09-11T22:08:00.000Z',
+    title: 'Polished Randodraft lobby, class reels, and fresh draft flow',
+    summary: 'Hid empty resumes, added recent-draft hover treatment, renamed the category to Class, locked all-random classes automatically, and refined reel landing and pick-card presentation.',
+    details: [
+      'The lobby only offers Resume Randodraft when at least one pick is complete. New draft from the completed screen starts pick one directly and creates a fresh local draft session.',
+      'The visible Type category is now Class, the build header includes the selected class icon and name, and All build types are random initializes every new pick with a locked Random class so no spin is required.',
+      'Reel landing frames avoid adjacent duplicate lane or class outcomes when alternate choices exist. Spinner text is non-selectable, manual search focus is subdued, category cards use the updated gradient treatment, and recent draft rows expose the same hover/focus feedback as other app cards.',
+      'Completed-result hover promotion is limited to map markers; the Other picks list remains compact and click-selectable. Team card fallbacks and visible documentation use Class terminology.'
+    ],
+    impact: [
+      'Players get a clearer lobby resume state, a more consistent class vocabulary, a direct restart path, and less ambiguous spinner outcomes while preserving local progress and build restrictions.',
+      'No API, database, catalogue, or backend history schema changed.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-category.tsx',
+      'components/randodraft-spinner.tsx',
+      'components/randodraft-team.tsx',
+      'components/randodraft-history.tsx',
+      'components/randodraft-results.tsx',
+      'lib/randodraft.ts',
+      'docs/randodraft.md',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'tests/randodraft-spinner.test.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'Focused Randodraft reducer, UI, and spinner tests passed: 35 tests across 3 files.',
+      'Full npm run check passed: typecheck and all 120 tests across 29 files passed; lint retained only the existing img-element warnings. git diff --check passed. No production build, catalogue regeneration, or database migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-pick-summary-polish',
+    patch: '2026.09.11-randodraft-pick-summary-polish',
+    timestamp: '2026-09-11T21:27:48.141Z',
+    title: 'Polished Randodraft pick controls and completed summary',
+    summary: 'Smoothed reel deceleration, removed redundant spin and progress hints, added pointer-following item notes and category icons, and reorganized the completed draft details.',
+    details: [
+      'The category reel now uses a gentler ease-out curve and keeps the single clickable reel control without the bottom Click to spin hint. The visible Pick X heading is centered and the progress fraction remains available only to assistive technology.',
+      'Your team cards show role and class icons, adapt six item slots to one row when the card has room and to two rows on smaller widths, and expose champion and item names in pointer-following custom notes. The resume card no longer includes browser-storage copy.',
+      'Completed drafts move Jungle closer to its lane position, display role and class icons on map markers and the featured pick, and list the remaining picks in Top, Jungle, Mid, Support, Bot order. Hovering, focusing, or selecting another pick promotes it to the featured panel and returns the previous pick to the compact list.',
+      'All added visuals continue to use GameIconImage with unoptimized local or catalogue assets so Randodraft images do not request Vercel image transformations.'
+    ],
+    impact: [
+      'Players get a calmer spin landing, clearer category/build identity, hover notes that stay near the pointer, and a compact way to inspect every completed pick.',
+      'No API, database, catalogue, or account-history behavior changed in this patch.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-spinner.tsx',
+      'components/randodraft-spinner.module.css',
+      'components/randodraft-team.tsx',
+      'components/randodraft-results.tsx',
+      'components/randodraft-pointer-note.tsx',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed after the final tooltip and accessible-heading fixes; lint retained only the existing img-element warnings. The affected Randodraft flow test passed 9/9 tests.',
+      'git diff --check passed. No production build, catalogue regeneration, or database migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-required-builds-local-resume',
+    patch: '2026.09.11-randodraft-required-builds-local-resume',
+    timestamp: '2026-09-11T20:52:54.424Z',
+    title: 'Required builds, interactive reels, and local Randodraft recovery',
+    summary: 'Required locked item builds, moved Spin into the reels, slowed animation with click-to-finish, shuffled item slots, and added browser-local resume and class icons.',
+    details: [
+      'Next/Finish and the reducer now require a legal locked build after the three categories. Completed-history validation rejects picks without builds. Historical records remain readable.',
+      'Reels are accessible buttons with a highlighted Spin label, shuffle icon, and click hint. Removed the separate Spin button. Running reels say Click to finish and complete the preselected outcome once, cancelling the timeout. Animation is 2.475 seconds, 50% longer than 1.65 seconds; reduced motion remains immediate.',
+      'Build generation shuffles all six output slots using Fisher-Yates, allowing boots in any position while preserving shop membership and purchase constraints. Result text now describes item slots rather than purchase order.',
+      'In-progress state is saved locally after each committed change, including every pick completion. The lobby has a Resume Randodraft card; replay validation checks settings, unique picks, manual allowances, and builds before restoring. Account and guest keys are separate; account changes return to the lobby. Completion removes the local snapshot; only completed account history uses the existing backend write.',
+      'Hidden the remaining-manual counter when the allowance is zero. Lane reels use public/role-icons. Downloaded six Riot client class icons from pinned CommunityDragon 16.18 into public/class-icons with source documentation. Random retains its text label.',
+      'All Randodraft champion, item, lane, class, history, and map images use GameIconImage with unoptimized enabled; no Vercel image transformation URLs or responsive srcsets are generated.'
+    ],
+    impact: [
+      'Players must complete the item build, can speed through an animation by clicking it, and can resume drafts after leaving or refreshing on the same browser.',
+      'Staff retain backend writes only for completed account history. No database migration or catalogue regeneration is needed; local storage failures display a notice.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-spinner.tsx',
+      'components/randodraft-spinner.module.css',
+      'components/randodraft-category.tsx',
+      'components/randodraft-results.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-progress.ts',
+      'lib/randodraft-history.ts',
+      'public/class-icons/',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'tests/randodraft-spinner.test.tsx',
+      'tests/randodraft-progress.test.ts',
+      'tests/randodraft-history.test.ts',
+      'tests/randodraft-history-api.test.ts',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: typecheck and all 120 tests across 29 files passed; lint retained only existing img-element warnings. Coverage verifies required builds, all six boot positions, slower timing, exactly-once instant completion, cancellation, local resume with a locked build, malformed snapshots, missing-build rejection, account-specific storage keys, and unoptimized image output.',
+      'Headless Chrome on the existing dev server confirmed 2.475s animation, immediate completion, Next blocked until build locking, a one-pick local checkpoint, successful resume after reload, hidden zero-manual counter, local role/class icons, and no mobile horizontal overflow or runtime exceptions. Neither rendered Randodraft images nor observed image requests used /_next/image. git diff --check passed; no build or database migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-riot-shop-classes',
+    patch: '2026.09.11-randodraft-riot-shop-classes',
+    timestamp: '2026-09-11T20:15:41.064Z',
+    title: 'Aligned Randodraft builds with Riot item-shop classes',
+    summary: 'Replaced stat-derived AD/AP/Tank pools with Riot-assigned Fighter, Marksman, Assassin, Tank, Mage, and Support item classes.',
+    details: [
+      'Fetched the pinned 16.18 item definitions and regenerated only the Randodraft catalogue. The generator derives item membership from mItemAttributes (1 Fighter, 2 Marksman, 4 Assassin, 8 Tank, 16 Mage, 32 Support), retains source flags for auditing, and fails on unknown values.',
+      'Removed health/damage/AP stat heuristics. Items with multiple Riot class flags belong to each corresponding pool; Trinity Force is Fighter-only despite granting health, while Locket belongs to Support and Tank.',
+      'Updated draft choices, UI explanations, and domain tests for the six shop classes plus optional Random. Builds continue to sample eligible items on click while enforcing champion purchase restrictions, unique items, and incompatible groups. Boots retain the existing exception.',
+      'The pinned catalogue still contains 173 champions and 114 items. Existing saved drafts retain their historical labels; no history migration or catalogue refresh occurs during gameplay.'
+    ],
+    impact: [
+      'Players receive equipment from the selected Riot shop class instead of a broad stat-based approximation.',
+      'Staff can audit class assignments using source shopAttributes and regenerate the independent catalogue without affecting other games.'
+    ],
+    files: [
+      'scripts/generate-randodraft-catalog.mjs',
+      'data/catalogs/randodraft.json',
+     'lib/randodraft.ts',
+      'components/randodraft.tsx',
+      'tests/randodraft.test.ts',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'Regenerated the pinned Randodraft catalogue successfully (173 champions, 114 items). npm run check passed: all 113 tests across 28 files and typecheck passed; lint retained only existing img-element warnings. Source-membership assertions passed, and legal builds were verified for every champion and all seven build types across eight seeds. git diff --check passed. No production build or database migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-gameplay-controls',
+    patch: '2026.09.11-randodraft-gameplay-controls',
+    timestamp: '2026-09-11T18:50:36.006Z',
+    title: 'Refined Randodraft pick controls and independent spins',
+    summary: 'Added editable pick labels, compact gameplay controls, inline manual choices, independent category spins, stable reel landings, and item summaries in Your team.',
+    details: [
+      'Each team slot has an editable label during drafting, limited to 32 characters with whitespace normalization and a Pick X fallback. Labels persist into completed picks and account-history payloads, including later edits to completed slots before Finish.',
+      'Replaced the large pick heading and category descriptions with a compact current-pick title and manual-selection count. Removed the category-lock instruction and catalogue footer. Each new pick remounts its category controls and build spinner so previous results remain only in the team summary.',
+      'Manual choices replace the reel/control area at the same height. Toggling the manual button restores the reel, while the existing per-pick manual budget and immutable choices remain enforced.',
+      'Champion, Lane, and Type track busy state separately, allowing simultaneous spins. Next/Finish waits for all pending spins; unmounting the pick cancels pending callbacks. Locked category and build cards use green highlighting.',
+      'Reel idle labels say Spin followed by the category. Completed spins retain their actual final three frames instead of restoring catalogue endpoints.',
+      'Build preview sets are decorative. Clicking Spin generates a new winning build and independently generated animation frames. The generator samples eligible boots and then eligible equipment after each draw, preserving type, unique-item, item-group, and champion restrictions; it does not sample all complete combinations uniformly.',
+      'Rolled builds appear below lane/type in the team card. Item names use the shared custom hover note with a bounded compact variant, available on hover and keyboard focus.',
+      'Extracted focused category/team components and added regression tests. Existing build types remain pending the requested replacement definitions; no catalogue or migration changes were made.'
+    ],
+    impact: [
+      'Players can rename team slots, spin categories together, select manually without expanding the card, and keep completed pick/build information in the team summary.',
+      'Staff retain validated account history and build restrictions; the generator no longer selects a winner from a fixed preview pool.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-category.tsx',
+      'components/randodraft-team.tsx',
+      'components/randodraft-spinner.tsx',
+      'components/randodraft-history.tsx',
+      'components/header-hover-note.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'tests/randodraft-spinner.test.tsx',
+      'tests/randodraft-history.test.ts',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: typecheck and all 112 tests across 28 files passed; lint retained only existing img-element warnings. Tests cover independent concurrent spins, waiting for the final spin, stable landed neighbors, fresh on-click results, callback cancellation, manual toggling, pick labels, history validation, and team item summaries.',
+      'Headless Chrome on the existing port-3000 dev server verified desktop and 390px mobile layouts: manual mode retained the same 422px card height, the mobile pick header measured 24px, concurrent spins and exact landed neighbors were preserved, all locked cards turned green, six items appeared in the team summary with a visible custom focus note, and Next cleared the working controls while retaining the completed build. No runtime exceptions or horizontal overflow were observed.',
+      'Inspected the mobile gameplay screenshot. git diff --check passed; no production build, catalogue regeneration, or database migration was run. Replacement build-type definitions remain pending user clarification.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-always-enabled-builds',
+    patch: '2026.09.11-randodraft-always-enabled-builds',
+    timestamp: '2026-09-11T18:39:07.330Z',
+    title: 'Made Randodraft build paths always available',
+    summary: 'Removed the Random build path toggle and all disabled-build branches so every completed pick offers the item-build spinner.',
+    details: [
+      'Removed the lobby toggle, its explanatory text, and the unused Shield icon import. The separate Random Build Type selector remains configurable.',
+      'Removed randomBuild from DraftSettings, defaults, history payload validation, and normalized saved settings. Old extra settings fields are ignored by history input normalization.',
+      'Removed build-disabled checks from the draft reducer, build-spinner rendering, and progression hint. Build availability now depends only on locking the three pick categories; validation, one-roll locking, and spinner busy guards remain enforced.',
+      'Assigned distinct per-pick keys to the category controls and build spinner, preventing stale duplicate manual controls when advancing with builds available.',
+      'Updated existing domain/UI tests to remove disabled-mode cases and verify that manual picks also expose the build spinner. Rolling or skipping an available build remains supported.',
+      'Updated docs/randodraft.md. No catalogue or database migration changes are required by this patch.'
+    ],
+    impact: [
+      'Players can roll an item build for every pick without enabling a lobby setting.',
+      'Staff no longer need to support or diagnose a disabled-build configuration.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: typecheck and all 106 tests across 27 files passed, including manual-pick advancement with builds available. Lint retained only existing img-element warnings. Confirmed no remaining randomBuild code references; git diff --check passed. No production build or migration was run.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-11-randodraft-lobby-history',
+    patch: '2026.09.11-randodraft-lobby-history',
+    timestamp: '2026-09-11T18:16:42.669Z',
+    title: 'Aligned Randodraft lobby and added account draft history',
+    summary: 'Moved draft settings and Play to the left, replaced the right panel with five recent account drafts, and added configurable Random build types.',
+    details: [
+      'Removed the Pre-game lobby subtitle, Ready to draft status, splash artwork, promotional copy, counters, and build-type glossary. The lobby now uses the Ability Blitz width and two-column proportions with shared AppSelectMenu controls.',
+      'Added Random Build Type with No random build types (default), Allow random build types, and All build types are random. Random mixes item types while retaining six unique items, boots, item-group exclusions, and champion purchase restrictions. The existing random build path toggle remains independent.',
+      'Completed drafts save their five picks, optional item builds, settings, catalogue version, and a stable retry ID through an authenticated, aggregate-metered /api/randodraft/history route. The database stamps completion time and serializes saves per account, retaining at most five entries and deduplicating retained draft IDs.',
+      'Added migration 131 with a private RLS-enabled history table and service-role-only storage function. Reads and writes derive account identity from bearer authentication; payloads are replayed through the draft reducer to validate picks, budgets, uniqueness, build legality, and type settings.',
+      'Recent draft cards expand to show each champion, lane, type, and item build. Guests see a login link; loading, empty, failed-save, and retry states are explicit. Account changes clear displayed history and discard stale responses; drafts started under a different account are not saved.',
+      'Migration is prepared locally and has not been pushed. Account history requires migration 131 to be applied.'
+    ],
+    impact: [
+      'Players get a consistent settings-first lobby and can inspect their last five completed drafts across signed-in sessions after the migration is applied.',
+      'Staff must apply migration 131 before enabling account history in an environment; no catalogue regeneration or production build is required.'
+    ],
+    files: [
+      'components/randodraft.tsx',
+      'components/randodraft-history.tsx',
+      'components/use-randodraft-history.ts',
+      'components/multiplayer-lobby-layout.tsx',
+      'lib/randodraft.ts',
+      'lib/randodraft-history.ts',
+      'app/api/randodraft/history/route.ts',
+      'supabase/migrations/131_randodraft_history.sql',
+      'tests/randodraft.test.ts',
+      'tests/randodraft.test.tsx',
+      'tests/randodraft-history.test.ts',
+      'tests/use-randodraft-history.test.tsx',
+      'tests/randodraft-history-api.test.ts',
+      'docs/architecture.md',
+      'docs/randodraft.md',
+      'lib/staff-changelog.ts'
+    ],
+    verification: [
+      'npm run check passed: typecheck and all 106 tests across 27 files passed; lint retained only existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
+      'Tests cover all Random build modes, legal mixed-item builds, completed-draft validation, authenticated account boundaries, guest behavior, stale responses, StrictMode/remount loading, stable retry payloads, and an account switch immediately before saving.',
+      'Headless Chrome on the existing port-3000 dev server verified 1440px desktop panel alignment, 390px mobile stacking, removed lobby labels, the guest login note, all three selector options, and a locked Random type after Play. No runtime exceptions or horizontal overflow were observed.',
+      'git diff --check passed. No production build or catalogue regeneration was run. Migration 131 was created locally and not pushed; live database retention and cross-device persistence remain unverified until it is applied.'
+    ]
+  },
+  {
+    id: 'patch-2026-09-10-randodraft-solo-draft',
+    patch: '2026.09.10-randodraft-solo-draft',
+    timestamp: '2026-09-10T23:42:48Z',
+    title: 'Added Randodraft solo team drafting',
+    summary: 'Added a five-pick solo draft with vertical category reels, configurable manual selections, optional legal item builds, and a Summoner\'s Rift team reveal.',
+    details: [
+      'Registered /randodraft immediately after Splash Scramble in the game hub and header. Added page metadata, structured data, sitemap registration, and profile/auth game-route handling.',
+      'Reused the shared lobby shell/header and AppSelectMenu. The pre-game lobby offers zero, one, or two manual categories per pick and an enabled-by-default optional build spinner.',
+      'Champion, Lane, and Type can be chosen in any order. Each result locks, manual allowances reset per pick, and champions/lanes cannot repeat. Next requires three completed categories; the fifth pick exposes Finish.',
+      'Build rolls produce six unique equipment items, with one pair of standard upgraded boots exempt from the stat type. Source item-group ownership limits and attack identities prevent incompatible builds. Builds can be skipped.',
+      'Added an independent pinned catalogue of 173 champions and 114 items from Data Dragon 16.18.1 and CommunityDragon 16.18. Runtime uses local JSON; no existing catalogues or database schemas were regenerated.',
+      'Added a locally stored sample Riot minimap with five lane-positioned champion markers and hover, keyboard, and touch build inspection. Draft state stays local to the mounted page.',
+      'Separated draft invariants, item eligibility, animation, and map presentation to support revisions. Vertical reels respect reduced motion and cancel pending callbacks on unmount.',
+    ],
+    impact: [
+      'Players can create a complete randomized League team without signing in, choose how much control to retain, and inspect the final builds on the map.',
+      'Staff can maintain the new catalogue independently with npm run data:generate:randodraft; docs/randodraft.md records assumptions, data provenance, and maintenance steps.',
+    ],
+    files: [
+      'app/randodraft/page.tsx', 'app/sitemap.ts', 'components/app-header.tsx',
+      'components/randodraft.tsx', 'components/randodraft-spinner.tsx',
+      'components/randodraft-spinner.module.css', 'components/randodraft-results.tsx',
+      'lib/randodraft.ts', 'lib/game-navigation.ts', 'lib/game-families.ts',
+      'lib/auth-redirect.ts', 'lib/profile-navigation.ts', 'lib/staff-changelog.ts',
+      'data/catalogs/randodraft.json', 'scripts/generate-randodraft-catalog.mjs',
+      'public/maps/summoners-rift.png', 'package.json', 'docs/architecture.md',
+      'docs/randodraft.md', 'tests/randodraft.test.ts', 'tests/randodraft.test.tsx',
+    ],
+    verification: [
+      'Generated and inspected the pinned champion/item catalogue and purchase restrictions.',
+      'Added domain coverage for manual budgets, every category order, lock enforcement, unique lanes/champions, optional builds, conflicting item groups, and complete builds across all champions and types.',
+      'Added UI coverage for the complete five-pick flow, manual picks, build disabling/skipping, map inspection, in-spin locks, callback cancellation, and lobby navigation.',
+      'Verified /randodraft on the existing port-3000 development server in headless Chrome at 1440px and 390px: lobby, reels, all five build rolls, Finish, and the map rendered with no runtime errors, broken final images, or horizontal overflow.',
+      'npm run check passed: lint retained only the existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; all 91 tests passed across 24 files. No production build was run while the development server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-09-skin-champion-champion-autofill',
+    patch: '2026.09.09-skin-champion-champion-autofill',
+    timestamp: '2026-09-09T00:12:55.5931339Z',
+    title: 'Added champion-aware Skin Champion autofill',
+    summary: 'Skin Champion now narrows autocomplete suggestions to skin lines associated with an exact champion-name query while preserving normal substring search for partial input.',
+    details: [
+      'Extended the existing skin-line answer endpoint with a server-generated champion-to-skin-line map built from the same transformed catalogue used to generate quiz answers, including skin-line overrides and omitted-line handling.',
+      'The Skin Champion client normalizes the input and applies the champion map only when the full normalized query exactly matches a champion name. Queries such as ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œYasuÃƒÂ¢Ã¢â€šÂ¬Ã‚Â continue to search all skin-line answers by substring, while ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œYasuoÃƒÂ¢Ã¢â€šÂ¬Ã‚Â searches only YasuoÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s associated skin lines.',
+      'Kept answer submission unchanged: entering a champion name narrows the list but does not make the champion itself a valid skin-line answer.',
+      'No quiz item selection, scoring, difficulty behavior, multiplayer state, authentication, or catalogue records were changed.',
+    ],
+    impact: [
+      'Players can use a known champion name to quickly find the relevant skin lines without losing the existing partial-text autocomplete behavior.',
+      'Champion filtering stays aligned with the serverÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s authoritative Skin Champion answer transformations and full catalogue.',
+    ],
+    files: [
+      'app/api/skin-champion/quiz-answers/route.ts',
+      'components/skin-champion.tsx',
+      'lib/skin-themes.ts',
+      'lib/staff-changelog.ts',
+      'tests/skin-themes.test.ts',
+    ],
+    verification: [
+      'Added focused coverage for deduplicated champion-to-skin-line mapping.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 71 tests passed across 22 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-08-blocked-progress-current-item',
+    patch: '2026.09.08-blocked-progress-current-item',
+    timestamp: '2026-09-08T17:18:49.9972700Z',
+    title: 'Hid current blocked quiz progress artwork',
+    summary: 'Extended the high-difficulty round progress privacy fix so current as well as pending Ability Blitz and Skin Champion items remain hidden.',
+    details: [
+      'Updated both quiz progress-card call sites so Diamond, Challenger, and Chaos show artwork only for completed items; the current and pending answer images are omitted.',
+      'Preserved the existing Iron clear previews, Gold blurred upcoming previews, completed-item artwork, answer text, timers, and carousel visibility behavior.',
+      'No quiz scoring, difficulty configuration, multiplayer state, catalogue data, or server/API behavior changed.',
+    ],
+    impact: [
+      'High-difficulty players cannot infer the current answer from the round progress section before submitting it.',
+      'Completed progress remains reviewable while upcoming and active answer artwork stays hidden under blocked visibility rules.',
+    ],
+    files: [
+      'components/ability-blitz.tsx',
+      'components/skin-champion.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed both QuizProgressCard call sites and the shared difficulty visibility rules before editing.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 70 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-08-misc-game-fixes',
+    patch: '2026.09.08-misc-game-fixes',
+    timestamp: '2026-09-08T16:46:15.0903803Z',
+    title: 'Fixed daily resumes, progress visibility, lobby navigation, and Skincognito turns',
+    summary: 'Prevented stale Splash Scramble daily resumes, hid blocked quiz progress artwork, kept Carving Revelation in its create/join flow, and improved Skincognito guess history, scrolling, and turn-aware input.',
+    details: [
+      'Splash Scramble now validates the saved round mode and UTC date key whenever a daily round is read, loaded from profile state, or resumed. Solved, expired, and stale-date daily candidates are not offered as Resume Daily, and locally stored stale or expired entries are removed.',
+      'Ability Blitz and Skin Champion now apply each difficultyÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s upcoming-visibility rule to round progress artwork: Iron shows pending artwork, Gold keeps its blurred preview, and Diamond, Challenger, and Chaos omit pending ability or skin images entirely.',
+      'Carving Revelation now leaves a waiting lobby without routing away, so the existing page returns directly to its create/join lobby screen. The active and finished game leave behavior remains unchanged.',
+      'Skincognito now renders the complete guess action history, scrolls the guess panel to the bottom whenever the action list changes regardless of its prior scroll position, and lets a non-spectating player browse categories and autofill suggestions during the other playerÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s turn without enabling submission.',
+      'No API contracts, server-side turn validation, catalogue data, authentication behavior, or persisted user-authored data were changed.',
+    ],
+    impact: [
+      'Daily Splash Scramble cannot resume a round from a reset day.',
+      'High-difficulty quiz players no longer receive visual previews of blocked upcoming answers in round progress.',
+      'Carving Revelation waiting-lobby back navigation is consistent with the other multiplayer game lobby flows.',
+      'Skincognito players can review all guesses and prepare their next answer while waiting, while the server and client continue to prevent out-of-turn submissions.',
+    ],
+    files: [
+      'components/ability-blitz.tsx',
+      'components/carving-revelation.tsx',
+      'components/skin-champion.tsx',
+      'components/skincognito.tsx',
+      'components/splash-scramble.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed the affected daily state, progress-card, lobby navigation, Skincognito action, scrolling, and turn-permission paths before editing.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 70 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-08-mobile-login-label',
+    patch: '2026.09.08-mobile-login-label',
+    timestamp: '2026-09-08T16:23:49.9542486Z',
+    title: 'Displayed the mobile login label',
+    summary: 'Made the unauthenticated mobile header action show its Log in label while retaining the icon-only mobile logout control.',
+    details: [
+      'Updated the shared LoginAction responsive classes so the top-right authentication control uses an auto-width button and visible Log in text below the desktop xl breakpoint, while preserving the compact icon-only treatment from xl through the wide desktop label breakpoint.',
+      'Left LogoutControl on its existing default responsive mode, so mobile users continue to see only the logout icon and its accessible Log out label remains available through aria-label and title.',
+      'No authentication flow, routes, session handling, account data, navigation destinations, or desktop wide-header behavior were changed.',
+    ],
+    impact: [
+      'Unauthenticated mobile users can identify the top-right action as Log in without relying on the icon alone.',
+      'Authenticated mobile users retain the existing icon-only logout presentation.',
+    ],
+    files: [
+      'components/app-header.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed the shared LoginAction, LogoutControl, and responsive header breakpoint structure before editing.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 70 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-04-skindle-autocomplete-controls',
+    patch: '2026.09.04-skindle-autocomplete-controls',
+    timestamp: '2026-09-04T18:48:50.0848700Z',
+    title: 'Added opt-in Skindle clue filtering and grouped suggestions',
+    summary: 'Made Skindle autocomplete clue filtering optional, excluded subjective role clues from that filter, and grouped results by champion with chronological release ordering.',
+    details: [
+      'Added an off-by-default ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œFilter dropdown results based on guessesÃƒÂ¢Ã¢â€šÂ¬Ã‚Â switch directly below the Skindle guess input. When enabled, autocomplete applies the previously revealed exact and partial clue constraints; when disabled, it returns all unguessed skin matches as before.',
+      'Removed Role from autocomplete clue filtering because role assignments can be subjective. Role still compares and displays normally on reveal cards, and all other exact or partial filterable columns retain their constraints.',
+      'Grouped the bounded autocomplete result set by champion name in alphabetical order and sorted each champion group from oldest to newest by release date, with undated skins placed after dated skins and stable answer/id tie-breakers.',
+      'Kept the existing 12-result cap, one-row overscan rendering, direct-CDN thumbnail delivery, answer validation, daily state, and stats behavior unchanged.',
+    ],
+    impact: [
+      'Players can choose whether revealed clues should narrow autocomplete results instead of having that behavior forced on every round.',
+      'Subjective Role clues no longer hide potentially valid skin answers when clue filtering is enabled.',
+      'Players can scan matching skins more easily because related champion results are adjacent and each championÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s skins follow release chronology.',
+    ],
+    files: [
+      'components/skindle.tsx',
+      'lib/skindle.ts',
+      'lib/staff-changelog.ts',
+      'tests/skindle.test.ts',
+    ],
+    verification: [
+      'Added focused Vitest coverage for the role-filter exception and champion grouping/release-date ordering.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 70 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
+  {
+    id: 'patch-2026-09-04-skindle-clue-filtering',
+    patch: '2026.09.04-skindle-clue-filtering',
+    timestamp: '2026-09-04T17:24:31.7813706Z',
+    title: 'Fixed Skindle lane clues and autocomplete narrowing',
+    summary: 'Added partial lane matching, narrowed skin autocomplete results using revealed exact or partial clues, and served autocomplete thumbnails without Vercel image transformations.',
+    details: [
+      'Skindle now treats overlapping multi-lane values such as Middle and Middle, Support as a partial match, so the lane reveal cell uses the orange indicator when the values are not identical but share a lane.',
+      'Moved Skindle comparison and clue-filter logic into a typed domain helper. Exact and partial values already revealed across champion, skin line, rarity, species, gender, role, lane, release year, and resource now constrain subsequent autocomplete candidates; release-year direction arrows remain informational until the year is exact.',
+      'Added a dedicated catalogue thumbnail image wrapper with Next Image unoptimized so Skindle autocomplete rows request the source CDN image directly and do not create Vercel image optimization transformations. Full-size Skindle artwork remains on the existing optimized splash-image path.',
+      'Added regression coverage for partial lane matching and combined exact/partial autocomplete clue filtering. No catalogue records, API payloads, daily target selection, persistence keys, or user-authored data were changed.',
+    ],
+    impact: [
+      'Players receive the expected orange feedback for guesses that share one or more lanes with the daily target while listing additional lanes.',
+      'As clues accumulate, Skindle autocomplete becomes more useful by excluding skins that contradict already revealed characteristics.',
+      'Autocomplete thumbnails bypass Vercel image optimization while the larger gameplay and preview images retain their existing responsive optimization behavior.',
+    ],
+    files: [
+      'components/game-asset-image.tsx',
+      'components/skindle.tsx',
+      'lib/skindle.ts',
+      'lib/staff-changelog.ts',
+      'tests/skindle.test.ts',
+    ],
+    verification: [
+      'Added focused Vitest coverage for overlapping lane values and exact/partial clue filtering.',
+      'npm run check passed: lint retained the repository\'s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; typecheck passed; 69 tests passed across 21 test files.',
+      'No production build was run because repository guidance reserves it for an explicitly stopped dev-server state.',
+    ],
+  },
   {
     id: 'patch-2026-09-02-public-content-polish',
     patch: '2026.09.02-public-content-polish',
@@ -855,7 +1740,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     patch: '2026.08.11-lav-title-and-runtime-optimization-pass',
     timestamp: '2026-08-11T19:06:10.4773836Z',
     title: 'Restored patch release titles and optimized LAV delivery',
-    summary: 'Restored Riot’s descriptive patch-release titles and reduced repeat parsing, duplicate requests, unnecessary image transformation work, and client-side patch-search races across the League Account Viewer.',
+    summary: 'Restored RiotÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s descriptive patch-release titles and reduced repeat parsing, duplicate requests, unnecessary image transformation work, and client-side patch-search races across the League Account Viewer.',
     details: [
       'Extended RiotPatchNoteSummary with a nullable descriptive title field parsed from the official release-list anchor while preserving normalized patch number, UTC publication date, article title, canonical href, and safe slug metadata. Patch list and search headings now render the descriptive release title after the requested League of Legends Patch/date prefix; the browser session-cache key was versioned so older incomplete summaries are not reused.',
       'Added bounded 15-minute server memoization and in-flight request deduplication for the Riot patch summary list and individual parsed article details, plus five-minute normalized-query memoization and in-flight deduplication for patch change searches. Existing six-hour Next fetch revalidation and short public response cache headers remain in place as the cross-instance cache layer.',
@@ -863,7 +1748,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Converted the local LAV mastery crest and level-plate image elements to next/image with fixed dimensions, while retaining direct delivery for small immutable Data Dragon and CommunityDragon icons through the shared GameIconImage unoptimized contract. Added browser content-visibility for long patch detail bodies and abortable inline patch searches to prevent stale results and reduce offscreen rendering work.',
     ],
     impact: [
-      'Patch history rows once again show Riot’s descriptive release tagline instead of repeating the generic “League of Legends Patch X Notes” label.',
+      'Patch history rows once again show RiotÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s descriptive release tagline instead of repeating the generic ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œLeague of Legends Patch X NotesÃƒÂ¢Ã¢â€šÂ¬Ã‚Â label.',
       'Repeated patch history, detail, and search requests can reuse parsed server data without refetching or reparsing the same content within the bounded TTLs; concurrent requests for the same resource share one promise.',
       'LAV account payloads remain protected from shared HTTP caching, while non-sensitive patch-note content continues to use public caching. Small remote game icons avoid unnecessary Vercel transformation variants and local mastery assets now use the framework image pipeline.',
     ],
@@ -1219,7 +2104,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     impact: [
       'Community posts are easier to scan vertically and reply relationships remain discoverable without a visually indented tree.',
       'Users can quickly identify when content was posted and jump directly to the comment being referenced.',
-      'The profile Favor value reflects reactions received across the user’s posts and authored comment threads.',
+      'The profile Favor value reflects reactions received across the userÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s posts and authored comment threads.',
     ],
     files: [
       'components/riftbound-community-post.tsx',
@@ -1490,7 +2375,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Users no longer see an oversized duplicate card catalogue below the binder catalogue.',
       'Adding a card by click is fast and deterministic, while right-click provides compact page-specific placement without a long dropdown.',
       'Repeated binder changes no longer issue a network mutation for every add, move, or removal; users can review the binder and commit it once.',
-      'Binder page navigation uses the browser’s native horizontal scrolling behavior without the removed custom drag-scroll gesture.',
+      'Binder page navigation uses the browserÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s native horizontal scrolling behavior without the removed custom drag-scroll gesture.',
     ],
     files: [
       'app/api/riftbound/binders/route.ts',
@@ -1511,8 +2396,8 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     title: 'Refined Riftbound binder placement menus and binder drag performance',
     summary: 'Improved binder card placement controls, constrained shared binder pages to the centered layout shell, linked shared creators to their Riftbound profiles, and removed catalogue rerenders during binder-card drags.',
     details: [
-      'Added the exact “Add to binder #” header and a mobile-only Close action to the centered right-click page picker, while retaining page availability, page-name tooltips, and the compact 4-by-5 page grid.',
-      'Replaced each catalogue card’s Drag to place text with an explicit Add to binder button that uses the existing first-available-slot behavior; right-click remains available for choosing a specific page.',
+      'Added the exact ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œAdd to binder #ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â header and a mobile-only Close action to the centered right-click page picker, while retaining page availability, page-name tooltips, and the compact 4-by-5 page grid.',
+      'Replaced each catalogue cardÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Drag to place text with an explicit Add to binder button that uses the existing first-available-slot behavior; right-click remains available for choosing a specific page.',
       'Added min-width and horizontal overflow containment to the shared binder page shell so its scrollable page strip cannot stretch the surrounding share page beyond the centered content area.',
       'Removed the shared binder read-only and created-date notes, and made the shared-by username link to /riftbound/profile/[username] using the existing encoded profile route.',
       'Separated catalogue-drag state from binder-card-drag state so moving a card inside the binder no longer rerenders the full catalogue. Binder slot hover state now updates only when the target slot changes, while the memoized page and catalogue card components skip unrelated drag updates.',
@@ -1520,7 +2405,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     ],
     impact: [
       'Users can identify the placement menu, close it comfortably on mobile, and add cards through a clear labelled control.',
-      'Shared binder links remain centered and provide direct navigation to the creator’s Riftbound profile.',
+      'Shared binder links remain centered and provide direct navigation to the creatorÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Riftbound profile.',
       'Dragging existing binder cards should remain responsive even with a large catalogue loaded below the binder.',
     ],
     files: [
@@ -1842,11 +2727,11 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Added a durable master-set Riftbound share kind, snapshot builder, share normalization support, and migration 124 to extend the shared snapshot kind constraint without changing existing collection, deck, or binder share behavior.',
       'Added a read-only shared Master Set page with the sharer username/profile link, print/PDF action, shared card progress, card details, and an authenticated Compare with my Master Set action.',
       'Added a side-by-side Master Set comparison modal that keeps both inventories in identical set/card order and reports acquired or missing status for each card.',
-      'Added a Master Set section to Riftbound public profiles with the same search, visibility, rarity-sort, expand/collapse, and selected-card behavior, plus Compare with my Master Set for another user’s profile.',
+      'Added a Master Set section to Riftbound public profiles with the same search, visibility, rarity-sort, expand/collapse, and selected-card behavior, plus Compare with my Master Set for another userÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s profile.',
       'Kept Master Set card artwork on the shared unoptimized/high-resolution RiftboundCardImage path so Next/Vercel image transformations are not introduced.',
     ],
     impact: [
-      'Users can review their Master Set progressively, share a durable read-only snapshot, compare against a shared snapshot, and compare against another user’s public Master Set.',
+      'Users can review their Master Set progressively, share a durable read-only snapshot, compare against a shared snapshot, and compare against another userÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s public Master Set.',
       'Shared Master Set links preserve the existing Riftbound share URL infrastructure and deduplication behavior while remaining read-only for viewers.',
     ],
     files: [
@@ -1864,8 +2749,8 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'tests/riftbound-master-set.test.ts',
     ],
     verification: [
-      'npm run check passed: lint retained only the repository’s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
-      'git diff --check completed with only the repository’s existing Git LF-to-CRLF normalization warnings.',
+      'npm run check passed: lint retained only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
+      'git diff --check completed with only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing Git LF-to-CRLF normalization warnings.',
       'Migration 124 was created but not pushed to Supabase; applying it remains an explicit deployment operation.',
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
@@ -1881,7 +2766,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Removed Inventory and Print / Save PDF controls from the shared Master Set header while retaining authentication access to comparison and the sharer profile link.',
       'Added a shared-view-specific Master Set heading using the sharer username and removed the explanatory acquisition sentence from the shared view.',
       'Changed comparison column labels to plain usernames/You, added a comparison search field, and made each set section independently expandable or collapsible; matching sections auto-open for search results while remaining manually collapsible.',
-      'Grouped base cards with their A-suffixed foil/showcase variants in the comparison rows, preserving set/card order and displaying each grouped variant’s status side by side for both collections.',
+      'Grouped base cards with their A-suffixed foil/showcase variants in the comparison rows, preserving set/card order and displaying each grouped variantÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s status side by side for both collections.',
     ],
     impact: [
       'Sharing a Master Set is now a single-click copy workflow with immediate feedback.',
@@ -1896,8 +2781,8 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'lib/staff-changelog.ts',
     ],
     verification: [
-      'npm run check passed: lint retained only the repository’s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
-      'git diff --check completed with only the repository’s existing Git LF-to-CRLF normalization warnings.',
+      'npm run check passed: lint retained only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
+      'git diff --check completed with only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing Git LF-to-CRLF normalization warnings.',
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
@@ -1923,7 +2808,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'lib/staff-changelog.ts',
     ],
     verification: [
-      'npm run check passed: lint retained only the repository’s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
+      'npm run check passed: lint retained only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile/public-profile/compact-deck files, typecheck passed, and 39 tests passed across 14 test files.',
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
     ],
   },
@@ -2142,7 +3027,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     patch: '2026.08.17-riftbound-market-history-restoration',
     timestamp: '2026-08-17T20:40:27.6958401Z',
     title: 'Restored Riftbound market history after canonical reset',
-    summary: 'Fixed the historical importer’s rolling daily window and repopulated canonical Riftbound market snapshots so current prices and value charts resolve again.',
+    summary: 'Fixed the historical importerÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s rolling daily window and repopulated canonical Riftbound market snapshots so current prices and value charts resolve again.',
     details: [
       'Diagnosed the empty production snapshot table after migration 126: the canonical latest-price RPC returned zero rows, so the application correctly fell back to generated catalogue values while history had no database data to render.',
       'Changed the historical importer to calculate its daily window from the requested --to date. The most recent 90 days are now stored as daily rows for 30-day and 90-day charts, while older requested dates are retained as monthly peak rows for longer ranges.',
@@ -2242,12 +3127,12 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     title: 'Added a privacy settings reopen control',
     summary: 'Added a persistent footer control that lets visitors reopen the published Google consent settings after their initial decision.',
     details: [
-      'Added a focused client component that calls Google Funding Choices’ revocation callback when the published CMP is available, while safely doing nothing if the external consent runtime has not initialized.',
+      'Added a focused client component that calls Google Funding ChoicesÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ revocation callback when the published CMP is available, while safely doing nothing if the external consent runtime has not initialized.',
       'Added the control beside the existing Privacy Policy and Terms of Service links in the shared site footer; consent choices and persistence remain owned by the Google CMP rather than duplicated in application storage.',
     ],
     impact: [
       'Visitors can return to their privacy and cookie choices from any page after the initial consent decision.',
-      'The application does not create a second consent state that could conflict with Google’s TCF record.',
+      'The application does not create a second consent state that could conflict with GoogleÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s TCF record.',
     ],
     files: [
       'components/privacy-settings-button.tsx',
@@ -2271,7 +3156,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'If the Splash Scramble leaderboard RPC fails, the server now reads the same daily entries and profile fields through the service-role table path, applies the RPC-equivalent score/moves/time/completion ordering, and preserves top-50 plus current-user behavior. The original database error is still returned if both paths fail.',
     ],
     impact: [
-      'New daily Splash Scramble rounds no longer intentionally reuse the current day’s Skindle skin when an alternate catalog skin exists.',
+      'New daily Splash Scramble rounds no longer intentionally reuse the current dayÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Skindle skin when an alternate catalog skin exists.',
       'Players can identify skin release dates while searching the Skindle answer list.',
       'Transient RPC failures and schema/permission rollout gaps no longer immediately surface as an Unexpected API error when the underlying leaderboard tables remain readable.',
       'No Skindle champion lane values were changed; the lane audit remains a report-only investigation pending product approval.',
@@ -2285,9 +3170,9 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'lib/staff-changelog.ts',
     ],
     verification: [
-      'npm run lint passed with the repository’s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; no new lint errors were reported.',
+      'npm run lint passed with the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx; no new lint errors were reported.',
       'npx tsc --noEmit --incremental false passed.',
-      'npm run check passed: lint retained the repository’s existing img-element warnings, typecheck passed, and 47 tests passed across 17 test files.',
+      'npm run check passed: lint retained the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings, typecheck passed, and 47 tests passed across 17 test files.',
     ],
   },
   {
@@ -2422,7 +3307,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Carving Revelation lobby views now redact secret_skin_id and skin metadata while a match is active. Active splash access remains available only through the connected-player-checked skin-image route; finished views continue to reveal the answer and image.',
       'Corrected reconnect eligibility consumption to use the domain response fields and reconnect deadline, and allowed eligible existing active players to rejoin through the normal join command while continuing to reject expired, eliminated, or invalid reconnects.',
       'Made first-correct resolution deterministic from the persisted action identity, marked non-winners eliminated at match completion, and removed the previous fallback that selected an arbitrary connected player as a winner when everyone forfeited. Pending reconnect windows now prevent premature give-up/phase completion.',
-      'Returned the submitting player’s authoritative guess action in non-terminal responses, aligned client skip-turn UI with server-validated non-conflicted power-up claims, and kept Insight power-up coordinates private to their owner.',
+      'Returned the submitting playerÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s authoritative guess action in non-terminal responses, aligned client skip-turn UI with server-validated non-conflicted power-up claims, and kept Insight power-up coordinates private to their owner.',
       'Updated Carving Revelation navigation fallback destinations to /games and documented the phase/secret-data contract in docs/architecture.md.',
     ],
     impact: [
@@ -2439,7 +3324,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'tests/carving-revelation-rules.test.ts',
     ],
     verification: [
-      'npm run lint passed with only the repository’s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
+      'npm run lint passed with only the repositoryÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s existing img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
       'npm run typecheck passed.',
       'npm run test:run passed: 51 tests across 18 test files, including four new Carving Revelation rules/security regression tests.',
       'No production build was run because the request did not require one and repository guidance reserves it for an explicitly stopped dev-server state.',
@@ -2599,7 +3484,7 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
       'Normalized lane metadata separators from slash-delimited values such as Top/Jungle/Middle/Support to comma-separated values and enabled word breaking in desktop and mobile result cells so long lane lists can wrap instead of clipping at a slash.',
     ],
     impact: [
-      'Production Skindle stats no longer depend on Vercel’s non-durable/read-only application filesystem and can be updated safely by concurrent serverless requests after migration 130 is applied.',
+      'Production Skindle stats no longer depend on VercelÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s non-durable/read-only application filesystem and can be updated safely by concurrent serverless requests after migration 130 is applied.',
       'Unauthenticated players can continue contributing anonymous global guesses; a missing database migration now reports a non-sensitive 503 rather than a generic server exception.',
       'Skindle lane comparison remains equivalent while the displayed lane list is readable on narrow result cells.',
     ],
@@ -2650,16 +3535,16 @@ export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
     patch: '2026.08.21-autocomplete-image-transformations',
     timestamp: '2026-08-21T19:01:30.2411344Z',
     title: 'Reduced responsive and autocomplete image transformations',
-    summary: 'Removed Skindle’s duplicate desktop/mobile guess-image mount and bounded image-backed autocomplete searches across Skindle, Splash Scramble, and Skincognito.',
+    summary: 'Removed SkindleÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s duplicate desktop/mobile guess-image mount and bounded image-backed autocomplete searches across Skindle, Splash Scramble, and Skincognito.',
     details: [
-      'Replaced Skindle’s separate mobile and desktop guess-row components with one responsive row that contains one shared GameSplashImage element per guess. The desktop grid and mobile category layout remain responsive, and latest-guess scrolling now follows the single shared row reference.',
+      'Replaced SkindleÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s separate mobile and desktop guess-row components with one responsive row that contains one shared GameSplashImage element per guess. The desktop grid and mobile category layout remain responsive, and latest-guess scrolling now follows the single shared row reference.',
       'Splash Scramble skin search now waits for three characters, caps results at 12, and uses one overscan row instead of four. This prevents broad one- and two-character searches from mounting up to 15 new splash thumbnails on every keystroke.',
-      'Skindle autocomplete now waits for three characters, caps results at 12, and uses one overscan row instead of four. Skincognito’s skin-selection and skin-guess dropdowns now wait for three characters and cap image-backed results at eight; non-skin category suggestions remain text-only and unchanged.',
+      'Skindle autocomplete now waits for three characters, caps results at 12, and uses one overscan row instead of four. SkincognitoÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s skin-selection and skin-guess dropdowns now wait for three characters and cap image-backed results at eight; non-skin category suggestions remain text-only and unchanged.',
       'Kept large selected, target, preview, board-reference, and completed-game artwork optimized. No global unoptimized override was added, avoiding a transformation reduction that would instead download the original large splash source for every thumbnail.',
     ],
     impact: [
       'A normal Skindle guess no longer mounts separate mobile and desktop optimized splash variants; the browser selects one responsive image variant for the shared row.',
-      'Splash Scramble searches such as a → am → amu no longer transform images for the first two broad queries. The likely 37-transformation pattern from the reported test should be bounded to the matching results after the third character, with at most nine initial thumbnails mounted.',
+      'Splash Scramble searches such as a ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ am ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ amu no longer transform images for the first two broad queries. The likely 37-transformation pattern from the reported test should be bounded to the matching results after the third character, with at most nine initial thumbnails mounted.',
       'Image-backed dropdowns remain available, but require a more specific query and expose bounded result sets, reducing transformation spikes while preserving skin selection and guessing behavior.',
     ],
     files: [

@@ -3,12 +3,15 @@ import { getAbsoluteSiteUrl } from '@/lib/seo';
 
 const publicRoutes = [
   '/',
+  '/news',
+  '/news/archive',
   '/ability-blitz',
   '/multiplayer/ability-blitz',
   '/skin-champion',
   '/multiplayer/skin-champion',
   '/skindle',
   '/splash-scramble',
+  '/randodraft',
   '/skincognito',
   '/carving-revelation',
   '/category-clash',

@@ -55,6 +55,41 @@ body {
   gap: 0.5rem;
 }
 
+/* Two compact catalogue columns fit phone-width screens while preserving the
+   larger fixed card widths used by tablet and desktop layouts. */
+@media (max-width: 639px) {
+  .riftbound-card-grid,
+  .riftbound-deck-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 0.5rem;
+  }
+
+  /* Keep the search field full-width, then place sort and filters beside one
+     another on the phone-sized catalogue controls used by inventory/profile. */
+  .grid:has(> div.relative > input[aria-label='Search Riftbound cards']),
+  .grid:has(> div.relative > input[aria-label='Search collection cards']) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid:has(> div.relative > input[aria-label='Search Riftbound cards']) > div.relative,
+  .grid:has(> div.relative > input[aria-label='Search collection cards']) > div.relative {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Fixed-width SVG history plots must scroll inside their card-detail panel
+   instead of contributing their intrinsic width to the modal grid. */
+[role='dialog'][aria-label$=' details'] {
+  overflow-x: hidden;
+}
+
+div:has(> div.relative > svg[aria-label='Riftbound card market value history line graph']) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 button,
 input,
 textarea,

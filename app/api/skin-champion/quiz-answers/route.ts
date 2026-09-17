@@ -2,7 +2,7 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse, type NextRequest } from 'next/server';
 import { GENERATED_CATALOG_CACHE_CONTROL } from '@/lib/cache-control';
 import { getAnswerList, getSkinCatalog } from '@/lib/catalogs';
-import { getSkinThemeAndSkinAnswerList, getSkinThemeAnswerList } from '@/lib/skin-themes';
+import { getSkinThemeAndSkinAnswerList, getSkinThemeAnswersByChampion, getSkinThemeAnswerList } from '@/lib/skin-themes';
 
 export const GET = withApiMetrics('/api/skin-champion/quiz-answers', async function GET(request: NextRequest) {
   const answerMode = request.nextUrl.searchParams.get('answerMode');
@@ -10,6 +10,15 @@ export const GET = withApiMetrics('/api/skin-champion/quiz-answers', async funct
 
   if (answerMode === 'skin-line') {
     return NextResponse.json(getSkinThemeAnswerList(catalog), {
+      headers: { 'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL },
+    });
+  }
+
+  if (answerMode === 'skin-line-with-champions') {
+    return NextResponse.json({
+      answers: getSkinThemeAnswerList(catalog),
+      skinLinesByChampion: getSkinThemeAnswersByChampion(catalog),
+    }, {
       headers: { 'Cache-Control': GENERATED_CATALOG_CACHE_CONTROL },
     });
   }

@@ -1884,6 +1884,7 @@ export function AbilityBlitz({ multiplayer }: { multiplayer?: MultiplayerGameRun
                       completedClassName="border-emerald-500/20 bg-emerald-500/5"
                       pendingClassName="border-white/10 bg-slate-950/70"
                       pendingImageClassName="blur-sm brightness-50"
+                      showImage={item.state === 'completed' || difficultyRule.upcomingVisibility !== 'blocked'}
                     />
                   );
                 })}

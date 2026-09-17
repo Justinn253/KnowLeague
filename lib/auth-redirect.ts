@@ -10,6 +10,7 @@ const ACTIVE_GAME_PATH_PREFIXES = [
   '/skincognito',
   '/skindle',
   '/splash-scramble',
+  '/randodraft',
 ] as const;
 
 function isExcludedAuthPath(pathname: string) {

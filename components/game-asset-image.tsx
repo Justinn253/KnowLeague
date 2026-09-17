@@ -8,8 +8,15 @@ type GameIconImageProps = Omit<ImageProps, 'loading' | 'unoptimized'> & {
   loading?: ImageProps['loading'];
 };
 
-/** Keep catalog autocomplete thumbnails on one reusable optimized width. */
+/** Keep catalog autocomplete thumbnails on one reusable display width. */
 export const GAME_SKIN_THUMBNAIL_SIZES = '64px';
+
+/** Catalog autocomplete thumbnails should use the source CDN image directly instead of a Vercel transformation. */
+export function GameCatalogThumbnailImage(props: Omit<ImageProps, 'unoptimized'>) {
+  // `ImageProps` requires alt; it is forwarded through the wrapper.
+  // eslint-disable-next-line jsx-a11y/alt-text
+  return <Image {...props} unoptimized />;
+}
 
 /**
  * Full-size Riot splash art benefits from responsive resizing. Keep its

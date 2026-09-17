@@ -309,10 +309,18 @@ function getSavedRemainingSeconds(round: SavedRoundState, now = Date.now()) {
 }
 
 function isRoundResumeable(round: SavedRoundState, now = Date.now()) {
+  if (round.mode === 'daily' && round.dateKey !== getDailyDateKey(new Date(now))) {
+    return false;
+  }
+
   return round.timeLimit === null || round.endsAt === null || round.endsAt > (round.pausedAt ?? now);
 }
 
-function isSavedRoundPlayable(round: SavedRoundState, now = Date.now()) {
+function isSavedRoundPlayable(round: SavedRoundState, now = Date.now(), expectedMode?: PuzzleMode) {
+  if (expectedMode === 'daily' && (round.mode !== 'daily' || round.dateKey !== getDailyDateKey(new Date(now)))) {
+    return false;
+  }
+
   return isRoundResumeable(round, now) && !isSolved(round.tiles, round.rotations);
 }
 
@@ -340,12 +348,7 @@ function readLocalSavedRound(mode: PuzzleMode = 'regular') {
       return null;
     }
 
-    if (mode === 'daily' && round.dateKey !== getDailyDateKey()) {
-      window.localStorage.removeItem(getRoundStorageKey(mode));
-      return null;
-    }
-
-    if (!isSavedRoundPlayable(round)) {
+    if (!isSavedRoundPlayable(round, Date.now(), mode)) {
       window.localStorage.removeItem(getRoundStorageKey(mode));
       return null;
     }
@@ -526,7 +529,7 @@ async function loadAccountPayload(accessToken?: string | null): Promise<AccountP
     const result = await response.json() as { state?: SavedRoundState | null; stats?: SplashScrambleStats | null };
     const round = result.state ?? null;
     return {
-      state: round && isRoundResumeable(round) ? round : null,
+      state: round && isSavedRoundPlayable(round) ? round : null,
       stats: result.stats ? normalizeStats(result.stats) : null,
     };
   });
@@ -1690,6 +1693,17 @@ export function SplashScramble() {
   const resumeSavedRound = async (mode: PuzzleMode = 'regular') => {
     const round = mode === 'daily' ? dailyResumeRound : resumeRound;
     if (!round) {
+      return;
+    }
+
+    if (!isSavedRoundPlayable(round, Date.now(), mode)) {
+      clearLocalRound(mode);
+      if (mode === 'daily') {
+        setDailyResumeRound(null);
+      } else {
+        setResumeRound(null);
+      }
+      setPhase('prematch');
       return;
     }
 

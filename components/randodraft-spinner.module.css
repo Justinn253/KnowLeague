@@ -1,0 +1,11 @@
+.reel {
+  animation: roll 2.475s cubic-bezier(0.22, 0.7, 0.35, 1) forwards;
+  will-change: transform;
+}
+@keyframes roll {
+  from { transform: translateY(0); }
+  to { transform: translateY(var(--reel-offset)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reel { animation: none; transform: translateY(var(--reel-offset)); }
+}

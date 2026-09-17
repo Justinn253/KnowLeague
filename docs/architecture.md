@@ -13,6 +13,7 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 | --- | --- | --- | --- |
 | Ability Blitz | `components/ability-blitz.tsx` | `app/api/ability-blitz`, `lib/catalogs.ts` | `lib/game-storage.ts` |
 | Skin Champion | `components/skin-champion.tsx` | `app/api/skin-champion`, `lib/catalogs.ts` | `lib/game-storage.ts` |
+| Randodraft | `components/randodraft.tsx`, spinner/results components | `lib/randodraft.ts`, local `data/catalogs/randodraft.json` | React draft state + private Supabase history (last five account drafts) |
 | Skindle | `components/skindle.tsx` | `app/api/skindle`, skin metadata catalogues | local daily state + Supabase stats |
 
 ### Game families
@@ -24,7 +25,7 @@ The games are organized by gameplay responsibility rather than by visual similar
 - `splash-puzzle`: Splash Scramble owns tile reconstruction, puzzle controls, deterministic daily targeting, and puzzle-specific persistence/statistics.
 - `multiplayer-session`: Skincognito, Carving Revelation, and Category Clash share lobby, presence, reconnect, host, chat, moderation, and result-recording contracts while retaining distinct rules engines.
 - Carving Revelation uses server-authoritative carving and guessing phases: connected active players submit the required carve lines, the server advances the phase from persisted actions or expiry, and secret skin data is revealed only after match completion (active image access is served through the player-checked skin-image route).
-- `standalone`: Mastery Master remains isolated until its gameplay contracts justify a shared family.
+- `standalone`: Mastery Master and Randodraft own independent challenge rules. Randodraft separates its pure draft reducer/build eligibility from the vertical spinner and map presentation.
 
 The first shared solo-quiz contract lives in `lib/solo-quiz.ts`. It centralizes difficulty rules, entry-count options, game definitions, and the persisted round-state shape without changing existing storage keys, routes, seeds, or game behavior.
 
@@ -78,6 +79,7 @@ The first shared solo-quiz contract lives in `lib/solo-quiz.ts`. It centralizes 
 - Generator: `scripts/generate-catalogs.mjs`.
 - Runtime catalogues: `data/catalogs/*.json`.
 - Release-date overrides: `data/catalogs/skin-release-dates.json`.
+- Randodraft owns an independent pinned champion/item catalogue: `npm run data:generate:randodraft`. See `docs/randodraft.md` for build rules and maintenance.
 - Generated JSON is large; search it narrowly and do not load it for unrelated work.
 
 ## High-Cost Files

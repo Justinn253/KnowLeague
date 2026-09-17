@@ -2,7 +2,7 @@
 
 import { FormEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, X } from 'lucide-react';
-import { GAME_SKIN_THUMBNAIL_SIZES, GameSplashImage } from '@/components/game-asset-image';
+import { GAME_SKIN_THUMBNAIL_SIZES, GameCatalogThumbnailImage, GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -23,6 +23,15 @@ import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achieveme
 import type { AchievementEventSubmission } from '@/lib/achievements';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound, type SoundName } from '@/lib/ui-sounds';
+import {
+  compareGuess,
+  formatCategoryValue,
+  groupSkindleSuggestions,
+  getReleaseYear,
+  matchesEarnedSkindleClues,
+  type SkindleCategoryId,
+  type SkindleGuessResult,
+} from '@/lib/skindle';
 
 const categories = [
   { id: 'champion', label: 'Champion' },
@@ -36,7 +45,7 @@ const categories = [
   { id: 'resourceType', label: 'Resource' },
 ] as const;
 
-type CategoryId = (typeof categories)[number]['id'];
+type CategoryId = SkindleCategoryId;
 type CategoryDefinition = (typeof categories)[number];
 type ActiveCategoryNote = {
   text: string;
@@ -58,6 +67,7 @@ const revealCellIndexById = Object.fromEntries(
 const SKINDLE_REVEAL_DURATION_MS = 336;
 const SKINDLE_REVEAL_TOTAL_MS = SKINDLE_REVEAL_DURATION_MS * (categories.length + 1);
 const SKINDLE_SUGGESTION_ROW_HEIGHT = 64;
+const SKINDLE_SUGGESTION_GROUP_HEADER_HEIGHT = 28;
 const SKINDLE_SUGGESTION_MAX_HEIGHT = 360;
 const SKINDLE_SUGGESTION_MIN_QUERY_LENGTH = 3;
 const SKINDLE_SUGGESTION_LIMIT = 12;
@@ -66,13 +76,11 @@ const CATEGORY_NOTE_TOOLTIP_HALF_WIDTH = 128;
 
 const categoryById = Object.fromEntries(categories.map((category) => [category.id, category])) as Record<CategoryId, CategoryDefinition>;
 
-type GuessResult = {
-  item: QuizItem;
-  values: Record<CategoryId, string>;
-  matches: Record<CategoryId, boolean>;
-  partialMatches: Partial<Record<CategoryId, boolean>>;
-  releaseYearDirection: 'higher' | 'lower' | null;
-};
+type GuessResult = SkindleGuessResult;
+
+type SkindleSuggestionRow =
+  | { kind: 'group'; champion: string; top: number; height: number }
+  | { kind: 'skin'; skin: QuizItem; top: number; height: number };
 
 type SkindleDailyState = {
   guessIds: string[];
@@ -170,81 +178,6 @@ function loadSkindleDailyStats(includeTopGuesses: boolean) {
     },
   );
   return request;
-}
-
-function getReleaseYear(item: QuizItem) {
-  return item.releaseDate?.slice(0, 4) || 'Unknown';
-}
-
-function toDisplayTitleCase(value: string) {
-  return value.replace(/[A-Za-z]+/g, (word) => {
-    if (word.length <= 2 && word === word.toUpperCase()) {
-      return word;
-    }
-
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-  });
-}
-
-function formatCategoryValue(value: string) {
-  if (value === 'Standard') {
-    return 'Common';
-  }
-
-  return toDisplayTitleCase(value);
-}
-
-function formatLaneValue(value: string) {
-  return formatCategoryValue(value.replace(/\s*\/\s*/g, ', '));
-}
-
-function getCategoryValues(item: QuizItem): Record<CategoryId, string> {
-  return {
-    champion: formatCategoryValue(item.champion || 'Unknown'),
-    skinLine: formatCategoryValue(item.skinLine || 'None'),
-    releaseYear: getReleaseYear(item),
-    rarity: formatCategoryValue(item.rarity || 'Unknown'),
-    gender: formatCategoryValue(item.gender || 'Unknown'),
-    role: formatCategoryValue(item.role || 'Unknown'),
-    race: formatCategoryValue(item.race || 'Unknown'),
-    lane: formatLaneValue(item.lane || 'Unknown'),
-    resourceType: formatCategoryValue(item.resourceType || 'Unknown'),
-  };
-}
-
-function getSpeciesParts(value: string) {
-  return value
-    .split(',')
-    .map((part) => normalizeAnswer(part))
-    .filter(Boolean);
-}
-
-function compareGuess(item: QuizItem, target: QuizItem): GuessResult {
-  const values = getCategoryValues(item);
-  const targetValues = getCategoryValues(target);
-  const matches = categories.reduce<Record<CategoryId, boolean>>((acc, category) => {
-    acc[category.id] = values[category.id] === targetValues[category.id];
-    return acc;
-  }, {} as Record<CategoryId, boolean>);
-  const guessedSpecies = getSpeciesParts(values.race);
-  const targetSpecies = getSpeciesParts(targetValues.race);
-  const partialMatches: Partial<Record<CategoryId, boolean>> = {
-    race:
-      !matches.race &&
-      guessedSpecies.length > 0 &&
-      targetSpecies.length > 0 &&
-      guessedSpecies.some((species) => targetSpecies.includes(species)),
-  };
-  const guessedYear = Number(values.releaseYear);
-  const targetYear = Number(targetValues.releaseYear);
-  const releaseYearDirection =
-    Number.isFinite(guessedYear) && Number.isFinite(targetYear) && guessedYear !== targetYear
-      ? guessedYear < targetYear
-        ? 'higher'
-        : 'lower'
-      : null;
-
-  return { item, values, matches, partialMatches, releaseYearDirection };
 }
 
 function QuestionPingMark() {
@@ -504,6 +437,7 @@ export function Skindle() {
   const [inputValue, setInputValue] = useState('');
   const deferredInputValue = useDeferredValue(inputValue);
   const [suggestions, setSuggestions] = useState<QuizItem[]>([]);
+  const [filterSuggestionsByGuesses, setFilterSuggestionsByGuesses] = useState(false);
   const [suggestionsScrollTop, setSuggestionsScrollTop] = useState(0);
   const [guesses, setGuesses] = useState<GuessResult[]>([]);
   const [revealedSolvedGuessId, setRevealedSolvedGuessId] = useState<string | null>(null);
@@ -548,6 +482,18 @@ export function Skindle() {
     skin,
     normalizedAnswer: normalizeAnswer(skin.answer),
   })), [skins]);
+  const availableSkinSearchIndex = useMemo(
+    () => skinSearchIndex.filter(({ skin }) => !guessedSkinIds.has(skin.id)),
+    [guessedSkinIds, skinSearchIndex],
+  );
+  const clueFilteredSkinSearchIndex = useMemo(
+    () => availableSkinSearchIndex.filter(({ skin }) => matchesEarnedSkindleClues(skin, guesses)),
+    [availableSkinSearchIndex, guesses],
+  );
+  const suggestionSearchIndex = useMemo(
+    () => filterSuggestionsByGuesses ? clueFilteredSkinSearchIndex : availableSkinSearchIndex,
+    [availableSkinSearchIndex, clueFilteredSkinSearchIndex, filterSuggestionsByGuesses],
+  );
   const skinsByNormalizedAnswer = useMemo(() => {
     const index = new Map<string, QuizItem>();
     skinSearchIndex.forEach(({ skin, normalizedAnswer }) => {
@@ -576,10 +522,41 @@ export function Skindle() {
     [playerStats.rarityStats],
   );
   const displayedGuesses = useMemo(() => [...guesses].reverse(), [guesses]);
-  const suggestionsListHeight = Math.min(SKINDLE_SUGGESTION_MAX_HEIGHT, suggestions.length * SKINDLE_SUGGESTION_ROW_HEIGHT);
-  const suggestionsStartIndex = Math.max(0, Math.floor(suggestionsScrollTop / SKINDLE_SUGGESTION_ROW_HEIGHT) - SKINDLE_SUGGESTION_OVERSCAN);
-  const suggestionsVisibleCount = Math.ceil(SKINDLE_SUGGESTION_MAX_HEIGHT / SKINDLE_SUGGESTION_ROW_HEIGHT) + SKINDLE_SUGGESTION_OVERSCAN * 2;
-  const visibleSuggestions = suggestions.slice(suggestionsStartIndex, suggestionsStartIndex + suggestionsVisibleCount);
+  const suggestionGroups = useMemo(() => groupSkindleSuggestions(suggestions), [suggestions]);
+  const suggestionRows = useMemo(() => {
+    const rows: SkindleSuggestionRow[] = [];
+    let top = 0;
+
+    suggestionGroups.forEach((group) => {
+      rows.push({
+        kind: 'group',
+        champion: group.champion,
+        top,
+        height: SKINDLE_SUGGESTION_GROUP_HEADER_HEIGHT,
+      });
+      top += SKINDLE_SUGGESTION_GROUP_HEADER_HEIGHT;
+
+      group.skins.forEach((skin) => {
+        rows.push({ kind: 'skin', skin, top, height: SKINDLE_SUGGESTION_ROW_HEIGHT });
+        top += SKINDLE_SUGGESTION_ROW_HEIGHT;
+      });
+    });
+
+    return { rows, totalHeight: top };
+  }, [suggestionGroups]);
+  const suggestionsListHeight = Math.min(SKINDLE_SUGGESTION_MAX_HEIGHT, suggestionRows.totalHeight);
+  const visibleSuggestionRows = useMemo(() => {
+    const firstVisibleIndex = suggestionRows.rows.findIndex((row) => row.top + row.height > suggestionsScrollTop);
+    const startIndex = Math.max(0, (firstVisibleIndex === -1 ? suggestionRows.rows.length : firstVisibleIndex) - SKINDLE_SUGGESTION_OVERSCAN);
+    const viewportBottom = suggestionsScrollTop + suggestionsListHeight;
+    let endIndex = firstVisibleIndex === -1 ? suggestionRows.rows.length : firstVisibleIndex;
+
+    while (endIndex < suggestionRows.rows.length && suggestionRows.rows[endIndex].top < viewportBottom) {
+      endIndex += 1;
+    }
+
+    return suggestionRows.rows.slice(startIndex, Math.min(suggestionRows.rows.length, endIndex + SKINDLE_SUGGESTION_OVERSCAN));
+  }, [suggestionRows, suggestionsListHeight, suggestionsScrollTop]);
   const suggestionsAreUpdating = inputValue !== deferredInputValue;
   const averagePlayerGuesses = playerStats.gamesCompleted > 0
     ? (playerStats.totalGuesses / playerStats.gamesCompleted).toFixed(1)
@@ -598,11 +575,11 @@ export function Skindle() {
     if (value.trim().length < SKINDLE_SUGGESTION_MIN_QUERY_LENGTH || !query || solved) {
       return [];
     }
-    return skinSearchIndex
-      .filter(({ skin, normalizedAnswer }) => !guessedSkinIds.has(skin.id) && normalizedAnswer.includes(query))
+    return suggestionSearchIndex
+      .filter(({ normalizedAnswer }) => normalizedAnswer.includes(query))
       .map(({ skin }) => skin)
       .slice(0, SKINDLE_SUGGESTION_LIMIT);
-  }, [guessedSkinIds, skinSearchIndex, solved]);
+  }, [solved, suggestionSearchIndex]);
 
   useEffect(() => {
     activeDateKeyRef.current = activeDateKey;
@@ -778,7 +755,7 @@ export function Skindle() {
 
   useEffect(() => {
     setSuggestionsScrollTop(0);
-  }, [deferredInputValue]);
+  }, [deferredInputValue, filterSuggestionsByGuesses]);
 
   useEffect(() => {
     if (guesses.length === 0) {
@@ -1201,8 +1178,7 @@ export function Skindle() {
           <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-3 sm:p-5">
             <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-amber-300">Daily Skindle</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
+                <h2 className="text-2xl font-semibold text-white">
                   {solved && target ? 'The skin was: ' + target.answer : 'Mystery Skin'}
                 </h2>
               </div>
@@ -1316,40 +1292,45 @@ export function Skindle() {
                   style={{ height: suggestionsListHeight }}
                   onScroll={(event) => setSuggestionsScrollTop(event.currentTarget.scrollTop)}
                 >
-                  <div className="relative" style={{ height: suggestions.length * SKINDLE_SUGGESTION_ROW_HEIGHT }}>
-                    {visibleSuggestions.map((skin, index) => (
+                  <div className="relative" style={{ height: suggestionRows.totalHeight }}>
+                    {visibleSuggestionRows.map((row) => row.kind === 'group' ? (
+                      <div
+                        key={`group-${row.champion}`}
+                        className="absolute left-0 flex w-full items-center border-b border-white/10 px-2 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500"
+                        style={{ top: row.top, height: row.height }}
+                      >
+                        {row.champion}
+                      </div>
+                    ) : (
                       <button
-                        key={skin.id}
+                        key={row.skin.id}
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
-                        onPointerEnter={() => playSuggestionHoverSound(skin.id)}
+                        onPointerEnter={() => playSuggestionHoverSound(row.skin.id)}
                         onPointerLeave={() => {
-                          if (hoveredSuggestionIdRef.current === skin.id) {
+                          if (hoveredSuggestionIdRef.current === row.skin.id) {
                             hoveredSuggestionIdRef.current = null;
                           }
                         }}
-                        onFocus={() => playSuggestionHoverSound(skin.id)}
+                        onFocus={() => playSuggestionHoverSound(row.skin.id)}
                         onBlur={() => {
-                          if (hoveredSuggestionIdRef.current === skin.id) {
+                          if (hoveredSuggestionIdRef.current === row.skin.id) {
                             hoveredSuggestionIdRef.current = null;
                           }
                         }}
                         onClick={() => {
                           playUiSound('autocomplete-select');
-                          submitGuess(skin);
+                          submitGuess(row.skin);
                         }}
                         className="absolute left-0 grid w-full grid-cols-[4rem_minmax(0,1fr)] items-center gap-3 rounded-xl px-2 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300 active:bg-slate-800"
-                        style={{
-                          top: (suggestionsStartIndex + index) * SKINDLE_SUGGESTION_ROW_HEIGHT,
-                          height: SKINDLE_SUGGESTION_ROW_HEIGHT,
-                        }}
+                        style={{ top: row.top, height: row.height }}
                       >
                         <span className="relative h-12 overflow-hidden rounded-xl bg-slate-900">
-                          <GameSplashImage src={skin.imageUrl} alt="" fill sizes={GAME_SKIN_THUMBNAIL_SIZES} className="object-cover" />
+                          <GameCatalogThumbnailImage src={row.skin.imageUrl} alt="" fill sizes={GAME_SKIN_THUMBNAIL_SIZES} className="object-cover" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-semibold text-white">{skin.answer}{skin.releaseDate ? ` (${skin.releaseDate})` : ''}</span>
-                          <span className="block truncate text-xs text-slate-500">{skin.champion}</span>
+                          <span className="block truncate font-semibold text-white">{row.skin.answer}{row.skin.releaseDate ? ` (${row.skin.releaseDate})` : ''}</span>
+                          <span className="block truncate text-xs text-slate-500">{row.skin.champion}</span>
                         </span>
                       </button>
                     ))}
@@ -1367,6 +1348,22 @@ export function Skindle() {
               >
                 <Search size={16} />
                 Guess
+              </button>
+            </div>
+            <div className="mt-3 flex items-center gap-2 px-1">
+              <span className="text-xs text-slate-400">Filter dropdown results based on guesses</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={filterSuggestionsByGuesses}
+                aria-label="Filter dropdown results based on guesses"
+                onClick={() => {
+                  setFilterSuggestionsByGuesses((current) => !current);
+                  playUiSound('setting-select');
+                }}
+                className={`inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${filterSuggestionsByGuesses ? 'border-amber-200 bg-amber-300' : 'border-white/20 bg-slate-900'}`}
+              >
+                <span className={`h-3.5 w-3.5 rounded-full transition ${filterSuggestionsByGuesses ? 'ml-[1.05rem] bg-slate-950' : 'ml-0.5 bg-slate-500'}`} aria-hidden="true" />
               </button>
             </div>
           </form> : null}

@@ -132,7 +132,7 @@ export function MultiplayerLobbyHeader({
         <div className="min-w-0">
           <p className="text-[0.68rem] uppercase tracking-[0.2em] text-slate-500 sm:text-xs sm:tracking-[0.24em]">{eyebrow}</p>
           <h1 className="truncate text-lg font-semibold text-white sm:text-xl">{title}</h1>
-          <p className="mt-1 truncate text-xs text-slate-400">{subtitle}</p>
+          {subtitle ? <p className="mt-1 truncate text-xs text-slate-400">{subtitle}</p> : null}
         </div>
       </div>
 

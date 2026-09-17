@@ -1878,7 +1878,6 @@ export function CarvingRevelation() {
       return;
     }
     await leaveCurrentLobby(false);
-    router.push('/games');
   };
 
   const giveUp = async () => {

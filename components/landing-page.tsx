@@ -84,7 +84,7 @@ function SmallActionLink({ href, children, icon, className = '', fullWidth = fal
   );
 }
 
-export function LandingPage() {
+export function LandingPage({ newsPanel }: { newsPanel?: ReactNode }) {
   const [sessionResolved, setSessionResolved] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [linkedRiotId, setLinkedRiotId] = useState<string | null>(null);
@@ -209,6 +209,8 @@ export function LandingPage() {
             </SmallActionLink>
           </LandingCard>
         </div>
+
+        {newsPanel}
 
         {!isLoggedIn && sessionResolved ? (
           <aside className="relative flex flex-col gap-4 rounded-2xl border border-white/10 bg-slate-950/75 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">

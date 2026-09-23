@@ -17,6 +17,29 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    "id": "patch-2026-09-23-augment-readiness-probe",
+    "patch": "2026.09.23-augment-readiness-probe",
+    "timestamp": "2026-09-23T20:10:00.000Z",
+    "title": "Added augment dependency readiness probes",
+    "summary": "The readiness endpoint now verifies the community feed and ratings RPCs in addition to the base Supabase connection.",
+    "details": [
+      "Added bounded newest-feed and empty-ratings RPC probes using the existing service-role client.",
+      "Added an augments check that reports schema or function rollout failures without exposing provider details.",
+      "Kept the existing configuration, Supabase, and shared-rate-limit checks unchanged."
+    ],
+    "impact": [
+      "Preview and production operators can identify an incomplete augment migration rollout before users encounter the community feed error."
+    ],
+    "files": [
+      "app/api/health/ready/route.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "The local readiness probe was verified with the configured Supabase project after the augment checks were added.",
+      "npm run check passed: lint completed with only existing no-img warnings, typecheck passed, and 34 Vitest files (161 tests) passed; git diff --check passed."
+    ]
+  },
+  {
     "id": "patch-2026-09-23-augment-dependency-errors",
     "patch": "2026.09.23-augment-dependency-errors",
     "timestamp": "2026-09-23T19:35:00.000Z",

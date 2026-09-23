@@ -19,6 +19,7 @@ export const GET = withApiMetrics('/api/health/ready', async function GET() {
   const checks: Record<string, 'ok' | 'failed' | 'not_required'> = {
     configuration: 'ok',
     supabase: 'failed',
+    augments: 'failed',
     sharedRateLimit: 'not_required',
   };
 
@@ -39,15 +40,26 @@ export const GET = withApiMetrics('/api/health/ready', async function GET() {
 
   if (hasSupabaseConfiguration) {
     try {
-      const { error } = await getSupabaseServiceClient()
-        .from('profiles')
-        .select('id')
-        .limit(1);
-      if (!error) {
+      const db = getSupabaseServiceClient();
+      const [supabaseProbe, augmentFeedProbe, augmentRatingsProbe] = await Promise.all([
+        db.from('profiles').select('id').limit(1),
+        db.rpc('custom_augment_community_feed', {
+          p_sort: 'newest',
+          p_query: '',
+          p_offset: 0,
+          p_limit: 1,
+        }),
+        db.rpc('custom_augment_ratings', { p_ids: [] }),
+      ]);
+      if (!supabaseProbe.error) {
         checks.supabase = 'ok';
+      }
+      if (!augmentFeedProbe.error && !augmentRatingsProbe.error) {
+        checks.augments = 'ok';
       }
     } catch {
       checks.supabase = 'failed';
+      checks.augments = 'failed';
     }
   }
 

@@ -1,9 +1,11 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { withApiMetrics } from '@/lib/api-metrics';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
 import { getRouteErrorResponse } from '@/lib/api-utils';
 import { loadOfficialAugmentRatingsBatch } from '@/lib/augment-official-server';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
+
+export const runtime = 'nodejs';
 
 export const GET = withApiMetrics('/api/official-augments', async (request: Request) => {
   try {

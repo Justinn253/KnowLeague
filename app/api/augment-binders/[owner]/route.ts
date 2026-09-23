@@ -5,6 +5,8 @@ import { ApiError, getRouteErrorResponse } from '@/lib/api-utils';
 import { loadAugmentBinder } from '@/lib/augment-builder-server';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
+export const runtime = 'nodejs';
+
 export const GET = withApiMetrics(
   '/api/augment-binders/[owner]',
   async (request: Request, { params }: { params: { owner: string } }) => {

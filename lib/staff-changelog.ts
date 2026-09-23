@@ -17,6 +17,33 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    "id": "patch-2026-09-23-augment-api-node-runtime",
+    "patch": "2026.09.23-augment-api-node-runtime",
+    "timestamp": "2026-09-23T19:11:29.000Z",
+    "title": "Pinned augment APIs to the Node.js runtime",
+    "summary": "Made all Supabase-backed augment API routes explicit Node.js routes for consistent Vercel preview and production execution.",
+    "details": [
+      "Added runtime declarations to community feed, augment detail, binder, and official rating endpoints.",
+      "Kept the route handlers and database access unchanged while removing runtime ambiguity during deployment."
+    ],
+    "impact": [
+      "Augment builder API requests use the same supported runtime in development, preview, and production."
+    ],
+    "files": [
+      "app/api/augments/route.ts",
+      "app/api/augments/[id]/route.ts",
+      "app/api/augment-binders/[owner]/route.ts",
+      "app/api/official-augments/route.ts",
+      "app/api/official-augments/[id]/route.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "The local /api/augments?sort=newest&page=0 request returned HTTP 200 after the runtime declarations were added.",
+      "npm run check passed: lint completed with only existing no-img warnings, typecheck passed, and 34 Vitest files (160 tests) passed.",
+      "git diff --check passed; Git reported only existing LF-to-CRLF normalization warnings."
+    ]
+  },
+  {
     "id": "patch-2026-09-23-official-augment-short-descriptions",
     "patch": "2026.09.23-official-augment-short-descriptions",
     "timestamp": "2026-09-23T01:42:18.000Z",

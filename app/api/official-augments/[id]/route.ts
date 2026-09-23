@@ -5,6 +5,8 @@ import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { loadOfficialAugmentRatings, voteOfficialAugment } from '@/lib/augment-official-server';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
+export const runtime = 'nodejs';
+
 type Context = { params: { id: string } };
 
 export const GET = withApiMetrics('/api/official-augments/[id]', async (request: Request, { params }: Context) => {

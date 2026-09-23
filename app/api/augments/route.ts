@@ -5,6 +5,8 @@ import { ApiError, getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { loadAugmentCommunity, publishAugment } from '@/lib/augment-builder-server';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
+export const runtime = 'nodejs';
+
 export const GET = withApiMetrics('/api/augments', async (request: Request) => {
   try {
     const url = new URL(request.url);

@@ -46,4 +46,17 @@ describe('API error responses', () => {
     expect(body.error).not.toContain('private_table');
     expect(consoleError).toHaveBeenCalledOnce();
   });
+
+  it('classifies missing deployment dependencies as temporary unavailability', async () => {
+    const missingEnvironment = getRouteErrorResponse(new Error('Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY'));
+    expect(missingEnvironment.status).toBe(503);
+    expect((await missingEnvironment.json()).error).toBe('The service is temporarily unavailable.');
+
+    const missingRpc = getRouteErrorResponse({
+      code: 'PGRST202',
+      message: 'Could not find the function public.custom_augment_community_feed',
+    });
+    expect(missingRpc.status).toBe(503);
+    expect((await missingRpc.json()).error).toBe('The service is temporarily unavailable.');
+  });
 });

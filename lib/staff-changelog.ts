@@ -17,6 +17,30 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    "id": "patch-2026-09-23-augment-dependency-errors",
+    "patch": "2026.09.23-augment-dependency-errors",
+    "timestamp": "2026-09-23T19:35:00.000Z",
+    "title": "Classified missing augment deployment dependencies",
+    "summary": "Augment API requests now identify missing Supabase configuration or unapplied PostgREST objects as temporary dependency unavailability instead of generic application failures.",
+    "details": [
+      "Mapped missing required environment variables to a safe 503 response without naming the missing secret.",
+      "Mapped PostgREST missing-function and missing-table rollout codes to the same safe 503 response while retaining request IDs and internal logging behavior.",
+      "Added regression coverage for both environment and schema rollout failures."
+    ],
+    "impact": [
+      "Preview and production operators can distinguish an unavailable deployment dependency from an application crash without exposing database or secret details."
+    ],
+    "files": [
+      "lib/api-utils.ts",
+      "tests/api-utils.test.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "The new API utility regression tests cover missing Supabase environment configuration and missing augment RPC responses.",
+      "npm run check passed: lint completed with only existing no-img warnings, typecheck passed, and 34 Vitest files (161 tests) passed; git diff --check passed."
+    ]
+  },
+  {
     "id": "patch-2026-09-23-augment-api-node-runtime",
     "patch": "2026.09.23-augment-api-node-runtime",
     "timestamp": "2026-09-23T19:11:29.000Z",

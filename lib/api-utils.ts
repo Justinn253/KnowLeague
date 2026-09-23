@@ -81,6 +81,20 @@ function classifyError(error: unknown) {
     return { status: 503, message: 'The service is temporarily unavailable.' };
   }
 
+  // A server route can reach this branch before Supabase creates a structured
+  // error when a Vercel environment is missing a required service variable.
+  // Treat that as dependency unavailability instead of an opaque application
+  // 500 so readiness/deployment configuration can be corrected safely.
+  if (normalizedMessage.includes('missing required environment variable')) {
+    return { status: 503, message: 'The service is temporarily unavailable.' };
+  }
+
+  // PostgREST uses these codes when a deployed database has not received a
+  // function or table migration yet. The route is healthy, but its dependency
+  // is not ready; do not misreport that rollout gap as an application crash.
+  if (code === 'PGRST202' || code === 'PGRST205') {
+    return { status: 503, message: 'The service is temporarily unavailable.' };
+  }
   if (normalizedMessage.includes('authentication is required') || normalizedMessage.includes('session has expired')) {
     return { status: 401, message: 'Authentication is required.' };
   }

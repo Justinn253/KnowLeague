@@ -30,7 +30,7 @@ import { DiscordMark } from '@/components/discord-mark';
 import { GameIconImage } from '@/components/game-asset-image';
 import { HeaderHoverNote } from '@/components/header-hover-note';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
-import { GAME_NAVIGATION_ITEMS, type Accent, type GameMode } from '@/lib/game-navigation';
+import { AUGMENT_BUILDER_GAME, GAME_ACCENT_CLASSES, GAME_MODE_LABELS, GAMES_FOR_HEADER, MASTERY_MASTER_GAME, RANDODRAFT_GAME } from '@/lib/app-navigation';
 import type { AppRole } from '@/lib/moderation';
 import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
@@ -57,28 +57,7 @@ type AppHeaderProps = {
 
 type HeaderMenuTone = 'games' | 'lav' | 'riftbound' | 'neutral';
 
-const gameAccentClasses: Record<Accent, string> = {
-  gold: 'border-amber-200/30 bg-amber-300 text-slate-950',
-  cyan: 'border-cyan-200/30 bg-cyan-300 text-slate-950',
-  rose: 'border-rose-200/30 bg-rose-400 text-white',
-  violet: 'border-violet-200/30 bg-violet-400 text-white',
-  emerald: 'border-emerald-200/30 bg-emerald-300 text-slate-950',
-  sky: 'border-sky-200/30 bg-sky-300 text-slate-950',
-};
-
-const gameModeLabels: Record<GameMode, string> = {
-  solo: 'Solo',
-  multiplayer: 'Multiplayer',
-  hybrid: 'Solo/Multiplayer',
-};
-
 const DISCORD_INVITE_URL = 'https://discord.gg/vgMHq2KCsK';
-const masteryMasterGame = GAME_NAVIGATION_ITEMS.find((game) => game.title === 'Mastery Master');
-const gamesWithoutMasteryMaster = GAME_NAVIGATION_ITEMS.filter((game) => game !== masteryMasterGame);
-const gamesForHeader = masteryMasterGame
-  ? [...gamesWithoutMasteryMaster.slice(0, 3), masteryMasterGame, ...gamesWithoutMasteryMaster.slice(3)]
-  : GAME_NAVIGATION_ITEMS;
-
 const menuItemClass = 'group flex min-h-11 w-full items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-sm text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-200';
 const toneClasses: Record<HeaderMenuTone, string> = {
   games: 'border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10',
@@ -432,6 +411,48 @@ function HeaderDropdown({
   );
 }
 
+function GameMenuLinks({ onSelect }: { onSelect: () => void }) {
+  return (
+    <>
+      {GAMES_FOR_HEADER.map((game) => {
+        const GameIcon = game.gameIcon;
+        return (
+          <HeaderMenuLink
+            key={game.href}
+            href={game.href}
+            label={game.title}
+            description={GAME_MODE_LABELS[game.mode]}
+            icon={GameIcon}
+            iconClassName={GAME_ACCENT_CLASSES[game.accent]}
+            onSelect={onSelect}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function LeagueToolsMenuItems({ onSelect }: { onSelect: () => void }) {
+  return (
+    <>
+      <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">League Account Viewer</p>
+      <HeaderMenuLink href="/riot-account-viewer" label="Search Account" description="League Account Viewer" icon={Search} iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950" onSelect={onSelect} />
+      <HeaderMenuLink href="/riot-account-viewer/popular" label="Most Popular Accounts" description="Top searched accounts" icon={TrendingUp} iconClassName="border-amber-200/25 bg-amber-300 text-slate-950" onSelect={onSelect} />
+      <HeaderMenuButton label="Your Account" description="Auto-fill linked account" icon={UserCog} disabled trailing={<span className="shrink-0 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-600">Soon</span>} />
+      {MASTERY_MASTER_GAME ? (
+        <HeaderMenuLink href={MASTERY_MASTER_GAME.href} label={MASTERY_MASTER_GAME.title} description="Mastery challenge" icon={MASTERY_MASTER_GAME.gameIcon ?? Trophy} iconClassName="border-violet-200/25 bg-violet-400 text-white" onSelect={onSelect} />
+      ) : null}
+      <p className="mt-2 border-t border-white/10 px-1 pt-3 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Misc Tools</p>
+      {AUGMENT_BUILDER_GAME ? (
+        <HeaderMenuLink href={AUGMENT_BUILDER_GAME.href} label="ARAM Mayhem Augments" description="Augments & Augment Builder" icon={AUGMENT_BUILDER_GAME.gameIcon} iconClassName={GAME_ACCENT_CLASSES[AUGMENT_BUILDER_GAME.accent]} onSelect={onSelect} />
+      ) : null}
+      {RANDODRAFT_GAME ? (
+        <HeaderMenuLink href={RANDODRAFT_GAME.href} label="Randodraft" description="Draft a random team and builds" icon={RANDODRAFT_GAME.gameIcon} iconClassName={GAME_ACCENT_CLASSES[RANDODRAFT_GAME.accent]} onSelect={onSelect} />
+      ) : null}
+    </>
+  );
+}
+
 function GamesMenu() {
   return (
     <HeaderDropdown
@@ -454,20 +475,7 @@ function GamesMenu() {
     >
       {(closeMenu) => (
         <div className="grid grid-cols-2 gap-2">
-          {gamesForHeader.map((game) => {
-            const GameIcon = game.gameIcon;
-            return (
-              <HeaderMenuLink
-                key={game.href}
-                href={game.href}
-                label={game.title}
-                description={gameModeLabels[game.mode]}
-                icon={GameIcon}
-                iconClassName={gameAccentClasses[game.accent]}
-                onSelect={closeMenu}
-              />
-            );
-          })}
+          <GameMenuLinks onSelect={closeMenu} />
         </div>
       )}
     </HeaderDropdown>
@@ -477,55 +485,15 @@ function GamesMenu() {
 function LavMenu() {
   return (
     <HeaderDropdown
-      label="League Account Viewer"
-      compactLabel="LAV"
+      label="League Tools"
+      compactLabel="League Tools"
       icon={BarChart3}
       iconNode={<GameIconImage src="/Icons/LoL-Symbol.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />}
       tone="lav"
     >
       {(closeMenu) => (
         <div className="grid gap-2">
-          <HeaderMenuLink
-            href="/riot-account-viewer"
-            label="Search account"
-            description="League Account Viewer"
-            icon={Search}
-            iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
-            onSelect={closeMenu}
-          />
-          <HeaderMenuLink
-            href="/riot-account-viewer/popular"
-            label="Most Popular Accounts"
-            description="Top searched accounts"
-            icon={TrendingUp}
-            iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
-            onSelect={closeMenu}
-          />
-          <HeaderMenuLink
-            href="/riot-account-viewer/patch-notes"
-            label="Patch Notes"
-            description="Latest League updates"
-            icon={FileText}
-            iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
-            onSelect={closeMenu}
-          />
-          {masteryMasterGame ? (
-            <HeaderMenuLink
-              href={masteryMasterGame.href}
-              label={masteryMasterGame.title}
-              description="Mastery challenge"
-              icon={masteryMasterGame.gameIcon ?? Trophy}
-              iconClassName="border-violet-200/25 bg-violet-400 text-white"
-              onSelect={closeMenu}
-            />
-          ) : null}
-          <HeaderMenuButton
-            label="Auto-fill linked account"
-            description="Coming soon"
-            icon={UserCog}
-            disabled
-            trailing={<span className="shrink-0 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-600">Soon</span>}
-          />
+          <LeagueToolsMenuItems onSelect={closeMenu} />
         </div>
       )}
     </HeaderDropdown>
@@ -724,70 +692,17 @@ function MobileHeaderMenu({
                 iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
                 onSelect={closeMenu}
               />
-              {gamesForHeader.map((game) => {
-                const GameIcon = game.gameIcon;
-                return (
-                  <HeaderMenuLink
-                    key={game.href}
-                    href={game.href}
-                    label={game.title}
-                    description={gameModeLabels[game.mode]}
-                    icon={GameIcon}
-                    iconClassName={gameAccentClasses[game.accent]}
-                    onSelect={closeMenu}
-                  />
-                );
-              })}
+              <GameMenuLinks onSelect={closeMenu} />
             </MobileMenuDisclosure>
             <MobileMenuDisclosure
-              label="League Account Viewer"
+              label="League Tools"
               icon={BarChart3}
               iconNode={<GameIconImage src="/Icons/LoL-Symbol.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />}
               tone="lav"
               open={openSection === 'lav'}
               onClick={() => setOpenSection((current) => current === 'lav' ? null : 'lav')}
             >
-              <HeaderMenuLink
-                href="/riot-account-viewer"
-                label="Search account"
-                description="League Account Viewer"
-                icon={Search}
-                iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
-                onSelect={closeMenu}
-              />
-              <HeaderMenuLink
-                href="/riot-account-viewer/popular"
-                label="Most Popular Accounts"
-                description="Top searched accounts"
-                icon={TrendingUp}
-                iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
-                onSelect={closeMenu}
-              />
-              <HeaderMenuLink
-                href="/riot-account-viewer/patch-notes"
-                label="Patch Notes"
-                description="Latest League updates"
-                icon={FileText}
-                iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950"
-                onSelect={closeMenu}
-              />
-              {masteryMasterGame ? (
-                <HeaderMenuLink
-                  href={masteryMasterGame.href}
-                  label={masteryMasterGame.title}
-                  description="Mastery challenge"
-                  icon={masteryMasterGame.gameIcon ?? Trophy}
-                  iconClassName="border-violet-200/25 bg-violet-400 text-white"
-                  onSelect={closeMenu}
-                />
-              ) : null}
-              <HeaderMenuButton
-                label="Auto-fill linked account"
-                description="Coming soon"
-                icon={UserCog}
-                disabled
-                trailing={<span className="shrink-0 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-600">Soon</span>}
-              />
+              <LeagueToolsMenuItems onSelect={closeMenu} />
             </MobileMenuDisclosure>
             <MobileMenuDisclosure
               label="Riftbound"

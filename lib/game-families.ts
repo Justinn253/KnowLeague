@@ -6,6 +6,7 @@ export type GameFamily =
   | 'standalone';
 
 export type GameRouteId =
+  | 'augment-builder'
   | 'skindle'
   | 'splash-scramble'
   | 'randodraft'
@@ -57,6 +58,7 @@ export const GAME_FAMILY_DEFINITIONS: Record<GameFamily, GameFamilyDefinition> =
 };
 
 export const GAME_FAMILY_BY_ROUTE: Record<GameRouteId, GameFamily> = {
+  'augment-builder': 'standalone',
   skindle: 'daily-guess',
   'splash-scramble': 'splash-puzzle',
   randodraft: 'standalone',

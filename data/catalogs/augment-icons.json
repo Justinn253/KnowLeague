@@ -1,0 +1,5531 @@
+{
+  "versions": [
+    "16.18",
+    "16.17",
+    "16.16",
+    "16.15",
+    "16.14",
+    "16.13",
+    "16.12",
+    "16.11",
+    "16.10",
+    "16.9",
+    "16.8",
+    "16.7",
+    "16.6",
+    "16.5",
+    "16.4",
+    "16.3",
+    "16.2",
+    "16.1",
+    "15.24",
+    "15.23",
+    "15.22",
+    "15.21",
+    "15.20",
+    "15.19",
+    "15.18",
+    "15.17",
+    "15.16",
+    "15.15",
+    "15.14",
+    "15.13",
+    "15.12",
+    "15.11",
+    "15.10",
+    "15.9",
+    "15.8",
+    "15.7",
+    "15.6",
+    "15.5",
+    "15.4",
+    "15.3",
+    "15.2",
+    "15.1",
+    "14.24",
+    "14.23",
+    "14.22",
+    "14.21",
+    "14.20",
+    "14.19",
+    "14.18",
+    "14.17",
+    "14.16",
+    "14.15",
+    "14.14",
+    "14.13",
+    "14.12",
+    "14.11",
+    "14.10",
+    "14.9",
+    "14.8",
+    "14.7",
+    "14.6",
+    "14.5",
+    "14.4",
+    "14.3",
+    "14.2",
+    "14.1",
+    "13.24",
+    "13.23",
+    "13.22",
+    "13.21",
+    "13.20",
+    "13.19",
+    "13.18",
+    "13.17",
+    "13.16",
+    "13.15",
+    "13.14"
+  ],
+  "icons": [
+    {
+      "id": "acceleratingsorcery_large",
+      "name": "Accelerating Sorcery",
+      "version": "16.18",
+      "searchTerms": [
+        "Accelerating Sorcery",
+        "acceleratingsorcery_large",
+        "Cherry_AcceleratingSorcery_Name",
+        "acceleratingsorcery_large.arena_augments_v2"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 0
+    },
+    {
+      "id": "kiwi_adamant_large",
+      "name": "Adamant",
+      "version": "16.18",
+      "searchTerms": [
+        "adamant",
+        "kiwi_adamant_large",
+        "Adamant"
+      ],
+      "rarity": "silver",
+      "visualOrder": 61
+    },
+    {
+      "id": "adapt_large",
+      "name": "ADAPt",
+      "version": "16.18",
+      "searchTerms": [
+        "ADAPt",
+        "adapt_large",
+        "Cherry_ADAPt_Name",
+        "adapt_large.arena_augments_v2",
+        "Cherry_escAPADe_Name",
+        "escapade_large.arena_augments_v2",
+        "escAPADe",
+        "escapade_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 7
+    },
+    {
+      "id": "aim_for_the_head_large",
+      "name": "Aim for the Head",
+      "version": "16.18",
+      "searchTerms": [
+        "Aim for the Head",
+        "aim_for_the_head_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 0
+    },
+    {
+      "id": "allforyou_large",
+      "name": "All For You",
+      "version": "16.18",
+      "searchTerms": [
+        "All For You",
+        "allforyou_large",
+        "Cherry_AllForYou_Name",
+        "allforyou_large.arena_augments_v2"
+      ],
+      "rarity": "gold",
+      "visualOrder": 22
+    },
+    {
+      "id": "yonedemon_large",
+      "name": "Ally Demon",
+      "version": "16.18",
+      "searchTerms": [
+        "Ally Demon",
+        "yonedemon_large",
+        "yonedemon_large.arena_2026_s2_a2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "yonehunter_large",
+      "name": "Ally Hunter",
+      "version": "16.18",
+      "searchTerms": [
+        "Ally Hunter",
+        "yonehunter_large",
+        "yonehunter_large.arena_2026_s2_a2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "andmyaxe_large",
+      "name": "And My Axe!",
+      "version": "16.18",
+      "searchTerms": [
+        "And My Axe!",
+        "andmyaxe_large",
+        "Cherry_OkBoomerang_Name",
+        "okboomerang_large.arena_augments_v2",
+        "endlessdecimate large",
+        "endlessdecimate_large",
+        "OK Boomerang",
+        "okboomerang_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 29
+    },
+    {
+      "id": "apexinventor_large",
+      "name": "Apex Inventor",
+      "version": "16.18",
+      "searchTerms": [
+        "Apex Inventor",
+        "apexinventor_large",
+        "CHERRY_ApexInventor_Name",
+        "apexinventor_large.arena_augments_v2"
+      ],
+      "rarity": "gold",
+      "visualOrder": 76
+    },
+    {
+      "id": "kiwi_aram_phenomenalevil_large",
+      "name": "ARAM Phenomenal Evil",
+      "version": "16.18",
+      "searchTerms": [
+        "aram phenomenalevil",
+        "kiwi_aram_phenomenalevil_large",
+        "ARAM Phenomenal Evil"
+      ],
+      "rarity": "gold",
+      "visualOrder": 117
+    },
+    {
+      "id": "augment405_large",
+      "name": "Augment 405",
+      "version": "16.18",
+      "searchTerms": [
+        "Augment 405",
+        "augment405_large",
+        "Cherry_ThiefsGloves_Name",
+        "thiefsgloves_large.arena_augments_v2",
+        "Gamba Anvil",
+        "thiefsgloves_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 92
+    },
+    {
+      "id": "augmented_power_large",
+      "name": "Augmented Power",
+      "version": "16.18",
+      "searchTerms": [
+        "Augmented Power",
+        "augmented_power_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 99
+    },
+    {
+      "id": "kiwi_babykitty_large",
+      "name": "Baby Kitty",
+      "version": "16.18",
+      "searchTerms": [
+        "babykitty",
+        "kiwi_babykitty_large",
+        "Baby Kitty"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 61
+    },
+    {
+      "id": "backtobasics_large",
+      "name": "Back to Basics",
+      "version": "16.18",
+      "searchTerms": [
+        "Back To Basics",
+        "backtobasics_large",
+        "Cherry_BacktoBasics_Name",
+        "backtobasics_large.arena_augments_v2",
+        "Back to Basics"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 84
+    },
+    {
+      "id": "bannerofcommand_large",
+      "name": "Banner of Command",
+      "version": "16.18",
+      "searchTerms": [
+        "Banner of Command",
+        "bannerofcommand_large",
+        "Cherry_BannerofCommand_Name",
+        "bannerofcommand_large.arena_augments_v2"
+      ],
+      "rarity": "gold",
+      "visualOrder": 116
+    },
+    {
+      "id": "bigbrain_large",
+      "name": "Big Brain",
+      "version": "16.18",
+      "searchTerms": [
+        "Big Brain",
+        "bigbrain_large",
+        "Cherry_BigBrain_Name",
+        "bigbrain_large.arena_augments_v2"
+      ],
+      "rarity": "gold",
+      "visualOrder": 45
+    },
+    {
+      "id": "kiwi_biggestsnowballever_large",
+      "name": "Biggest Snowball Ever",
+      "version": "16.18",
+      "searchTerms": [
+        "biggestsnowballever",
+        "kiwi_biggestsnowballever_large",
+        "Biggest Snowball Ever"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 42
+    },
+    {
+      "id": "bladewaltz_large",
+      "name": "Blade Waltz",
+      "version": "16.18",
+      "searchTerms": [
+        "Blade Waltz",
+        "bladewaltz_large",
+        "Cherry_BladeWaltz_Name",
+        "bladewaltz_large.arena_augments_v2"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 38
+    },
+    {
+      "id": "bloodbrother_large",
+      "name": "Blood Brother",
+      "version": "16.18",
+      "searchTerms": [
+        "Blood Brother",
+        "bloodbrother_large",
+        "Cherry_BloodBrother_Name",
+        "bloodbrother_large.arena_augments_v2"
+      ],
+      "rarity": "gold",
+      "visualOrder": 19
+    },
+    {
+      "id": "kiwi_bloodmoney2_large",
+      "name": "Blood Money 2",
+      "version": "16.18",
+      "searchTerms": [
+        "bloodmoney2",
+        "kiwi_bloodmoney2_large",
+        "Blood Money 2"
+      ],
+      "rarity": "gold",
+      "visualOrder": 37
+    },
+    {
+      "id": "bloodrazor_large",
+      "name": "Bloodrazor",
+      "version": "16.18",
+      "searchTerms": [
+        "Bloodrazor",
+        "bloodrazor_large",
+        "bloodrazor_large.arena_2026_s2_a2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "bluntforce_large",
+      "name": "Blunt Force",
+      "version": "16.18",
+      "searchTerms": [
+        "Blunt Force",
+        "bluntforce_large",
+        "Cherry_BluntForce_Name",
+        "bluntforce_large.arena_augments_v2"
+      ],
+      "rarity": "silver",
+      "visualOrder": 97
+    },
+    {
+      "id": "bodyguard_large",
+      "name": "Bodyguard",
+      "version": "16.18",
+      "searchTerms": [
+        "Bodyguard",
+        "bodyguard_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 44
+    },
+    {
+      "id": "kiwi_bonk_large",
+      "name": "BONK!",
+      "version": "16.18",
+      "searchTerms": [
+        "bonk",
+        "kiwi_bonk_large",
+        "twinfire",
+        "kiwi_twinfire_large",
+        "BONK!"
+      ],
+      "rarity": "silver",
+      "visualOrder": 123
+    },
+    {
+      "id": "bravestofthebrave_large",
+      "name": "Bravest of the Brave",
+      "version": "16.18",
+      "searchTerms": [
+        "Bravest of the Brave",
+        "bravestofthebrave_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 12
+    },
+    {
+      "id": "breadandbutter_large",
+      "name": "Bread and Butter",
+      "version": "16.18",
+      "searchTerms": [
+        "Bread And Butter",
+        "breadandbutter_large",
+        "Bread And Cheese",
+        "breadandcheese_large",
+        "Bread And Jam",
+        "breadandjam_large",
+        "Cherry_BreadAndButter_Name",
+        "breadandbutter_large.arena_augments_v2",
+        "Cherry_BreadAndCheese_Name",
+        "breadandcheese_large.arena_augments_v2",
+        "Cherry_BreadAndJam_Name",
+        "breadandjam_large.arena_augments_v2",
+        "Cherry_Recursion_Name",
+        "recursion_large.arena_augments_v2",
+        "Recursion",
+        "recursion_large",
+        "Bread and Butter"
+      ],
+      "rarity": "gold",
+      "visualOrder": 86
+    },
+    {
+      "id": "bread_sandwhich",
+      "name": "Bread Sandwich",
+      "version": "16.18",
+      "searchTerms": [
+        "Bread Sandwich",
+        "bread_sandwhich"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 10
+    },
+    {
+      "id": "kiwi_brushpower_large",
+      "name": "Brush Power",
+      "version": "16.18",
+      "searchTerms": [
+        "brushpower",
+        "kiwi_brushpower_large",
+        "Brush Power"
+      ],
+      "rarity": "gold",
+      "visualOrder": 102
+    },
+    {
+      "id": "buckleup_large",
+      "name": "Buckle Up",
+      "version": "16.18",
+      "searchTerms": [
+        "buckleup large",
+        "buckleup_large",
+        "Buckle Up"
+      ],
+      "rarity": "silver",
+      "visualOrder": 88
+    },
+    {
+      "id": "buffbuddies_large",
+      "name": "Buff Buddies",
+      "version": "16.18",
+      "searchTerms": [
+        "Buff Buddies",
+        "buffbuddies_large",
+        "Cherry_BuffBuddies_Name",
+        "buffbuddies_large.arena_augments_v2"
+      ],
+      "rarity": "silver",
+      "visualOrder": 73
+    },
+    {
+      "id": "bulletheaven_large",
+      "name": "Bullet Heaven",
+      "version": "16.18",
+      "searchTerms": [
+        "bulletheaven large",
+        "bulletheaven_large",
+        "Bullet Heaven"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 19
+    },
+    {
+      "id": "calculated_risk_large",
+      "name": "Calculated Risk",
+      "version": "16.18",
+      "searchTerms": [
+        "calculated risk large",
+        "calculated_risk_large",
+        "Calculated Risk"
+      ],
+      "rarity": "silver",
+      "visualOrder": 77
+    },
+    {
+      "id": "canttouchthis_large",
+      "name": "Can't Touch This",
+      "version": "16.18",
+      "searchTerms": [
+        "Can't Touch This",
+        "canttouchthis_large",
+        "Cherry_CantTouchThis_Name",
+        "canttouchthis_large.arena_augments_v2"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 87
+    },
+    {
+      "id": "cannonfodder_large",
+      "name": "Cannon Fodder",
+      "version": "16.18",
+      "searchTerms": [
+        "Cannon Fodder",
+        "cannonfodder_large",
+        "Cherry_SnowballFight_Name",
+        "snowballfight_large.arena_augments_v2",
+        "snowballfight large",
+        "snowballfight_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 82
+    },
+    {
+      "id": "castle_large",
+      "name": "Castle",
+      "version": "16.18",
+      "searchTerms": [
+        "Castle",
+        "castle_large",
+        "Cherry_Castle_Name",
+        "castle_large.arena_augments_v2"
+      ],
+      "rarity": "silver",
+      "visualOrder": 85
+    },
+    {
+      "id": "celestialbody_large",
+      "name": "Celestial Body",
+      "version": "16.18",
+      "searchTerms": [
+        "Celestial Body",
+        "celestialbody_large",
+        "Cherry_CelestialBody_Name",
+        "celestialbody_large.arena_augments_v2"
+      ],
+      "rarity": "gold",
+      "visualOrder": 38
+    },
+    {
+      "id": "centeroftheuniverse_large",
+      "name": "Center of the Universe",
+      "version": "16.18",
+      "searchTerms": [
+        "Center of the Universe",
+        "centeroftheuniverse_large",
+        "Cherry_CenterOfTheUniverse_Name",
+        "centeroftheuniverse_large.arena_augments_v2",
+        "Cherry_LaserEyes_Name",
+        "lasereyes_large.arena_augments_v2",
+        "Cherry_OrbitalLaser_Name",
+        "orbitallaser_large.arena_augments_v2",
+        "Laser Eyes",
+        "lasereyes_large",
+        "Orbital Laser",
+        "orbitallaser_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 33
+    },
+    {
+      "id": "cerberus_large",
+      "name": "Cerberus",
+      "version": "16.18",
+      "searchTerms": [
+        "Cerberus",
+        "cerberus_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 37
+    },
+    {
+      "id": "chainlightning_large",
+      "name": "Chain Lightning",
+      "version": "16.18",
+      "searchTerms": [
+        "chainlightning large",
+        "chainlightning_large",
+        "Cherry_ChainLightning_Name",
+        "chainlightning_large.arena_augments_v2",
+        "Chain Lightning"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 32
+    },
+    {
+      "id": "chauffeur_large",
+      "name": "Chauffeur",
+      "version": "16.18",
+      "searchTerms": [
+        "Chauffeur",
+        "chauffeur_large",
+        "Cherry_Chauffeur_Name",
+        "chauffeur_large.arena_augments_v2"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 64
+    },
+    {
+      "id": "kiwi_cheating_large",
+      "name": "Cheating",
+      "version": "16.11",
+      "searchTerms": [
+        "cheating",
+        "kiwi_cheating_large",
+        "Cheating"
+      ],
+      "rarity": "gold",
+      "visualOrder": 94
+    },
+    {
+      "id": "chemtechpurifier_large",
+      "name": "Chemtech Putrifier",
+      "version": "16.18",
+      "searchTerms": [
+        "Chemtech Putrifier",
+        "chemtechpurifier_large",
+        "chemtechpurifier_large.arena_2026_s2_a2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "acceleratingsorcery_large.2v2_mode_fighters",
+      "name": "Accelerating Sorcery",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_AcceleratingSorcery_Name",
+        "acceleratingsorcery_large.2v2_mode_fighters",
+        "Accelerating Sorcery"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 7
+    },
+    {
+      "id": "apexinventor_large.2v2_mode_fighters",
+      "name": "Apex Inventor",
+      "version": "13.22",
+      "searchTerms": [
+        "CHERRY_ApexInventor_Name",
+        "apexinventor_large.2v2_mode_fighters",
+        "Apex Inventor"
+      ],
+      "rarity": "gold",
+      "visualOrder": 77
+    },
+    {
+      "id": "quest_angelofretribution_large.arena_augments_v2",
+      "name": "Quest: Angel of Retribution",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Augment_Quest_AngelofRetribution_Name",
+        "quest_angelofretribution_large.arena_augments_v2",
+        "Quest: Angel of Retribution",
+        "quest_angelofretribution_large",
+        "Augment Quest Angelof Retribution"
+      ],
+      "rarity": "gold",
+      "visualOrder": 120
+    },
+    {
+      "id": "backtobasics_large.2v2_mode_fighters",
+      "name": "Back to Basics",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_BacktoBasics_Name",
+        "backtobasics_large.2v2_mode_fighters",
+        "Backto Basics",
+        "Back to Basics"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 105
+    },
+    {
+      "id": "bannerofcommand_large.2v2_mode_fighters",
+      "name": "Banner of Command",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_BannerofCommand_Name",
+        "bannerofcommand_large.2v2_mode_fighters",
+        "Bannerof Command",
+        "Banner of Command"
+      ],
+      "rarity": "gold",
+      "visualOrder": 145
+    },
+    {
+      "id": "bladewaltz_large.2v2_mode_fighters",
+      "name": "Blade Waltz",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_BladeWaltz_Name",
+        "bladewaltz_large.2v2_mode_fighters",
+        "Blade Waltz"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 69
+    },
+    {
+      "id": "bluntforce_large.2v2_mode_fighters",
+      "name": "Blunt Force",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_BluntForce_Name",
+        "bluntforce_large.2v2_mode_fighters",
+        "Blunt Force"
+      ],
+      "rarity": "silver",
+      "visualOrder": 105
+    },
+    {
+      "id": "buckleup_large.2v2_mode_fighters",
+      "name": "Buckle Up",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_BuckleUp_Name",
+        "buckleup_large.2v2_mode_fighters",
+        "Buckle Up"
+      ],
+      "rarity": "silver",
+      "visualOrder": 134
+    },
+    {
+      "id": "buffbuddies_large.2v2_mode_fighters",
+      "name": "Buff Buddies",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_BuffBuddies_Name",
+        "buffbuddies_large.2v2_mode_fighters",
+        "Buff Buddies"
+      ],
+      "rarity": "silver",
+      "visualOrder": 83
+    },
+    {
+      "id": "cannonfodder_large.arena_augments_v2",
+      "name": "Cannon Fodder",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_CannonFodder_Name",
+        "cannonfodder_large.arena_augments_v2",
+        "Cannon Fodder"
+      ],
+      "rarity": "gold",
+      "visualOrder": 90
+    },
+    {
+      "id": "cannonfodder_large.2v2_mode_fighters",
+      "name": "Cannon Fodder",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_CannonFodder_Name",
+        "cannonfodder_large.2v2_mode_fighters",
+        "Cannon Fodder"
+      ],
+      "rarity": "gold",
+      "visualOrder": 142
+    },
+    {
+      "id": "canttouchthis_large.2v2_mode_fighters",
+      "name": "Can't Touch This",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_CantTouchThis_Name",
+        "canttouchthis_large.2v2_mode_fighters",
+        "Cant Touch This",
+        "Can't Touch This"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 121
+    },
+    {
+      "id": "castle_large.2v2_mode_fighters",
+      "name": "Castle",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Castle_Name",
+        "castle_large.2v2_mode_fighters",
+        "Castle"
+      ],
+      "rarity": "silver",
+      "visualOrder": 84
+    },
+    {
+      "id": "celestialbody_large.2v2_mode_fighters",
+      "name": "Celestial Body",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_CelestialBody_Name",
+        "celestialbody_large.2v2_mode_fighters",
+        "Celestial Body"
+      ],
+      "rarity": "gold",
+      "visualOrder": 110
+    },
+    {
+      "id": "chauffeur_large.2v2_mode_fighters",
+      "name": "Chauffeur",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Chauffeur_Name",
+        "chauffeur_large.2v2_mode_fighters",
+        "Chauffeur"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 70
+    },
+    {
+      "id": "circleofdeath_large.arena_augments_v2",
+      "name": "Circle of Death",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_CircleofDeath_Name",
+        "circleofdeath_large.arena_augments_v2",
+        "Circle of Death",
+        "circleofdeath_large",
+        "Circleof Death"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 48
+    },
+    {
+      "id": "circleofdeath_large.2v2_mode_fighters",
+      "name": "Circle of Death",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_CircleofDeath_Name",
+        "circleofdeath_large.2v2_mode_fighters",
+        "Circleof Death",
+        "Circle of Death"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 49
+    },
+    {
+      "id": "clothesline_large.arena_augments_v2",
+      "name": "Clothesline",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Clothesline_Name",
+        "clothesline_large.arena_augments_v2",
+        "Clothesline",
+        "clothesline_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 90
+    },
+    {
+      "id": "combomaster_large.arena_augments_v2",
+      "name": "Combo Master",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ComboMaster_Name",
+        "combomaster_large.arena_augments_v2",
+        "Combo Master",
+        "combomaster_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 61
+    },
+    {
+      "id": "combomaster_large.2v2_mode_fighters",
+      "name": "Combo Master",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ComboMaster_Name",
+        "combomaster_large.2v2_mode_fighters",
+        "Combo Master"
+      ],
+      "rarity": "gold",
+      "visualOrder": 137
+    },
+    {
+      "id": "contractkiller_large.arena_augments_v2",
+      "name": "Contract Killer",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ContractKiller_Name",
+        "contractkiller_large.arena_augments_v2",
+        "Contract Killer",
+        "contractkiller_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 94
+    },
+    {
+      "id": "contractkiller_large.2v2_mode_fighters",
+      "name": "Contract Killer",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ContractKiller_Name",
+        "contractkiller_large.2v2_mode_fighters",
+        "Contract Killer"
+      ],
+      "rarity": "silver",
+      "visualOrder": 131
+    },
+    {
+      "id": "courageofthecolossus_large.arena_augments_v2",
+      "name": "Courage of the Colossus",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_CourageoftheColossus_Name",
+        "courageofthecolossus_large.arena_augments_v2",
+        "Courage of the Colossus",
+        "courageofthecolossus_large",
+        "Courageofthe Colossus"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 16
+    },
+    {
+      "id": "courageofthecolossus_large.2v2_mode_fighters",
+      "name": "Courage of the Colossus",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_CourageoftheColossus_Name",
+        "courageofthecolossus_large.2v2_mode_fighters",
+        "Courageofthe Colossus",
+        "Courage of the Colossus"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 102
+    },
+    {
+      "id": "criticalhealing_large.arena_augments_v2",
+      "name": "Critical Healing",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_CriticalHealing_Name",
+        "criticalhealing_large.arena_augments_v2",
+        "Critical Healing",
+        "criticalhealing_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 23
+    },
+    {
+      "id": "darkblessing_large.arena_augments_v2",
+      "name": "Dark Blessing",
+      "version": "13.24",
+      "searchTerms": [
+        "Cherry_DarkBlessing_Name",
+        "darkblessing_large.arena_augments_v2",
+        "Dark Blessing",
+        "darkblessing_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 31
+    },
+    {
+      "id": "dashing_large.arena_augments_v2",
+      "name": "Dashing",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Dashing_Name",
+        "dashing_large.arena_augments_v2",
+        "Dashing",
+        "dashing_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 68
+    },
+    {
+      "id": "dashing_large.2v2_mode_fighters",
+      "name": "Dashing",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Dashing_Name",
+        "dashing_large.2v2_mode_fighters",
+        "Dashing"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 107
+    },
+    {
+      "id": "dawnbringersresolve_large.arena_augments_v2",
+      "name": "Dawnbringer's Resolve",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_DawnbringersResolve_Name",
+        "dawnbringersresolve_large.arena_augments_v2",
+        "Cherry_Perseverance_Name",
+        "perseverance_large.arena_augments_v2",
+        "Perseverance",
+        "perseverance_large",
+        "Undying Guard",
+        "dawnbringersresolve_large",
+        "Dawnbringers Resolve",
+        "Dawnbringer's Resolve"
+      ],
+      "rarity": "gold",
+      "visualOrder": 39
+    },
+    {
+      "id": "dawnbringersresolve_large.2v2_mode_fighters",
+      "name": "Dawnbringer's Resolve",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_DawnbringersResolve_Name",
+        "dawnbringersresolve_large.2v2_mode_fighters",
+        "Dawnbringers Resolve",
+        "Dawnbringer's Resolve"
+      ],
+      "rarity": "gold",
+      "visualOrder": 46
+    },
+    {
+      "id": "deathtouch_large.arena_augments_v2",
+      "name": "Deathtouch",
+      "version": "13.24",
+      "searchTerms": [
+        "Cherry_Deathtouch_Name",
+        "deathtouch_large.arena_augments_v2",
+        "Deathtouch",
+        "deathtouch_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 30
+    },
+    {
+      "id": "defensivemaneuvers_large.arena_augments_v2",
+      "name": "Defensive Maneuvers",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_DefensiveManeuvers_Name",
+        "defensivemaneuvers_large.arena_augments_v2",
+        "Defensive Maneuvers",
+        "defensivemaneuvers_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 52
+    },
+    {
+      "id": "defensivemaneuvers_large.2v2_mode_fighters",
+      "name": "Defensive Maneuvers",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_DefensiveManeuvers_Name",
+        "defensivemaneuvers_large.2v2_mode_fighters",
+        "Defensive Maneuvers"
+      ],
+      "rarity": "gold",
+      "visualOrder": 143
+    },
+    {
+      "id": "deft_large.arena_augments_v2",
+      "name": "Deft",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Deft_Name",
+        "deft_large.arena_augments_v2",
+        "Cherry_SpinToWin_Name",
+        "spintowin_large.arena_augments_v2",
+        "Deft",
+        "deft_large",
+        "Spin To Win",
+        "spintowin_large",
+        "The Brutalizer",
+        "thebrutalizer_large",
+        "thebrutalizer",
+        "kiwi_thebrutalizer_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 103
+    },
+    {
+      "id": "deft_large.2v2_mode_fighters",
+      "name": "Deft",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Deft_Name",
+        "deft_large.2v2_mode_fighters",
+        "Deft"
+      ],
+      "rarity": "silver",
+      "visualOrder": 106
+    },
+    {
+      "id": "dematerialize_large.arena_augments_v2",
+      "name": "Dematerialize",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Dematerialize_Name",
+        "dematerialize_large.arena_augments_v2",
+        "Dematerialize",
+        "dematerialize_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 11
+    },
+    {
+      "id": "demonsdance_large.arena_augments_v2",
+      "name": "Demon's Dance",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_DemonsDance_Name",
+        "demonsdance_large.arena_augments_v2",
+        "Demon's Dance",
+        "demonsdance_large",
+        "Demons Dance"
+      ],
+      "rarity": "gold",
+      "visualOrder": 100
+    },
+    {
+      "id": "demonsdance_large.2v2_mode_fighters",
+      "name": "Demon's Dance",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_DemonsDance_Name",
+        "demonsdance_large.2v2_mode_fighters",
+        "Demons Dance",
+        "Demon's Dance"
+      ],
+      "rarity": "gold",
+      "visualOrder": 135
+    },
+    {
+      "id": "desecrator_large.arena_augments_v2",
+      "name": "Desecrator",
+      "version": "13.24",
+      "searchTerms": [
+        "Cherry_Desecrator_Name",
+        "desecrator_large.arena_augments_v2",
+        "Despoil",
+        "desecrator_large",
+        "Desecrator"
+      ],
+      "rarity": "silver",
+      "visualOrder": 126
+    },
+    {
+      "id": "dieanotherday_large.arena_augments_v2",
+      "name": "Die Another Day",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_DieAnotherDay_Name",
+        "dieanotherday_large.arena_augments_v2",
+        "Die Another Day",
+        "dieanotherday_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 93
+    },
+    {
+      "id": "dieanotherday_large.2v2_mode_fighters",
+      "name": "Die Another Day",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_DieAnotherDay_Name",
+        "dieanotherday_large.2v2_mode_fighters",
+        "Die Another Day"
+      ],
+      "rarity": "gold",
+      "visualOrder": 140
+    },
+    {
+      "id": "divebomber_large.arena_augments_v2",
+      "name": "Dive Bomber",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_DiveBomber_Name",
+        "divebomber_large.arena_augments_v2",
+        "Dive Bomber"
+      ],
+      "rarity": "gold",
+      "visualOrder": 57
+    },
+    {
+      "id": "divebomber_large.2v2_mode_fighters",
+      "name": "Dive Bomber",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_DiveBomber_Name",
+        "divebomber_large.2v2_mode_fighters",
+        "Dive Bomber"
+      ],
+      "rarity": "gold",
+      "visualOrder": 56
+    },
+    {
+      "id": "dontblink_large.arena_augments_v2",
+      "name": "Don't Blink",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_DontBlink_Name",
+        "dontblink_large.arena_augments_v2",
+        "Don't Blink",
+        "dontblink_large",
+        "Dont Blink"
+      ],
+      "rarity": "silver",
+      "visualOrder": 96
+    },
+    {
+      "id": "dontblink_large.2v2_mode_fighters",
+      "name": "Don't Blink",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_DontBlink_Name",
+        "dontblink_large.2v2_mode_fighters",
+        "Dont Blink",
+        "Don't Blink"
+      ],
+      "rarity": "silver",
+      "visualOrder": 107
+    },
+    {
+      "id": "dontchase_large.arena_augments_v2",
+      "name": "Don't Chase",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_DontChase_Name",
+        "dontchase_large.arena_augments_v2",
+        "Cherry_Flashbang_Name",
+        "flashbang_large.arena_augments_v2",
+        "Don't Chase",
+        "dontchase_large",
+        "flashbang large",
+        "flashbang_large",
+        "Dont Chase"
+      ],
+      "rarity": "silver",
+      "visualOrder": 115
+    },
+    {
+      "id": "doomsayer_large.arena_augments_v2",
+      "name": "Doomsayer",
+      "version": "13.24",
+      "searchTerms": [
+        "Cherry_Doomsayer_Name",
+        "doomsayer_large.arena_augments_v2",
+        "Doomsayer",
+        "doomsayer_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 72
+    },
+    {
+      "id": "drawyoursword_large.arena_augments_v2",
+      "name": "Draw Your Sword",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_DrawYourSword_Name",
+        "drawyoursword_large.arena_augments_v2",
+        "Draw Your Sword",
+        "drawyoursword_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 31
+    },
+    {
+      "id": "earthwake_large.arena_augments_v2",
+      "name": "Earthwake",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Earthwake_Name",
+        "earthwake_large.arena_augments_v2",
+        "Earthwake",
+        "earthwake_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 67
+    },
+    {
+      "id": "earthwake_large.2v2_mode_fighters",
+      "name": "Earthwake",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Earthwake_Name",
+        "earthwake_large.2v2_mode_fighters",
+        "Earthwake"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 106
+    },
+    {
+      "id": "erosion_large.arena_augments_v2",
+      "name": "Erosion",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Erosion_Name",
+        "erosion_large.arena_augments_v2",
+        "Erosion",
+        "erosion_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 23
+    },
+    {
+      "id": "erosion_large.2v2_mode_fighters",
+      "name": "Erosion",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Erosion_Name",
+        "erosion_large.2v2_mode_fighters",
+        "Erosion"
+      ],
+      "rarity": "silver",
+      "visualOrder": 45
+    },
+    {
+      "id": "etherealweapon_large.arena_augments_v2",
+      "name": "Ethereal Weapon",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_EtherealWeapon_Name",
+        "etherealweapon_large.arena_augments_v2",
+        "Ethereal Weapon",
+        "etherealweapon_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 63
+    },
+    {
+      "id": "etherealweapon_large.2v2_mode_fighters",
+      "name": "Ethereal Weapon",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_EtherealWeapon_Name",
+        "etherealweapon_large.2v2_mode_fighters",
+        "Ethereal Weapon"
+      ],
+      "rarity": "gold",
+      "visualOrder": 146
+    },
+    {
+      "id": "eureka_large.arena_augments_v2",
+      "name": "Eureka",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Eureka_Name",
+        "eureka_large.arena_augments_v2",
+        "Eureka",
+        "eureka_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 8
+    },
+    {
+      "id": "eureka_large.2v2_mode_fighters",
+      "name": "Eureka",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Eureka_Name",
+        "eureka_large.2v2_mode_fighters",
+        "Eureka"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 9
+    },
+    {
+      "id": "evocation_large.2v2_mode_fighters",
+      "name": "Evocation",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Evocation_Name",
+        "evocation_large.2v2_mode_fighters",
+        "Evocation"
+      ],
+      "rarity": "silver",
+      "visualOrder": 36
+    },
+    {
+      "id": "executioner_large.arena_augments_v2",
+      "name": "Executioner",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Executioner_Name",
+        "executioner_large.arena_augments_v2",
+        "Executioner",
+        "executioner_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 41
+    },
+    {
+      "id": "executioner_large.2v2_mode_fighters",
+      "name": "Executioner",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Executioner_Name",
+        "executioner_large.2v2_mode_fighters",
+        "Executioner"
+      ],
+      "rarity": "silver",
+      "visualOrder": 22
+    },
+    {
+      "id": "extendoarm_large.arena_augments_v2",
+      "name": "Extendo Arm",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ExtendoArm_Name",
+        "extendoarm_large.arena_augments_v2",
+        "Extendo-Arm",
+        "extendoarm_large",
+        "Extendo Arm"
+      ],
+      "rarity": "gold",
+      "visualOrder": 25
+    },
+    {
+      "id": "extendoarm_large.2v2_mode_fighters",
+      "name": "Extendo Arm",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ExtendoArm_Name",
+        "extendoarm_large.2v2_mode_fighters",
+        "Extendo Arm"
+      ],
+      "rarity": "gold",
+      "visualOrder": 129
+    },
+    {
+      "id": "fallenaegis_large.arena_augments_v2",
+      "name": "Fallen Aegis",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_FallenAegis_Name",
+        "fallenaegis_large.arena_augments_v2",
+        "Fallen Aegis",
+        "fallenaegis_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 76
+    },
+    {
+      "id": "fallenaegis_large.2v2_mode_fighters",
+      "name": "Fallen Aegis",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_FallenAegis_Name",
+        "fallenaegis_large.2v2_mode_fighters",
+        "Fallen Aegis"
+      ],
+      "rarity": "silver",
+      "visualOrder": 127
+    },
+    {
+      "id": "feeltheburn_large.arena_augments_v2",
+      "name": "Feel the Burn",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_FeeltheBurn_Name",
+        "feeltheburn_large.arena_augments_v2",
+        "Feel the Burn",
+        "feeltheburn_large",
+        "Feelthe Burn"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 53
+    },
+    {
+      "id": "feeltheburn_large.2v2_mode_fighters",
+      "name": "Feel the Burn",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_FeeltheBurn_Name",
+        "feeltheburn_large.2v2_mode_fighters",
+        "Feelthe Burn",
+        "Feel the Burn"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 113
+    },
+    {
+      "id": "feymagic_large.arena_augments_v2",
+      "name": "Fey Magic",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_FeyMagic_Name",
+        "feymagic_large.arena_augments_v2",
+        "Fey Magic",
+        "feymagic_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 83
+    },
+    {
+      "id": "firebrand_large.arena_augments_v2",
+      "name": "Firebrand",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Firebrand_Name",
+        "firebrand_large.arena_augments_v2",
+        "Firebrand",
+        "firebrand_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 36
+    },
+    {
+      "id": "firebrand_large.2v2_mode_fighters",
+      "name": "Firebrand",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Firebrand_Name",
+        "firebrand_large.2v2_mode_fighters",
+        "Firebrand"
+      ],
+      "rarity": "gold",
+      "visualOrder": 130
+    },
+    {
+      "id": "firstaidkit_large.arena_augments_v2",
+      "name": "First Aid Kit",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_FirstAidKit_Name",
+        "firstaidkit_large.arena_augments_v2",
+        "First-Aid Kit",
+        "firstaidkit_large",
+        "First Aid Kit"
+      ],
+      "rarity": "silver",
+      "visualOrder": 57
+    },
+    {
+      "id": "firstaidkit_large.2v2_mode_fighters",
+      "name": "First Aid Kit",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_FirstAidKit_Name",
+        "firstaidkit_large.2v2_mode_fighters",
+        "First Aid Kit"
+      ],
+      "rarity": "silver",
+      "visualOrder": 58
+    },
+    {
+      "id": "flashy_large.arena_augments_v2",
+      "name": "Flashy",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Flashy_Name",
+        "flashy_large.arena_augments_v2",
+        "Flashy"
+      ],
+      "rarity": "silver",
+      "visualOrder": 110
+    },
+    {
+      "id": "frombeginningtoend_large.arena_augments_v2",
+      "name": "From Beginning to End",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_FromBeginningToEnd_Name",
+        "frombeginningtoend_large.arena_augments_v2",
+        "From Beginning to End",
+        "frombeginningtoend_large",
+        "From Beginning To End"
+      ],
+      "rarity": "gold",
+      "visualOrder": 14
+    },
+    {
+      "id": "frombeginningtoend_large.2v2_mode_fighters",
+      "name": "From Beginning to End",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_FromBeginningToEnd_Name",
+        "frombeginningtoend_large.2v2_mode_fighters",
+        "From Beginning To End",
+        "From Beginning to End"
+      ],
+      "rarity": "gold",
+      "visualOrder": 126
+    },
+    {
+      "id": "frostwraith_large.arena_augments_v2",
+      "name": "Frost Wraith",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_FrostWraith_Name",
+        "frostwraith_large.arena_augments_v2",
+        "Frost Wraith",
+        "frostwraith_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 63
+    },
+    {
+      "id": "frostwraith_large.2v2_mode_fighters",
+      "name": "Frost Wraith",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_FrostWraith_Name",
+        "frostwraith_large.2v2_mode_fighters",
+        "Frost Wraith"
+      ],
+      "rarity": "silver",
+      "visualOrder": 71
+    },
+    {
+      "id": "frozenfoundations_large.arena_augments_v2",
+      "name": "Frozen Foundations",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_FrozenFoundations_Name",
+        "frozenfoundations_large.arena_augments_v2",
+        "Cherry_HoldVeryStill_Name",
+        "holdverystill_large.arena_augments_v2",
+        "Cherry_MirrorImage_Name",
+        "mirrorimage_large.arena_augments_v2",
+        "frozenfoundations large",
+        "frozenfoundations_large",
+        "Frozen Foundations"
+      ],
+      "rarity": "silver",
+      "visualOrder": 75
+    },
+    {
+      "id": "frozenfoundations_large.2v2_mode_fighters",
+      "name": "Frozen Foundations",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_FrozenFoundations_Name",
+        "frozenfoundations_large.2v2_mode_fighters",
+        "Frozen Foundations"
+      ],
+      "rarity": "silver",
+      "visualOrder": 72
+    },
+    {
+      "id": "fullyautomated_large.arena_augments_v2",
+      "name": "Fully Automated",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_FullyAutomated_Name",
+        "fullyautomated_large.arena_augments_v2",
+        "fullyautomated large",
+        "fullyautomated_large",
+        "Fully Automated"
+      ],
+      "rarity": "silver",
+      "visualOrder": 64
+    },
+    {
+      "id": "giantslayer_large.arena_augments_v2",
+      "name": "Giant Slayer",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_GiantSlayer_Name",
+        "giantslayer_large.arena_augments_v2",
+        "Giant Slayer",
+        "giantslayer_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 40
+    },
+    {
+      "id": "goliath_large.arena_augments_v2",
+      "name": "Goliath",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Goliath_Name",
+        "goliath_large.arena_augments_v2",
+        "Goliath",
+        "goliath_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 29
+    },
+    {
+      "id": "goliath_large.2v2_mode_fighters",
+      "name": "Goliath",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Goliath_Name",
+        "goliath_large.2v2_mode_fighters",
+        "Goliath"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 111
+    },
+    {
+      "id": "goredrink_large.arena_augments_v2",
+      "name": "Goredrink",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Goredrink_Name",
+        "goredrink_large.arena_augments_v2",
+        "Goredrink",
+        "goredrink_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 34
+    },
+    {
+      "id": "guiltypleasure_large.arena_augments_v2",
+      "name": "Guilty Pleasure",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_GuiltyPleasure_Name",
+        "guiltypleasure_large.arena_augments_v2",
+        "Guilty Pleasure",
+        "guiltypleasure_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 60
+    },
+    {
+      "id": "guiltypleasure_large.2v2_mode_fighters",
+      "name": "Guilty Pleasure",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_GuiltyPleasure_Name",
+        "guiltypleasure_large.2v2_mode_fighters",
+        "Guilty Pleasure"
+      ],
+      "rarity": "silver",
+      "visualOrder": 40
+    },
+    {
+      "id": "heavyhitter_large.arena_augments_v2",
+      "name": "Heavy Hitter",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_HeavyHitter_Name",
+        "heavyhitter_large.arena_augments_v2",
+        "Cherry_LightemUp_Name",
+        "lightemup_large.arena_augments_v2",
+        "Heavy Hitter",
+        "heavyhitter_large",
+        "Light 'em Up!",
+        "lightemup_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 20
+    },
+    {
+      "id": "holyfire_large.arena_augments_v2",
+      "name": "Holy Fire",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_HolyFire_Name",
+        "holyfire_large.arena_augments_v2",
+        "Holy Fire",
+        "holyfire_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 32
+    },
+    {
+      "id": "homeguard_large.arena_augments_v2",
+      "name": "Homeguard",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Homeguard_Name",
+        "homeguard_large.arena_augments_v2",
+        "Homeguard",
+        "homeguard_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 119
+    },
+    {
+      "id": "nowyouseeme_large.arena_augments_v2",
+      "name": "Houdini",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Houdini_Name",
+        "nowyouseeme_large.arena_augments_v2",
+        "Now You See Me",
+        "nowyouseeme_large",
+        "Houdini"
+      ],
+      "rarity": "silver",
+      "visualOrder": 112
+    },
+    {
+      "id": "houdini_large.2v2_mode_fighters",
+      "name": "Houdini",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Houdini_Name",
+        "houdini_large.2v2_mode_fighters",
+        "Houdini"
+      ],
+      "rarity": "silver",
+      "visualOrder": 133
+    },
+    {
+      "id": "icecold_large.arena_augments_v2",
+      "name": "Ice Cold",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_IceCold_Name",
+        "icecold_large.arena_augments_v2",
+        "Ice Cold",
+        "icecold_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 59
+    },
+    {
+      "id": "icecold_large.2v2_mode_fighters",
+      "name": "Ice Cold",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_IceCold_Name",
+        "icecold_large.2v2_mode_fighters",
+        "Ice Cold"
+      ],
+      "rarity": "silver",
+      "visualOrder": 70
+    },
+    {
+      "id": "impassable_large.arena_augments_v2",
+      "name": "Impassable",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Impassable_Name",
+        "impassable_large.arena_augments_v2",
+        "Impassable",
+        "impassable_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 109
+    },
+    {
+      "id": "infernalconduit_large.arena_augments_v2",
+      "name": "Infernal Conduit",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_InfernalConduit_Name",
+        "infernalconduit_large.arena_augments_v2",
+        "Infernal Conduit",
+        "infernalconduit_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 75
+    },
+    {
+      "id": "infernalconduit_large.2v2_mode_fighters",
+      "name": "Infernal Conduit",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_InfernalConduit_Name",
+        "infernalconduit_large.2v2_mode_fighters",
+        "Infernal Conduit"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 118
+    },
+    {
+      "id": "infernalsoul_large.arena_augments_v2",
+      "name": "Infernal Soul",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_InfernalSoul_Name",
+        "infernalsoul_large.arena_augments_v2",
+        "Infernal Soul",
+        "infernalsoul_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 24
+    },
+    {
+      "id": "infernalsoul_large.2v2_mode_fighters",
+      "name": "Infernal Soul",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_InfernalSoul_Name",
+        "infernalsoul_large.2v2_mode_fighters",
+        "Infernal Soul"
+      ],
+      "rarity": "silver",
+      "visualOrder": 29
+    },
+    {
+      "id": "itscritical_large.arena_augments_v2",
+      "name": "It's Critical",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ItsCritical_Name",
+        "itscritical_large.arena_augments_v2",
+        "It's Critical",
+        "itscritical_large",
+        "Its Critical"
+      ],
+      "rarity": "gold",
+      "visualOrder": 2
+    },
+    {
+      "id": "itscritical_large.2v2_mode_fighters",
+      "name": "It's Critical",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ItsCritical_Name",
+        "itscritical_large.2v2_mode_fighters",
+        "Its Critical",
+        "It's Critical"
+      ],
+      "rarity": "gold",
+      "visualOrder": 3
+    },
+    {
+      "id": "itskillingtime_large.arena_augments_v2",
+      "name": "It's Killing Time",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ItsKillingTime_Name",
+        "itskillingtime_large.arena_augments_v2",
+        "It's Killing Time",
+        "itskillingtime_large",
+        "Its Killing Time"
+      ],
+      "rarity": "gold",
+      "visualOrder": 4
+    },
+    {
+      "id": "jeweledgauntlet_large.arena_augments_v2",
+      "name": "Jeweled Gauntlet",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_JeweledGauntlet_Name",
+        "jeweledgauntlet_large.arena_augments_v2",
+        "Jeweled Gauntlet",
+        "jeweledgauntlet_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 51
+    },
+    {
+      "id": "jeweledgauntlet_large.2v2_mode_fighters",
+      "name": "Jeweled Gauntlet",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_JeweledGauntlet_Name",
+        "jeweledgauntlet_large.2v2_mode_fighters",
+        "Jeweled Gauntlet"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 108
+    },
+    {
+      "id": "juicebox_large.arena_augments_v2",
+      "name": "Juice Box",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_JuiceBox_Name",
+        "juicebox_large.arena_augments_v2",
+        "Juice Box",
+        "juicebox_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 91
+    },
+    {
+      "id": "juicebox_large.2v2_mode_fighters",
+      "name": "Juice Box",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_JuiceBox_Name",
+        "juicebox_large.2v2_mode_fighters",
+        "Juice Box"
+      ],
+      "rarity": "silver",
+      "visualOrder": 130
+    },
+    {
+      "id": "keystoneconjurer_large.arena_augments_v2",
+      "name": "Keystone Conjurer",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_KeystoneConjurer_Name",
+        "keystoneconjurer_large.arena_augments_v2",
+        "Cherry_MagicMissile_Name",
+        "magicmissile_large.arena_augments_v2",
+        "Keystone Conjurer",
+        "keystoneconjurer_large",
+        "Magic Missile",
+        "magicmissile_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 60
+    },
+    {
+      "id": "keystoneconjurer_large.2v2_mode_fighters",
+      "name": "Keystone Conjurer",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_KeystoneConjurer_Name",
+        "keystoneconjurer_large.2v2_mode_fighters",
+        "Keystone Conjurer"
+      ],
+      "rarity": "gold",
+      "visualOrder": 128
+    },
+    {
+      "id": "lightemup_large.2v2_mode_fighters",
+      "name": "Light 'em Up",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_LightemUp_Name",
+        "lightemup_large.2v2_mode_fighters",
+        "Lightem Up",
+        "Light 'em Up"
+      ],
+      "rarity": "silver",
+      "visualOrder": 104
+    },
+    {
+      "id": "lightningstrikes_large.arena_augments_v2",
+      "name": "Lightning Strikes",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_LightningStrikes_Name",
+        "lightningstrikes_large.arena_augments_v2",
+        "Cherry_TheBrutalizer_Name",
+        "thebrutalizer_large.arena_augments_v2",
+        "Cherry_ThreadtheNeedle_Name",
+        "threadtheneedle_large.arena_augments_v2",
+        "Lightning Strikes",
+        "lightningstrikes_large",
+        "Thread the Needle",
+        "threadtheneedle_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 15
+    },
+    {
+      "id": "lightningstrikes_large.2v2_mode_fighters",
+      "name": "Lightning Strikes",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_LightningStrikes_Name",
+        "lightningstrikes_large.2v2_mode_fighters",
+        "Lightning Strikes"
+      ],
+      "rarity": "gold",
+      "visualOrder": 138
+    },
+    {
+      "id": "madscientist_large.arena_augments_v2",
+      "name": "Mad Scientist",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_MadScientist_Name",
+        "madscientist_large.arena_augments_v2",
+        "Mad Scientist",
+        "madscientist_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 28
+    },
+    {
+      "id": "madscientist_large.2v2_mode_fighters",
+      "name": "Mad Scientist",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_MadScientist_Name",
+        "madscientist_large.2v2_mode_fighters",
+        "Mad Scientist"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 104
+    },
+    {
+      "id": "masterofduality_large.arena_augments_v2",
+      "name": "Master of Duality",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_MasterofDuality_Name",
+        "masterofduality_large.arena_augments_v2",
+        "Master of Duality",
+        "masterofduality_large",
+        "Masterof Duality"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 1
+    },
+    {
+      "id": "masterofduality_large.2v2_mode_fighters",
+      "name": "Master of Duality",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_MasterofDuality_Name",
+        "masterofduality_large.2v2_mode_fighters",
+        "Masterof Duality",
+        "Master of Duality"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 109
+    },
+    {
+      "id": "midnightexpress_large.2v2_mode_fighters",
+      "name": "Midnight Express",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_MidnightExpress_Name",
+        "midnightexpress_large.2v2_mode_fighters",
+        "Midnight Express"
+      ],
+      "rarity": "silver",
+      "visualOrder": 128
+    },
+    {
+      "id": "mindtomatter_large.arena_augments_v2",
+      "name": "Mind to Matter",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_MindtoMatter_Name",
+        "mindtomatter_large.arena_augments_v2",
+        "Cherry_MountainSoul_Name",
+        "mountainsoul_large.arena_augments_v2",
+        "Mind to Matter",
+        "mindtomatter_large",
+        "Mountain Soul",
+        "mountainsoul_large",
+        "Numb to Pain",
+        "numbtopain_large",
+        "Mindto Matter"
+      ],
+      "rarity": "silver",
+      "visualOrder": 46
+    },
+    {
+      "id": "mindtomatter_large.2v2_mode_fighters",
+      "name": "Mind to Matter",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_MindtoMatter_Name",
+        "mindtomatter_large.2v2_mode_fighters",
+        "Mindto Matter",
+        "Mind to Matter"
+      ],
+      "rarity": "silver",
+      "visualOrder": 37
+    },
+    {
+      "id": "minionmancer_large.arena_augments_v2",
+      "name": "Minionmancer",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Minionmancer_Name",
+        "minionmancer_large.arena_augments_v2",
+        "Minionmancer",
+        "minionmancer_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 92
+    },
+    {
+      "id": "mountainsoul_large.2v2_mode_fighters",
+      "name": "Mountain Soul",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_MountainSoul_Name",
+        "mountainsoul_large.2v2_mode_fighters",
+        "Mountain Soul"
+      ],
+      "rarity": "silver",
+      "visualOrder": 30
+    },
+    {
+      "id": "mysticpunch_large.arena_augments_v2",
+      "name": "Mystic Punch",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_MysticPunch_Name",
+        "mysticpunch_large.arena_augments_v2",
+        "Mystic Punch",
+        "mysticpunch_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 79
+    },
+    {
+      "id": "mysticpunch_large.2v2_mode_fighters",
+      "name": "Mystic Punch",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_MysticPunch_Name",
+        "mysticpunch_large.2v2_mode_fighters",
+        "Mystic Punch"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 13
+    },
+    {
+      "id": "mythical_large.arena_augments_v2",
+      "name": "Mythical",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Mythical_Name",
+        "mythical_large.arena_augments_v2",
+        "mythical large",
+        "mythical_large",
+        "Mythical"
+      ],
+      "rarity": "gold",
+      "visualOrder": 70
+    },
+    {
+      "id": "mythical_large.2v2_mode_fighters",
+      "name": "Mythical",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Mythical_Name",
+        "mythical_large.2v2_mode_fighters",
+        "Mythical"
+      ],
+      "rarity": "gold",
+      "visualOrder": 69
+    },
+    {
+      "id": "marksmage_large.arena_augments_v2",
+      "name": "Marksmage",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Name_Marksmage",
+        "marksmage_large.arena_augments_v2",
+        "Marksmage",
+        "marksmage_large",
+        "Name Marksmage"
+      ],
+      "rarity": "gold",
+      "visualOrder": 107
+    },
+    {
+      "id": "nestingdoll_large.arena_augments_v2",
+      "name": "Nesting Doll",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_NestingDoll_Name",
+        "nestingdoll_large.arena_augments_v2",
+        "nestingdoll large",
+        "nestingdoll_large",
+        "Nesting Doll"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 59
+    },
+    {
+      "id": "oathsworn_large.arena_augments_v2",
+      "name": "Oathsworn",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Oathsworn_Name",
+        "oathsworn_large.arena_augments_v2",
+        "Oathsworn",
+        "oathsworn_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 113
+    },
+    {
+      "id": "oceansoul_large.arena_augments_v2",
+      "name": "Ocean Soul",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_OceanSoul_Name",
+        "oceansoul_large.arena_augments_v2",
+        "Ocean Soul",
+        "oceansoul_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 32
+    },
+    {
+      "id": "oceansoul_large.2v2_mode_fighters",
+      "name": "Ocean Soul",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_OceanSoul_Name",
+        "oceansoul_large.2v2_mode_fighters",
+        "Ocean Soul"
+      ],
+      "rarity": "silver",
+      "visualOrder": 31
+    },
+    {
+      "id": "okboomerang_large.2v2_mode_fighters",
+      "name": "OK Boomerang",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_OkBoomerang_Name",
+        "okboomerang_large.2v2_mode_fighters",
+        "Ok Boomerang",
+        "OK Boomerang"
+      ],
+      "rarity": "gold",
+      "visualOrder": 136
+    },
+    {
+      "id": "omnisoul_large.arena_augments_v2",
+      "name": "Omni Soul",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_OmniSoul_Name",
+        "omnisoul_large.arena_augments_v2",
+        "Omni Soul",
+        "omnisoul_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 26
+    },
+    {
+      "id": "omnisoul_large.2v2_mode_fighters",
+      "name": "Omni Soul",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_OmniSoul_Name",
+        "omnisoul_large.2v2_mode_fighters",
+        "Omni Soul"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 103
+    },
+    {
+      "id": "outlawsgrit_large.arena_augments_v2",
+      "name": "Outlaw's Grit",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_OutlawsGrit_Name",
+        "outlawsgrit_large.arena_augments_v2",
+        "Outlaw's Grit",
+        "outlawsgrit_large",
+        "Outlaws Grit"
+      ],
+      "rarity": "gold",
+      "visualOrder": 5
+    },
+    {
+      "id": "outlawsgrit_large.2v2_mode_fighters",
+      "name": "Outlaw's Grit",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_OutlawsGrit_Name",
+        "outlawsgrit_large.2v2_mode_fighters",
+        "Outlaws Grit",
+        "Outlaw's Grit"
+      ],
+      "rarity": "gold",
+      "visualOrder": 125
+    },
+    {
+      "id": "parasiticrelationship_large.arena_augments_v2",
+      "name": "Parasitic Relationship",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ParasiticRelationship_Name",
+        "parasiticrelationship_large.arena_augments_v2",
+        "Parasitic Relationship",
+        "parasiticrelationship_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 54
+    },
+    {
+      "id": "perseverance_large.2v2_mode_fighters",
+      "name": "Perseverance",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Perseverance_Name",
+        "perseverance_large.2v2_mode_fighters",
+        "Perseverance"
+      ],
+      "rarity": "gold",
+      "visualOrder": 139
+    },
+    {
+      "id": "phenomenalevil_large.arena_augments_v2",
+      "name": "Phenomenal Evil",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_PhenomenalEvil_Name",
+        "phenomenalevil_large.arena_augments_v2",
+        "Phenomenal Evil",
+        "phenomenalevil_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 118
+    },
+    {
+      "id": "phenomenalevil_large.2v2_mode_fighters",
+      "name": "Phenomenal Evil",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_PhenomenalEvil_Name",
+        "phenomenalevil_large.2v2_mode_fighters",
+        "Phenomenal Evil"
+      ],
+      "rarity": "gold",
+      "visualOrder": 131
+    },
+    {
+      "id": "plaguebearer_large.arena_augments_v2",
+      "name": "Plaguebearer",
+      "version": "13.24",
+      "searchTerms": [
+        "Cherry_Plaguebearer_Name",
+        "plaguebearer_large.arena_augments_v2",
+        "Dreadbringer",
+        "plaguebearer_large",
+        "Plaguebearer"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 73
+    },
+    {
+      "id": "quantumcomputing_large.arena_augments_v2",
+      "name": "Quantum Computing",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_QuantumComputing_Name",
+        "quantumcomputing_large.arena_augments_v2",
+        "Quantum Computing",
+        "quantumcomputing_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 114
+    },
+    {
+      "id": "quantumcomputing_large.2v2_mode_fighters",
+      "name": "Quantum Computing",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_QuantumComputing_Name",
+        "quantumcomputing_large.2v2_mode_fighters",
+        "Quantum Computing"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 115
+    },
+    {
+      "id": "quest_steelyourheart_large.arena_augments_v2",
+      "name": "Quest: Steel Your Heart",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Quest_SteelYourHeart_Name",
+        "quest_steelyourheart_large.arena_augments_v2",
+        "Quest: Steel Your Heart",
+        "quest_steelyourheart_large",
+        "Quest Steel Your Heart"
+      ],
+      "rarity": "gold",
+      "visualOrder": 74
+    },
+    {
+      "id": "quest_urfschampion_large.arena_augments_v2",
+      "name": "Quest: Urf's Champion",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Quest_UrfsChampion_Name",
+        "quest_urfschampion_large.arena_augments_v2",
+        "Quest: Urf's Champion",
+        "quest_urfschampion_large",
+        "Quest Urfs Champion"
+      ],
+      "rarity": "gold",
+      "visualOrder": 75
+    },
+    {
+      "id": "quest_woogletswitchcap_large.arena_augments_v2",
+      "name": "Quest: Wooglet's Witchcap",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Quest_WoogletsWitchcap_Name",
+        "quest_woogletswitchcap_large.arena_augments_v2",
+        "quest urfschampion",
+        "kiwi_quest_urfschampion_large",
+        "Quest: Wooglet's Witchcap",
+        "quest_woogletswitchcap_large",
+        "Quest Wooglets Witchcap"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 89
+    },
+    {
+      "id": "rabblerousing_large.arena_augments_v2",
+      "name": "Rabble Rousing",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_RabbleRousing_Name",
+        "rabblerousing_large.arena_augments_v2",
+        "Rabble Rousing",
+        "rabblerousing_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 64
+    },
+    {
+      "id": "rabblerousing_large.2v2_mode_fighters",
+      "name": "Rabble Rousing",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_RabbleRousing_Name",
+        "rabblerousing_large.2v2_mode_fighters",
+        "Rabble Rousing"
+      ],
+      "rarity": "gold",
+      "visualOrder": 24
+    },
+    {
+      "id": "raidboss_large.arena_augments_v2",
+      "name": "Raid Boss",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_RaidBoss_Name",
+        "raidboss_large.arena_augments_v2",
+        "Raid Boss",
+        "raidboss_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 4
+    },
+    {
+      "id": "recursion_large.2v2_mode_fighters",
+      "name": "Recursion",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Recursion_Name",
+        "recursion_large.2v2_mode_fighters",
+        "Recursion"
+      ],
+      "rarity": "gold",
+      "visualOrder": 85
+    },
+    {
+      "id": "repulsor_large.arena_augments_v2",
+      "name": "Repulsor",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Repulsor_Name",
+        "repulsor_large.arena_augments_v2",
+        "Repulsor",
+        "repulsor_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 74
+    },
+    {
+      "id": "repulsor_large.2v2_mode_fighters",
+      "name": "Repulsor",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Repulsor_Name",
+        "repulsor_large.2v2_mode_fighters",
+        "Repulsor"
+      ],
+      "rarity": "silver",
+      "visualOrder": 38
+    },
+    {
+      "id": "restart_large.arena_augments_v2",
+      "name": "Restart",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Restart_Name",
+        "restart_large.arena_augments_v2",
+        "Restart",
+        "restart_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 26
+    },
+    {
+      "id": "restlessrestoration_large.arena_augments_v2",
+      "name": "Restless Restoration",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_RestlessRestoration_Name",
+        "restlessrestoration_large.arena_augments_v2",
+        "Restless Restoration",
+        "restlessrestoration_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 47
+    },
+    {
+      "id": "restlessrestoration_large.2v2_mode_fighters",
+      "name": "Restless Restoration",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_RestlessRestoration_Name",
+        "restlessrestoration_large.2v2_mode_fighters",
+        "Restless Restoration"
+      ],
+      "rarity": "gold",
+      "visualOrder": 6
+    },
+    {
+      "id": "scopedweapons_large.arena_augments_v2",
+      "name": "Scoped Weapons",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ScopedWeapons_Name",
+        "scopedweapons_large.arena_augments_v2",
+        "scopedweapons large",
+        "scopedweapons_large",
+        "Scoped Weapons"
+      ],
+      "rarity": "silver",
+      "visualOrder": 15
+    },
+    {
+      "id": "scopedweapons_large.2v2_mode_fighters",
+      "name": "Scoped Weapons",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ScopedWeapons_Name",
+        "scopedweapons_large.2v2_mode_fighters",
+        "Scoped Weapons"
+      ],
+      "rarity": "gold",
+      "visualOrder": 133
+    },
+    {
+      "id": "scopierweapons_large.arena_augments_v2",
+      "name": "Scopier Scoped Weapons",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ScopierScopedWeapons_Name",
+        "scopierweapons_large.arena_augments_v2",
+        "scopierweapons large",
+        "scopierweapons_large",
+        "Scopier Scoped Weapons"
+      ],
+      "rarity": "gold",
+      "visualOrder": 123
+    },
+    {
+      "id": "scopiestweapons_large.arena_augments_v2",
+      "name": "Scopiest Weapons",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ScopiestWeapons_Name",
+        "scopiestweapons_large.arena_augments_v2",
+        "Scopiest Weapons",
+        "scopiestweapons_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 100
+    },
+    {
+      "id": "searingdawn_large.arena_augments_v2",
+      "name": "Searing Dawn",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SearingDawn_Name",
+        "searingdawn_large.arena_augments_v2",
+        "Searing Dawn",
+        "searingdawn_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 103
+    },
+    {
+      "id": "searingdawn_large.2v2_mode_fighters",
+      "name": "Searing Dawn",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_SearingDawn_Name",
+        "searingdawn_large.2v2_mode_fighters",
+        "Searing Dawn"
+      ],
+      "rarity": "gold",
+      "visualOrder": 144
+    },
+    {
+      "id": "selfdestruct_large.arena_augments_v2",
+      "name": "Self Destruct",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SelfDestruct_Name",
+        "selfdestruct_large.arena_augments_v2",
+        "Self Destruct",
+        "selfdestruct_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 101
+    },
+    {
+      "id": "servebeyonddeath_large.arena_augments_v2",
+      "name": "Serve Beyond Death",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ServeBeyondDeath_Name",
+        "servebeyonddeath_large.arena_augments_v2",
+        "Serve Beyond Death",
+        "servebeyonddeath_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 44
+    },
+    {
+      "id": "shadowrunner_large.arena_augments_v2",
+      "name": "Shadow Runner",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ShadowRunner_Name",
+        "shadowrunner_large.arena_augments_v2",
+        "Shadow Runner",
+        "shadowrunner_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 114
+    },
+    {
+      "id": "shadowrunner_large.2v2_mode_fighters",
+      "name": "Shadow Runner",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ShadowRunner_Name",
+        "shadowrunner_large.2v2_mode_fighters",
+        "Shadow Runner"
+      ],
+      "rarity": "silver",
+      "visualOrder": 113
+    },
+    {
+      "id": "shrinkray_large.arena_augments_v2",
+      "name": "Shrink Ray",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_ShrinkRay_Name",
+        "shrinkray_large.arena_augments_v2",
+        "Shrink Ray",
+        "shrinkray_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 43
+    },
+    {
+      "id": "shrinkray_large.2v2_mode_fighters",
+      "name": "Shrink Ray",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ShrinkRay_Name",
+        "shrinkray_large.2v2_mode_fighters",
+        "Shrink Ray"
+      ],
+      "rarity": "gold",
+      "visualOrder": 21
+    },
+    {
+      "id": "skilledsniper_large.arena_augments_v2",
+      "name": "Skilled Sniper",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SkilledSniper_Name",
+        "skilledsniper_large.arena_augments_v2",
+        "Skilled Sniper",
+        "skilledsniper_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 122
+    },
+    {
+      "id": "slaparound_large.arena_augments_v2",
+      "name": "Slap Around",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SlapAround_Name",
+        "slaparound_large.arena_augments_v2",
+        "Slap Around",
+        "slaparound_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 62
+    },
+    {
+      "id": "slowcooker_large.arena_augments_v2",
+      "name": "Slow Cooker",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SlowCooker_Name",
+        "slowcooker_large.arena_augments_v2",
+        "Slow Cooker",
+        "slowcooker_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 76
+    },
+    {
+      "id": "slowcooker_large.2v2_mode_fighters",
+      "name": "Slow Cooker",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_SlowCooker_Name",
+        "slowcooker_large.2v2_mode_fighters",
+        "Slow Cooker"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 117
+    },
+    {
+      "id": "sonicboom_large.arena_augments_v2",
+      "name": "Sonic Boom",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SonicBoom_Name",
+        "sonicboom_large.arena_augments_v2",
+        "Sonic Boom",
+        "sonicboom_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 54
+    },
+    {
+      "id": "sonicboom_large.2v2_mode_fighters",
+      "name": "Sonic Boom",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_SonicBoom_Name",
+        "sonicboom_large.2v2_mode_fighters",
+        "Sonic Boom"
+      ],
+      "rarity": "silver",
+      "visualOrder": 35
+    },
+    {
+      "id": "soulsiphon_large.arena_augments_v2",
+      "name": "Soul Siphon",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SoulSiphon_Name",
+        "soulsiphon_large.arena_augments_v2",
+        "Soul Siphon",
+        "soulsiphon_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 50
+    },
+    {
+      "id": "soulsiphon_large.2v2_mode_fighters",
+      "name": "Soul Siphon",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_SoulSiphon_Name",
+        "soulsiphon_large.2v2_mode_fighters",
+        "Soul Siphon"
+      ],
+      "rarity": "gold",
+      "visualOrder": 127
+    },
+    {
+      "id": "spellwake_large.arena_augments_v2",
+      "name": "Spellwake",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Spellwake_Name",
+        "spellwake_large.arena_augments_v2",
+        "Spellwake",
+        "spellwake_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 52
+    },
+    {
+      "id": "spiritlink_large.arena_augments_v2",
+      "name": "Spirit Link",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SpiritLink_Name",
+        "spiritlink_large.arena_augments_v2",
+        "Spirit Link",
+        "spiritlink_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 60
+    },
+    {
+      "id": "spiritlink_large.2v2_mode_fighters",
+      "name": "Spirit Link",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_SpiritLink_Name",
+        "spiritlink_large.2v2_mode_fighters",
+        "Spirit Link"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 116
+    },
+    {
+      "id": "stackosaurusrex_large.arena_augments_v2",
+      "name": "Stackosaurus Rex",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_StackosaurusRex_Name",
+        "stackosaurusrex_large.arena_augments_v2",
+        "Stackosaurus Rex",
+        "stackosaurusrex_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 14
+    },
+    {
+      "id": "summonersroulette_large.arena_augments_v2",
+      "name": "Summoner's Roulette",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SummonersRoulette_Name",
+        "summonersroulette_large.arena_augments_v2",
+        "Stats on Stats on Stats!",
+        "statsonstatsonstats_large",
+        "Summoner's Roulette",
+        "summonersroulette_large",
+        "Summoners Roulette"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 22
+    },
+    {
+      "id": "symphonyofwar_large.arena_augments_v2",
+      "name": "Symphony of War",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_SymphonyofWar_Name",
+        "symphonyofwar_large.arena_augments_v2",
+        "Symphony of War",
+        "symphonyofwar_large",
+        "Symphonyof War"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 78
+    },
+    {
+      "id": "symphonyofwar_large.2v2_mode_fighters",
+      "name": "Symphony of War",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_SymphonyofWar_Name",
+        "symphonyofwar_large.2v2_mode_fighters",
+        "Symphonyof War",
+        "Symphony of War"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 119
+    },
+    {
+      "id": "tankitorleaveit_large.arena_augments_v2",
+      "name": "Tank It Or Leave It",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_TankItOrLeaveIt_Name",
+        "tankitorleaveit_large.arena_augments_v2",
+        "Tank It Or Leave It",
+        "tankitorleaveit_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 49
+    },
+    {
+      "id": "tankitorleaveit_large.2v2_mode_fighters",
+      "name": "Tank It Or Leave It",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_TankItOrLeaveIt_Name",
+        "tankitorleaveit_large.2v2_mode_fighters",
+        "Tank It Or Leave It"
+      ],
+      "rarity": "silver",
+      "visualOrder": 50
+    },
+    {
+      "id": "tapdancer_large.arena_augments_v2",
+      "name": "Tap Dancer",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_TapDancer_Name",
+        "tapdancer_large.arena_augments_v2",
+        "Tap Dancer",
+        "tapdancer_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 6
+    },
+    {
+      "id": "tapdancer_large.2v2_mode_fighters",
+      "name": "Tap Dancer",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_TapDancer_Name",
+        "tapdancer_large.2v2_mode_fighters",
+        "Tap Dancer"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 122
+    },
+    {
+      "id": "thebrutalizer_large.2v2_mode_fighters",
+      "name": "The Brutalizer",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_TheBrutalizer_Name",
+        "thebrutalizer_large.2v2_mode_fighters",
+        "The Brutalizer"
+      ],
+      "rarity": "gold",
+      "visualOrder": 132
+    },
+    {
+      "id": "thiefsgloves_large.2v2_mode_fighters",
+      "name": "Thief's Gloves",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ThiefsGloves_Name",
+        "thiefsgloves_large.2v2_mode_fighters",
+        "Thiefs Gloves",
+        "Thief's Gloves"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 95
+    },
+    {
+      "id": "threadtheneedle_large.2v2_mode_fighters",
+      "name": "Thread the Needle",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ThreadtheNeedle_Name",
+        "threadtheneedle_large.2v2_mode_fighters",
+        "Threadthe Needle",
+        "Thread the Needle"
+      ],
+      "rarity": "gold",
+      "visualOrder": 141
+    },
+    {
+      "id": "tormentor_large.arena_augments_v2",
+      "name": "Tormentor",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Tormentor_Name",
+        "tormentor_large.arena_augments_v2",
+        "Tormentor",
+        "tormentor_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 69
+    },
+    {
+      "id": "tormentor_large.2v2_mode_fighters",
+      "name": "Tormentor",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Tormentor_Name",
+        "tormentor_large.2v2_mode_fighters",
+        "Tormentor"
+      ],
+      "rarity": "silver",
+      "visualOrder": 39
+    },
+    {
+      "id": "trueshotprodigy_large.arena_augments_v2",
+      "name": "Trueshot Prodigy",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_TrueshotProdigy_Name",
+        "trueshotprodigy_large.arena_augments_v2",
+        "Trueshot Prodigy",
+        "trueshotprodigy_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 101
+    },
+    {
+      "id": "trueshotprodigy_large.2v2_mode_fighters",
+      "name": "Trueshot Prodigy",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_TrueshotProdigy_Name",
+        "trueshotprodigy_large.2v2_mode_fighters",
+        "Trueshot Prodigy"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 123
+    },
+    {
+      "id": "twicethrice_large.arena_augments_v2",
+      "name": "Twice Thrice",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_TwiceThrice_Name",
+        "twicethrice_large.arena_augments_v2",
+        "Twice Thrice",
+        "twicethrice_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 105
+    },
+    {
+      "id": "typhoon_large.arena_augments_v2",
+      "name": "Typhoon",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Typhoon_Name",
+        "typhoon_large.arena_augments_v2",
+        "Typhoon",
+        "typhoon_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 17
+    },
+    {
+      "id": "typhoon_large.2v2_mode_fighters",
+      "name": "Typhoon",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Typhoon_Name",
+        "typhoon_large.2v2_mode_fighters",
+        "Typhoon"
+      ],
+      "rarity": "silver",
+      "visualOrder": 118
+    },
+    {
+      "id": "ultimaterevolution_large.arena_augments_v2",
+      "name": "Ultimate Revolution",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_UltimateRevolution_Name",
+        "ultimaterevolution_large.arena_augments_v2",
+        "Ultimate Roulette",
+        "ultimaterevolution_large",
+        "Ultimate Revolution"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 81
+    },
+    {
+      "id": "ultimaterevolution_large.2v2_mode_fighters",
+      "name": "Ultimate Revolution",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_UltimateRevolution_Name",
+        "ultimaterevolution_large.2v2_mode_fighters",
+        "Ultimate Revolution"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 120
+    },
+    {
+      "id": "ultimateunstoppable_large.arena_augments_v2",
+      "name": "Ultimate Unstoppable",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_UltimateUnstoppable_Name",
+        "ultimateunstoppable_large.arena_augments_v2",
+        "Ultimate Unstoppable",
+        "ultimateunstoppable_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 117
+    },
+    {
+      "id": "vanish_large.arena_augments_v2",
+      "name": "Vanish",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Vanish_Name",
+        "vanish_large.arena_augments_v2",
+        "Summoner Revolution",
+        "summonerrevolution_large",
+        "Vanish"
+      ],
+      "rarity": "gold",
+      "visualOrder": 89
+    },
+    {
+      "id": "vanish_large.2v2_mode_fighters",
+      "name": "Vanish",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Vanish_Name",
+        "vanish_large.2v2_mode_fighters",
+        "Vanish"
+      ],
+      "rarity": "gold",
+      "visualOrder": 97
+    },
+    {
+      "id": "vengeance_large.arena_augments_v2",
+      "name": "Vengeance",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Vengeance_Name",
+        "vengeance_large.arena_augments_v2",
+        "Vengeance",
+        "vengeance_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 58
+    },
+    {
+      "id": "vengeance_large.2v2_mode_fighters",
+      "name": "Vengeance",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Vengeance_Name",
+        "vengeance_large.2v2_mode_fighters",
+        "Vengeance"
+      ],
+      "rarity": "gold",
+      "visualOrder": 134
+    },
+    {
+      "id": "vulnerability_large.arena_augments_v2",
+      "name": "Vulnerability",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_Vulnerability_Name",
+        "vulnerability_large.arena_augments_v2",
+        "Vulnerability"
+      ],
+      "rarity": "silver",
+      "visualOrder": 5
+    },
+    {
+      "id": "vulnerability_large.2v2_mode_fighters",
+      "name": "Vulnerability",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_Vulnerability_Name",
+        "vulnerability_large.2v2_mode_fighters",
+        "Vulnerability"
+      ],
+      "rarity": "silver",
+      "visualOrder": 121
+    },
+    {
+      "id": "warmuproutine_large.arena_augments_v2",
+      "name": "Warmup Routine",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_WarmupRoutine_Name",
+        "warmuproutine_large.arena_augments_v2",
+        "Warmup Routine",
+        "warmuproutine_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 102
+    },
+    {
+      "id": "warmuproutine_large.2v2_mode_fighters",
+      "name": "Warmup Routine",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_WarmupRoutine_Name",
+        "warmuproutine_large.2v2_mode_fighters",
+        "Warmup Routine"
+      ],
+      "rarity": "silver",
+      "visualOrder": 132
+    },
+    {
+      "id": "willingsacrifice_large.arena_augments_v2",
+      "name": "Willing Sacrifice",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_WillingSacrifice_Name",
+        "willingsacrifice_large.arena_augments_v2",
+        "Willing Sacrifice",
+        "willingsacrifice_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 111
+    },
+    {
+      "id": "willingsacrifice_large.2v2_mode_fighters",
+      "name": "Willing Sacrifice",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_WillingSacrifice_Name",
+        "willingsacrifice_large.2v2_mode_fighters",
+        "Willing Sacrifice"
+      ],
+      "rarity": "gold",
+      "visualOrder": 55
+    },
+    {
+      "id": "windspeakersblessing_large.2v2_mode_fighters",
+      "name": "Windspeaker's Blessing",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_WindspeakersBlessing_Name",
+        "windspeakersblessing_large.2v2_mode_fighters",
+        "Windspeakers Blessing",
+        "Windspeaker's Blessing"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 50
+    },
+    {
+      "id": "wisdomofages_large.arena_augments_v2",
+      "name": "Wisdom of Ages",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_WisdomofAges_Name",
+        "wisdomofages_large.arena_augments_v2",
+        "Wisdom of Ages",
+        "wisdomofages_large",
+        "Wisdomof Ages"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 2
+    },
+    {
+      "id": "wisdomofages_large.2v2_mode_fighters",
+      "name": "Wisdom of Ages",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_WisdomofAges_Name",
+        "wisdomofages_large.2v2_mode_fighters",
+        "Wisdomof Ages",
+        "Wisdom of Ages"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 110
+    },
+    {
+      "id": "witchfulthinking_large.arena_augments_v2",
+      "name": "Witchful Thinking",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_WitchfulThinking_Name",
+        "witchfulthinking_large.arena_augments_v2",
+        "Witchful Thinking",
+        "witchfulthinking_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 100
+    },
+    {
+      "id": "witchfulthinking_large.2v2_mode_fighters",
+      "name": "Witchful Thinking",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_WitchfulThinking_Name",
+        "witchfulthinking_large.2v2_mode_fighters",
+        "Witchful Thinking"
+      ],
+      "rarity": "silver",
+      "visualOrder": 25
+    },
+    {
+      "id": "withhaste_large.arena_augments_v2",
+      "name": "With Haste",
+      "version": "14.5",
+      "searchTerms": [
+        "Cherry_WithHaste_Name",
+        "withhaste_large.arena_augments_v2",
+        "With Haste",
+        "withhaste_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 67
+    },
+    {
+      "id": "withhaste_large.2v2_mode_fighters",
+      "name": "With Haste",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_WithHaste_Name",
+        "withhaste_large.2v2_mode_fighters",
+        "With Haste"
+      ],
+      "rarity": "gold",
+      "visualOrder": 66
+    },
+    {
+      "id": "zhonyasepiphany_large.2v2_mode_fighters",
+      "name": "Zhonya's Epiphany",
+      "version": "13.22",
+      "searchTerms": [
+        "Cherry_ZhonyasEpiphany_Name",
+        "zhonyasepiphany_large.2v2_mode_fighters",
+        "Zhonyas Epiphany",
+        "Zhonya's Epiphany"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 12
+    },
+    {
+      "id": "clowncollege_large",
+      "name": "Clown College",
+      "version": "16.18",
+      "searchTerms": [
+        "Clown College",
+        "clowncollege_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 21
+    },
+    {
+      "id": "risk_large",
+      "name": "Compulsion For Risk",
+      "version": "16.18",
+      "searchTerms": [
+        "Compulsion For Risk",
+        "risk_large",
+        "risk_large.arena_2026_s2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "kiwi_crackopenthategg_large",
+      "name": "Crack Open That Egg",
+      "version": "16.18",
+      "searchTerms": [
+        "crackopenthategg",
+        "kiwi_crackopenthategg_large",
+        "Crack Open That Egg"
+      ],
+      "rarity": "silver",
+      "visualOrder": 53
+    },
+    {
+      "id": "power_large",
+      "name": "Craving For Power",
+      "version": "16.18",
+      "searchTerms": [
+        "Craving For Power",
+        "power_large",
+        "power_large.arena_2026_s2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "wealth_large",
+      "name": "Craving For Wealth",
+      "version": "16.18",
+      "searchTerms": [
+        "Craving For Wealth",
+        "wealth_large",
+        "wealth_large.arena_2026_s2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "kiwi_criticalmissile_large",
+      "name": "Critical Missile",
+      "version": "16.18",
+      "searchTerms": [
+        "criticalmissile",
+        "kiwi_criticalmissile_large",
+        "Critical Missile"
+      ],
+      "rarity": "gold",
+      "visualOrder": 1
+    },
+    {
+      "id": "kiwi_criticalrhythm_large",
+      "name": "Critical Rhythm",
+      "version": "16.18",
+      "searchTerms": [
+        "criticalrhythm",
+        "kiwi_criticalrhythm_large",
+        "getexcited",
+        "kiwi_getexcited_large",
+        "Critical Rhythm"
+      ],
+      "rarity": "gold",
+      "visualOrder": 106
+    },
+    {
+      "id": "kiwi_critncast_large",
+      "name": "Crit 'n Cast",
+      "version": "16.18",
+      "searchTerms": [
+        "critncast",
+        "kiwi_critncast_large",
+        "Crit 'n Cast"
+      ],
+      "rarity": "silver",
+      "visualOrder": 80
+    },
+    {
+      "id": "kiwi_cruelty_large",
+      "name": "Cruelty",
+      "version": "16.18",
+      "searchTerms": [
+        "cruelty",
+        "kiwi_cruelty_large",
+        "Cruelty"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 88
+    },
+    {
+      "id": "kiwi_darksteeltalons_large",
+      "name": "Darksteel Talons",
+      "version": "16.11",
+      "searchTerms": [
+        "darksteeltalons",
+        "kiwi_darksteeltalons_large",
+        "Darksteel Talons"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 90
+    },
+    {
+      "id": "dematerializer_large",
+      "name": "Dematerializer",
+      "version": "16.18",
+      "searchTerms": [
+        "Dematerializer",
+        "dematerializer_large",
+        "dematerializer_large.arena_2026_s2_a2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "divebomber_large",
+      "name": "Dive Bomber",
+      "version": "16.18",
+      "searchTerms": [
+        "Dive Bomber",
+        "divebomber_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 42
+    },
+    {
+      "id": "slowactingpainkillers_large",
+      "name": "Divine Intervention",
+      "version": "16.18",
+      "searchTerms": [
+        "Divine Intervention",
+        "slowactingpainkillers_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 27
+    },
+    {
+      "id": "kiwi_donation_large",
+      "name": "Donation",
+      "version": "16.18",
+      "searchTerms": [
+        "donation",
+        "kiwi_donation_large",
+        "Donation"
+      ],
+      "rarity": "gold",
+      "visualOrder": 71
+    },
+    {
+      "id": "kiwi_dontchangethechannel_large",
+      "name": "Don't Change the Channel",
+      "version": "16.18",
+      "searchTerms": [
+        "dontchangethechannel",
+        "kiwi_dontchangethechannel_large",
+        "Don't Change the Channel"
+      ],
+      "rarity": "silver",
+      "visualOrder": 27
+    },
+    {
+      "id": "kiwi_doubletap_large",
+      "name": "Double Tap",
+      "version": "16.16",
+      "searchTerms": [
+        "doubletap",
+        "kiwi_doubletap_large",
+        "Double Tap"
+      ],
+      "rarity": "gold",
+      "visualOrder": 17
+    },
+    {
+      "id": "kiwi_dropkick_large",
+      "name": "Dropkick",
+      "version": "16.18",
+      "searchTerms": [
+        "dropkick",
+        "kiwi_dropkick_large",
+        "Dropkick"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 56
+    },
+    {
+      "id": "dualwield_large",
+      "name": "Dual Wield",
+      "version": "16.18",
+      "searchTerms": [
+        "Dual Wield",
+        "dualwield_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 80
+    },
+    {
+      "id": "kiwi_empoweredbythefaithful_large",
+      "name": "Empowered by the Faithful",
+      "version": "16.18",
+      "searchTerms": [
+        "empoweredbythefaithful",
+        "kiwi_empoweredbythefaithful_large",
+        "Empowered by the Faithful"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 62
+    },
+    {
+      "id": "kiwi_empyreampromise_large",
+      "name": "Empyrean Promise",
+      "version": "16.18",
+      "searchTerms": [
+        "empyreampromise",
+        "kiwi_empyreampromise_large",
+        "Empyrean Promise"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 45
+    },
+    {
+      "id": "crystallineflask_large",
+      "name": "Enchanted Flask",
+      "version": "16.18",
+      "searchTerms": [
+        "Enchanted Flask",
+        "crystallineflask_large",
+        "crystallineflask_large.arena_2026_s2_a2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "energetic_large",
+      "name": "Energetic",
+      "version": "16.18",
+      "searchTerms": [
+        "Energetic",
+        "energetic_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 16
+    },
+    {
+      "id": "kiwi_equillibrium_large",
+      "name": "Equilibrium",
+      "version": "16.18",
+      "searchTerms": [
+        "equillibrium",
+        "kiwi_equillibrium_large",
+        "Equilibrium"
+      ],
+      "rarity": "gold",
+      "visualOrder": 51
+    },
+    {
+      "id": "kiwi_escapeplan_large",
+      "name": "Escape Plan",
+      "version": "16.18",
+      "searchTerms": [
+        "escapeplan",
+        "kiwi_escapeplan_large",
+        "Escape Plan"
+      ],
+      "rarity": "silver",
+      "visualOrder": 111
+    },
+    {
+      "id": "evocation_large",
+      "name": "Evocation",
+      "version": "16.18",
+      "searchTerms": [
+        "evocation large",
+        "evocation_large",
+        "Evocation"
+      ],
+      "rarity": "silver",
+      "visualOrder": 47
+    },
+    {
+      "id": "fanthehammer_large",
+      "name": "Fan the Hammer",
+      "version": "16.18",
+      "searchTerms": [
+        "Fan the Hammer",
+        "fanthehammer_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 77
+    },
+    {
+      "id": "kiwi_fetch_large",
+      "name": "Fetch",
+      "version": "16.6",
+      "searchTerms": [
+        "fetch",
+        "kiwi_fetch_large",
+        "Fetch"
+      ],
+      "rarity": "silver",
+      "visualOrder": 86
+    },
+    {
+      "id": "kiwi_finalform_large",
+      "name": "Final Form",
+      "version": "16.18",
+      "searchTerms": [
+        "finalform",
+        "kiwi_finalform_large",
+        "surgefield",
+        "kiwi_surgefield_large",
+        "Final Form"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 86
+    },
+    {
+      "id": "firesale_large",
+      "name": "Fire Sale",
+      "version": "16.18",
+      "searchTerms": [
+        "Fire Sale",
+        "firesale_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 2
+    },
+    {
+      "id": "firfox_large",
+      "name": "Firefox",
+      "version": "16.18",
+      "searchTerms": [
+        "Firefox",
+        "firfox_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 67
+    },
+    {
+      "id": "kiwi_fishbait_large",
+      "name": "Fish Bait",
+      "version": "16.18",
+      "searchTerms": [
+        "fishbait",
+        "kiwi_fishbait_large",
+        "Fish Bait"
+      ],
+      "rarity": "gold",
+      "visualOrder": 59
+    },
+    {
+      "id": "kiwi_flash2_large",
+      "name": "Flash 2",
+      "version": "16.18",
+      "searchTerms": [
+        "flash2",
+        "kiwi_flash2_large",
+        "Flash 2"
+      ],
+      "rarity": "silver",
+      "visualOrder": 78
+    },
+    {
+      "id": "flashy_large",
+      "name": "Flashy",
+      "version": "16.18",
+      "searchTerms": [
+        "Flashy",
+        "flashy_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 8
+    },
+    {
+      "id": "kiwi_forgedbythemaster_large",
+      "name": "Forged by the Master",
+      "version": "16.18",
+      "searchTerms": [
+        "forgedbythemaster",
+        "kiwi_forgedbythemaster_large",
+        "Forged by the Master"
+      ],
+      "rarity": "silver",
+      "visualOrder": 3
+    },
+    {
+      "id": "frozenmallet_large",
+      "name": "Frozen Mallet",
+      "version": "16.18",
+      "searchTerms": [
+        "Frozen Mallet",
+        "frozenmallet_large",
+        "frozenmallet_large.arena_2026_s2_a2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "fruitarian_large",
+      "name": "Fruits of Your Labor",
+      "version": "16.18",
+      "searchTerms": [
+        "Fruits of Your Labor",
+        "fruitarian_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 87
+    },
+    {
+      "id": "crafting_prisstatanvil",
+      "name": "Gain a Prismatic Stat Anvil",
+      "version": "16.18",
+      "searchTerms": [
+        "Gain a Prismatic Stat Anvil",
+        "crafting_prisstatanvil"
+      ],
+      "rarity": "gold",
+      "visualOrder": 79
+    },
+    {
+      "id": "crafting_slot",
+      "name": "Gain an Augment Slot",
+      "version": "16.18",
+      "searchTerms": [
+        "Gain an Augment slot",
+        "crafting_slot",
+        "Gain an Augment Slot"
+      ],
+      "rarity": "gold",
+      "visualOrder": 119
+    },
+    {
+      "id": "gain_stat_anvil",
+      "name": "Gain Stat Anvil",
+      "version": "16.18",
+      "searchTerms": [
+        "Gain Stat Anvil",
+        "gain_stat_anvil"
+      ],
+      "rarity": "silver",
+      "visualOrder": 95
+    },
+    {
+      "id": "kiwi_glasscannon_large",
+      "name": "Glass Cannon",
+      "version": "16.18",
+      "searchTerms": [
+        "glasscannon",
+        "kiwi_glasscannon_large",
+        "Glass Cannon"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 36
+    },
+    {
+      "id": "kiwi_goldensnowball_large",
+      "name": "Golden Snowball",
+      "version": "16.18",
+      "searchTerms": [
+        "goldensnowball",
+        "kiwi_goldensnowball_large",
+        "Golden Snowball"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 41
+    },
+    {
+      "id": "kiwi_goldrend_large",
+      "name": "Gold Rend",
+      "version": "16.18",
+      "searchTerms": [
+        "goldrend",
+        "kiwi_goldrend_large",
+        "Gold Rend"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 27
+    },
+    {
+      "id": "kiwi_grandmaschilioil_large",
+      "name": "Grandma's Chili Oil",
+      "version": "16.18",
+      "searchTerms": [
+        "grandmaschilioil",
+        "kiwi_grandmaschilioil_large",
+        "Grandma's Chili Oil"
+      ],
+      "rarity": "gold",
+      "visualOrder": 33
+    },
+    {
+      "id": "grevious_venmon",
+      "name": "Grievous Venom",
+      "version": "16.18",
+      "searchTerms": [
+        "Grievous Venom",
+        "grevious_venmon"
+      ],
+      "rarity": "silver",
+      "visualOrder": 79
+    },
+    {
+      "id": "kiwi_growthspurt_large",
+      "name": "Growth Spurt",
+      "version": "16.18",
+      "searchTerms": [
+        "growthspurt",
+        "kiwi_growthspurt_large",
+        "Unshackled",
+        "unshackled_large",
+        "Growth Spurt"
+      ],
+      "rarity": "gold",
+      "visualOrder": 114
+    },
+    {
+      "id": "kiwi_handofbaron_large",
+      "name": "Hand of Baron",
+      "version": "16.18",
+      "searchTerms": [
+        "handofbaron",
+        "kiwi_handofbaron_large",
+        "Hand of Baron"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 66
+    },
+    {
+      "id": "hattrick_large",
+      "name": "Hat Trick",
+      "version": "16.18",
+      "searchTerms": [
+        "Hat Trick",
+        "hattrick_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 78
+    },
+    {
+      "id": "kiwi_hatonahat_large",
+      "name": "Hat on a Hat",
+      "version": "16.11",
+      "searchTerms": [
+        "hatonahat",
+        "kiwi_hatonahat_large",
+        "Hat on a Hat"
+      ],
+      "rarity": "silver",
+      "visualOrder": 21
+    },
+    {
+      "id": "kiwi_hellbent_large",
+      "name": "Hellbent",
+      "version": "16.18",
+      "searchTerms": [
+        "hellbent",
+        "kiwi_hellbent_large",
+        "Hellbent"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 55
+    },
+    {
+      "id": "kiwi_highroller_large",
+      "name": "High Roller",
+      "version": "16.18",
+      "searchTerms": [
+        "highroller",
+        "kiwi_highroller_large",
+        "High Roller"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 93
+    },
+    {
+      "id": "hive_mind_large",
+      "name": "Hive Mind",
+      "version": "16.18",
+      "searchTerms": [
+        "Hive Mind",
+        "hive_mind_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 35
+    },
+    {
+      "id": "holdverystill_large",
+      "name": "Hold Very Still",
+      "version": "16.18",
+      "searchTerms": [
+        "Hold Very Still",
+        "holdverystill_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 124
+    },
+    {
+      "id": "hybrid_large",
+      "name": "Hybrid",
+      "version": "16.18",
+      "searchTerms": [
+        "Hybrid",
+        "hybrid_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 62
+    },
+    {
+      "id": "kiwi_iamthejuggernaut_large",
+      "name": "I Am the Juggernaut",
+      "version": "16.18",
+      "searchTerms": [
+        "iamthejuggernaut",
+        "kiwi_iamthejuggernaut_large",
+        "I Am the Juggernaut"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 57
+    },
+    {
+      "id": "kiwi_infiniterecursion_large",
+      "name": "Infinite Recursion",
+      "version": "16.18",
+      "searchTerms": [
+        "infiniterecursion",
+        "kiwi_infiniterecursion_large",
+        "Infinite Recursion"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 11
+    },
+    {
+      "id": "kiwi_juiced_large",
+      "name": "Juiced",
+      "version": "16.18",
+      "searchTerms": [
+        "juiced",
+        "kiwi_juiced_large",
+        "Juiced"
+      ],
+      "rarity": "silver",
+      "visualOrder": 28
+    },
+    {
+      "id": "juicepress_large",
+      "name": "Juice Press",
+      "version": "16.18",
+      "searchTerms": [
+        "juicepress large",
+        "juicepress_large",
+        "Juice Press"
+      ],
+      "rarity": "silver",
+      "visualOrder": 6
+    },
+    {
+      "id": "kiwi_killsecure_large",
+      "name": "Kill Secure",
+      "version": "16.18",
+      "searchTerms": [
+        "killsecure",
+        "kiwi_killsecure_large",
+        "Kill Secure"
+      ],
+      "rarity": "silver",
+      "visualOrder": 108
+    },
+    {
+      "id": "kiwi_kingme_large",
+      "name": "King Me",
+      "version": "16.18",
+      "searchTerms": [
+        "kingme",
+        "kiwi_kingme_large",
+        "King Me"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 5
+    },
+    {
+      "id": "lamb_large",
+      "name": "Lamb's Respite",
+      "version": "16.18",
+      "searchTerms": [
+        "Lamb's Respite",
+        "lamb_large",
+        "lamb_large.arena_2026_s2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "kiwi_laseheal_large",
+      "name": "Lase Heal",
+      "version": "16.18",
+      "searchTerms": [
+        "laseheal",
+        "kiwi_laseheal_large",
+        "Lase Heal"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 96
+    },
+    {
+      "id": "legday_large",
+      "name": "Leg Day",
+      "version": "16.18",
+      "searchTerms": [
+        "Leg Day",
+        "legday_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 109
+    },
+    {
+      "id": "crafting_sellaug",
+      "name": "Level Augments",
+      "version": "16.18",
+      "searchTerms": [
+        "Level Augments",
+        "crafting_sellaug"
+      ],
+      "rarity": "gold",
+      "visualOrder": 99
+    },
+    {
+      "id": "lightwarden_large",
+      "name": "Light Warden",
+      "version": "16.18",
+      "searchTerms": [
+        "Light Warden",
+        "lightwarden_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 28
+    },
+    {
+      "id": "kiwi_littledevil_large",
+      "name": "Little Devil",
+      "version": "16.18",
+      "searchTerms": [
+        "littledevil",
+        "kiwi_littledevil_large",
+        "Little Devil"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 20
+    },
+    {
+      "id": "magic_girl",
+      "name": "Magical Girl",
+      "version": "16.18",
+      "searchTerms": [
+        "Magical Girl",
+        "magic_girl"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 39
+    },
+    {
+      "id": "midnightexpress_large",
+      "name": "Midnight Express",
+      "version": "16.18",
+      "searchTerms": [
+        "midnightexpress large",
+        "midnightexpress_large",
+        "Midnight Express"
+      ],
+      "rarity": "silver",
+      "visualOrder": 66
+    },
+    {
+      "id": "kiwi_mightyshield_large",
+      "name": "Mighty Shield",
+      "version": "16.18",
+      "searchTerms": [
+        "mightyshield",
+        "kiwi_mightyshield_large",
+        "Mighty Shield"
+      ],
+      "rarity": "silver",
+      "visualOrder": 98
+    },
+    {
+      "id": "mirrorimage_large",
+      "name": "Mirror Image",
+      "version": "16.18",
+      "searchTerms": [
+        "Mirror Image",
+        "mirrorimage_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 125
+    },
+    {
+      "id": "kiwi_missingping_large",
+      "name": "Missing Ping",
+      "version": "16.18",
+      "searchTerms": [
+        "missingping",
+        "kiwi_missingping_large",
+        "Missing Ping"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 18
+    },
+    {
+      "id": "kiwi_mobiuscoil_large",
+      "name": "Mobius Coil",
+      "version": "16.11",
+      "searchTerms": [
+        "mobiuscoil",
+        "kiwi_mobiuscoil_large",
+        "Mobius Coil"
+      ],
+      "rarity": "silver",
+      "visualOrder": 19
+    },
+    {
+      "id": "multitool_large",
+      "name": "Multitool",
+      "version": "16.18",
+      "searchTerms": [
+        "multitool large",
+        "multitool_large",
+        "Multitool"
+      ],
+      "rarity": "gold",
+      "visualOrder": 72
+    },
+    {
+      "id": "kiwi_natureishealing_large",
+      "name": "Nature Is Healing",
+      "version": "16.18",
+      "searchTerms": [
+        "natureishealing",
+        "kiwi_natureishealing_large",
+        "Nature Is Healing"
+      ],
+      "rarity": "gold",
+      "visualOrder": 53
+    },
+    {
+      "id": "nesting_doll",
+      "name": "Nesting Doll",
+      "version": "16.18",
+      "searchTerms": [
+        "Nesting Doll",
+        "nesting_doll"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 58
+    },
+    {
+      "id": "kiwi_nightstalking_large",
+      "name": "Nightstalking",
+      "version": "16.18",
+      "searchTerms": [
+        "nightstalking",
+        "kiwi_nightstalking_large",
+        "Nightstalking"
+      ],
+      "rarity": "gold",
+      "visualOrder": 18
+    },
+    {
+      "id": "kiwi_overextender_large",
+      "name": "Overextender",
+      "version": "16.18",
+      "searchTerms": [
+        "overextender",
+        "kiwi_overextender_large",
+        "Overextender"
+      ],
+      "rarity": "gold",
+      "visualOrder": 88
+    },
+    {
+      "id": "overflow_large",
+      "name": "Overflow",
+      "version": "16.18",
+      "searchTerms": [
+        "Overflow",
+        "overflow_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 65
+    },
+    {
+      "id": "pandoras_box_large",
+      "name": "Pandora's Box",
+      "version": "16.18",
+      "searchTerms": [
+        "Pandora's Box",
+        "pandoras_box_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 43
+    },
+    {
+      "id": "panic_room_large",
+      "name": "Panic Room",
+      "version": "16.18",
+      "searchTerms": [
+        "Panic Room",
+        "panic_room_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 43
+    },
+    {
+      "id": "parasiticmutation_large",
+      "name": "Parasitic Mutation",
+      "version": "16.18",
+      "searchTerms": [
+        "Parasitic Mutation",
+        "parasiticmutation_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 89
+    },
+    {
+      "id": "kiwi_patontheback_large",
+      "name": "Pat on the Back",
+      "version": "16.18",
+      "searchTerms": [
+        "patontheback",
+        "kiwi_patontheback_large",
+        "Pat on the Back"
+      ],
+      "rarity": "gold",
+      "visualOrder": 68
+    },
+    {
+      "id": "kiwi_pinballsnowball_large",
+      "name": "Pinball Snowball",
+      "version": "16.18",
+      "searchTerms": [
+        "pinballsnowball",
+        "kiwi_pinballsnowball_large",
+        "Pinball Snowball"
+      ],
+      "rarity": "gold",
+      "visualOrder": 87
+    },
+    {
+      "id": "kiwi_pincushion_large",
+      "name": "Pincushion",
+      "version": "16.18",
+      "searchTerms": [
+        "pincushion",
+        "kiwi_pincushion_large",
+        "Pincushion"
+      ],
+      "rarity": "gold",
+      "visualOrder": 40
+    },
+    {
+      "id": "kiwi_poltergeist_large",
+      "name": "Poltergeist",
+      "version": "16.18",
+      "searchTerms": [
+        "poltergeist",
+        "kiwi_poltergeist_large",
+        "Poltergeist"
+      ],
+      "rarity": "silver",
+      "visualOrder": 51
+    },
+    {
+      "id": "kiwi_poroblast_large",
+      "name": "Poro Blast",
+      "version": "16.18",
+      "searchTerms": [
+        "poroblast",
+        "kiwi_poroblast_large",
+        "Poro Blast"
+      ],
+      "rarity": "gold",
+      "visualOrder": 95
+    },
+    {
+      "id": "kiwi_poroking_large",
+      "name": "Poro King",
+      "version": "16.18",
+      "searchTerms": [
+        "poroking",
+        "kiwi_poroking_large",
+        "Poro King"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 112
+    },
+    {
+      "id": "quest_prismaticegg_large",
+      "name": "Prismatic Egg",
+      "version": "16.18",
+      "searchTerms": [
+        "Prismatic Egg",
+        "quest_prismaticegg_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 23
+    },
+    {
+      "id": "kiwi_promqueen_large",
+      "name": "Prom Queen",
+      "version": "16.18",
+      "searchTerms": [
+        "promqueen",
+        "kiwi_promqueen_large",
+        "Prom Queen"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 15
+    },
+    {
+      "id": "kiwi_proteinshake_large",
+      "name": "Protein Shake",
+      "version": "16.18",
+      "searchTerms": [
+        "proteinshake",
+        "kiwi_proteinshake_large",
+        "Protein Shake"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 46
+    },
+    {
+      "id": "kiwi_puristcaster_large",
+      "name": "Purist Caster",
+      "version": "16.18",
+      "searchTerms": [
+        "puristcaster",
+        "kiwi_puristcaster_large",
+        "Purist Caster"
+      ],
+      "rarity": "silver",
+      "visualOrder": 26
+    },
+    {
+      "id": "kiwi_quest_voidimmolation_large",
+      "name": "Quest: Void Immolation",
+      "version": "16.18",
+      "searchTerms": [
+        "quest voidimmolation",
+        "kiwi_quest_voidimmolation_large",
+        "Quest: Void Immolation"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 74
+    },
+    {
+      "id": "mad_hatter_large",
+      "name": "Quest: Mad Hatter",
+      "version": "16.18",
+      "searchTerms": [
+        "Quest: Mad Hatter",
+        "mad_hatter_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 73
+    },
+    {
+      "id": "quest_rite_of_the_forge_god_large",
+      "name": "Quest: Rite of the Forge God",
+      "version": "16.18",
+      "searchTerms": [
+        "Quest: Rite Of The Forge God",
+        "quest_rite_of_the_forge_god_large",
+        "Quest: Rite of the Forge God"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 91
+    },
+    {
+      "id": "threesacredtreasures_large",
+      "name": "Quest: Three Sacred Treasures",
+      "version": "16.18",
+      "searchTerms": [
+        "Quest: Three Sacred Treasures",
+        "threesacredtreasures_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 81
+    },
+    {
+      "id": "kiwi_questbangbang_large",
+      "name": "Quest: Bang Bang",
+      "version": "16.18",
+      "searchTerms": [
+        "questbangbang",
+        "kiwi_questbangbang_large",
+        "Quest: Bang Bang"
+      ],
+      "rarity": "gold",
+      "visualOrder": 124
+    },
+    {
+      "id": "kiwi_questburstingteeth_large",
+      "name": "Quest: Bursting Teeth",
+      "version": "16.18",
+      "searchTerms": [
+        "questburstingteeth",
+        "kiwi_questburstingteeth_large",
+        "Quest: Bursting Teeth"
+      ],
+      "rarity": "gold",
+      "visualOrder": 16
+    },
+    {
+      "id": "kiwi_questporocharge_large",
+      "name": "Quest: Poro Charge",
+      "version": "16.18",
+      "searchTerms": [
+        "questporocharge",
+        "kiwi_questporocharge_large",
+        "Quest: Poro Charge"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 34
+    },
+    {
+      "id": "kiwi_questpressurecooker_large",
+      "name": "Quest: Pressure Cooker",
+      "version": "16.18",
+      "searchTerms": [
+        "questpressurecooker",
+        "kiwi_questpressurecooker_large",
+        "Quest: Pressure Cooker"
+      ],
+      "rarity": "gold",
+      "visualOrder": 34
+    },
+    {
+      "id": "kiwi_questsupportmain_large",
+      "name": "Quest: Support Main",
+      "version": "16.18",
+      "searchTerms": [
+        "questsupportmain",
+        "kiwi_questsupportmain_large",
+        "Quest: Support Main"
+      ],
+      "rarity": "silver",
+      "visualOrder": 33
+    },
+    {
+      "id": "kiwi_redenvelopes_large",
+      "name": "Red Envelopes",
+      "version": "16.11",
+      "searchTerms": [
+        "redenvelopes",
+        "kiwi_redenvelopes_large",
+        "Red Envelopes"
+      ],
+      "rarity": "gold",
+      "visualOrder": 82
+    },
+    {
+      "id": "remnantofthewatchers_large",
+      "name": "Remnant of the Watchers",
+      "version": "16.18",
+      "searchTerms": [
+        "Remnant of the Watchers",
+        "remnantofthewatchers_large",
+        "remnantofthewatchers_large.arena_2026_s2_a2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "replace_augment",
+      "name": "Replace Augment",
+      "version": "16.18",
+      "searchTerms": [
+        "Replace Augment",
+        "replace_augment"
+      ],
+      "rarity": "gold",
+      "visualOrder": 11
+    },
+    {
+      "id": "righteous_fury_large",
+      "name": "Righteous Fury",
+      "version": "16.18",
+      "searchTerms": [
+        "Righteous Fury",
+        "righteous_fury_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 97
+    },
+    {
+      "id": "gohsacrificeforgold_large",
+      "name": "Sacrifice: For Gold",
+      "version": "16.18",
+      "searchTerms": [
+        "Sacrifice: For Gold",
+        "gohsacrificeforgold_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 121
+    },
+    {
+      "id": "gohsacrificeforprismatic_large",
+      "name": "Sacrifice: For Prismatic",
+      "version": "16.18",
+      "searchTerms": [
+        "Sacrifice: For Prismatic",
+        "gohsacrificeforprismatic_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 3
+    },
+    {
+      "id": "gohsacrificefor_large",
+      "name": "Sacrifice: For Silver",
+      "version": "16.18",
+      "searchTerms": [
+        "Sacrifice: For Silver",
+        "gohsacrificefor_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 10
+    },
+    {
+      "id": "kiwi_shakennotstirred_large",
+      "name": "Shaken Not Stirred",
+      "version": "16.18",
+      "searchTerms": [
+        "shakennotstirred",
+        "kiwi_shakennotstirred_large",
+        "Shaken Not Stirred"
+      ],
+      "rarity": "gold",
+      "visualOrder": 35
+    },
+    {
+      "id": "kiwi_sharktempest_large",
+      "name": "Shark Tempest",
+      "version": "16.18",
+      "searchTerms": [
+        "sharktempest",
+        "kiwi_sharktempest_large",
+        "Shark Tempest"
+      ],
+      "rarity": "gold",
+      "visualOrder": 12
+    },
+    {
+      "id": "kiwi_shrinkengine_large",
+      "name": "Shrink Engine",
+      "version": "16.18",
+      "searchTerms": [
+        "shrinkengine",
+        "kiwi_shrinkengine_large",
+        "Shrink Engine"
+      ],
+      "rarity": "gold",
+      "visualOrder": 7
+    },
+    {
+      "id": "silver_spoon",
+      "name": "Silver Spoon",
+      "version": "16.18",
+      "searchTerms": [
+        "Silver Spoon",
+        "silver_spoon"
+      ],
+      "rarity": "silver",
+      "visualOrder": 13
+    },
+    {
+      "id": "kiwi_skipthebasic_large",
+      "name": "Skip the Basic",
+      "version": "16.18",
+      "searchTerms": [
+        "skipthebasic",
+        "kiwi_skipthebasic_large",
+        "Skip the Basic"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 82
+    },
+    {
+      "id": "slimetime_large",
+      "name": "Slime Time",
+      "version": "16.18",
+      "searchTerms": [
+        "Slime Time",
+        "slimetime_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 65
+    },
+    {
+      "id": "slowandsteady_large",
+      "name": "Slow and Steady",
+      "version": "16.18",
+      "searchTerms": [
+        "slowandsteady large",
+        "slowandsteady_large",
+        "Slow and Steady"
+      ],
+      "rarity": "gold",
+      "visualOrder": 104
+    },
+    {
+      "id": "kiwi_sneakerhead_large",
+      "name": "Sneakerhead",
+      "version": "16.18",
+      "searchTerms": [
+        "sneakerhead",
+        "kiwi_sneakerhead_large",
+        "Sneakerhead"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 71
+    },
+    {
+      "id": "kiwi_snowballroulette_large",
+      "name": "Snowball Roulette",
+      "version": "15.24",
+      "searchTerms": [
+        "snowballroulette",
+        "kiwi_snowballroulette_large",
+        "Snowball Roulette"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 44
+    },
+    {
+      "id": "kiwi_snowballupgrade_large",
+      "name": "Snowball Upgrade",
+      "version": "16.18",
+      "searchTerms": [
+        "snowballupgrade",
+        "kiwi_snowballupgrade_large",
+        "snowbomb",
+        "kiwi_snowbomb_large",
+        "Snowball Upgrade"
+      ],
+      "rarity": "gold",
+      "visualOrder": 91
+    },
+    {
+      "id": "kiwi_snowday_large",
+      "name": "Snow Day",
+      "version": "16.18",
+      "searchTerms": [
+        "snowday",
+        "kiwi_snowday_large",
+        "Snow Day"
+      ],
+      "rarity": "silver",
+      "visualOrder": 81
+    },
+    {
+      "id": "kiwi_sonata_large",
+      "name": "Sonata",
+      "version": "16.18",
+      "searchTerms": [
+        "sonata",
+        "kiwi_sonata_large",
+        "Sonata"
+      ],
+      "rarity": "gold",
+      "visualOrder": 112
+    },
+    {
+      "id": "kiwi_souleater_large",
+      "name": "Soul Eater",
+      "version": "16.18",
+      "searchTerms": [
+        "souleater",
+        "kiwi_souleater_large",
+        "Soul Eater"
+      ],
+      "rarity": "gold",
+      "visualOrder": 41
+    },
+    {
+      "id": "kiwi_speeddemon_large",
+      "name": "Speed Demon",
+      "version": "16.18",
+      "searchTerms": [
+        "speeddemon",
+        "kiwi_speeddemon_large",
+        "Speed Demon"
+      ],
+      "rarity": "silver",
+      "visualOrder": 18
+    },
+    {
+      "id": "spirit_infusion_large",
+      "name": "Spirit Infusion",
+      "version": "16.18",
+      "searchTerms": [
+        "spirit infusion large",
+        "spirit_infusion_large",
+        "Spirit Infusion"
+      ],
+      "rarity": "silver",
+      "visualOrder": 56
+    },
+    {
+      "id": "kiwi_spiritbomb_large",
+      "name": "Spirit Bomb",
+      "version": "16.18",
+      "searchTerms": [
+        "spiritbomb",
+        "kiwi_spiritbomb_large",
+        "Spirit Bomb"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 98
+    },
+    {
+      "id": "kiwi_spiritualpurification_large",
+      "name": "Spiritual Purification",
+      "version": "16.18",
+      "searchTerms": [
+        "spiritualpurification",
+        "kiwi_spiritualpurification_large",
+        "Spiritual Purification"
+      ],
+      "rarity": "gold",
+      "visualOrder": 13
+    },
+    {
+      "id": "kiwi_squishyslappygrab_large",
+      "name": "Squishy Slappy Grab",
+      "version": "16.18",
+      "searchTerms": [
+        "squishyslappygrab",
+        "kiwi_squishyslappygrab_large",
+        "Squishy Slappy Grab"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 17
+    },
+    {
+      "id": "statsonstats_large",
+      "name": "Stats on Stats!",
+      "version": "16.18",
+      "searchTerms": [
+        "Stats on Stats!",
+        "statsonstats_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 10
+    },
+    {
+      "id": "stats_large",
+      "name": "Stats!",
+      "version": "16.18",
+      "searchTerms": [
+        "Stats!",
+        "stats_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 93
+    },
+    {
+      "id": "kiwi_stuckinherewithme_large",
+      "name": "Stuck in Here with Me",
+      "version": "16.18",
+      "searchTerms": [
+        "stuckinherewithme",
+        "kiwi_stuckinherewithme_large",
+        "Stuck in Here with Me"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 63
+    },
+    {
+      "id": "kiwi_swiftandsafe_large",
+      "name": "Swift and Safe",
+      "version": "16.18",
+      "searchTerms": [
+        "swiftandsafe",
+        "kiwi_swiftandsafe_large",
+        "Swift and Safe"
+      ],
+      "rarity": "silver",
+      "visualOrder": 52
+    },
+    {
+      "id": "swindlers_orb_item_large",
+      "name": "Swindler's Orb",
+      "version": "16.18",
+      "searchTerms": [
+        "Swindler's Orb",
+        "swindlers_orb_item_large"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "symbioticmutation_large",
+      "name": "Symbiotic Mutation",
+      "version": "16.18",
+      "searchTerms": [
+        "Symbiotic Mutation",
+        "symbioticmutation_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 115
+    },
+    {
+      "id": "tank_engine_large",
+      "name": "Tank Engine",
+      "version": "16.18",
+      "searchTerms": [
+        "Tank Engine",
+        "tank_engine_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 42
+    },
+    {
+      "id": "tankengine_large",
+      "name": "Tank Engine",
+      "version": "15.16",
+      "searchTerms": [
+        "Tank Engine",
+        "tankengine_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 48
+    },
+    {
+      "id": "trailblazer_large",
+      "name": "Trailblazer",
+      "version": "16.18",
+      "searchTerms": [
+        "Trailblazer",
+        "trailblazer_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 68
+    },
+    {
+      "id": "transmute_silver",
+      "name": "Transmute: Silver",
+      "version": "16.18",
+      "searchTerms": [
+        "transmute silver",
+        "transmute_silver",
+        "Transmute: Silver"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 24
+    },
+    {
+      "id": "transmutechaos_large",
+      "name": "Transmute: Chaos",
+      "version": "16.18",
+      "searchTerms": [
+        "Transmute: Chaos",
+        "transmutechaos_large"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 25
+    },
+    {
+      "id": "transmutegold_large",
+      "name": "Transmute: Gold",
+      "version": "16.18",
+      "searchTerms": [
+        "Transmute: Gold",
+        "transmutegold_large"
+      ],
+      "rarity": "silver",
+      "visualOrder": 92
+    },
+    {
+      "id": "transmuteprismatic_large",
+      "name": "Transmute: Prismatic",
+      "version": "16.18",
+      "searchTerms": [
+        "Transmute: Prismatic",
+        "transmuteprismatic_large",
+        "unstabletransmutation large",
+        "unstabletransmutation_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 9
+    },
+    {
+      "id": "tricksterdemon_large",
+      "name": "Trickster Demon",
+      "version": "16.18",
+      "searchTerms": [
+        "Trickster Demon",
+        "tricksterdemon_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 98
+    },
+    {
+      "id": "kiwi_ultrahydra_large",
+      "name": "Ultra Hydra",
+      "version": "16.18",
+      "searchTerms": [
+        "ultrahydra",
+        "kiwi_ultrahydra_large",
+        "Ultra Hydra"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 94
+    },
+    {
+      "id": "kiwi_upgradecollector_large",
+      "name": "Upgrade Collector",
+      "version": "16.18",
+      "searchTerms": [
+        "upgradecollector",
+        "kiwi_upgradecollector_large",
+        "upgradecutlass",
+        "kiwi_upgradecutlass_large",
+        "Upgrade Collector"
+      ],
+      "rarity": "silver",
+      "visualOrder": 8
+    },
+    {
+      "id": "kiwi_upgradedeathdance_large",
+      "name": "Upgrade Death Dance",
+      "version": "16.18",
+      "searchTerms": [
+        "upgradedeathdance",
+        "kiwi_upgradedeathdance_large",
+        "Upgrade Death Dance"
+      ],
+      "rarity": "silver",
+      "visualOrder": 1
+    },
+    {
+      "id": "kiwi_upgradehubris_large",
+      "name": "Upgrade Hubris",
+      "version": "16.18",
+      "searchTerms": [
+        "upgradehubris",
+        "kiwi_upgradehubris_large",
+        "Upgrade Hubris"
+      ],
+      "rarity": "gold",
+      "visualOrder": 20
+    },
+    {
+      "id": "kiwi_upgradeie_large",
+      "name": "Upgrade IE",
+      "version": "16.18",
+      "searchTerms": [
+        "upgradeie",
+        "kiwi_upgradeie_large",
+        "Upgrade IE"
+      ],
+      "rarity": "gold",
+      "visualOrder": 84
+    },
+    {
+      "id": "kiwi_upgradeimmolate_large",
+      "name": "Upgrade Immolate",
+      "version": "16.18",
+      "searchTerms": [
+        "upgradeimmolate",
+        "kiwi_upgradeimmolate_large",
+        "Upgrade Immolate"
+      ],
+      "rarity": "silver",
+      "visualOrder": 4
+    },
+    {
+      "id": "kiwi_upgrademikaelsblessing_large",
+      "name": "Upgrade Mikael's Blessing",
+      "version": "16.18",
+      "searchTerms": [
+        "upgrademikaelsblessing",
+        "kiwi_upgrademikaelsblessing_large",
+        "Upgrade Mikael's Blessing"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 99
+    },
+    {
+      "id": "kiwi_upgradesheen_large",
+      "name": "Upgrade Sheen",
+      "version": "16.18",
+      "searchTerms": [
+        "upgradesheen",
+        "kiwi_upgradesheen_large",
+        "vampired",
+        "kiwi_vampired_large",
+        "Upgrade Sheen"
+      ],
+      "rarity": "gold",
+      "visualOrder": 101
+    },
+    {
+      "id": "kiwi_upgradezh_large",
+      "name": "Upgrade ZH",
+      "version": "16.18",
+      "searchTerms": [
+        "upgradezh",
+        "kiwi_upgradezh_large",
+        "Upgrade ZH"
+      ],
+      "rarity": "silver",
+      "visualOrder": 9
+    },
+    {
+      "id": "vanish_large",
+      "name": "Vanish",
+      "version": "16.18",
+      "searchTerms": [
+        "Vanish",
+        "vanish_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 96
+    },
+    {
+      "id": "virtuouscycle_large",
+      "name": "Virtuous Cycle",
+      "version": "16.18",
+      "searchTerms": [
+        "virtuouscycle large",
+        "virtuouscycle_large",
+        "Virtuous Cycle"
+      ],
+      "rarity": "silver",
+      "visualOrder": 55
+    },
+    {
+      "id": "kiwi_voidrift_large",
+      "name": "Void Rift",
+      "version": "16.11",
+      "searchTerms": [
+        "voidrift",
+        "kiwi_voidrift_large",
+        "Void Rift"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 30
+    },
+    {
+      "id": "vulnerability_large",
+      "name": "Vulnerability",
+      "version": "16.18",
+      "searchTerms": [
+        "Vulnerability",
+        "vulnerability_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 83
+    },
+    {
+      "id": "kiwi_warlockjuicebox_large",
+      "name": "Warlock Juice Box",
+      "version": "16.18",
+      "searchTerms": [
+        "warlockjuicebox",
+        "kiwi_warlockjuicebox_large",
+        "Warlock Juice Box"
+      ],
+      "rarity": "gold",
+      "visualOrder": 49
+    },
+    {
+      "id": "kiwi_watchoutgrapefruit_large",
+      "name": "Watch Out, Grapefruit",
+      "version": "16.11",
+      "searchTerms": [
+        "watchoutgrapefruit",
+        "kiwi_watchoutgrapefruit_large",
+        "Watch Out, Grapefruit"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 65
+    },
+    {
+      "id": "wellberightback_large",
+      "name": "We'll Be Right Back",
+      "version": "16.18",
+      "searchTerms": [
+        "We'll Be Right Back",
+        "wellberightback_large"
+      ],
+      "rarity": "gold",
+      "visualOrder": 108
+    },
+    {
+      "id": "kiwi_weewooweewoo_large",
+      "name": "Wee Woo Wee Woo",
+      "version": "16.18",
+      "searchTerms": [
+        "weewooweewoo",
+        "kiwi_weewooweewoo_large",
+        "Wee Woo Wee Woo"
+      ],
+      "rarity": "gold",
+      "visualOrder": 48
+    },
+    {
+      "id": "kiwi_weightedpopoffs_large",
+      "name": "Weighted Pop-Offs",
+      "version": "16.18",
+      "searchTerms": [
+        "weightedpopoffs",
+        "kiwi_weightedpopoffs_large",
+        "Weighted Pop-Offs"
+      ],
+      "rarity": "silver",
+      "visualOrder": 129
+    },
+    {
+      "id": "kiwi_whenthedarknesscomes_large",
+      "name": "When the Darkness Comes",
+      "version": "16.18",
+      "searchTerms": [
+        "whenthedarknesscomes",
+        "kiwi_whenthedarknesscomes_large",
+        "When the Darkness Comes"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 14
+    },
+    {
+      "id": "kiwi_windbeneathblade_large",
+      "name": "Wind Beneath Blade",
+      "version": "16.18",
+      "searchTerms": [
+        "windbeneathblade",
+        "kiwi_windbeneathblade_large",
+        "Wind Beneath Blade"
+      ],
+      "rarity": "silver",
+      "visualOrder": 120
+    },
+    {
+      "id": "windspeakersblessing_large",
+      "name": "Windspeaker's Blessing",
+      "version": "16.18",
+      "searchTerms": [
+        "windspeakersblessing large",
+        "windspeakersblessing_large",
+        "Windspeaker's Blessing"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 47
+    },
+    {
+      "id": "wolf_large",
+      "name": "Wolf's Frenzy",
+      "version": "16.18",
+      "searchTerms": [
+        "Wolf's Frenzy",
+        "wolf_large",
+        "wolf_large.arena_2026_s2"
+      ],
+      "rarity": null,
+      "visualOrder": 99999
+    },
+    {
+      "id": "kiwi_youchmycoins_large",
+      "name": "Youch! My Coins!",
+      "version": "16.18",
+      "searchTerms": [
+        "youchmycoins",
+        "kiwi_youchmycoins_large",
+        "Youch! My Coins!"
+      ],
+      "rarity": "gold",
+      "visualOrder": 80
+    },
+    {
+      "id": "kiwi_youspinmerightround_large",
+      "name": "You Spin Me Right Round",
+      "version": "16.18",
+      "searchTerms": [
+        "youspinmerightround",
+        "kiwi_youspinmerightround_large",
+        "You Spin Me Right Round"
+      ],
+      "rarity": "silver",
+      "visualOrder": 116
+    },
+    {
+      "id": "kiwi_zealot_large",
+      "name": "Zealot",
+      "version": "16.18",
+      "searchTerms": [
+        "zealot",
+        "kiwi_zealot_large",
+        "Zealot"
+      ],
+      "rarity": "silver",
+      "visualOrder": 122
+    },
+    {
+      "id": "kiwi_zerohour_large",
+      "name": "Zero Hour",
+      "version": "16.18",
+      "searchTerms": [
+        "zerohour",
+        "kiwi_zerohour_large",
+        "Zero Hour"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 85
+    },
+    {
+      "id": "zhonyasepiphany_large",
+      "name": "Zhonya's Epiphany",
+      "version": "16.18",
+      "searchTerms": [
+        "zhonyasepiphany large",
+        "zhonyasepiphany_large",
+        "Zhonya's Epiphany"
+      ],
+      "rarity": "prismatic",
+      "visualOrder": 54
+    }
+  ],
+  "aliases": {
+    "yonedemon_large.arena_2026_s2_a2": "yonedemon_large",
+    "yonehunter_large.arena_2026_s2_a2": "yonehunter_large",
+    "bloodrazor_large.arena_2026_s2_a2": "bloodrazor_large",
+    "breadandcheese_large": "breadandbutter_large",
+    "breadandjam_large": "breadandbutter_large",
+    "chemtechpurifier_large.arena_2026_s2_a2": "chemtechpurifier_large",
+    "acceleratingsorcery_large.arena_augments_v2": "acceleratingsorcery_large",
+    "adapt_large.arena_augments_v2": "adapt_large",
+    "allforyou_large.arena_augments_v2": "allforyou_large",
+    "apexinventor_large.arena_augments_v2": "apexinventor_large",
+    "backtobasics_large.arena_augments_v2": "backtobasics_large",
+    "bannerofcommand_large.arena_augments_v2": "bannerofcommand_large",
+    "bigbrain_large.arena_augments_v2": "bigbrain_large",
+    "bladewaltz_large.arena_augments_v2": "bladewaltz_large",
+    "bloodbrother_large.arena_augments_v2": "bloodbrother_large",
+    "bluntforce_large.arena_augments_v2": "bluntforce_large",
+    "breadandbutter_large.arena_augments_v2": "breadandbutter_large",
+    "breadandcheese_large.arena_augments_v2": "breadandbutter_large",
+    "breadandjam_large.arena_augments_v2": "breadandbutter_large",
+    "buffbuddies_large.arena_augments_v2": "buffbuddies_large",
+    "canttouchthis_large.arena_augments_v2": "canttouchthis_large",
+    "castle_large.arena_augments_v2": "castle_large",
+    "celestialbody_large.arena_augments_v2": "celestialbody_large",
+    "centeroftheuniverse_large.arena_augments_v2": "centeroftheuniverse_large",
+    "chainlightning_large.arena_augments_v2": "chainlightning_large",
+    "chauffeur_large.arena_augments_v2": "chauffeur_large",
+    "escapade_large.arena_augments_v2": "adapt_large",
+    "flashbang_large.arena_augments_v2": "dontchase_large.arena_augments_v2",
+    "holdverystill_large.arena_augments_v2": "frozenfoundations_large.arena_augments_v2",
+    "lasereyes_large.arena_augments_v2": "centeroftheuniverse_large",
+    "lightemup_large.arena_augments_v2": "heavyhitter_large.arena_augments_v2",
+    "magicmissile_large.arena_augments_v2": "keystoneconjurer_large.arena_augments_v2",
+    "mirrorimage_large.arena_augments_v2": "frozenfoundations_large.arena_augments_v2",
+    "mountainsoul_large.arena_augments_v2": "mindtomatter_large.arena_augments_v2",
+    "okboomerang_large.arena_augments_v2": "andmyaxe_large",
+    "orbitallaser_large.arena_augments_v2": "centeroftheuniverse_large",
+    "perseverance_large.arena_augments_v2": "dawnbringersresolve_large.arena_augments_v2",
+    "recursion_large.arena_augments_v2": "breadandbutter_large",
+    "snowballfight_large.arena_augments_v2": "cannonfodder_large",
+    "spintowin_large.arena_augments_v2": "deft_large.arena_augments_v2",
+    "thebrutalizer_large.arena_augments_v2": "lightningstrikes_large.arena_augments_v2",
+    "thiefsgloves_large.arena_augments_v2": "augment405_large",
+    "threadtheneedle_large.arena_augments_v2": "lightningstrikes_large.arena_augments_v2",
+    "circleofdeath_large": "circleofdeath_large.arena_augments_v2",
+    "clothesline_large": "clothesline_large.arena_augments_v2",
+    "combomaster_large": "combomaster_large.arena_augments_v2",
+    "risk_large.arena_2026_s2": "risk_large",
+    "contractkiller_large": "contractkiller_large.arena_augments_v2",
+    "courageofthecolossus_large": "courageofthecolossus_large.arena_augments_v2",
+    "power_large.arena_2026_s2": "power_large",
+    "wealth_large.arena_2026_s2": "wealth_large",
+    "criticalhealing_large": "criticalhealing_large.arena_augments_v2",
+    "darkblessing_large": "darkblessing_large.arena_augments_v2",
+    "dashing_large": "dashing_large.arena_augments_v2",
+    "deathtouch_large": "deathtouch_large.arena_augments_v2",
+    "defensivemaneuvers_large": "defensivemaneuvers_large.arena_augments_v2",
+    "deft_large": "deft_large.arena_augments_v2",
+    "dematerialize_large": "dematerialize_large.arena_augments_v2",
+    "dematerializer_large.arena_2026_s2_a2": "dematerializer_large",
+    "demonsdance_large": "demonsdance_large.arena_augments_v2",
+    "desecrator_large": "desecrator_large.arena_augments_v2",
+    "dieanotherday_large": "dieanotherday_large.arena_augments_v2",
+    "dontblink_large": "dontblink_large.arena_augments_v2",
+    "dontchase_large": "dontchase_large.arena_augments_v2",
+    "doomsayer_large": "doomsayer_large.arena_augments_v2",
+    "drawyoursword_large": "drawyoursword_large.arena_augments_v2",
+    "plaguebearer_large": "plaguebearer_large.arena_augments_v2",
+    "earthwake_large": "earthwake_large.arena_augments_v2",
+    "crystallineflask_large.arena_2026_s2_a2": "crystallineflask_large",
+    "endlessdecimate_large": "andmyaxe_large",
+    "erosion_large": "erosion_large.arena_augments_v2",
+    "escapade_large": "adapt_large",
+    "etherealweapon_large": "etherealweapon_large.arena_augments_v2",
+    "eureka_large": "eureka_large.arena_augments_v2",
+    "executioner_large": "executioner_large.arena_augments_v2",
+    "extendoarm_large": "extendoarm_large.arena_augments_v2",
+    "fallenaegis_large": "fallenaegis_large.arena_augments_v2",
+    "feeltheburn_large": "feeltheburn_large.arena_augments_v2",
+    "feymagic_large": "feymagic_large.arena_augments_v2",
+    "firebrand_large": "firebrand_large.arena_augments_v2",
+    "firstaidkit_large": "firstaidkit_large.arena_augments_v2",
+    "flashbang_large": "dontchase_large.arena_augments_v2",
+    "frombeginningtoend_large": "frombeginningtoend_large.arena_augments_v2",
+    "frostwraith_large": "frostwraith_large.arena_augments_v2",
+    "frozenmallet_large.arena_2026_s2_a2": "frozenmallet_large",
+    "frozenfoundations_large": "frozenfoundations_large.arena_augments_v2",
+    "fullyautomated_large": "fullyautomated_large.arena_augments_v2",
+    "thiefsgloves_large": "augment405_large",
+    "kiwi_getexcited_large": "kiwi_criticalrhythm_large",
+    "giantslayer_large": "giantslayer_large.arena_augments_v2",
+    "goliath_large": "goliath_large.arena_augments_v2",
+    "goredrink_large": "goredrink_large.arena_augments_v2",
+    "guiltypleasure_large": "guiltypleasure_large.arena_augments_v2",
+    "heavyhitter_large": "heavyhitter_large.arena_augments_v2",
+    "holyfire_large": "holyfire_large.arena_augments_v2",
+    "homeguard_large": "homeguard_large.arena_augments_v2",
+    "icecold_large": "icecold_large.arena_augments_v2",
+    "impassable_large": "impassable_large.arena_augments_v2",
+    "infernalconduit_large": "infernalconduit_large.arena_augments_v2",
+    "infernalsoul_large": "infernalsoul_large.arena_augments_v2",
+    "itscritical_large": "itscritical_large.arena_augments_v2",
+    "itskillingtime_large": "itskillingtime_large.arena_augments_v2",
+    "jeweledgauntlet_large": "jeweledgauntlet_large.arena_augments_v2",
+    "juicebox_large": "juicebox_large.arena_augments_v2",
+    "keystoneconjurer_large": "keystoneconjurer_large.arena_augments_v2",
+    "lamb_large.arena_2026_s2": "lamb_large",
+    "lasereyes_large": "centeroftheuniverse_large",
+    "lightemup_large": "heavyhitter_large.arena_augments_v2",
+    "lightningstrikes_large": "lightningstrikes_large.arena_augments_v2",
+    "madscientist_large": "madscientist_large.arena_augments_v2",
+    "magicmissile_large": "keystoneconjurer_large.arena_augments_v2",
+    "marksmage_large": "marksmage_large.arena_augments_v2",
+    "masterofduality_large": "masterofduality_large.arena_augments_v2",
+    "mindtomatter_large": "mindtomatter_large.arena_augments_v2",
+    "minionmancer_large": "minionmancer_large.arena_augments_v2",
+    "mountainsoul_large": "mindtomatter_large.arena_augments_v2",
+    "mysticpunch_large": "mysticpunch_large.arena_augments_v2",
+    "mythical_large": "mythical_large.arena_augments_v2",
+    "nestingdoll_large": "nestingdoll_large.arena_augments_v2",
+    "nowyouseeme_large": "nowyouseeme_large.arena_augments_v2",
+    "numbtopain_large": "mindtomatter_large.arena_augments_v2",
+    "oathsworn_large": "oathsworn_large.arena_augments_v2",
+    "oceansoul_large": "oceansoul_large.arena_augments_v2",
+    "okboomerang_large": "andmyaxe_large",
+    "omnisoul_large": "omnisoul_large.arena_augments_v2",
+    "orbitallaser_large": "centeroftheuniverse_large",
+    "outlawsgrit_large": "outlawsgrit_large.arena_augments_v2",
+    "parasiticrelationship_large": "parasiticrelationship_large.arena_augments_v2",
+    "perseverance_large": "dawnbringersresolve_large.arena_augments_v2",
+    "phenomenalevil_large": "phenomenalevil_large.arena_augments_v2",
+    "quantumcomputing_large": "quantumcomputing_large.arena_augments_v2",
+    "kiwi_quest_urfschampion_large": "quest_woogletswitchcap_large.arena_augments_v2",
+    "quest_angelofretribution_large": "quest_angelofretribution_large.arena_augments_v2",
+    "quest_steelyourheart_large": "quest_steelyourheart_large.arena_augments_v2",
+    "quest_urfschampion_large": "quest_urfschampion_large.arena_augments_v2",
+    "quest_woogletswitchcap_large": "quest_woogletswitchcap_large.arena_augments_v2",
+    "rabblerousing_large": "rabblerousing_large.arena_augments_v2",
+    "raidboss_large": "raidboss_large.arena_augments_v2",
+    "recursion_large": "breadandbutter_large",
+    "remnantofthewatchers_large.arena_2026_s2_a2": "remnantofthewatchers_large",
+    "repulsor_large": "repulsor_large.arena_augments_v2",
+    "restart_large": "restart_large.arena_augments_v2",
+    "restlessrestoration_large": "restlessrestoration_large.arena_augments_v2",
+    "scopedweapons_large": "scopedweapons_large.arena_augments_v2",
+    "scopierweapons_large": "scopierweapons_large.arena_augments_v2",
+    "scopiestweapons_large": "scopiestweapons_large.arena_augments_v2",
+    "searingdawn_large": "searingdawn_large.arena_augments_v2",
+    "selfdestruct_large": "selfdestruct_large.arena_augments_v2",
+    "servebeyonddeath_large": "servebeyonddeath_large.arena_augments_v2",
+    "shadowrunner_large": "shadowrunner_large.arena_augments_v2",
+    "shrinkray_large": "shrinkray_large.arena_augments_v2",
+    "skilledsniper_large": "skilledsniper_large.arena_augments_v2",
+    "slaparound_large": "slaparound_large.arena_augments_v2",
+    "slowcooker_large": "slowcooker_large.arena_augments_v2",
+    "snowballfight_large": "cannonfodder_large",
+    "kiwi_snowbomb_large": "kiwi_snowballupgrade_large",
+    "sonicboom_large": "sonicboom_large.arena_augments_v2",
+    "soulsiphon_large": "soulsiphon_large.arena_augments_v2",
+    "spellwake_large": "spellwake_large.arena_augments_v2",
+    "spintowin_large": "deft_large.arena_augments_v2",
+    "spiritlink_large": "spiritlink_large.arena_augments_v2",
+    "stackosaurusrex_large": "stackosaurusrex_large.arena_augments_v2",
+    "statsonstatsonstats_large": "summonersroulette_large.arena_augments_v2",
+    "summonerrevolution_large": "vanish_large.arena_augments_v2",
+    "summonersroulette_large": "summonersroulette_large.arena_augments_v2",
+    "kiwi_surgefield_large": "kiwi_finalform_large",
+    "symphonyofwar_large": "symphonyofwar_large.arena_augments_v2",
+    "tankitorleaveit_large": "tankitorleaveit_large.arena_augments_v2",
+    "tapdancer_large": "tapdancer_large.arena_augments_v2",
+    "thebrutalizer_large": "deft_large.arena_augments_v2",
+    "kiwi_thebrutalizer_large": "deft_large.arena_augments_v2",
+    "threadtheneedle_large": "lightningstrikes_large.arena_augments_v2",
+    "tormentor_large": "tormentor_large.arena_augments_v2",
+    "trueshotprodigy_large": "trueshotprodigy_large.arena_augments_v2",
+    "twicethrice_large": "twicethrice_large.arena_augments_v2",
+    "kiwi_twinfire_large": "kiwi_bonk_large",
+    "typhoon_large": "typhoon_large.arena_augments_v2",
+    "ultimaterevolution_large": "ultimaterevolution_large.arena_augments_v2",
+    "ultimateunstoppable_large": "ultimateunstoppable_large.arena_augments_v2",
+    "dawnbringersresolve_large": "dawnbringersresolve_large.arena_augments_v2",
+    "unshackled_large": "kiwi_growthspurt_large",
+    "unstabletransmutation_large": "transmuteprismatic_large",
+    "kiwi_upgradecutlass_large": "kiwi_upgradecollector_large",
+    "kiwi_vampired_large": "kiwi_upgradesheen_large",
+    "vengeance_large": "vengeance_large.arena_augments_v2",
+    "warmuproutine_large": "warmuproutine_large.arena_augments_v2",
+    "willingsacrifice_large": "willingsacrifice_large.arena_augments_v2",
+    "wisdomofages_large": "wisdomofages_large.arena_augments_v2",
+    "witchfulthinking_large": "witchfulthinking_large.arena_augments_v2",
+    "withhaste_large": "withhaste_large.arena_augments_v2",
+    "wolf_large.arena_2026_s2": "wolf_large"
+  }
+}

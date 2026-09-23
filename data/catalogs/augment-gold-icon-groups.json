@@ -1,0 +1,780 @@
+[
+  {
+    "family": "impact",
+    "icons": [
+      {
+        "id": "aim_for_the_head_large",
+        "name": "Aim for the Head"
+      },
+      {
+        "id": "kiwi_criticalmissile_large",
+        "name": "Critical Missile"
+      },
+      {
+        "id": "itscritical_large.arena_augments_v2",
+        "name": "It's Critical"
+      },
+      {
+        "id": "itscritical_large.2v2_mode_fighters",
+        "name": "It's Critical"
+      }
+    ]
+  },
+  {
+    "family": "running-figure",
+    "icons": [
+      {
+        "id": "itskillingtime_large.arena_augments_v2",
+        "name": "It's Killing Time"
+      },
+      {
+        "id": "outlawsgrit_large.arena_augments_v2",
+        "name": "Outlaw's Grit"
+      },
+      {
+        "id": "restlessrestoration_large.2v2_mode_fighters",
+        "name": "Restless Restoration"
+      },
+      {
+        "id": "kiwi_shrinkengine_large",
+        "name": "Shrink Engine"
+      },
+      {
+        "id": "flashy_large",
+        "name": "Flashy"
+      }
+    ]
+  },
+  {
+    "family": "dice",
+    "icons": [
+      {
+        "id": "transmuteprismatic_large",
+        "name": "Transmute: Prismatic"
+      },
+      {
+        "id": "statsonstats_large",
+        "name": "Stats on Stats!"
+      },
+      {
+        "id": "replace_augment",
+        "name": "Replace Augment"
+      }
+    ]
+  },
+  {
+    "family": "starburst",
+    "icons": [
+      {
+        "id": "kiwi_sharktempest_large",
+        "name": "Shark Tempest"
+      },
+      {
+        "id": "kiwi_spiritualpurification_large",
+        "name": "Spiritual Purification"
+      },
+      {
+        "id": "frombeginningtoend_large.arena_augments_v2",
+        "name": "From Beginning to End"
+      },
+      {
+        "id": "lightningstrikes_large.arena_augments_v2",
+        "name": "Lightning Strikes"
+      },
+      {
+        "id": "kiwi_questburstingteeth_large",
+        "name": "Quest: Bursting Teeth"
+      },
+      {
+        "id": "kiwi_doubletap_large",
+        "name": "Double Tap"
+      },
+      {
+        "id": "kiwi_nightstalking_large",
+        "name": "Nightstalking"
+      },
+      {
+        "id": "bloodbrother_large",
+        "name": "Blood Brother"
+      },
+      {
+        "id": "kiwi_upgradehubris_large",
+        "name": "Upgrade Hubris"
+      },
+      {
+        "id": "shrinkray_large.2v2_mode_fighters",
+        "name": "Shrink Ray"
+      }
+    ]
+  },
+  {
+    "family": "healing-shield",
+    "icons": [
+      {
+        "id": "allforyou_large",
+        "name": "All For You"
+      },
+      {
+        "id": "criticalhealing_large.arena_augments_v2",
+        "name": "Critical Healing"
+      },
+      {
+        "id": "rabblerousing_large.2v2_mode_fighters",
+        "name": "Rabble Rousing"
+      }
+    ]
+  },
+  {
+    "family": "branching-flame",
+    "icons": [
+      {
+        "id": "extendoarm_large.arena_augments_v2",
+        "name": "Extendo Arm"
+      },
+      {
+        "id": "restart_large.arena_augments_v2",
+        "name": "Restart"
+      },
+      {
+        "id": "slowactingpainkillers_large",
+        "name": "Divine Intervention"
+      },
+      {
+        "id": "lightwarden_large",
+        "name": "Light Warden"
+      },
+      {
+        "id": "andmyaxe_large",
+        "name": "And My Axe!"
+      }
+    ]
+  },
+  {
+    "family": "eye-diamond",
+    "icons": [
+      {
+        "id": "deathtouch_large.arena_augments_v2",
+        "name": "Deathtouch"
+      },
+      {
+        "id": "darkblessing_large.arena_augments_v2",
+        "name": "Dark Blessing"
+      }
+    ]
+  },
+  {
+    "family": "flame",
+    "icons": [
+      {
+        "id": "holyfire_large.arena_augments_v2",
+        "name": "Holy Fire"
+      },
+      {
+        "id": "kiwi_grandmaschilioil_large",
+        "name": "Grandma's Chili Oil"
+      },
+      {
+        "id": "kiwi_questpressurecooker_large",
+        "name": "Quest: Pressure Cooker"
+      },
+      {
+        "id": "kiwi_shakennotstirred_large",
+        "name": "Shaken Not Stirred"
+      },
+      {
+        "id": "firebrand_large.arena_augments_v2",
+        "name": "Firebrand"
+      },
+      {
+        "id": "kiwi_bloodmoney2_large",
+        "name": "Blood Money 2"
+      }
+    ]
+  },
+  {
+    "family": "shield",
+    "icons": [
+      {
+        "id": "celestialbody_large",
+        "name": "Celestial Body"
+      },
+      {
+        "id": "dawnbringersresolve_large.arena_augments_v2",
+        "name": "Dawnbringer's Resolve"
+      },
+      {
+        "id": "kiwi_pincushion_large",
+        "name": "Pincushion"
+      },
+      {
+        "id": "kiwi_souleater_large",
+        "name": "Soul Eater"
+      },
+      {
+        "id": "tank_engine_large",
+        "name": "Tank Engine"
+      },
+      {
+        "id": "shrinkray_large.arena_augments_v2",
+        "name": "Shrink Ray"
+      },
+      {
+        "id": "bodyguard_large",
+        "name": "Bodyguard"
+      },
+      {
+        "id": "bigbrain_large",
+        "name": "Big Brain"
+      }
+    ]
+  },
+  {
+    "family": "heart",
+    "icons": [
+      {
+        "id": "dawnbringersresolve_large.2v2_mode_fighters",
+        "name": "Dawnbringer's Resolve"
+      },
+      {
+        "id": "restlessrestoration_large.arena_augments_v2",
+        "name": "Restless Restoration"
+      },
+      {
+        "id": "kiwi_weewooweewoo_large",
+        "name": "Wee Woo Wee Woo"
+      },
+      {
+        "id": "kiwi_warlockjuicebox_large",
+        "name": "Warlock Juice Box"
+      },
+      {
+        "id": "soulsiphon_large.arena_augments_v2",
+        "name": "Soul Siphon"
+      },
+      {
+        "id": "kiwi_equillibrium_large",
+        "name": "Equilibrium"
+      },
+      {
+        "id": "defensivemaneuvers_large.arena_augments_v2",
+        "name": "Defensive Maneuvers"
+      },
+      {
+        "id": "kiwi_natureishealing_large",
+        "name": "Nature Is Healing"
+      },
+      {
+        "id": "parasiticrelationship_large.arena_augments_v2",
+        "name": "Parasitic Relationship"
+      },
+      {
+        "id": "willingsacrifice_large.2v2_mode_fighters",
+        "name": "Willing Sacrifice"
+      }
+    ]
+  },
+  {
+    "family": "lightning-heart",
+    "icons": [
+      {
+        "id": "divebomber_large.2v2_mode_fighters",
+        "name": "Dive Bomber"
+      },
+      {
+        "id": "divebomber_large.arena_augments_v2",
+        "name": "Dive Bomber"
+      },
+      {
+        "id": "vengeance_large.arena_augments_v2",
+        "name": "Vengeance"
+      },
+      {
+        "id": "kiwi_fishbait_large",
+        "name": "Fish Bait"
+      }
+    ]
+  },
+  {
+    "family": "wisp",
+    "icons": [
+      {
+        "id": "keystoneconjurer_large.arena_augments_v2",
+        "name": "Keystone Conjurer"
+      },
+      {
+        "id": "combomaster_large.arena_augments_v2",
+        "name": "Combo Master"
+      },
+      {
+        "id": "hybrid_large",
+        "name": "Hybrid"
+      },
+      {
+        "id": "etherealweapon_large.arena_augments_v2",
+        "name": "Ethereal Weapon"
+      },
+      {
+        "id": "rabblerousing_large.arena_augments_v2",
+        "name": "Rabble Rousing"
+      },
+      {
+        "id": "overflow_large",
+        "name": "Overflow"
+      }
+    ]
+  },
+  {
+    "family": "boot",
+    "icons": [
+      {
+        "id": "withhaste_large.2v2_mode_fighters",
+        "name": "With Haste"
+      },
+      {
+        "id": "withhaste_large.arena_augments_v2",
+        "name": "With Haste"
+      },
+      {
+        "id": "kiwi_patontheback_large",
+        "name": "Pat on the Back"
+      }
+    ]
+  },
+  {
+    "family": "sparkling-bowl",
+    "icons": [
+      {
+        "id": "mythical_large.2v2_mode_fighters",
+        "name": "Mythical"
+      },
+      {
+        "id": "mythical_large.arena_augments_v2",
+        "name": "Mythical"
+      },
+      {
+        "id": "kiwi_donation_large",
+        "name": "Donation"
+      },
+      {
+        "id": "multitool_large",
+        "name": "Multitool"
+      },
+      {
+        "id": "mad_hatter_large",
+        "name": "Quest: Mad Hatter"
+      },
+      {
+        "id": "quest_steelyourheart_large.arena_augments_v2",
+        "name": "Quest: Steel Your Heart"
+      },
+      {
+        "id": "quest_urfschampion_large.arena_augments_v2",
+        "name": "Quest: Urf's Champion"
+      },
+      {
+        "id": "apexinventor_large",
+        "name": "Apex Inventor"
+      },
+      {
+        "id": "apexinventor_large.2v2_mode_fighters",
+        "name": "Apex Inventor"
+      },
+      {
+        "id": "hattrick_large",
+        "name": "Hat Trick"
+      },
+      {
+        "id": "crafting_prisstatanvil",
+        "name": "Gain a Prismatic Stat Anvil"
+      },
+      {
+        "id": "kiwi_youchmycoins_large",
+        "name": "Youch! My Coins!"
+      },
+      {
+        "id": "threesacredtreasures_large",
+        "name": "Quest: Three Sacred Treasures"
+      },
+      {
+        "id": "kiwi_redenvelopes_large",
+        "name": "Red Envelopes"
+      },
+      {
+        "id": "vulnerability_large",
+        "name": "Vulnerability"
+      },
+      {
+        "id": "kiwi_upgradeie_large",
+        "name": "Upgrade IE"
+      }
+    ]
+  },
+  {
+    "family": "hourglass",
+    "icons": [
+      {
+        "id": "recursion_large.2v2_mode_fighters",
+        "name": "Recursion"
+      },
+      {
+        "id": "breadandbutter_large",
+        "name": "Bread and Butter"
+      }
+    ]
+  },
+  {
+    "family": "vertical-blade",
+    "icons": [
+      {
+        "id": "kiwi_pinballsnowball_large",
+        "name": "Pinball Snowball"
+      },
+      {
+        "id": "kiwi_overextender_large",
+        "name": "Overextender"
+      },
+      {
+        "id": "vanish_large.arena_augments_v2",
+        "name": "Vanish"
+      },
+      {
+        "id": "cannonfodder_large.arena_augments_v2",
+        "name": "Cannon Fodder"
+      },
+      {
+        "id": "kiwi_snowballupgrade_large",
+        "name": "Snowball Upgrade"
+      },
+      {
+        "id": "minionmancer_large.arena_augments_v2",
+        "name": "Minionmancer"
+      },
+      {
+        "id": "dieanotherday_large.arena_augments_v2",
+        "name": "Die Another Day"
+      },
+      {
+        "id": "kiwi_cheating_large",
+        "name": "Cheating"
+      }
+    ]
+  },
+  {
+    "family": "jester",
+    "icons": [
+      {
+        "id": "kiwi_poroblast_large",
+        "name": "Poro Blast"
+      },
+      {
+        "id": "vanish_large",
+        "name": "Vanish"
+      },
+      {
+        "id": "vanish_large.2v2_mode_fighters",
+        "name": "Vanish"
+      },
+      {
+        "id": "tricksterdemon_large",
+        "name": "Trickster Demon"
+      },
+      {
+        "id": "crafting_sellaug",
+        "name": "Level Augments"
+      }
+    ]
+  },
+  {
+    "family": "sword",
+    "icons": [
+      {
+        "id": "demonsdance_large.arena_augments_v2",
+        "name": "Demon's Dance"
+      },
+      {
+        "id": "kiwi_upgradesheen_large",
+        "name": "Upgrade Sheen"
+      },
+      {
+        "id": "kiwi_brushpower_large",
+        "name": "Brush Power"
+      },
+      {
+        "id": "searingdawn_large.arena_augments_v2",
+        "name": "Searing Dawn"
+      },
+      {
+        "id": "slowandsteady_large",
+        "name": "Slow and Steady"
+      },
+      {
+        "id": "twicethrice_large.arena_augments_v2",
+        "name": "Twice Thrice"
+      },
+      {
+        "id": "kiwi_criticalrhythm_large",
+        "name": "Critical Rhythm"
+      },
+      {
+        "id": "marksmage_large.arena_augments_v2",
+        "name": "Marksmage"
+      }
+    ]
+  },
+  {
+    "family": "torch",
+    "icons": [
+      {
+        "id": "wellberightback_large",
+        "name": "We'll Be Right Back"
+      },
+      {
+        "id": "impassable_large.arena_augments_v2",
+        "name": "Impassable"
+      }
+    ]
+  },
+  {
+    "family": "linked-orbs",
+    "icons": [
+      {
+        "id": "celestialbody_large.2v2_mode_fighters",
+        "name": "Celestial Body"
+      },
+      {
+        "id": "willingsacrifice_large.arena_augments_v2",
+        "name": "Willing Sacrifice"
+      },
+      {
+        "id": "kiwi_sonata_large",
+        "name": "Sonata"
+      },
+      {
+        "id": "oathsworn_large.arena_augments_v2",
+        "name": "Oathsworn"
+      },
+      {
+        "id": "kiwi_growthspurt_large",
+        "name": "Growth Spurt"
+      },
+      {
+        "id": "symbioticmutation_large",
+        "name": "Symbiotic Mutation"
+      },
+      {
+        "id": "bannerofcommand_large",
+        "name": "Banner of Command"
+      }
+    ]
+  },
+  {
+    "family": "upward-arrow",
+    "icons": [
+      {
+        "id": "kiwi_aram_phenomenalevil_large",
+        "name": "ARAM Phenomenal Evil"
+      },
+      {
+        "id": "phenomenalevil_large.arena_augments_v2",
+        "name": "Phenomenal Evil"
+      },
+      {
+        "id": "crafting_slot",
+        "name": "Gain an Augment Slot"
+      },
+      {
+        "id": "quest_angelofretribution_large.arena_augments_v2",
+        "name": "Quest: Angel of Retribution"
+      },
+      {
+        "id": "gohsacrificeforgold_large",
+        "name": "Sacrifice: For Gold"
+      }
+    ]
+  },
+  {
+    "family": "diagonal-strike",
+    "icons": [
+      {
+        "id": "skilledsniper_large.arena_augments_v2",
+        "name": "Skilled Sniper"
+      },
+      {
+        "id": "scopierweapons_large.arena_augments_v2",
+        "name": "Scopier Scoped Weapons"
+      },
+      {
+        "id": "kiwi_questbangbang_large",
+        "name": "Quest: Bang Bang"
+      }
+    ]
+  },
+  {
+    "family": "hood",
+    "icons": [
+      {
+        "id": "outlawsgrit_large.2v2_mode_fighters",
+        "name": "Outlaw's Grit"
+      }
+    ]
+  },
+  {
+    "family": "rising-flame",
+    "icons": [
+      {
+        "id": "frombeginningtoend_large.2v2_mode_fighters",
+        "name": "From Beginning to End"
+      },
+      {
+        "id": "soulsiphon_large.2v2_mode_fighters",
+        "name": "Soul Siphon"
+      },
+      {
+        "id": "keystoneconjurer_large.2v2_mode_fighters",
+        "name": "Keystone Conjurer"
+      }
+    ]
+  },
+  {
+    "family": "hand",
+    "icons": [
+      {
+        "id": "extendoarm_large.2v2_mode_fighters",
+        "name": "Extendo Arm"
+      }
+    ]
+  },
+  {
+    "family": "hat",
+    "icons": [
+      {
+        "id": "firebrand_large.2v2_mode_fighters",
+        "name": "Firebrand"
+      },
+      {
+        "id": "phenomenalevil_large.2v2_mode_fighters",
+        "name": "Phenomenal Evil"
+      }
+    ]
+  },
+  {
+    "family": "claw",
+    "icons": [
+      {
+        "id": "thebrutalizer_large.2v2_mode_fighters",
+        "name": "The Brutalizer"
+      }
+    ]
+  },
+  {
+    "family": "crosshair",
+    "icons": [
+      {
+        "id": "scopedweapons_large.2v2_mode_fighters",
+        "name": "Scoped Weapons"
+      }
+    ]
+  },
+  {
+    "family": "dueling-blades",
+    "icons": [
+      {
+        "id": "vengeance_large.2v2_mode_fighters",
+        "name": "Vengeance"
+      },
+      {
+        "id": "demonsdance_large.2v2_mode_fighters",
+        "name": "Demon's Dance"
+      },
+      {
+        "id": "okboomerang_large.2v2_mode_fighters",
+        "name": "OK Boomerang"
+      }
+    ]
+  },
+  {
+    "family": "wing",
+    "icons": [
+      {
+        "id": "combomaster_large.2v2_mode_fighters",
+        "name": "Combo Master"
+      }
+    ]
+  },
+  {
+    "family": "axe-arrow",
+    "icons": [
+      {
+        "id": "lightningstrikes_large.2v2_mode_fighters",
+        "name": "Lightning Strikes"
+      }
+    ]
+  },
+  {
+    "family": "helmet",
+    "icons": [
+      {
+        "id": "perseverance_large.2v2_mode_fighters",
+        "name": "Perseverance"
+      },
+      {
+        "id": "dieanotherday_large.2v2_mode_fighters",
+        "name": "Die Another Day"
+      }
+    ]
+  },
+  {
+    "family": "needle",
+    "icons": [
+      {
+        "id": "threadtheneedle_large.2v2_mode_fighters",
+        "name": "Thread the Needle"
+      }
+    ]
+  },
+  {
+    "family": "cannon",
+    "icons": [
+      {
+        "id": "cannonfodder_large.2v2_mode_fighters",
+        "name": "Cannon Fodder"
+      }
+    ]
+  },
+  {
+    "family": "protective-halo",
+    "icons": [
+      {
+        "id": "defensivemaneuvers_large.2v2_mode_fighters",
+        "name": "Defensive Maneuvers"
+      }
+    ]
+  },
+  {
+    "family": "sun",
+    "icons": [
+      {
+        "id": "searingdawn_large.2v2_mode_fighters",
+        "name": "Searing Dawn"
+      }
+    ]
+  },
+  {
+    "family": "banner",
+    "icons": [
+      {
+        "id": "bannerofcommand_large.2v2_mode_fighters",
+        "name": "Banner of Command"
+      }
+    ]
+  },
+  {
+    "family": "spectral-weapon",
+    "icons": [
+      {
+        "id": "etherealweapon_large.2v2_mode_fighters",
+        "name": "Ethereal Weapon"
+      }
+    ]
+  }
+]

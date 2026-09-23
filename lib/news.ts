@@ -7,13 +7,31 @@ export type NewsEntry = {
   summary?: string;
   paragraphs: readonly string[];
   sections?: readonly {
-    heading: 'New Game' | 'New Feature' | 'Bug Fixes';
+    heading: 'New Game' | 'New Tool' | 'New Feature' | 'Bug Fixes';
     items: readonly string[];
   }[];
 } & ({ kind: 'update'; version: `${number}.${number}.${number}` } | { kind: 'news' });
 
 /** Manually add a post for each production release or announcement. Keep IDs unique. Use major.minor.patch versions for updates. */
 export const NEWS_ENTRIES: readonly NewsEntry[] = [
+  {
+    id: 'update-2026-09-22-augment-builder',
+    kind: 'update',
+    version: '0.2.0',
+    publishedAt: '2026-09-22T20:30:00.000Z',
+    title: 'Update 0.2.0 - Augment Builder Arrives!',
+    summary: 'Create, publish, and discover custom ARAM Mayhem augments.',
+    paragraphs: [],
+    sections: [
+      {
+        heading: 'New Tool',
+        items: [
+          'ARAM Mayhem Augment Builder: create custom augments with selectable rarity, icons, descriptions, and extra details.',
+          'Publish your creations to the community hub, where players can browse, rate, and react to augments.',
+        ],
+      },
+    ],
+  },
   {
     id: 'update-2026-09-16-randodraft-and-site-improvements',
     kind: 'update',

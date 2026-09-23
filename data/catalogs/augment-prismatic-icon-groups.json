@@ -1,0 +1,698 @@
+[
+  {
+    "family": "upward-arrow",
+    "icons": [
+      {
+        "id": "acceleratingsorcery_large",
+        "name": "Accelerating Sorcery"
+      },
+      {
+        "id": "masterofduality_large.arena_augments_v2",
+        "name": "Master of Duality"
+      },
+      {
+        "id": "wisdomofages_large.arena_augments_v2",
+        "name": "Wisdom of Ages"
+      },
+      {
+        "id": "gohsacrificeforprismatic_large",
+        "name": "Sacrifice: For Prismatic"
+      },
+      {
+        "id": "raidboss_large.arena_augments_v2",
+        "name": "Raid Boss"
+      },
+      {
+        "id": "kiwi_kingme_large",
+        "name": "King Me"
+      },
+      {
+        "id": "tapdancer_large.arena_augments_v2",
+        "name": "Tap Dancer"
+      }
+    ]
+  },
+  {
+    "family": "hourglass",
+    "icons": [
+      {
+        "id": "acceleratingsorcery_large.2v2_mode_fighters",
+        "name": "Accelerating Sorcery"
+      },
+      {
+        "id": "eureka_large.arena_augments_v2",
+        "name": "Eureka"
+      },
+      {
+        "id": "eureka_large.2v2_mode_fighters",
+        "name": "Eureka"
+      },
+      {
+        "id": "bread_sandwhich",
+        "name": "Bread Sandwich"
+      },
+      {
+        "id": "kiwi_infiniterecursion_large",
+        "name": "Infinite Recursion"
+      },
+      {
+        "id": "zhonyasepiphany_large.2v2_mode_fighters",
+        "name": "Zhonya's Epiphany"
+      },
+      {
+        "id": "mysticpunch_large.2v2_mode_fighters",
+        "name": "Mystic Punch"
+      }
+    ]
+  },
+  {
+    "family": "torch",
+    "icons": [
+      {
+        "id": "kiwi_whenthedarknesscomes_large",
+        "name": "When the Darkness Comes"
+      },
+      {
+        "id": "kiwi_promqueen_large",
+        "name": "Prom Queen"
+      },
+      {
+        "id": "courageofthecolossus_large.arena_augments_v2",
+        "name": "Courage of the Colossus"
+      },
+      {
+        "id": "kiwi_squishyslappygrab_large",
+        "name": "Squishy Slappy Grab"
+      }
+    ]
+  },
+  {
+    "family": "jester",
+    "icons": [
+      {
+        "id": "kiwi_missingping_large",
+        "name": "Missing Ping"
+      },
+      {
+        "id": "bulletheaven_large",
+        "name": "Bullet Heaven"
+      },
+      {
+        "id": "kiwi_littledevil_large",
+        "name": "Little Devil"
+      },
+      {
+        "id": "clowncollege_large",
+        "name": "Clown College"
+      }
+    ]
+  },
+  {
+    "family": "dice",
+    "icons": [
+      {
+        "id": "summonersroulette_large.arena_augments_v2",
+        "name": "Summoner's Roulette"
+      },
+      {
+        "id": "quest_prismaticegg_large",
+        "name": "Prismatic Egg"
+      },
+      {
+        "id": "transmute_silver",
+        "name": "Transmute: Silver"
+      },
+      {
+        "id": "transmutechaos_large",
+        "name": "Transmute: Chaos"
+      },
+      {
+        "id": "omnisoul_large.arena_augments_v2",
+        "name": "Omni Soul"
+      }
+    ]
+  },
+  {
+    "family": "starburst",
+    "icons": [
+      {
+        "id": "kiwi_goldrend_large",
+        "name": "Gold Rend"
+      },
+      {
+        "id": "madscientist_large.arena_augments_v2",
+        "name": "Mad Scientist"
+      },
+      {
+        "id": "goliath_large.arena_augments_v2",
+        "name": "Goliath"
+      },
+      {
+        "id": "kiwi_voidrift_large",
+        "name": "Void Rift"
+      },
+      {
+        "id": "drawyoursword_large.arena_augments_v2",
+        "name": "Draw Your Sword"
+      },
+      {
+        "id": "chainlightning_large",
+        "name": "Chain Lightning"
+      },
+      {
+        "id": "centeroftheuniverse_large",
+        "name": "Center of the Universe"
+      },
+      {
+        "id": "kiwi_questporocharge_large",
+        "name": "Quest: Poro Charge"
+      },
+      {
+        "id": "hive_mind_large",
+        "name": "Hive Mind"
+      },
+      {
+        "id": "kiwi_glasscannon_large",
+        "name": "Glass Cannon"
+      },
+      {
+        "id": "cerberus_large",
+        "name": "Cerberus"
+      },
+      {
+        "id": "bladewaltz_large",
+        "name": "Blade Waltz"
+      }
+    ]
+  },
+  {
+    "family": "boot",
+    "icons": [
+      {
+        "id": "magic_girl",
+        "name": "Magical Girl"
+      },
+      {
+        "id": "giantslayer_large.arena_augments_v2",
+        "name": "Giant Slayer"
+      }
+    ]
+  },
+  {
+    "family": "vertical-blade",
+    "icons": [
+      {
+        "id": "kiwi_goldensnowball_large",
+        "name": "Golden Snowball"
+      },
+      {
+        "id": "kiwi_biggestsnowballever_large",
+        "name": "Biggest Snowball Ever"
+      },
+      {
+        "id": "pandoras_box_large",
+        "name": "Pandora's Box"
+      },
+      {
+        "id": "kiwi_snowballroulette_large",
+        "name": "Snowball Roulette"
+      },
+      {
+        "id": "kiwi_empyreampromise_large",
+        "name": "Empyrean Promise"
+      }
+    ]
+  },
+  {
+    "family": "healing-shield",
+    "icons": [
+      {
+        "id": "kiwi_proteinshake_large",
+        "name": "Protein Shake"
+      },
+      {
+        "id": "windspeakersblessing_large",
+        "name": "Windspeaker's Blessing"
+      },
+      {
+        "id": "circleofdeath_large.arena_augments_v2",
+        "name": "Circle of Death"
+      },
+      {
+        "id": "circleofdeath_large.2v2_mode_fighters",
+        "name": "Circle of Death"
+      },
+      {
+        "id": "windspeakersblessing_large.2v2_mode_fighters",
+        "name": "Windspeaker's Blessing"
+      }
+    ]
+  },
+  {
+    "family": "wisp",
+    "icons": [
+      {
+        "id": "jeweledgauntlet_large.arena_augments_v2",
+        "name": "Jeweled Gauntlet"
+      },
+      {
+        "id": "spellwake_large.arena_augments_v2",
+        "name": "Spellwake"
+      }
+    ]
+  },
+  {
+    "family": "shield",
+    "icons": [
+      {
+        "id": "feeltheburn_large.arena_augments_v2",
+        "name": "Feel the Burn"
+      },
+      {
+        "id": "zhonyasepiphany_large",
+        "name": "Zhonya's Epiphany"
+      },
+      {
+        "id": "kiwi_hellbent_large",
+        "name": "Hellbent"
+      },
+      {
+        "id": "kiwi_dropkick_large",
+        "name": "Dropkick"
+      },
+      {
+        "id": "kiwi_iamthejuggernaut_large",
+        "name": "I Am the Juggernaut"
+      }
+    ]
+  },
+  {
+    "family": "lightning-heart",
+    "icons": [
+      {
+        "id": "nesting_doll",
+        "name": "Nesting Doll"
+      },
+      {
+        "id": "nestingdoll_large.arena_augments_v2",
+        "name": "Nesting Doll"
+      }
+    ]
+  },
+  {
+    "family": "linked-orbs",
+    "icons": [
+      {
+        "id": "spiritlink_large.arena_augments_v2",
+        "name": "Spirit Link"
+      },
+      {
+        "id": "kiwi_babykitty_large",
+        "name": "Baby Kitty"
+      },
+      {
+        "id": "kiwi_empoweredbythefaithful_large",
+        "name": "Empowered by the Faithful"
+      },
+      {
+        "id": "kiwi_stuckinherewithme_large",
+        "name": "Stuck in Here with Me"
+      },
+      {
+        "id": "chauffeur_large",
+        "name": "Chauffeur"
+      },
+      {
+        "id": "kiwi_watchoutgrapefruit_large",
+        "name": "Watch Out, Grapefruit"
+      },
+      {
+        "id": "kiwi_handofbaron_large",
+        "name": "Hand of Baron"
+      }
+    ]
+  },
+  {
+    "family": "running-figure",
+    "icons": [
+      {
+        "id": "earthwake_large.arena_augments_v2",
+        "name": "Earthwake"
+      },
+      {
+        "id": "dashing_large.arena_augments_v2",
+        "name": "Dashing"
+      },
+      {
+        "id": "bladewaltz_large.2v2_mode_fighters",
+        "name": "Blade Waltz"
+      },
+      {
+        "id": "chauffeur_large.2v2_mode_fighters",
+        "name": "Chauffeur"
+      },
+      {
+        "id": "kiwi_sneakerhead_large",
+        "name": "Sneakerhead"
+      }
+    ]
+  },
+  {
+    "family": "eye-diamond",
+    "icons": [
+      {
+        "id": "doomsayer_large.arena_augments_v2",
+        "name": "Doomsayer"
+      },
+      {
+        "id": "plaguebearer_large.arena_augments_v2",
+        "name": "Plaguebearer"
+      }
+    ]
+  },
+  {
+    "family": "flame",
+    "icons": [
+      {
+        "id": "kiwi_quest_voidimmolation_large",
+        "name": "Quest: Void Immolation"
+      },
+      {
+        "id": "infernalconduit_large.arena_augments_v2",
+        "name": "Infernal Conduit"
+      },
+      {
+        "id": "slowcooker_large.arena_augments_v2",
+        "name": "Slow Cooker"
+      }
+    ]
+  },
+  {
+    "family": "sword",
+    "icons": [
+      {
+        "id": "fanthehammer_large",
+        "name": "Fan the Hammer"
+      },
+      {
+        "id": "symphonyofwar_large.arena_augments_v2",
+        "name": "Symphony of War"
+      },
+      {
+        "id": "mysticpunch_large.arena_augments_v2",
+        "name": "Mystic Punch"
+      },
+      {
+        "id": "dualwield_large",
+        "name": "Dual Wield"
+      }
+    ]
+  },
+  {
+    "family": "crossed-blades",
+    "icons": [
+      {
+        "id": "ultimaterevolution_large.arena_augments_v2",
+        "name": "Ultimate Revolution"
+      },
+      {
+        "id": "kiwi_skipthebasic_large",
+        "name": "Skip the Basic"
+      },
+      {
+        "id": "feymagic_large.arena_augments_v2",
+        "name": "Fey Magic"
+      },
+      {
+        "id": "backtobasics_large",
+        "name": "Back to Basics"
+      },
+      {
+        "id": "kiwi_zerohour_large",
+        "name": "Zero Hour"
+      },
+      {
+        "id": "kiwi_finalform_large",
+        "name": "Final Form"
+      },
+      {
+        "id": "canttouchthis_large",
+        "name": "Can't Touch This"
+      }
+    ]
+  },
+  {
+    "family": "sparkling-bowl",
+    "icons": [
+      {
+        "id": "kiwi_cruelty_large",
+        "name": "Cruelty"
+      },
+      {
+        "id": "quest_woogletswitchcap_large.arena_augments_v2",
+        "name": "Quest: Wooglet's Witchcap"
+      },
+      {
+        "id": "kiwi_darksteeltalons_large",
+        "name": "Darksteel Talons"
+      },
+      {
+        "id": "quest_rite_of_the_forge_god_large",
+        "name": "Quest: Rite of the Forge God"
+      },
+      {
+        "id": "augment405_large",
+        "name": "Augment 405"
+      },
+      {
+        "id": "kiwi_highroller_large",
+        "name": "High Roller"
+      },
+      {
+        "id": "kiwi_ultrahydra_large",
+        "name": "Ultra Hydra"
+      },
+      {
+        "id": "thiefsgloves_large.2v2_mode_fighters",
+        "name": "Thief's Gloves"
+      }
+    ]
+  },
+  {
+    "family": "heart",
+    "icons": [
+      {
+        "id": "kiwi_laseheal_large",
+        "name": "Lase Heal"
+      },
+      {
+        "id": "righteous_fury_large",
+        "name": "Righteous Fury"
+      },
+      {
+        "id": "kiwi_spiritbomb_large",
+        "name": "Spirit Bomb"
+      },
+      {
+        "id": "kiwi_upgrademikaelsblessing_large",
+        "name": "Upgrade Mikael's Blessing"
+      }
+    ]
+  },
+  {
+    "family": "diagonal-strike",
+    "icons": [
+      {
+        "id": "scopiestweapons_large.arena_augments_v2",
+        "name": "Scopiest Weapons"
+      },
+      {
+        "id": "trueshotprodigy_large.arena_augments_v2",
+        "name": "Trueshot Prodigy"
+      }
+    ]
+  },
+  {
+    "family": "rising-torch",
+    "icons": [
+      {
+        "id": "courageofthecolossus_large.2v2_mode_fighters",
+        "name": "Courage of the Colossus"
+      }
+    ]
+  },
+  {
+    "family": "elemental-mask",
+    "icons": [
+      {
+        "id": "omnisoul_large.2v2_mode_fighters",
+        "name": "Omni Soul"
+      }
+    ]
+  },
+  {
+    "family": "flask",
+    "icons": [
+      {
+        "id": "madscientist_large.2v2_mode_fighters",
+        "name": "Mad Scientist"
+      }
+    ]
+  },
+  {
+    "family": "stacked-figures",
+    "icons": [
+      {
+        "id": "backtobasics_large.2v2_mode_fighters",
+        "name": "Back to Basics"
+      }
+    ]
+  },
+  {
+    "family": "rising-flame",
+    "icons": [
+      {
+        "id": "earthwake_large.2v2_mode_fighters",
+        "name": "Earthwake"
+      },
+      {
+        "id": "dashing_large.2v2_mode_fighters",
+        "name": "Dashing"
+      }
+    ]
+  },
+  {
+    "family": "fist",
+    "icons": [
+      {
+        "id": "jeweledgauntlet_large.2v2_mode_fighters",
+        "name": "Jeweled Gauntlet"
+      }
+    ]
+  },
+  {
+    "family": "infinity",
+    "icons": [
+      {
+        "id": "masterofduality_large.2v2_mode_fighters",
+        "name": "Master of Duality"
+      }
+    ]
+  },
+  {
+    "family": "crowned-heart",
+    "icons": [
+      {
+        "id": "wisdomofages_large.2v2_mode_fighters",
+        "name": "Wisdom of Ages"
+      }
+    ]
+  },
+  {
+    "family": "muscle",
+    "icons": [
+      {
+        "id": "goliath_large.2v2_mode_fighters",
+        "name": "Goliath"
+      }
+    ]
+  },
+  {
+    "family": "poro",
+    "icons": [
+      {
+        "id": "kiwi_poroking_large",
+        "name": "Poro King"
+      }
+    ]
+  },
+  {
+    "family": "burning-figure",
+    "icons": [
+      {
+        "id": "feeltheburn_large.2v2_mode_fighters",
+        "name": "Feel the Burn"
+      }
+    ]
+  },
+  {
+    "family": "branching-flame",
+    "icons": [
+      {
+        "id": "quantumcomputing_large.arena_augments_v2",
+        "name": "Quantum Computing"
+      }
+    ]
+  },
+  {
+    "family": "geometric",
+    "icons": [
+      {
+        "id": "quantumcomputing_large.2v2_mode_fighters",
+        "name": "Quantum Computing"
+      }
+    ]
+  },
+  {
+    "family": "linked-hearts",
+    "icons": [
+      {
+        "id": "spiritlink_large.2v2_mode_fighters",
+        "name": "Spirit Link"
+      },
+      {
+        "id": "slowcooker_large.2v2_mode_fighters",
+        "name": "Slow Cooker"
+      }
+    ]
+  },
+  {
+    "family": "conduit",
+    "icons": [
+      {
+        "id": "infernalconduit_large.2v2_mode_fighters",
+        "name": "Infernal Conduit"
+      }
+    ]
+  },
+  {
+    "family": "falling-blades",
+    "icons": [
+      {
+        "id": "symphonyofwar_large.2v2_mode_fighters",
+        "name": "Symphony of War"
+      }
+    ]
+  },
+  {
+    "family": "upright-sword",
+    "icons": [
+      {
+        "id": "ultimaterevolution_large.2v2_mode_fighters",
+        "name": "Ultimate Revolution"
+      },
+      {
+        "id": "canttouchthis_large.2v2_mode_fighters",
+        "name": "Can't Touch This"
+      }
+    ]
+  },
+  {
+    "family": "dancing-figure",
+    "icons": [
+      {
+        "id": "tapdancer_large.2v2_mode_fighters",
+        "name": "Tap Dancer"
+      }
+    ]
+  },
+  {
+    "family": "projectile",
+    "icons": [
+      {
+        "id": "trueshotprodigy_large.2v2_mode_fighters",
+        "name": "Trueshot Prodigy"
+      }
+    ]
+  }
+]

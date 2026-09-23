@@ -13,6 +13,7 @@ Use this file to route cross-cutting work. For narrow changes, start with the ow
 | --- | --- | --- | --- |
 | Ability Blitz | `components/ability-blitz.tsx` | `app/api/ability-blitz`, `lib/catalogs.ts` | `lib/game-storage.ts` |
 | Skin Champion | `components/skin-champion.tsx` | `app/api/skin-champion`, `lib/catalogs.ts` | `lib/game-storage.ts` |
+| ARAM Mayhem Augment Community and Builder | `components/augment-community.tsx`, `components/augment-builder.tsx`, card/view/binder components | `app/api/augments`, `app/api/augment-binders`, local `data/catalogs/augment-icons.json` | Browser draft + public Supabase publications, account binders and votes; see `docs/augment-builder.md` |
 | Randodraft | `components/randodraft.tsx`, spinner/results components | `lib/randodraft.ts`, local `data/catalogs/randodraft.json` | React draft state + private Supabase history (last five account drafts) |
 | Skindle | `components/skindle.tsx` | `app/api/skindle`, skin metadata catalogues | local daily state + Supabase stats |
 

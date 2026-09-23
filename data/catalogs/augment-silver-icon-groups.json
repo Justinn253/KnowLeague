@@ -1,0 +1,688 @@
+[
+  {
+    "family": "sparkling-bowl",
+    "icons": [
+      {
+        "id": "kiwi_upgradedeathdance_large",
+        "name": "Upgrade Death Dance"
+      },
+      {
+        "id": "firesale_large",
+        "name": "Fire Sale"
+      },
+      {
+        "id": "kiwi_forgedbythemaster_large",
+        "name": "Forged by the Master"
+      },
+      {
+        "id": "kiwi_upgradeimmolate_large",
+        "name": "Upgrade Immolate"
+      },
+      {
+        "id": "vulnerability_large.arena_augments_v2",
+        "name": "Vulnerability"
+      },
+      {
+        "id": "juicepress_large",
+        "name": "Juice Press"
+      },
+      {
+        "id": "adapt_large",
+        "name": "ADAPt"
+      },
+      {
+        "id": "kiwi_upgradecollector_large",
+        "name": "Upgrade Collector"
+      },
+      {
+        "id": "kiwi_upgradezh_large",
+        "name": "Upgrade ZH"
+      }
+    ]
+  },
+  {
+    "family": "upward-arrow",
+    "icons": [
+      {
+        "id": "gohsacrificefor_large",
+        "name": "Sacrifice: For Silver"
+      },
+      {
+        "id": "dematerialize_large.arena_augments_v2",
+        "name": "Dematerialize"
+      },
+      {
+        "id": "bravestofthebrave_large",
+        "name": "Bravest of the Brave"
+      },
+      {
+        "id": "silver_spoon",
+        "name": "Silver Spoon"
+      },
+      {
+        "id": "stackosaurusrex_large.arena_augments_v2",
+        "name": "Stackosaurus Rex"
+      }
+    ]
+  },
+  {
+    "family": "diagonal-strike",
+    "icons": [
+      {
+        "id": "scopedweapons_large.arena_augments_v2",
+        "name": "Scoped Weapons"
+      },
+      {
+        "id": "energetic_large",
+        "name": "Energetic"
+      },
+      {
+        "id": "typhoon_large.arena_augments_v2",
+        "name": "Typhoon"
+      },
+      {
+        "id": "kiwi_speeddemon_large",
+        "name": "Speed Demon"
+      }
+    ]
+  },
+  {
+    "family": "sword",
+    "icons": [
+      {
+        "id": "kiwi_mobiuscoil_large",
+        "name": "Mobius Coil"
+      },
+      {
+        "id": "heavyhitter_large.arena_augments_v2",
+        "name": "Heavy Hitter"
+      },
+      {
+        "id": "kiwi_hatonahat_large",
+        "name": "Hat on a Hat"
+      }
+    ]
+  },
+  {
+    "family": "crossed-blades",
+    "icons": [
+      {
+        "id": "executioner_large.2v2_mode_fighters",
+        "name": "Executioner"
+      }
+    ]
+  },
+  {
+    "family": "wisp",
+    "icons": [
+      {
+        "id": "erosion_large.arena_augments_v2",
+        "name": "Erosion"
+      },
+      {
+        "id": "infernalsoul_large.arena_augments_v2",
+        "name": "Infernal Soul"
+      },
+      {
+        "id": "witchfulthinking_large.2v2_mode_fighters",
+        "name": "Witchful Thinking"
+      },
+      {
+        "id": "kiwi_puristcaster_large",
+        "name": "Purist Caster"
+      },
+      {
+        "id": "kiwi_dontchangethechannel_large",
+        "name": "Don't Change the Channel"
+      },
+      {
+        "id": "kiwi_juiced_large",
+        "name": "Juiced"
+      }
+    ]
+  },
+  {
+    "family": "elemental-diamond",
+    "icons": [
+      {
+        "id": "infernalsoul_large.2v2_mode_fighters",
+        "name": "Infernal Soul"
+      },
+      {
+        "id": "mountainsoul_large.2v2_mode_fighters",
+        "name": "Mountain Soul"
+      },
+      {
+        "id": "oceansoul_large.2v2_mode_fighters",
+        "name": "Ocean Soul"
+      }
+    ]
+  },
+  {
+    "family": "heart",
+    "icons": [
+      {
+        "id": "oceansoul_large.arena_augments_v2",
+        "name": "Ocean Soul"
+      },
+      {
+        "id": "kiwi_questsupportmain_large",
+        "name": "Quest: Support Main"
+      },
+      {
+        "id": "goredrink_large.arena_augments_v2",
+        "name": "Goredrink"
+      },
+      {
+        "id": "sonicboom_large.2v2_mode_fighters",
+        "name": "Sonic Boom"
+      },
+      {
+        "id": "evocation_large.2v2_mode_fighters",
+        "name": "Evocation"
+      },
+      {
+        "id": "mindtomatter_large.2v2_mode_fighters",
+        "name": "Mind to Matter"
+      },
+      {
+        "id": "repulsor_large.2v2_mode_fighters",
+        "name": "Repulsor"
+      },
+      {
+        "id": "tormentor_large.2v2_mode_fighters",
+        "name": "Tormentor"
+      },
+      {
+        "id": "guiltypleasure_large.2v2_mode_fighters",
+        "name": "Guilty Pleasure"
+      }
+    ]
+  },
+  {
+    "family": "lightning-heart",
+    "icons": [
+      {
+        "id": "executioner_large.arena_augments_v2",
+        "name": "Executioner"
+      },
+      {
+        "id": "divebomber_large",
+        "name": "Dive Bomber"
+      },
+      {
+        "id": "panic_room_large",
+        "name": "Panic Room"
+      },
+      {
+        "id": "servebeyonddeath_large.arena_augments_v2",
+        "name": "Serve Beyond Death"
+      }
+    ]
+  },
+  {
+    "family": "shield",
+    "icons": [
+      {
+        "id": "erosion_large.2v2_mode_fighters",
+        "name": "Erosion"
+      },
+      {
+        "id": "mindtomatter_large.arena_augments_v2",
+        "name": "Mind to Matter"
+      },
+      {
+        "id": "evocation_large",
+        "name": "Evocation"
+      },
+      {
+        "id": "tankengine_large",
+        "name": "Tank Engine"
+      },
+      {
+        "id": "tankitorleaveit_large.arena_augments_v2",
+        "name": "Tank It Or Leave It"
+      },
+      {
+        "id": "tankitorleaveit_large.2v2_mode_fighters",
+        "name": "Tank It Or Leave It"
+      },
+      {
+        "id": "kiwi_poltergeist_large",
+        "name": "Poltergeist"
+      }
+    ]
+  },
+  {
+    "family": "healing-shield",
+    "icons": [
+      {
+        "id": "kiwi_swiftandsafe_large",
+        "name": "Swift and Safe"
+      },
+      {
+        "id": "kiwi_crackopenthategg_large",
+        "name": "Crack Open That Egg"
+      },
+      {
+        "id": "sonicboom_large.arena_augments_v2",
+        "name": "Sonic Boom"
+      },
+      {
+        "id": "virtuouscycle_large",
+        "name": "Virtuous Cycle"
+      },
+      {
+        "id": "spirit_infusion_large",
+        "name": "Spirit Infusion"
+      },
+      {
+        "id": "firstaidkit_large.arena_augments_v2",
+        "name": "First Aid Kit"
+      },
+      {
+        "id": "firstaidkit_large.2v2_mode_fighters",
+        "name": "First Aid Kit"
+      }
+    ]
+  },
+  {
+    "family": "torch",
+    "icons": [
+      {
+        "id": "icecold_large.arena_augments_v2",
+        "name": "Ice Cold"
+      },
+      {
+        "id": "guiltypleasure_large.arena_augments_v2",
+        "name": "Guilty Pleasure"
+      },
+      {
+        "id": "kiwi_adamant_large",
+        "name": "Adamant"
+      },
+      {
+        "id": "slaparound_large.arena_augments_v2",
+        "name": "Slap Around"
+      }
+    ]
+  },
+  {
+    "family": "branching-flame",
+    "icons": [
+      {
+        "id": "frostwraith_large.arena_augments_v2",
+        "name": "Frost Wraith"
+      },
+      {
+        "id": "fullyautomated_large.arena_augments_v2",
+        "name": "Fully Automated"
+      },
+      {
+        "id": "slimetime_large",
+        "name": "Slime Time"
+      },
+      {
+        "id": "midnightexpress_large",
+        "name": "Midnight Express"
+      },
+      {
+        "id": "firfox_large",
+        "name": "Firefox"
+      }
+    ]
+  },
+  {
+    "family": "flame",
+    "icons": [
+      {
+        "id": "trailblazer_large",
+        "name": "Trailblazer"
+      },
+      {
+        "id": "tormentor_large.arena_augments_v2",
+        "name": "Tormentor"
+      }
+    ]
+  },
+  {
+    "family": "ice",
+    "icons": [
+      {
+        "id": "icecold_large.2v2_mode_fighters",
+        "name": "Ice Cold"
+      },
+      {
+        "id": "frostwraith_large.2v2_mode_fighters",
+        "name": "Frost Wraith"
+      },
+      {
+        "id": "frozenfoundations_large.2v2_mode_fighters",
+        "name": "Frozen Foundations"
+      }
+    ]
+  },
+  {
+    "family": "vertical-blade",
+    "icons": [
+      {
+        "id": "buffbuddies_large",
+        "name": "Buff Buddies"
+      },
+      {
+        "id": "repulsor_large.arena_augments_v2",
+        "name": "Repulsor"
+      },
+      {
+        "id": "frozenfoundations_large.arena_augments_v2",
+        "name": "Frozen Foundations"
+      },
+      {
+        "id": "fallenaegis_large.arena_augments_v2",
+        "name": "Fallen Aegis"
+      },
+      {
+        "id": "calculated_risk_large",
+        "name": "Calculated Risk"
+      },
+      {
+        "id": "kiwi_flash2_large",
+        "name": "Flash 2"
+      },
+      {
+        "id": "grevious_venmon",
+        "name": "Grievous Venom"
+      },
+      {
+        "id": "kiwi_critncast_large",
+        "name": "Crit 'n Cast"
+      },
+      {
+        "id": "kiwi_snowday_large",
+        "name": "Snow Day"
+      },
+      {
+        "id": "cannonfodder_large",
+        "name": "Cannon Fodder"
+      }
+    ]
+  },
+  {
+    "family": "linked-orbs",
+    "icons": [
+      {
+        "id": "buffbuddies_large.2v2_mode_fighters",
+        "name": "Buff Buddies"
+      },
+      {
+        "id": "castle_large.2v2_mode_fighters",
+        "name": "Castle"
+      },
+      {
+        "id": "castle_large",
+        "name": "Castle"
+      },
+      {
+        "id": "kiwi_fetch_large",
+        "name": "Fetch"
+      },
+      {
+        "id": "fruitarian_large",
+        "name": "Fruits of Your Labor"
+      },
+      {
+        "id": "buckleup_large",
+        "name": "Buckle Up"
+      },
+      {
+        "id": "parasiticmutation_large",
+        "name": "Parasitic Mutation"
+      },
+      {
+        "id": "clothesline_large.arena_augments_v2",
+        "name": "Clothesline"
+      }
+    ]
+  },
+  {
+    "family": "dice",
+    "icons": [
+      {
+        "id": "juicebox_large.arena_augments_v2",
+        "name": "Juice Box"
+      },
+      {
+        "id": "transmutegold_large",
+        "name": "Transmute: Gold"
+      },
+      {
+        "id": "stats_large",
+        "name": "Stats!"
+      },
+      {
+        "id": "contractkiller_large.arena_augments_v2",
+        "name": "Contract Killer"
+      },
+      {
+        "id": "gain_stat_anvil",
+        "name": "Gain Stat Anvil"
+      }
+    ]
+  },
+  {
+    "family": "starburst",
+    "icons": [
+      {
+        "id": "dontblink_large.arena_augments_v2",
+        "name": "Don't Blink"
+      },
+      {
+        "id": "bluntforce_large",
+        "name": "Blunt Force"
+      },
+      {
+        "id": "kiwi_mightyshield_large",
+        "name": "Mighty Shield"
+      },
+      {
+        "id": "augmented_power_large",
+        "name": "Augmented Power"
+      },
+      {
+        "id": "witchfulthinking_large.arena_augments_v2",
+        "name": "Witchful Thinking"
+      },
+      {
+        "id": "selfdestruct_large.arena_augments_v2",
+        "name": "Self Destruct"
+      },
+      {
+        "id": "warmuproutine_large.arena_augments_v2",
+        "name": "Warmup Routine"
+      },
+      {
+        "id": "deft_large.arena_augments_v2",
+        "name": "Deft"
+      },
+      {
+        "id": "lightemup_large.2v2_mode_fighters",
+        "name": "Light 'em Up"
+      }
+    ]
+  },
+  {
+    "family": "axe-arrow",
+    "icons": [
+      {
+        "id": "bluntforce_large.2v2_mode_fighters",
+        "name": "Blunt Force"
+      },
+      {
+        "id": "deft_large.2v2_mode_fighters",
+        "name": "Deft"
+      }
+    ]
+  },
+  {
+    "family": "running-figure",
+    "icons": [
+      {
+        "id": "dontblink_large.2v2_mode_fighters",
+        "name": "Don't Blink"
+      },
+      {
+        "id": "kiwi_killsecure_large",
+        "name": "Kill Secure"
+      },
+      {
+        "id": "legday_large",
+        "name": "Leg Day"
+      },
+      {
+        "id": "flashy_large.arena_augments_v2",
+        "name": "Flashy"
+      },
+      {
+        "id": "kiwi_escapeplan_large",
+        "name": "Escape Plan"
+      },
+      {
+        "id": "nowyouseeme_large.arena_augments_v2",
+        "name": "Houdini"
+      },
+      {
+        "id": "shadowrunner_large.2v2_mode_fighters",
+        "name": "Shadow Runner"
+      },
+      {
+        "id": "shadowrunner_large.arena_augments_v2",
+        "name": "Shadow Runner"
+      },
+      {
+        "id": "dontchase_large.arena_augments_v2",
+        "name": "Don't Chase"
+      },
+      {
+        "id": "kiwi_youspinmerightround_large",
+        "name": "You Spin Me Right Round"
+      },
+      {
+        "id": "ultimateunstoppable_large.arena_augments_v2",
+        "name": "Ultimate Unstoppable"
+      }
+    ]
+  },
+  {
+    "family": "boot",
+    "icons": [
+      {
+        "id": "typhoon_large.2v2_mode_fighters",
+        "name": "Typhoon"
+      },
+      {
+        "id": "homeguard_large.arena_augments_v2",
+        "name": "Homeguard"
+      },
+      {
+        "id": "kiwi_windbeneathblade_large",
+        "name": "Wind Beneath Blade"
+      }
+    ]
+  },
+  {
+    "family": "impact",
+    "icons": [
+      {
+        "id": "vulnerability_large.2v2_mode_fighters",
+        "name": "Vulnerability"
+      },
+      {
+        "id": "kiwi_zealot_large",
+        "name": "Zealot"
+      },
+      {
+        "id": "kiwi_bonk_large",
+        "name": "BONK!"
+      }
+    ]
+  },
+  {
+    "family": "jester",
+    "icons": [
+      {
+        "id": "holdverystill_large",
+        "name": "Hold Very Still"
+      },
+      {
+        "id": "mirrorimage_large",
+        "name": "Mirror Image"
+      }
+    ]
+  },
+  {
+    "family": "geometric",
+    "icons": [
+      {
+        "id": "desecrator_large.arena_augments_v2",
+        "name": "Desecrator"
+      },
+      {
+        "id": "fallenaegis_large.2v2_mode_fighters",
+        "name": "Fallen Aegis"
+      },
+      {
+        "id": "midnightexpress_large.2v2_mode_fighters",
+        "name": "Midnight Express"
+      }
+    ]
+  },
+  {
+    "family": "hourglass",
+    "icons": [
+      {
+        "id": "kiwi_weightedpopoffs_large",
+        "name": "Weighted Pop-Offs"
+      }
+    ]
+  },
+  {
+    "family": "potion",
+    "icons": [
+      {
+        "id": "juicebox_large.2v2_mode_fighters",
+        "name": "Juice Box"
+      }
+    ]
+  },
+  {
+    "family": "envelope",
+    "icons": [
+      {
+        "id": "contractkiller_large.2v2_mode_fighters",
+        "name": "Contract Killer"
+      }
+    ]
+  },
+  {
+    "family": "dancer",
+    "icons": [
+      {
+        "id": "warmuproutine_large.2v2_mode_fighters",
+        "name": "Warmup Routine"
+      }
+    ]
+  },
+  {
+    "family": "escape",
+    "icons": [
+      {
+        "id": "houdini_large.2v2_mode_fighters",
+        "name": "Houdini"
+      },
+      {
+        "id": "buckleup_large.2v2_mode_fighters",
+        "name": "Buckle Up"
+      }
+    ]
+  }
+]

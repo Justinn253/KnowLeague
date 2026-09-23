@@ -3,10 +3,10 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowRight, BarChart3, FileText, Menu, Package, TrendingUp, UserCircle, Users, X } from 'lucide-react';
+import { ArrowRight, Dices, Menu, Package, Search, Sparkles, TrendingUp, Trophy, UserCircle, UserCog, Users, X } from 'lucide-react';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
-import { GAME_NAVIGATION_ITEMS } from '@/lib/game-navigation';
+import { AUGMENT_BUILDER_GAME, GAME_ACCENT_CLASSES, GAME_MODE_LABELS, GAMES_FOR_DRAWER, MASTERY_MASTER_GAME, RANDODRAFT_GAME } from '@/lib/app-navigation';
 import { shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import type { AppRole } from '@/lib/moderation';
 
@@ -24,23 +24,9 @@ type AppNavigationDrawerProps = {
   moderationRole: Extract<AppRole, 'moderator' | 'admin'> | null;
 };
 
-const gameAccentClasses = {
-  gold: 'border-amber-200/30 bg-amber-300 text-slate-950',
-  cyan: 'border-cyan-200/30 bg-cyan-300 text-slate-950',
-  rose: 'border-rose-200/30 bg-rose-400 text-white',
-  violet: 'border-violet-200/30 bg-violet-400 text-white',
-  emerald: 'border-emerald-200/30 bg-emerald-300 text-slate-950',
-  sky: 'border-sky-200/30 bg-sky-300 text-slate-950',
-} as const;
 
 const menuItemClass = 'group flex min-h-12 w-full items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200';
 const gameMenuItemClass = 'group flex min-h-11 w-full items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/80 px-2.5 py-1.5 text-left text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200';
-const gameModeLabels = {
-  solo: 'Solo',
-  multiplayer: 'Multiplayer',
-  hybrid: 'Solo/Multiplayer',
-} as const;
-
 export function AppNavigationDrawer({
   isLoggedIn,
   profileHref,
@@ -99,7 +85,7 @@ export function AppNavigationDrawer({
             <nav aria-label="Primary navigation" className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Games</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {GAME_NAVIGATION_ITEMS.map((game) => {
+                {GAMES_FOR_DRAWER.map((game) => {
                   const GameIcon = game.gameIcon;
                   return (
                     <Link
@@ -108,12 +94,12 @@ export function AppNavigationDrawer({
                       onClick={closeDrawer}
                       className={gameMenuItemClass}
                     >
-                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${gameAccentClasses[game.accent]}`}>
+                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${GAME_ACCENT_CLASSES[game.accent]}`}>
                         <GameIcon size={16} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-black">{game.title}</span>
-                        <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">{gameModeLabels[game.mode]}</span>
+                        <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">{GAME_MODE_LABELS[game.mode]}</span>
                       </span>
                     </Link>
                   );
@@ -121,32 +107,78 @@ export function AppNavigationDrawer({
               </div>
 
               <div className="mt-4 border-t border-white/10 pt-4">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Tools</p>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">League Tools</p>
                 <div className="mt-2 grid gap-2">
+                  <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">League Account Viewer</p>
                   <Link href="/riot-account-viewer" onClick={closeDrawer} className={menuItemClass}>
-                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200/25 bg-amber-300 text-slate-950">
-                      <BarChart3 size={18} />
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300 text-slate-950">
+                      <Search size={18} />
                     </span>
-                    <span className="min-w-0 flex-1 text-sm font-black">League Account Viewer</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black">Search Account</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">League Account Viewer</span>
+                    </span>
                     <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
                   </Link>
                   <Link href="/riot-account-viewer/popular" onClick={closeDrawer} className={menuItemClass}>
                     <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200/25 bg-amber-300 text-slate-950">
                       <TrendingUp size={18} />
                     </span>
-                    <span className="min-w-0 flex-1 text-sm font-black">Most Popular Accounts</span>
-                    <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
-                  </Link>
-                  <Link href="/riot-account-viewer/patch-notes" onClick={closeDrawer} className={menuItemClass}>
-                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300 text-slate-950">
-                      <FileText size={18} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black">Most Popular Accounts</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">Top searched accounts</span>
                     </span>
-                    <span className="min-w-0 flex-1 text-sm font-black">League Patch Notes</span>
                     <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
                   </Link>
+                  <button type="button" disabled aria-disabled="true" className={menuItemClass + ' cursor-not-allowed opacity-60'}>
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300 text-slate-950">
+                      <UserCog size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="block text-sm font-black">Your Account</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">Auto-fill linked account</span>
+                    </span>
+                    <span className="shrink-0 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-600">Soon</span>
+                  </button>
+                  {MASTERY_MASTER_GAME ? (
+                    <Link href={MASTERY_MASTER_GAME.href} onClick={closeDrawer} className={menuItemClass}>
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-200/25 bg-violet-400 text-white">
+                        <Trophy size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black">{MASTERY_MASTER_GAME.title}</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">Mastery challenge</span>
+                      </span>
+                      <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
+                    </Link>
+                  ) : null}
+                  <p className="mt-2 border-t border-white/10 px-1 pt-3 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Misc Tools</p>
+                  {AUGMENT_BUILDER_GAME ? (
+                    <Link href={AUGMENT_BUILDER_GAME.href} onClick={closeDrawer} className={menuItemClass}>
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-200/25 bg-violet-400 text-white">
+                        <Sparkles size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black">ARAM Mayhem Augments</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">Augments &amp; Augment Builder</span>
+                      </span>
+                      <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
+                    </Link>
+                  ) : null}
+                  {RANDODRAFT_GAME ? (
+                    <Link href={RANDODRAFT_GAME.href} onClick={closeDrawer} className={menuItemClass}>
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200/25 bg-emerald-300 text-slate-950">
+                        <Dices size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black">Randodraft</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">Draft a random team and builds</span>
+                      </span>
+                      <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
+                    </Link>
+                  ) : null}
                 </div>
               </div>
-
               <div className="mt-4 border-t border-white/10 pt-4">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Riftbound</p>
                 <div className="mt-2 grid gap-2">
@@ -159,7 +191,7 @@ export function AppNavigationDrawer({
                   </Link>
                   <div className="grid grid-cols-2 gap-2">
                     <Link href="/riftbound/profile" onClick={closeDrawer} className={gameMenuItemClass}>
-                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${gameAccentClasses.gold}`}>
+                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${GAME_ACCENT_CLASSES.gold}`}>
                         <UserCircle size={16} />
                       </span>
                       <span className="min-w-0 flex-1">
@@ -168,7 +200,7 @@ export function AppNavigationDrawer({
                       </span>
                     </Link>
                     <Link href="/riftbound/inventory" onClick={closeDrawer} className={gameMenuItemClass}>
-                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${gameAccentClasses.gold}`}>
+                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${GAME_ACCENT_CLASSES.gold}`}>
                         <Package size={16} />
                       </span>
                       <span className="min-w-0 flex-1">

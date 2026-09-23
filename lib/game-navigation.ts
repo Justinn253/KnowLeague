@@ -37,6 +37,12 @@ export type GameLink = {
 
 export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   {
+    id: 'augment-builder', family: 'standalone', title: 'ARAM Mayhem Augments',
+    href: '/augment-builder', description: 'Browse, create, share, and rate community ARAM Mayhem augments.',
+    imageUrl: '/backgrounds/Howling_Abyss_Landscape.png', gameIcon: Sparkles,
+    mode: 'solo', accent: 'violet', kicker: 'Create & Share',
+  },
+  {
     id: 'skindle',
     family: 'daily-guess',
     title: 'Skindle',

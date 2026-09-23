@@ -12,6 +12,7 @@ const publicRoutes = [
   '/skindle',
   '/splash-scramble',
   '/randodraft',
+  '/augment-builder',
   '/skincognito',
   '/carving-revelation',
   '/category-clash',

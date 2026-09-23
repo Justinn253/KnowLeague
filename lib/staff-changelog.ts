@@ -17,6 +17,31 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    "id": "patch-2026-09-23-augment-schema-repair",
+    "patch": "2026.09.23-augment-schema-repair",
+    "timestamp": "2026-09-23T20:25:00.000Z",
+    "title": "Added an idempotent augment schema repair migration",
+    "summary": "Added migration 138 to recreate missing augment tables, indexes, grants, and rating/feed RPCs when migration history is ahead of the actual database schema.",
+    "details": [
+      "The repair uses create-if-missing and replace-safe definitions, preserves existing augment rows, and reapplies service-role-only access and RLS settings.",
+      "The repair restores both community augment RPCs and official augment rating tables/RPCs, followed by a PostgREST schema reload notification.",
+      "The readiness endpoint now reports the augment dependency separately so a stale migration ledger is visible."
+    ],
+    "impact": [
+      "Production and preview databases with missing augment objects can be repaired through the next append-only migration without rewriting prior migration history."
+    ],
+    "files": [
+      "supabase/migrations/138_repair_augment_schema.sql",
+      "app/api/health/ready/route.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "Migration SQL was reviewed for additive, idempotent table/function creation and service-role-only grants.",
+      "npm run check passed: lint completed with only existing no-img warnings, typecheck passed, and 34 Vitest files (161 tests) passed; git diff --check passed.",
+      "npx supabase db push applied migration 138 to the linked production project; SQL verification found custom_augments, custom_augment_community_feed, custom_augment_ratings, and official_augment_ratings."
+    ]
+  },
+  {
     "id": "patch-2026-09-23-augment-readiness-probe",
     "patch": "2026.09.23-augment-readiness-probe",
     "timestamp": "2026-09-23T20:10:00.000Z",

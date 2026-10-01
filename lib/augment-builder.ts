@@ -6,7 +6,9 @@ export const AUGMENT_ICONS = catalogue.icons;
 export const AUGMENT_RARITIES = ['silver', 'gold', 'prismatic'] as const;
 export const AUGMENT_TIERS = ['D', 'C', 'B', 'A', 'S'] as const;
 export const AUGMENT_COMMUNITY_SORTS = ['newest', 'week', 'month', 'year', 'all'] as const;
+export const AUGMENT_COMMUNITY_TIER_FILTERS = ['unrated', ...AUGMENT_TIERS, 'all'] as const;
 export type AugmentCommunitySort = (typeof AUGMENT_COMMUNITY_SORTS)[number];
+export type AugmentCommunityTierFilter = (typeof AUGMENT_COMMUNITY_TIER_FILTERS)[number];
 export type AugmentRarity = (typeof AUGMENT_RARITIES)[number];
 export type AugmentDraft = {
   id: string;

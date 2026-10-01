@@ -59,6 +59,17 @@ describe('augment API boundaries', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store');
     expect(mocks.community).toHaveBeenCalledWith('week', 'Snow', 2, null);
   });
+  it('passes validated tier filters to the community feed', async () => {
+    mocks.community.mockResolvedValue({ augments: [], hasMore: false });
+    const response = await community(new Request('http://localhost/api/augments?tiers=D,S'));
+    expect(response.status).toBe(200);
+    expect(mocks.community).toHaveBeenCalledWith('newest', '', 0, null, ['D', 'S']);
+  });
+  it('rejects unknown community tier filters', async () => {
+    const response = await community(new Request('http://localhost/api/augments?tiers=invalid'));
+    expect(response.status).toBe(400);
+    expect(mocks.community).not.toHaveBeenCalled();
+  });
   it('passes the route ID and verified identity to owner edits', async () => {
     mocks.edit.mockResolvedValue({ id: context.params.id });
     const response = await edit(request({ id: context.params.id }, 'PATCH', 'http://localhost/api/augments/' + context.params.id), context);

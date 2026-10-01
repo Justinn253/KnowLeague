@@ -17,6 +17,38 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    "id": "patch-2026-09-25-community-tier-filter-copy",
+    "patch": "2026.09.25-community-tier-filter-copy",
+    "timestamp": "2026-09-25T18:00:00.000Z",
+    "title": "Added community card copying and multi-tier filtering",
+    "summary": "Community augment cards now expose a one-click copy action, and the community feed can be filtered by one or more voted tiers.",
+    "details": [
+      "Added a compact copy icon beside each creator name that exports the rendered augment card as a PNG and shows a temporary check state.",
+      "Added a persistent multi-select tier filter for Unrated, D, C, B, A, and S; selecting All clears the tier constraint.",
+      "Passed validated tier filters through the API and added an additive server-side feed RPC migration so filtering remains correct across pagination."
+    ],
+    "impact": [
+      "Community visitors can quickly reuse card artwork and narrow the feed to the tiers they want to review.",
+      "Tier filtering remains tied to aggregate ratings and does not expose voter identities or request data."
+    ],
+    "files": [
+      "components/augment-community.tsx",
+      "components/augment-shared.tsx",
+      "lib/augment-builder.ts",
+      "lib/augment-builder-server.ts",
+      "app/api/augments/route.ts",
+      "supabase/migrations/139_augment_community_tier_filter.sql",
+      "tests/augment-api.test.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only existing no-img warnings, typecheck passed, and 34 Vitest files (163 tests) passed.",
+      "The new API tests cover valid multi-tier forwarding and invalid tier rejection.",
+      "The migration is additive and leaves the existing four-argument unfiltered community feed available.",
+      "npx supabase db push applied migration 139 to the linked project; SQL verification found both the legacy and tier-aware community feed RPC overloads."
+    ]
+  },
+  {
     "id": "patch-2026-09-23-augment-schema-repair",
     "patch": "2026.09.23-augment-schema-repair",
     "timestamp": "2026-09-23T20:25:00.000Z",

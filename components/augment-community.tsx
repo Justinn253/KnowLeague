@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, LoaderCircle, Plus, Search, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { BookOpen, Check, Copy, LoaderCircle, Plus, Search, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AppSelectMenu } from '@/components/app-select-menu';
@@ -15,9 +15,16 @@ import {
   augmentInput,
   augmentRequest,
   cacheAugmentView,
+  copyAugmentImage,
   useAugmentSession,
 } from '@/components/augment-shared';
-import { AUGMENT_TIERS, type AugmentCommunitySort, type PublishedAugment } from '@/lib/augment-builder';
+import {
+  AUGMENT_COMMUNITY_TIER_FILTERS,
+  AUGMENT_TIERS,
+  type AugmentCommunitySort,
+  type AugmentCommunityTierFilter,
+  type PublishedAugment,
+} from '@/lib/augment-builder';
 import { getChatNameStyle } from '@/lib/chat-colors';
 
 type CommunityResponse = { augments: PublishedAugment[]; hasMore: boolean };
@@ -35,6 +42,20 @@ const sortOptions = [
   { value: 'all' as const, label: 'Top (all time)' },
 ];
 
+const tierFilterOptions = [
+  { value: 'unrated' as const, label: 'Tier Unrated' },
+  ...AUGMENT_TIERS.map((tier) => ({ value: tier, label: 'Tier ' + tier })),
+  { value: 'all' as const, label: 'All' },
+];
+
+function parseTierFilters(value: string | null): AugmentCommunityTierFilter[] {
+  const selected = (value ?? '').split(',').filter((item): item is AugmentCommunityTierFilter =>
+    AUGMENT_COMMUNITY_TIER_FILTERS.includes(item as AugmentCommunityTierFilter),
+  );
+  if (!selected.length || selected.includes('all')) return ['all'];
+  return [...new Set(selected)];
+}
+
 function tierLabel(augment: PublishedAugment) {
   return augment.averageTier === null ? 'Unrated' : AUGMENT_TIERS[Math.round(augment.averageTier)];
 }
@@ -51,6 +72,7 @@ function AugmentCommunityCard({ augment, session, onChange, onError }: AugmentCo
   const [localAugment, setLocalAugment] = useState(augment);
   const localRef = useRef(augment);
   const requestRef = useRef<Promise<unknown>>(Promise.resolve());
+  const [copied, setCopied] = useState(false);
   useEffect(() => {
     localRef.current = augment;
     setLocalAugment(augment);
@@ -90,6 +112,16 @@ function AugmentCommunityCard({ augment, session, onChange, onError }: AugmentCo
         onError('Unable to save that reaction.');
       });
   }
+  async function copyCard(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    try {
+      await copyAugmentImage(localRef.current);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      onError('Could not copy the augment card. Check browser clipboard permissions.');
+    }
+  }
   function openCard() {
     router.push('/augment-builder/augment/' + localAugment.id);
   }
@@ -107,13 +139,22 @@ function AugmentCommunityCard({ augment, session, onChange, onError }: AugmentCo
       onKeyDown={handleCardKeyDown}
       className="group flex min-w-0 select-none cursor-pointer flex-col rounded-2xl border border-white/10 bg-slate-900/40 p-4 transition hover:border-amber-200/60 hover:bg-slate-900/70 focus:outline-none focus:ring-2 focus:ring-amber-200"
     >
-      <div className="mb-3 min-h-8 min-w-0 text-sm font-bold text-slate-100">
+      <div className="mb-3 flex min-h-8 min-w-0 items-center justify-between gap-2 text-sm font-bold text-slate-100">
         <span
           className="block truncate"
           style={localAugment.author ? getChatNameStyle(localAugment.author.chat_color) : undefined}
         >
           {localAugment.author?.display_name || localAugment.author?.username || 'Community creator'}
         </span>
+        <button
+          type="button"
+          aria-label="Copy augment card"
+          title="Copy augment card"
+          onClick={copyCard}
+          className="inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-950/80 text-slate-400 transition hover:border-amber-200/60 hover:text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"
+        >
+          {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+        </button>
       </div>
       <div className="min-w-0 flex-1">
         <AugmentCard draft={localAugment} />
@@ -159,9 +200,11 @@ export function AugmentCommunity() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab');
   const initialSort = searchParams.get('sort');
+  const initialTiers = parseTierFilters(searchParams.get('tiers'));
   const initialPage = Number.parseInt(searchParams.get('page') ?? '0', 10);
   const [tab, setTab] = useState<'community' | 'official'>(() => initialTab === 'official' ? 'official' : 'community');
   const [sort, setSort] = useState<AugmentCommunitySort>(() => sortOptions.some((option) => option.value === initialSort) ? initialSort as AugmentCommunitySort : 'newest');
+  const [tierFilters, setTierFilters] = useState<AugmentCommunityTierFilter[]>(initialTiers);
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
   const [page, setPage] = useState(() => Number.isFinite(initialPage) && initialPage >= 0 ? initialPage : 0);
@@ -173,10 +216,11 @@ export function AugmentCommunity() {
     if (tab === 'official') params.set('tab', 'official'); else params.delete('tab');
     if (search) params.set('q', search); else params.delete('q');
     if (sort !== 'newest') params.set('sort', sort); else params.delete('sort');
+    if (tierFilters.includes('all')) params.delete('tiers'); else params.set('tiers', tierFilters.join(','));
     if (page > 0) params.set('page', String(page)); else params.delete('page');
     const next = params.toString();
     window.history.replaceState(null, '', '/augment-builder' + (next ? '?' + next : ''));
-  }, [page, search, sort, tab]);
+  }, [page, search, sort, tab, tierFilters]);
 
 
   useEffect(() => {
@@ -192,6 +236,7 @@ export function AugmentCommunity() {
     const controller = new AbortController();
     const params = new URLSearchParams({ sort, page: String(page) });
     if (query) params.set('q', query);
+    if (!tierFilters.includes('all')) params.set('tiers', tierFilters.join(','));
     setLoading(true);
     setError('');
     void augmentRequest<CommunityResponse>('/api/augments?' + params.toString(), session, { signal: controller.signal })
@@ -207,7 +252,7 @@ export function AugmentCommunity() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [page, query, resolved, session, sort, tab]);
+  }, [page, query, resolved, session, sort, tab, tierFilters]);
 
   function updateFeedAugment(next: PublishedAugment) {
     setFeed((current) => current ? { ...current, augments: current.augments.map((item) => item.id === next.id ? next : item) } : current);
@@ -256,7 +301,7 @@ export function AugmentCommunity() {
         ))}
       </div>
       {tab === 'official' ? <AugmentOfficialArchive /> : <>
-      <section aria-label="Community augment filters" className="mb-8 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem]">
+      <section aria-label="Community augment filters" className="mb-8 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_12rem]">
         <label className="relative block">
           <span className="sr-only">Search augments by name</span>
           <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -276,6 +321,25 @@ export function AugmentCommunity() {
           options={sortOptions}
           onChange={(value) => {
             setSort(value);
+            setPage(0);
+          }}
+        />
+        <AppSelectMenu
+          label="Tier"
+          hideLabel
+          multiple
+          value={tierFilters[0] ?? 'all'}
+          selectedValues={tierFilters}
+          options={tierFilterOptions}
+          onToggle={(value) => {
+            setTierFilters((current) => {
+              if (value === 'all') return ['all'];
+              const withoutAll = current.filter((tier) => tier !== 'all');
+              const next = withoutAll.includes(value)
+                ? withoutAll.filter((tier) => tier !== value)
+                : [...withoutAll, value];
+              return next.length ? next : ['all'];
+            });
             setPage(0);
           }}
         />

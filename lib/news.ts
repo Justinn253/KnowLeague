@@ -15,6 +15,25 @@ export type NewsEntry = {
 /** Manually add a post for each production release or announcement. Keep IDs unique. Use major.minor.patch versions for updates. */
 export const NEWS_ENTRIES: readonly NewsEntry[] = [
   {
+    id: 'update-2026-10-07-token-leaderboards',
+    kind: 'update',
+    version: '0.3.0',
+    publishedAt: '2026-10-07T17:54:46.0202622Z',
+    title: 'Update 0.3.0 - Token Leaderboards',
+    summary: 'Browse League Challenge token rankings by region and search for individual players.',
+    paragraphs: [],
+    sections: [
+      {
+        heading: 'New Tool',
+        items: [
+          'Token Leaderboards: browse League Challenge tokens.',
+          'View the top 250 players for each region or all regions combined.',
+          'Token leaderboards refresh daily at 5pm EST.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'update-2026-09-22-augment-builder',
     kind: 'update',
     version: '0.2.0',

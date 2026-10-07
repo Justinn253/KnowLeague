@@ -30,12 +30,24 @@ type PopularAccount = {
 const lastSearchStorageKey = 'knowleague:riot-account-viewer:last-search';
 const recentSearchesStorageKey = 'knowleague:riot-account-viewer:recent-searches';
 const sessionProfileCachePrefix = 'knowleague:riot-account-viewer:profile-cache:';
+const riotTokenMappingUpdatedStorageKey = 'knowleague:riot-token-mapping-updated';
+const riotTokenMappingUpdatedEvent = 'knowleague:riot-token-mapping-updated';
 const searchSessionStorageKey = 'knowleague:riot-account-viewer:search-session-id';
 const maxRecentSearches = 5;
 const profileClientCacheTtlMs = 30 * 24 * 60 * 60_000;
 const globalRankingSampleThreshold = 1000;
 const globalRankingTooltip = 'Global ranking is based on our own data from searched accounts and does not reflect the true League of Legends data.';
 const showPlaceholderRankings = process.env.NODE_ENV !== 'production';
+
+function notifyRiotTokenMappingUpdated() {
+  try {
+    window.localStorage.setItem(riotTokenMappingUpdatedStorageKey, String(Date.now()));
+  } catch {
+    // Cross-tab invalidation is best-effort and should never block the Account Viewer.
+  }
+
+  window.dispatchEvent(new Event(riotTokenMappingUpdatedEvent));
+}
 
 const platformLabels: Record<PlatformRoute, string> = {
   BR1: 'BR - Brazil',
@@ -477,6 +489,10 @@ async function shareLink(value: string, title: string) {
 
 function isPlatformRoute(value: string | null): value is PlatformRoute {
   return Boolean(value && platformRoutes.includes(value as PlatformRoute));
+}
+
+function looksLikeRiotPuuid(value: string) {
+  return /^[A-Za-z0-9_-]{20,128}$/.test(value.trim());
 }
 
 function readStoredLastSearch() {
@@ -2050,10 +2066,12 @@ export function RiotAccountViewer() {
     window.history.replaceState(null, '', nextUrl);
   }, []);
 
-  const loadAccount = useCallback(async (nextRiotId = riotId, nextPlatform = platform, options: { tab?: ViewerTab; matchId?: string | null; refresh?: boolean } = {}) => {
+  const loadAccount = useCallback(async (nextRiotId = riotId, nextPlatform = platform, options: { tab?: ViewerTab; matchId?: string | null; refresh?: boolean } = {}, lookupPuuid?: string) => {
     const trimmedRiotId = nextRiotId.trim();
-    if (!trimmedRiotId) {
-      setError('Enter a Riot ID in the format GameName#TagLine.');
+    const trimmedPuuid = lookupPuuid?.trim() || (looksLikeRiotPuuid(trimmedRiotId) ? trimmedRiotId : '');
+    const searchRiotId = trimmedPuuid ? '' : trimmedRiotId;
+    if (!searchRiotId && !trimmedPuuid) {
+      setError('Enter a Riot ID in the format GameName#TagLine, or a PUUID.');
       return;
     }
 
@@ -2064,14 +2082,17 @@ export function RiotAccountViewer() {
       const applyLoadedData = (nextData: RiotAccountViewerResponse) => {
         const nextTab = options.tab ?? 'overview';
         const nextMatchId = options.matchId ?? null;
+        const canonicalRiotId = `${nextData.account.gameName}#${nextData.account.tagLine}`;
         setData(nextData);
-        writeStoredSearch(trimmedRiotId, nextPlatform);
+        notifyRiotTokenMappingUpdated();
+        setRiotId(canonicalRiotId);
+        writeStoredSearch(canonicalRiotId, nextPlatform);
         setRiotIdSuggestions(readStoredRecentSearches());
         setActiveTab(nextTab);
         setFocusedMatchId(nextMatchId);
         updateViewerUrl(nextData, nextTab, nextMatchId);
       };
-      const cachedData = options.refresh ? null : readSessionProfileCache(trimmedRiotId, nextPlatform);
+      const cachedData = trimmedPuuid || options.refresh ? null : readSessionProfileCache(searchRiotId, nextPlatform);
       if (cachedData) {
         const dataWithLiveGame = await refreshCachedLiveGame(trimmedRiotId, nextPlatform, cachedData);
         await recordCachedProfileSearch(dataWithLiveGame);
@@ -2080,7 +2101,8 @@ export function RiotAccountViewer() {
       }
 
       const requestUrl = new URL('/api/riot-account/viewer', window.location.origin);
-      requestUrl.searchParams.set('riotId', trimmedRiotId);
+      if (trimmedPuuid) requestUrl.searchParams.set('puuid', trimmedPuuid);
+      else requestUrl.searchParams.set('riotId', searchRiotId);
       requestUrl.searchParams.set('platform', nextPlatform);
       requestUrl.searchParams.set('searchSessionId', readSearchSessionId());
       if (options.refresh) {
@@ -2143,6 +2165,7 @@ export function RiotAccountViewer() {
 
     const params = new URLSearchParams(window.location.search);
     const queryRiotId = params.get('riotId');
+    const queryPuuid = params.get('puuid')?.trim() ?? '';
     const queryPlatform = params.get('platform')?.toUpperCase() ?? null;
     const queryTab = params.get('tab');
     const queryMatchId = params.get('matchId');
@@ -2150,6 +2173,19 @@ export function RiotAccountViewer() {
     const storedLastSearch = readStoredLastSearch();
     setRiotIdSuggestions(readStoredRecentSearches());
     setActiveTab(safeQueryTab);
+    if (queryPuuid) {
+      const safePlatform = isPlatformRoute(queryPlatform)
+        ? queryPlatform
+        : 'NA1';
+      setRiotId('');
+      setPlatform(safePlatform);
+      void loadAccount('', safePlatform, {
+        tab: safeQueryTab,
+        matchId: queryMatchId,
+      }, queryPuuid);
+      return;
+    }
+
     if (queryRiotId) {
       const safePlatform = isPlatformRoute(queryPlatform)
         ? queryPlatform
@@ -2213,7 +2249,7 @@ export function RiotAccountViewer() {
               <h1 className="mt-3 text-3xl font-black text-white sm:text-5xl">{title}</h1>
             </div>
 
-            {data ? (
+      {data ? (
               <div className="w-full rounded-2xl border border-white/10 bg-slate-950/70 p-4 lg:w-auto lg:shrink-0">
                 <div className="flex flex-wrap items-center gap-4">
                   <GameIconImage src={data.summoner.profileIconUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10" />
@@ -2253,39 +2289,47 @@ export function RiotAccountViewer() {
             }}
             className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"
           >
-            <label className="relative block min-w-0">
-              <span className="sr-only">Riot ID</span>
-              <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-              <input
-                value={riotId}
-                onChange={(event) => setRiotId(event.target.value)}
-                onFocus={() => setSuggestionsActive(true)}
-                onBlur={() => setSuggestionsActive(false)}
-                list="riot-account-viewer-suggestions"
-                autoComplete="username"
-                placeholder="Riot ID"
-                className={`block min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40 ${
-                  data ? 'pr-28' : 'pr-4'
-                }`}
-              />
-              {data ? (
-                <div className="group absolute right-2 top-1/2 -translate-y-1/2">
-                  <button
-                    type="button"
-                    onClick={() => void loadAccount(riotId, platform, { tab: activeTab, matchId: focusedMatchId, refresh: true })}
-                    disabled={loading}
-                    aria-label="Refresh this account from the live Riot API"
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black uppercase tracking-[0.08em] text-slate-300 transition hover:border-amber-300/50 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                    Update
-                  </button>
-                  <LavHoverNote text="Refresh this account from the live Riot API" wide />
-                </div>
-              ) : null}
+            <label className="block min-w-0">
+              <span className="sr-only">Riot ID or PUUID</span>
+              <div className="relative">
+                <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={riotId}
+                  onChange={(event) => setRiotId(event.target.value)}
+                  onFocus={() => setSuggestionsActive(true)}
+                  onBlur={() => setSuggestionsActive(false)}
+                  list="riot-account-viewer-suggestions"
+                  autoComplete="username"
+                  placeholder="Riot ID or PUUID"
+                  className={`block min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40 ${
+                    data ? 'pr-28' : 'pr-4'
+                  }`}
+                />
+                {data ? (
+                  <div className="group absolute right-2 top-1/2 -translate-y-1/2">
+                    <button
+                      type="button"
+                      onClick={() => void loadAccount(riotId, platform, { tab: activeTab, matchId: focusedMatchId, refresh: true })}
+                      disabled={loading}
+                      aria-label="Refresh this account from the live Riot API"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black uppercase tracking-[0.08em] text-slate-300 transition hover:border-amber-300/50 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                      Update
+                    </button>
+                    <LavHoverNote text="Refresh this account from the live Riot API" wide />
+                  </div>
+                ) : null}
+              </div>
               <datalist id="riot-account-viewer-suggestions">
                 {mergedRiotIdSuggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
               </datalist>
+              {loading ? (
+                <span role="status" className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-amber-200">
+                  <Loader2 size={16} className="animate-spin" />
+                  Loading League account…
+                </span>
+              ) : null}
             </label>
             <AppSelectMenu
               label="League platform"

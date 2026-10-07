@@ -18,6 +18,7 @@ const publicRoutes = [
   '/category-clash',
   '/mastery-master',
   '/riot-account-viewer',
+  '/riot-account-viewer/token-leaderboards',
   '/riftbound/inventory',
   '/riftbound/community',
   '/about',

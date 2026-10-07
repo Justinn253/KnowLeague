@@ -2,7 +2,10 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import {
   getRiotAccountProfileSnapshot,
+  getRiotAccountProfileSnapshotByPuuid,
   getRiotAccountViewerData,
+  getRiotAccountViewerDataByPuuid,
+  cacheRiotTokenPlayerName,
   getRiotLiveGameStatus,
   hasRiotAccountViewerItemDetails,
   isRiotAccountProfileSnapshotFresh,
@@ -72,11 +75,37 @@ function loadAndCacheAccount(cacheKey: string, riotId: string, platform: Paramet
   return request;
 }
 
+function loadAndCacheAccountByPuuid(cacheKey: string, puuid: string, platform: Parameters<typeof getRiotAccountViewerDataByPuuid>[1]) {
+  const existingRequest = inFlightViewerRequests.get(cacheKey);
+  if (existingRequest) return existingRequest;
+
+  const request = (async () => {
+    const data = await getRiotAccountViewerDataByPuuid(puuid, platform);
+    setServerCache(cacheKey, data, viewerMemoryCacheTtlMs);
+    await saveRiotAccountProfileSnapshot(data, profileSnapshotTtlMs);
+    return data;
+  })();
+
+  inFlightViewerRequests.set(cacheKey, request);
+  const clearRequest = () => {
+    if (inFlightViewerRequests.get(cacheKey) === request) {
+      inFlightViewerRequests.delete(cacheKey);
+    }
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
+}
+
 function getSearchDedupeKey(value: string | null, clientIp: string) {
   return value && /^[a-zA-Z0-9-]{16,128}$/.test(value) ? `session:${value}` : `ip:${clientIp}`;
 }
 
 async function recordViewerSearch(data: ViewerData, dedupeKey: string) {
+  await cacheRiotTokenPlayerName({
+    puuid: data.account.puuid,
+    gameName: data.account.gameName,
+    tagLine: data.account.tagLine,
+  }, data.platform);
   await recordRiotAccountSearch({
     riotId: `${data.account.gameName}#${data.account.tagLine}`,
     gameName: data.account.gameName,
@@ -88,7 +117,7 @@ async function recordViewerSearch(data: ViewerData, dedupeKey: string) {
 function getErrorStatus(error: unknown) {
   const message = error instanceof Error ? error.message : '';
   if (message.includes('not configured')) return 503;
-  if (message.includes('not found')) return 404;
+  if (message.includes('not found') || message.includes('stored Riot ID mapping')) return 404;
   if (message.includes('rate limit')) return 429;
   if (message.includes('rejected')) return 403;
   return 400;
@@ -99,12 +128,17 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
   try {
     const url = new URL(request.url);
     const riotId = url.searchParams.get('riotId')?.trim() ?? '';
+    const puuid = url.searchParams.get('puuid')?.trim() ?? '';
     const platform = (url.searchParams.get('platform') ?? 'NA1').trim().toUpperCase();
     const shouldRefresh = url.searchParams.get('refresh') === 'true';
     const searchDedupeKey = getSearchDedupeKey(url.searchParams.get('searchSessionId'), clientIp);
 
-    if (!riotId) {
-      return NextResponse.json({ error: 'riotId is required.' }, { status: 400 });
+    if (!riotId && !puuid) {
+      return NextResponse.json({ error: 'riotId or puuid is required.' }, { status: 400 });
+    }
+
+    if (puuid && !/^[A-Za-z0-9_-]{20,128}$/.test(puuid)) {
+      return NextResponse.json({ error: 'puuid is invalid.' }, { status: 400 });
     }
 
     if (!isRiotPlatformRoute(platform)) {
@@ -135,7 +169,8 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
       );
     }
 
-    const cacheKey = `riot-account-viewer:${platform}:${riotId.toLowerCase()}`;
+    const lookupKey = puuid ? `puuid:${puuid.toLowerCase()}` : `riot-id:${riotId.toLowerCase()}`;
+    const cacheKey = `riot-account-viewer:${platform}:${lookupKey}`;
     const cachedData = shouldRefresh ? null : getServerCache<ViewerData>(cacheKey);
     if (cachedData && hasRiotAccountViewerItemDetails(cachedData)) {
       await recordViewerSearch(cachedData, searchDedupeKey);
@@ -149,15 +184,20 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
       });
     }
 
-    const profileSnapshot = shouldRefresh ? null : await getRiotAccountProfileSnapshot(riotId, platform);
+    const profileSnapshot = shouldRefresh
+      ? null
+      : puuid
+        ? await getRiotAccountProfileSnapshotByPuuid(puuid, platform)
+        : await getRiotAccountProfileSnapshot(riotId, platform);
     if (profileSnapshot && isRiotAccountProfileSnapshotFresh(profileSnapshot) && hasRiotAccountViewerItemDetails(profileSnapshot.data)) {
       let currentGame = profileSnapshot.data.currentGame;
       const liveGameIsFresh = profileSnapshot.currentGameFetchedAt
         && Date.now() - Date.parse(profileSnapshot.currentGameFetchedAt) < liveGameCacheTtlMs;
       if (!liveGameIsFresh) {
+        const profileRiotId = `${profileSnapshot.data.account.gameName}#${profileSnapshot.data.account.tagLine}`;
         const liveGame = await loadAndCacheLiveGame(
-          `riot-account-viewer-live-game:${platform}:${riotId.toLowerCase()}`,
-          riotId,
+          `riot-account-viewer-live-game:${platform}:${profileRiotId.toLowerCase()}`,
+          profileRiotId,
           platform,
         );
         currentGame = liveGame.currentGame;
@@ -179,7 +219,9 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
       });
     }
 
-    const data = await loadAndCacheAccount(cacheKey, riotId, platform);
+    const data = puuid
+      ? await loadAndCacheAccountByPuuid(cacheKey, puuid, platform)
+      : await loadAndCacheAccount(cacheKey, riotId, platform);
     await recordViewerSearch(data, searchDedupeKey);
     return NextResponse.json(data, {
       headers: {

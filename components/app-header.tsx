@@ -438,6 +438,7 @@ function LeagueToolsMenuItems({ onSelect }: { onSelect: () => void }) {
       <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">League Account Viewer</p>
       <HeaderMenuLink href="/riot-account-viewer" label="Search Account" description="League Account Viewer" icon={Search} iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950" onSelect={onSelect} />
       <HeaderMenuLink href="/riot-account-viewer/popular" label="Most Popular Accounts" description="Top searched accounts" icon={TrendingUp} iconClassName="border-amber-200/25 bg-amber-300 text-slate-950" onSelect={onSelect} />
+      <HeaderMenuLink href="/riot-account-viewer/token-leaderboards" label="Token Leaderboards" description="League Challenges" icon={Trophy} iconClassName="border-amber-200/25 bg-amber-300 text-slate-950" onSelect={onSelect} />
       <HeaderMenuButton label="Your Account" description="Auto-fill linked account" icon={UserCog} disabled trailing={<span className="shrink-0 text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-600">Soon</span>} />
       {MASTERY_MASTER_GAME ? (
         <HeaderMenuLink href={MASTERY_MASTER_GAME.href} label={MASTERY_MASTER_GAME.title} description="Mastery challenge" icon={MASTERY_MASTER_GAME.gameIcon ?? Trophy} iconClassName="border-violet-200/25 bg-violet-400 text-white" onSelect={onSelect} />

@@ -1,6 +1,7 @@
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { getServerCache, setServerCache } from '@/lib/server-memory-cache';
+import { logServerEvent } from '@/lib/server-log';
 
 const DATA_DRAGON_VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json';
 const RIOT_API_KEY_HEADER = 'X-Riot-Token';
@@ -669,6 +670,36 @@ export async function getRiotAccountProfileSnapshot(riotId: string, platform: Ri
   }
 }
 
+export async function getRiotAccountProfileSnapshotByPuuid(puuid: string, platform: RiotPlatformRoute) {
+  try {
+    const { data, error } = await getSupabaseServiceClient()
+      .from('riot_account_profile_snapshots')
+      .select('puuid, platform, riot_id, riot_id_normalized, profile_payload, current_game_payload, payload_encoding, fetched_at, current_game_fetched_at, expires_at, last_accessed_at')
+      .eq('puuid', puuid)
+      .eq('platform', platform)
+      .maybeSingle<RiotAccountProfileSnapshotRow>();
+
+    if (error || !data || data.payload_encoding !== 'gzip+base64') return null;
+
+    const profile = decompressJson<RiotAccountViewerResponse>(data.profile_payload);
+    const currentGame = data.current_game_payload
+      ? decompressJson<RiotAccountViewerResponse['currentGame']>(data.current_game_payload)
+      : null;
+
+    return {
+      data: { ...profile, currentGame },
+      puuid: data.puuid,
+      platform: data.platform,
+      fetchedAt: data.fetched_at,
+      expiresAt: data.expires_at,
+      lastAccessedAt: data.last_accessed_at,
+      currentGameFetchedAt: data.current_game_fetched_at,
+    } satisfies RiotAccountProfileSnapshot;
+  } catch {
+    return null;
+  }
+}
+
 export async function saveRiotAccountProfileSnapshot(data: RiotAccountViewerResponse, ttlMs: number) {
   try {
     const fetchedAt = data.updatedAt || new Date().toISOString();
@@ -1232,9 +1263,9 @@ function getRiotApiKey() {
   return apiKey;
 }
 
-async function riotFetch<T>(url: string): Promise<T>;
-async function riotFetch<T>(url: string, options: { optional404: true }): Promise<T | null>;
-async function riotFetch<T>(url: string, options?: { optional404?: boolean }): Promise<T | null> {
+export async function riotFetch<T>(url: string): Promise<T>;
+export async function riotFetch<T>(url: string, options: { optional404: true }): Promise<T | null>;
+export async function riotFetch<T>(url: string, options?: { optional404?: boolean }): Promise<T | null> {
   const response = await fetch(url, {
     cache: 'no-store',
     headers: {
@@ -1926,13 +1957,87 @@ async function getParticipantRankLookup(
 
 export async function getRiotAccountViewerData(riotId: string, platform: RiotPlatformRoute): Promise<RiotAccountViewerResponse> {
   const parsed = parseRiotId(riotId);
-  const regionalRoute = getRegionalRoute(platform);
-  const encodedGameName = encodeURIComponent(parsed.gameName);
-  const encodedTagLine = encodeURIComponent(parsed.tagLine);
+  const account = await getRiotAccountByRiotId(parsed.gameName, parsed.tagLine, platform);
 
-  const account = await riotFetch<RiotAccountDto>(
-    `https://${regionalRoute}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodedGameName}/${encodedTagLine}`,
+  return getRiotAccountViewerDataFromAccount(account, platform, parsed.gameName, parsed.tagLine);
+}
+
+async function getRiotAccountByRiotId(gameName: string, tagLine: string, platform: RiotPlatformRoute) {
+  const regionalRoute = getRegionalRoute(platform);
+  return riotFetch<RiotAccountDto>(
+    `https://${regionalRoute}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`,
   );
+}
+
+async function getRiotAccountByPuuid(puuid: string, platform: RiotPlatformRoute) {
+  const regionalRoute = getRegionalRoute(platform);
+  return riotFetch<RiotAccountDto>(
+    `https://${regionalRoute}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${encodeURIComponent(puuid)}`,
+  );
+}
+
+function isRiotIdLookupNotFound(error: unknown) {
+  return error instanceof Error && error.message === 'Riot account data not found for that Riot ID and region.';
+}
+
+type StoredRiotTokenPlayerName = {
+  puuid: string;
+  platform: RiotPlatformRoute;
+  riot_id: string;
+  game_name: string;
+  tag_line: string;
+};
+
+async function getStoredRiotTokenPlayerName(puuid: string, platform: RiotPlatformRoute): Promise<StoredRiotTokenPlayerName | null> {
+  try {
+    const { data, error } = await getSupabaseServiceClient()
+      .from('riot_token_player_names')
+      .select('puuid, platform, riot_id, game_name, tag_line')
+      .eq('puuid', puuid)
+      .eq('platform', platform)
+      .maybeSingle<StoredRiotTokenPlayerName>();
+
+    return error ? null : data;
+  } catch {
+    return null;
+  }
+}
+
+export async function getRiotAccountViewerDataByPuuid(puuid: string, platform: RiotPlatformRoute): Promise<RiotAccountViewerResponse> {
+  const normalizedPuuid = puuid.trim();
+  if (!/^[A-Za-z0-9_-]{20,128}$/.test(normalizedPuuid)) {
+    throw new Error('The PUUID is invalid.');
+  }
+
+  const storedName = await getStoredRiotTokenPlayerName(normalizedPuuid, platform);
+  const loadByPuuid = async () => {
+    const account = await getRiotAccountByPuuid(normalizedPuuid, platform);
+    if (!account.gameName?.trim() || !account.tagLine?.trim()) {
+      throw new Error('Riot did not return a Riot ID for that PUUID.');
+    }
+
+    return getRiotAccountViewerDataFromAccount(account, platform, account.gameName.trim(), account.tagLine.trim());
+  };
+
+  if (!storedName) {
+    return loadByPuuid();
+  }
+
+  try {
+    const account = await getRiotAccountByRiotId(storedName.game_name, storedName.tag_line, platform);
+    if (account.puuid !== normalizedPuuid) {
+      return loadByPuuid();
+    }
+
+    return getRiotAccountViewerDataFromAccount(account, platform, storedName.game_name, storedName.tag_line);
+  } catch (error) {
+    if (!isRiotIdLookupNotFound(error)) throw error;
+    return loadByPuuid();
+  }
+}
+
+async function getRiotAccountViewerDataFromAccount(account: RiotAccountDto, platform: RiotPlatformRoute, fallbackGameName: string, fallbackTagLine: string): Promise<RiotAccountViewerResponse> {
+  const regionalRoute = getRegionalRoute(platform);
 
   const summoner = await riotFetch<RiotSummonerDto>(
     `https://${platform.toLowerCase()}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(account.puuid)}`,
@@ -1979,7 +2084,7 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
   const recentWins = normalizedMatches.filter((match) => match.win).length;
   const totalMasteryPoints = normalizedMasteries.reduce((sum, mastery) => sum + mastery.championPoints, 0);
   const challengePoints = challengeData?.totalPoints?.current ?? 0;
-  const canonicalRiotId = `${account.gameName ?? parsed.gameName}#${account.tagLine ?? parsed.tagLine}`;
+  const canonicalRiotId = `${account.gameName ?? fallbackGameName}#${account.tagLine ?? fallbackTagLine}`;
 
   void recordRiotAccountProfileMetrics({
     puuid: account.puuid,
@@ -2001,13 +2106,13 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
 
   return {
     updatedAt: new Date().toISOString(),
-    searchedRiotId: parsed.normalized,
+    searchedRiotId: canonicalRiotId,
     platform,
     regionalRoute,
     account: {
       puuid: account.puuid,
-      gameName: account.gameName ?? parsed.gameName,
-      tagLine: account.tagLine ?? parsed.tagLine,
+      gameName: account.gameName ?? fallbackGameName,
+      tagLine: account.tagLine ?? fallbackTagLine,
     },
     summoner: {
       id: summoner.id,
@@ -2037,4 +2142,44 @@ export async function getRiotAccountViewerData(riotId: string, platform: RiotPla
       },
     },
   };
+}
+
+export async function cacheRiotTokenPlayerName(
+  account: { puuid: string; gameName?: string; tagLine?: string },
+  platform: RiotPlatformRoute,
+) {
+  const gameName = account.gameName?.trim();
+  const tagLine = account.tagLine?.trim();
+  if (!gameName || !tagLine) return;
+  const riotId = `${gameName}#${tagLine}`;
+  try {
+    const { error } = await getSupabaseServiceClient().from('riot_token_player_names').upsert({
+      puuid: account.puuid,
+      platform,
+      riot_id: riotId,
+      game_name: gameName,
+      tag_line: tagLine,
+      last_seen_at: new Date().toISOString(),
+    }, { onConflict: 'puuid,platform' });
+    if (error) throw error;
+  } catch (error) {
+    logServerEvent('warn', 'riot_token_player_name_cache_failed', {
+      operation: 'upsert',
+      errorType: error instanceof Error ? error.name : 'unknown',
+    });
+  }
+
+  try {
+    const { error } = await getSupabaseServiceClient()
+      .from('riot_token_leaderboard_entries')
+      .update({ riot_id: riotId })
+      .eq('puuid', account.puuid)
+      .eq('platform', platform);
+    if (error) throw error;
+  } catch (error) {
+    logServerEvent('warn', 'riot_token_player_name_cache_failed', {
+      operation: 'leaderboard_update',
+      errorType: error instanceof Error ? error.name : 'unknown',
+    });
+  }
 }

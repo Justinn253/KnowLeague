@@ -122,6 +122,12 @@ export async function copyAugmentLink(path: string) {
   await navigator.clipboard.writeText(new URL(path, window.location.origin).href);
 }
 
+export async function copyAugmentImage(draft: AugmentDraft) {
+  if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Clipboard unavailable.');
+  const blob = augmentPng(draft);
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+}
+
 export function AugmentExport({ draft, url, compact = false }: { draft: AugmentDraft; url?: string; compact?: boolean }) {
   const [status, setStatus] = useState('');
   const [completedAction, setCompletedAction] = useState<'image' | 'download' | 'link' | null>(null);
@@ -136,11 +142,11 @@ export function AugmentExport({ draft, url, compact = false }: { draft: AugmentD
     setStatus('');
     try {
       // Supply a promise immediately to preserve Safari's clipboard user gesture.
-      const blob = augmentPng(draft);
-      if (copy && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      if (copy && typeof navigator.clipboard?.write === 'function' && typeof ClipboardItem !== 'undefined') {
+        await copyAugmentImage(draft);
         showCompletedAction('image');
       } else {
+        const blob = augmentPng(draft);
         const objectUrl = URL.createObjectURL(await blob);
         const link = document.createElement('a');
         link.href = objectUrl;

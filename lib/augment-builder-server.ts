@@ -2,10 +2,12 @@
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import {
   AUGMENT_COMMUNITY_SORTS,
+  AUGMENT_COMMUNITY_TIER_FILTERS,
   isAugmentId,
   parseAugmentDraft,
   type AugmentAuthor,
   type AugmentCommunitySort,
+  type AugmentCommunityTierFilter,
   type AugmentDraft,
   type PublishedAugment,
 } from '@/lib/augment-builder';
@@ -26,6 +28,14 @@ function requireId(id: string) {
 function parseCommunitySort(value: string): AugmentCommunitySort {
   if (!AUGMENT_COMMUNITY_SORTS.includes(value as AugmentCommunitySort)) throw new ApiError(400, 'Invalid augment sort.');
   return value as AugmentCommunitySort;
+}
+function parseCommunityTiers(values: readonly string[] = ['all']): AugmentCommunityTierFilter[] {
+  const tiers = values.filter((value): value is AugmentCommunityTierFilter =>
+    AUGMENT_COMMUNITY_TIER_FILTERS.includes(value as AugmentCommunityTierFilter),
+  );
+  if (tiers.length !== values.length) throw new ApiError(400, 'Invalid augment tier filter.');
+  if (!tiers.length || tiers.includes('all')) return ['all'];
+  return [...new Set(tiers)];
 }
 function persistedRow(draft: AugmentDraft) {
   return {
@@ -168,17 +178,22 @@ export async function loadAugmentCommunity(
   query: string,
   page: number,
   viewer: string | null,
+  tiers: readonly string[] = ['all'],
 ) {
   const communitySort = parseCommunitySort(sort);
+  const communityTiers = parseCommunityTiers(tiers);
   const normalizedQuery = query.trim().slice(0, 80);
-  const { data, error } = await getSupabaseServiceClient()
-    .rpc('custom_augment_community_feed', {
-      p_sort: communitySort,
-      p_query: normalizedQuery,
-      p_offset: page * 24,
-      p_limit: 25,
-    })
+  const rpcArgs = {
+    p_sort: communitySort,
+    p_query: normalizedQuery,
+    p_offset: page * 24,
+    p_limit: 25,
+  };
+  const result = await (communityTiers.includes('all')
+    ? getSupabaseServiceClient().rpc('custom_augment_community_feed', rpcArgs)
+    : getSupabaseServiceClient().rpc('custom_augment_community_feed', { ...rpcArgs, p_tiers: communityTiers }))
     .overrideTypes<Row[], { merge: false }>();
+  const { data, error } = result;
   if (error) throw error;
   const rows = Array.isArray(data) ? (data as Row[]) : [];
   return { augments: await decorate(rows.slice(0, 24), viewer), hasMore: rows.length > 24 };

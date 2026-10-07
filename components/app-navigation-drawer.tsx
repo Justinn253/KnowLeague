@@ -130,7 +130,16 @@ export function AppNavigationDrawer({
                     </span>
                     <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
                   </Link>
-                  <button type="button" disabled aria-disabled="true" className={menuItemClass + ' cursor-not-allowed opacity-60'}>
+                  <Link href="/riot-account-viewer/token-leaderboards" onClick={closeDrawer} className={menuItemClass}>
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200/25 bg-amber-300 text-slate-950">
+                      <Trophy size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black">Token Leaderboards</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">League Challenges</span>
+                    </span>
+                    <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
+                  </Link>                  <button type="button" disabled aria-disabled="true" className={menuItemClass + ' cursor-not-allowed opacity-60'}>
                     <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300 text-slate-950">
                       <UserCog size={18} />
                     </span>

@@ -17,6 +17,500 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-07-token-mapping-cache-invalidation-news',
+    patch: 'patch-2026-10-07-token-mapping-cache-invalidation-news',
+    timestamp: '2026-10-07T17:54:46.0202622Z',
+    title: 'Repair token mapping refreshes and publish Token Leaderboards update',
+    summary:
+      'Account Viewer completions now invalidate stale token leaderboard browser caches, mapping write failures emit safe diagnostics, and Update 0.3.0 documents the Token Leaderboards release.',
+    details: [
+      'Added a cross-tab mapping-update signal so token leaderboard session and in-memory caches are cleared after an Account Viewer account load; the next token refresh rehydrates stored Riot IDs from Supabase.',
+      'Added aggregate-only warning logs for failures writing the PUUID-to-Riot ID mapping or updating existing leaderboard rows, without logging PUUIDs, Riot IDs, or raw database errors.',
+      'Added the public Update 0.3.0 - Token Leaderboards Arrive! entry with New Tool, New Feature, and Bug Fixes sections matching the existing News and Updates format.',
+    ],
+    impact: [
+      'Players no longer remain stuck on a PUUID-only token row after viewing that account; mapping failures are diagnosable by staff without exposing account identifiers in logs.',
+      'Visitors can discover the Token Leaderboards feature and its daily refresh/search behavior from the public Updates screen.',
+    ],
+    files: [
+      'components/riot-account-viewer.tsx',
+      'components/riot-token-leaderboards.tsx',
+      'lib/riot-account-viewer.ts',
+      'lib/news.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: typecheck succeeded and Vitest passed 35 test files with 165 tests; lint reported only existing image optimization warnings.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-07-token-search-global-position',
+    patch: 'patch-2026-10-07-token-search-global-position',
+    timestamp: '2026-10-07T17:42:27.6025393Z',
+    title: 'Show searched token positions beyond the top 250',
+    summary:
+      'Token searches now use Riot player challenge data to show a searched player’s position and points even when the player is outside the cached top-250 list.',
+    details: [
+      'When a regional Riot ID search is not found in the cached leaderboard, query the player-data endpoint for the selected token and build the same searched-player result from its position and value.',
+      'Keep the Show in list action limited to players actually present in the rendered top-250 entries, while retaining the Account Viewer link for out-of-list results.',
+      'Replace the old not-in-top-250 message with a no-position message only when Riot returns no matching token progress for the searched account.',
+    ],
+    impact: [
+      'Users can see a direct token placement without requiring the player to be among the displayed top 250; this adds one Riot player-data request only for searches that miss the cached list.',
+    ],
+    files: [
+      'lib/riot-token-leaderboards.ts',
+      'components/riot-token-leaderboards.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: typecheck succeeded and Vitest passed 35 test files with 165 tests; lint reported only existing image optimization warnings.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-07-searched-token-player-panel',
+    patch: 'patch-2026-10-07-searched-token-player-panel',
+    timestamp: '2026-10-07T17:37:47.7776881Z',
+    title: 'Refine searched token player navigation',
+    summary:
+      'Searched token players now appear in a green result panel above the API limitation note, with direct account-viewer navigation and an in-list scroll action.',
+    details: [
+      'Replaced the ranked-in-region message for successful searches with a Searched Player - region heading and a green result card.',
+      'Made the player portion of the result card open the account viewer in a new tab and added a Show in list button that smoothly scrolls to the matching leaderboard row.',
+      'Added stable row identifiers based on the player platform and PUUID so the scroll target remains precise across regional and combined leaderboards.',
+    ],
+    impact: [
+      'Users can move between a direct token search, the account viewer, and the player’s position in the top-250 list without repeating the search.',
+    ],
+    files: [
+      'components/riot-token-leaderboards.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: typecheck succeeded and Vitest passed 35 test files with 165 tests; lint reported only existing image optimization warnings.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-07-token-session-cache-retryable-refresh',
+    patch: 'patch-2026-10-07-token-session-cache-retryable-refresh',
+    timestamp: '2026-10-07T00:00:00.000Z',
+    title: 'Cache token leaderboard sessions and retry failed refreshes',
+    summary:
+      'Token leaderboard catalogue and normal token/region responses are cached for the browser session, and failed leaderboard refresh claims can be retried without waiting for the stale-running timeout.',
+    details: [
+      'Added a versioned sessionStorage cache for the token catalogue and successful, unsearched token leaderboard responses. Cached responses are validated against nextRefreshAt and search-specific results are never stored.',
+      'Added migration 142 to update the existing refresh-claim function so rows marked error are reclaimable immediately while active runs remain protected and stale running rows still recover after ten minutes.',
+    ],
+    impact: [
+      'Returning to a token leaderboard in the same browser session avoids a repeat API request until the server-provided refresh time. ARAM Eradication and any other failed generation can be retried instead of remaining stuck in the generating state.',
+      'Migration 142 was applied to the configured Supabase project so the refresh-claim function can reclaim failed rows immediately.',
+    ],
+    files: [
+      'components/riot-token-leaderboards.tsx',
+      'supabase/migrations/142_retry_failed_riot_token_refreshes.sql',
+    ],
+    verification: [
+      'npm run check passed: typecheck succeeded and Vitest passed 35 test files with 165 tests; lint reported only existing image optimization warnings.',
+    ],
+  },
+  {
+    "id": "patch-2026-10-06-token-detail-polish",
+    "patch": "2026.10.06-token-detail-polish",
+    "timestamp": "2026-10-06T00:03:43.218Z",
+    "title": "Polish token detail metadata, rank emphasis, and local response reuse",
+    "summary": "Token detail pages now use a more compact header, expose active-state metadata, emphasize the top ten, align the Change column, and reuse fresh token-region responses during the page session.",
+    "details": [
+      "Extended the fourth- and fifth-place visual treatment through rank ten and added matching rank badges while preserving distinct first-, second-, and third-place colors.",
+      "Made the Change header and movement cells use the same fixed right-aligned width; unmoved entries continue to display an equal sign while the separate row navigation arrow remains a profile-link affordance.",
+      "Reduced token header padding, icon size, title scale, and description spacing, and added Active/Inactive status derived from Riot challenge state metadata.",
+      "Added a page-session cache keyed by token and region for normal responses; cached entries expire at the response's next daily refresh boundary and search responses are never cached."
+    ],
+    "impact": [
+      "Token detail pages are shorter and easier to scan, with top-ten entries visually separated from the rest of the leaderboard.",
+      "Repeated region switches during one visit avoid duplicate API requests without adding persistent browser storage or bypassing the server's daily cache."
+    ],
+    "files": [
+      "components/riot-token-leaderboards.tsx",
+      "lib/riot-token-leaderboards.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-leaderboard-name-batches",
+    "patch": "2026.10.05-token-leaderboard-name-batches",
+    "timestamp": "2026-10-05T23:52:30.653Z",
+    "title": "Batch stored Riot ID hydration and strengthen top-five styling",
+    "summary": "Token leaderboard refreshes now hydrate stored Riot IDs through bounded cache queries, while the warning and top-five presentation receive the requested visual updates.",
+    "details": [
+      "Split cached PUUID-to-Riot ID lookups into batches of 50 instead of sending all 250 PUUIDs in one PostgREST IN query, preventing oversized query failures from silently returning no names during refresh.",
+      "Changed the API limitation note to an amber warning panel without a background shadow.",
+      "Added stronger top-five row treatments, rank badges, gradients, inset accents, and rank-specific highlights for first through fifth place."
+    ],
+    "impact": [
+      "Previously stored Riot IDs can now be recovered reliably when a token's daily leaderboard is regenerated.",
+      "Top-five entries are more visually distinguishable without changing ranking or point data."
+    ],
+    "files": [
+      "lib/riot-token-leaderboards.ts",
+      "components/riot-token-leaderboards.tsx",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-catalog-loading-state",
+    "patch": "2026.10.05-token-catalog-loading-state",
+    "timestamp": "2026-10-05T23:46:20.688Z",
+    "title": "Fix token catalogue loading after a successful response",
+    "summary": "The Token Leaderboards index now applies its successful 200 response even when React development effect replay is suppressed by the duplicate-request guard.",
+    "details": [
+      "Removed the first-effect active flag that was set false during Strict Mode cleanup before the guarded request completed.",
+      "Kept the initial-load ref guard so only one catalogue request is started while allowing its response, error, and finally handlers to update the mounted page state."
+    ],
+    "impact": [
+      "The token catalogue no longer remains on its spinner after the API returns 200 and valid token JSON.",
+      "Development-mode duplicate initial requests remain suppressed."
+    ],
+    "files": [
+      "components/riot-token-leaderboards.tsx",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-disable-raw-riot-revalidation",
+    "patch": "2026.10.05-disable-raw-riot-revalidation",
+    "timestamp": "2026-10-05T23:41:39.429Z",
+    "title": "Guarantee raw Riot payloads bypass Next data caching",
+    "summary": "Removed the unused shared Riot-fetch revalidation option so the oversized challenge configuration can only be fetched with no-store before the parsed catalogue cache handles reuse.",
+    "details": [
+      "Removed the revalidation overload and conditional request-init branch from riotFetch; all raw Riot API responses now explicitly use cache: no-store.",
+      "Left the compact parsed token catalogue cache in place as the only cache for token metadata, keeping the raw 3 MB response out of Next's 2 MB data-cache limit.",
+      "Documented that a running development server must restart once to discard a stale compiled module from the prior revalidation implementation."
+    ],
+    "impact": [
+      "The reported Failed to set fetch cache error cannot be produced by the current raw challenge-config request path.",
+      "Token catalogue reuse remains hourly through the parsed application-level cache."
+    ],
+    "files": [
+      "lib/riot-account-viewer.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed on rerun: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-catalog-cache-size",
+    "patch": "2026.10.05-token-catalog-cache-size",
+    "timestamp": "2026-10-05T23:35:26.872Z",
+    "title": "Cache the parsed token catalogue instead of the oversized Riot payload",
+    "summary": "Removes the Next.js data-cache failure caused by Riot's 3 MB challenge configuration response while retaining hourly server-side catalogue reuse.",
+    "details": [
+      "Changed the raw Riot challenge configuration request back to no-store so Next.js never attempts to persist the 3,154,342-byte response that exceeds its 2 MB cache limit.",
+      "Wrapped the parsed, leaderboard-only token catalogue in an hourly unstable_cache entry; only the compact application response is persisted and reused.",
+      "Kept the existing in-process catalogue cache and daily token leaderboard refresh/cache behavior unchanged."
+    ],
+    "impact": [
+      "Token leaderboard requests no longer emit the Failed to set fetch cache error for the oversized Riot configuration payload.",
+      "After the parsed catalogue cache is warm, token detail requests can resolve token metadata without refetching the full Riot configuration."
+    ],
+    "files": [
+      "lib/riot-token-leaderboards.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-puuid-stale-mapping-fallback",
+    "patch": "2026.10.05-puuid-stale-mapping-fallback",
+    "timestamp": "2026-10-05T23:30:41.010Z",
+    "title": "Recover missing and stale PUUID Riot ID mappings",
+    "summary": "Account Viewer PUUID links now fall back to Riot's PUUID account endpoint only when the local mapping is missing or no longer resolves to the same account.",
+    "details": [
+      "Refactored Riot ID account resolution into a reusable helper and added a controlled PUUID account-resolution helper for fallback cases.",
+      "When a stored Riot ID still resolves to the same PUUID, the existing mapping path remains in use without a PUUID conversion request.",
+      "When the mapping is absent, the stored Riot ID returns not found, or it resolves to a different PUUID after a rename/reassignment, the server calls Riot by PUUID and rebuilds the profile from the returned Riot ID.",
+      "Successful fallback results continue through the existing Account Viewer search recorder, which updates the application mapping and matching cached token leaderboard rows."
+    ],
+    "impact": [
+      "Normal PUUID clicks remain low-cost when the local mapping is valid, while new or renamed accounts can recover automatically.",
+      "A Riot PUUID-to-Riot ID request is now intentionally spent only for missing or stale mappings rather than for every leaderboard entry."
+    ],
+    "files": [
+      "lib/riot-account-viewer.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-account-viewer-search-layout",
+    "patch": "2026.10.05-account-viewer-search-layout",
+    "timestamp": "2026-10-05T19:55:09.953Z",
+    "title": "Restore Account Viewer search control alignment",
+    "summary": "The Account Viewer search icon and account controls now remain anchored to the input while the PUUID loading status is displayed below it.",
+    "details": [
+      "Wrapped the input, search icon, and inline Update control in a dedicated relative container so the loading message cannot change their absolute positioning context.",
+      "Preserved the existing Account Viewer input, platform selector, Search button, and Profile last updated layout while keeping the loading status beneath the input field."
+    ],
+    "impact": [
+      "Searching by PUUID no longer moves the search icon to the bottom of the field or distorts the adjacent controls.",
+      "Loaded and loading Account Viewer states now share the same search-row geometry."
+    ],
+    "files": [
+      "components/riot-account-viewer.tsx",
+      "components/riot-token-leaderboards.tsx",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-leaderboard-latency",
+    "patch": "2026.10.05-token-leaderboard-latency",
+    "timestamp": "2026-10-05T19:31:43.607Z",
+    "title": "Reduce token leaderboard cold-read latency and duplicate requests",
+    "summary": "Token leaderboard detail loads now reuse Riot challenge configuration through the server data cache, while the client prevents duplicate initial requests caused by development effect replays.",
+    "details": [
+      "Changed the shared Riot fetch helper to support an explicit revalidation interval and configured the token catalogue request to revalidate once per hour instead of using no-store on every cold server request.",
+      "Added initial-load guards to the token leaderboard index and detail components so a React development effect replay does not issue duplicate catalogue or leaderboard requests.",
+      "Kept leaderboard rows and daily refresh behavior unchanged: once the scheduled 250-entry pull is stored, regional reads continue to come from the Supabase cache and do not regenerate the Riot leaderboard.",
+      "Moved the Account Viewer loading status beneath the Riot ID/PUUID input and restyled the token API limitation notice as a prominent red panel."
+    ],
+    "impact": [
+      "Cached token leaderboard reads avoid the slow Riot configuration request after the server data cache is warm, improving navigation to token pages without changing the 5pm ET refresh policy.",
+      "The UI no longer makes two identical initial detail requests during React development-mode effect replay."
+    ],
+    "files": [
+      "lib/riot-account-viewer.ts",
+      "lib/riot-token-leaderboards.ts",
+      "components/riot-token-leaderboards.tsx",
+      "components/riot-account-viewer.tsx",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-puuid-mapping-sync",
+    "patch": "2026.10.05-token-puuid-mapping-sync",
+    "timestamp": "2026-10-05T19:19:53.119Z",
+    "title": "Use stored PUUID mappings for token leaderboard account links",
+    "summary": "Keeps token leaderboard PUUID handling within the application-owned Riot ID mapping while making the Account Viewer and cached leaderboard rows converge after an account search.",
+    "details": [
+      "Removed the Account Viewer PUUID-to-Riot-ID endpoint call from the PUUID lookup path; PUUID searches now use the stored riot_token_player_names mapping and then load the account by Riot ID.",
+      "Account Viewer Riot ID searches now update both the application mapping and every matching cached leaderboard row for that PUUID and platform.",
+      "Added an explicit loading status for Account Viewer searches initiated with a PUUID and the current API-limitation note above token leaderboard tables.",
+      "Mapped missing local PUUID mappings to a clear not-found response instead of attempting a costly Riot conversion lookup."
+    ],
+    "impact": [
+      "Token leaderboard rows now display stored Riot IDs as soon as an Account Viewer search discovers them, without spending developer-key requests on automatic PUUID conversion.",
+      "PUUID-only entries remain identifiable and clickable, but require a stored mapping before the Account Viewer can load the full account profile."
+    ],
+    "files": [
+      "lib/riot-account-viewer.ts",
+      "app/api/riot-account/viewer/route.ts",
+      "components/riot-account-viewer.tsx",
+      "components/riot-token-leaderboards.tsx",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only the repository's existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-leaderboard-puuid-links",
+    "patch": "2026.10.05-token-leaderboard-puuid-links",
+    "timestamp": "2026-10-05T18:58:41.882Z",
+    "title": "Added PUUID fallback navigation for token leaderboards",
+    "summary": "Token leaderboard rows now remain usable when Riot ID hydration is unavailable: they display the stored PUUID and open the Account Viewer through a server-side PUUID lookup.",
+    "details": [
+      "Included each leaderboard entry's PUUID in the server response and rendered it as the player fallback instead of Player name unavailable.",
+      "Added Account Viewer support for puuid query parameters, including PUUID validation, server-side account resolution, memory caching, durable profile snapshot reuse, and canonical Riot ID URL replacement after loading.",
+      "Updated Account Viewer searches to upsert successful PUUID-to-Riot-ID conversions into the service-only token player-name cache, while leaderboard reads reuse cached conversions without issuing automatic per-player lookups.",
+      "Preserved Riot ID links when available and routed unresolved PUUID rows to the same Account Viewer page in a new tab."
+    ],
+    "impact": [
+      "All stored leaderboard entries remain identifiable and clickable during development-key operation even when Riot ID enrichment is incomplete.",
+      "Leaderboard page loads avoid spending Riot API calls on bulk name hydration; names become available after Account Viewer searches and are reused across tokens and regions.",
+      "PUUID lookup remains server-only and API telemetry continues to record aggregate route metrics without query values or identifiers."
+    ],
+    "files": [
+      "components/riot-token-leaderboards.tsx",
+      "components/riot-account-viewer.tsx",
+      "lib/riot-token-leaderboards.ts",
+      "lib/riot-account-viewer.ts",
+      "app/api/riot-account/viewer/route.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run typecheck passed after adding PUUID response fields, Account Viewer lookup support, and cached-name-only leaderboard hydration.",
+      "npm run check passed: lint completed with only existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed; no production build was run."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-group-filters",
+    "patch": "2026.10.05-token-group-filters",
+    "timestamp": "2026-10-05T18:29:44.050Z",
+    "title": "Added multi-select token group filters",
+    "summary": "The Token Leaderboards index now has selectable group tabs, combines group filtering with token search, and places 2022 and 2023 historical groups after the current groups.",
+    "details": [
+      "Added an accessible multi-select button-tab row with an All reset control; selected groups filter the grouped token sections while token text search remains active at the same time.",
+      "Added deterministic group ordering that keeps groups whose names contain 2022 or 2023 at the bottom of both the filter row and rendered catalogue.",
+      "Kept the existing compact token card focus treatment, hover/click sounds, subgroup headings, and responsive two-column card layout unchanged."
+    ],
+    "impact": [
+      "Visitors can focus the token catalogue on one or several challenge groups without losing the existing token search behavior.",
+      "Historical 2022 and 2023 token groups no longer displace current groups at the top of the page."
+    ],
+    "files": [
+      "components/riot-token-leaderboards.tsx",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "The standard npm run check was rerun after the group filter change: lint completed with only existing unrelated img-element warnings, typecheck passed, and 35 Vitest files with 165 tests passed."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-leaderboard-all-region-polish",
+    "patch": "2026.10.05-token-leaderboard-all-region-polish",
+    "timestamp": "2026-10-05T22:35:00.000Z",
+    "title": "Expanded token leaderboard aggregation and presentation",
+    "summary": "Token Leaderboards now support cached All-region aggregation, grouped token discovery, staged player-name hydration, richer rank presentation, resilient region switching, and the requested navigation and interaction polish.",
+    "details": [
+      "Added an All tab that combines the highest cached token score for each player across available regional daily pulls, keeps the winning region on each entry for account-viewer navigation, and seeds the combined view from the NA cache when no regional pull exists yet.",
+      "Added group and subgroup metadata derived from the Riot Challenges configuration hierarchy, and grouped the token catalogue under searchable category headings.",
+      "Changed the movement column to Change, right-aligned its header, uses an equal sign for no movement, adds distinct visual treatment for ranks 1 through 5, and shows relative Last refreshed text.",
+      "Made leaderboard player links open the Account Viewer in a new tab, added All-region search handling, and added hover/click UI sounds to token and region controls.",
+      "Validated leaderboard JSON before rendering so a 202 generation response or malformed region response cannot crash on data.entries.length.",
+      "Limited Riot account-name resolution to staged batches of 20 per regional request while reusing the Supabase name cache, preventing the first batch of lookups from exhausting the Riot request budget and leaving the rest unresolved."
+    ],
+    "impact": [
+      "Visitors can compare cached leaderboard data across regions without triggering a new Riot leaderboard request for every region, while the daily shared refresh policy remains unchanged.",
+      "The token catalogue is easier to scan on desktop and mobile, and top-five placement is visually distinguishable without changing rank or score data.",
+      "Unresolved player names are surfaced honestly and can fill progressively on later loads instead of silently presenting a permanently incomplete list."
+    ],
+    "files": [
+      "components/riot-token-leaderboards.tsx",
+      "lib/riot-token-leaderboards.ts",
+      "app/api/riot-account/token-leaderboards/route.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run typecheck passed after the All-region, response-validation, UI, and name-hydration changes.",
+      "Existing hover and selection sound identifiers were confirmed in the shared UI sound usage patterns.",
+      "The earlier cache reconciliation deployment was verified with service queries and refresh-claim smoke testing; npm run check passed after this patch with only the repository's existing unrelated img-element lint warnings."
+    ]
+  },
+  {
+    "id": "patch-2026-10-05-token-leaderboard-cache-repair",
+    "patch": "2026.10.05-token-leaderboard-cache-repair",
+    "timestamp": "2026-10-05T22:00:00.000Z",
+    "title": "Repaired token leaderboard cache deployment and index controls",
+    "summary": "Token Leaderboards now have more compact searchable cards with the shared games-page arrow animation, and a reconciliation migration repairs cache objects missing from PostgREST schema metadata.",
+    "details": [
+      "Reduced token card height and padding, kept keyboard focus rings inset within the card boundary, and applied the existing game-card-arrow drift animation to token navigation arrows.",
+      "Added a token search field that filters names and descriptions before rendering the responsive two-column card grid.",
+      "Added a safe reconciliation migration that reasserts token leaderboard cache tables, indexes, RLS, service-role grants, refresh-claim RPC, and the PostgREST schema reload notification."
+    ],
+    "impact": [
+      "Visitors can scan and filter the token catalog more efficiently, with focus and hover states remaining visually contained on compact cards.",
+      "The token leaderboard API can use the cache tables even when the original migration history was recorded but the remote schema cache did not expose those tables.",
+      "Token cache tables remain inaccessible to anon and authenticated roles; only the server service role retains access."
+    ],
+    "files": [
+      "components/riot-token-leaderboards.tsx",
+      "supabase/migrations/141_reconcile_riot_token_leaderboard_cache.sql",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "Read-only service queries reproduced PostgREST PGRST205 for all three token leaderboard cache tables before the reconciliation migration.",
+      "The linked development Supabase project was missing migrations 138 through 141; all four pending migrations were applied, and read-only service queries confirmed all three cache tables are visible with no PostgREST errors.",
+      "The CLI link was restored to the production Supabase project after deployment; the refresh-claim RPC smoke test and npm run check both passed, with only existing unrelated img-element lint warnings."
+    ]
+  },
+  {
+    "id": "patch-2026-10-01-riot-token-leaderboards",
+    "patch": "2026.10.01-riot-token-leaderboards",
+    "timestamp": "2026-10-01T22:08:26.000Z",
+    "title": "Added Riot token leaderboards",
+    "summary": "League Tools now includes daily-cached League Challenges token leaderboards with region selection, account search, player links, and rank movement.",
+    "details": [
+      "Added Riot Challenges config and leaderboard integration for leaderboard-enabled tokens, with lazy per-token and per-platform generation capped at 250 players.",
+      "Added a service-only Supabase cache with a shared 5pm America/New_York generation key, a cross-instance claim guard, player-name cache, and prior-generation rows for movement comparisons.",
+      "Added token index and detail pages, compact platform controls, Riot ID search, clickable account-viewer links, token icons, and daily refresh messaging to both responsive League Tools navigation surfaces."
+    ],
+    "impact": [
+      "Visitors can browse available token challenges, inspect the top 250 players for a selected platform, search for a Riot ID, and open a player directly in the League Account Viewer.",
+      "Riot leaderboard and player-name calls are deduplicated per token/platform generation day and sensitive Riot API credentials remain server-only.",
+      "Rank movement is shown only when the player appeared in the prior stored generation; first-generation rows have no movement baseline."
+    ],
+    "files": [
+      "app/riot-account-viewer/token-leaderboards/page.tsx",
+      "app/riot-account-viewer/token-leaderboards/[tokenId]/page.tsx",
+      "app/api/riot-account/token-leaderboards/route.ts",
+      "components/riot-token-leaderboards.tsx",
+      "lib/riot-token-leaderboards.ts",
+      "lib/riot-account-viewer.ts",
+      "components/app-header.tsx",
+      "components/app-navigation-drawer.tsx",
+      "app/sitemap.ts",
+      "tests/riot-token-leaderboards.test.ts",
+      "supabase/migrations/140_riot_token_leaderboards.sql",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "Added focused unit coverage for Eastern-time generation keys and rank movement in tests/riot-token-leaderboards.test.ts.",
+      "npm run check was run after implementation; no production build was run because repository guidance reserves it for an explicitly stopped dev-server state.",
+      "The Supabase migration was created locally and was not pushed."
+    ]
+  },
+  {
+    "id": "patch-2026-09-25-community-tier-filter-copy",
+    "patch": "2026.09.25-community-tier-filter-copy",
+    "timestamp": "2026-09-25T18:00:00.000Z",
+    "title": "Added community card copying and multi-tier filtering",
+    "summary": "Community augment cards now expose a one-click copy action, and the community feed can be filtered by one or more voted tiers.",
+    "details": [
+      "Added a compact copy icon beside each creator name that exports the rendered augment card as a PNG and shows a temporary check state.",
+      "Added a persistent multi-select tier filter for Unrated, D, C, B, A, and S; selecting All clears the tier constraint.",
+      "Passed validated tier filters through the API and added an additive server-side feed RPC migration so filtering remains correct across pagination."
+    ],
+    "impact": [
+      "Community visitors can quickly reuse card artwork and narrow the feed to the tiers they want to review.",
+      "Tier filtering remains tied to aggregate ratings and does not expose voter identities or request data."
+    ],
+    "files": [
+      "components/augment-community.tsx",
+      "components/augment-shared.tsx",
+      "lib/augment-builder.ts",
+      "lib/augment-builder-server.ts",
+      "app/api/augments/route.ts",
+      "supabase/migrations/139_augment_community_tier_filter.sql",
+      "tests/augment-api.test.ts",
+      "lib/staff-changelog.ts"
+    ],
+    "verification": [
+      "npm run check passed: lint completed with only existing no-img warnings, typecheck passed, and 34 Vitest files (163 tests) passed.",
+      "The new API tests cover valid multi-tier forwarding and invalid tier rejection.",
+      "The migration is additive and leaves the existing four-argument unfiltered community feed available.",
+      "npx supabase db push applied migration 139 to the linked project; SQL verification found both the legacy and tier-aware community feed RPC overloads."
+    ]
+  },
+  {
     "id": "patch-2026-09-23-augment-schema-repair",
     "patch": "2026.09.23-augment-schema-repair",
     "timestamp": "2026-09-23T20:25:00.000Z",

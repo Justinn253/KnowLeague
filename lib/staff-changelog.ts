@@ -17,6 +17,260 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-09-champion-overview-active-navigation-state',
+    patch: 'patch-2026-10-09-champion-overview-active-navigation-state',
+    timestamp: '2026-10-09T19:57:38.9709397Z',
+    title: 'Restore Champion Detail active navigation clarity',
+    summary:
+      'Restored an unambiguous current-page treatment for the active Champion Detail navigation item without reintroducing a colored navigation background.',
+    details: [
+      'Marked the Overview tab as the current page and distinguished it through an amber outline, inset ring, icon color, and high-contrast label while leaving its fill transparent.',
+    ],
+    impact: [
+      'Players can immediately identify the open Champion Detail section in both the expanded sidebar and collapsed navigation rail.',
+    ],
+    files: [
+      'components/champion-profile.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 167 tests passed.',
+      'The current page is exposed semantically through aria-current and visually through a transparent, amber outlined active state.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-09-champion-overview-hover-visibility',
+    patch: 'patch-2026-10-09-champion-overview-hover-visibility',
+    timestamp: '2026-10-09T19:54:20.5517535Z',
+    title: 'Expose Champion Detail hover notes above visual containers',
+    summary:
+      'Centered shared hover notes on their trigger and removed Champion Detail clipping and stacking barriers so contextual help remains visible above nearby panels.',
+    details: [
+      'Centered compact and wide HeaderHoverNote variants on their trigger instead of their left edge, preserving content-fit sizing and above or below placement behavior.',
+      'Reworked the champion hero background into its own clipped layer and made combat and ability surfaces tooltip-safe, allowing notes to rise above rounded panel boundaries without exposing splash-art corners or decorative glow.',
+      'Removed the class icon from the Style heading, added a source-backed primary combat-style field with an above-anchored note on the AP-to-AD spectrum, and documented Aatrox as primarily basic-attack focused.',
+      'Added playstyle ring hit targets for every metric, retained vertical Damage alignment, and added Champion Hub test coverage for primary combat style metadata.',
+    ],
+    impact: [
+      'Players can reliably inspect hover context without it rendering beneath or being masked by adjacent Champion Detail surfaces.',
+      'Style metadata is clearer and no longer conflates champion class with basic-attack versus ability emphasis.',
+    ],
+    files: [
+      'components/header-hover-note.tsx',
+      'components/champion-profile.tsx',
+      'lib/champion-hub.ts',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 167 tests passed.',
+      'Champion Hub catalogue coverage now verifies Aatrox\'s primary combat-style metadata; the shared hover note remains backward compatible because its below placement is still the default.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-09-champion-overview-hover-and-dial-alignment',
+    patch: 'patch-2026-10-09-champion-overview-hover-and-dial-alignment',
+    timestamp: '2026-10-09T19:10:54.4478258Z',
+    title: 'Align Champion Detail tooltips, collapsed controls, and playstyle sectors',
+    summary:
+      'Removed remaining sidebar color washes, made Champion Detail hover notes compact and above-anchored, and improved playstyle dial orientation and interaction coverage.',
+    details: [
+      'Added an above or below placement option to the shared HeaderHoverNote and removed its compact fixed width so short notes fit their content without empty space; Champion Detail notes now use above placement to avoid lower-panel clipping.',
+      'Added transparent hover targets over every playstyle ring sector, exposing each Riot client capability score through the shared note component.',
+      'Collapsed the lane presentation into one summary note that lists supported lanes, rotated the dial so Damage is vertical, and replaced the crowd-control marker with the shared Riot tenacity atlas icon.',
+      'Removed the sidebar\'s amber wash and active-tab fill, then sized the collapsed navigation toggle to the same 48px footprint as the other rail controls.',
+    ],
+    impact: [
+      'Short tooltips across the application no longer reserve unnecessary blank width, while Champion Detail context stays visually above the control that invoked it.',
+      'Players can inspect each playstyle metric directly from the dial instead of relying solely on its iconography.',
+      'The collapsed navigation rail has consistent control sizing and neutral visual treatment.',
+    ],
+    files: [
+      'components/header-hover-note.tsx',
+      'components/champion-profile.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 167 tests passed.',
+      'Verified the shared hover-note API remains backwards compatible because above placement is opt-in and below remains the default.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-09-champion-overview-asset-and-tooltip-refinement',
+    patch: 'patch-2026-10-09-champion-overview-asset-and-tooltip-refinement',
+    timestamp: '2026-10-09T18:23:52.5442125Z',
+    title: 'Refine Champion Overview icon scaling, profile dial, and hover notes',
+    summary:
+      'Preserved direct Data Dragon image delivery while resizing ability artwork appropriately, tightened the playstyle dial, and standardized Champion Detail hover notes on the shared UI treatment.',
+    details: [
+      'Moved selected ability artwork beside its name at a native-friendly 64–80 pixel display size instead of enlarging a 64-pixel source into a large panel; GameIconImage remains unoptimized and never uses a Vercel image transformation.',
+      'Reduced the visual gaps between playstyle metric sectors and replaced the remaining Lucide glyphs with the shared Riot stat-icon atlas used by the Augment Builder.',
+      'Removed the Lore at a glance heading and replaced every native title tooltip in Champion Detail with HeaderHoverNote, including champion metadata, playstyle metrics, ability tabs, and completed or future sidebar tabs.',
+      'Removed red active-state and header wash styling from the sidebar, centered the collapsed toggle by eliminating a collapsed-state flex gap, and kept labels in place for clipped rail transitions.',
+    ],
+    impact: [
+      'Ability artwork remains sharp without adding image optimization cost or a new remote asset dependency.',
+      'Champion Detail help affordances now match the application\'s existing hover-note styling instead of invoking browser-native tooltips.',
+      'The compact sidebar is visually neutral and aligns its only top control correctly when collapsed.',
+    ],
+    files: [
+      'components/champion-profile.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 167 tests passed.',
+      'Champion Detail no longer contains native title tooltip attributes; hoverable champion metadata, metric glyphs, ability tabs, and future section tabs use HeaderHoverNote.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-09-champion-overview-source-and-interaction-refinement',
+    patch: 'patch-2026-10-09-champion-overview-source-and-interaction-refinement',
+    timestamp: '2026-10-09T17:24:39.0633641Z',
+    title: 'Ground Aatrox overview copy and playstyle visuals in Riot data',
+    summary:
+      'Replaced generated Aatrox lore with Riot\'s published champion description, rebuilt the profile dial from official client metadata, and refined navigation and ability presentation behavior.',
+    details: [
+      'Stored the exact current Aatrox short biography from the official League of Legends champion page with an explicit source record; the page remains static and makes no runtime Riot request.',
+      'Changed the playstyle diagram from arbitrary ring segments into five semantic metric sectors backed by Riot client metadata: damage 3, durability 3, crowd control 2, mobility 2, and utility 2.',
+      'Reused the Augment Builder\'s shared AP and AD atlas icons for the style spectrum and positioned Aatrox\'s marker 90 percent toward attack damage.',
+      'Enlarged the selected ability artwork, removed its decorative background, and matched its dark-gold frame to the ability tabs; restored rounded tab corners at the outer edges.',
+      'Removed Eternals milestone-count badges and the future-sections note. Sidebar labels now remain mounted and animate through clipped width and opacity transitions while the rail changes width; All champions is a dedicated control above the section list.',
+    ],
+    impact: [
+      'Champion lore can be audited directly to Riot\'s official profile, and future champion records have a structured source field rather than undocumented prose.',
+      'The playstyle display more accurately communicates the client\'s underlying capability scores while preserving the visual language of the supplied Riot reference.',
+      'Sidebar collapse and expansion no longer causes instant label insertion or removal that can disturb the rail\'s layout.',
+    ],
+    files: [
+      'components/champion-profile.tsx',
+      'lib/champion-hub.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 167 tests passed.',
+      'Champion Hub catalogue tests now assert the official lore provenance and the five sourced playstyle metric values for Aatrox.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-09-champion-overview-visual-polish',
+    patch: 'patch-2026-10-09-champion-overview-visual-polish',
+    timestamp: '2026-10-09T05:16:28.6952931Z',
+    title: 'Polish the Aatrox overview combat, abilities, and Eternals surfaces',
+    summary:
+      'Brought the combat profile closer to Riot\'s segmented circular presentation, clarified ability selection, and simplified Eternals and footer chrome.',
+    details: [
+      'Rebuilt the static combat profile dial with concentric dark-teal rings, cyan segments, spokes, central marker, and surrounding role glyphs inspired by the supplied official reference.',
+      'Added the missing Style spectrum between skirmish and brawler markers beneath the class icon, while retaining the existing damage and difficulty data.',
+      'Removed redundant ability labels and the default-selection note; enlarged tab artwork with dark-gold borders and made the active tab prominent through a gold-edged gradient and selection bar.',
+      'Removed Progression and source-link chrome from Eternals, then elevated Series cards with milestone counts, gradient treatments, glow accents, and individual milestone rails.',
+      'Removed the redundant Browse champions and Riot profile footer controls; the sidebar and ability-level official link remain available navigation paths.',
+    ],
+    impact: [
+      'The Champion Overview now more faithfully expresses Riot\'s familiar playstyle visual language without adding animation or runtime data requests.',
+      'Ability selection is more discoverable, while Eternals receive stronger visual separation without exposing unnecessary page-level source controls.',
+    ],
+    files: [
+      'components/champion-profile.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 167 tests passed.',
+      'A first typecheck correctly identified an unavailable Fist export in the installed lucide-react version; it was replaced with the supported Shield glyph before the final passing verification.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-09-champion-overview-information-refinement',
+    patch: 'patch-2026-10-09-champion-overview-information-refinement',
+    timestamp: '2026-10-09T03:32:55.7391070Z',
+    title: 'Refine the Aatrox Champion Overview information architecture',
+    summary:
+      'Reworked the Aatrox overview around in-app class and lane iconography, a static combat chart, a unified ability inspector, and sourced Eternals milestones.',
+    details: [
+      'Removed the Champion Overview eyebrow and the Playstyle panel, leaving lore and the visual combat profile as the focused overview content.',
+      'Added typed class and lane metadata to the Champion Hub catalogue; the detail hero now presents Riot class icons and every established lane icon, with supported lanes visibly emphasized.',
+      'Removed the combat profile label, placed class icons directly beside Style, combined the difficulty name and tier on one line, and changed the radial diagram from a rotating rune to a static segmented combat graphic.',
+      'Combined ability selection and selected-ability details into one bordered panel with flush horizontal tabs, and removed the Pick an ability to inspect heading.',
+      'Replaced provisional Aatrox Eternals copy with six Series 1 and Series 2 milestone facts sourced from the public League of Legends Wiki; source content is stored statically and is not fetched at runtime.',
+    ],
+    impact: [
+      'Visitors can identify Aatrox class and lane context through the app\'s established icon assets without text-heavy metadata chips.',
+      'The overview has a more direct visual hierarchy while preserving accessible names, keyboard-selectable ability tabs, and an external source link for Eternals data.',
+      'Future Champion Hub entries can declare multiple classes and lanes using the same typed catalogue fields.',
+    ],
+    files: [
+      'components/champion-profile.tsx',
+      'lib/champion-hub.ts',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 167 tests passed.',
+      'git diff --check passed. The prior local dev server was no longer accepting connections, so no parallel dev server or production build was started.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-08-champion-directory-card-refinement',
+    patch: 'patch-2026-10-08-champion-directory-card-refinement',
+    timestamp: '2026-10-08T21:50:26.4295973Z',
+    title: 'Streamline Champion Directory cards and repair priority image loading',
+    summary:
+      'Removed the Champion Hub introduction and result count from the directory, simplified champion cards around class and lane markers, and fixed the champion detail image-loading error.',
+    details: [
+      'Removed the top Champion Hub panel, directory availability count, card portrait, and Explore champion prompt so the directory opens directly into its searchable catalogue.',
+      'Added stacked, role-aware Lucide class markers to each card and a lane marker anchored at the bottom of the same rail; the helper safely supports future multi-class role strings.',
+      'Kept card hover interaction to image zoom and upward movement only, without changing the card border on hover.',
+      'Updated GameIconImage so priority images no longer receive an incompatible lazy loading prop, fixing the Aatrox detail-page runtime error.',
+    ],
+    impact: [
+      'Champion cards are less visually crowded while retaining class and lane context at a glance.',
+      'Champion detail pages can render priority portrait icons without triggering a Next.js image-prop exception.',
+    ],
+    files: [
+      'components/champion-directory.tsx',
+      'components/game-asset-image.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository’s existing seven img-element warnings; typecheck passed; 36 Vitest files and 167 tests passed.',
+      'The existing local dev server returned HTTP 200 for /champions and /champions/aatrox, and the Aatrox response did not contain the former priority-plus-lazy image error. No production build was run because the dev server was active.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-08-champion-hub-aatrox-overview',
+    patch: 'patch-2026-10-08-champion-hub-aatrox-overview',
+    timestamp: '2026-10-08T18:08:43.9435644Z',
+    title: 'Launch the Aatrox Champion Hub overview foundation',
+    summary:
+      'Added the first Champion Hub directory and Aatrox overview page with a searchable champion entry, reusable detail shell, ability inspection, static overview content, and responsive navigation access.',
+    details: [
+      'Added /champions and /champions/aatrox routes backed by a typed hand-authored Champion Hub catalogue that keeps durable overview copy separate from generated gameplay catalogues.',
+      'Built the Aatrox overview with a collapsible section rail, champion hero, lore and playstyle panels, combat profile, selectable passive/Q/W/E/R ability panels, Riot profile link, and scoped future-section placeholders.',
+      'Added Champion Hub entry points to desktop and drawer League Tools navigation, using existing Data Dragon CDN image handling and local static data only.',
+      'Added motion-safe rune and splash reveal treatments, including reduced-motion fallbacks, without adding runtime Riot data requests or user data collection.',
+    ],
+    impact: [
+      'Visitors can discover the Champion Hub, search its initial Aatrox entry, and explore a polished overview without an account or API request.',
+      'Future champions and completed tabs can reuse the same typed catalogue, metadata route, sidebar, and ability presentation without coupling to quiz gameplay data.',
+    ],
+    files: [
+      'app/champions/page.tsx',
+      'app/champions/[slug]/page.tsx',
+      'components/champion-directory.tsx',
+      'components/champion-profile.tsx',
+      'components/app-header.tsx',
+      'components/app-navigation-drawer.tsx',
+      'lib/champion-hub.ts',
+      'app/globals.css',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run lint passed with only the repository’s existing seven img-element warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
+      'npm run typecheck passed.',
+      'npm run test:run passed: 36 files and 167 tests, including the new Champion Hub catalogue coverage.',
+      'git diff --check passed; the existing local dev server returned HTTP 200 for /champions and /champions/aatrox. No production build was run because the dev server was active.',
+    ],
+  },
+  {
     id: 'patch-2026-10-07-token-mapping-cache-invalidation-news',
     patch: 'patch-2026-10-07-token-mapping-cache-invalidation-news',
     timestamp: '2026-10-07T17:54:46.0202622Z',

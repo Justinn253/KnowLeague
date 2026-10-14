@@ -41,8 +41,8 @@ export function GameSplashImage({ quality = 65, loading, priority, ...props }: G
  * assets. Serve them directly to avoid a Vercel image transformation/cache
  * entry for every icon size.
  */
-export function GameIconImage({ loading = 'lazy', ...props }: GameIconImageProps) {
+export function GameIconImage({ loading, priority, ...props }: GameIconImageProps) {
   // `ImageProps` requires alt; it is forwarded through the wrapper.
   // eslint-disable-next-line jsx-a11y/alt-text
-  return <Image {...props} loading={loading} unoptimized />;
+  return <Image {...props} priority={priority} {...(priority ? {} : { loading: loading ?? 'lazy' })} unoptimized />;
 }

@@ -17,6 +17,7 @@ import {
   Menu,
   Package,
   Search,
+  Swords,
   Trophy,
   TrendingUp,
   UserCircle,
@@ -435,7 +436,9 @@ function GameMenuLinks({ onSelect }: { onSelect: () => void }) {
 function LeagueToolsMenuItems({ onSelect }: { onSelect: () => void }) {
   return (
     <>
-      <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">League Account Viewer</p>
+      <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Champion Hub</p>
+      <HeaderMenuLink href="/champions" label="Browse Champions" description="Abilities, lore, and playstyles" icon={Swords} iconClassName="border-red-200/25 bg-red-400 text-slate-950" onSelect={onSelect} />
+      <p className="mt-2 border-t border-white/10 px-1 pt-3 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">League Account Viewer</p>
       <HeaderMenuLink href="/riot-account-viewer" label="Search Account" description="League Account Viewer" icon={Search} iconClassName="border-cyan-200/25 bg-cyan-300 text-slate-950" onSelect={onSelect} />
       <HeaderMenuLink href="/riot-account-viewer/popular" label="Most Popular Accounts" description="Top searched accounts" icon={TrendingUp} iconClassName="border-amber-200/25 bg-amber-300 text-slate-950" onSelect={onSelect} />
       <HeaderMenuLink href="/riot-account-viewer/token-leaderboards" label="Token Leaderboards" description="League Challenges" icon={Trophy} iconClassName="border-amber-200/25 bg-amber-300 text-slate-950" onSelect={onSelect} />

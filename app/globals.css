@@ -144,6 +144,26 @@ select {
   animation: slide-in 0.45s ease-out;
 }
 
+@keyframes champion-rune-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes champion-splash-reveal {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+}
+
 @keyframes game-card-arrow-drift {
   0%,
   100% {
@@ -165,6 +185,13 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .animate-\[champion-rune-spin_18s_linear_infinite\],
+  .animate-\[champion-rune-spin_20s_linear_infinite\],
+  .animate-\[champion-rune-spin_26s_linear_infinite\],
+  .animate-\[champion-splash-reveal_900ms_ease-out_both\] {
+    animation: none;
+  }
+
   .group:hover .game-card-arrow {
     animation: none;
     transform: translateX(4px);

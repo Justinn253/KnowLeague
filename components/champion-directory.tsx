@@ -1,41 +1,39 @@
 'use client';
 
 import Link from 'next/link';
-import { Crosshair, HeartHandshake, MapPin, Search, Shield, Swords, WandSparkles, type LucideIcon } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { GameSplashImage } from '@/components/game-asset-image';
-import type { ChampionHubChampion } from '@/lib/champion-hub';
+import { GameIconImage, GameSplashImage } from '@/components/game-asset-image';
+import { type ChampionHubClass, type ChampionHubDirectoryChampion, type ChampionHubLane } from '@/lib/champion-hub';
 
 type ChampionDirectoryProps = {
-  champions: readonly ChampionHubChampion[];
+  champions: readonly ChampionHubDirectoryChampion[];
 };
 
-const classIcons: Record<string, { icon: LucideIcon; label: string }> = {
-  assassin: { icon: Crosshair, label: 'Assassin' },
-  fighter: { icon: Swords, label: 'Fighter' },
-  mage: { icon: WandSparkles, label: 'Mage' },
-  marksman: { icon: Crosshair, label: 'Marksman' },
-  support: { icon: HeartHandshake, label: 'Support' },
-  tank: { icon: Shield, label: 'Tank' },
+const classIconByClass: Record<ChampionHubClass, string> = {
+  Assassin: '/class-icons/assassin.png',
+  Fighter: '/class-icons/fighter.png',
+  Mage: '/class-icons/mage.png',
+  Marksman: '/class-icons/marksman.png',
+  Support: '/class-icons/support.png',
+  Tank: '/class-icons/tank.png',
 };
 
-function championMatchesSearch(champion: ChampionHubChampion, normalizedQuery: string) {
+const laneIconByLane: Record<ChampionHubLane, string> = {
+  Top: '/role-icons/roleicon_top.png',
+  Jungle: '/role-icons/roleicon_jungle.png',
+  Mid: '/role-icons/roleicon_middle.png',
+  Support: '/role-icons/roleicon_utility.png',
+  Bot: '/role-icons/roleicon_bottom.png',
+};
+
+function championMatchesSearch(champion: ChampionHubDirectoryChampion, normalizedQuery: string) {
   if (!normalizedQuery) return true;
 
   return [champion.name, champion.title, champion.role, champion.lane, ...champion.searchTerms]
     .join(' ')
     .toLocaleLowerCase()
     .includes(normalizedQuery);
-}
-
-function getChampionClassIcons(role: string) {
-  const icons = role
-    .toLocaleLowerCase()
-    .split(/[,&/]+/)
-    .map((entry) => classIcons[entry.trim()])
-    .filter((entry): entry is { icon: LucideIcon; label: string } => Boolean(entry));
-
-  return icons.length ? icons : [classIcons.fighter];
 }
 
 export function ChampionDirectory({ champions }: ChampionDirectoryProps) {
@@ -88,14 +86,17 @@ export function ChampionDirectory({ champions }: ChampionDirectoryProps) {
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.02),rgba(2,6,23,0.95)_78%)]" />
                   <div className="pointer-events-none absolute -left-1/2 top-0 h-full w-1/3 -skew-x-12 bg-white/10 opacity-0 blur-md transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100" />
                   <div className="absolute inset-y-5 right-4 z-10 flex flex-col items-center gap-2">
-                    {getChampionClassIcons(champion.role).map(({ icon: ClassIcon, label }) => (
-                      <span key={label} title={label} aria-label={label} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/75 text-amber-200 backdrop-blur">
-                        <ClassIcon size={17} aria-hidden="true" />
+                    {champion.classes.map((championClass) => (
+                      <span key={championClass} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/75 p-2 text-amber-200 backdrop-blur">
+                        <GameIconImage src={classIconByClass[championClass]} alt="" width={20} height={20} className="h-5 w-5 object-contain" />
+                        <span className="sr-only">{championClass}</span>
                       </span>
                     ))}
-                    <span title={`${champion.lane} lane`} className="mt-auto inline-flex flex-col items-center gap-1 rounded-xl border border-red-200/25 bg-red-950/65 px-1.5 py-2 text-[0.58rem] font-black uppercase tracking-[0.12em] text-red-100 backdrop-blur">
-                      <MapPin size={15} aria-hidden="true" />
-                      {champion.lane}
+                    <span className="mt-auto inline-flex min-h-9 flex-col items-center justify-center gap-1 rounded-xl border border-red-200/25 bg-red-950/65 p-2 text-red-100 backdrop-blur">
+                      {champion.lanes.map((lane) => (
+                        <GameIconImage key={lane} src={laneIconByLane[lane]} alt="" width={18} height={18} className="h-[1.125rem] w-[1.125rem] object-contain" />
+                      ))}
+                      <span className="sr-only">Plays in: {champion.lanes.join(', ')}</span>
                     </span>
                   </div>
                   <div className="absolute inset-x-0 bottom-0 p-5 pr-16">

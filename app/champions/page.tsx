@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { ChampionDirectory } from '@/components/champion-directory';
-import { getChampionHubChampions } from '@/lib/champion-hub';
+import { getChampionHubDirectoryChampions } from '@/lib/champion-hub';
 import { createPageMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = createPageMetadata({
@@ -11,5 +11,5 @@ export const metadata: Metadata = createPageMetadata({
 });
 
 export default function ChampionsPage() {
-  return <ChampionDirectory champions={getChampionHubChampions()} />;
+  return <ChampionDirectory champions={getChampionHubDirectoryChampions()} />;
 }

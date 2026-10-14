@@ -17,6 +17,348 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-14-champion-hub-all-overviews',
+    patch: 'patch-2026-10-14-champion-hub-all-overviews',
+    timestamp: '2026-10-14T22:06:30.8028385Z',
+    title: 'Establish a complete Champion Hub Overview catalogue',
+    summary:
+      'Expanded Champion Hub from the five-profile pilot to all 173 champions in the current pinned 16.20.1 roster, with a generated, local Overview baseline for each entry.',
+    details: [
+      'Replaced the bounded five-champion generator with a full-roster Overview generator that reads the current pinned Data Dragon 16.20.1 champion index, resolves each canonical Riot champion page from Riot’s public directory, and writes one checked-in local catalogue.',
+      'Validated every generated entry for five ability cards, non-empty official Riot-page overview lore, supported class tags, and at least one established lane from the local gameplay metadata catalogue before writing the data file.',
+      'Retained Aatrox’s manually reviewed Skins, Eternals, and detailed Gameplay Details records while supplying the shared header, lore, combat profile, and ability-overview baseline to every other champion.',
+      'Added deterministic combat-profile inference from official Data Dragon role and profile fields, preserving the already reviewed presentation values for Ahri, Akali, Akshan, and Alistar.',
+      'Added a conservative class-based lane fallback solely for newly released champions that are absent from the curated local lane catalogue; the current run uses it for Locke as Mid until curated lane metadata is available.',
+      'Added a compact directory-specific data selector so the client-side searchable grid receives only card/search fields rather than every champion’s lore and ability data.',
+      'Kept interactive Champion Detail client components data-free at module load time, so an individual profile serializes only its selected champion rather than importing the full overview catalogue into the browser bundle.',
+    ],
+    impact: [
+      'Players can browse, search, and open a working Overview page for every champion in the pinned catalogue.',
+      'Unfinished Skins, Gameplay Details, Eternals, Lore, and Voice Lines remain explicitly gated per champion, preserving accurate data boundaries while later passes fill those domains.',
+      'The Champion Hub now has a scalable local-data foundation for sequential tab-by-tab catalogue work without runtime Riot or CommunityDragon requests.',
+    ],
+    files: [
+      'scripts/generate-champion-hub-overviews.mjs',
+      'data/catalogs/champion-hub-overviews.json',
+      'package.json',
+      'lib/champion-hub.ts',
+      'components/champion-directory.tsx',
+      'app/champions/page.tsx',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:champion-hub-overviews completed successfully and generated 173 validated Overview records from pinned Data Dragon 16.20.1 and Riot champion pages.',
+      'npm run check passed: lint retained only the repository’s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-restore-aatrox-gameplay-details',
+    patch: 'patch-2026-10-14-restore-aatrox-gameplay-details',
+    timestamp: '2026-10-14T21:54:59.2856016Z',
+    title: 'Restore completed Aatrox Gameplay Details',
+    summary:
+      'Reactivated the existing Aatrox Gameplay Details route and shared navigation entry while retaining a safe Coming Soon state for profiles that do not yet have complete gameplay statistics and ability-detail catalogues.',
+    details: [
+      'Restored the direct /champions/aatrox/gameplay-details render path to the completed ChampionGameplayDetails component, including the statistics table, shared combat profile, ability detail tabs, scaling values, cooldowns, and gameplay-rule notes.',
+      'Added a shared data-readiness helper that requires both statistics and ability-detail records before Gameplay Details is active.',
+      'Changed the shared Champion Detail navigation to display Gameplay Details as available for Aatrox and preserve a locked, explanatory Coming Soon treatment for Ahri, Akali, Akshan, and Alistar until their detailed data is generated.',
+      'Updated direct-route metadata so the restored Aatrox page accurately describes its gameplay content instead of advertising it as unfinished.',
+    ],
+    impact: [
+      'Aatrox players can again use the sidebar, direct URL, and browser navigation to inspect the detailed gameplay panel that was already built.',
+      'New pilot profiles remain protected from blank or misleading Gameplay Details screens while the next data-generation phase is pending.',
+    ],
+    files: [
+      'lib/champion-hub.ts',
+      'components/champion-detail-shell.tsx',
+      'app/champions/[slug]/[tab]/page.tsx',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository’s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-hub-five-profile-pilot',
+    patch: 'patch-2026-10-14-champion-hub-five-profile-pilot',
+    timestamp: '2026-10-14T21:45:19.1704454Z',
+    title: 'Expand Champion Hub to a five-profile verified pilot',
+    summary:
+      'Added Ahri, Akali, Akshan, and Alistar beside Aatrox through a generated, local Champion Hub overview catalogue sourced at build time from Riot champion pages and Data Dragon.',
+    details: [
+      'Added a bounded generator that retrieves the five first-alphabetical pilot champions from pinned Data Dragon 14.24.1 detail records and extracts overview lore only from each public official League of Legends champion page.',
+      'Added a checked-in local catalogue containing champion identity, splash and portrait URLs, Riot-page lore, and the five overview abilities for Aatrox, Ahri, Akali, Akshan, and Alistar; visitors do not fetch these catalogues at runtime.',
+      'Connected Ahri, Akali, Akshan, and Alistar to the existing shared Champion Detail shell and Overview tab with their class icons, lane icons, combat profile, searchable directory entries, and browser-stable URLs.',
+      'Introduced an explicit per-champion Skins catalogue status: Aatrox remains available with its complete cosmetics data, while the four new pilots show the shared Skins Coming Soon state until authoritative cosmetic, chroma, and pricing data is fully catalogued.',
+      'Suppressed empty Eternals panels for baseline profiles instead of presenting incomplete or invented progression data, and updated the directory card icon stack to use the app’s official class and lane assets.',
+    ],
+    impact: [
+      'Players can now browse and search five working Champion Hub overview profiles in predictable alphabetical order.',
+      'Official lore provenance is preserved for every pilot profile, while unfinished data surfaces remain clearly unavailable rather than misleading.',
+      'The pilot establishes a repeatable, local-data workflow for the remaining champion catalogue without changing the established shared navigation or header contracts.',
+    ],
+    files: [
+      'scripts/generate-champion-hub-pilot.mjs',
+      'data/catalogs/champion-hub-pilot.json',
+      'package.json',
+      'lib/champion-hub.ts',
+      'components/champion-detail-shell.tsx',
+      'components/champion-directory.tsx',
+      'components/champion-profile.tsx',
+      'app/champions/[slug]/skins/page.tsx',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:champion-hub-pilot completed successfully against Riot champion pages and pinned Data Dragon 14.24.1 records.',
+      'npm run check passed: lint retained only the repository’s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-gameplay-details-coming-soon',
+    patch: 'patch-2026-10-14-champion-gameplay-details-coming-soon',
+    timestamp: '2026-10-14T21:26:48.1475003Z',
+    title: 'Park Gameplay Details as a Champion Hub Coming Soon tab',
+    summary:
+      'Moved Gameplay Details directly below Overview in the shared Champion Hub navigation and placed its route behind the consistent Coming Soon presentation while retaining the underlying Aatrox prototype for future activation.',
+    details: [
+      'Reordered the shared tab contract and sidebar so Gameplay Details follows Overview before Skins, Lore, and Voice lines for every champion.',
+      'Changed the shared navigation availability state to display Gameplay Details with the locked Coming Soon treatment and updated its hover description.',
+      'Changed direct /champions/[slug]/gameplay-details visits to render the shared Coming Soon page and matching metadata rather than bypassing the pending state.',
+      'Preserved the Aatrox gameplay-data generator, local catalogue, and Gameplay Details component without routing visitors to them, allowing the work to resume without recreating the data pipeline.',
+    ],
+    impact: [
+      'Players see a consistent unfinished-state experience regardless of whether they use sidebar navigation, a saved URL, or browser navigation.',
+      'The Champion Hub tab order now reflects the intended information hierarchy while the large gameplay dataset remains safely staged for later release.',
+    ],
+    files: [
+      'components/champion-detail-shell.tsx',
+      'app/champions/[slug]/[tab]/page.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-aatrox-client-tooltip-prototype',
+    patch: 'patch-2026-10-14-aatrox-client-tooltip-prototype',
+    timestamp: '2026-10-14T20:51:35.5971250Z',
+    title: 'Prototype client-derived detailed ability data for Aatrox',
+    summary:
+      'Replaced Aatrox’s manually summarized Gameplay Details ability values with a local, patch-pinned CommunityDragon client-data catalogue containing rank progressions, scaling, level scaling, and extended rules notes.',
+    details: [
+      'Added an Aatrox-only generator proof of concept that validates the public CommunityDragon 14.24 champion BIN and English localisation tooltip fields before emitting data/catalogs/champion-ability-details.json.',
+      'Generated full detail for Deathbringer Stance, The Darkin Blade, Infernal Chains, Umbral Dash, and World Ender, including cooldowns, base values, total-AD ratios, bonus-health scaling, level-based values, and grey extended-tooltip notes.',
+      'Added a typed optional detailed-tooltip contract to the Champion Hub catalogue. The Gameplay Details panel prefers this local structured detail and retains the prior facts/effects layout as a fallback for future entries that have not been generated yet.',
+      'Pinned source URLs and patch metadata inside the generated asset; visitors read only checked-in local data, so the Champion Hub does not request CommunityDragon at runtime.',
+    ],
+    impact: [
+      'Players can inspect Aatrox’s full rank progression and gameplay-rule notes in the Gameplay Details tab without entering the League client.',
+      'The bounded generator establishes an auditable extraction pattern before normalizers are expanded to champion kits with transformations, variants, or nonstandard calculations.',
+    ],
+    files: [
+      'package.json',
+      'scripts/generate-champion-ability-details.mjs',
+      'data/catalogs/champion-ability-details.json',
+      'lib/champion-hub.ts',
+      'components/champion-gameplay-details.tsx',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:champion-abilities -- aatrox completed successfully against the patch-pinned CommunityDragon source files.',
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-gameplay-stats-official-icons',
+    patch: 'patch-2026-10-14-champion-gameplay-stats-official-icons',
+    timestamp: '2026-10-14T20:11:36.2732699Z',
+    title: 'Refine Champion Hub gameplay statistics and iconography',
+    summary:
+      'Removed the Unit Radius group from Aatrox Gameplay Details and standardized live Champion Hub stat presentation on the official Riot in-game icon atlas.',
+    details: [
+      'Removed the Unit Radius catalogue group and its unsupported gameplay, selection, pathing, height, and acquisition values from the Aatrox statistics panel and its typed data contract.',
+      'Extracted a reusable ChampionStatIcon component backed by the existing local official Riot stat atlas at /augments/stat-icons.png, rather than using generic web or Lucide symbols for gameplay statistics.',
+      'Applied the shared icon component to the Gameplay Details stat table and the live shared combat/playstyle panel used by both Overview and Gameplay Details.',
+      'Documented that detailed gameplay-effect copy is maintained catalogue content, not client-side parsing or generated text, so its source boundary is explicit for future data-pipeline work.',
+    ],
+    impact: [
+      'Players see familiar League stat symbols and a more focused statistics panel without low-value radius internals.',
+      'Future Champion Hub tabs can reuse one official icon renderer instead of introducing inconsistent icon systems.',
+    ],
+    files: [
+      'components/champion-stat-icon.tsx',
+      'components/champion-combat-profile.tsx',
+      'components/champion-gameplay-details.tsx',
+      'lib/champion-hub.ts',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+      'Champion Hub catalogue coverage now verifies only the retained Base statistics and Attack speed groups.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-gameplay-details-foundation',
+    patch: 'patch-2026-10-14-champion-gameplay-details-foundation',
+    timestamp: '2026-10-14T19:58:19.2873289Z',
+    title: 'Launch the data-driven Aatrox Gameplay Details tab',
+    summary:
+      'Replaced the Gameplay Details placeholder with shared playstyle chrome, structured champion-stat panels, and selectable gameplay-relevant ability values for Aatrox.',
+    details: [
+      'Added a typed gameplayDetails catalogue contract for level-range statistics, grouped stat panels, and per-ability facts and effects, allowing future champions to use the same UI without embedding content in components.',
+      'Populated Aatrox with base, attack-speed, and unit-radius statistics plus concise ability values for cooldowns, costs, ranges, damage, AD scaling, healing, movement, and transformation effects. The initial snapshot identifies Riot Data Dragon 14.24.1 as its source.',
+      'Extracted the live Overview combat/playstyle panel into ChampionCombatProfile and render the same shared component in Gameplay Details, preventing the two tabs from drifting visually.',
+      'Activated the URL-backed /champions/[slug]/gameplay-details route and its shared sidebar tab while preserving the future-tab placeholders for Lore and Voice lines.',
+    ],
+    impact: [
+      'Players can inspect concise, gameplay-relevant ability details and core champion statistics without leaving the Champion Hub.',
+      'Future champion entries need only provide structured catalogue data to receive the same stats, playstyle, and ability-detail presentation.',
+    ],
+    files: [
+      'app/champions/[slug]/[tab]/page.tsx',
+      'components/champion-combat-profile.tsx',
+      'components/champion-detail-shell.tsx',
+      'components/champion-gameplay-details.tsx',
+      'components/champion-profile.tsx',
+      'lib/champion-hub.ts',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+      'Champion Hub coverage verifies the level range, all stat-group categories, and Aatrox Q cooldown, cost, base damage, and AD-scaling data.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-skins-splash-and-chroma-scale',
+    patch: 'patch-2026-10-14-champion-skins-splash-and-chroma-scale',
+    timestamp: '2026-10-14T19:29:24.4300501Z',
+    title: 'Restore skin splash brightness and compact chroma cards',
+    summary:
+      'Removed the full-splash dark overlay, halved desktop chroma card width, and removed contextual hover text from chroma model links.',
+    details: [
+      'Replaced the selected-splash side and full-height navy gradient with a short, subtle bottom-only scrim that protects the skin name without dimming the artwork.',
+      'Changed the chroma grid from three desktop columns to six, with responsive intermediate column counts, reducing desktop chroma cards to approximately half their prior width.',
+      'Removed the shared hover note from chroma 3D model links while retaining their accessible external-link label and visible action text.',
+    ],
+    impact: [
+      'Players can inspect selected skin splash art at its intended brightness.',
+      'Large chroma collections occupy less vertical space and present more options at once on desktop.',
+    ],
+    files: [
+      'components/champion-skins.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+      'The full-image overlay was replaced with a bottom-only title scrim; no chroma model hover-note component remains in the Skins tab.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-skins-riot-rarity-and-chromas',
+    patch: 'patch-2026-10-14-champion-skins-riot-rarity-and-chromas',
+    timestamp: '2026-10-14T19:14:41.4138646Z',
+    title: 'Source Champion Hub rarity tiers and chroma art from Riot client data',
+    summary:
+      'Replaced inferred rarity presentation with traceable Riot client tier identifiers, corrected chroma artwork URLs, and simplified chroma section copy.',
+    details: [
+      'Recorded each Aatrox skin’s exact CommunityDragon/Riot client rarity identifier and derive the display tier from that identifier. The type system now supports Common, Rare, Epic, Legendary, Mythic, Ultimate, Exalted, and Transcendent tiers for future catalogues.',
+      'Added the official local Riot client gem PNGs for Epic, Legendary, Mythic, Ultimate, Exalted, and Transcendent; Common and Rare do not display an invented gem because the client supplies none for those classifications.',
+      'Corrected the CommunityDragon chroma route from the obsolete lol-game-data/assets path to the current v1/champion-chroma-images path, resolving broken chroma previews.',
+      'Renamed the chroma eyebrow to CHROMAS and removed the redundant direct-artwork note.',
+    ],
+    impact: [
+      'Players see accurate skin rarity treatment and functioning chroma previews.',
+      'Future Champion Hub catalogues can represent every current Riot client rarity without assigning decorative tiers manually.',
+    ],
+    files: [
+      'components/champion-skins.tsx',
+      'lib/champion-hub.ts',
+      'public/rarity-icons/epic.png',
+      'public/rarity-icons/legendary.png',
+      'public/rarity-icons/mythic.png',
+      'public/rarity-icons/ultimate.png',
+      'public/rarity-icons/exalted.png',
+      'public/rarity-icons/transcendent.png',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+      'Representative corrected CommunityDragon chroma URLs (Paragon, Obsidian, and Ruby) each returned 200 image/png.',
+      'Champion Hub coverage asserts the full Aatrox Riot client rarity-to-display-tier mapping.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-skins-rarity-and-lore-sourcing',
+    patch: 'patch-2026-10-14-champion-skins-rarity-and-lore-sourcing',
+    timestamp: '2026-10-14T18:42:02.9915163Z',
+    title: 'Refine Aatrox skin collection metadata and rarity presentation',
+    summary:
+      'Simplified the Skins tab copy, added the supplied-style rarity gem sprite, and limited skin lore to exact Riot client descriptions when Riot provides one.',
+    details: [
+      'Removed the selected-skin and splash labels, consolidated the collection heading to “ALL AATROX SKINS,” and changed the collection count to the requested total-skins wording.',
+      'Added a transparent rarity gem sprite under public/rarity-icons and use it for selected and collection skin rarity markers; collection skin names now inherit a color that matches their rarity gem.',
+      'Replaced hand-authored skin lore with the exact local snapshot of Riot client cosmetic descriptions, stored as officialLore. The lore panel is omitted for cosmetics, including the base skin, where Riot does not provide a description.',
+      'Renamed Prestige Points pricing to Mythic Essence and removed hover notes from the previous/next skin controls and rarity markers.',
+    ],
+    impact: [
+      'Players see a less repetitive skin browser with clear rarity signals and the correct Mythic Essence terminology.',
+      'Skin lore no longer presents generated or paraphrased copy as official text, and unavailable official descriptions no longer create an empty lore surface.',
+    ],
+    files: [
+      'components/champion-skins.tsx',
+      'lib/champion-hub.ts',
+      'public/rarity-icons/skin-rarity-gems.png',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+      'Champion Hub coverage verifies a skin without official lore, a stored official Riot-client description, and the Mythic Essence display value.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-skins-tab-foundation',
+    patch: 'patch-2026-10-14-champion-skins-tab-foundation',
+    timestamp: '2026-10-14T17:24:23.5857988Z',
+    title: 'Launch the Aatrox Champion Hub Skins tab',
+    summary:
+      'Added URL-driven Aatrox skin browsing with shared Champion Detail chrome, direct Riot splash/chroma delivery, static cosmetic metadata, and Model Viewer links.',
+    details: [
+      'Extracted the Champion Detail navigation rail and champion header into ChampionDetailShell so Overview, Skins, and future tab URLs share one responsive implementation and active-tab treatment.',
+      'Added the /champions/[slug]/skins route with a skin query parameter; missing or invalid selections safely default to the base skin, while thumbnail and previous/next navigation produce browser-history entries.',
+      'Added a curated local snapshot of Aatrox cosmetic metadata: 13 skins, rarity, price, availability, skin line, optional lore, 28 chromas, and direct Model Viewer URLs. No runtime catalogue request is made.',
+      'Introduced GameDirectImage for unoptimized direct CDN delivery of the shared Champion Detail header, every skin splash, and every chroma preview, bypassing Vercel image transformations.',
+      'Added URL-backed placeholder pages for the remaining detail tabs so every side-navigation entry has a stable browser route while its content is prepared.',
+    ],
+    impact: [
+      'Players can browse Aatrox cosmetics, inspect lore and chromas where present, open the matching 3D model, and share a direct selected-skin URL.',
+      'Future Champion Detail tabs inherit navigation, header, tooltip, responsive behavior, and active-state changes automatically instead of duplicating the chrome.',
+    ],
+    files: [
+      'app/champions/[slug]/skins/page.tsx',
+      'app/champions/[slug]/[tab]/page.tsx',
+      'components/champion-detail-shell.tsx',
+      'components/champion-profile.tsx',
+      'components/champion-skins.tsx',
+      'components/game-asset-image.tsx',
+      'lib/champion-hub.ts',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+      'Champion Hub tests verify the base-skin fallback, direct Primordian skin lookup, Lunar Eclipse chroma count, and Aatrox Model Viewer link shape.',
+    ],
+  },
+  {
     id: 'patch-2026-10-09-champion-overview-active-navigation-state',
     patch: 'patch-2026-10-09-champion-overview-active-navigation-state',
     timestamp: '2026-10-09T19:57:38.9709397Z',

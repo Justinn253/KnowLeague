@@ -10,11 +10,12 @@ import {
   PanelLeftOpen,
 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
+import { ChampionCombatProfile } from '@/components/champion-combat-profile';
+import { ChampionDetailShell } from '@/components/champion-detail-shell';
 import { GameIconImage, GameSplashImage } from '@/components/game-asset-image';
 import { HeaderHoverNote } from '@/components/header-hover-note';
 import { AUGMENT_STAT_ICONS } from '@/lib/augment-builder';
 import {
-  CHAMPION_HUB_LANES,
   type ChampionHubAbility,
   type ChampionHubChampion,
   type ChampionHubClass,
@@ -50,6 +51,8 @@ const laneIconByLane: Record<ChampionHubLane, string> = {
   Bot: '/role-icons/roleicon_bottom.png',
 };
 
+const CHAMPION_LANE_ORDER: readonly ChampionHubLane[] = ['Top', 'Jungle', 'Mid', 'Support', 'Bot'];
+
 type AugmentStatIconName = keyof typeof AUGMENT_STAT_ICONS;
 
 function ChampionClassIcons({ champion, size = 18 }: { champion: ChampionHubChampion; size?: number }) {
@@ -69,7 +72,7 @@ function ChampionClassIcons({ champion, size = 18 }: { champion: ChampionHubCham
 function ChampionLaneIcons({ champion }: { champion: ChampionHubChampion }) {
   return (
     <span className="group relative flex items-center gap-1" aria-label={`${champion.name} lane availability`}>
-      {CHAMPION_HUB_LANES.map((lane) => {
+      {CHAMPION_LANE_ORDER.map((lane) => {
         const isAvailable = champion.lanes.includes(lane);
 
         return (
@@ -270,7 +273,8 @@ function ChampionNavigationLabel({ expanded, children }: { expanded: boolean; ch
   );
 }
 
-export function ChampionProfile({ champion }: ChampionProfileProps) {
+/** @deprecated Kept temporarily while the Champion Detail shell is extracted. */
+export function LegacyChampionProfile({ champion }: ChampionProfileProps) {
   const [navigationExpanded, setNavigationExpanded] = useState(true);
   const [selectedAbilityId, setSelectedAbilityId] = useState(champion.abilities.find((ability) => ability.slot === 'Q')?.id ?? champion.abilities[0].id);
   const selectedAbility = champion.abilities.find((ability) => ability.id === selectedAbilityId) ?? champion.abilities[0];
@@ -426,5 +430,76 @@ export function ChampionProfile({ champion }: ChampionProfileProps) {
         </div>
       </div>
     </main>
+  );
+}
+
+/** Overview content rendered inside the shared Champion Detail shell. */
+export function ChampionProfile({ champion }: ChampionProfileProps) {
+  const [selectedAbilityId, setSelectedAbilityId] = useState(champion.abilities.find((ability) => ability.slot === 'Q')?.id ?? champion.abilities[0].id);
+  const selectedAbility = champion.abilities.find((ability) => ability.id === selectedAbilityId) ?? champion.abilities[0];
+
+  return (
+    <ChampionDetailShell champion={champion} activeTab="overview">
+      <section aria-label={`${champion.name} overview`} className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
+          <p className="text-base leading-7 text-slate-200">{champion.lore}</p>
+        </article>
+        <ChampionCombatProfile champion={champion} />
+      </section>
+
+      <section aria-label={`${champion.name} ability kit`} className="relative z-10 overflow-visible rounded-2xl border border-white/10 bg-slate-950/80">
+        <div role="tablist" aria-label={`${champion.name} abilities`} className="grid grid-cols-5 divide-x divide-white/10 border-b border-white/10">
+          {champion.abilities.map((ability) => {
+            const isSelected = ability.id === selectedAbility.id;
+            return (
+              <button
+                key={ability.id}
+                id={`${ability.id}-tab`}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                aria-controls={`${ability.id}-panel`}
+                onClick={() => setSelectedAbilityId(ability.id)}
+                className={`group relative flex min-w-0 flex-col items-center gap-2 p-2 text-center transition first:rounded-tl-2xl last:rounded-tr-2xl focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-200 sm:flex-row sm:text-left sm:p-3 ${isSelected ? 'z-10 bg-[linear-gradient(135deg,rgba(120,53,15,0.58),rgba(69,26,3,0.72))] text-white shadow-[inset_0_0_0_1px_rgba(251,191,36,0.85)] after:absolute after:inset-x-0 after:bottom-0 after:h-1 after:bg-amber-300' : 'bg-slate-950/80 text-slate-300 hover:bg-slate-900'}`}
+              >
+                <span className="relative inline-flex h-12 w-12 shrink-0 overflow-hidden rounded-md border border-amber-700/80 sm:h-14 sm:w-14">
+                  <GameIconImage src={ability.imageUrl} alt="" width={56} height={56} className="h-full w-full object-cover" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[0.6rem] font-black uppercase tracking-[0.15em] text-amber-200">{ability.slot}</span>
+                  <span className="hidden truncate text-xs font-black sm:block">{ability.name}</span>
+                </span>
+                <HeaderHoverNote compact placement="above">{ability.name}</HeaderHoverNote>
+              </button>
+            );
+          })}
+        </div>
+        <div id={`${selectedAbility.id}-panel`} role="tabpanel" aria-labelledby={`${selectedAbility.id}-tab`} className="overflow-hidden rounded-b-2xl bg-slate-950/45">
+          <AbilityPanel ability={selectedAbility} champion={champion} />
+        </div>
+      </section>
+
+      {champion.eternals.length ? (
+        <section aria-labelledby="eternals-heading" className="rounded-2xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
+          <h2 id="eternals-heading" className="text-2xl font-black tracking-tight text-white sm:text-3xl">Eternals</h2>
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {champion.eternals.map((eternal) => (
+              <article key={eternal.series} className="relative overflow-hidden rounded-xl border border-amber-200/15 bg-[linear-gradient(135deg,rgba(120,53,15,0.17),rgba(15,23,42,0.9)_46%,rgba(69,10,10,0.3))] p-5 transition hover:border-amber-200/40 hover:bg-[linear-gradient(135deg,rgba(120,53,15,0.25),rgba(15,23,42,0.94)_46%,rgba(69,10,10,0.42))]">
+                <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-amber-300/10 blur-3xl" />
+                <p className="relative text-base font-black text-white">{eternal.series}</p>
+                <dl className="relative mt-4 grid gap-4">
+                  {eternal.milestones.map((milestone) => (
+                    <div key={milestone.name} className="border-l-2 border-amber-300/45 pl-3">
+                      <dt className="text-sm font-bold text-amber-100">{milestone.name}</dt>
+                      <dd className="mt-0.5 text-sm leading-6 text-slate-400">{milestone.description}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </ChampionDetailShell>
   );
 }

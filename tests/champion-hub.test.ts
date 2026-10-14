@@ -87,7 +87,7 @@ describe('Champion Hub catalogue', () => {
     ]);
   });
 
-  it('returns the complete Overview catalogue alphabetically and safely ignores unknown slugs', () => {
+  it('returns the complete Overview and Skins catalogues alphabetically and safely ignores unknown slugs', () => {
     const champions = getChampionHubChampions();
     const directoryChampions = getChampionHubDirectoryChampions();
     const ahri = getChampionHubChampion('ahri');
@@ -109,13 +109,30 @@ describe('Champion Hub catalogue', () => {
       classes: ['Mage', 'Assassin'],
       lanes: ['Mid'],
       damageType: 'Magic',
-      skinCatalogueStatus: 'coming-soon',
+      skinCatalogueStatus: 'complete',
     });
     expect(ahri?.loreSource).toEqual({
       label: 'Official League of Legends champion page',
       url: 'https://www.leagueoflegends.com/en-us/champions/ahri/',
     });
     expect(ahri?.abilities.map((ability) => ability.slot)).toEqual(['Passive', 'Q', 'W', 'E', 'R']);
+    expect(ahri?.skins[0]).toMatchObject({
+      id: '103000',
+      name: 'Ahri',
+      price: 'Included',
+      rarity: 'Common',
+    });
+    expect(ahri?.skins.find((skin) => skin.id === '103001')).toMatchObject({
+      name: 'Dynasty Ahri',
+      price: '975 RP',
+      officialLore: expect.any(String),
+    });
+    expect(champions.every((champion) => (
+      champion.skinCatalogueStatus === 'complete'
+      && champion.skins.length > 0
+      && champion.skins[0].name === champion.name
+      && champion.skins[0].price === 'Included'
+    ))).toBe(true);
     expect(akali?.lanes).toEqual(['Top', 'Mid']);
     expect(akshan?.primaryCombatStyle).toBe('Basic attacks');
     expect(alistar?.playstyle).toEqual({ damage: 1, durability: 3, crowdControl: 3, mobility: 2, utility: 3 });
@@ -130,10 +147,14 @@ describe('Champion Hub catalogue', () => {
 
   it('resolves direct skin links and defaults invalid selections to the base skin', () => {
     const aatrox = getChampionHubChampion('aatrox');
+    const ahri = getChampionHubChampion('ahri');
 
     expect(aatrox).toBeDefined();
+    expect(ahri).toBeDefined();
     expect(getChampionHubSkin(aatrox!, '266033').name).toBe('Primordian Aatrox');
     expect(getChampionHubSkin(aatrox!, 'does-not-exist').id).toBe('266000');
     expect(getChampionHubSkin(aatrox!).id).toBe('266000');
+    expect(getChampionHubSkin(ahri!, '103001').name).toBe('Dynasty Ahri');
+    expect(getChampionHubSkin(ahri!, 'does-not-exist').id).toBe('103000');
   });
 });

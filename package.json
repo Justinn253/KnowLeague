@@ -7,6 +7,7 @@
     "data:generate": "node scripts/generate-catalogs.mjs",
     "data:generate:champion-abilities": "node scripts/generate-champion-ability-details.mjs",
     "data:generate:champion-hub-overviews": "node scripts/generate-champion-hub-overviews.mjs",
+    "data:generate:champion-hub-gameplay-details": "node scripts/generate-champion-hub-gameplay-details.mjs",
     "data:generate:champion-hub-skins": "node scripts/generate-champion-hub-skins.mjs",
     "data:generate:augment-archive": "node scripts/generate-official-augment-catalog.mjs",
     "data:generate:randodraft": "node scripts/generate-randodraft-catalog.mjs",

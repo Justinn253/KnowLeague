@@ -162,7 +162,7 @@ function GameplayAbilities({ champion }: { champion: ChampionHubChampion }) {
     <section aria-labelledby="gameplay-abilities-heading" className="relative z-10 overflow-visible rounded-2xl border border-white/10 bg-slate-950/80">
       <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
         <h2 id="gameplay-abilities-heading" className="text-2xl font-black tracking-tight text-white sm:text-3xl">Ability details</h2>
-        <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Riot game-data snapshot</span>
+        <span className="text-right text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{champion.gameplayDetails.source.label}</span>
       </div>
       <div role="tablist" aria-label={`${champion.name} gameplay abilities`} className="grid grid-cols-5 divide-x divide-white/10 border-b border-white/10">
         {champion.gameplayDetails.abilities.map((gameplayAbility) => {

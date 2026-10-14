@@ -17,6 +17,40 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-14-champion-hub-full-gameplay-details',
+    patch: 'patch-2026-10-14-champion-hub-full-gameplay-details',
+    timestamp: '2026-10-14T22:50:04.4214267Z',
+    title: 'Activate Champion Hub Gameplay Details across the roster',
+    summary:
+      'Added a generated, local Gameplay Details catalogue for every Champion Hub profile, activating the shared statistics and detailed ability view for all 173 champions.',
+    details: [
+      'Added a full-roster gameplay generator that writes local Level 1 through 20 base-stat tables, including health, resource, regeneration, armor, attack damage, magic resistance, critical damage, movement speed, attack range, and attack-speed rows without reintroducing the removed Unit Radius section.',
+      'Generated five detailed ability records per champion with source-provided gameplay descriptions, cooldowns, costs, rank progressions, base values, and AD/AP scaling where the structured data exposes them. The presentation intentionally limits long effect lists to the most relevant values rather than dumping every implementation detail.',
+      'Used the structured public League gameplay catalogue for 171 current profiles. Locke and Zaahen are newer than that catalogue snapshot, so their pages use a clear, local Data Dragon 16.20.1 fallback for statistics, ability descriptions, cooldowns, costs, and available effect values rather than leaving the tab blank.',
+      'Corrected stat normalization so base attack speed is presented as a rate while attack-speed growth remains in the separate bonus-attack-speed row.',
+      'Kept the bespoke Aatrox CommunityDragon client-tooltip extraction, rank values, extended notes, and reviewed presentation intact; all other profiles consume the new generated Gameplay Details catalogue.',
+      'Changed the shared Gameplay Details header to display each profile’s actual local source label instead of claiming all detail records are a Riot client snapshot.',
+    ],
+    impact: [
+      'Players can use the shared Gameplay Details tab, direct route, and browser history for every champion instead of encountering a locked placeholder.',
+      'Gameplay values are served from checked-in local JSON at runtime; source retrieval occurs only during an explicit maintainer generation command.',
+      'The source label makes the temporary Data Dragon fallback visible for the two newest champions, avoiding a misleading claim of uniform source coverage.',
+    ],
+    files: [
+      'scripts/generate-champion-hub-gameplay-details.mjs',
+      'data/catalogs/champion-hub-gameplay-details.json',
+      'package.json',
+      'lib/champion-hub.ts',
+      'components/champion-gameplay-details.tsx',
+      'tests/champion-hub.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:champion-hub-gameplay-details completed successfully and generated complete Gameplay Details profiles for all 173 Overview entries.',
+      'npm run check passed: lint retained only the repository’s existing seven img-element warnings; typecheck passed; 36 Vitest files and 168 tests passed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-14-champion-hub-full-skins',
     patch: 'patch-2026-10-14-champion-hub-full-skins',
     timestamp: '2026-10-14T22:28:46.3853303Z',

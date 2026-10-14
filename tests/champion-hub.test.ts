@@ -136,7 +136,19 @@ describe('Champion Hub catalogue', () => {
     expect(akali?.lanes).toEqual(['Top', 'Mid']);
     expect(akshan?.primaryCombatStyle).toBe('Basic attacks');
     expect(alistar?.playstyle).toEqual({ damage: 1, durability: 3, crowdControl: 3, mobility: 2, utility: 3 });
-    expect(hasChampionGameplayDetails(ahri!)).toBe(false);
+    expect(hasChampionGameplayDetails(ahri!)).toBe(true);
+    expect(ahri?.gameplayDetails).toMatchObject({
+      levelLabel: 'Level 1 → 20',
+      source: {
+        label: 'Structured League gameplay data',
+      },
+    });
+    expect(ahri?.gameplayDetails.statGroups.map((group) => group.title)).toEqual(['Base statistics', 'Attack speed']);
+    expect(ahri?.gameplayDetails.abilities.find((ability) => ability.abilityId === 'ahri-q')?.detail?.progression).toEqual(expect.arrayContaining([
+      { label: 'Cooldown', values: ['7', '7', '7', '7', '7'] },
+      { label: 'Damage Per Pass', values: ['40 + 50% AP', '65 + 50% AP', '90 + 50% AP', '115 + 50% AP', '140 + 50% AP'] },
+    ]));
+    expect(champions.every((champion) => hasChampionGameplayDetails(champion))).toBe(true);
     expect(wukong).toMatchObject({
       name: 'Wukong',
       slug: 'monkeyking',

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Gamepad2, LogIn, UserPlus } from 'lucide-react';
+import { ArrowRight, Gamepad2, LogIn, Swords, UserPlus } from 'lucide-react';
 import { GameIconImage, GameSplashImage } from '@/components/game-asset-image';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -189,6 +189,24 @@ export function LandingPage({ newsPanel }: { newsPanel?: ReactNode }) {
                 Your League profile
               </SmallActionLink>
             ) : null}
+          </LandingCard>
+
+          <LandingCard
+            href="/champions"
+            title="Champion Catalogue"
+            description="Browse every League champion by name, lane, and class. Explore their overview, skins, chromas, and gameplay details."
+            icon={<Swords size={42} className="text-red-100" />}
+            theme={{
+              border: 'border-red-300/45 hover:border-red-200/75',
+              icon: 'border-red-200/45 bg-red-400/10 text-red-100',
+              divider: 'text-red-200/80',
+              title: 'group-hover:text-red-100',
+            }}
+            backgroundImage="/game-snapshots/champion_catalogue.png"
+          >
+            <SmallActionLink fullWidth href="/champions" icon={<ArrowRight size={15} />} className="border-red-200/45 bg-red-400/15 text-red-100 hover:border-red-100 hover:bg-red-400/25 focus:ring-red-100">
+              Browse catalogue
+            </SmallActionLink>
           </LandingCard>
 
           <LandingCard

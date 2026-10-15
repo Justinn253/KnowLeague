@@ -17,6 +17,159 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-14-champion-catalogue-landing-image',
+    patch: 'patch-2026-10-14-champion-catalogue-landing-image',
+    timestamp: '2026-10-14T23:52:40.3930720Z',
+    title: 'Use the Champion Catalogue directory preview on the home card',
+    summary:
+      'Replaced the single-champion remote splash on the Champion Catalogue home card with the supplied local Champion Catalogue directory preview.',
+    details: [
+      'Added the user-supplied champion_catalogue.png to the existing public game-snapshots asset folder.',
+      'Updated the Champion Catalogue landing card to use the local preview, which immediately conveys the searchable multi-champion directory instead of one representative champion.',
+      'Using the local static asset removes the card\'s dependency on a remote Riot splash request while keeping the established landing-card image treatment.',
+    ],
+    impact: [
+      'Players can recognize the Champion Catalogue card from its directory grid before opening it.',
+      'The home page receives a local, cacheable image asset with no new runtime data dependency.',
+    ],
+    files: [
+      'public/game-snapshots/champion_catalogue.png',
+      'components/landing-page.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Verified the supplied PNG is present at the public game-snapshots path and visually matches the uploaded Champion Catalogue directory image.',
+      'npm run check passed: lint retained only the repository\'s existing img-element warnings; typecheck passed; Vitest passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-catalogue-launch-surfaces',
+    patch: 'patch-2026-10-14-champion-catalogue-launch-surfaces',
+    timestamp: '2026-10-14T23:43:05.8705304Z',
+    title: 'Promote the Champion Catalogue across KnowLeague surfaces',
+    summary:
+      'Added a Champion Catalogue entry to the home, desktop/mobile navigation, and public News feed while compacting the directory filter option menus.',
+    details: [
+      'Removed lane and class option descriptions plus the redundant dropdown helper copy, leaving the Champion Directory menus focused on the selectable lane or class labels.',
+      'Added a Champion Catalogue landing card between League Account Viewer and Riftbound. It links to /champions and uses Riot Aatrox splash art, the established direct navigation pattern, and the red Champion Hub visual accent.',
+      'Renamed Browse Champions to Champion Catalogue in both the desktop header menu and mobile navigation drawer, preserving the existing /champions destination and explanatory subtitle.',
+      'Published Update 0.4.0 in the local News feed to announce the complete roster directory, filters, champion profiles, skins, chromas, and available Gameplay Details coverage.',
+    ],
+    impact: [
+      'Players now encounter a consistently named Champion Catalogue from the home page, primary navigation, and latest-news preview.',
+      'Filter menus are shorter and easier to scan without altering their selection behavior or accessibility semantics.',
+    ],
+    files: [
+      'components/champion-directory.tsx',
+      'components/landing-page.tsx',
+      'components/app-header.tsx',
+      'components/app-navigation-drawer.tsx',
+      'lib/news.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing img-element warnings; typecheck passed; Vitest passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-directory-filter-menu-width',
+    patch: 'patch-2026-10-14-champion-directory-filter-menu-width',
+    timestamp: '2026-10-14T23:38:21.4715058Z',
+    title: 'Expand Champion Directory filter menus beyond their triggers',
+    summary:
+      'Gave the Champion Directory lane and class menus an independent, responsive content width while preserving their existing trigger sizing and left/right alignment.',
+    details: [
+      'Applied the shared AppSelectMenu menuClassName support to both Champion Directory filters with a responsive maximum width of 22rem and a viewport-safe mobile cap.',
+      'The lane menu remains anchored to the left of its trigger and the class menu remains anchored to the right, preventing a widened menu from drifting outside the directory controls.',
+      'No menu behavior, filter semantics, or shared AppSelectMenu styling rules changed outside the Champion Directory usage.',
+    ],
+    impact: [
+      'Lane and class descriptions have enough room to scan naturally instead of wrapping to the narrow dropdown-button width.',
+      'Players retain compact filter buttons while receiving a comfortably sized selection panel on desktop and mobile.',
+    ],
+    files: [
+      'components/champion-directory.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing img-element warnings; typecheck passed; Vitest passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-directory-lane-class-filters',
+    patch: 'patch-2026-10-14-champion-directory-lane-class-filters',
+    timestamp: '2026-10-14T23:35:00.1444283Z',
+    title: 'Add lane and class filters to the Champion Directory',
+    summary:
+      'Added shared-style, multi-select lane and champion-class dropdown filters to the Champion Directory without changing its direct navigation or search behavior.',
+    details: [
+      'Added the established AppSelectMenu treatment for lane and class filtering, including the existing dark trigger, amber selected state, accessible listbox semantics, outside-click dismissal, and app UI sounds.',
+      'Both filter controls support selecting multiple values. A champion matches any selected lane and any selected class, while the lane and class groups compose together with the existing text search.',
+      'Added explicit All lanes and All classes selections that clear their respective filters, preserving the prior unfiltered directory state by default.',
+      'Kept the directory cards, shared champion routes, alphabetical ordering, and search matching intact; the no-results guidance now also points players to the new controls.',
+    ],
+    impact: [
+      'Players can quickly narrow the full Champion Hub roster to lane and class combinations without needing to know a champion name.',
+      'The filters run entirely against the already-delivered compact directory catalogue; no runtime Riot or CommunityDragon request is introduced.',
+    ],
+    files: [
+      'components/champion-directory.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing img-element warnings; typecheck passed; Vitest passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-hub-selected-splash-brightness',
+    patch: 'patch-2026-10-14-champion-hub-selected-splash-brightness',
+    timestamp: '2026-10-14T23:21:33.0215041Z',
+    title: 'Render selected Champion Hub skin splashes at full brightness',
+    summary:
+      'Removed the shared header reveal animation from the selected skin splash after confirming its final opacity keyframe was dimming the artwork to 50 percent.',
+    details: [
+      'The selected skin view had no remaining color filter or gradient; however, it reused champion-splash-reveal, whose final animation state explicitly set opacity to 0.5.',
+      'Selected skin art now renders directly at full opacity while preserving the native 1215:717 frame, direct CDN delivery, navigation controls, and text-only name treatment.',
+      'The shared animation remains unchanged for the Champion Detail header, where its reduced opacity is an intentional part of the header design.',
+    ],
+    impact: [
+      'The selected splash now matches the brightness of its collection preview and the original Riot artwork.',
+      'No image transformation, runtime data request, or broader Champion Detail header styling changed.',
+    ],
+    files: [
+      'components/champion-skins.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing img-element warnings; typecheck passed; Vitest passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-14-champion-hub-skin-art-presentation',
+    patch: 'patch-2026-10-14-champion-hub-skin-art-presentation',
+    timestamp: '2026-10-14T23:16:22.0779065Z',
+    title: 'Preserve Champion Hub skin art without display overlays or cropping',
+    summary:
+      'Adjusted the shared Champion Hub Skins artwork presentation so selected and collection splashes retain their native Riot framing, color, and browser-native interpolation without Vercel image transformations.',
+    details: [
+      'Removed the full-width dark gradient layered over the selected skin splash; the selected skin name now uses a local text shadow only, leaving the artwork itself unfiltered.',
+      'Changed the selected-splash frame and collection preview frames to Riot\'s native 1215:717 splash ratio. Standard Riot splash artwork can therefore fill the frame while remaining fully visible, without cover-cropping or contain-mode side bars.',
+      'Removed the collection-preview gradient and reduced its hover enlargement so thumbnails are not unnecessarily darkened or resampled at a larger scale.',
+      'Explicitly retained browser-standard image interpolation for these direct CDN images. Verification of the version-pinned CommunityDragon alternate confirmed that it is also 1215 by 717, so the catalogue continues to use the existing direct Data Dragon originals rather than claiming a non-existent source-resolution improvement.',
+    ],
+    impact: [
+      'Players see the intended selected skin artwork brightness and the full standard splash composition at every responsive size.',
+      'Skin previews remain direct, unoptimized CDN images, avoiding Vercel image-transformation charges while preserving the highest consistent source resolution published for the full catalogue.',
+    ],
+    files: [
+      'components/champion-skins.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository\'s existing img-element warnings; typecheck passed; Vitest passed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-14-champion-hub-full-gameplay-details',
     patch: 'patch-2026-10-14-champion-hub-full-gameplay-details',
     timestamp: '2026-10-14T22:50:04.4214267Z',

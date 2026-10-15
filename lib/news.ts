@@ -15,6 +15,25 @@ export type NewsEntry = {
 /** Manually add a post for each production release or announcement. Keep IDs unique. Use major.minor.patch versions for updates. */
 export const NEWS_ENTRIES: readonly NewsEntry[] = [
   {
+    id: 'update-2026-10-14-champion-catalogue',
+    kind: 'update',
+    version: '0.4.0',
+    publishedAt: '2026-10-14T23:43:05.8705304Z',
+    title: 'Update 0.4.0 - Champion Catalogue',
+    summary: 'Browse the League roster and explore champion overviews, skins, and gameplay details.',
+    paragraphs: [],
+    sections: [
+      {
+        heading: 'New Feature',
+        items: [
+          'Champion Catalogue: browse all current champions and view their details.',
+          'Champion profiles: inspect official overview lore, combat style, abilities, skins, chromas, and available in-depth gameplay details.',
+          'Skin collections: navigate each champion’s cosmetics with release, price, availability, skin-line, rarity, official lore, chroma, and Model Viewer information.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'update-2026-10-07-token-leaderboards',
     kind: 'update',
     version: '0.3.0',

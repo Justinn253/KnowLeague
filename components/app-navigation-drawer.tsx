@@ -115,7 +115,7 @@ export function AppNavigationDrawer({
                       <Swords size={18} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-black">Browse Champions</span>
+                      <span className="block text-sm font-black">Champion Catalogue</span>
                       <span className="mt-0.5 block text-xs text-slate-500">Abilities, lore, and playstyles</span>
                     </span>
                     <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />

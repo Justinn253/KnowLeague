@@ -141,16 +141,16 @@ function SelectedSkinSplash({ champion, selectedSkin, previousSkin, nextSkin }: 
   nextSkin?: ChampionHubSkin;
 }) {
   return (
-    <section aria-label={`${selectedSkin.name} splash art`} className="relative isolate min-h-[17rem] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 sm:min-h-[26rem]">
+    <section aria-label={`${selectedSkin.name} splash art`} className="relative isolate aspect-[1215/717] overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
       <GameDirectImage
         src={selectedSkin.splashUrl}
         alt={`${selectedSkin.name} splash art`}
         fill
         priority
         sizes="(min-width: 1280px) 720px, (min-width: 768px) 65vw, 100vw"
-        className="object-cover object-center animate-[champion-splash-reveal_500ms_ease-out_both]"
+        className="object-cover object-center"
+        style={{ imageRendering: 'auto' }}
       />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/55 to-transparent" />
       <div className="absolute inset-y-0 left-3 flex items-center sm:left-5">
         <SkinBrowseControl champion={champion} skin={previousSkin} direction="previous" />
       </div>
@@ -158,7 +158,7 @@ function SelectedSkinSplash({ champion, selectedSkin, previousSkin, nextSkin }: 
         <SkinBrowseControl champion={champion} skin={nextSkin} direction="next" />
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 p-5 sm:p-6">
-        <p className="text-xl font-black text-white sm:text-2xl">{selectedSkin.name}</p>
+        <p className="text-xl font-black text-white [text-shadow:0_2px_10px_rgb(2_6_23/0.95)] sm:text-2xl">{selectedSkin.name}</p>
       </div>
     </section>
   );
@@ -235,9 +235,15 @@ function SkinCatalogue({ champion, selectedSkin }: { champion: ChampionHubChampi
               aria-current={isSelected ? 'true' : undefined}
               className={`group relative overflow-hidden rounded-xl border text-left transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${isSelected ? 'border-amber-200/85 bg-amber-200/10 ring-1 ring-inset ring-amber-200/25' : 'border-white/10 bg-slate-900/60 hover:-translate-y-0.5 hover:border-amber-200/55'}`}
             >
-              <div className="relative aspect-[1.55] overflow-hidden bg-slate-950">
-                <GameDirectImage src={skin.splashUrl} alt={`${skin.name} splash art`} fill sizes="(min-width: 1280px) 190px, (min-width: 640px) 28vw, 48vw" className="object-cover object-center transition duration-300 group-hover:scale-[1.055]" />
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+              <div className="relative aspect-[1215/717] overflow-hidden bg-slate-950">
+                <GameDirectImage
+                  src={skin.splashUrl}
+                  alt={`${skin.name} splash art`}
+                  fill
+                  sizes="(min-width: 1280px) 250px, (min-width: 640px) 28vw, 48vw"
+                  className="object-cover object-center transition duration-300 group-hover:scale-[1.025]"
+                  style={{ imageRendering: 'auto' }}
+                />
                 <span className="absolute right-2 top-2"><RarityGem rarity={skin.rarity} /></span>
               </div>
               <div className="min-h-16 p-3">

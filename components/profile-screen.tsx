@@ -379,12 +379,16 @@ function SkincognitoStatsPanel({ stats }: { stats: SkincognitoDetailedStats }) {
 }
 
 function DiscordConnectionCard({
+  isAdmin,
   profile,
   onConnect,
+  onConfigureLeveling,
   onUnlink,
 }: {
+  isAdmin: boolean;
   profile: ProfileRecord | null;
   onConnect: () => void;
+  onConfigureLeveling: () => void;
   onUnlink: () => void;
 }) {
   const isLinked = Boolean(profile?.discord_username);
@@ -436,13 +440,24 @@ function DiscordConnectionCard({
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={isLinked ? onUnlink : onConnect}
-          className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-[#5865F2]/40 bg-[#5865F2] px-4 text-sm font-bold text-white transition hover:bg-[#4752C4]"
-        >
-          {isLinked ? 'Unlink Discord' : 'Connect Discord'}
-        </button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={isLinked ? onUnlink : onConnect}
+            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#5865F2]/40 bg-[#5865F2] px-4 text-sm font-bold text-white transition hover:bg-[#4752C4]"
+          >
+            {isLinked ? 'Unlink Discord' : 'Connect Discord'}
+          </button>
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={onConfigureLeveling}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#b8c1ff]/35 bg-[#111a3a] px-4 text-sm font-bold text-[#d8ddff] transition hover:border-[#b8c1ff]/60 hover:bg-[#192552]"
+            >
+              Discord Configuration
+            </button>
+          ) : null}
+        </div>
       </div>
     </article>
   );
@@ -2642,8 +2657,10 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
 
                   <div className="grid gap-4 xl:grid-cols-2">
                     <DiscordConnectionCard
+                      isAdmin={appRole === 'admin'}
                       profile={profile}
                       onConnect={() => void connectDiscord()}
+                      onConfigureLeveling={() => router.push('/profile/discord/leveling')}
                       onUnlink={() => void unlinkDiscord()}
                     />
                     <RiotConnectionCard value={getLinkedValue(profile?.riot_account_name)} />

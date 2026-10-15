@@ -3,7 +3,8 @@
 ## Scope
 - This is the standalone, single-guild Discord companion for the root KnowLeague web app.
 - It is a long-running Node.js process. Do not move gateway handling into Next.js API routes.
-- Keep the bot limited to `GatewayIntentBits.Guilds` and guild-scoped slash commands unless the user explicitly authorizes a capability requiring additional intents.
+- Chat leveling uses `GatewayIntentBits.GuildMessages` to observe message events. It must not inspect or persist message content, and Message Content, Guild Members, and Presence intents must remain disabled unless a separately authorized feature requires them.
+- Keep every command guild-scoped and ignore events outside `DISCORD_GUILD_ID`.
 
 ## Data and identity
 - The bot reuses the website's existing `profile_private_details.discord_user_id` association. Never create an alternate linking table or persist a Discord token.

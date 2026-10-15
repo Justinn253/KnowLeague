@@ -1,0 +1,283 @@
+'use client';
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Check, CircleAlert, LoaderCircle, Plus, Save, Trash2, UsersRound, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AppSelectMenu } from '@/components/app-select-menu';
+import { ToggleSwitch } from '@/components/toggle-switch';
+import {
+  DEFAULT_DISCORD_LEVELING_SETTINGS,
+  getDiscordTotalXpForLevel,
+  getDiscordXpToNextLevel,
+  type DiscordGuildRole,
+  type DiscordLevelingRoleReward,
+  type DiscordLevelingSettings,
+} from '@/lib/discord-leveling';
+import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
+
+type LevelingSettingsResponse = {
+  leaderboardExcludedRoleIds: string[];
+  manualXpRoleIds: string[];
+  roleRewards: DiscordLevelingRoleReward[];
+  roles: DiscordGuildRole[];
+  settings: DiscordLevelingSettings;
+};
+
+const EMPTY_RESPONSE: LevelingSettingsResponse = {
+  leaderboardExcludedRoleIds: [],
+  manualXpRoleIds: [],
+  roleRewards: [],
+  roles: [],
+  settings: DEFAULT_DISCORD_LEVELING_SETTINGS,
+};
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat().format(value);
+}
+
+function CurveGraph() {
+  const entries = useMemo(() => Array.from({ length: 100 }, (_, index) => {
+    const level = index + 1;
+    return { level, totalXp: getDiscordTotalXpForLevel(level), xpToNextLevel: getDiscordXpToNextLevel(level) };
+  }), []);
+  const [hoveredLevel, setHoveredLevel] = useState<number | null>(null);
+  const width = 800;
+  const height = 280;
+  const left = 72;
+  const right = 24;
+  const top = 20;
+  const bottom = 38;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const maximumXp = entries[entries.length - 1]?.totalXp ?? 1;
+  const pointFor = (entry: typeof entries[number]) => ({
+    x: left + ((entry.level - 1) / (entries.length - 1)) * plotWidth,
+    y: height - bottom - (entry.totalXp / maximumXp) * plotHeight,
+  });
+  const path = entries.map((entry, index) => {
+    const point = pointFor(entry);
+    return (index === 0 ? 'M ' : 'L ') + point.x + ' ' + point.y;
+  }).join(' ');
+  const hoveredEntry = hoveredLevel ? entries[hoveredLevel - 1] : null;
+  const hoveredPoint = hoveredEntry ? pointFor(hoveredEntry) : null;
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70 p-3 sm:p-4">
+      <svg
+        viewBox={'0 0 ' + width + ' ' + height}
+        role="img"
+        aria-label="Lurkr-compatible Discord level XP curve from level 1 through level 100"
+        className="h-auto w-full touch-none"
+        onPointerLeave={() => setHoveredLevel(null)}
+        onPointerMove={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const svgX = ((event.clientX - bounds.left) / bounds.width) * width;
+          const progress = Math.max(0, Math.min(1, (svgX - left) / plotWidth));
+          setHoveredLevel(Math.max(1, Math.min(entries.length, Math.round(1 + progress * (entries.length - 1)))));
+        }}
+      >
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+          const y = height - bottom - ratio * plotHeight;
+          return <line key={ratio} x1={left} x2={width - right} y1={y} y2={y} stroke="rgba(255,255,255,0.10)" strokeWidth="1" />;
+        })}
+        <line x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+        <path d={path} fill="none" stroke="#fcd34d" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+        {hoveredPoint ? <><line x1={hoveredPoint.x} x2={hoveredPoint.x} y1={top} y2={height - bottom} stroke="rgba(252,211,77,0.55)" strokeWidth="1" strokeDasharray="4 4" /><circle cx={hoveredPoint.x} cy={hoveredPoint.y} r="6" fill="#fcd34d" stroke="#0f172a" strokeWidth="3" /></> : null}
+        <text x={left} y={height - 10} fill="#94a3b8" fontSize="12">Level 1</text>
+        <text x={width - right} y={height - 10} fill="#94a3b8" fontSize="12" textAnchor="end">Level 100</text>
+        <text x={left - 10} y={top + 4} fill="#94a3b8" fontSize="12" textAnchor="end">{formatNumber(maximumXp)}</text>
+        <text x={left - 10} y={height - bottom + 4} fill="#94a3b8" fontSize="12" textAnchor="end">0</text>
+      </svg>
+      <p className="mt-2 min-h-10 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm text-amber-50">
+        {hoveredEntry ? <>Level <strong>{hoveredEntry.level}</strong> requires <strong>{formatNumber(hoveredEntry.totalXp)} total XP</strong>; the next level requires another <strong>{formatNumber(hoveredEntry.xpToNextLevel)} XP</strong>.</> : 'Hover across the curve to inspect a level.'}
+      </p>
+    </div>
+  );
+}
+
+function sortRewards(rewards: DiscordLevelingRoleReward[]) {
+  return [...rewards].sort((left, right) => left.level - right.level);
+}
+
+export function DiscordLevelingSettings() {
+  const router = useRouter();
+  const [data, setData] = useState<LevelingSettingsResponse>(EMPTY_RESPONSE);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [rewardLevel, setRewardLevel] = useState('5');
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [expandedRewardMessageLevels, setExpandedRewardMessageLevels] = useState<number[]>([]);
+
+  const getAccessToken = useCallback(async () => {
+    const supabase = getOptionalSupabaseClient();
+    const { data: sessionData } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    return sessionData.session?.access_token ?? null;
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    const token = await getAccessToken();
+    if (!token) {
+      setMessage('Sign in with a KnowLeague administrator account to manage Discord Configuration.');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
+      const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.leaderboardExcludedRoleIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings });
+      setMessage('');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
+    } finally {
+      setLoading(false);
+    }
+  }, [getAccessToken]);
+
+  useEffect(() => { void loadSettings(); }, [loadSettings]);
+
+  const roleById = useMemo(() => new Map(data.roles.map((role) => [role.id, role])), [data.roles]);
+  const availableRewardRoles = useMemo(() => {
+    const used = new Set(data.roleRewards.flatMap((reward) => reward.roleIds));
+    return data.roles.filter((role) => role.assignable && !used.has(role.id));
+  }, [data.roles, data.roleRewards]);
+  const availableLeaderboardTopRoles = useMemo(() => {
+    const protectedRoleIds = new Set([
+      ...data.roleRewards.flatMap((reward) => reward.roleIds),
+      ...data.manualXpRoleIds,
+      ...data.leaderboardExcludedRoleIds,
+    ]);
+    return data.roles.filter((role) => role.assignable && (!protectedRoleIds.has(role.id) || role.id === data.settings.leaderboardTopRoleId));
+  }, [data.leaderboardExcludedRoleIds, data.manualXpRoleIds, data.roleRewards, data.roles, data.settings.leaderboardTopRoleId]);
+  const updateSettings = <TKey extends keyof DiscordLevelingSettings>(key: TKey, value: DiscordLevelingSettings[TKey]) => {
+    setData((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
+  };
+  const toggleId = (values: string[], value: string) => values.includes(value) ? values.filter((item) => item !== value) : [...values, value].sort();
+  const toggleRewardRole = (roleId: string) => setSelectedRoleIds((current) => toggleId(current, roleId));
+  const toggleManualRole = (roleId: string) => setData((current) => ({ ...current, manualXpRoleIds: toggleId(current.manualXpRoleIds, roleId) }));
+  const toggleLeaderboardExcludedRole = (roleId: string) => setData((current) => ({ ...current, leaderboardExcludedRoleIds: toggleId(current.leaderboardExcludedRoleIds, roleId) }));
+  const toggleRewardMessage = (level: number) => setExpandedRewardMessageLevels((current) => current.includes(level)
+    ? current.filter((item) => item !== level)
+    : [...current, level]);
+
+  const addRewardLevel = () => {
+    const level = Number(rewardLevel);
+    if (!Number.isInteger(level) || level < 1 || level > 10000 || selectedRoleIds.length === 0) {
+      setMessage('Choose one or more assignable roles and a level between 1 and 10,000.');
+      return;
+    }
+    if (data.roleRewards.some((reward) => reward.level === level)) {
+      setMessage('That reward level already exists. Remove it first if you need to replace its roles.');
+      return;
+    }
+    setData((current) => ({ ...current, roleRewards: sortRewards([...current.roleRewards, { level, levelUpMessageTemplate: null, roleIds: selectedRoleIds }]) }));
+    setSelectedRoleIds([]);
+  };
+  const removeRewardLevel = (level: number) => setData((current) => ({ ...current, roleRewards: current.roleRewards.filter((reward) => reward.level !== level) }));
+  const removeRewardRole = (level: number, roleId: string) => setData((current) => ({
+    ...current,
+    roleRewards: current.roleRewards.flatMap((reward) => {
+      if (reward.level !== level) return [reward];
+      const roleIds = reward.roleIds.filter((item) => item !== roleId);
+      return roleIds.length ? [{ ...reward, roleIds }] : [];
+    }),
+  }));
+  const updateRewardMessage = (level: number, template: string) => setData((current) => ({
+    ...current,
+    roleRewards: current.roleRewards.map((reward) => reward.level === level ? { ...reward, levelUpMessageTemplate: template.trim() ? template : null } : reward),
+  }));
+
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const token = await getAccessToken();
+    if (!token) {
+      setMessage('Sign in with a KnowLeague administrator account to save settings.');
+      return;
+    }
+    setSaving(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/discord/leveling', {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data.settings,
+          leaderboardExcludedRoleIds: data.leaderboardExcludedRoleIds,
+          manualXpRoleIds: data.manualXpRoleIds,
+          roleRewards: data.roleRewards,
+        }),
+      });
+      const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.leaderboardExcludedRoleIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings });
+      setMessage('Discord Configuration saved. Reward roles are granted when eligible members next earn XP.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <button type="button" onClick={() => router.push('/profile')} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-slate-950 px-4 text-sm font-bold text-slate-200 transition hover:border-white/25 hover:bg-slate-900 hover:text-white"><ArrowLeft size={16} />Back to Profile</button>
+        <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-xs font-bold text-amber-100"><UsersRound size={14} />Discord account · Admin only</span>
+      </div>
+      <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Discord Configuration</p>
+        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">Chat leveling</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.</p>
+      </section>
+      {loading ? <div className="mt-5 flex min-h-48 items-center justify-center rounded-3xl border border-white/10 bg-slate-950/80 text-sm font-semibold text-slate-300"><LoaderCircle size={20} className="mr-2 animate-spin text-amber-300" />Loading Discord Configuration…</div> : (
+        <form onSubmit={save} className="mt-5 grid gap-5">
+          <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-lg font-black text-white">Earning rules</h2><p className="mt-1 text-sm leading-6 text-slate-400">The five-second default prevents channel hopping from multiplying message XP.</p></div><button type="button" role="switch" aria-checked={data.settings.enabled} onClick={() => updateSettings('enabled', !data.settings.enabled)} className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-white transition hover:border-amber-300/40"><ToggleSwitch checked={data.settings.enabled} />{data.settings.enabled ? 'Leveling enabled' : 'Leveling paused'}</button></div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">XP per eligible message</span><input type="number" min={1} max={1000} value={data.settings.xpPerMessage} onChange={(event) => updateSettings('xpPerMessage', Number(event.target.value))} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+              <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Member cooldown in seconds</span><input type="number" min={1} max={3600} value={data.settings.cooldownSeconds} onChange={(event) => updateSettings('cooldownSeconds', Number(event.target.value))} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+            </div>
+          </section>
+          <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-lg font-black text-white">Default level-up message</h2><p className="mt-1 text-sm leading-6 text-slate-400">Use the message channel where XP was earned, or route all announcements to one channel ID.</p></div><button type="button" role="switch" aria-checked={data.settings.levelUpMessageEnabled} onClick={() => updateSettings('levelUpMessageEnabled', !data.settings.levelUpMessageEnabled)} className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-white transition hover:border-amber-300/40"><ToggleSwitch checked={data.settings.levelUpMessageEnabled} />{data.settings.levelUpMessageEnabled ? 'Message enabled' : 'Message disabled'}</button></div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+              <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Message template</span><textarea rows={3} maxLength={500} value={data.settings.levelUpMessageTemplate} onChange={(event) => updateSettings('levelUpMessageTemplate', event.target.value)} className="min-h-24 resize-y rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /><span className="text-xs leading-5 text-slate-400">Use <code>{'{user}'}</code>, <code>{'{level}'}</code>, and <code>{'{xp}'}</code>. Role and @everyone pings are blocked.</span></label>
+              <label className="grid content-start gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Announcement channel ID</span><input type="text" inputMode="numeric" maxLength={20} value={data.settings.levelUpMessageChannelId ?? ''} placeholder="Same channel as the message" onChange={(event) => updateSettings('levelUpMessageChannelId', event.target.value.replace(/\s/g, '') || null)} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /><span className="text-xs leading-5 text-slate-400">Leave blank to announce in the channel where the member leveled up.</span></label>
+            </div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-black text-white">Lurkr XP curve</h2><p className="mt-1 text-sm leading-6 text-slate-400">Total XP required for level <em>n</em> is 50n² − 100n + 150, matching Lurkr through level 100.</p></div><span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-xs font-bold text-amber-100">Level 100: {formatNumber(getDiscordTotalXpForLevel(100))} XP</span></div><CurveGraph /></section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div><h2 className="text-lg font-black text-white">Level role rewards</h2><p className="mt-1 text-sm leading-6 text-slate-400">Select all roles for a reward level at once. A reward-level message overrides the default announcement at that exact level.</p></div>
+            {data.roles.length === 0 ? <div className="mt-4 flex gap-3 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100"><CircleAlert size={18} className="mt-0.5 shrink-0" />No Discord roles have been synced yet. Start or restart the bot after granting it Manage Roles, then reload this page.</div> : null}
+            {data.roleRewards.length ? <div className="mt-4 grid gap-3 lg:grid-cols-2">{data.roleRewards.map((reward) => {
+              const messageExpanded = expandedRewardMessageLevels.includes(reward.level);
+              const hasCustomMessage = Boolean(reward.levelUpMessageTemplate);
+              return <article key={reward.level} className="rounded-2xl border border-white/10 bg-slate-900/70 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div><p className="font-black text-white">Level {reward.level}</p><p className="mt-0.5 text-xs text-slate-400">{reward.roleIds.length} role{reward.roleIds.length === 1 ? '' : 's'} granted together.</p></div>
+                  <div className="flex items-center gap-2"><button type="button" onClick={() => toggleRewardMessage(reward.level)} className="min-h-9 rounded-lg border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 transition hover:border-amber-300/40 hover:text-amber-100">{messageExpanded ? 'Hide message' : hasCustomMessage ? 'Edit message' : 'Add message'}</button><button type="button" onClick={() => removeRewardLevel(reward.level)} aria-label={'Remove level ' + reward.level} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 text-xs font-bold text-red-100 transition hover:bg-red-500/20"><Trash2 size={14} />Remove</button></div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">{reward.roleIds.map((roleId) => { const role = roleById.get(roleId); return <span key={roleId} className={'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ' + (role?.assignable ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100' : 'border-amber-300/25 bg-amber-300/10 text-amber-100')}>{role?.name ?? 'Unavailable Discord role'}<button type="button" aria-label={'Remove ' + (role?.name ?? 'role') + ' from level ' + reward.level} onClick={() => removeRewardRole(reward.level, roleId)} className="rounded-full text-current/80 transition hover:text-white"><X size={14} /></button></span>; })}</div>
+                {messageExpanded ? <label className="mt-3 grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Specific level-up message</span><textarea rows={2} maxLength={500} value={reward.levelUpMessageTemplate ?? ''} placeholder="Use the default level-up message" onChange={(event) => updateRewardMessage(reward.level, event.target.value)} className="min-h-20 resize-y rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label> : hasCustomMessage ? <p className="mt-3 truncate text-xs text-amber-100/80">Custom message: {reward.levelUpMessageTemplate}</p> : null}
+              </article>;
+            })}</div> : <p className="mt-4 rounded-2xl border border-dashed border-white/15 bg-slate-900/50 px-4 py-5 text-sm text-slate-400">No level roles configured yet.</p>}
+            <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-slate-900/50 p-3 lg:grid-cols-[minmax(0,1fr)_10rem_auto] lg:items-end"><AppSelectMenu label="Roles to grant" value={selectedRoleIds[0] ?? ''} selectedValues={selectedRoleIds} multiple onToggle={toggleRewardRole} disabled={availableRewardRoles.length === 0} disabledDescription="No assignable Discord roles are available." headerDescription="Select one or more roles. Only roles below the bot role can be granted." searchable searchPlaceholder="Type a role name or ID" options={availableRewardRoles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" /><label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Reward level</span><input type="number" min={1} max={10000} value={rewardLevel} onChange={(event) => setRewardLevel(event.target.value)} className="h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label><button type="button" onClick={addRewardLevel} disabled={!selectedRoleIds.length} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"><Plus size={16} />Add reward level</button></div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div><h2 className="text-lg font-black text-white">Leaderboard champion role</h2><p className="mt-1 text-sm leading-6 text-slate-400">Assign one bot-managed role to the highest-XP eligible member. It moves automatically when another eligible member takes first place.</p></div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <AppSelectMenu label="Role for rank #1" value={data.settings.leaderboardTopRoleId ?? ''} onChange={(roleId) => updateSettings('leaderboardTopRoleId', roleId || null)} disabled={!data.roles.length} disabledDescription="No Discord roles have been synced yet." headerDescription="Choose a role below the bot role. It cannot also be a level reward or manual-XP staff role." searchable searchPlaceholder="Type a role name or ID" options={[{ value: '', label: 'No champion role', description: 'Leaderboard rankings remain available without a managed role.' }, ...availableLeaderboardTopRoles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))]} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" />
+              <AppSelectMenu label="Exclude holders of these roles" value={data.leaderboardExcludedRoleIds[0] ?? ''} selectedValues={data.leaderboardExcludedRoleIds} multiple onToggle={toggleLeaderboardExcludedRole} disabled={!data.roles.length} disabledDescription="No Discord roles have been synced yet." headerDescription="Members with any selected role cannot receive the rank #1 champion role." searchable searchPlaceholder="Type a role name or ID" options={data.roles.filter((role) => role.id !== data.settings.leaderboardTopRoleId).map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">Keep this role dedicated to the leaderboard. The bot tracks and removes only the assignment it created.</p>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5"><div><h2 className="text-lg font-black text-white">Manual XP permissions</h2><p className="mt-1 text-sm leading-6 text-slate-400">Members with any selected role can use <code>/xp add</code> and <code>/xp set-level</code>.</p></div><div className="mt-4"><AppSelectMenu label="Roles allowed to manage XP" value={data.manualXpRoleIds[0] ?? ''} selectedValues={data.manualXpRoleIds} multiple onToggle={toggleManualRole} disabled={!data.roles.length} disabledDescription="No Discord roles have been synced yet." headerDescription="Choose one or more server roles. Their members can grant XP or set a member level." searchable searchPlaceholder="Type a role name or ID" options={data.roles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" /></div></section>
+          <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-3xl text-sm leading-6 text-slate-400">Bot accounts and Discord system messages never receive XP. Manual adjustments require one of the configured Discord staff roles.</p><button type="submit" disabled={saving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{saving ? 'Saving settings' : 'Save settings'}</button></div>
+        </form>
+      )}
+      {message ? <p className={'mt-5 flex items-start gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ' + (message.includes('saved') ? 'border-emerald-300/25 bg-emerald-400/10 text-emerald-100' : 'border-amber-300/25 bg-amber-300/10 text-amber-100')}>{message.includes('saved') ? <Check size={17} className="mt-0.5 shrink-0" /> : <CircleAlert size={17} className="mt-0.5 shrink-0" />}{message}</p> : null}
+    </main>
+  );
+}

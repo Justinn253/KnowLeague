@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import type { DiscordBotConfig } from './config.js';
+import { createBotServiceClient } from './supabase.js';
 
 type LinkedProfile = {
   displayName: string;
@@ -15,20 +15,8 @@ type ProfileRow = {
   username: string;
 };
 
-function createServiceClient(config: DiscordBotConfig) {
-  return createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-    global: {
-      fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
-    },
-  });
-}
-
 export async function findLinkedProfile(config: DiscordBotConfig, discordUserId: string): Promise<LinkedProfile | null> {
-  const supabase = createServiceClient(config);
+  const supabase = createBotServiceClient(config);
   const { data: link, error: linkError } = await supabase
     .from('profile_private_details')
     .select('user_id')

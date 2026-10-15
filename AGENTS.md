@@ -2,6 +2,7 @@
 
 ## Project
 - Next.js 14 App Router, React 18, TypeScript, Tailwind CSS, lucide-react, and Supabase.
+- The repository also contains the single-guild KnowLeague Discord bot in `discord-bot/`. It is a separate long-running Node.js deployment which shares Supabase data and the existing Discord profile-link identity with the website; the Next.js application remains at the repository root.
 - Use npm and preserve `package-lock.json`.
 - Write clean, readable, maintainable code to enterprise application standards, even for small changes.
 
@@ -13,6 +14,14 @@
 - Standard verification: `npm run check`
 - Generate Riot/CommunityDragon catalogues: `npm run data:generate`
 - Production build: `npm run build`
+- Discord bot: `npm run discord:dev`, `npm run discord:check`, `npm run discord:build`, `npm run discord:start`, and `npm run discord:commands:register`.
+
+## Discord Companion Contract
+- Treat the web application and Discord bot as one product. Before changing a feature that uses player identity, profile data, Discord links, game/lobby invitations, notifications, shared conversations, or Supabase tables/RPCs, assess whether `discord-bot/` needs a coordinated change.
+- Reuse the existing `profile_private_details.discord_user_id` mapping for bot identity. Do not create a second account-link implementation or expose Discord, Supabase service-role, or other server-only credentials to the browser.
+- The bot is slash-command-only and accepts interactions only from its configured guild. Keep message-content and other privileged gateway intents disabled unless a documented feature requires them.
+- Deploy the bot independently from the web application. Website deploys use the repository root; bot container builds use `discord-bot/Dockerfile` with the repository root as build context. Routine maintenance may be scheduled between uses, but web deploys must not control the bot process.
+- When changing bot command shapes, run `npm run discord:commands:register` with the bot deployment environment configured; guild-scoped commands are intentionally registered separately from the website deployment.
 
 ## Verification Safety
 - Do not run `npm run build` while the user's dev server is running. Both use `.next`, and concurrent use can invalidate dev chunks.

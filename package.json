@@ -2,8 +2,16 @@
   "name": "league-quiz-app",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "discord-bot"
+  ],
   "scripts": {
     "dev": "next dev",
+    "discord:dev": "npm run dev --workspace=@knowleague/discord-bot",
+    "discord:build": "npm run build --workspace=@knowleague/discord-bot",
+    "discord:start": "npm run start --workspace=@knowleague/discord-bot",
+    "discord:check": "npm run check --workspace=@knowleague/discord-bot",
+    "discord:commands:register": "npm run commands:register --workspace=@knowleague/discord-bot",
     "data:generate": "node scripts/generate-catalogs.mjs",
     "data:generate:champion-abilities": "node scripts/generate-champion-ability-details.mjs",
     "data:generate:champion-hub-overviews": "node scripts/generate-champion-hub-overviews.mjs",
@@ -20,7 +28,7 @@
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest",
     "test:run": "vitest run",
-    "check": "npm run lint && npm run typecheck && npm run test:run"
+    "check": "npm run lint && npm run typecheck && npm run test:run && npm run discord:check"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",

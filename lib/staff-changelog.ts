@@ -17,6 +17,53 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-15-discord-companion-foundation',
+    patch: 'patch-2026-10-15-discord-companion-foundation',
+    timestamp: '2026-10-15T04:35:00.000Z',
+    title: 'Add the single-guild Discord companion foundation',
+    summary:
+      'Created an independently deployable Discord bot workspace that reuses KnowLeague Discord profile links and shares server-only Supabase profile data with the website.',
+    details: [
+      'Added the discord-bot npm workspace with a typed Discord gateway runtime, explicit guild-scoped slash-command registration, container build, dotenv-backed local environment template, and bot-specific operating guidance.',
+      'Implemented ephemeral /link and /profile commands. The bot reuses profile_private_details.discord_user_id established by the website OAuth flow, reads only the caller\'s matching profile through a server-only Supabase service-role client, and does not store Discord OAuth tokens.',
+      'Restricted the bot to the Guilds gateway intent and configured-guild interactions, avoiding message-content access and preventing command handling if the application is invited to another server.',
+      'Documented the shared web/bot contract, independent deployment boundary, workspace commands, and Docker build context while retaining the Next.js application at the repository root.',
+    ],
+    impact: [
+      'Players in the configured Discord server can securely confirm their existing KnowLeague account link and open their profile without creating a separate identity mapping.',
+      'Staff can deploy and restart Discord functionality independently from the website, while future cross-surface changes have an explicit review contract in repository guidance.',
+      'Discord bot tokens and Supabase service-role credentials remain server-only and are excluded from the Docker build context and source control.',
+    ],
+    files: [
+      'package.json',
+      'package-lock.json',
+      'tsconfig.json',
+      'AGENTS.md',
+      'README.md',
+      '.dockerignore',
+      'discord-bot/package.json',
+      'discord-bot/tsconfig.json',
+      'discord-bot/.env.example',
+      'discord-bot/Dockerfile',
+      'discord-bot/AGENTS.md',
+      'discord-bot/README.md',
+      'discord-bot/src/config.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/profiles.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/src/register-commands.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm install completed and recorded Discord bot runtime dependencies, including dotenv 16.6.1 for local bot environment loading, plus tsx in the shared package-lock.json.',
+      'npm run discord:check and npm run discord:build passed before and after the local environment loader was added.',
+      'npm run typecheck passed and npm run test:run passed: 36 test files and 168 tests passed.',
+      'Direct ESLint verification with --no-cache completed with zero errors and retained the repository\'s seven existing next/image warnings. npm run check was also attempted, but next lint could not open the active dev server\'s locked .next ESLint cache; no cache file was modified.',
+      'Docker is not installed in the local workspace, so the documented container build could not be executed. No Next.js production build was run because a development server cache is active.',
+    ],
+  },
+  {
     id: 'patch-2026-10-14-champion-catalogue-landing-image',
     patch: 'patch-2026-10-14-champion-catalogue-landing-image',
     timestamp: '2026-10-14T23:52:40.3930720Z',

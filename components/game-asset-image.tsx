@@ -8,6 +8,10 @@ type GameIconImageProps = Omit<ImageProps, 'loading' | 'unoptimized'> & {
   loading?: ImageProps['loading'];
 };
 
+type GameDirectImageProps = Omit<ImageProps, 'loading' | 'unoptimized'> & {
+  loading?: ImageProps['loading'];
+};
+
 /** Keep catalog autocomplete thumbnails on one reusable display width. */
 export const GAME_SKIN_THUMBNAIL_SIZES = '64px';
 
@@ -41,8 +45,19 @@ export function GameSplashImage({ quality = 65, loading, priority, ...props }: G
  * assets. Serve them directly to avoid a Vercel image transformation/cache
  * entry for every icon size.
  */
-export function GameIconImage({ loading = 'lazy', ...props }: GameIconImageProps) {
+export function GameIconImage({ loading, priority, ...props }: GameIconImageProps) {
   // `ImageProps` requires alt; it is forwarded through the wrapper.
   // eslint-disable-next-line jsx-a11y/alt-text
-  return <Image {...props} loading={loading} unoptimized />;
+  return <Image {...props} priority={priority} {...(priority ? {} : { loading: loading ?? 'lazy' })} unoptimized />;
+}
+
+/**
+ * Skin splashes and chroma previews must be delivered directly by Riot's CDN.
+ * This intentionally bypasses Next/Vercel image transformation regardless of
+ * the display size used by the Champion Hub.
+ */
+export function GameDirectImage({ loading, priority, ...props }: GameDirectImageProps) {
+  // `ImageProps` requires alt; it is forwarded through the wrapper.
+  // eslint-disable-next-line jsx-a11y/alt-text
+  return <Image {...props} priority={priority} {...(priority ? {} : { loading: loading ?? 'lazy' })} unoptimized />;
 }

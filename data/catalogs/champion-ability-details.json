@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "patch": "14.24",
+  "sources": [
+    "https://raw.communitydragon.org/14.24/game/data/characters/aatrox/aatrox.bin.json",
+    "https://raw.communitydragon.org/14.24/game/en_us/data/menu/en_us/lol.stringtable.json"
+  ],
+  "champions": {
+    "aatrox": {
+      "abilities": [
+        {
+          "abilityId": "deathbringer-stance",
+          "paragraphs": [
+            "Aatrox’s attacks deal additional 4% → 12% target maximum health magic damage, scaling with champion level. He restores 80% of damage dealt as health, reduced to 25% against minions.",
+            "Attacks and ability hits against champions and large jungle monsters reduce this effect’s cooldown by 2 seconds. Hits with the edge of The Darkin Blade reduce it by 4 seconds instead."
+          ],
+          "notes": [
+            "Deals a maximum of 100 damage against monsters.",
+            "Multiple hits from one ability only reduce the cooldown once."
+          ],
+          "progression": [
+            {
+              "label": "Max-health damage",
+              "values": [
+                "4% (level 1)",
+                "12% (level 18)"
+              ]
+            },
+            {
+              "label": "Cooldown",
+              "values": [
+                "22 sec (level 1)",
+                "10 sec (level 18)"
+              ]
+            },
+            {
+              "label": "Damage healing",
+              "values": [
+                "80%"
+              ]
+            }
+          ]
+        },
+        {
+          "abilityId": "the-darkin-blade",
+          "paragraphs": [
+            "Aatrox slams his greatsword, dealing physical damage. Enemies hit on the edge are briefly knocked up and take 60% increased damage instead.",
+            "This ability can be recast twice, each cast changing shape and dealing 25% more damage than the previous one."
+          ],
+          "notes": [
+            "Deals 55% (level 1) / 60% (level 6) / 65% (level 11) / 70% (level 16) damage to minions.",
+            "Knock up duration against monsters is doubled."
+          ],
+          "progression": [
+            {
+              "label": "Cooldown",
+              "values": [
+                "14 sec",
+                "12 sec",
+                "10 sec",
+                "8 sec",
+                "6 sec"
+              ]
+            },
+            {
+              "label": "Base damage",
+              "values": [
+                "10",
+                "25",
+                "40",
+                "55",
+                "70"
+              ]
+            },
+            {
+              "label": "Total AD ratio",
+              "values": [
+                "60%",
+                "67.5%",
+                "75%",
+                "82.5%",
+                "90%"
+              ]
+            },
+            {
+              "label": "Sweetspot damage",
+              "values": [
+                "+60%"
+              ]
+            },
+            {
+              "label": "Knock up",
+              "values": [
+                "0.25 sec"
+              ]
+            }
+          ]
+        },
+        {
+          "abilityId": "infernal-chains",
+          "paragraphs": [
+            "Aatrox fires a chain, slowing the first enemy hit for 1.5 sec and dealing magic damage. Champions and large jungle monsters have 1.5 sec to leave the impact area or be pulled back to its centre and damaged again for the same amount."
+          ],
+          "notes": [
+            "Deals double damage to minions."
+          ],
+          "progression": [
+            {
+              "label": "Cooldown",
+              "values": [
+                "20 sec",
+                "18 sec",
+                "16 sec",
+                "14 sec",
+                "12 sec"
+              ]
+            },
+            {
+              "label": "Magic damage",
+              "values": [
+                "30 (+40% total AD)",
+                "40 (+40% total AD)",
+                "50 (+40% total AD)",
+                "60 (+40% total AD)",
+                "70 (+40% total AD)"
+              ]
+            },
+            {
+              "label": "Slow",
+              "values": [
+                "25%",
+                "27.5%",
+                "30%",
+                "32.5%",
+                "35%"
+              ]
+            },
+            {
+              "label": "Slow duration",
+              "values": [
+                "1.5 sec"
+              ]
+            }
+          ]
+        },
+        {
+          "abilityId": "umbral-dash",
+          "paragraphs": [
+            "Passive: Aatrox heals for 16% + 0.009% bonus health of the damage he deals to champions.",
+            "Active: Aatrox dashes up to 300 units. He can use this ability while winding up his other abilities."
+          ],
+          "notes": [],
+          "progression": [
+            {
+              "label": "Cooldown",
+              "values": [
+                "9 sec",
+                "8 sec",
+                "7 sec",
+                "6 sec",
+                "5 sec"
+              ]
+            },
+            {
+              "label": "Champion-damage healing",
+              "values": [
+                "16% + 0.009% bonus health"
+              ]
+            },
+            {
+              "label": "Dash distance",
+              "values": [
+                "300"
+              ]
+            }
+          ]
+        },
+        {
+          "abilityId": "world-ender",
+          "paragraphs": [
+            "Aatrox reveals his true demonic form, fearing nearby minions for 3 sec and gaining move speed that decays over 10 sec. He also gains attack damage and increased self-healing for the duration.",
+            "Champion takedowns extend the duration by 5 sec and refresh the move-speed effect."
+          ],
+          "notes": [
+            "Duration cannot be increased past 10 sec."
+          ],
+          "progression": [
+            {
+              "label": "Cooldown",
+              "values": [
+                "120 sec",
+                "100 sec",
+                "80 sec"
+              ]
+            },
+            {
+              "label": "Total attack damage increase",
+              "values": [
+                "20%",
+                "30%",
+                "40%"
+              ]
+            },
+            {
+              "label": "Healing increase",
+              "values": [
+                "50%",
+                "75%",
+                "100%"
+              ]
+            },
+            {
+              "label": "Move speed",
+              "values": [
+                "60%",
+                "80%",
+                "100%"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

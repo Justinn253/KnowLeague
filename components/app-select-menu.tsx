@@ -29,6 +29,8 @@ type AppSelectMenuProps<T extends string | number | null> = {
   optionsClassName?: string;
   menuPlacement?: 'left' | 'right';
   menuClassName?: string;
+  searchable?: boolean;
+  searchPlaceholder?: string;
 };
 
 export function AppSelectMenu<T extends string | number | null>({
@@ -48,14 +50,22 @@ export function AppSelectMenu<T extends string | number | null>({
   optionsClassName = '',
   menuPlacement = 'left',
   menuClassName = '',
+  searchable = false,
+  searchPlaceholder = 'Type to filter options',
 }: AppSelectMenuProps<T>) {
   const [open, setOpen] = useState(false);
+  const [opensUpward, setOpensUpward] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const activeValues = multiple ? (selectedValues ?? [value]) : [value];
   const selectedOption = options.find((option) => option.value === value) ?? options[0];
   const selectedOptions = options.filter((option) => activeValues.includes(option.value));
   const selectedLabel = multiple ? selectedOptions.map((option) => option.label).join(', ') : selectedOption?.label;
+  const visibleOptions = searchable
+    ? options.filter((option) => `${option.label} ${option.description ?? ''}`.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()))
+    : options;
 
   useEffect(() => {
     const closeWhenOutside = (event: PointerEvent) => {
@@ -73,6 +83,22 @@ export function AppSelectMenu<T extends string | number | null>({
     };
   }, [menuId]);
 
+  useEffect(() => {
+    if (!open) {
+      setOpensUpward(false);
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const rootBounds = rootRef.current?.getBoundingClientRect();
+      const menuHeight = menuRef.current?.offsetHeight ?? 0;
+      if (!rootBounds || !menuHeight) return;
+      const below = window.innerHeight - rootBounds.bottom;
+      const above = rootBounds.top;
+      setOpensUpward(menuHeight > below && above > below);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, options.length, searchable]);
+
   return (
     <div ref={rootRef} className={`relative grid gap-2 ${open ? 'z-[100]' : 'z-0'} ${disabledDescription ? 'group' : ''} ${className}`}>
       {!hideLabel ? <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span> : null}
@@ -86,6 +112,7 @@ export function AppSelectMenu<T extends string | number | null>({
               return;
             }
             window.dispatchEvent(new CustomEvent(APP_SELECT_MENU_OPEN_EVENT, { detail: menuId }));
+            setSearchQuery('');
             setOpen(true);
           }}
           aria-label={hideLabel ? label : undefined}
@@ -98,14 +125,27 @@ export function AppSelectMenu<T extends string | number | null>({
           <ChevronDown size={17} className={`mr-1 shrink-0 text-slate-400 transition ${open ? 'rotate-180 text-amber-200' : ''}`} />
         </button>
         <div
+          ref={menuRef}
           role="listbox"
           aria-multiselectable={multiple || undefined}
           aria-hidden={!open}
-          className={`absolute ${menuPlacement === 'right' ? 'right-0' : menuClassName ? 'left-0' : 'left-0 right-0'} top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 transition-[opacity,transform] duration-100 ease-out sm:p-4 ${menuClassName} ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
+          className={`absolute ${menuPlacement === 'right' ? 'right-0' : menuClassName ? 'left-0' : 'left-0 right-0'} ${opensUpward ? 'bottom-full mb-2' : 'top-full mt-2'} z-50 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 transition-[opacity,transform] duration-100 ease-out sm:p-4 ${menuClassName} ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
         >
           <div className="mb-3 border-b border-white/10 pb-3"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">{label}</p>{headerDescription ? <p className="mt-2 text-xs leading-5 text-slate-400">{headerDescription}</p> : null}</div>
+          {searchable ? (
+            <label className="mb-3 block">
+              <span className="sr-only">Filter {label}</span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={searchPlaceholder}
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300 focus:ring-1 focus:ring-amber-300"
+              />
+            </label>
+          ) : null}
           <div className={`grid gap-2 py-1 ${optionsClassName}`}>
-            {options.map((option) => {
+            {visibleOptions.map((option) => {
               const selected = activeValues.includes(option.value);
               return (
                 <button
@@ -131,6 +171,7 @@ export function AppSelectMenu<T extends string | number | null>({
                 </button>
               );
             })}
+            {visibleOptions.length === 0 ? <p className="rounded-xl border border-dashed border-white/15 px-3 py-4 text-sm text-slate-400">No matching options.</p> : null}
           </div>
         </div>
       </div>

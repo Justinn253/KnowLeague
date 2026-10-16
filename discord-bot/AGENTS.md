@@ -1,0 +1,18 @@
+# KnowLeague Discord Bot Guide
+
+## Scope
+- This is the standalone, single-guild Discord companion for the root KnowLeague web app.
+- It is a long-running Node.js process. Do not move gateway handling into Next.js API routes.
+- Chat leveling uses `GatewayIntentBits.GuildMessages` to observe message events. It must not inspect or persist message content, and Message Content, Guild Members, and Presence intents must remain disabled unless a separately authorized feature requires them.
+- Keep every command guild-scoped and ignore events outside `DISCORD_GUILD_ID`.
+
+## Data and identity
+- The bot reuses the website's existing `profile_private_details.discord_user_id` association. Never create an alternate linking table or persist a Discord token.
+- Bot reads and writes through a server-only Supabase service-role client. Never import bot modules into a browser component or expose its environment variables in a `NEXT_PUBLIC_*` value.
+- Prefer the web app's existing public/profile semantics; avoid exposing private profile or multiplayer data in a public Discord reply. Default command replies to ephemeral.
+
+## Commands and deployment
+- Keep command definitions in `src/commands.ts`, then register them explicitly with `npm run discord:commands:register`.
+- The bot must ignore every interaction outside `DISCORD_GUILD_ID`, even if its Discord application is invited elsewhere.
+- Build its image from the repository root using `discord-bot/Dockerfile`; its dependency lock is the root `package-lock.json`.
+- Run `npm run discord:check` after bot changes, and `npm run check` for changes that also alter shared website behavior.

@@ -28,6 +28,16 @@ Starter scaffold for a League of Legends quiz app using Next.js, Tailwind CSS, R
 - Run `npm run check` before deploy.
 - Run `npm run build` only when no local `next dev` process is active.
 
+## Discord companion bot
+
+The Discord companion is a separate, single-guild Node.js service in `discord-bot/`; the Next.js site remains at the repository root. It reuses the existing profile Discord OAuth link and reads shared data through a server-only Supabase service-role client.
+
+- Setup, commands, environment variables, and deployment instructions: [`discord-bot/README.md`](discord-bot/README.md)
+- Chat leveling is configured by website admins in **Profile > Discord Account > Discord Configuration**; the website and bot deployments both need the same `DISCORD_GUILD_ID`.
+- Run locally: `npm run discord:dev`
+- Verify it: `npm run discord:check`
+- Register its guild slash commands after a command change (including for a separate test bot): `npm run discord:commands:register`
+
 ## Features
 
 - Champion ultimate guessing game

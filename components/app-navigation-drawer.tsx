@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowRight, Dices, Menu, Package, Search, Sparkles, TrendingUp, Trophy, UserCircle, UserCog, Users, X } from 'lucide-react';
+import { ArrowRight, Dices, Menu, Package, Search, Sparkles, Swords, TrendingUp, Trophy, UserCircle, UserCog, Users, X } from 'lucide-react';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import { AUGMENT_BUILDER_GAME, GAME_ACCENT_CLASSES, GAME_MODE_LABELS, GAMES_FOR_DRAWER, MASTERY_MASTER_GAME, RANDODRAFT_GAME } from '@/lib/app-navigation';
@@ -109,7 +109,18 @@ export function AppNavigationDrawer({
               <div className="mt-4 border-t border-white/10 pt-4">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">League Tools</p>
                 <div className="mt-2 grid gap-2">
-                  <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">League Account Viewer</p>
+                  <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">Champion Hub</p>
+                  <Link href="/champions" onClick={closeDrawer} className={menuItemClass}>
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-200/25 bg-red-400 text-slate-950">
+                      <Swords size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black">Champion Catalogue</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">Abilities, lore, and playstyles</span>
+                    </span>
+                    <ArrowRight size={16} className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-amber-200" />
+                  </Link>
+                  <p className="mt-2 border-t border-white/10 px-1 pt-3 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">League Account Viewer</p>
                   <Link href="/riot-account-viewer" onClick={closeDrawer} className={menuItemClass}>
                     <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300 text-slate-950">
                       <Search size={18} />

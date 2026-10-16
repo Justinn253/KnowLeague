@@ -17,6 +17,42 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-16-discord-knowbucks-foundation',
+    patch: 'patch-2026-10-16-discord-knowbucks-foundation',
+    timestamp: '2026-10-16T04:22:28.632Z',
+    title: 'Add atomic Discord KnowBucks balances and commands',
+    summary:
+      'Added the ledger-backed KnowBucks currency foundation, automatic rewards for chat and voice level-ups, and balance, payment, and staff-management slash commands.',
+    details: [
+      'KnowBucks balances are scoped to the configured Discord guild. Every balance mutation records an immutable transaction row with its source, resulting balance, and level or payment counterpart where relevant.',
+      'Automatic chat and voice XP awards now calculate KnowBucks in the same database transaction: each crossed level grants its level number multiplied by 1,000. Multiple levels crossed in one XP award receive the sum of every crossed level reward.',
+      'Manual /xp add and /xp set-level operations intentionally do not issue KnowBucks, preventing administrative leveling corrections from minting currency.',
+      'Added /knowbucks balance [member], /knowbucks pay member amount, and role-protected /knowbucks add, remove, and set. Payments lock both account balances in a stable order and are recorded as matching debit and credit rows.',
+      'The existing Discord Configuration staff-role selection now governs both manual XP and KnowBucks administration. Balance and payment responses remain ephemeral.',
+    ],
+    impact: [
+      'Level 1 grants 1,000 KnowBucks, Level 2 grants 2,000, and so on. A member who automatically advances from Level 2 to Level 4 receives 7,000 KnowBucks for Levels 3 and 4.',
+      'Staff removal clamps a balance at zero rather than creating debt. Members cannot pay themselves, bots cannot own KnowBucks, and insufficient payments are rejected atomically.',
+      'The schema provides a current-balance table plus an append-only transaction history suitable for the planned shop without requiring a per-message currency write.',
+      'Staff must apply migration 148, re-register the bot guild commands, and restart or redeploy the Discord bot. No new Discord permission or privileged intent is needed.',
+    ],
+    files: [
+      'supabase/migrations/148_discord_knowbucks.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/knowbucks.ts',
+      'discord-bot/src/leveling.ts',
+      'components/discord-leveling-settings.tsx',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run discord:check, npm run typecheck, and npm run test:run passed.',
+      'Targeted ESLint completed with zero errors and git diff --check passed. npm run check was not used because the active development server owns the shared .next cache.',
+      'Migration was created locally but not pushed; Discord command registration and deployment were not performed locally.',
+    ],
+  },
+  {
     id: 'patch-2026-10-16-discord-voice-leveling',
     patch: 'patch-2026-10-16-discord-voice-leveling',
     timestamp: '2026-10-16T01:57:04.645Z',

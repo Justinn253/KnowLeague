@@ -20,6 +20,68 @@ export const commandDefinitions = [
       .setMaxValue(25)
       .setRequired(false)),
   new SlashCommandBuilder()
+    .setName('knowbucks')
+    .setDescription('View, pay, or manage KnowBucks.')
+    .addSubcommand((subcommand) => subcommand
+      .setName('balance')
+      .setDescription('View your KnowBucks balance or another member\'s balance.')
+      .addUserOption((option) => option
+        .setName('member')
+        .setDescription('Member whose KnowBucks balance to view. Defaults to you.')
+        .setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('pay')
+      .setDescription('Pay KnowBucks to another server member.')
+      .addUserOption((option) => option
+        .setName('member')
+        .setDescription('Member who should receive KnowBucks.')
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('KnowBucks to pay, from 1 to 1,000,000,000.')
+        .setMinValue(1)
+        .setMaxValue(1_000_000_000)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('add')
+      .setDescription('Give KnowBucks to a server member.')
+      .addUserOption((option) => option
+        .setName('member')
+        .setDescription('Member who should receive KnowBucks.')
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('KnowBucks to give, from 1 to 1,000,000,000.')
+        .setMinValue(1)
+        .setMaxValue(1_000_000_000)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('remove')
+      .setDescription('Remove KnowBucks from a server member.')
+      .addUserOption((option) => option
+        .setName('member')
+        .setDescription('Member whose KnowBucks should be removed.')
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('KnowBucks to remove, from 1 to 1,000,000,000.')
+        .setMinValue(1)
+        .setMaxValue(1_000_000_000)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('set')
+      .setDescription('Set a server member\'s KnowBucks balance.')
+      .addUserOption((option) => option
+        .setName('member')
+        .setDescription('Member whose KnowBucks balance should be set.')
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('KnowBucks balance to set, from 0 to 1,000,000,000.')
+        .setMinValue(0)
+        .setMaxValue(1_000_000_000)
+        .setRequired(true))),
+  new SlashCommandBuilder()
     .setName('xp')
     .setDescription('Manage Discord chat leveling XP.')
     .addSubcommand((subcommand) => subcommand

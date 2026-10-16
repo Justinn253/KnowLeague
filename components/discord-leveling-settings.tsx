@@ -273,8 +273,29 @@ export function DiscordLevelingSettings() {
             </div>
             <p className="mt-3 text-xs leading-5 text-slate-400">Keep this role dedicated to the leaderboard. The bot tracks and removes only the assignment it created.</p>
           </section>
-          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5"><div><h2 className="text-lg font-black text-white">Manual XP permissions</h2><p className="mt-1 text-sm leading-6 text-slate-400">Members with any selected role can use <code>/xp add</code> and <code>/xp set-level</code>.</p></div><div className="mt-4"><AppSelectMenu label="Roles allowed to manage XP" value={data.manualXpRoleIds[0] ?? ''} selectedValues={data.manualXpRoleIds} multiple onToggle={toggleManualRole} disabled={!data.roles.length} disabledDescription="No Discord roles have been synced yet." headerDescription="Choose one or more server roles. Their members can grant XP or set a member level." searchable searchPlaceholder="Type a role name or ID" options={data.roles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" /></div></section>
-          <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-3xl text-sm leading-6 text-slate-400">Bot accounts and Discord system messages never receive XP. Manual adjustments require one of the configured Discord staff roles.</p><button type="submit" disabled={saving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{saving ? 'Saving settings' : 'Save settings'}</button></div>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Discord staff permissions</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Members with any selected role can use <code>/xp add</code>, <code>/xp set-level</code>, and the administrative <code>/knowbucks</code> commands.</p>
+            </div>
+            <div className="mt-4">
+              <AppSelectMenu
+                label="Roles allowed to manage XP and KnowBucks"
+                value={data.manualXpRoleIds[0] ?? ''}
+                selectedValues={data.manualXpRoleIds}
+                multiple
+                onToggle={toggleManualRole}
+                disabled={!data.roles.length}
+                disabledDescription="No Discord roles have been synced yet."
+                headerDescription="Choose one or more server roles. Their members can grant XP, set a member level, and manage KnowBucks."
+                searchable
+                searchPlaceholder="Type a role name or ID"
+                options={data.roles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+          </section>
+          <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-3xl text-sm leading-6 text-slate-400">Bot accounts and Discord system messages never receive XP. Manual XP and KnowBucks adjustments require one of the configured Discord staff roles.</p><button type="submit" disabled={saving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{saving ? 'Saving settings' : 'Save settings'}</button></div>
         </form>
       )}
       {message ? <p className={'mt-5 flex items-start gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ' + (message.includes('saved') ? 'border-emerald-300/25 bg-emerald-400/10 text-emerald-100' : 'border-amber-300/25 bg-amber-300/10 text-amber-100')}>{message.includes('saved') ? <Check size={17} className="mt-0.5 shrink-0" /> : <CircleAlert size={17} className="mt-0.5 shrink-0" />}{message}</p> : null}

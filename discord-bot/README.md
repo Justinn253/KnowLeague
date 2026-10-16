@@ -10,8 +10,11 @@ This is the long-running Discord companion for the KnowLeague web app. It is int
 - `/xp view [member]` privately shows a member's level, total XP, segmented progress bar, and remaining XP. It defaults to the caller.
 - `/xp add` grants a member XP and `/xp set-level` sets a member to a level; both are available only to members whose Discord role is selected in **Discord Configuration**.
 - `/leaderboard [count]` posts the top active server members by XP, with 10 entries by default and up to 25 on request.
+- `/knowbucks balance [member]` privately shows your balance or a selected member's balance.
+- `/knowbucks pay member amount` privately transfers KnowBucks to another non-bot server member.
+- `/knowbucks add`, `/knowbucks remove`, and `/knowbucks set` are available to members whose Discord role is selected in **Discord Configuration**.
 
-`/link`, `/profile`, `/help`, and `/xp` replies are ephemeral; `/leaderboard` is intentionally public to the server. Leveling observes eligible messages and voice-state changes through the non-privileged `Guilds`, `GuildMessages`, `GuildModeration`, and `GuildVoiceStates` gateway intents. It does not read or store message text or voice audio, registers commands to one configured guild, and ignores all events from every other guild.
+`/link`, `/profile`, `/help`, `/xp`, and `/knowbucks` replies are ephemeral; `/leaderboard` is intentionally public to the server. Leveling observes eligible messages and voice-state changes through the non-privileged `Guilds`, `GuildMessages`, `GuildModeration`, and `GuildVoiceStates` gateway intents. It does not read or store message text or voice audio, registers commands to one configured guild, and ignores all events from every other guild.
 
 ## Chat leveling
 
@@ -24,6 +27,12 @@ Administrators can pause leveling, adjust XP and cooldown values, configure a de
 The leaderboard can optionally grant one dedicated champion role to the highest-XP eligible member. The bot checks it at startup, then on the first eligible human message after each hourly window; role changes can therefore take up to one hour after a lead changes. Members with selected exclusion roles are skipped when selecting the champion. Keep the champion role dedicated: it cannot be a level reward or manual-XP staff role.
 
 When a member is banned while the bot is running, their existing chat XP is reset to zero and they are removed from champion-role consideration. Existing bans are not retroactively processed.
+
+## KnowBucks
+
+KnowBucks is the server currency that will support the future shop. Every level reached through automatic chat or voice XP grants `level × 1,000` KnowBucks. If one award crosses several levels, it grants the sum for every level crossed. Manual XP and level corrections intentionally do not mint KnowBucks.
+
+Balances, level rewards, staff adjustments, and payments are atomic server-side transactions. The selected **Discord staff permissions** roles can add, remove, or set balances; remove never makes a balance negative. Members can privately view balances and pay another non-bot server member.
 
 ## Local setup
 

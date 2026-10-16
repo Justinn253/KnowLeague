@@ -9,6 +9,7 @@ import {
   reconcileLevelRewardRoles,
   setManualLevel,
 } from './leveling.js';
+import { getKnowBucksBalance, payKnowBucks, updateKnowBucks } from './knowbucks.js';
 import { findLinkedProfile } from './profiles.js';
 
 function profileUrl(config: DiscordBotConfig, username?: string) {
@@ -36,19 +37,19 @@ const LEADERBOARD_COMMAND_COOLDOWN_MS = 10_000;
 const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
 let leaderboardCommandCooldownPruneAfter = 0;
 
-async function canManageXp(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+async function canManageLevelingStaffCommands(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) {
     return false;
   }
   const staffRoleIds = await getManualXpStaffRoleIds(config);
   if (staffRoleIds.size === 0) {
-    await interaction.reply({ content: 'Manual XP controls have not been configured for this server yet.', ephemeral: true });
+    await interaction.reply({ content: 'Discord staff controls have not been configured for this server yet.', ephemeral: true });
     return false;
   }
 
   const member = await interaction.guild.members.fetch(interaction.user.id);
   if (![...staffRoleIds].some((roleId) => member.roles.cache.has(roleId))) {
-    await interaction.reply({ content: 'You do not have a Discord role authorized to manage chat XP.', ephemeral: true });
+    await interaction.reply({ content: 'You do not have a Discord role authorized to manage server leveling rewards.', ephemeral: true });
     return false;
   }
   return true;
@@ -83,7 +84,7 @@ async function handleXpCommand(interaction: ChatInputCommandInteraction, config:
     return;
   }
 
-  if (!(await canManageXp(interaction, config))) {
+  if (!(await canManageLevelingStaffCommands(interaction, config))) {
     return;
   }
 
@@ -159,6 +160,90 @@ async function handleLeaderboardCommand(interaction: ChatInputCommandInteraction
   });
 }
 
+async function handleKnowBucksCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) {
+    return;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  if (subcommand === 'balance') {
+    const targetUser = interaction.options.getUser('member') ?? interaction.user;
+    if (targetUser.bot) {
+      await interaction.reply({ content: 'Bot accounts do not hold KnowBucks.', ephemeral: true });
+      return;
+    }
+    const balance = await getKnowBucksBalance(config, targetUser.id);
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xF59E0B)
+          .setTitle(`${targetUser.username}'s KnowBucks`)
+          .setDescription(`**${formatXp(balance)} KnowBucks**`),
+      ],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const targetUser = interaction.options.getUser('member', true);
+  if (targetUser.bot) {
+    await interaction.reply({ content: 'Bot accounts cannot hold KnowBucks.', ephemeral: true });
+    return;
+  }
+
+  if (subcommand === 'pay') {
+    if (targetUser.id === interaction.user.id) {
+      await interaction.reply({ content: 'You cannot pay KnowBucks to yourself.', ephemeral: true });
+      return;
+    }
+
+    const amount = interaction.options.getInteger('amount', true);
+    try {
+      const payment = await payKnowBucks(config, interaction.user.id, targetUser.id, amount);
+      await interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xF59E0B)
+            .setTitle('KnowBucks payment complete')
+            .setDescription(`Paid **${formatXp(amount)} KnowBucks** to ${targetUser}.\nYour balance: **${formatXp(payment.sender_balance)} KnowBucks**.`),
+        ],
+        ephemeral: true,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Insufficient KnowBucks balance')) {
+        await interaction.reply({ content: 'You do not have enough KnowBucks for that payment.', ephemeral: true });
+        return;
+      }
+      throw error;
+    }
+    return;
+  }
+
+  if (!(await canManageLevelingStaffCommands(interaction, config))) {
+    return;
+  }
+  if (subcommand !== 'add' && subcommand !== 'remove' && subcommand !== 'set') {
+    throw new Error(`Unsupported KnowBucks command: ${subcommand}`);
+  }
+
+  const amount = interaction.options.getInteger('amount', true);
+  const update = await updateKnowBucks(config, targetUser.id, subcommand, amount);
+  const detail = subcommand === 'add'
+    ? `Added **${formatXp(update.applied_amount)} KnowBucks** to ${targetUser}.`
+    : subcommand === 'remove'
+      ? `Removed **${formatXp(Math.abs(update.applied_amount))} KnowBucks** from ${targetUser}.`
+      : `Set ${targetUser}'s balance to **${formatXp(update.current_balance)} KnowBucks**.`;
+  await interaction.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xF59E0B)
+        .setTitle('KnowBucks updated')
+        .setDescription(`${detail}\nCurrent balance: **${formatXp(update.current_balance)} KnowBucks**.`),
+    ],
+    ephemeral: true,
+  });
+}
+
 export async function handleChatInputCommand(
   interaction: ChatInputCommandInteraction,
   config: DiscordBotConfig,
@@ -176,6 +261,9 @@ export async function handleChatInputCommand(
             { name: '/xp add member amount', value: 'Give a member chat XP. Requires a role selected in Discord Configuration.' },
             { name: '/xp set-level member level', value: 'Set a member to a specific chat level. Requires a configured staff role.' },
             { name: '/xp view [member]', value: 'View your chat level and XP progress, or select another member to view theirs.' },
+            { name: '/knowbucks balance [member]', value: 'View your KnowBucks balance or another member\'s balance.' },
+            { name: '/knowbucks pay member amount', value: 'Pay KnowBucks to another server member.' },
+            { name: '/knowbucks add/remove/set', value: 'Manage a member\'s KnowBucks. Requires a role selected in Discord Configuration.' },
             { name: 'Chat leveling', value: 'Eligible non-bot messages earn XP. Level rewards and messages are configured on the website.' },
           ),
       ],
@@ -186,6 +274,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'xp') {
     await handleXpCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'knowbucks') {
+    await handleKnowBucksCommand(interaction, config);
     return;
   }
 

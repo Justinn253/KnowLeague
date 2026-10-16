@@ -10,6 +10,7 @@ type XpUpdate = {
 
 type XpAward = XpUpdate & {
   awarded: boolean;
+  knowbucks_awarded: number;
 };
 
 type VoiceXpAward = XpAward & {

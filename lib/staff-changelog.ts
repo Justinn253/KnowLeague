@@ -17,6 +17,71 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-16-discord-voice-leveling',
+    patch: 'patch-2026-10-16-discord-voice-leveling',
+    timestamp: '2026-10-16T01:57:04.645Z',
+    title: 'Award Discord XP for voice-channel time',
+    summary:
+      'Added atomic, session-based voice XP at one XP per completed minute for non-bot members in server voice and stage channels.',
+    details: [
+      'Guild Voice States are observed without joining calls or reading voice audio. A session starts on voice-channel entry, remains active across channel moves, and is settled once on disconnect.',
+      'The database stores only the active session start timestamp. Its award function locks and consumes that session before applying XP, so concurrent events cannot issue duplicate awards.',
+      'The existing leveling enabled setting governs voice XP. Voice awards use the same cumulative XP, Lurkr level curve, reward-role synchronization, level-up messages, leaderboard, and ban reset as chat XP.',
+      'Bot startup reconciles persisted sessions with current voice states, discarding stale sessions and starting tracking for currently connected non-bot members. Bans now also remove an active voice session before resetting XP.',
+    ],
+    impact: [
+      'Members earn one XP for every completed minute connected to a voice or stage channel. Time is settled at disconnect, so the feature adds one lightweight database write path per join and leave rather than one write every minute.',
+      'Voice XP level-up announcements require the existing configured announcement channel. When the announcement channel is left blank, voice awards still grant XP and roles but do not post an announcement because a voice channel cannot receive text messages.',
+      'Guild Voice States is a non-privileged Discord gateway intent. No Developer Portal privileged-intent toggle, new bot permission, or slash-command registration is required.',
+      'Staff must apply migration 147 and restart or redeploy the Discord bot before voice XP can be earned.',
+    ],
+    files: [
+      'supabase/migrations/147_discord_voice_leveling.sql',
+      'discord-bot/src/index.ts',
+      'discord-bot/src/leveling.ts',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run discord:check, npm run typecheck, and npm run test:run passed.',
+      'Targeted ESLint completed with zero errors and git diff --check passed. npm run check was not used because the active development server owns the shared .next cache.',
+      'Migration was created locally but not pushed; no Discord command registration or deployment was performed locally.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-16-discord-leveling-runtime-hardening',
+    patch: 'patch-2026-10-16-discord-leveling-runtime-hardening',
+    timestamp: '2026-10-16T00:19:58.459Z',
+    title: 'Harden Discord leveling runtime traffic and champion scheduling',
+    summary:
+      'Reduced repeat Supabase and Discord work during active chat while changing champion-role reconciliation to startup plus the first eligible message after each hourly window.',
+    details: [
+      'The bot reuses one Supabase service client, locally gates repeat XP attempts for each member, and caches leveling settings and reward-role configuration for 30 seconds. The database RPC remains the authoritative cooldown and XP update guard.',
+      'A changed leveling cooldown or enabled state clears the local XP attempt gate after configuration refresh, so a reduced cooldown does not keep members waiting for the previous longer cooldown.',
+      'Concurrent reward-role cache misses share one database read. Leaderboard reads are cached for 30 seconds, serialized champion synchronizations share one in-flight operation, and leaderboard member resolution scans no more than 500 stored records.',
+      'Champion-role reconciliation still runs after startup, then runs only on the first eligible human message after each one-hour interval. It no longer runs for every XP award, after every ban, or on a repeating timer.',
+      'The public /leaderboard command now has a per-user 10-second cooldown, and deferred interaction failures are edited rather than attempting a second initial Discord response.',
+    ],
+    impact: [
+      'Busy chat servers make at most one bot-side XP award attempt per member per configured cooldown window, substantially reducing denied cooldown RPCs and repeated reward configuration reads.',
+      'After the initial startup reconciliation, a new champion, exclusion change, ban, or configuration change can take until the first eligible message after the next hourly window to be reflected. This is intentional to bound background work.',
+      'No schema migration, Discord permission change, or command registration is required. The Discord bot must be restarted or redeployed for these runtime changes to take effect.',
+    ],
+    files: [
+      'discord-bot/src/index.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/leveling.ts',
+      'discord-bot/src/supabase.ts',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run discord:check, npm run typecheck, and npm run test:run passed.',
+      'Targeted ESLint completed with zero errors and git diff --check passed. npm run check was not used because the active development server owns the shared .next cache.',
+      'No migration, Discord command registration, or deployment was performed locally.',
+    ],
+  },
+  {
     id: 'patch-2026-10-15-discord-level-role-reconciliation',
     patch: 'patch-2026-10-15-discord-level-role-reconciliation',
     timestamp: '2026-10-15T23:55:57.389Z',

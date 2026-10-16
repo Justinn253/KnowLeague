@@ -3,6 +3,9 @@ import { loadBotConfig } from './config.js';
 import { handleChatInputCommand } from './interactions.js';
 import {
   awardMessageXp,
+  handleDiscordVoiceStateUpdate,
+  maybeSyncDiscordLeaderboardRoleOnMessage,
+  reconcileDiscordVoiceXpSessions,
   resetBannedMemberXp,
   syncDiscordGuildRoles,
   syncDiscordLeaderboardRole,
@@ -13,11 +16,17 @@ const client = new Client({ intents: [
   GatewayIntentBits.Guilds,
   GatewayIntentBits.GuildMessages,
   GatewayIntentBits.GuildModeration,
+  GatewayIntentBits.GuildVoiceStates,
 ] });
+let voiceXpInitialReconciliation: Promise<void> = Promise.resolve();
 
 async function replyWithFailure(interaction: Parameters<typeof handleChatInputCommand>[0]) {
   const message = 'KnowLeague could not complete that request. Please try again shortly.';
-  if (interaction.deferred || interaction.replied) {
+  if (interaction.deferred) {
+    await interaction.editReply({ content: message });
+    return;
+  }
+  if (interaction.replied) {
     await interaction.followUp({ content: message, ephemeral: true });
     return;
   }
@@ -43,6 +52,8 @@ client.once(Events.ClientReady, (readyClient) => {
   void syncDiscordGuildRoles(config, guild)
     .then(() => syncDiscordLeaderboardRole(config, guild))
     .catch((error: unknown) => console.error('Discord role synchronization failed.', error));
+  voiceXpInitialReconciliation = reconcileDiscordVoiceXpSessions(config, guild)
+    .catch((error: unknown) => console.error('Discord voice XP session reconciliation failed.', error));
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -65,6 +76,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, (message) => {
   void awardMessageXp(config, message)
     .catch((error: unknown) => console.error('Discord chat leveling failed.', error));
+
+  if (message.inGuild() && message.guildId === config.guildId && !message.author.bot && !message.system) {
+    void maybeSyncDiscordLeaderboardRoleOnMessage(config, message.guild!)
+      .catch((error: unknown) => console.error('Discord leaderboard role synchronization failed.', error));
+  }
+});
+
+client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+  void voiceXpInitialReconciliation
+    .then(() => handleDiscordVoiceStateUpdate(config, oldState, newState))
+    .catch((error: unknown) => console.error('Discord voice XP tracking failed.', error));
 });
 
 client.on(Events.GuildBanAdd, (ban) => {
@@ -73,7 +95,6 @@ client.on(Events.GuildBanAdd, (ban) => {
   }
 
   void resetBannedMemberXp(config, ban.user.id)
-    .then(() => syncDiscordLeaderboardRole(config, ban.guild))
     .catch((error: unknown) => console.error('Discord ban XP reset failed.', error));
 });
 
@@ -92,15 +113,6 @@ function syncGuildRolesOnChange(guildId: string) {
 client.on(Events.GuildRoleCreate, (role) => syncGuildRolesOnChange(role.guild.id));
 client.on(Events.GuildRoleUpdate, (_, role) => syncGuildRolesOnChange(role.guild.id));
 client.on(Events.GuildRoleDelete, (role) => syncGuildRolesOnChange(role.guild.id));
-
-const leaderboardReconciliationInterval = setInterval(() => {
-  const guild = client.guilds.cache.get(config.guildId);
-  if (guild) {
-    void syncDiscordLeaderboardRole(config, guild)
-      .catch((error: unknown) => console.error('Discord leaderboard role synchronization failed.', error));
-  }
-}, 60_000);
-leaderboardReconciliationInterval.unref();
 
 client.on(Events.Error, (error) => {
   console.error('Discord client error.', error);

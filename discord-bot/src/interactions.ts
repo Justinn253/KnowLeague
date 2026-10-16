@@ -8,7 +8,6 @@ import {
   grantEligibleLevelRoles,
   reconcileLevelRewardRoles,
   setManualLevel,
-  syncDiscordLeaderboardRole,
 } from './leveling.js';
 import { findLinkedProfile } from './profiles.js';
 
@@ -32,6 +31,10 @@ function getProgressBar(percent: number) {
   const filled = Math.max(0, Math.min(segmentCount, Math.round((percent / 100) * segmentCount)));
   return `${'▓'.repeat(filled)}${'░'.repeat(segmentCount - filled)}`;
 }
+
+const LEADERBOARD_COMMAND_COOLDOWN_MS = 10_000;
+const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
+let leaderboardCommandCooldownPruneAfter = 0;
 
 async function canManageXp(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) {
@@ -100,7 +103,6 @@ async function handleXpCommand(interaction: ChatInputCommandInteraction, config:
   } else {
     await grantEligibleLevelRoles(config, targetMember, update.current_level);
   }
-  await syncDiscordLeaderboardRole(config, interaction.guild);
   const detail = subcommand === 'add'
     ? `Added ${formatXp(interaction.options.getInteger('amount', true))} XP to ${targetUser}.`
     : `Set ${targetUser} to level ${update.current_level}.`;
@@ -119,6 +121,21 @@ async function handleLeaderboardCommand(interaction: ChatInputCommandInteraction
   if (!interaction.guild) {
     return;
   }
+
+  const now = Date.now();
+  if (now >= leaderboardCommandCooldownPruneAfter) {
+    leaderboardCommandCooldownPruneAfter = now + 5 * 60 * 1_000;
+    for (const [userId, expiry] of leaderboardCommandAvailableAtByUserId) {
+      if (expiry <= now) leaderboardCommandAvailableAtByUserId.delete(userId);
+    }
+  }
+  const availableAt = leaderboardCommandAvailableAtByUserId.get(interaction.user.id) ?? 0;
+  if (availableAt > now) {
+    const seconds = Math.ceil((availableAt - now) / 1_000);
+    await interaction.reply({ content: `Please wait ${seconds} second${seconds === 1 ? '' : 's'} before using /leaderboard again.`, ephemeral: true });
+    return;
+  }
+  leaderboardCommandAvailableAtByUserId.set(interaction.user.id, now + LEADERBOARD_COMMAND_COOLDOWN_MS);
 
   const count = interaction.options.getInteger('count') ?? 10;
   await interaction.deferReply();

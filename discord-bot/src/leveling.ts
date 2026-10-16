@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, type Guild, type GuildMember, type Message } from 'discord.js';
+import { PermissionFlagsBits, type Guild, type GuildMember, type Message, type VoiceState } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import { createBotServiceClient } from './supabase.js';
 
@@ -10,6 +10,10 @@ type XpUpdate = {
 
 type XpAward = XpUpdate & {
   awarded: boolean;
+};
+
+type VoiceXpAward = XpAward & {
+  xp_awarded: number;
 };
 
 type RoleReward = {
@@ -34,6 +38,11 @@ type RewardLevelMessage = {
 type DiscordLevelProgressMember = {
   level: number;
   total_xp: number;
+};
+
+type XpAwardSettings = {
+  cooldown_seconds: number;
+  enabled: boolean;
 };
 
 type LeaderboardSettings = {
@@ -70,6 +79,27 @@ export type DiscordLeaderboardEntry = {
   userId: string;
 };
 
+const XP_AWARD_SETTINGS_CACHE_DURATION_MS = 30_000;
+const LEVEL_REWARDS_CACHE_DURATION_MS = 30_000;
+const LEADERBOARD_CACHE_DURATION_MS = 30_000;
+const LEADERBOARD_MESSAGE_RECONCILIATION_INTERVAL_MS = 60 * 60 * 1_000;
+const LEADERBOARD_MAX_MEMBER_SCAN = 500;
+
+let cachedXpAwardSettings: { expiresAt: number; guildId: string; value: XpAwardSettings } | null = null;
+let xpAwardSettingsLoad: Promise<XpAwardSettings> | null = null;
+const xpAwardAttemptAfterByUserId = new Map<string, number>();
+let xpAwardGatePruneAfter = 0;
+let cachedLevelRewards: { expiresAt: number; guildId: string; value: RoleReward[] } | null = null;
+let levelRewardsLoad: Promise<RoleReward[]> | null = null;
+let cachedLeaderboard: {
+  complete: boolean;
+  expiresAt: number;
+  guildId: string;
+  value: DiscordLeaderboardEntry[];
+} | null = null;
+let leaderboardSyncInFlight: Promise<void> | null = null;
+let lastLeaderboardMessageReconciliationAt = 0;
+
 function getFirstResult<T>(data: T | T[] | null) {
   return Array.isArray(data) ? data[0] ?? null : data;
 }
@@ -79,6 +109,114 @@ function totalXpForLevel(level: number) {
   return normalizedLevel === 0
     ? 0
     : 50 * normalizedLevel ** 2 - 100 * normalizedLevel + 150;
+}
+
+async function getXpAwardSettings(config: DiscordBotConfig): Promise<XpAwardSettings> {
+  const now = Date.now();
+  if (cachedXpAwardSettings
+    && cachedXpAwardSettings.guildId === config.guildId
+    && cachedXpAwardSettings.expiresAt > now) {
+    return cachedXpAwardSettings.value;
+  }
+  if (xpAwardSettingsLoad) {
+    return xpAwardSettingsLoad;
+  }
+
+  xpAwardSettingsLoad = (async () => {
+    const { data, error } = await createBotServiceClient(config)
+      .from('discord_leveling_settings')
+      .select('cooldown_seconds, enabled')
+      .eq('guild_id', config.guildId)
+      .maybeSingle<XpAwardSettings>();
+    if (error) {
+      throw new Error(`Unable to load Discord chat leveling settings: ${error.message}`);
+    }
+
+    const value = data ?? { cooldown_seconds: 5, enabled: false };
+    // Configuration is cached briefly to protect the database on busy servers.
+    // Clear the local gate when it changes so a reduced cooldown never leaves a
+    // member waiting for the prior, longer setting.
+    if (cachedXpAwardSettings
+      && cachedXpAwardSettings.guildId === config.guildId
+      && (cachedXpAwardSettings.value.cooldown_seconds !== value.cooldown_seconds
+        || cachedXpAwardSettings.value.enabled !== value.enabled)) {
+      xpAwardAttemptAfterByUserId.clear();
+    }
+    cachedXpAwardSettings = {
+      expiresAt: Date.now() + XP_AWARD_SETTINGS_CACHE_DURATION_MS,
+      guildId: config.guildId,
+      value,
+    };
+    return value;
+  })();
+
+  try {
+    return await xpAwardSettingsLoad;
+  } finally {
+    xpAwardSettingsLoad = null;
+  }
+}
+
+function shouldAttemptChatXp(discordUserId: string, cooldownSeconds: number): boolean {
+  const now = Date.now();
+  const nextAttemptAt = xpAwardAttemptAfterByUserId.get(discordUserId) ?? 0;
+  if (nextAttemptAt > now) {
+    return false;
+  }
+
+  xpAwardAttemptAfterByUserId.set(discordUserId, now + cooldownSeconds * 1_000);
+  if (now >= xpAwardGatePruneAfter) {
+    xpAwardGatePruneAfter = now + 5 * 60 * 1_000;
+    for (const [userId, expiresAt] of xpAwardAttemptAfterByUserId) {
+      if (expiresAt <= now) {
+        xpAwardAttemptAfterByUserId.delete(userId);
+      }
+    }
+  }
+  return true;
+}
+
+async function getConfiguredLevelRewards(config: DiscordBotConfig, forceRefresh = false): Promise<RoleReward[]> {
+  const now = Date.now();
+  if (!forceRefresh
+    && cachedLevelRewards
+    && cachedLevelRewards.guildId === config.guildId
+    && cachedLevelRewards.expiresAt > now) {
+    return cachedLevelRewards.value;
+  }
+  if (!forceRefresh && levelRewardsLoad) {
+    return levelRewardsLoad;
+  }
+
+  const load = async () => {
+    const { data, error } = await createBotServiceClient(config)
+      .from('discord_leveling_role_rewards')
+      .select('discord_role_id, level')
+      .eq('guild_id', config.guildId)
+      .returns<RoleReward[]>();
+    if (error) {
+      throw new Error(`Unable to read Discord level rewards: ${error.message}`);
+    }
+
+    const value = data ?? [];
+    cachedLevelRewards = {
+      expiresAt: Date.now() + LEVEL_REWARDS_CACHE_DURATION_MS,
+      guildId: config.guildId,
+      value,
+    };
+    return value;
+  };
+
+  if (forceRefresh) {
+    return load();
+  }
+
+  levelRewardsLoad = load();
+  try {
+    return await levelRewardsLoad;
+  } finally {
+    levelRewardsLoad = null;
+  }
 }
 
 export async function getDiscordLevelProgress(
@@ -122,10 +260,10 @@ async function getResolvedLeaderboardMembers(
 ): Promise<ResolvedLeaderboardMember[]> {
   const supabase = createBotServiceClient(config);
   const entries: ResolvedLeaderboardMember[] = [];
-  const pageSize = 100;
+  const pageSize = Math.min(100, Math.max(25, limit));
   let start = 0;
 
-  while (entries.length < limit) {
+  while (entries.length < limit && start < LEADERBOARD_MAX_MEMBER_SCAN) {
     const { data, error } = await supabase
       .from('discord_leveling_members')
       .select('discord_user_id, level, total_xp')
@@ -133,7 +271,7 @@ async function getResolvedLeaderboardMembers(
       .gt('total_xp', 0)
       .order('total_xp', { ascending: false })
       .order('discord_user_id', { ascending: true })
-      .range(start, start + pageSize - 1)
+      .range(start, Math.min(start + pageSize - 1, LEADERBOARD_MAX_MEMBER_SCAN - 1))
       .returns<LeaderboardMember[]>();
     if (error) {
       throw new Error(`Unable to load the Discord XP leaderboard: ${error.message}`);
@@ -172,13 +310,28 @@ export async function getDiscordXpLeaderboard(
   guild: Guild,
   limit: number,
 ): Promise<DiscordLeaderboardEntry[]> {
-  const entries = await getResolvedLeaderboardMembers(config, guild, limit);
-  return entries.map((entry) => ({
+  const now = Date.now();
+  if (cachedLeaderboard
+    && cachedLeaderboard.guildId === config.guildId
+    && cachedLeaderboard.expiresAt > now
+    && (cachedLeaderboard.complete || cachedLeaderboard.value.length >= limit)) {
+    return cachedLeaderboard.value.slice(0, limit);
+  }
+
+  const entries = await getResolvedLeaderboardMembers(config, guild, 25);
+  const value = entries.map((entry) => ({
     displayName: entry.member.displayName,
     level: entry.level,
     totalXp: entry.total_xp,
     userId: entry.discord_user_id,
   }));
+  cachedLeaderboard = {
+    complete: value.length < 25,
+    expiresAt: now + LEADERBOARD_CACHE_DURATION_MS,
+    guildId: config.guildId,
+    value,
+  };
+  return value.slice(0, limit);
 }
 
 async function removeTrackedLeaderboardRole(
@@ -207,10 +360,40 @@ async function removeTrackedLeaderboardRole(
   }
 }
 
-export async function syncDiscordLeaderboardRole(config: DiscordBotConfig, guild: Guild) {
+export function syncDiscordLeaderboardRole(config: DiscordBotConfig, guild: Guild): Promise<void> {
+  if (guild.id !== config.guildId) {
+    return Promise.resolve();
+  }
+  if (leaderboardSyncInFlight) {
+    return leaderboardSyncInFlight;
+  }
+
+  const work = performDiscordLeaderboardRoleSync(config, guild);
+  leaderboardSyncInFlight = work;
+  void work.then(
+    () => {
+      lastLeaderboardMessageReconciliationAt = Date.now();
+      if (leaderboardSyncInFlight === work) leaderboardSyncInFlight = null;
+    },
+    () => {
+      if (leaderboardSyncInFlight === work) leaderboardSyncInFlight = null;
+    },
+  );
+  return work;
+}
+
+export async function maybeSyncDiscordLeaderboardRoleOnMessage(config: DiscordBotConfig, guild: Guild) {
   if (guild.id !== config.guildId) {
     return;
   }
+  if (Date.now() - lastLeaderboardMessageReconciliationAt < LEADERBOARD_MESSAGE_RECONCILIATION_INTERVAL_MS) {
+    return;
+  }
+
+  await syncDiscordLeaderboardRole(config, guild);
+}
+
+async function performDiscordLeaderboardRoleSync(config: DiscordBotConfig, guild: Guild) {
 
   const supabase = createBotServiceClient(config);
   const [settingsResult, exclusionsResult, assignmentResult] = await Promise.all([
@@ -335,18 +518,9 @@ export async function syncDiscordGuildRoles(config: DiscordBotConfig, guild: Gui
 }
 
 export async function grantEligibleLevelRoles(config: DiscordBotConfig, member: GuildMember, level: number) {
-  const supabase = createBotServiceClient(config);
-  const { data: rewards, error } = await supabase
-    .from('discord_leveling_role_rewards')
-    .select('discord_role_id, level')
-    .eq('guild_id', config.guildId)
-    .lte('level', level)
-    .returns<RoleReward[]>();
-  if (error) {
-    throw new Error(`Unable to read Discord level rewards: ${error.message}`);
-  }
-
-  const missingRoleIds = (rewards ?? [])
+  const rewards = await getConfiguredLevelRewards(config);
+  const missingRoleIds = rewards
+    .filter((reward) => reward.level <= level)
     .map((reward) => reward.discord_role_id)
     .filter((roleId) => !member.roles.cache.has(roleId))
     .filter((roleId) => member.guild.roles.cache.get(roleId)?.editable);
@@ -357,20 +531,11 @@ export async function grantEligibleLevelRoles(config: DiscordBotConfig, member: 
 }
 
 export async function reconcileLevelRewardRoles(config: DiscordBotConfig, member: GuildMember, level: number) {
-  const supabase = createBotServiceClient(config);
-  const { data: rewards, error } = await supabase
-    .from('discord_leveling_role_rewards')
-    .select('discord_role_id, level')
-    .eq('guild_id', config.guildId)
-    .returns<RoleReward[]>();
-  if (error) {
-    throw new Error(`Unable to read Discord level rewards: ${error.message}`);
-  }
-
-  const eligibleRoleIds = new Set((rewards ?? [])
+  const rewards = await getConfiguredLevelRewards(config, true);
+  const eligibleRoleIds = new Set(rewards
     .filter((reward) => reward.level <= level)
     .map((reward) => reward.discord_role_id));
-  const managedRoleIds = new Set((rewards ?? []).map((reward) => reward.discord_role_id));
+  const managedRoleIds = new Set(rewards.map((reward) => reward.discord_role_id));
   const rolesToAdd = [...eligibleRoleIds]
     .filter((roleId) => !member.roles.cache.has(roleId))
     .filter((roleId) => member.guild.roles.cache.get(roleId)?.editable);
@@ -394,7 +559,13 @@ function renderLevelUpMessage(template: string, member: GuildMember, update: XpU
     .replaceAll('{xp}', new Intl.NumberFormat().format(update.total_xp));
 }
 
-async function announceLevelUp(config: DiscordBotConfig, message: Message, member: GuildMember, update: XpUpdate) {
+async function announceLevelUp(
+  config: DiscordBotConfig,
+  guild: Guild,
+  member: GuildMember,
+  update: XpUpdate,
+  fallbackChannel?: Message['channel'],
+) {
   if (update.current_level <= update.previous_level) {
     return;
   }
@@ -422,11 +593,11 @@ async function announceLevelUp(config: DiscordBotConfig, message: Message, membe
     throw new Error(`Unable to read Discord reward-level message settings: ${rewardLevelMessageError.message}`);
   }
 
-  let announcementChannel = message.channel.isSendable() ? message.channel : null;
+  let announcementChannel = fallbackChannel?.isSendable() ? fallbackChannel : null;
   if (settings.level_up_message_channel_id) {
     let configuredChannel;
     try {
-      configuredChannel = await message.guild!.channels.fetch(settings.level_up_message_channel_id);
+      configuredChannel = await guild.channels.fetch(settings.level_up_message_channel_id);
     } catch (error) {
       console.error('Discord level-up messages could not load the configured announcement channel.', error);
       return;
@@ -506,8 +677,83 @@ export async function resetBannedMemberXp(config: DiscordBotConfig, discordUserI
   }
 }
 
+async function startVoiceXpSession(config: DiscordBotConfig, discordUserId: string) {
+  const { error } = await createBotServiceClient(config).rpc('start_discord_voice_xp_session', {
+    p_discord_user_id: discordUserId,
+    p_guild_id: config.guildId,
+  });
+  if (error) {
+    throw new Error(`Unable to start Discord voice XP tracking: ${error.message}`);
+  }
+}
+
+export async function reconcileDiscordVoiceXpSessions(config: DiscordBotConfig, guild: Guild) {
+  if (guild.id !== config.guildId) {
+    return;
+  }
+
+  const connectedDiscordUserIds = guild.voiceStates.cache
+    .filter((voiceState) => voiceState.channelId !== null && voiceState.member !== null && !voiceState.member.user.bot)
+    .map((voiceState) => voiceState.id);
+  const { error } = await createBotServiceClient(config).rpc('reconcile_discord_voice_xp_sessions', {
+    p_connected_discord_user_ids: connectedDiscordUserIds,
+    p_guild_id: config.guildId,
+  });
+  if (error) {
+    throw new Error(`Unable to reconcile Discord voice XP tracking: ${error.message}`);
+  }
+}
+
+export async function handleDiscordVoiceStateUpdate(
+  config: DiscordBotConfig,
+  oldState: VoiceState,
+  newState: VoiceState,
+) {
+  if (newState.guild.id !== config.guildId) {
+    return;
+  }
+
+  const member = newState.member ?? oldState.member;
+  if (!member || member.user.bot) {
+    return;
+  }
+
+  const wasInVoiceChannel = oldState.channelId !== null;
+  const isInVoiceChannel = newState.channelId !== null;
+  if (!wasInVoiceChannel && isInVoiceChannel) {
+    await startVoiceXpSession(config, member.id);
+    return;
+  }
+  if (!wasInVoiceChannel || isInVoiceChannel) {
+    return;
+  }
+
+  const { data, error } = await createBotServiceClient(config).rpc('award_discord_voice_xp', {
+    p_discord_user_id: member.id,
+    p_guild_id: config.guildId,
+  });
+  if (error) {
+    throw new Error(`Unable to award Discord voice XP: ${error.message}`);
+  }
+
+  const award = getFirstResult(data as VoiceXpAward | VoiceXpAward[] | null);
+  if (!award?.awarded) {
+    return;
+  }
+
+  await grantEligibleLevelRoles(config, member, award.current_level);
+  if (award.current_level > award.previous_level) {
+    await announceLevelUp(config, newState.guild, member, award);
+  }
+}
+
 export async function awardMessageXp(config: DiscordBotConfig, message: Message) {
   if (!message.inGuild() || message.guildId !== config.guildId || message.author.bot || message.system) {
+    return;
+  }
+
+  const settings = await getXpAwardSettings(config);
+  if (!settings.enabled || !shouldAttemptChatXp(message.author.id, settings.cooldown_seconds)) {
     return;
   }
 
@@ -527,6 +773,7 @@ export async function awardMessageXp(config: DiscordBotConfig, message: Message)
 
   const member = message.member ?? await message.guild.members.fetch(message.author.id);
   await grantEligibleLevelRoles(config, member, award.current_level);
-  await announceLevelUp(config, message, member, award);
-  await syncDiscordLeaderboardRole(config, message.guild!);
+  if (award.current_level > award.previous_level) {
+    await announceLevelUp(config, message.guild!, member, award, message.channel);
+  }
 }

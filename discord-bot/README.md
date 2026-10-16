@@ -11,22 +11,24 @@ This is the long-running Discord companion for the KnowLeague web app. It is int
 - `/xp add` grants a member XP and `/xp set-level` sets a member to a level; both are available only to members whose Discord role is selected in **Discord Configuration**.
 - `/leaderboard [count]` posts the top active server members by XP, with 10 entries by default and up to 25 on request.
 
-`/link`, `/profile`, `/help`, and `/xp` replies are ephemeral; `/leaderboard` is intentionally public to the server. Chat leveling observes eligible messages through the non-privileged `Guilds`, `GuildMessages`, and `GuildModeration` gateway intents, awards XP without reading or storing message text, registers commands to one configured guild, and ignores all events from every other guild.
+`/link`, `/profile`, `/help`, and `/xp` replies are ephemeral; `/leaderboard` is intentionally public to the server. Leveling observes eligible messages and voice-state changes through the non-privileged `Guilds`, `GuildMessages`, `GuildModeration`, and `GuildVoiceStates` gateway intents. It does not read or store message text or voice audio, registers commands to one configured guild, and ignores all events from every other guild.
 
 ## Chat leveling
 
 Chat leveling is configured by KnowLeague website administrators from **Profile > Discord Account > Discord Configuration**. It starts enabled with 15 XP per eligible non-bot message and a five-second, per-member server-wide cooldown. The Lurkr-compatible total XP requirement for level `n` is `50n² - 100n + 150` (for example, level 10 requires 4,150 total XP).
 
+Voice channel time also earns 1 XP for every completed minute. The bot starts a server-side session when a non-bot member joins a voice or stage channel, retains it when they move between channels, and atomically settles XP when they disconnect. It does not connect to calls, receive audio, or attempt to infer whether someone is speaking. A bot restart reconciles current voice states so stale sessions cannot later grant XP.
+
 Administrators can pause leveling, adjust XP and cooldown values, configure a default announcement plus optional reward-level overrides, and select multiple Discord roles for each reward level. Leave the announcement channel ID empty to post in the channel where a member leveled up, or enter a text-channel ID to route every announcement there.
 
-The leaderboard can optionally grant one dedicated champion role to the highest-XP eligible member. The bot moves the role when the leader changes and checks the configuration at startup, after XP changes and bans, and once per minute. Members with selected exclusion roles are skipped when selecting the champion. Keep the champion role dedicated: it cannot be a level reward or manual-XP staff role.
+The leaderboard can optionally grant one dedicated champion role to the highest-XP eligible member. The bot checks it at startup, then on the first eligible human message after each hourly window; role changes can therefore take up to one hour after a lead changes. Members with selected exclusion roles are skipped when selecting the champion. Keep the champion role dedicated: it cannot be a level reward or manual-XP staff role.
 
 When a member is banned while the bot is running, their existing chat XP is reset to zero and they are removed from champion-role consideration. Existing bans are not retroactively processed.
 
 ## Local setup
 
 1. In the Discord application already used by the website's `DISCORD_CLIENT_ID`, open **Bot** and add a bot user; copy the application ID and bot token. If website OAuth has not been configured yet, create one Discord application and use that same application for both OAuth and the bot. `DISCORD_APPLICATION_ID` must equal the website's `DISCORD_CLIENT_ID`.
-2. In **Bot > Privileged Gateway Intents**, leave every privileged toggle off. In particular, do not enable **Message Content Intent**, **Server Members Intent**, or **Presence Intent**. Chat leveling uses the non-privileged **Guild Messages** and **Guild Moderation** intents and never reads message text.
+2. In **Bot > Privileged Gateway Intents**, leave every privileged toggle off. In particular, do not enable **Message Content Intent**, **Server Members Intent**, or **Presence Intent**. Leveling uses the non-privileged **Guild Messages**, **Guild Moderation**, and **Guild Voice States** intents; no Developer Portal toggle is needed for voice states, and the bot never reads message text or voice audio.
 3. In **OAuth2 > URL Generator**, select `bot` and `applications.commands`. Under Bot Permissions select **View Channels** and **Manage Roles**. Also select **Send Messages** for every channel where level-up announcements may be posted. Then use the generated URL to invite or re-authorize the bot in the KnowLeague server. Do not grant Administrator. Move the KnowLeague bot's server role above every level-reward role and the optional champion role it should grant.
 4. Copy `discord-bot/.env.example` to `discord-bot/.env` and set each value. The bot loads this local file automatically when run from its workspace. Use the same Supabase project as the website. Keep `SUPABASE_SERVICE_ROLE_KEY` only in this local file or the bot host's secret manager.
 5. Add the same `DISCORD_GUILD_ID` to the website's `.env.local` (and its production environment) so the administrator-only settings page knows which server to configure.

@@ -1,8 +1,16 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { DiscordBotConfig } from './config.js';
 
+let cachedClient: SupabaseClient | null = null;
+let cachedClientKey: string | null = null;
+
 export function createBotServiceClient(config: DiscordBotConfig) {
-  return createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
+  const clientKey = `${config.supabaseUrl}\u0000${config.supabaseServiceRoleKey}`;
+  if (cachedClient && cachedClientKey === clientKey) {
+    return cachedClient;
+  }
+
+  cachedClient = createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -11,4 +19,6 @@ export function createBotServiceClient(config: DiscordBotConfig) {
       fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
     },
   });
+  cachedClientKey = clientKey;
+  return cachedClient;
 }

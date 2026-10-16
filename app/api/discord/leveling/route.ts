@@ -9,6 +9,17 @@ import {
   type DiscordLevelingRoleReward,
   type DiscordLevelingSettings,
 } from '@/lib/discord-leveling';
+import {
+  DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS,
+  DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES,
+  DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
+  DISCORD_SKIN_CLAIM_RARITIES,
+  type DiscordGuildChannel,
+  type DiscordSkinClaimRarity,
+  type DiscordSkinClaimRarityWeight,
+  type DiscordSkinClaimSellValue,
+  type DiscordSkinClaimSettings,
+} from '@/lib/discord-skin-claims';
 import { requireAdminAccess } from '@/lib/moderation';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
@@ -45,11 +56,53 @@ type StoredStaffRoleRow = {
   discord_role_id: string;
 };
 
+type StoredSkinClaimAdminRoleRow = {
+  discord_role_id: string;
+};
+
 type StoredLeaderboardExcludedRoleRow = {
   discord_role_id: string;
 };
 
+type StoredGuildChannelRow = {
+  channel_id: string;
+  channel_name: string;
+  position: number;
+  sendable: boolean;
+};
+
+type StoredSkinClaimSettingsRow = {
+  all_channels: boolean;
+  claim_window_minutes: number;
+  enabled: boolean;
+  maximum_interval_minutes: number;
+  minimum_interval_minutes: number;
+};
+
+type StoredSkinClaimEconomySettingsRow = {
+  claim_grace_period_seconds: number;
+  collection_capacity_upgrade_cost: number;
+  collection_steal_chance_percent: number;
+  default_collection_capacity: number;
+  summon_base_cost: number;
+};
+
+type StoredSkinClaimChannelRow = {
+  channel_id: string;
+};
+
+type StoredSkinClaimRarityWeightRow = {
+  rarity: DiscordSkinClaimRarity;
+  weight: number;
+};
+
+type StoredSkinClaimSellValueRow = {
+  amount: number;
+  rarity: DiscordSkinClaimRarity;
+};
+
 type LevelingSettingsBody = {
+  collectionAdminRoleIds?: unknown;
   cooldownSeconds?: unknown;
   enabled?: unknown;
   leaderboardExcludedRoleIds?: unknown;
@@ -59,6 +112,19 @@ type LevelingSettingsBody = {
   levelUpMessageTemplate?: unknown;
   manualXpRoleIds?: unknown;
   roleRewards?: unknown;
+  skinClaimAllChannels?: unknown;
+  skinClaimClaimGracePeriodSeconds?: unknown;
+  skinClaimChannelIds?: unknown;
+  skinClaimClaimWindowMinutes?: unknown;
+  skinClaimCollectionCapacityUpgradeCost?: unknown;
+  skinClaimCollectionStealChancePercent?: unknown;
+  skinClaimDefaultCollectionCapacity?: unknown;
+  skinClaimEnabled?: unknown;
+  skinClaimMaximumIntervalMinutes?: unknown;
+  skinClaimMinimumIntervalMinutes?: unknown;
+  skinClaimRarityWeights?: unknown;
+  skinClaimSellValues?: unknown;
+  skinClaimSummonBaseCost?: unknown;
   xpPerMessage?: unknown;
 };
 
@@ -86,6 +152,44 @@ function toGuildRole(row: StoredRoleRow): DiscordGuildRole {
   return { assignable: row.assignable, id: row.role_id, name: row.role_name, position: row.position };
 }
 
+function toGuildChannel(row: StoredGuildChannelRow): DiscordGuildChannel {
+  return { id: row.channel_id, name: row.channel_name, position: row.position, sendable: row.sendable };
+}
+
+function toSkinClaimSettings(
+  row: StoredSkinClaimSettingsRow | null,
+  economy: StoredSkinClaimEconomySettingsRow | null,
+): DiscordSkinClaimSettings {
+  return row ? {
+    allChannels: row.all_channels,
+    claimWindowMinutes: row.claim_window_minutes,
+    claimGracePeriodSeconds: economy?.claim_grace_period_seconds ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.claimGracePeriodSeconds,
+    collectionCapacityUpgradeCost: economy?.collection_capacity_upgrade_cost ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionCapacityUpgradeCost,
+    collectionStealChancePercent: economy?.collection_steal_chance_percent ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionStealChancePercent,
+    defaultCollectionCapacity: economy?.default_collection_capacity ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.defaultCollectionCapacity,
+    enabled: row.enabled,
+    maximumIntervalMinutes: row.maximum_interval_minutes,
+    minimumIntervalMinutes: row.minimum_interval_minutes,
+    summonBaseCost: economy?.summon_base_cost ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.summonBaseCost,
+  } : DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS;
+}
+
+function normalizeSkinClaimRarityWeights(rows: StoredSkinClaimRarityWeightRow[]): DiscordSkinClaimRarityWeight[] {
+  const weightByRarity = new Map(rows.map((row) => [row.rarity, row.weight]));
+  return DISCORD_SKIN_CLAIM_RARITIES.map((rarity) => ({
+    rarity,
+    weight: weightByRarity.get(rarity) ?? DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS.find((entry) => entry.rarity === rarity)!.weight,
+  }));
+}
+
+function normalizeSkinClaimSellValues(rows: StoredSkinClaimSellValueRow[]): DiscordSkinClaimSellValue[] {
+  const amountByRarity = new Map(rows.map((row) => [row.rarity, row.amount]));
+  return DISCORD_SKIN_CLAIM_RARITIES.map((rarity) => ({
+    amount: amountByRarity.get(rarity) ?? DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES.find((entry) => entry.rarity === rarity)!.amount,
+    rarity,
+  }));
+}
+
 function groupRoleRewards(rows: StoredRewardRoleRow[], messages: StoredRewardMessageRow[]) {
   const roleIdsByLevel = new Map<number, string[]>();
   for (const row of rows) {
@@ -103,7 +207,21 @@ function groupRoleRewards(rows: StoredRewardRoleRow[], messages: StoredRewardMes
 
 async function getLevelingData(guildId: string) {
   const supabase = getSupabaseServiceClient();
-  const [settingsResult, rolesResult, rewardRolesResult, rewardMessagesResult, staffRolesResult, leaderboardExcludedRolesResult] = await Promise.all([
+  const [
+    settingsResult,
+    rolesResult,
+    rewardRolesResult,
+    rewardMessagesResult,
+    staffRolesResult,
+    skinClaimAdminRolesResult,
+    leaderboardExcludedRolesResult,
+    channelsResult,
+    skinClaimSettingsResult,
+    skinClaimChannelsResult,
+    skinClaimRarityWeightsResult,
+    skinClaimEconomySettingsResult,
+    skinClaimSellValuesResult,
+  ] = await Promise.all([
     supabase.from('discord_leveling_settings')
       .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
       .eq('guild_id', guildId)
@@ -129,11 +247,43 @@ async function getLevelingData(guildId: string) {
       .eq('guild_id', guildId)
       .order('discord_role_id', { ascending: true })
       .returns<StoredStaffRoleRow[]>(),
+    supabase.from('discord_skin_claim_admin_roles')
+      .select('discord_role_id')
+      .eq('guild_id', guildId)
+      .order('discord_role_id', { ascending: true })
+      .returns<StoredSkinClaimAdminRoleRow[]>(),
     supabase.from('discord_leveling_leaderboard_excluded_roles')
       .select('discord_role_id')
       .eq('guild_id', guildId)
       .order('discord_role_id', { ascending: true })
       .returns<StoredLeaderboardExcludedRoleRow[]>(),
+    supabase.from('discord_guild_text_channels')
+      .select('channel_id, channel_name, position, sendable')
+      .eq('guild_id', guildId)
+      .order('position', { ascending: true })
+      .order('channel_name', { ascending: true })
+      .returns<StoredGuildChannelRow[]>(),
+    supabase.from('discord_skin_claim_settings')
+      .select('enabled, minimum_interval_minutes, maximum_interval_minutes, claim_window_minutes, all_channels')
+      .eq('guild_id', guildId)
+      .maybeSingle<StoredSkinClaimSettingsRow>(),
+    supabase.from('discord_skin_claim_channels')
+      .select('channel_id')
+      .eq('guild_id', guildId)
+      .order('channel_id', { ascending: true })
+      .returns<StoredSkinClaimChannelRow[]>(),
+    supabase.from('discord_skin_claim_rarity_weights')
+      .select('rarity, weight')
+      .eq('guild_id', guildId)
+      .returns<StoredSkinClaimRarityWeightRow[]>(),
+    supabase.from('discord_skin_claim_economy_settings')
+      .select('summon_base_cost, default_collection_capacity, collection_capacity_upgrade_cost, collection_steal_chance_percent, claim_grace_period_seconds')
+      .eq('guild_id', guildId)
+      .maybeSingle<StoredSkinClaimEconomySettingsRow>(),
+    supabase.from('discord_skin_claim_sell_values')
+      .select('rarity, amount')
+      .eq('guild_id', guildId)
+      .returns<StoredSkinClaimSellValueRow[]>(),
   ]);
 
   if (settingsResult.error) throw settingsResult.error;
@@ -141,14 +291,27 @@ async function getLevelingData(guildId: string) {
   if (rewardRolesResult.error) throw rewardRolesResult.error;
   if (rewardMessagesResult.error) throw rewardMessagesResult.error;
   if (staffRolesResult.error) throw staffRolesResult.error;
+  if (skinClaimAdminRolesResult.error) throw skinClaimAdminRolesResult.error;
   if (leaderboardExcludedRolesResult.error) throw leaderboardExcludedRolesResult.error;
+  if (channelsResult.error) throw channelsResult.error;
+  if (skinClaimSettingsResult.error) throw skinClaimSettingsResult.error;
+  if (skinClaimChannelsResult.error) throw skinClaimChannelsResult.error;
+  if (skinClaimRarityWeightsResult.error) throw skinClaimRarityWeightsResult.error;
+  if (skinClaimEconomySettingsResult.error) throw skinClaimEconomySettingsResult.error;
+  if (skinClaimSellValuesResult.error) throw skinClaimSellValuesResult.error;
 
   return {
+    channels: (channelsResult.data ?? []).map(toGuildChannel),
+    collectionAdminRoleIds: (skinClaimAdminRolesResult.data ?? []).map((role) => role.discord_role_id),
     leaderboardExcludedRoleIds: (leaderboardExcludedRolesResult.data ?? []).map((role) => role.discord_role_id),
     manualXpRoleIds: (staffRolesResult.data ?? []).map((role) => role.discord_role_id),
     roleRewards: groupRoleRewards(rewardRolesResult.data ?? [], rewardMessagesResult.data ?? []),
     roles: (rolesResult.data ?? []).map(toGuildRole),
     settings: toSettings(settingsResult.data),
+    skinClaimChannelIds: (skinClaimChannelsResult.data ?? []).map((channel) => channel.channel_id),
+    skinClaimRarityWeights: normalizeSkinClaimRarityWeights(skinClaimRarityWeightsResult.data ?? []),
+    skinClaimSellValues: normalizeSkinClaimSellValues(skinClaimSellValuesResult.data ?? []),
+    skinClaimSettings: toSkinClaimSettings(skinClaimSettingsResult.data, skinClaimEconomySettingsResult.data),
   };
 }
 
@@ -220,6 +383,67 @@ function parseRoleIds(value: unknown, label: string, maximum: number) {
   return roleIds;
 }
 
+function parseSkinClaimChannelIds(value: unknown) {
+  if (!Array.isArray(value) || value.length > 25) {
+    throw new ApiError(400, 'Provide up to 25 eligible skin-claim channels.');
+  }
+  const channelIds = value.map((channelId) => {
+    if (typeof channelId !== 'string' || !/^[0-9]{17,20}$/.test(channelId)) {
+      throw new ApiError(400, 'Choose a valid Discord channel for every skin-claim channel.');
+    }
+    return channelId;
+  });
+  if (new Set(channelIds).size !== channelIds.length) {
+    throw new ApiError(400, 'Each eligible skin-claim channel can only be selected once.');
+  }
+  return channelIds;
+}
+
+function parseSkinClaimRarityWeights(value: unknown): DiscordSkinClaimRarityWeight[] {
+  if (!Array.isArray(value) || value.length !== DISCORD_SKIN_CLAIM_RARITIES.length) {
+    throw new ApiError(400, 'Provide one weight for every skin rarity.');
+  }
+  const weights = value.map((entry) => {
+    if (!entry || typeof entry !== 'object') throw new ApiError(400, 'Every skin rarity weight must be valid.');
+    const { rarity, weight } = entry as { rarity?: unknown; weight?: unknown };
+    if (typeof rarity !== 'string' || !DISCORD_SKIN_CLAIM_RARITIES.includes(rarity as DiscordSkinClaimRarity)) {
+      throw new ApiError(400, 'Choose a supported skin rarity for every weight.');
+    }
+    return {
+      rarity: rarity as DiscordSkinClaimRarity,
+      weight: parsePositiveInteger(weight, `${rarity} weight`, 0, 1000),
+    };
+  });
+  if (new Set(weights.map((entry) => entry.rarity)).size !== DISCORD_SKIN_CLAIM_RARITIES.length) {
+    throw new ApiError(400, 'Provide each supported skin rarity exactly once.');
+  }
+  if (!weights.some((entry) => entry.weight > 0)) {
+    throw new ApiError(400, 'At least one skin rarity must have a positive weight.');
+  }
+  return weights;
+}
+
+function parseSkinClaimSellValues(value: unknown): DiscordSkinClaimSellValue[] {
+  if (!Array.isArray(value) || value.length !== DISCORD_SKIN_CLAIM_RARITIES.length) {
+    throw new ApiError(400, 'Provide one sell value for every skin rarity.');
+  }
+  const sellValues = value.map((entry) => {
+    if (!entry || typeof entry !== 'object') throw new ApiError(400, 'Every skin sell value must be valid.');
+    const { amount, rarity } = entry as { amount?: unknown; rarity?: unknown };
+    if (typeof rarity !== 'string' || !DISCORD_SKIN_CLAIM_RARITIES.includes(rarity as DiscordSkinClaimRarity)) {
+      throw new ApiError(400, 'Choose a supported skin rarity for every sell value.');
+    }
+    return {
+      amount: parsePositiveInteger(amount, `${rarity} sell value`, 1, 1_000_000_000),
+      rarity: rarity as DiscordSkinClaimRarity,
+    };
+  });
+  if (new Set(sellValues.map((entry) => entry.rarity)).size !== DISCORD_SKIN_CLAIM_RARITIES.length) {
+    throw new ApiError(400, 'Provide each supported skin rarity exactly once.');
+  }
+  return sellValues;
+}
+
 export const GET = withApiMetrics('/api/discord/leveling', async function GET(request: Request) {
   try {
     await requireAdminAccess(await getAuthenticatedUser(request));
@@ -234,8 +458,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const user = await getAuthenticatedUser(request);
     await requireAdminAccess(user);
     const body = await readJsonBody<LevelingSettingsBody>(request);
-    if (typeof body.enabled !== 'boolean' || typeof body.levelUpMessageEnabled !== 'boolean') {
-      throw new ApiError(400, 'Leveling and level-up message states must be enabled or disabled.');
+    if (typeof body.enabled !== 'boolean' || typeof body.levelUpMessageEnabled !== 'boolean' || typeof body.skinClaimEnabled !== 'boolean') {
+      throw new ApiError(400, 'Leveling, level-up message, and skin-claim states must be enabled or disabled.');
     }
 
     const xpPerMessage = parsePositiveInteger(body.xpPerMessage, 'XP per message', 1, 1000);
@@ -246,7 +470,23 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const levelUpMessageChannelId = parseOptionalSnowflake(body.levelUpMessageChannelId, 'Level-up channel ID');
     const leaderboardTopRoleId = parseOptionalSnowflake(body.leaderboardTopRoleId, 'Leaderboard top role');
     const manualXpRoleIds = parseRoleIds(body.manualXpRoleIds, 'manual XP staff roles', 25);
+    const collectionAdminRoleIds = parseRoleIds(body.collectionAdminRoleIds, 'collection admin roles', 25);
     const leaderboardExcludedRoleIds = parseRoleIds(body.leaderboardExcludedRoleIds, 'leaderboard exclusion roles', 25);
+    const skinClaimMinimumIntervalMinutes = parsePositiveInteger(body.skinClaimMinimumIntervalMinutes, 'Skin-claim minimum interval', 1, 10080);
+    const skinClaimMaximumIntervalMinutes = parsePositiveInteger(body.skinClaimMaximumIntervalMinutes, 'Skin-claim maximum interval', skinClaimMinimumIntervalMinutes, 10080);
+    const skinClaimClaimWindowMinutes = parsePositiveInteger(body.skinClaimClaimWindowMinutes, 'Skin-claim window', 1, 1440);
+    const skinClaimSummonBaseCost = parsePositiveInteger(body.skinClaimSummonBaseCost, 'Summon base cost', 1, 1_000_000_000);
+    const skinClaimDefaultCollectionCapacity = parsePositiveInteger(body.skinClaimDefaultCollectionCapacity, 'Default collection size', 1, 10_000);
+    const skinClaimCollectionCapacityUpgradeCost = parsePositiveInteger(body.skinClaimCollectionCapacityUpgradeCost, 'Collection level-up cost', 1, 1_000_000_000);
+    const skinClaimCollectionStealChancePercent = parsePositiveInteger(body.skinClaimCollectionStealChancePercent, 'Collection steal base chance', 0, 100);
+    const skinClaimClaimGracePeriodSeconds = parsePositiveInteger(body.skinClaimClaimGracePeriodSeconds, 'Collection claim grace period', 0, 600);
+    if (typeof body.skinClaimAllChannels !== 'boolean') {
+      throw new ApiError(400, 'Skin-claim channel scope must be all channels or selected channels.');
+    }
+    const skinClaimAllChannels = body.skinClaimAllChannels;
+    const skinClaimChannelIds = parseSkinClaimChannelIds(body.skinClaimChannelIds);
+    const skinClaimRarityWeights = parseSkinClaimRarityWeights(body.skinClaimRarityWeights);
+    const skinClaimSellValues = parseSkinClaimSellValues(body.skinClaimSellValues);
     const guildId = getDiscordGuildId();
     const supabase = getSupabaseServiceClient();
     const { data: roles, error: rolesError } = await supabase.from('discord_guild_roles')
@@ -254,6 +494,11 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       .eq('guild_id', guildId)
       .returns<Array<Pick<StoredRoleRow, 'assignable' | 'role_id'>>>();
     if (rolesError) throw rolesError;
+    const { data: channels, error: channelsError } = await supabase.from('discord_guild_text_channels')
+      .select('channel_id, sendable')
+      .eq('guild_id', guildId)
+      .returns<Array<Pick<StoredGuildChannelRow, 'channel_id' | 'sendable'>>>();
+    if (channelsError) throw channelsError;
 
     const assignableRoleIds = new Set((roles ?? []).filter((role) => role.assignable).map((role) => role.role_id));
     if (roleRewards.some((reward) => reward.roleIds.some((roleId) => !assignableRoleIds.has(roleId)))) {
@@ -262,6 +507,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const syncedRoleIds = new Set((roles ?? []).map((role) => role.role_id));
     if (manualXpRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose staff roles that are currently synced from Discord.');
+    }
+    if (collectionAdminRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
+      throw new ApiError(400, 'Choose collection admin roles that are currently synced from Discord.');
     }
     if (leaderboardExcludedRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose leaderboard exclusion roles that are currently synced from Discord.');
@@ -278,8 +526,15 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (leaderboardTopRoleId && leaderboardExcludedRoleIds.includes(leaderboardTopRoleId)) {
       throw new ApiError(400, 'The leaderboard top role cannot exclude its own holders.');
     }
+    const sendableChannelIds = new Set((channels ?? []).filter((channel) => channel.sendable).map((channel) => channel.channel_id));
+    if (skinClaimChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
+      throw new ApiError(400, 'Choose skin-claim channels that are currently available to the KnowLeague bot.');
+    }
+    if (body.skinClaimEnabled && (!sendableChannelIds.size || (!skinClaimAllChannels && !skinClaimChannelIds.length))) {
+      throw new ApiError(400, 'Enable skin claims only after Discord has synced a sendable channel or you select at least one eligible channel.');
+    }
 
-    const { error } = await supabase.rpc('replace_discord_leveling_settings', {
+    const { error } = await supabase.rpc('replace_discord_collection_configuration', {
       p_cooldown_seconds: cooldownSeconds,
       p_enabled: body.enabled,
       p_guild_id: guildId,
@@ -290,8 +545,22 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_level_up_message_template: levelUpMessageTemplate,
       p_manual_xp_role_ids: manualXpRoleIds,
       p_role_rewards: roleRewards,
-      p_updated_by: user.id,
       p_xp_per_message: xpPerMessage,
+      p_updated_by: user.id,
+      p_skin_claim_all_channels: skinClaimAllChannels,
+      p_skin_claim_eligible_channel_ids: skinClaimChannelIds,
+      p_skin_claim_enabled: body.skinClaimEnabled,
+      p_skin_claim_maximum_interval_minutes: skinClaimMaximumIntervalMinutes,
+      p_skin_claim_minimum_interval_minutes: skinClaimMinimumIntervalMinutes,
+      p_skin_claim_rarity_weights: skinClaimRarityWeights,
+      p_skin_claim_window_minutes: skinClaimClaimWindowMinutes,
+      p_summon_base_cost: skinClaimSummonBaseCost,
+      p_default_collection_capacity: skinClaimDefaultCollectionCapacity,
+      p_collection_capacity_upgrade_cost: skinClaimCollectionCapacityUpgradeCost,
+      p_collection_steal_chance_percent: skinClaimCollectionStealChancePercent,
+      p_claim_grace_period_seconds: skinClaimClaimGracePeriodSeconds,
+      p_collection_admin_role_ids: collectionAdminRoleIds,
+      p_sell_values: skinClaimSellValues,
     });
     if (error) throw error;
     return NextResponse.json(await getLevelingData(guildId));

@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, type Guild, type GuildMember, type Message, type VoiceState } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, type Guild, type GuildMember, type Message, type VoiceState } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import { createBotServiceClient } from './supabase.js';
 
@@ -514,6 +514,49 @@ export async function syncDiscordGuildRoles(config: DiscordBotConfig, guild: Gui
       .upsert(roleRows, { onConflict: 'guild_id,role_id' });
     if (upsertError) {
       throw new Error(`Unable to save Discord role metadata: ${upsertError.message}`);
+    }
+  }
+}
+
+export async function syncDiscordGuildTextChannels(config: DiscordBotConfig, guild: Guild) {
+  if (guild.id !== config.guildId) {
+    return;
+  }
+
+  const [botMember, channels] = await Promise.all([guild.members.fetchMe(), guild.channels.fetch()]);
+  const channelRows = channels
+    .filter((channel) => channel?.type === ChannelType.GuildText || channel?.type === ChannelType.GuildAnnouncement)
+    .map((channel) => {
+      const permissions = channel!.permissionsFor(botMember);
+      return {
+        channel_id: channel!.id,
+        channel_name: channel!.name.slice(0, 100),
+        guild_id: guild.id,
+        position: channel!.rawPosition,
+        sendable: Boolean(permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages])),
+        updated_at: new Date().toISOString(),
+      };
+    });
+  const supabase = createBotServiceClient(config);
+  const { error: settingsError } = await supabase
+    .from('discord_leveling_settings')
+    .upsert({ guild_id: guild.id }, { onConflict: 'guild_id', ignoreDuplicates: true });
+  if (settingsError) {
+    throw new Error(`Unable to initialize Discord channel metadata: ${settingsError.message}`);
+  }
+  const { error: deleteError } = await supabase
+    .from('discord_guild_text_channels')
+    .delete()
+    .eq('guild_id', guild.id);
+  if (deleteError) {
+    throw new Error(`Unable to replace Discord text-channel metadata: ${deleteError.message}`);
+  }
+  if (channelRows.length > 0) {
+    const { error: upsertError } = await supabase
+      .from('discord_guild_text_channels')
+      .upsert(channelRows, { onConflict: 'guild_id,channel_id' });
+    if (upsertError) {
+      throw new Error(`Unable to save Discord text-channel metadata: ${upsertError.message}`);
     }
   }
 }

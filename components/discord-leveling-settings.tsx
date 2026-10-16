@@ -13,23 +13,46 @@ import {
   type DiscordLevelingRoleReward,
   type DiscordLevelingSettings,
 } from '@/lib/discord-leveling';
+import {
+  DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS,
+  DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES,
+  DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
+  type DiscordGuildChannel,
+  type DiscordSkinClaimRarityWeight,
+  type DiscordSkinClaimSellValue,
+  type DiscordSkinClaimSettings,
+} from '@/lib/discord-skin-claims';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type LevelingSettingsResponse = {
+  channels: DiscordGuildChannel[];
+  collectionAdminRoleIds: string[];
   leaderboardExcludedRoleIds: string[];
   manualXpRoleIds: string[];
   roleRewards: DiscordLevelingRoleReward[];
   roles: DiscordGuildRole[];
   settings: DiscordLevelingSettings;
+  skinClaimChannelIds: string[];
+  skinClaimRarityWeights: DiscordSkinClaimRarityWeight[];
+  skinClaimSellValues: DiscordSkinClaimSellValue[];
+  skinClaimSettings: DiscordSkinClaimSettings;
 };
 
 const EMPTY_RESPONSE: LevelingSettingsResponse = {
+  channels: [],
+  collectionAdminRoleIds: [],
   leaderboardExcludedRoleIds: [],
   manualXpRoleIds: [],
   roleRewards: [],
   roles: [],
   settings: DEFAULT_DISCORD_LEVELING_SETTINGS,
+  skinClaimChannelIds: [],
+  skinClaimRarityWeights: [...DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS],
+  skinClaimSellValues: [...DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES],
+  skinClaimSettings: DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
 };
+
+const ALL_SKIN_CLAIM_CHANNELS_VALUE = '__all__';
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat().format(value);
@@ -104,6 +127,7 @@ export function DiscordLevelingSettings() {
   const [data, setData] = useState<LevelingSettingsResponse>(EMPTY_RESPONSE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'leveling' | 'collections'>('leveling');
   const [message, setMessage] = useState('');
   const [rewardLevel, setRewardLevel] = useState('5');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
@@ -126,8 +150,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.leaderboardExcludedRoleIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -154,10 +178,32 @@ export function DiscordLevelingSettings() {
   const updateSettings = <TKey extends keyof DiscordLevelingSettings>(key: TKey, value: DiscordLevelingSettings[TKey]) => {
     setData((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
   };
+  const updateSkinClaimSettings = <TKey extends keyof DiscordSkinClaimSettings>(key: TKey, value: DiscordSkinClaimSettings[TKey]) => {
+    setData((current) => ({ ...current, skinClaimSettings: { ...current.skinClaimSettings, [key]: value } }));
+  };
   const toggleId = (values: string[], value: string) => values.includes(value) ? values.filter((item) => item !== value) : [...values, value].sort();
   const toggleRewardRole = (roleId: string) => setSelectedRoleIds((current) => toggleId(current, roleId));
   const toggleManualRole = (roleId: string) => setData((current) => ({ ...current, manualXpRoleIds: toggleId(current.manualXpRoleIds, roleId) }));
+  const toggleCollectionAdminRole = (roleId: string) => setData((current) => ({ ...current, collectionAdminRoleIds: toggleId(current.collectionAdminRoleIds, roleId) }));
   const toggleLeaderboardExcludedRole = (roleId: string) => setData((current) => ({ ...current, leaderboardExcludedRoleIds: toggleId(current.leaderboardExcludedRoleIds, roleId) }));
+  const toggleSkinClaimChannel = (channelId: string) => setData((current) => {
+    if (channelId === ALL_SKIN_CLAIM_CHANNELS_VALUE) {
+      return {
+        ...current,
+        skinClaimSettings: { ...current.skinClaimSettings, allChannels: !current.skinClaimSettings.allChannels },
+      };
+    }
+    const skinClaimChannelIds = toggleId(current.skinClaimChannelIds, channelId);
+    return { ...current, skinClaimChannelIds, skinClaimSettings: { ...current.skinClaimSettings, allChannels: false } };
+  });
+  const updateSkinClaimRarityWeight = (rarity: DiscordSkinClaimRarityWeight['rarity'], weight: number) => setData((current) => ({
+    ...current,
+    skinClaimRarityWeights: current.skinClaimRarityWeights.map((entry) => entry.rarity === rarity ? { ...entry, weight } : entry),
+  }));
+  const updateSkinClaimSellValue = (rarity: DiscordSkinClaimSellValue['rarity'], amount: number) => setData((current) => ({
+    ...current,
+    skinClaimSellValues: current.skinClaimSellValues.map((entry) => entry.rarity === rarity ? { ...entry, amount } : entry),
+  }));
   const toggleRewardMessage = (level: number) => setExpandedRewardMessageLevels((current) => current.includes(level)
     ? current.filter((item) => item !== level)
     : [...current, level]);
@@ -204,14 +250,28 @@ export function DiscordLevelingSettings() {
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data.settings,
+          collectionAdminRoleIds: data.collectionAdminRoleIds,
           leaderboardExcludedRoleIds: data.leaderboardExcludedRoleIds,
           manualXpRoleIds: data.manualXpRoleIds,
           roleRewards: data.roleRewards,
+          skinClaimAllChannels: data.skinClaimSettings.allChannels,
+          skinClaimChannelIds: data.skinClaimChannelIds,
+          skinClaimClaimWindowMinutes: data.skinClaimSettings.claimWindowMinutes,
+          skinClaimClaimGracePeriodSeconds: data.skinClaimSettings.claimGracePeriodSeconds,
+          skinClaimEnabled: data.skinClaimSettings.enabled,
+          skinClaimCollectionCapacityUpgradeCost: data.skinClaimSettings.collectionCapacityUpgradeCost,
+          skinClaimCollectionStealChancePercent: data.skinClaimSettings.collectionStealChancePercent,
+          skinClaimDefaultCollectionCapacity: data.skinClaimSettings.defaultCollectionCapacity,
+          skinClaimMaximumIntervalMinutes: data.skinClaimSettings.maximumIntervalMinutes,
+          skinClaimMinimumIntervalMinutes: data.skinClaimSettings.minimumIntervalMinutes,
+          skinClaimRarityWeights: data.skinClaimRarityWeights,
+          skinClaimSellValues: data.skinClaimSellValues,
+          skinClaimSummonBaseCost: data.skinClaimSettings.summonBaseCost,
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.leaderboardExcludedRoleIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings });
       setMessage('Discord Configuration saved. Reward roles are granted when eligible members next earn XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
@@ -228,11 +288,16 @@ export function DiscordLevelingSettings() {
       </div>
       <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Discord Configuration</p>
-        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">Chat leveling</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.</p>
+        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">{activeTab === 'leveling' ? 'Chat leveling' : 'Skin collections'}</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{activeTab === 'leveling' ? 'Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.' : 'Configure random skin drops, collection capacity, KnowBucks costs, claiming grace periods, and rarity-based sale values.'}</p>
       </section>
       {loading ? <div className="mt-5 flex min-h-48 items-center justify-center rounded-3xl border border-white/10 bg-slate-950/80 text-sm font-semibold text-slate-300"><LoaderCircle size={20} className="mr-2 animate-spin text-amber-300" />Loading Discord Configuration…</div> : (
         <form onSubmit={save} className="mt-5 grid gap-5">
+          <div role="tablist" aria-label="Discord Configuration sections" className="inline-flex w-fit rounded-2xl border border-white/10 bg-slate-950/80 p-1">
+            <button type="button" role="tab" aria-selected={activeTab === 'leveling'} onClick={() => setActiveTab('leveling')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'leveling' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Chat leveling</button>
+            <button type="button" role="tab" aria-selected={activeTab === 'collections'} onClick={() => setActiveTab('collections')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'collections' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Collections</button>
+          </div>
+          {activeTab === 'leveling' ? <>
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-lg font-black text-white">Earning rules</h2><p className="mt-1 text-sm leading-6 text-slate-400">The five-second default prevents channel hopping from multiplying message XP.</p></div><button type="button" role="switch" aria-checked={data.settings.enabled} onClick={() => updateSettings('enabled', !data.settings.enabled)} className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-white transition hover:border-amber-300/40"><ToggleSwitch checked={data.settings.enabled} />{data.settings.enabled ? 'Leveling enabled' : 'Leveling paused'}</button></div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -240,6 +305,56 @@ export function DiscordLevelingSettings() {
               <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Member cooldown in seconds</span><input type="number" min={1} max={3600} value={data.settings.cooldownSeconds} onChange={(event) => updateSettings('cooldownSeconds', Number(event.target.value))} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
             </div>
           </section>
+          </> : null}
+          {activeTab === 'collections' ? <>
+          <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div><h2 className="text-lg font-black text-white">Skin claim drops</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">After the minimum interval, the next eligible message spawns a random skin in that channel. After the maximum interval, a drop appears in a random eligible channel even without chat activity. The first human reaction claims it.</p></div>
+              <button type="button" role="switch" aria-checked={data.skinClaimSettings.enabled} onClick={() => updateSkinClaimSettings('enabled', !data.skinClaimSettings.enabled)} className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-white transition hover:border-amber-300/40"><ToggleSwitch checked={data.skinClaimSettings.enabled} />{data.skinClaimSettings.enabled ? 'Skin drops enabled' : 'Skin drops paused'}</button>
+            </div>
+            {data.channels.length === 0 ? <div className="flex gap-3 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100"><CircleAlert size={18} className="mt-0.5 shrink-0" />No Discord text channels have been synced yet. Restart the bot after applying the skin-claim migration, then reload this page.</div> : null}
+            <div className="grid gap-4 lg:grid-cols-3">
+              <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Minimum interval in minutes</span><input type="number" min={1} max={10080} value={data.skinClaimSettings.minimumIntervalMinutes} onChange={(event) => updateSkinClaimSettings('minimumIntervalMinutes', Number(event.target.value))} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+              <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Maximum interval in minutes</span><input type="number" min={1} max={10080} value={data.skinClaimSettings.maximumIntervalMinutes} onChange={(event) => updateSkinClaimSettings('maximumIntervalMinutes', Number(event.target.value))} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+              <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Claim window in minutes</span><input type="number" min={1} max={1440} value={data.skinClaimSettings.claimWindowMinutes} onChange={(event) => updateSkinClaimSettings('claimWindowMinutes', Number(event.target.value))} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+            </div>
+            <AppSelectMenu label="Channels that can trigger a drop" value={data.skinClaimSettings.allChannels ? ALL_SKIN_CLAIM_CHANNELS_VALUE : data.skinClaimChannelIds[0] ?? ''} selectedValues={data.skinClaimSettings.allChannels ? [ALL_SKIN_CLAIM_CHANNELS_VALUE] : data.skinClaimChannelIds} multiple onToggle={toggleSkinClaimChannel} disabled={!data.channels.some((channel) => channel.sendable)} disabledDescription="No Discord text channels are currently available to the bot." headerDescription="All is the default and includes every sendable text channel. Select one or more specific channels to limit both message-triggered and timer-based drops." searchable searchPlaceholder="Type a channel name or ID" options={[{ value: ALL_SKIN_CLAIM_CHANNELS_VALUE, label: 'All', description: 'Every sendable Discord text channel can trigger and receive a skin drop.' }, ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: '#' + channel.name, description: 'Discord channel ID: ' + channel.id }))]} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" />
+            <div><h3 className="text-sm font-black text-white">Rarity weights</h3><p className="mt-1 text-xs leading-5 text-slate-400">Weights are relative chances, not percentages. Set a rarity to 0 to exclude it; at least one rarity must remain above 0.</p><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{data.skinClaimRarityWeights.map((entry) => <label key={entry.rarity} className="grid gap-2 rounded-2xl border border-white/10 bg-slate-900/60 p-3"><span className="text-sm font-bold text-slate-200">{entry.rarity}</span><input type="number" min={0} max={1000} value={entry.weight} onChange={(event) => updateSkinClaimRarityWeight(entry.rarity, Number(event.target.value))} className="h-10 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>)}</div></div>
+            <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+              <h3 className="text-sm font-black text-white">Collection economy</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-400">These amounts apply to the `/collections` commands. Capacity purchases add five slots per configured cost unit.</p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Summon base cost</span><input type="number" min={1} max={1000000000} value={data.skinClaimSettings.summonBaseCost} onChange={(event) => updateSkinClaimSettings('summonBaseCost', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+                <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Default collection size</span><input type="number" min={1} max={10000} value={data.skinClaimSettings.defaultCollectionCapacity} onChange={(event) => updateSkinClaimSettings('defaultCollectionCapacity', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+                <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Cost per 5 added slots</span><input type="number" min={1} max={1000000000} value={data.skinClaimSettings.collectionCapacityUpgradeCost} onChange={(event) => updateSkinClaimSettings('collectionCapacityUpgradeCost', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+                <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Steal base chance (%)</span><input type="number" min={0} max={100} value={data.skinClaimSettings.collectionStealChancePercent} onChange={(event) => updateSkinClaimSettings('collectionStealChancePercent', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+                <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Summon and gamble grace (seconds)</span><input type="number" min={0} max={600} value={data.skinClaimSettings.claimGracePeriodSeconds} onChange={(event) => updateSkinClaimSettings('claimGracePeriodSeconds', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+              </div>
+              <div className="mt-4"><h4 className="text-sm font-black text-white">Skin sell amounts</h4><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{data.skinClaimSellValues.map((entry) => <label key={entry.rarity} className="grid gap-2 rounded-xl border border-white/10 bg-slate-950/80 p-3"><span className="text-sm font-bold text-slate-200">{entry.rarity}</span><input type="number" min={1} max={1000000000} value={entry.amount} onChange={(event) => updateSkinClaimSellValue(entry.rarity, Number(event.target.value))} className="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>)}</div></div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+              <h3 className="text-sm font-black text-white">Collections admin permissions</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Members with these roles can use <code>/collections spawn</code> and <code>/collections capacity-force-add</code>. This is separate from XP and KnowBucks staff access.</p>
+              <div className="mt-4">
+                <AppSelectMenu
+                  label="Roles allowed to manage collections"
+                  value={data.collectionAdminRoleIds[0] ?? ''}
+                  selectedValues={data.collectionAdminRoleIds}
+                  multiple
+                  onToggle={toggleCollectionAdminRole}
+                  disabled={!data.roles.length}
+                  disabledDescription="No Discord roles have been synced yet."
+                  headerDescription="Choose one or more current server roles for collection-only staff commands."
+                  searchable
+                  searchPlaceholder="Type a role name or ID"
+                  options={data.roles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))}
+                  menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+                />
+              </div>
+            </div>
+          </section>
+          </> : null}
+          {activeTab === 'leveling' ? <>
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-lg font-black text-white">Default level-up message</h2><p className="mt-1 text-sm leading-6 text-slate-400">Use the message channel where XP was earned, or route all announcements to one channel ID.</p></div><button type="button" role="switch" aria-checked={data.settings.levelUpMessageEnabled} onClick={() => updateSettings('levelUpMessageEnabled', !data.settings.levelUpMessageEnabled)} className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-white transition hover:border-amber-300/40"><ToggleSwitch checked={data.settings.levelUpMessageEnabled} />{data.settings.levelUpMessageEnabled ? 'Message enabled' : 'Message disabled'}</button></div>
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -276,7 +391,7 @@ export function DiscordLevelingSettings() {
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>
               <h2 className="text-lg font-black text-white">Discord staff permissions</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-400">Members with any selected role can use <code>/xp add</code>, <code>/xp set-level</code>, and the administrative <code>/knowbucks</code> commands.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Members with any selected role can use <code>/xp add</code>, <code>/xp set-level</code>, and administrative <code>/knowbucks</code> commands. Collections administrator roles are configured in the Collections tab.</p>
             </div>
             <div className="mt-4">
               <AppSelectMenu
@@ -287,7 +402,7 @@ export function DiscordLevelingSettings() {
                 onToggle={toggleManualRole}
                 disabled={!data.roles.length}
                 disabledDescription="No Discord roles have been synced yet."
-                headerDescription="Choose one or more server roles. Their members can grant XP, set a member level, and manage KnowBucks."
+                headerDescription="Choose one or more server roles. Their members can grant XP, set member levels, and manage KnowBucks."
                 searchable
                 searchPlaceholder="Type a role name or ID"
                 options={data.roles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))}
@@ -295,7 +410,8 @@ export function DiscordLevelingSettings() {
               />
             </div>
           </section>
-          <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-3xl text-sm leading-6 text-slate-400">Bot accounts and Discord system messages never receive XP. Manual XP and KnowBucks adjustments require one of the configured Discord staff roles.</p><button type="submit" disabled={saving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{saving ? 'Saving settings' : 'Save settings'}</button></div>
+          </> : null}
+          <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-3xl text-sm leading-6 text-slate-400">Changes in either tab save together. Bot accounts and Discord system messages never receive XP. Staff commands require one of the configured Discord staff roles.</p><button type="submit" disabled={saving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{saving ? 'Saving settings' : 'Save settings'}</button></div>
         </form>
       )}
       {message ? <p className={'mt-5 flex items-start gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ' + (message.includes('saved') ? 'border-emerald-300/25 bg-emerald-400/10 text-emerald-100' : 'border-amber-300/25 bg-amber-300/10 text-amber-100')}>{message.includes('saved') ? <Check size={17} className="mt-0.5 shrink-0" /> : <CircleAlert size={17} className="mt-0.5 shrink-0" />}{message}</p> : null}

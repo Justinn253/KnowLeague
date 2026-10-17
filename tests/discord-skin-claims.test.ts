@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
-import { buildSkinCollectionEmbed, buildSkinSearchEmbed } from '../discord-bot/src/skin-claims';
+import { buildSkinCollectionEmbed, buildSkinSearchEmbed, calculateSkinRaritySpawnPercent } from '../discord-bot/src/skin-claims';
 import { DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS } from '../lib/discord-skin-claims';
 
 type SerializedSubcommand = {
@@ -14,6 +14,14 @@ type SerializedSubcommand = {
 describe('Discord skin-claim command contract', () => {
   it('defaults the channel scope to all sendable Discord text channels', () => {
     expect(DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.allChannels).toBe(true);
+  });
+
+  it('calculates each rarity chance from both configured weights and catalogue counts', () => {
+    const weights = new Map([['Common', 1], ['Rare', 2]]);
+    const catalog = [{ rarity: 'Common' }, { rarity: 'Common' }, { rarity: 'Common' }, { rarity: 'Rare' }];
+
+    expect(calculateSkinRaritySpawnPercent('Common', weights, catalog)).toBe(60);
+    expect(calculateSkinRaritySpawnPercent('Rare', weights, catalog)).toBe(40);
   });
 
   it('registers the full collections command set and its /cl mirror', () => {
@@ -71,6 +79,33 @@ describe('Discord skin-claim command contract', () => {
 
     expect(serialized.title).toBe('Summoner\'s skin collection · 1 of 1 (max 15)');
     expect(serialized.description).toBeUndefined();
+  });
+
+  it('groups skin metadata into two compact inline blocks for mobile Discord clients', () => {
+    const embed = buildSkinCollectionEmbed({
+      capacity: 10,
+      item: {
+        champion_name: 'Ahri',
+        claimed: true,
+        image_url: 'https://example.com/ahri.jpg',
+        owner_acquired_at: '2026-10-16T00:00:00.000Z',
+        ownership_method: 'claimed',
+        rarity: 'Epic',
+        release_date: '2020-01-01',
+        skin_code: 1234,
+        skin_line: 'Elderwood',
+        skin_name: 'Elderwood Ahri',
+      },
+      page: 0,
+      total: 1,
+    }, 'Summoner').toJSON();
+    const fields = embed.fields ?? [];
+
+    expect(fields).toHaveLength(2);
+    expect(fields).toEqual([
+      expect.objectContaining({ inline: true, name: 'Skin', value: expect.stringContaining('**Skin line**') }),
+      expect.objectContaining({ inline: true, name: 'Details', value: expect.stringContaining('**KnowLeague ID**') }),
+    ]);
   });
 
   it('includes a KnowLeague catalogue ID in a non-claimable search preview', () => {

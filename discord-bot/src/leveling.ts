@@ -2,7 +2,7 @@ import { ChannelType, PermissionFlagsBits, type Guild, type GuildMember, type Me
 import type { DiscordBotConfig } from './config.js';
 import { createBotServiceClient } from './supabase.js';
 
-type XpUpdate = {
+export type XpUpdate = {
   current_level: number;
   previous_level: number;
   total_xp: number;
@@ -596,11 +596,16 @@ export async function reconcileLevelRewardRoles(config: DiscordBotConfig, member
   }
 }
 
-function renderLevelUpMessage(template: string, member: GuildMember, update: XpUpdate) {
+export function renderLevelUpMessage(
+  template: string,
+  recipient: { userId: string; username: string },
+  update: XpUpdate,
+) {
   return template
-    .replaceAll('{user}', `<@${member.id}>`)
-    .replaceAll('{level}', String(update.current_level))
-    .replaceAll('{xp}', new Intl.NumberFormat().format(update.total_xp));
+    .replace(/\{user\}/g, () => `<@${recipient.userId}>`)
+    .replace(/\{username\}/g, () => recipient.username)
+    .replace(/\{level\}/g, () => String(update.current_level))
+    .replace(/\{xp\}/g, () => new Intl.NumberFormat().format(update.total_xp));
 }
 
 async function announceLevelUp(
@@ -659,7 +664,11 @@ async function announceLevelUp(
   try {
     await announcementChannel.send({
       allowedMentions: { parse: [], users: [member.id] },
-      content: renderLevelUpMessage(rewardLevelMessage?.message_template ?? settings.level_up_message_template, member, update),
+      content: renderLevelUpMessage(
+        rewardLevelMessage?.message_template ?? settings.level_up_message_template,
+        { userId: member.id, username: member.user.username },
+        update,
+      ),
     });
   } catch (error) {
     console.error('Discord level-up message could not be sent.', error);

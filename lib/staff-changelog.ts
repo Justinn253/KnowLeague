@@ -17,6 +17,93 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-16-discord-skin-gamble-timer-schedule',
+    patch: 'patch-2026-10-16-discord-skin-gamble-timer-schedule',
+    timestamp: '2026-10-16T23:30:00.000Z',
+    title: 'Keep automatic skin-drop timing after a successful gamble',
+    summary:
+      'Successful /collections gamble drops now preserve the existing automatic skin-drop schedule, matching staff spawns and paid summons.',
+    details: [
+      'Migration 156 replaces the gamble RPC without the last_drop_at update that migration 155 had retained for successful gambles.',
+      'Gamble capacity, ownership, live-drop, loss, claim-grace, and transaction behavior are unchanged; only automatic schedule postponement is removed.',
+    ],
+    impact: [
+      'Apply migration 156 after migration 155. The existing bot calls this RPC on every gamble, so no bot restart, website deployment, or slash-command registration is required for this timing change.',
+    ],
+    files: [
+      'supabase/migrations/156_discord_skin_claim_gamble_schedule.sql',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Migration body was reviewed to confirm no last_drop_at write remains in the replacement gamble RPC.',
+      'npm run typecheck and npm run discord:check passed; targeted skin-claim tests passed: 1 file and 8 tests.',
+      'Direct ESLint for the changelog and git diff --check passed; migration trailing-whitespace validation passed.',
+      'Migration was created locally and has not been pushed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-16-discord-skin-rarity-spawn-chance',
+    patch: 'patch-2026-10-16-discord-skin-rarity-spawn-chance',
+    timestamp: '2026-10-16T23:15:00.000Z',
+    title: 'Show exact rarity odds on Discord skin drops',
+    summary:
+      'Every live Discord skin drop now shows the exact probability of its rarity under the server’s current skin catalogue and configured rarity weights.',
+    details: [
+      'The displayed rarity chance uses the same per-skin weighted-selection model as the drop picker: it multiplies each enabled rarity weight by its eligible catalogue count and divides the selected rarity’s weighted count by the total.',
+      'The chance is calculated when a chat, timed, staff, summon, or successful gamble drop is created and is shown inside the mobile-friendly Skin metadata block.',
+      'Collection and claimed-skin views remain historical item records and do not display a potentially stale configuration-derived probability.',
+    ],
+    impact: [
+      'Restart or redeploy the Discord bot to display rarity probabilities on newly posted skin drops. No migration, website deployment, or slash-command registration is required.',
+    ],
+    files: [
+      'discord-bot/src/skin-claims.ts',
+      'discord-bot/README.md',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run typecheck and npm run discord:check passed.',
+      'Targeted Vitest verification passed: 1 test file and 8 tests.',
+      'Direct ESLint passed for the touched TypeScript sources; git diff --check and trailing-whitespace validation passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-16-discord-skin-layout-and-timer-schedule',
+    patch: 'patch-2026-10-16-discord-skin-layout-and-timer-schedule',
+    timestamp: '2026-10-16T23:00:00.000Z',
+    title: 'Preserve automatic skin-drop timing for manual drops',
+    summary:
+      'Manual collection spawns and paid summons no longer postpone the automatic skin-drop schedule; skin embeds now use a compact two-block layout and level-up templates support non-pinging usernames.',
+    details: [
+      'Migration 155 replaces the manual reservation RPC so /collections spawn and /collections summon retain the existing last automatic drop time while still serializing against scheduled/message drops and enforcing one live drop.',
+      'A successful gamble remains a game-generated drop and continues to restart the automatic interval, preserving its existing timing behavior.',
+      'Skin drop, claimed-skin, and public collection embeds group the same metadata into two inline fields so Discord mobile clients can use the available width more reliably.',
+      'Level-up message templates now accept {username}, which renders the member\'s Discord username as plain text. The established {user} token still produces an intentional mention.',
+    ],
+    impact: [
+      'Apply migration 155, then restart or redeploy the Discord bot. No slash-command registration is needed because command shapes are unchanged.',
+      'Deploy the website to show the new {username} template guidance. Administrators can use, for example, **{username}** reached level **{level}**! without pinging the member.',
+    ],
+    files: [
+      'supabase/migrations/155_discord_skin_claim_manual_drop_schedule.sql',
+      'discord-bot/src/skin-claims.ts',
+      'discord-bot/src/leveling.ts',
+      'components/discord-leveling-settings.tsx',
+      'discord-bot/README.md',
+      'tests/discord-skin-claims.test.ts',
+      'tests/discord-leveling.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run typecheck and npm run discord:check passed.',
+      'Targeted Vitest verification passed: 2 test files and 12 tests.',
+      'Direct ESLint passed for the touched website, bot, test, and changelog sources; git diff --check passed.',
+      'Migration was created locally and has not been pushed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-16-discord-collections-admins-and-steal-hardening',
     patch: 'patch-2026-10-16-discord-collections-admins-and-steal-hardening',
     timestamp: '2026-10-16T22:00:00.000Z',

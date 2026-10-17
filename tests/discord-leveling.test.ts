@@ -5,6 +5,7 @@ import {
   getDiscordTotalXpForLevel,
   getDiscordXpRequiredForLevel,
 } from '@/lib/discord-leveling';
+import { renderLevelUpMessage } from '../discord-bot/src/leveling';
 
 describe('Discord chat leveling curve', () => {
   it('enables a safe default level-up announcement template', () => {
@@ -34,5 +35,13 @@ describe('Discord chat leveling curve', () => {
     expect(getDiscordLevelForTotalXp(100)).toBe(1);
     expect(getDiscordLevelForTotalXp(4149)).toBe(9);
     expect(getDiscordLevelForTotalXp(4150)).toBe(10);
+  });
+
+  it('renders the username token as plain text instead of a Discord mention', () => {
+    expect(renderLevelUpMessage(
+      'Congratulations {username}; level {level} at {xp} XP.',
+      { userId: '123456789012345678', username: 'KnowLeagueUser' },
+      { current_level: 12, previous_level: 11, total_xp: 12_345 },
+    )).toBe('Congratulations KnowLeagueUser; level 12 at 12,345 XP.');
   });
 });

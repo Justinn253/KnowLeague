@@ -203,6 +203,31 @@ function chooseWeightedSkin(rarityWeights: Map<string, number>) {
   return candidates[candidates.length - 1]!.skin;
 }
 
+export function calculateSkinRaritySpawnPercent(
+  rarity: string,
+  rarityWeights: ReadonlyMap<string, number>,
+  catalog: readonly Pick<CatalogSkin, 'rarity'>[] = loadSkinCatalog(),
+) {
+  const targetRarity = normalizeRarity(rarity);
+  let totalWeight = 0;
+  let rarityWeight = 0;
+
+  for (const skin of catalog) {
+    const skinRarity = normalizeRarity(skin.rarity);
+    const weight = rarityWeights.get(skinRarity) ?? 0;
+    if (weight <= 0) continue;
+    totalWeight += weight;
+    if (skinRarity === targetRarity) rarityWeight += weight;
+  }
+
+  return totalWeight > 0 ? (rarityWeight / totalWeight) * 100 : 0;
+}
+
+function formatRaritySpawnPercent(percent: number) {
+  if (percent > 0 && percent < 0.01) return '<0.01%';
+  return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(percent)}%`;
+}
+
 function formatSkinCode(skinCode: number) {
   return String(skinCode).padStart(4, '0');
 }
@@ -224,28 +249,46 @@ function formatAcquiredDate(value: string | null | undefined) {
   return `<t:${Math.floor(date.getTime() / 1_000)}:D>`;
 }
 
-function skinDropEmbed(drop: Omit<ClaimedSkinDrop, 'claimed'>, claimedByUserId?: string, collection = false) {
+function skinDropEmbed(
+  drop: Omit<ClaimedSkinDrop, 'claimed'>,
+  claimedByUserId?: string,
+  collection = false,
+  raritySpawnPercent?: number,
+) {
   const claimed = Boolean(claimedByUserId) || collection;
   const embed = new EmbedBuilder()
     .setColor(RARITY_COLORS[drop.rarity] ?? 0xF59E0B)
     .setTitle(`${claimed ? 'Claimed skin' : 'Skin drop'} · #${formatSkinCode(drop.skin_code)}`)
     .setImage(drop.image_url)
     .addFields(
-      { name: 'Skin', value: drop.skin_name, inline: true },
-      { name: 'Champion', value: drop.champion_name, inline: true },
-      { name: 'Rarity', value: drop.rarity, inline: true },
-      { name: 'Release date', value: formatReleaseDate(drop.release_date), inline: true },
-      { name: 'Skin line', value: drop.skin_line, inline: true },
-      { name: 'KnowLeague ID', value: `#${formatSkinCode(drop.skin_code)}`, inline: true },
+      {
+        name: 'Skin',
+        value: [
+          `**Name**\n${drop.skin_name}`,
+          `**Rarity**\n${drop.rarity}`,
+          ...(raritySpawnPercent === undefined ? [] : [`**Rarity spawn chance**\n${formatRaritySpawnPercent(raritySpawnPercent)}`]),
+          `**Skin line**\n${drop.skin_line}`,
+        ].join('\n\n'),
+        inline: true,
+      },
+      {
+        name: 'Details',
+        value: [
+          `**Champion**\n${drop.champion_name}`,
+          `**Release date**\n${formatReleaseDate(drop.release_date)}`,
+          `**KnowLeague ID**\n#${formatSkinCode(drop.skin_code)}`,
+          ...(collection
+            ? [
+              `**Acquired**\n${formatAcquiredDate(drop.owner_acquired_at)}`,
+              `**Method**\n${formatOwnershipMethod(drop.ownership_method)}`,
+            ]
+            : []),
+        ].join('\n\n'),
+        inline: true,
+      },
     );
   if (!collection) {
     embed.setDescription(claimed ? `<@${claimedByUserId}> claimed this skin.` : 'React to this message first to add this skin to your collection.');
-  }
-  if (collection) {
-    embed.addFields(
-      { name: 'Acquired', value: formatAcquiredDate(drop.owner_acquired_at), inline: true },
-      { name: 'Method', value: formatOwnershipMethod(drop.ownership_method), inline: true },
-    );
   }
   return embed.setFooter({ text: claimed ? 'Use /collections collection to browse your collection.' : 'The first human reaction wins.' });
 }
@@ -347,6 +390,7 @@ async function sendReservedSkinDrop(
   channelId: string,
   skin: CatalogSkin,
   reserved: ReservedSkinDrop,
+  raritySpawnPercent: number,
 ) {
   const channel = await guild.channels.fetch(channelId);
   if (!channel?.isSendable()) {
@@ -359,7 +403,7 @@ async function sendReservedSkinDrop(
     const expiresAtSeconds = Math.floor(new Date(reserved.expires_at).getTime() / 1_000);
     const message = await channel.send({
       content: `React to claim this skin. Will expire <t:${expiresAtSeconds}:R>.`,
-      embeds: [skinDropEmbed(toSkinDrop(skin, reserved))],
+      embeds: [skinDropEmbed(toSkinDrop(skin, reserved), undefined, false, raritySpawnPercent)],
     });
     const { error: attachError } = await createBotServiceClient(config).rpc('attach_discord_skin_claim_message', {
       p_drop_id: reserved.drop_id,
@@ -404,7 +448,14 @@ async function reserveAndSendSkinDrop(
   const reserved = getFirstResult(data as ReservedSkinDrop | ReservedSkinDrop[] | null);
   if (!reserved) return false;
   recordDropReservation(config);
-  return sendReservedSkinDrop(config, guild, channelId, skin, reserved);
+  return sendReservedSkinDrop(
+    config,
+    guild,
+    channelId,
+    skin,
+    reserved,
+    calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights),
+  );
 }
 
 export type SkinClaimSpawnResult = {
@@ -492,7 +543,14 @@ export async function summonSkinClaimDrop(
   const reserved = getFirstResult(data as SummonedSkinDrop | SummonedSkinDrop[] | null);
   if (!reserved) return { status: 'active-drop' };
   recordDropReservation(config);
-  const spawned = await sendReservedSkinDrop(config, guild, channelId, skin, reserved);
+  const spawned = await sendReservedSkinDrop(
+    config,
+    guild,
+    channelId,
+    skin,
+    reserved,
+    calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights),
+  );
   return spawned
     ? { channelId, remainingBalance: reserved.remaining_balance, status: 'spawned' }
     : { status: 'active-drop' };
@@ -532,7 +590,7 @@ export async function gambleSkinClaim(
     drop_id: result.drop_id,
     expires_at: result.expires_at,
     skin_code: result.new_skin_code,
-  });
+  }, calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights));
   return spawned
     ? { status: 'spawned', skinName: result.skin_name }
     : { status: 'active-drop', skinName: result.skin_name };

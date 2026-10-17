@@ -17,6 +17,35 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-16-discord-public-user-command-responses',
+    patch: 'patch-2026-10-16-discord-public-user-command-responses',
+    timestamp: '2026-10-16T23:45:00.000Z',
+    title: 'Publish ordinary Discord command responses',
+    summary:
+      'Non-administrative Discord slash commands now post their panels, confirmations, and validation responses publicly, while staff-gated operations remain ephemeral.',
+    details: [
+      'Public replies now cover /help, /link, /profile, /xp view, /knowbucks balance and pay, leaderboard responses, and all non-staff collection actions, including their validation and insufficient-funds messages.',
+      'Manual XP, KnowBucks administration, collection spawn, and forced capacity additions remain private from authorization through result. A shared command-shape helper keeps uncaught failure replies consistent with that boundary.',
+      'Collection paginator controls stay owner-bound and their denial replies remain ephemeral so members cannot create public noise by pressing another member’s controls.',
+    ],
+    impact: [
+      'Restart or redeploy the Discord bot to apply the new response visibility. No migration, website deployment, or slash-command registration is required.',
+      'KnowBucks balances, payments, user XP views, and collection transaction outcomes are now visible to everyone in the configured server by design.',
+    ],
+    files: [
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/README.md',
+      'tests/discord-command-visibility.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run typecheck and npm run discord:check passed.',
+      'Targeted Vitest verification passed: 2 test files and 9 tests.',
+      'Direct ESLint passed for the changed bot, test, and changelog sources; git diff --check and trailing-whitespace validation passed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-16-discord-skin-gamble-timer-schedule',
     patch: 'patch-2026-10-16-discord-skin-gamble-timer-schedule',
     timestamp: '2026-10-16T23:30:00.000Z',

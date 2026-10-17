@@ -1,6 +1,6 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
 import { loadBotConfig } from './config.js';
-import { handleButtonInteraction, handleChatInputCommand } from './interactions.js';
+import { handleButtonInteraction, handleChatInputCommand, isDiscordAdministrativeCommand } from './interactions.js';
 import {
   awardMessageXp,
   handleDiscordVoiceStateUpdate,
@@ -25,16 +25,18 @@ let voiceXpInitialReconciliation: Promise<void> = Promise.resolve();
 
 async function replyWithFailure(interaction: Parameters<typeof handleChatInputCommand>[0] | Parameters<typeof handleButtonInteraction>[0]) {
   const message = 'KnowLeague could not complete that request. Please try again shortly.';
+  const ephemeral = !interaction.isChatInputCommand()
+    || isDiscordAdministrativeCommand(interaction.commandName, interaction.options.getSubcommand());
   if (interaction.deferred) {
     await interaction.editReply({ content: message });
     return;
   }
   if (interaction.replied) {
-    await interaction.followUp({ content: message, flags: MessageFlags.Ephemeral });
+    await interaction.followUp({ content: message, ...(ephemeral ? { flags: MessageFlags.Ephemeral } : {}) });
     return;
   }
 
-  await interaction.reply({ content: message, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: message, ...(ephemeral ? { flags: MessageFlags.Ephemeral } : {}) });
 }
 
 function shutdown(signal: NodeJS.Signals) {

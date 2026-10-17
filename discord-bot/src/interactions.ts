@@ -40,6 +40,12 @@ function profileButton(config: DiscordBotConfig, username?: string) {
     .setURL(profileUrl(config, username));
 }
 
+export function isDiscordAdministrativeCommand(commandName: string, subcommand: string | null) {
+  return (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
+    || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
+    || ((commandName === 'collections' || commandName === 'cl') && (subcommand === 'spawn' || subcommand === 'capacity-force-add'));
+}
+
 function formatXp(value: number) {
   return new Intl.NumberFormat().format(value);
 }
@@ -131,7 +137,6 @@ async function handleXpCommand(interaction: ChatInputCommandInteraction, config:
             + `**${formatXp(progress.xpRemaining)} XP** remaining`,
           ),
       ],
-      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -185,7 +190,7 @@ async function handleLeaderboardCommand(interaction: ChatInputCommandInteraction
   const availableAt = leaderboardCommandAvailableAtByUserId.get(interaction.user.id) ?? 0;
   if (availableAt > now) {
     const seconds = Math.ceil((availableAt - now) / 1_000);
-    await interaction.reply({ content: `Please wait ${seconds} second${seconds === 1 ? '' : 's'} before using /leaderboard again.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Please wait ${seconds} second${seconds === 1 ? '' : 's'} before using /leaderboard again.` });
     return;
   }
   leaderboardCommandAvailableAtByUserId.set(interaction.user.id, now + LEADERBOARD_COMMAND_COOLDOWN_MS);
@@ -221,7 +226,7 @@ async function handleKnowBucksCommand(interaction: ChatInputCommandInteraction, 
   if (subcommand === 'balance') {
     const targetUser = interaction.options.getUser('member') ?? interaction.user;
     if (targetUser.bot) {
-      await interaction.reply({ content: 'Bot accounts do not hold KnowBucks.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'Bot accounts do not hold KnowBucks.' });
       return;
     }
     const balance = await getKnowBucksBalance(config, targetUser.id);
@@ -232,20 +237,18 @@ async function handleKnowBucksCommand(interaction: ChatInputCommandInteraction, 
           .setTitle(`${targetUser.username}'s KnowBucks`)
           .setDescription(`**${formatXp(balance)} KnowBucks**`),
       ],
-      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  const targetUser = interaction.options.getUser('member', true);
-  if (targetUser.bot) {
-    await interaction.reply({ content: 'Bot accounts cannot hold KnowBucks.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-
   if (subcommand === 'pay') {
+    const targetUser = interaction.options.getUser('member', true);
+    if (targetUser.bot) {
+      await interaction.reply({ content: 'Bot accounts cannot hold KnowBucks.' });
+      return;
+    }
     if (targetUser.id === interaction.user.id) {
-      await interaction.reply({ content: 'You cannot pay KnowBucks to yourself.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'You cannot pay KnowBucks to yourself.' });
       return;
     }
 
@@ -259,11 +262,10 @@ async function handleKnowBucksCommand(interaction: ChatInputCommandInteraction, 
             .setTitle('KnowBucks payment complete')
             .setDescription(`Paid **${formatXp(amount)} KnowBucks** to ${targetUser}.\nYour balance: **${formatXp(payment.sender_balance)} KnowBucks**.`),
         ],
-        flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
       if (error instanceof Error && error.message.includes('Insufficient KnowBucks balance')) {
-        await interaction.reply({ content: 'You do not have enough KnowBucks for that payment.', flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: 'You do not have enough KnowBucks for that payment.' });
         return;
       }
       throw error;
@@ -278,6 +280,11 @@ async function handleKnowBucksCommand(interaction: ChatInputCommandInteraction, 
     throw new Error(`Unsupported KnowBucks command: ${subcommand}`);
   }
 
+  const targetUser = interaction.options.getUser('member', true);
+  if (targetUser.bot) {
+    await interaction.reply({ content: 'Bot accounts cannot hold KnowBucks.', flags: MessageFlags.Ephemeral });
+    return;
+  }
   const amount = interaction.options.getInteger('amount', true);
   const update = await updateKnowBucks(config, targetUser.id, subcommand, amount);
   const detail = subcommand === 'add'
@@ -330,7 +337,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   }
 
   if (subcommand === 'summon') {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
     const result = await summonSkinClaimDrop(config, interaction.guild, interaction.channelId, interaction.user.id);
     if (result.status === 'spawned') {
       await interaction.editReply({ content: `A skin drop was summoned in this channel. Your remaining balance is ${formatXp(result.remainingBalance ?? 0)} KnowBucks.` });
@@ -351,10 +358,10 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   if (subcommand === 'capacity-add') {
     const slots = interaction.options.getInteger('slots', true);
     if (slots % 5 !== 0) {
-      await interaction.reply({ content: 'Collection capacity must be added in multiples of five slots.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'Collection capacity must be added in multiples of five slots.' });
       return;
     }
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
     try {
       const purchase = await purchaseSkinCollectionCapacity(config, interaction.user.id, slots);
       await interaction.editReply({ content: `Added ${slots} collection slots for ${formatXp(purchase.cost)} KnowBucks. Your capacity is now ${formatXp(purchase.capacity)} and your balance is ${formatXp(purchase.remaining_balance)} KnowBucks.` });
@@ -383,7 +390,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
 
   if (subcommand === 'steal') {
     const skinCode = interaction.options.getInteger('skin-id', true);
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
     const result = await stealSkinClaim(config, interaction.user.id, skinCode);
     if (result.outcome === 'stolen' && result.cost !== null && result.remaining_balance !== null && result.available_at) {
       await interaction.editReply({ content: `You stole **${result.skin_name}** for ${formatXp(result.cost)} KnowBucks. Your balance is ${formatXp(result.remaining_balance)} KnowBucks. You can steal again <t:${Math.floor(new Date(result.available_at).getTime() / 1_000)}:R>.` });
@@ -423,7 +430,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
 
   if (subcommand === 'favorite') {
     const skinCode = interaction.options.getInteger('skin-id', true);
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
     try {
       const skinName = await favoriteSkinClaim(config, interaction.user.id, skinCode);
       await interaction.editReply({ content: `**${skinName}** · #${skinCollectionCode(skinCode)} will now appear first in your collection.` });
@@ -439,7 +446,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
 
   if (subcommand === 'gamble') {
     const skinCode = interaction.options.getInteger('skin-id', true);
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
     try {
       const result = await gambleSkinClaim(config, interaction.guild, interaction.channelId, interaction.user.id, skinCode);
       if (result.status === 'spawned') {
@@ -468,7 +475,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   if (subcommand === 'search') {
     const skin = findSkinCatalogEntry(interaction.options.getString('skin-name', true));
     if (!skin) {
-      await interaction.reply({ content: 'No matching skin was found in the local KnowLeague catalogue.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'No matching skin was found in the local KnowLeague catalogue.' });
       return;
     }
     await interaction.reply({ embeds: [buildSkinSearchEmbed(skin)] });
@@ -477,7 +484,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
 
   if (subcommand === 'sell') {
     const skinCode = interaction.options.getInteger('skin-id', true);
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
     try {
       const sale = await sellSkinClaim(config, interaction.user.id, skinCode);
       await interaction.editReply({ content: `Sold **${sale.skin_name}** · #${skinCollectionCode(skinCode)} for ${formatXp(sale.amount)} KnowBucks. Your balance is ${formatXp(sale.current_balance)} KnowBucks.` });
@@ -496,20 +503,20 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   }
   const targetUser = interaction.options.getUser('member', true);
   if (targetUser.bot) {
-    await interaction.reply({ content: 'Bot accounts cannot receive claimed skins.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Bot accounts cannot receive claimed skins.' });
     return;
   }
   if (targetUser.id === interaction.user.id) {
-    await interaction.reply({ content: 'You cannot give a skin to yourself.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'You cannot give a skin to yourself.' });
     return;
   }
   try {
     await interaction.guild.members.fetch(targetUser.id);
   } catch {
-    await interaction.reply({ content: 'Choose a current server member to receive this skin.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Choose a current server member to receive this skin.' });
     return;
   }
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await interaction.deferReply();
   const skinCode = interaction.options.getInteger('skin-id', true);
   try {
     const transfer = await transferSkinClaim(config, interaction.user.id, targetUser.id, skinCode);
@@ -580,7 +587,6 @@ export async function handleChatInputCommand(
             { name: 'Chat leveling', value: 'Eligible non-bot messages earn XP. Level rewards and messages are configured on the website.' },
           ),
       ],
-      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -613,7 +619,6 @@ export async function handleChatInputCommand(
           .setColor(0xF59E0B)
           .setDescription('Open your KnowLeague profile, choose **Link Discord**, and approve the Discord account connection. Then use `/profile` here to confirm it.'),
       ],
-      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -628,7 +633,6 @@ export async function handleChatInputCommand(
             .setColor(0xEF4444)
             .setDescription('This Discord account is not linked to a KnowLeague profile yet. Link it from your profile settings, then try `/profile` again.'),
         ],
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -641,7 +645,6 @@ export async function handleChatInputCommand(
           .setTitle(profile.displayName)
           .setDescription(`Linked as \`@${profile.username}\` on KnowLeague.`),
       ],
-      flags: MessageFlags.Ephemeral,
     });
   }
 }

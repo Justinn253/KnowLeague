@@ -20,7 +20,7 @@ This is the long-running Discord companion for the KnowLeague web app. It is int
 - `/collections capacity-add slots` buys collection space in multiples of five slots at the configured price (500 KnowBucks per five slots by default), while role-authorized staff can use `/collections capacity-force-add member slots` at no cost.
 - `/collections steal` costs three times the claimed skin's configured sell value and applies a 30-minute cooldown after a paid attempt. `/collections favorite`, `/collections gamble`, `/collections search`, and `/collections sell` manage a collection by four-digit KnowLeague skin ID. Search results are catalogue previews only and cannot be claimed.
 
-`/link`, `/profile`, `/help`, `/xp`, `/knowbucks`, and private collection-management replies are ephemeral; `/collections collection`, `/collections search`, `/leaderboard`, and skin-drop messages are intentionally public to the server. Leveling and skin claims observe eligible messages, reactions, and voice-state changes through the non-privileged `Guilds`, `GuildMessages`, `GuildMessageReactions`, `GuildModeration`, and `GuildVoiceStates` gateway intents. The bot does not read or store message text or voice audio, registers commands to one configured guild, and ignores all events from every other guild.
+All non-administrative slash-command responses are public to the server, including profiles, XP, KnowBucks balances and payments, and collection actions. XP/KnowBucks staff commands and `/collections spawn` or `/collections capacity-force-add` remain ephemeral, including authorization failures and action results. Collection-page button denials remain private to avoid channel spam. Leveling and skin claims observe eligible messages, reactions, and voice-state changes through the non-privileged `Guilds`, `GuildMessages`, `GuildMessageReactions`, `GuildModeration`, and `GuildVoiceStates` gateway intents. The bot does not read or store message text or voice audio, registers commands to one configured guild, and ignores all events from every other guild.
 
 ## Chat leveling
 
@@ -38,7 +38,7 @@ When a member is banned while the bot is running, their existing chat XP is rese
 
 KnowBucks is the server currency that will support the future shop. Every level reached through automatic chat or voice XP grants `level × 1,000` KnowBucks. If one award crosses several levels, it grants the sum for every level crossed. Manual XP and level corrections intentionally do not mint KnowBucks.
 
-Balances, level rewards, staff adjustments, and payments are atomic server-side transactions. The selected **Discord staff permissions** roles can add, remove, or set balances; remove never makes a balance negative. Members can privately view balances and pay another non-bot server member.
+Balances, level rewards, staff adjustments, and payments are atomic server-side transactions. The selected **Discord staff permissions** roles can add, remove, or set balances; remove never makes a balance negative. Members can publicly view balances and pay another non-bot server member, while staff adjustments stay private.
 
 ## Skin claim drops
 

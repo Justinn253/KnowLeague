@@ -4,22 +4,30 @@ import type { DiscordBotConfig } from './config.js';
 import {
   calculateFishingDurationSeconds,
   FISHING_BIOMES,
+  FISHING_CRATES,
+  FISHING_CRATE_LOOT,
   FISHING_EXPEDITION_LENGTHS,
   FISHING_FISH,
   FISHING_UPGRADES,
   formatFishingDuration,
   getFishingBiome,
+  getFishingCrate,
   getFishingExpeditionLength,
+  getFishingSaleBonusPercent,
   getFishingUpgrade,
   getFishingUpgradeCost,
   getFishingTimeReductionPercent,
   resolveFishingExpedition,
+  resolveFishingCrateOpenings,
   shouldInstantlyCompleteFishingExpedition,
   type FishingBiomeId,
-  type FishingChestRarity,
+  type FishingCrateOpeningResult,
+  type FishingCrateRarity,
   type FishingDurationTier,
   type FishingEquipmentSnapshot,
   type FishingExpeditionResult,
+  type FishingFish,
+  type FishingRarity,
   type FishingUpgrade,
   type FishingUpgradeCategory,
 } from './fishing-catalog.js';
@@ -61,8 +69,15 @@ type FishingCommandChannelRow = {
   channel_id: string;
 };
 
+type FishingCatalogueCatchRow = {
+  biome_id: FishingBiomeId;
+  fish_name: string;
+  fish_rarity: FishingRarity;
+};
+
 type StartedExpeditionRow = { completes_at: string; expedition_id: number };
 type PurchaseUpgradeRow = { crew_slots: number; current_balance: number };
+type OpenAllFishingCratesRow = { current_balance: number; opened_count: number };
 type SettledExpeditionRow = {
   awarded_gear_item_ids: string[];
   current_balance: number | null;
@@ -79,6 +94,11 @@ export type FishingPlayerState = {
   crewSlots: number;
   equipment: FishingEquipmentSnapshot;
   inventory: FishingInventoryRow[];
+};
+
+export type FishingCatalogueProgress = {
+  caughtFish: readonly Pick<FishingFish, 'biomeId' | 'name' | 'rarity'>[];
+  ownedGearItemIds: ReadonlySet<string>;
 };
 
 export type StartedFishingExpedition = {
@@ -103,6 +123,13 @@ export type FishingShopPurchase = {
   cost: number;
   crewSlots: number;
   upgrade: FishingUpgrade;
+};
+
+export type OpenedFishingCrates = {
+  currentBalance: number;
+  items: FishingCrateOpeningResult['items'];
+  openedCount: number;
+  totalSaleValue: number;
 };
 
 const FISHING_SCHEDULER_INTERVAL_MS = 5_000;
@@ -382,6 +409,44 @@ export async function getFishingProgress(config: DiscordBotConfig, discordUserId
   return { state, active: activeResult, mostRecent: completedResult.data?.[0] ?? null };
 }
 
+export async function getFishingCatalogueProgress(
+  config: DiscordBotConfig,
+  discordUserId: string,
+): Promise<FishingCatalogueProgress> {
+  const [state, catchesResult] = await Promise.all([
+    getFishingPlayerState(config, discordUserId),
+    createBotServiceClient(config)
+      .from('discord_fishing_catalogue_catches')
+      .select('biome_id,fish_name,fish_rarity')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .returns<FishingCatalogueCatchRow[]>(),
+  ]);
+  if (catchesResult.error) throw new Error(`Unable to load fishing catalogue progress: ${catchesResult.error.message}`);
+
+  return {
+    caughtFish: (catchesResult.data ?? []).map((entry) => ({
+      biomeId: entry.biome_id,
+      name: entry.fish_name,
+      rarity: entry.fish_rarity,
+    })),
+    ownedGearItemIds: new Set(
+      state.inventory
+        .map((entry) => getFishingUpgrade(entry.item_id))
+        .filter((item): item is FishingUpgrade => item?.category === 'gear')
+        .map((item) => item.id),
+    ),
+  };
+}
+
+export function isFishingFishCaught(progress: FishingCatalogueProgress, fish: Pick<FishingFish, 'biomeId' | 'name' | 'rarity'>) {
+  return progress.caughtFish.some((caughtFish) => (
+    caughtFish.biomeId === fish.biomeId
+    && caughtFish.name === fish.name
+    && caughtFish.rarity === fish.rarity
+  ));
+}
+
 export async function purchaseFishingUpgrade(config: DiscordBotConfig, discordUserId: string, itemId: string): Promise<FishingShopPurchase> {
   const upgrade = getFishingUpgrade(itemId);
   if (!upgrade || upgrade.cost <= 0) throw new Error('That fishing shop item is unavailable.');
@@ -419,11 +484,48 @@ export async function equipFishingUpgrade(config: DiscordBotConfig, discordUserI
   return upgrade;
 }
 
-export function isFishingChestItem(itemId: string) {
-  return /^(common|uncommon|rare|epic|legendary)-chest$/.test(itemId);
+export async function openAllFishingCrates(
+  config: DiscordBotConfig,
+  discordUserId: string,
+): Promise<OpenedFishingCrates> {
+  const state = await getFishingPlayerState(config, discordUserId);
+  const heldCrates = state.inventory
+    .map((entry) => ({ crate: getFishingCrate(entry.item_id), quantity: entry.quantity }))
+    .filter((entry): entry is { crate: NonNullable<ReturnType<typeof getFishingCrate>>; quantity: number } => Boolean(entry.crate));
+  if (heldCrates.length === 0) throw new Error('You do not have any legacy fishing chests to open.');
+
+  const saleBonusPercent = getFishingSaleBonusPercent(state.equipment);
+  const openedItems = new Map<string, FishingCrateOpeningResult['items'][number]>();
+  let totalSaleValue = 0;
+  let openedCount = 0;
+  for (const { crate, quantity } of heldCrates) {
+    const opening = resolveFishingCrateOpenings(crate.id, quantity, saleBonusPercent, randomInt(1, 2_147_483_648));
+    openedCount += quantity;
+    totalSaleValue += opening.totalSaleValue;
+    for (const item of opening.items) {
+      const existingItem = openedItems.get(item.itemId);
+      if (existingItem) {
+        existingItem.quantity += item.quantity;
+        existingItem.saleValue += item.saleValue;
+      } else {
+        openedItems.set(item.itemId, { ...item });
+      }
+    }
+  }
+
+  const { data, error } = await createBotServiceClient(config).rpc('open_all_discord_fishing_crates', {
+    p_crates: heldCrates.map(({ crate, quantity }) => ({ item_id: crate.id, quantity })),
+    p_discord_user_id: discordUserId,
+    p_guild_id: config.guildId,
+    p_knowbucks_awarded: totalSaleValue,
+  });
+  if (error) throw new Error(`Unable to open legacy fishing chests: ${error.message}`);
+  const opened = getFirstResult(data as OpenAllFishingCratesRow | OpenAllFishingCratesRow[] | null);
+  if (!opened || opened.opened_count !== openedCount) throw new Error('Legacy fishing chest opening did not return a result.');
+  return { currentBalance: opened.current_balance, items: [...openedItems.values()], openedCount: opened.opened_count, totalSaleValue };
 }
 
-const FISHING_CHEST_RARITY_MARKERS: Record<FishingChestRarity, string> = {
+const FISHING_CRATE_RARITY_MARKERS: Record<FishingCrateRarity, string> = {
   Common: '⬜',
   Uncommon: '🟩',
   Rare: '🟦',
@@ -436,13 +538,13 @@ function formatCatch(catchItem: FishingExpeditionResult['catches'][number]) {
   if (catchItem.kind === 'fish') {
     return `**${catchItem.name}** (${catchItem.rarity})${quantity} — sold for ${formatNumber(catchItem.saleValue)} KnowBucks`;
   }
-  if (catchItem.kind === 'chest') {
-    return `${FISHING_CHEST_RARITY_MARKERS[catchItem.rarity]} **${catchItem.name}**${quantity} — added to inventory`;
+  if (catchItem.kind === 'crate') {
+    return `${FISHING_CRATE_RARITY_MARKERS[catchItem.rarity]} **${catchItem.name}** -> **${catchItem.lootName}** (${catchItem.lootRarity})${quantity} — sold for ${formatNumber(catchItem.saleValue)} KnowBucks`;
   }
   return `✨ **GEAR FOUND: ${catchItem.name}** — permanently added to inventory`;
 }
 
-function buildFishingCatchFields(catches: FishingExpeditionResult['catches']) {
+function buildFishingCatchFields(name: string, catches: FishingExpeditionResult['catches']) {
   const values: string[] = [];
   let currentValue = '';
   for (const catchItem of catches) {
@@ -456,9 +558,7 @@ function buildFishingCatchFields(catches: FishingExpeditionResult['catches']) {
     }
   }
   if (currentValue) values.push(currentValue);
-  return values.length > 0
-    ? values.map((value, index) => ({ name: index === 0 ? 'Catches' : 'Catches (continued)', value }))
-    : [{ name: 'Catches', value: 'No catches.' }];
+  return values.map((value, index) => ({ name: index === 0 ? name : `${name} (continued)`, value }));
 }
 
 export function buildFishingCompletionEmbed(biomeId: FishingBiomeId, result: FishingExpeditionResult, reward: number, balance: number) {
@@ -466,8 +566,14 @@ export function buildFishingCompletionEmbed(biomeId: FishingBiomeId, result: Fis
   return new EmbedBuilder()
     .setColor(0x0EA5E9)
     .setTitle(`${biome?.name ?? 'Fishing'} expedition complete`)
-    .setDescription(`You earned ${formatNumber(reward)} KnowBucks from your sold fish. New balance: ${formatNumber(balance)} KnowBucks.`)
-    .addFields(buildFishingCatchFields(result.catches));
+    .setDescription(result.crateSaleValue > 0
+      ? `You earned ${formatNumber(result.fishSaleValue)} KnowBucks from your sold fish. Crate items earned ${formatNumber(result.crateSaleValue)} KnowBucks. New balance: ${formatNumber(balance)} KnowBucks.`
+      : `You earned ${formatNumber(reward)} KnowBucks from your sold fish. New balance: ${formatNumber(balance)} KnowBucks.`)
+    .addFields(
+      ...buildFishingCatchFields('Fish caught', result.catches.filter((catchItem) => catchItem.kind === 'fish')),
+      ...buildFishingCatchFields('Crates opened', result.catches.filter((catchItem) => catchItem.kind === 'crate')),
+      ...buildFishingCatchFields('Gear found', result.catches.filter((catchItem) => catchItem.kind === 'gear')),
+    );
 }
 
 function buildFishingCompletionComponents(preset: FishingRepeatPreset) {
@@ -491,12 +597,12 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
     expedition.outcome_seed,
     expedition.crew_slot > 1,
   );
-  const reward = result.fishSaleValue + result.knowBucksFound;
+  const reward = result.fishSaleValue + result.crateSaleValue + result.knowBucksFound;
   const { data, error } = await createBotServiceClient(config).rpc('settle_discord_fishing_expedition', {
     p_expedition_id: expedition.id,
     p_knowbucks_awarded: reward,
     p_result: result,
-    p_special_items: [...result.chestItems, ...(result.gearItems ?? [])],
+    p_special_items: result.gearItems ?? [],
   });
   if (error) throw new Error(`Unable to settle Discord fishing expedition: ${error.message}`);
   const settled = getFirstResult(data as SettledExpeditionRow | SettledExpeditionRow[] | null);
@@ -538,6 +644,12 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
 
   await channel.send({
     allowedMentions: { users: [settled.discord_user_id] },
+    components: buildFishingCompletionComponents({
+      biomeId: expedition.biome_id,
+      crewSlot: expedition.crew_slot,
+      durationTier: expedition.duration_tier,
+      ownerDiscordUserId: settled.discord_user_id,
+    }),
     content: `<@${settled.discord_user_id}> your fishing expedition is complete!`,
     embeds: [buildFishingCompletionEmbed(expedition.biome_id, displayedResult, settled.knowbucks_awarded, settled.current_balance ?? settled.knowbucks_awarded)],
   });
@@ -598,5 +710,5 @@ export function describeFishingEquipment(equipment: FishingEquipmentSnapshot) {
   };
 }
 
-export { FISHING_BIOMES, FISHING_EXPEDITION_LENGTHS, FISHING_FISH, FISHING_UPGRADES, formatFishingDuration, getFishingBiome, getFishingExpeditionLength, getFishingUpgrade, getFishingUpgradeCost };
+export { FISHING_BIOMES, FISHING_CRATES, FISHING_CRATE_LOOT, FISHING_EXPEDITION_LENGTHS, FISHING_FISH, FISHING_UPGRADES, formatFishingDuration, getFishingBiome, getFishingCrate, getFishingExpeditionLength, getFishingUpgrade, getFishingUpgradeCost };
 export type { FishingBiomeId, FishingDurationTier, FishingUpgradeCategory };

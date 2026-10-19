@@ -17,6 +17,134 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-19-discord-fishing-compact-completions',
+    patch: 'patch-2026-10-19-discord-fishing-compact-completions',
+    timestamp: '2026-10-19T20:05:52.582Z',
+    title: 'Hide empty fishing completion sections',
+    summary:
+      'Completed Discord fishing expedition embeds now show fish, crate, and gear sections only when that category has at least one result.',
+    details: [
+      'Removed the fallback “No fish caught,” “No crates found,” and “No gear found” fields from expedition completion embeds while preserving category continuation behavior for long result lists.',
+      'Added regression coverage for an expedition result with no catches and for an otherwise populated result without gear.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply the compact completion layout. No database migration, website deployment, or slash-command registration is required for this change.',
+      'Members see only meaningful completion details, reducing empty embed fields without changing settlement, KnowBucks, or inventory behavior.',
+    ],
+    files: [
+      'discord-bot/src/fishing.ts',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added completion-embed regression coverage for omitted empty categories.',
+      'npm run check passed lint, root type-check, the full Vitest suite, and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-catalogue-progress',
+    patch: 'patch-2026-10-19-discord-fishing-catalogue-progress',
+    timestamp: '2026-10-19T20:02:43.443Z',
+    title: 'Track caught fish and found gear in the fishing catalogue',
+    summary:
+      'The Discord fishing catalogue now shows discovery status for each fish and available gear in the selected biome, without exposing crate lists, loot, prices, or gear descriptions.',
+    details: [
+      'Added a service-role-only fishing catalogue catch table keyed by guild, player, biome, fish name, and rarity. Migration 166 backfills every valid fish catch already stored in completed expedition result JSON, preserving existing member progress.',
+      'Expedition settlement now records newly caught fish in the same database transaction that awards KnowBucks, stores gear, and marks an expedition complete. It preserves the established player-first lock order, idempotent settlement behavior, and completion return shape.',
+      '/fish catalogue and its owner-controlled biome buttons load compact collection progress. Fish display Caught or Not caught, while biome-available gear displays Found or Not found by inventory ownership; gear descriptions are deliberately limited to the Inventory Gear tab.',
+    ],
+    impact: [
+      'Apply migration 166 after migrations 164 and 165, then deploy the Discord bot. Migration 166 is local only and has not been pushed or applied.',
+      'No website deployment or new slash-command registration is required for this catalogue revision. The broader unreleased fishing batch still requires command registration for its earlier command-shape changes.',
+      'Players retain credit for valid fish in their existing completed expedition results immediately after the migration runs; staff gain a compact and queryable collection-progress record instead of an unbounded expedition-history scan.',
+    ],
+    files: [
+      'supabase/migrations/166_track_discord_fishing_catalogue_progress.sql',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added a catalogue-panel regression test covering caught fish, found gear, and the intentional absence of crate, loot, and gear-description content.',
+      'npm run check passed lint, root type-check, the full Vitest suite, and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'Migration 166 was created locally only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-automatic-crates-and-catalogue',
+    patch: 'patch-2026-10-19-discord-fishing-automatic-crates-and-catalogue',
+    timestamp: '2026-10-19T19:26:46.488Z',
+    title: 'Automatically open expedition crates and add fishing inventory tabs',
+    summary:
+      'Expedition crates now resolve and sell immediately, legacy chest inventory can be redeemed all at once, and Discord fishing gains tabbed inventory equipment controls plus a biome-filtered catalogue draft.',
+    details: [
+      'Each expedition resolves its named crate into one weighted loot item during settlement. The crate item sale value is awarded in the same settlement as fish, completion embeds place Fish caught, Crates opened, and Gear found in separate sections, and no newly caught crate is stored in inventory.',
+      'The retained /fish chests-open command now consumes every held legacy crate in one result and shows each aggregated loot sale, total award, and committed balance. Migration 164 continues to convert the old generic chest IDs to legacy crates; migration 165 adds the atomic all-crates redemption RPC with player-first locking and an auditable fishing_crate_open transaction.',
+      'Inventory is now navigated through Overview, Rods, Baits, Skills, Gear, and Boats buttons. Rod and bait equip buttons appear only on their respective tabs, while the Gear tab displays the active permanent-gear descriptions.',
+      'The rough /fish catalogue now has owner-controlled biome buttons and lists fish prices, named crates, crate loot values, and biome treasure gear. It deliberately does not record player collection progress.',
+      'Progress messages tolerate historical completed-result JSON that predates crateSaleValue, reporting a zero crate award rather than an invalid total.',
+    ],
+    impact: [
+      'Apply migrations 164 and 165 in order before deploying the matching Discord bot. Migration 165 was created locally only and has not been pushed or applied.',
+      'Deploy the Discord bot and re-register guild slash commands because /fish chests-open no longer accepts an amount and the command descriptions changed. No website deployment is required.',
+      'New expeditions no longer create crate inventory rows; members should use the temporary legacy command once to redeem migrated chest inventory before it is retired.',
+    ],
+    files: [
+      'supabase/migrations/165_open_all_legacy_discord_fishing_crates.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Expanded fishing regression coverage for zero-option legacy redemption, automatic crate loot settlement, and separate fish/crate completion sections.',
+      'Targeted fishing tests passed (18 checks); npm run check passed lint, root type-check, the full Vitest suite (203 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'Migrations 164 and 165 remain local only and have not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-biome-crates',
+    patch: 'patch-2026-10-19-discord-fishing-biome-crates',
+    timestamp: '2026-10-19T18:51:55.050Z',
+    title: 'Replace generic fishing chests with biome-specific crates',
+    summary:
+      'Discord fishing treasure is now awarded as named biome-specific crates, and opening a crate grants one weighted, auto-sold loot item at a value above the matching biome fish rarity.',
+    details: [
+      'Added 35 named crates and 69 requested loot items across Harbor, Warm Ocean, Hydroplant Reservoir, Sunken Sea, Kelp Forest, Crystaline Caverns, and Rallypoint Delta. Expedition treasure rows, inventory, help, documentation, and the existing /fish chests-open panel now use crate terminology.',
+      'Each crate opening selects one item from its biome at its rarity or above, using weights of 1000 Common, 200 Uncommon, 50 Rare, 10 Epic, and 1 Legendary. The item is immediately sold, its result and final KnowBucks balance are shown, and Money Mouser and Sea Star apply because they increase money gained from everything.',
+      'Crate item values derive from the corresponding biome and rarity fish value range, with deterministic item modifiers from 0% through 30% above that baseline. Crate spawn chances are one quarter of the former chest chances before existing Magnet and Reservoir Growth modifiers are applied.',
+      'Migration 164 atomically consumes the chosen crate, credits its already-resolved sale amount, records a fishing_crate_open transaction, and returns the committed balance. It also converts legacy generic chests to Harbor crates of the same rarity; the retired weathered chest becomes a Harbor Common crate and deep-sea chest becomes a Sunken Sea Rare crate because those legacy item IDs did not retain a source biome.',
+      'Crate-opening panels remain public but owner-controlled and expire after one minute. They now also clear their scheduled expiry if the fishing channel is disabled before a selection is made.',
+    ],
+    impact: [
+      'Apply migration 164 after existing fishing migrations and before deploying the matching Discord bot. The migration is local only and has not been pushed or applied.',
+      'Deploy the Discord bot and re-register guild slash commands so Discord receives the revised /fish chests-open descriptions. No website deployment is required.',
+      'Existing active expeditions settle to crates under the new resolver. Existing generic chest inventory is preserved through the documented one-time conversion rather than being discarded.',
+    ],
+    files: [
+      'supabase/migrations/164_discord_fishing_biome_crates.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added deterministic crate catalogue, reduced-rate, rarity-floor, and sale-bonus regression coverage.',
+      'Targeted fishing tests passed (17 checks); npm run check passed lint, root type-check, the full Vitest suite (202 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'Migration 164 was created locally only and has not been pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-19-discord-fishing-static-duration-copy',
     patch: 'patch-2026-10-19-discord-fishing-static-duration-copy',
     timestamp: '2026-10-19T06:34:42.809Z',

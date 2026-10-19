@@ -17,6 +17,233 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-18-discord-fishing-rods-baits-skills-and-gear',
+    patch: 'patch-2026-10-18-discord-fishing-rods-baits-skills-and-gear',
+    timestamp: '2026-10-18T02:30:00.000Z',
+    title: 'Expand Discord fishing progression and treasure gear',
+    summary:
+      'Discord fishing now has seven rod tiers, six specialty baits, levelled skills, one-time treasure gear, Kelp Forest Uncommon/Rare chests, and an empty Mythic-ready catch tier for the future catalogue.',
+    details: [
+      'Plastic, Wooden, Fiberglass, Reinforced, Master, Celestial, and God Rods constrain exact catchable rarities without changing the existing Common-through-Legendary selection weights. God Rod supports Mythic, but the Mythic fish catalogue is intentionally empty until named Mythic fish and their weights are designed.',
+      'Chum and Bloodworms each give qualifying catches an independent 10–30% chance to add another matching fish. Magnet multiplies chest-spawn odds by 1.5, Sonar halves fish-roll success and doubles the 0.1% gear chance, Mysterious Sea Food has a 20% chance to add 50% fish rolls, and Truffle Worm triples legendary selection weight while suppressing non-legendary returns.',
+      'Lucky, Cheapskate, Money Mouser, and Haste now support the requested levels and additive effects. Shop prices apply owned Cheapskate and Lost Pursasion Device reductions at purchase time, while expedition snapshots make luck, money, haste, rod, bait, and gear effects immutable for an active trip.',
+      'Eleven permanent gear items can appear only in their specified biome or everywhere, are awarded at most once through the existing inventory primary key, and are shown as a prominent GEAR FOUND result row. The settlement RPC serializes a player’s gear awards and returns only newly awarded gear for display.',
+      'Migration 161 remaps retired rods, lures, and legacy passive upgrades; changes all new fishing profiles to Plastic Rod; preserves active-expedition snapshots; supports immediate non-crew Teleporter returns; and replaces settlement without changing its call arguments.',
+    ],
+    impact: [
+      'Apply migration 161 after migrations 157 through 160 before deploying the bot. Existing fishing ownership and active trips are mapped to compatible replacement items; no manual inventory or expedition backfill is required.',
+      'This remains a shared reconciler rather than a per-player timer. It locks the player’s fishing row before one-time gear awards, preventing concurrent settlements from duplicating gear.',
+      'This is a Discord bot and database feature. No website deployment or command registration is required for the new progression itself; register commands separately if the previously added /fish help command has not yet been registered.',
+    ],
+    files: [
+      'supabase/migrations/161_expand_discord_fishing_progression.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Expanded the fishing catalogue tests for Kelp Forest chest rarities, Mythic standby, rod tiers, cost reduction, and time reduction.',
+      'The npm run check lint and root type-check stages passed; the complete Vitest suite (192 tests), Discord bot type-check, targeted fishing tests, and direct ESLint of each changed source also passed.',
+      'Migration 161 was created locally only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-17-discord-fishing-help-and-inventory-copy',
+    patch: 'patch-2026-10-17-discord-fishing-help-and-inventory-copy',
+    timestamp: '2026-10-17T22:20:00.000Z',
+    title: 'Add focused Discord fishing help',
+    summary:
+      'Discord members can now run /fish help for expedition and progression guidance, while the inventory panel no longer repeats a top-level explanation of equipment and upgrade behavior.',
+    details: [
+      'The new /fish help subcommand gives the exact expedition launch shape, explains status checks and automatic fish sales, points members to shop and inventory commands, describes held chest status, and documents crew timing and reward trade-offs.',
+      'Fishing inventory now begins directly with equipped items, progression, owned upgrades, and chests. Contextual success notices after an inventory action remain visible.',
+      'The help subcommand uses the existing /fish channel-scope enforcement, so administrators’ Fishing configuration remains authoritative for every fishing interaction.',
+    ],
+    impact: [
+      'Re-register Discord guild commands before deploying the bot so /fish help appears in Discord.',
+      'This is a bot-only command and presentation change with no database schema, migration, or website deployment requirement.',
+      'No message content or new player data is collected; help is a static public response within the configured guild.',
+    ],
+    files: [
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Extended the fishing command contract test to require the /fish help subcommand.',
+      'npm run check completed lint and root type-check successfully; the full Vitest suite (190 tests) and Discord bot type-check then passed in the same workspace verification run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-17-discord-fishing-completion-polish',
+    patch: 'patch-2026-10-17-discord-fishing-completion-polish',
+    timestamp: '2026-10-17T22:00:00.000Z',
+    title: 'Make Discord fishing returns prompt and legible',
+    summary:
+      'Discord fishing now checks for due expeditions every five seconds, shows the requested sold-fish payout copy, removes redundant launch-panel text, and marks inventory chests with their rarity color.',
+    details: [
+      'The shared due-expedition scheduler runs every five seconds instead of every 30 seconds, reducing the normal wait between an expedition completion timestamp and its launch-message update while retaining one indexed, batched reconciler and the existing overlap guard.',
+      'Completion embeds now say “You earned X KnowBucks from your sold fish. New balance: Y KnowBucks.” and launch embeds contain only the crew, duration, and completion-time status.',
+      'Chest rows display a colored square alongside their existing explicit rarity name: white for Common, green for Uncommon, blue for Rare, purple for Epic, and yellow for Legendary. Discord embed markdown does not support arbitrary inline text colors, so the markers provide clear color coding without hiding the written rarity.',
+    ],
+    impact: [
+      'Players normally see a due expedition settle within five seconds; restarting the bot retains the durable database expedition and the reconciler catches it after startup.',
+      'The added five-second shared query uses the existing due-expedition index and processes at most 25 overdue rows per pass. It does not create a timer per player or read Discord message content.',
+      'This is a bot-only behavior and presentation update. It introduces no database schema or RPC changes and preserves public owner-controlled fishing panels and completion fallback delivery.',
+    ],
+    files: [
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added coverage for the exact completion copy and all five chest rarity markers.',
+      'The targeted fishing suite and full Vitest suite passed (190 tests); root and bot type checks plus direct ESLint for every changed source passed.',
+      'npm run check was attempted, but its Next lint wrapper could not access the existing dev server’s locked .next ESLint cache. The dev server was left running; no production build or cache cleanup was performed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-17-discord-fishing-settlement-column-ambiguity',
+    patch: 'patch-2026-10-17-discord-fishing-settlement-column-ambiguity',
+    timestamp: '2026-10-17T21:15:00.000Z',
+    title: 'Restore Discord fishing expedition settlement',
+    summary:
+      'Due Discord fishing expeditions can now settle again because the settlement RPC no longer ambiguously resolves its returned guild and user identifiers as table columns.',
+    details: [
+      'Migration 160 replaces settle_discord_fishing_expedition without changing its arguments, result fields, atomic row lock, payout calculation, inventory-chest handling, or completion-message flow.',
+      'The replacement uses named primary-key constraints for balance and inventory upserts and explicit table aliases for row predicates, preventing the function\'s RETURNS TABLE guild_id and discord_user_id variables from colliding with table-column references.',
+      'An active expedition that previously failed with “column reference guild_id is ambiguous” remains active and is settled normally by the next 30-second reconciler run or /fish expedition-progress after migration 160 is applied.',
+    ],
+    impact: [
+      'Apply migration 160 after migrations 157 through 159. No data backfill or manual expedition update is needed because unsuccessful settlement attempts did not mark the expedition completed or award currency.',
+      'The deployed bot code already calls the unchanged RPC signature, so this correction requires a database migration but no command registration, website deployment, or bot-code deployment. Restarting the bot after the migration is optional; its next normal reconciliation tick settles the pending expedition.',
+      'The migration preserves service-role-only RPC access and reloads the PostgREST schema after replacement.',
+    ],
+    files: [
+      'supabase/migrations/160_fix_discord_fishing_settlement_column_ambiguity.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed the deployed settlement call site and migrations 157 through 159 to confirm the RPC signature and bot result contract are unchanged.',
+      'npm run check passed after the migration and changelog update.',
+      'Migration was created locally only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-18-discord-fishing-panels-and-channel-controls',
+    patch: 'patch-2026-10-18-discord-fishing-panels-and-channel-controls',
+    timestamp: '2026-10-18T02:15:00.000Z',
+    title: 'Harden Discord fishing panels and expedition completion',
+    summary:
+      'Discord fishing shop and inventory controls now expire after one minute of inactivity, Boat Upgrades render within Discord component limits, completed expeditions update their launch message with catches and balance, and administrators can restrict /fish commands by channel.',
+    details: [
+      'Fishing shop and inventory component IDs carry a one-minute expiry timestamp. Active panels are edited to an expired state when the timer elapses, and expired controls remain safely unusable after a bot restart. Using a valid control refreshes the one-minute inactivity window.',
+      'Shop purchase controls are chunked into action rows of at most five buttons. This fixes the Boat Upgrades category, which has six upgrades and previously produced Discord API error 50035.',
+      'The launch interaction message ID is stored on each active expedition. Once settlement completes, the bot replaces that message with the caught fish/chests, total KnowBucks earned, and the player’s resulting balance; if it was deleted or cannot be edited, the bot sends the existing completion fallback instead.',
+      'Completion embeds split high-yield catch lists across Discord-safe fields instead of truncating entries when an expedition produces more text than a single field allows.',
+      'Fishing reconciliation now starts independently of Discord role and text-channel metadata sync. A manual /fish expedition-progress check also reconciles due trips immediately, while the normal 30-second batch remains idempotent and concurrency-protected.',
+      'Discord Configuration now includes a Fishing tab. It defaults to all channels and can be changed to up to 100 synced sendable text channels; the bot caches that scope for 30 seconds to limit database reads and enforces it for both slash commands and active fishing panels.',
+    ],
+    impact: [
+      'Apply migration 159 before deploying the website or bot. Existing active expeditions without a stored launch message still settle once and use a completion notice; newly launched trips update in place.',
+      'Administrators can visit Profile → Discord Configuration → Fishing to set the permitted /fish channels. Selecting individual channels requires at least one selection; All channels restores the default.',
+      'No browser receives privileged database credentials. Fishing settings, channel validation, message attachment, and settlement remain behind the existing server/service-role boundary.',
+    ],
+    files: [
+      'supabase/migrations/159_discord_fishing_panels_and_command_channels.sql',
+      'lib/discord-fishing.ts',
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: Next.js lint, root type-check, 41 Vitest files / 189 tests, and Discord bot type-check all completed successfully.',
+      'The only lint output was the existing img-element optimization warnings in unrelated profile and Riftbound components.',
+      'Migration was reviewed for append-only safety, RLS, service-role grants, validation, foreign keys, and PostgREST schema reload. It was created locally and has not been pushed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-18-discord-fishing-biome-progression-rework',
+    patch: 'patch-2026-10-18-discord-fishing-biome-progression-rework',
+    timestamp: '2026-10-18T00:50:00.000Z',
+    title: 'Rework Discord fishing biomes and progression',
+    summary:
+      'Discord fishing now uses seven permanent boat-upgrade biomes, level-gated expedition lengths, catch-count balancing without storage, biome-scoped chest rarity, lower fixed fish sale ranges, and two separate crew ventures.',
+    details: [
+      'The fishing catalogue replaces the initial three-biome list with Harbor, Warm Ocean, Hydroplant Reservoir, Sunken Sea, Kelp Forest, Crystaline Caverns, and Rallypoint Delta, including every requested common through legendary catch and its fixed sale range.',
+      'The probability model now uses the requested 1000/200/100/20/1 rarity weights. Lucky Charm continues to increase non-common weights, Money Mouser continues to increase fish sale values, and the new Abyssal Rod makes listed legendary fish catchable.',
+      'Expedition lengths are now 30 seconds for one catch, 60 seconds for two to three catches at level 20, 120 seconds for five to six catches at level 50, and 300 seconds for twelve to fifteen catches at level 80. Storage no longer changes catch count during this balance pass.',
+      'Sail, Abiotic Turbine, Submersible Pod, Magic Conch Navigator, Drill Unit, and Radar Scanner are permanent boat upgrades gated by their configured chat levels and KnowBucks prices. They unlock access to their corresponding biomes without requiring an equipped boat.',
+      'Crew 1 and Crew 2 are stored separately from the retired experimental crew-slot field, require their specified chat levels and prices, and independently run the same unlocked expeditions at triple duration and half normal-fish sale value.',
+      'Chest rarity is selected only from each biome’s allowed rarity set, using the configured 20%, 10%, 5%, 1%, and 0.1% rates. Chest drops are retained in inventory but are not consumed until named chest loot is designed; treasure, pets, catalogue progress, storage, and further gear remain held.',
+    ],
+    impact: [
+      'Apply migration 158 after migration 157, then redeploy the Discord bot and re-register the changed /fish command shape. Existing inventory remains intact; retired initial storage and boat entries simply have no gameplay effect in the new progression model.',
+      'This remains a low and predictable runtime-cost feature: one durable expedition row per trip and one shared 30-second settlement batch, with no per-user in-memory timers or message-content collection.',
+      'Players can now begin short Harbor expeditions immediately. Higher biomes, expedition lengths, boats, and crews make both the required chat level and KnowBucks cost visible before a purchase or trip begins.',
+    ],
+    files: [
+      'supabase/migrations/158_rework_discord_fishing_progression.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed (including Next.js lint, root type-check, full Vitest suite, and Discord bot type-check); pre-existing Next.js img-element warnings in unrelated profile and Riftbound components remain.',
+      'Targeted Vitest verification passed: tests/discord-fishing.test.ts, with 5 tests; direct ESLint passed for all changed bot, test, and changelog sources.',
+      'Migration was reviewed for level gates, independent crew ownership, duration-tier expansion, service-role grants, and schema reload. It was created locally and has not been pushed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-17-discord-fishing-expedition-foundation',
+    patch: 'patch-2026-10-17-discord-fishing-expedition-foundation',
+    timestamp: '2026-10-17T02:00:00.000Z',
+    title: 'Add durable Discord fishing expeditions',
+    summary:
+      'Discord now has the first server-authoritative fishing game slice: expeditions across three boat-gated biomes, automatically sold normal fish, chests, KnowBucks upgrades, inventory equipment, crew slots, and a 30-second completion reconciler.',
+    details: [
+      'Migration 157 creates isolated fishing player, inventory, and expedition records; seeds four starter items; extends the KnowBucks transaction allowlist; and adds security-definer RPCs for initialization, expedition starts, shop purchases, equipment changes, atomic settlement, and chest opening.',
+      'An expedition persists its selected crew slot, biome, duration, completion time, equipped-item snapshot, and a server-generated outcome seed before it begins. The result is computed from that snapshot only when due, so later equipment changes cannot alter an active trip.',
+      'The bot reconciles up to 25 overdue expeditions every 30 seconds. The settlement RPC locks the active row before granting KnowBucks and inventory chests, allowing restarts and overlapping ticks without duplicate payouts. Notification delivery happens only after settlement and does not change the completed result if a channel is unavailable.',
+      'The /fish command provides expedition-set, expedition-progress, shop, inventory, chests-open, and catalogue subcommands. Shop and inventory controls are owner-bound public panels; rods, bait, storage, and boats equip immediately after purchase, while gear and skills are passive once owned.',
+      'The first catalogue exposes the planned legendary fish set, while catchable fish currently stop at epic rarity. Pets, legendary catches, special phenomena, collection-skin or Riftbound rewards, and the broader skill system remain future work rather than partially enabled rewards.',
+    ],
+    impact: [
+      'Apply migration 157 before deploying the bot. Then restart or redeploy the Discord service and run npm run discord:commands:register with the production bot environment so /fish is available in the configured guild.',
+      'This feature adds only one durable row per player/item/expedition plus a 30-second batched due-expedition query. It does not create a per-player process timer or poll Discord message contents, which keeps runtime and database cost predictable as participation grows.',
+      'Fishing currency and inventory operations use the existing service-role-only bot boundary; browser clients receive no new privileged credentials or direct access to the new tables.',
+    ],
+    files: [
+      'supabase/migrations/157_discord_fishing_foundation.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed (including Next.js lint, root type-check, complete Vitest suite, and Discord bot type-check); existing Next.js img-element warnings in unrelated profile and Riftbound components remain.',
+      'Targeted Vitest verification passed: tests/discord-fishing.test.ts and tests/discord-command-visibility.test.ts, with 5 tests total.',
+      'Migration was reviewed for transaction boundaries, validation, RLS, service-role grants, schema reload, crew-slot uniqueness, and atomic KnowBucks changes. It has been created locally and has not been pushed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-16-discord-public-user-command-responses',
     patch: 'patch-2026-10-16-discord-public-user-command-responses',
     timestamp: '2026-10-16T23:45:00.000Z',

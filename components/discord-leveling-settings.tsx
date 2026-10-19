@@ -22,6 +22,10 @@ import {
   type DiscordSkinClaimSellValue,
   type DiscordSkinClaimSettings,
 } from '@/lib/discord-skin-claims';
+import {
+  DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
+  type DiscordFishingCommandSettings,
+} from '@/lib/discord-fishing';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type LevelingSettingsResponse = {
@@ -36,6 +40,8 @@ type LevelingSettingsResponse = {
   skinClaimRarityWeights: DiscordSkinClaimRarityWeight[];
   skinClaimSellValues: DiscordSkinClaimSellValue[];
   skinClaimSettings: DiscordSkinClaimSettings;
+  fishingCommandChannelIds: string[];
+  fishingCommandSettings: DiscordFishingCommandSettings;
 };
 
 const EMPTY_RESPONSE: LevelingSettingsResponse = {
@@ -50,9 +56,12 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
   skinClaimRarityWeights: [...DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS],
   skinClaimSellValues: [...DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES],
   skinClaimSettings: DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
+  fishingCommandChannelIds: [],
+  fishingCommandSettings: DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
 };
 
 const ALL_SKIN_CLAIM_CHANNELS_VALUE = '__all__';
+const ALL_FISHING_COMMAND_CHANNELS_VALUE = '__all_fishing_commands__';
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat().format(value);
@@ -127,7 +136,7 @@ export function DiscordLevelingSettings() {
   const [data, setData] = useState<LevelingSettingsResponse>(EMPTY_RESPONSE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'leveling' | 'collections'>('leveling');
+  const [activeTab, setActiveTab] = useState<'leveling' | 'collections' | 'fishing'>('leveling');
   const [message, setMessage] = useState('');
   const [rewardLevel, setRewardLevel] = useState('5');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
@@ -150,8 +159,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -195,6 +204,21 @@ export function DiscordLevelingSettings() {
     }
     const skinClaimChannelIds = toggleId(current.skinClaimChannelIds, channelId);
     return { ...current, skinClaimChannelIds, skinClaimSettings: { ...current.skinClaimSettings, allChannels: false } };
+  });
+  const toggleFishingCommandChannel = (channelId: string) => setData((current) => {
+    if (channelId === ALL_FISHING_COMMAND_CHANNELS_VALUE) {
+      if (current.fishingCommandSettings.allChannels) return current;
+      return {
+        ...current,
+        fishingCommandChannelIds: [],
+        fishingCommandSettings: { ...current.fishingCommandSettings, allChannels: true },
+      };
+    }
+    return {
+      ...current,
+      fishingCommandChannelIds: toggleId(current.fishingCommandChannelIds, channelId),
+      fishingCommandSettings: { ...current.fishingCommandSettings, allChannels: false },
+    };
   });
   const updateSkinClaimRarityWeight = (rarity: DiscordSkinClaimRarityWeight['rarity'], weight: number) => setData((current) => ({
     ...current,
@@ -267,11 +291,13 @@ export function DiscordLevelingSettings() {
           skinClaimRarityWeights: data.skinClaimRarityWeights,
           skinClaimSellValues: data.skinClaimSellValues,
           skinClaimSummonBaseCost: data.skinClaimSettings.summonBaseCost,
+          fishingCommandAllChannels: data.fishingCommandSettings.allChannels,
+          fishingCommandChannelIds: data.fishingCommandChannelIds,
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings });
       setMessage('Discord Configuration saved. Reward roles are granted when eligible members next earn XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
@@ -288,14 +314,15 @@ export function DiscordLevelingSettings() {
       </div>
       <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Discord Configuration</p>
-        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">{activeTab === 'leveling' ? 'Chat leveling' : 'Skin collections'}</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{activeTab === 'leveling' ? 'Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.' : 'Configure random skin drops, collection capacity, KnowBucks costs, claiming grace periods, and rarity-based sale values.'}</p>
+        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">{activeTab === 'leveling' ? 'Chat leveling' : activeTab === 'collections' ? 'Skin collections' : 'Fishing'}</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{activeTab === 'leveling' ? 'Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.' : activeTab === 'collections' ? 'Configure random skin drops, collection capacity, KnowBucks costs, claiming grace periods, and rarity-based sale values.' : 'Choose where members can use the `/fish` command. Additional fishing controls will appear here as the game grows.'}</p>
       </section>
       {loading ? <div className="mt-5 flex min-h-48 items-center justify-center rounded-3xl border border-white/10 bg-slate-950/80 text-sm font-semibold text-slate-300"><LoaderCircle size={20} className="mr-2 animate-spin text-amber-300" />Loading Discord Configuration…</div> : (
         <form onSubmit={save} className="mt-5 grid gap-5">
           <div role="tablist" aria-label="Discord Configuration sections" className="inline-flex w-fit rounded-2xl border border-white/10 bg-slate-950/80 p-1">
             <button type="button" role="tab" aria-selected={activeTab === 'leveling'} onClick={() => setActiveTab('leveling')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'leveling' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Chat leveling</button>
             <button type="button" role="tab" aria-selected={activeTab === 'collections'} onClick={() => setActiveTab('collections')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'collections' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Collections</button>
+            <button type="button" role="tab" aria-selected={activeTab === 'fishing'} onClick={() => setActiveTab('fishing')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'fishing' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Fishing</button>
           </div>
           {activeTab === 'leveling' ? <>
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
@@ -354,6 +381,32 @@ export function DiscordLevelingSettings() {
             </div>
           </section>
           </> : null}
+          {activeTab === 'fishing' ? <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Fishing command channels</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Choose every channel where members may use <code>/fish</code>. All channels is the default; selecting one or more individual channels restricts every fishing subcommand to those channels.</p>
+            </div>
+            <div className="mt-4">
+              <AppSelectMenu
+                label="Channels where fishing commands are usable"
+                value={data.fishingCommandSettings.allChannels ? ALL_FISHING_COMMAND_CHANNELS_VALUE : data.fishingCommandChannelIds[0] ?? ''}
+                selectedValues={data.fishingCommandSettings.allChannels ? [ALL_FISHING_COMMAND_CHANNELS_VALUE] : data.fishingCommandChannelIds}
+                multiple
+                onToggle={toggleFishingCommandChannel}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No Discord text channels have been synced yet. Start or restart the bot, then reload this page."
+                headerDescription="All channels permits fishing everywhere. Otherwise, choose one or more sendable channels."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: ALL_FISHING_COMMAND_CHANNELS_VALUE, label: 'All channels', description: 'Allow /fish in every channel where the bot can receive commands.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: '#' + channel.name, description: 'Discord channel ID: ' + channel.id })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">A change takes effect in the bot within about 30 seconds. Existing expeditions continue and update their original launch message when complete.</p>
+          </section> : null}
           {activeTab === 'leveling' ? <>
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-lg font-black text-white">Default level-up message</h2><p className="mt-1 text-sm leading-6 text-slate-400">Use the message channel where XP was earned, or route all announcements to one channel ID.</p></div><button type="button" role="switch" aria-checked={data.settings.levelUpMessageEnabled} onClick={() => updateSettings('levelUpMessageEnabled', !data.settings.levelUpMessageEnabled)} className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-white transition hover:border-amber-300/40"><ToggleSwitch checked={data.settings.levelUpMessageEnabled} />{data.settings.levelUpMessageEnabled ? 'Message enabled' : 'Message disabled'}</button></div>
@@ -411,7 +464,7 @@ export function DiscordLevelingSettings() {
             </div>
           </section>
           </> : null}
-          <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-3xl text-sm leading-6 text-slate-400">Changes in either tab save together. Bot accounts and Discord system messages never receive XP. Staff commands require one of the configured Discord staff roles.</p><button type="submit" disabled={saving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{saving ? 'Saving settings' : 'Save settings'}</button></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-3xl text-sm leading-6 text-slate-400">Changes in all tabs save together. Bot accounts and Discord system messages never receive XP. Staff commands require one of the configured Discord staff roles.</p><button type="submit" disabled={saving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{saving ? 'Saving settings' : 'Save settings'}</button></div>
         </form>
       )}
       {message ? <p className={'mt-5 flex items-start gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ' + (message.includes('saved') ? 'border-emerald-300/25 bg-emerald-400/10 text-emerald-100' : 'border-amber-300/25 bg-amber-300/10 text-amber-100')}>{message.includes('saved') ? <Check size={17} className="mt-0.5 shrink-0" /> : <CircleAlert size={17} className="mt-0.5 shrink-0" />}{message}</p> : null}

@@ -12,6 +12,7 @@ import {
   syncDiscordLeaderboardRole,
 } from './leveling.js';
 import { attemptSkinClaimDropFromMessage, handleSkinClaimReaction, startDiscordSkinClaimScheduler } from './skin-claims.js';
+import { startDiscordFishingScheduler } from './fishing.js';
 
 const config = loadBotConfig();
 const client = new Client({ intents: [
@@ -54,12 +55,14 @@ client.once(Events.ClientReady, (readyClient) => {
 
   console.info(`KnowLeague Discord bot connected as ${readyClient.user.tag} for guild ${config.guildId}.`);
   const guild = readyClient.guilds.cache.get(config.guildId)!;
+  // Completion reconciliation does not depend on the role/channel metadata
+  // sync. Start it immediately so a transient sync failure cannot leave an
+  // otherwise valid expedition active past its completion time.
+  startDiscordSkinClaimScheduler(config, guild);
+  startDiscordFishingScheduler(config, guild);
   void syncDiscordGuildRoles(config, guild)
     .then(() => syncDiscordGuildTextChannels(config, guild))
-    .then(async () => {
-      startDiscordSkinClaimScheduler(config, guild);
-      await syncDiscordLeaderboardRole(config, guild);
-    })
+    .then(() => syncDiscordLeaderboardRole(config, guild))
     .catch((error: unknown) => console.error('Discord role synchronization failed.', error));
   voiceXpInitialReconciliation = reconcileDiscordVoiceXpSessions(config, guild)
     .catch((error: unknown) => console.error('Discord voice XP session reconciliation failed.', error));

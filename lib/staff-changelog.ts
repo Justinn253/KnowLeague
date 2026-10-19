@@ -17,6 +17,72 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-19-discord-fishing-level-roles',
+    patch: 'patch-2026-10-19-discord-fishing-level-roles',
+    timestamp: '2026-10-19T21:20:00.000Z',
+    title: 'Configure Fishing level rewards and a top-Fisher role',
+    summary:
+      'Discord Configuration now supports multiple permanent role rewards at each Fishing skill level and one dedicated role for the current top Fisher.',
+    details: [
+      'Added Fishing-tab controls to select one or more assignable roles for each Fishing level and to choose an optional bot-managed top-Fisher role. The top role is intentionally kept separate from chat rewards, the chat champion role, and staff or Collections administrator roles.',
+      'Added migration 168 with durable Fishing reward, top-role configuration, and tracked-assignment records. Its service-role-only replacement RPC validates levels, role IDs, role hierarchy, role uniqueness, and protected-role conflicts again in the database.',
+      'Fishing expedition settlement grants every newly eligible Fishing role without delaying completion messages. Character-level increases and staff chat-XP changes also reconcile Fishing role eligibility because character level remains the Fishing-level floor.',
+      'The bot reconciles the top-Fisher role at startup, after Fishing or character-level progression changes, and at least once per minute. It ranks current non-bot guild members by Fishing level, then Fishing XP, then Discord ID, and removes only the assignment it previously tracked.',
+    ],
+    impact: [
+      'Apply migration 168 after migrations 157 through 167, then deploy both the website and Discord bot. Migration 168 is local only and has not been pushed or applied.',
+      'No slash-command shape changed, so command registration is not required for this patch.',
+      'Configured permanent rewards are granted when a member next gains Fishing XP or their character-level floor rises. The top-Fisher role reconciles within about one minute after configuration changes and immediately after relevant progression settles.',
+    ],
+    files: [
+      'supabase/migrations/168_add_discord_fishing_level_role_rewards.sql',
+      'lib/discord-fishing.ts',
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/leveling.ts',
+      'discord-bot/src/interactions.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed lint, root type-check, the full Vitest suite (207 tests), and Discord bot type-check.',
+      'Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+      'Migration 168 remains local only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-skill-leveling',
+    patch: 'patch-2026-10-19-discord-fishing-skill-leveling',
+    timestamp: '2026-10-19T20:45:00.000Z',
+    title: 'Separate Fishing skill progression from character level',
+    summary:
+      'Discord Fishing now has its own XP and level progression, with character/chat level acting as a permanent minimum rather than as the direct unlock gate.',
+    details: [
+      'Added a durable, game-agnostic discord_game_skill_progress table and migration 167. Existing Fishing and character-level participants are backfilled to their character-level XP threshold without retroactive KnowBucks; a trigger keeps the Fishing floor synchronized whenever character level increases.',
+      'Expeditions award 30 Fishing XP per base fish roll (30, 360, 3,600, or 21,600 for the current four lengths), and automatically opened crates award 20 / 50 / 150 / 500 / 2,000 XP by Common through Legendary rarity. Giant Pearl now applies its 25% Fishing XP bonus.',
+      'Fishing uses the established cumulative XP curve. Each level reached during settlement awards max(1,000, 10 times that level threshold XP), producing clean 500-KnowBuck increments after the floor. XP, Fishing level, sale rewards, level rewards, inventory, catalogue discovery, and expedition completion remain one atomic settlement.',
+      'Rods, bait, boats, crew contracts, and expedition lengths now check Fishing level in the bot and database. Shop, inventory, progress, help, and completion embeds distinguish character level from Fishing level and show Fishing XP progress or awards.',
+    ],
+    impact: [
+      'Apply migration 167 after migrations 157 through 166, then deploy the Discord bot. Migration 167 is local only and has not been pushed or applied.',
+      'This change does not alter slash-command shapes, so it does not itself require command registration. No website deployment is required.',
+      'Members begin at no less than their character level and receive no release-time level reward; later expedition and crate returns can advance Fishing independently and earn the new scaled KnowBucks rewards.',
+    ],
+    files: [
+      'supabase/migrations/167_add_discord_fishing_skill_leveling.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added regression coverage for Fishing XP totals, crate XP rarity values, Giant Pearl, the shared XP curve, and scaled level rewards.',
+      'npm run check passed lint, root type-check, the full Vitest suite (207 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'Migration 167 remains local only and has not been pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-19-discord-fishing-compact-completions',
     patch: 'patch-2026-10-19-discord-fishing-compact-completions',
     timestamp: '2026-10-19T20:05:52.582Z',

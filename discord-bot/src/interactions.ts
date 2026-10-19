@@ -34,7 +34,9 @@ import {
   parseFishingRepeatCustomId,
   reconcileDueFishingExpeditions,
   startFishingExpedition,
+  syncDiscordFishingTopRole,
   getFishingProgress,
+  grantCurrentFishingLevelRoles,
   type FishingBiomeId,
   type FishingCatalogueProgress,
   type FishingDurationTier,
@@ -223,7 +225,7 @@ function fishingShopComponents(ownerDiscordUserId: string, category: FishingUpgr
       .setCustomId(`${FISHING_BUTTON_PREFIX}-buy:${ownerDiscordUserId}:${expiresAt}:${item.id}`)
       .setStyle(ButtonStyle.Success)
       .setLabel(`Buy ${item.name} (${formatXp(cost)})`)
-      .setDisabled(ownedItemIds.has(item.id) || missingRequiredUpgrade || state.balance < cost || state.chatLevel < (item.requiredChatLevel ?? 1));
+      .setDisabled(ownedItemIds.has(item.id) || missingRequiredUpgrade || state.balance < cost || state.fishingLevel < (item.requiredFishingLevel ?? 0));
   });
   return [...categoryRows, ...toComponentRows(purchaseButtons)];
 }
@@ -275,10 +277,10 @@ function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgr
       new EmbedBuilder()
         .setColor(0x0EA5E9)
         .setTitle(`Fishing shop · ${fishingShopCategoryLabel(category)}`)
-        .setDescription(`${notice ? `${notice}\n\n` : ''}Chat level: **${state.chatLevel}** · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent upgrades. Boat upgrades unlock travel and never need equipping.`)
+        .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent upgrades. Boat upgrades unlock travel and never need equipping.`)
         .addFields(items.map((item) => ({
           name: `${ownedItemIds.has(item.id) ? 'Owned · ' : ''}${item.name} · ${formatXp(getFishingUpgradeCost(item, [...ownedItemIds]))} KnowBucks`,
-          value: `${item.description}${item.requiredChatLevel ? `\nRequires chat level **${item.requiredChatLevel}**.` : ''}${item.requiredUpgradeId ? `\nRequires **${getFishingUpgrade(item.requiredUpgradeId)?.name ?? item.requiredUpgradeId}**.` : ''}`,
+          value: `${item.description}${item.requiredFishingLevel ? `\nRequires fishing level **${item.requiredFishingLevel}**.` : ''}${item.requiredUpgradeId ? `\nRequires **${getFishingUpgrade(item.requiredUpgradeId)?.name ?? item.requiredUpgradeId}**.` : ''}`,
         }))),
     ],
   };
@@ -313,7 +315,7 @@ function buildFishingInventoryTabbedPanel(
   const legacyCrates = state.inventory
     .map((entry) => ({ crate: getFishingCrate(entry.item_id), quantity: entry.quantity }))
     .filter((entry): entry is { crate: NonNullable<ReturnType<typeof getFishingCrate>>; quantity: number } => Boolean(entry.crate));
-  const sharedDescription = `${notice ? `${notice}\n\n` : ''}Chat level: **${state.chatLevel}** · Balance: **${formatXp(state.balance)} KnowBucks**`;
+  const sharedDescription = `${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**`;
   const embed = new EmbedBuilder()
     .setColor(0x0EA5E9)
     .setTitle(`Fishing inventory · ${fishingInventoryTabLabel(tab)}`);
@@ -482,6 +484,8 @@ async function handleXpCommand(interaction: ChatInputCommandInteraction, config:
   } else {
     await grantEligibleLevelRoles(config, targetMember, update.current_level);
   }
+  await grantCurrentFishingLevelRoles(config, targetMember);
+  await syncDiscordFishingTopRole(config, interaction.guild);
   const detail = subcommand === 'add'
     ? `Added ${formatXp(interaction.options.getInteger('amount', true))} XP to ${targetUser}.`
     : `Set ${targetUser} to level ${update.current_level}.`;
@@ -642,11 +646,11 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
           .addFields(
             {
               name: 'Start an expedition',
-              value: '`/fish expedition-set biome:<biome> length:<1–4> [crew]` launches an available crew slot. Higher lengths require chat levels and catch more fish.',
+              value: '`/fish expedition-set biome:<biome> length:<1–4> [crew]` launches an available crew slot. Higher lengths require fishing levels and catch more fish.',
             },
             {
               name: 'Track your trips',
-              value: '`/fish expedition-progress` shows active expeditions and your latest return.',
+              value: '`/fish expedition-progress` shows active expeditions, your latest return, and Fishing XP progress. Character level sets a minimum Fishing level; expeditions and crates can take it higher.',
             },
             {
               name: 'Build progression',
@@ -658,7 +662,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
             },
             {
               name: 'Crew expeditions',
-              value: 'Crew 1 and Crew 2 unlock at higher chat levels. Their trips take three times as long and earn half the normal fish-sale reward.',
+              value: 'Crew 1 and Crew 2 unlock at higher fishing levels. Their trips take three times as long and earn half the normal fish-sale reward.',
             },
           ),
       ],
@@ -719,6 +723,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
           .addFields(
             { name: `Active expeditions (${progress.active.length}/${progress.state.crewSlots})`, value: active },
             { name: 'Most recent return', value: recent },
+            { name: 'Fishing skill', value: `Level **${progress.state.fishingLevel}** · **${formatXp(progress.state.fishingXpIntoLevel)}/${formatXp(progress.state.fishingXpToNextLevel)} XP** to next level\nCharacter level: **${progress.state.chatLevel}**` },
             { name: 'Current balance', value: `**${formatXp(progress.state.balance)} KnowBucks**` },
           ),
       ],

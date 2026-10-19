@@ -24,7 +24,10 @@ import {
 } from '@/lib/discord-skin-claims';
 import {
   DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
+  DEFAULT_DISCORD_FISHING_ROLE_SETTINGS,
   type DiscordFishingCommandSettings,
+  type DiscordFishingLevelRoleReward,
+  type DiscordFishingRoleSettings,
 } from '@/lib/discord-fishing';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -42,6 +45,8 @@ type LevelingSettingsResponse = {
   skinClaimSettings: DiscordSkinClaimSettings;
   fishingCommandChannelIds: string[];
   fishingCommandSettings: DiscordFishingCommandSettings;
+  fishingRoleRewards: DiscordFishingLevelRoleReward[];
+  fishingRoleSettings: DiscordFishingRoleSettings;
 };
 
 const EMPTY_RESPONSE: LevelingSettingsResponse = {
@@ -58,6 +63,8 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
   skinClaimSettings: DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
   fishingCommandChannelIds: [],
   fishingCommandSettings: DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
+  fishingRoleRewards: [],
+  fishingRoleSettings: DEFAULT_DISCORD_FISHING_ROLE_SETTINGS,
 };
 
 const ALL_SKIN_CLAIM_CHANNELS_VALUE = '__all__';
@@ -132,6 +139,10 @@ function sortRewards(rewards: DiscordLevelingRoleReward[]) {
   return [...rewards].sort((left, right) => left.level - right.level);
 }
 
+function sortFishingRewards(rewards: DiscordFishingLevelRoleReward[]) {
+  return [...rewards].sort((left, right) => left.level - right.level);
+}
+
 export function DiscordLevelingSettings() {
   const router = useRouter();
   const [data, setData] = useState<LevelingSettingsResponse>(EMPTY_RESPONSE);
@@ -141,6 +152,8 @@ export function DiscordLevelingSettings() {
   const [message, setMessage] = useState('');
   const [rewardLevel, setRewardLevel] = useState('5');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [fishingRewardLevel, setFishingRewardLevel] = useState('5');
+  const [selectedFishingRoleIds, setSelectedFishingRoleIds] = useState<string[]>([]);
   const [expandedRewardMessageLevels, setExpandedRewardMessageLevels] = useState<number[]>([]);
 
   const getAccessToken = useCallback(async () => {
@@ -160,8 +173,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -185,14 +198,33 @@ export function DiscordLevelingSettings() {
     ]);
     return data.roles.filter((role) => role.assignable && (!protectedRoleIds.has(role.id) || role.id === data.settings.leaderboardTopRoleId));
   }, [data.leaderboardExcludedRoleIds, data.manualXpRoleIds, data.roleRewards, data.roles, data.settings.leaderboardTopRoleId]);
+  const availableFishingRewardRoles = useMemo(() => {
+    const used = new Set(data.fishingRoleRewards.flatMap((reward) => reward.roleIds));
+    if (data.fishingRoleSettings.topFisherRoleId) used.add(data.fishingRoleSettings.topFisherRoleId);
+    return data.roles.filter((role) => role.assignable && !used.has(role.id));
+  }, [data.fishingRoleRewards, data.fishingRoleSettings.topFisherRoleId, data.roles]);
+  const availableTopFisherRoles = useMemo(() => {
+    const protectedRoleIds = new Set([
+      ...data.roleRewards.flatMap((reward) => reward.roleIds),
+      ...data.fishingRoleRewards.flatMap((reward) => reward.roleIds),
+      ...data.manualXpRoleIds,
+      ...data.collectionAdminRoleIds,
+      data.settings.leaderboardTopRoleId,
+    ]);
+    return data.roles.filter((role) => role.assignable && (!protectedRoleIds.has(role.id) || role.id === data.fishingRoleSettings.topFisherRoleId));
+  }, [data.collectionAdminRoleIds, data.fishingRoleRewards, data.fishingRoleSettings.topFisherRoleId, data.manualXpRoleIds, data.roleRewards, data.roles, data.settings.leaderboardTopRoleId]);
   const updateSettings = <TKey extends keyof DiscordLevelingSettings>(key: TKey, value: DiscordLevelingSettings[TKey]) => {
     setData((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
   };
   const updateSkinClaimSettings = <TKey extends keyof DiscordSkinClaimSettings>(key: TKey, value: DiscordSkinClaimSettings[TKey]) => {
     setData((current) => ({ ...current, skinClaimSettings: { ...current.skinClaimSettings, [key]: value } }));
   };
+  const updateFishingRoleSettings = <TKey extends keyof DiscordFishingRoleSettings>(key: TKey, value: DiscordFishingRoleSettings[TKey]) => {
+    setData((current) => ({ ...current, fishingRoleSettings: { ...current.fishingRoleSettings, [key]: value } }));
+  };
   const toggleId = (values: string[], value: string) => values.includes(value) ? values.filter((item) => item !== value) : [...values, value].sort();
   const toggleRewardRole = (roleId: string) => setSelectedRoleIds((current) => toggleId(current, roleId));
+  const toggleFishingRewardRole = (roleId: string) => setSelectedFishingRoleIds((current) => toggleId(current, roleId));
   const toggleManualRole = (roleId: string) => setData((current) => ({ ...current, manualXpRoleIds: toggleId(current.manualXpRoleIds, roleId) }));
   const toggleCollectionAdminRole = (roleId: string) => setData((current) => ({ ...current, collectionAdminRoleIds: toggleId(current.collectionAdminRoleIds, roleId) }));
   const toggleLeaderboardExcludedRole = (roleId: string) => setData((current) => ({ ...current, leaderboardExcludedRoleIds: toggleId(current.leaderboardExcludedRoleIds, roleId) }));
@@ -260,6 +292,28 @@ export function DiscordLevelingSettings() {
     ...current,
     roleRewards: current.roleRewards.map((reward) => reward.level === level ? { ...reward, levelUpMessageTemplate: template.trim() ? template : null } : reward),
   }));
+  const addFishingRewardLevel = () => {
+    const level = Number(fishingRewardLevel);
+    if (!Number.isInteger(level) || level < 1 || level > 10000 || selectedFishingRoleIds.length === 0) {
+      setMessage('Choose one or more assignable roles and a Fishing level between 1 and 10,000.');
+      return;
+    }
+    if (data.fishingRoleRewards.some((reward) => reward.level === level)) {
+      setMessage('That Fishing reward level already exists. Remove it first if you need to replace its roles.');
+      return;
+    }
+    setData((current) => ({ ...current, fishingRoleRewards: sortFishingRewards([...current.fishingRoleRewards, { level, roleIds: selectedFishingRoleIds }]) }));
+    setSelectedFishingRoleIds([]);
+  };
+  const removeFishingRewardLevel = (level: number) => setData((current) => ({ ...current, fishingRoleRewards: current.fishingRoleRewards.filter((reward) => reward.level !== level) }));
+  const removeFishingRewardRole = (level: number, roleId: string) => setData((current) => ({
+    ...current,
+    fishingRoleRewards: current.fishingRoleRewards.flatMap((reward) => {
+      if (reward.level !== level) return [reward];
+      const roleIds = reward.roleIds.filter((item) => item !== roleId);
+      return roleIds.length ? [{ ...reward, roleIds }] : [];
+    }),
+  }));
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -296,12 +350,14 @@ export function DiscordLevelingSettings() {
           skinClaimSummonBaseCost: data.skinClaimSettings.summonBaseCost,
           fishingCommandAllChannels: data.fishingCommandSettings.allChannels,
           fishingCommandChannelIds: data.fishingCommandChannelIds,
+          fishingRoleRewards: data.fishingRoleRewards,
+          fishingTopFisherRoleId: data.fishingRoleSettings.topFisherRoleId,
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings });
-      setMessage('Discord Configuration saved. Reward roles are granted when eligible members next earn XP.');
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
+      setMessage('Discord Configuration saved. Fishing reward roles are granted when eligible members next gain Fishing XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
     } finally {
@@ -385,7 +441,8 @@ export function DiscordLevelingSettings() {
             </div>
           </section>
           </> : null}
-          {activeTab === 'fishing' ? <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+          {activeTab === 'fishing' ? <>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>
               <h2 className="text-lg font-black text-white">Fishing command channels</h2>
               <p className="mt-1 text-sm leading-6 text-slate-400">Choose every channel where members may use <code>/fish</code>. All channels is the default; selecting one or more individual channels restricts every fishing subcommand to those channels.</p>
@@ -410,7 +467,31 @@ export function DiscordLevelingSettings() {
               />
             </div>
             <p className="mt-3 text-xs leading-5 text-slate-400">A change takes effect in the bot within about 30 seconds. Existing expeditions continue and update their original launch message when complete.</p>
-          </section> : null}
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Fishing level role rewards</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Grant one or more permanent roles when a member reaches a Fishing skill level. Roles are granted as members gain Fishing XP from expeditions and crates.</p>
+            </div>
+            {data.roles.length === 0 ? <div className="mt-4 flex gap-3 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100"><CircleAlert size={18} className="mt-0.5 shrink-0" />No Discord roles have been synced yet. Start or restart the bot, then reload this page.</div> : null}
+            {data.fishingRoleRewards.length ? <div className="mt-4 grid gap-3 lg:grid-cols-2">{data.fishingRoleRewards.map((reward) => <div key={reward.level} className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-black text-white">Fishing level {formatNumber(reward.level)}</p><button type="button" onClick={() => removeFishingRewardLevel(reward.level)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-rose-300/30 px-3 text-xs font-bold text-rose-100 transition hover:bg-rose-400/10"><Trash2 size={14} />Remove level</button></div><div className="mt-3 flex flex-wrap gap-2">{reward.roleIds.map((roleId) => <span key={roleId} className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-xs font-bold text-amber-100">{roleById.get(roleId)?.name ?? 'Unavailable role'}<button type="button" aria-label={'Remove ' + (roleById.get(roleId)?.name ?? 'role')} onClick={() => removeFishingRewardRole(reward.level, roleId)} className="rounded-full text-amber-100 transition hover:text-white"><X size={14} /></button></span>)}</div></div>)}</div> : <p className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-sm leading-6 text-slate-400">No Fishing level roles are configured yet.</p>}
+            <div className="mt-4 grid gap-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4 lg:grid-cols-[minmax(0,1fr)_11rem_auto] lg:items-end">
+              <AppSelectMenu label="Roles for this Fishing level" value={selectedFishingRoleIds[0] ?? ''} selectedValues={selectedFishingRoleIds} multiple onToggle={toggleFishingRewardRole} disabled={!availableFishingRewardRoles.length} disabledDescription="No assignable roles remain available for Fishing rewards." headerDescription="Choose one or more roles below the KnowLeague bot role. Each role can be used at one Fishing level." searchable searchPlaceholder="Type a role name or ID" options={availableFishingRewardRoles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" />
+              <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Fishing level</span><input type="number" min={1} max={10000} value={fishingRewardLevel} onChange={(event) => setFishingRewardLevel(event.target.value)} className="h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
+              <button type="button" onClick={addFishingRewardLevel} disabled={!selectedFishingRoleIds.length} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"><Plus size={16} />Add reward level</button>
+            </div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Top Fisher role</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Assign one bot-managed role to the highest Fishing-level member. Ties use Fishing XP, then Discord ID, so the role has one predictable holder.</p>
+            </div>
+            <div className="mt-4 max-w-xl">
+              <AppSelectMenu label="Role for the top Fisher" value={data.fishingRoleSettings.topFisherRoleId ?? ''} onChange={(roleId) => updateFishingRoleSettings('topFisherRoleId', roleId || null)} disabled={!data.roles.length} disabledDescription="No Discord roles have been synced yet." headerDescription="Choose a dedicated role below the KnowLeague bot role. It cannot also be a permanent reward, champion, or staff role." searchable searchPlaceholder="Type a role name or ID" options={[{ value: '', label: 'No top Fisher role', description: 'Fishing rankings remain available without a managed role.' }, ...availableTopFisherRoles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))]} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">The bot tracks and removes only the top-Fisher assignment it created. Changes reconcile within about a minute and after a Fishing expedition settles.</p>
+          </section>
+          </> : null}
           {activeTab === 'leveling' ? <>
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-lg font-black text-white">Default level-up message</h2><p className="mt-1 text-sm leading-6 text-slate-400">Use the message channel where XP was earned, or route all announcements to one channel ID.</p></div><button type="button" role="switch" aria-checked={data.settings.levelUpMessageEnabled} onClick={() => updateSettings('levelUpMessageEnabled', !data.settings.levelUpMessageEnabled)} className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-white transition hover:border-amber-300/40"><ToggleSwitch checked={data.settings.levelUpMessageEnabled} />{data.settings.levelUpMessageEnabled ? 'Message enabled' : 'Message disabled'}</button></div>

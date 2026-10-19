@@ -22,7 +22,10 @@ import {
 } from '@/lib/discord-skin-claims';
 import {
   DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
+  DEFAULT_DISCORD_FISHING_ROLE_SETTINGS,
   type DiscordFishingCommandSettings,
+  type DiscordFishingLevelRoleReward,
+  type DiscordFishingRoleSettings,
 } from '@/lib/discord-fishing';
 import { requireAdminAccess } from '@/lib/moderation';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -108,10 +111,16 @@ type StoredSkinClaimSellValueRow = {
 
 type StoredFishingCommandSettingsRow = {
   command_all_channels: boolean;
+  top_fisher_role_id: string | null;
 };
 
 type StoredFishingCommandChannelRow = {
   channel_id: string;
+};
+
+type StoredFishingRoleRewardRow = {
+  discord_role_id: string;
+  level: number;
 };
 
 type LevelingSettingsBody = {
@@ -141,6 +150,8 @@ type LevelingSettingsBody = {
   skinClaimSummonBaseCost?: unknown;
   fishingCommandAllChannels?: unknown;
   fishingCommandChannelIds?: unknown;
+  fishingRoleRewards?: unknown;
+  fishingTopFisherRoleId?: unknown;
   xpPerMessage?: unknown;
 };
 
@@ -195,6 +206,10 @@ function toFishingCommandSettings(row: StoredFishingCommandSettingsRow | null): 
   return row ? { allChannels: row.command_all_channels } : DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS;
 }
 
+function toFishingRoleSettings(row: StoredFishingCommandSettingsRow | null): DiscordFishingRoleSettings {
+  return row ? { topFisherRoleId: row.top_fisher_role_id } : DEFAULT_DISCORD_FISHING_ROLE_SETTINGS;
+}
+
 function normalizeSkinClaimRarityWeights(rows: StoredSkinClaimRarityWeightRow[]): DiscordSkinClaimRarityWeight[] {
   const weightByRarity = new Map(rows.map((row) => [row.rarity, row.weight]));
   return DISCORD_SKIN_CLAIM_RARITIES.map((rarity) => ({
@@ -226,6 +241,16 @@ function groupRoleRewards(rows: StoredRewardRoleRow[], messages: StoredRewardMes
     .sort((left, right) => left.level - right.level);
 }
 
+function groupFishingRoleRewards(rows: StoredFishingRoleRewardRow[]): DiscordFishingLevelRoleReward[] {
+  const roleIdsByLevel = new Map<number, string[]>();
+  for (const row of rows) {
+    roleIdsByLevel.set(row.level, [...(roleIdsByLevel.get(row.level) ?? []), row.discord_role_id]);
+  }
+  return [...roleIdsByLevel.entries()]
+    .map(([level, roleIds]) => ({ level, roleIds }))
+    .sort((left, right) => left.level - right.level);
+}
+
 async function getLevelingData(guildId: string) {
   const supabase = getSupabaseServiceClient();
   const [
@@ -244,6 +269,7 @@ async function getLevelingData(guildId: string) {
     skinClaimSellValuesResult,
     fishingCommandSettingsResult,
     fishingCommandChannelsResult,
+    fishingRoleRewardsResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
       .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
@@ -308,7 +334,7 @@ async function getLevelingData(guildId: string) {
       .eq('guild_id', guildId)
       .returns<StoredSkinClaimSellValueRow[]>(),
     supabase.from('discord_fishing_settings')
-      .select('command_all_channels')
+      .select('command_all_channels,top_fisher_role_id')
       .eq('guild_id', guildId)
       .maybeSingle<StoredFishingCommandSettingsRow>(),
     supabase.from('discord_fishing_command_channels')
@@ -316,6 +342,12 @@ async function getLevelingData(guildId: string) {
       .eq('guild_id', guildId)
       .order('channel_id', { ascending: true })
       .returns<StoredFishingCommandChannelRow[]>(),
+    supabase.from('discord_fishing_level_role_rewards')
+      .select('discord_role_id,level')
+      .eq('guild_id', guildId)
+      .order('level', { ascending: true })
+      .order('discord_role_id', { ascending: true })
+      .returns<StoredFishingRoleRewardRow[]>(),
   ]);
 
   if (settingsResult.error) throw settingsResult.error;
@@ -333,6 +365,7 @@ async function getLevelingData(guildId: string) {
   if (skinClaimSellValuesResult.error) throw skinClaimSellValuesResult.error;
   if (fishingCommandSettingsResult.error) throw fishingCommandSettingsResult.error;
   if (fishingCommandChannelsResult.error) throw fishingCommandChannelsResult.error;
+  if (fishingRoleRewardsResult.error) throw fishingRoleRewardsResult.error;
 
   return {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
@@ -348,6 +381,8 @@ async function getLevelingData(guildId: string) {
     skinClaimSettings: toSkinClaimSettings(skinClaimSettingsResult.data, skinClaimEconomySettingsResult.data),
     fishingCommandChannelIds: (fishingCommandChannelsResult.data ?? []).map((channel) => channel.channel_id),
     fishingCommandSettings: toFishingCommandSettings(fishingCommandSettingsResult.data),
+    fishingRoleRewards: groupFishingRoleRewards(fishingRoleRewardsResult.data ?? []),
+    fishingRoleSettings: toFishingRoleSettings(fishingCommandSettingsResult.data),
   };
 }
 
@@ -406,6 +441,35 @@ function parseRoleRewards(value: unknown) {
       levelUpMessageTemplate: parseOptionalMessageTemplate(levelUpMessageTemplate, 'Reward-level message'),
       roleIds: parsedRoleIds,
     };
+  }).sort((left, right) => left.level - right.level);
+}
+
+function parseFishingRoleRewards(value: unknown) {
+  if (!Array.isArray(value) || value.length > 50) {
+    throw new ApiError(400, 'Provide up to 50 Fishing reward levels.');
+  }
+
+  const seenLevels = new Set<number>();
+  const seenRoleIds = new Set<string>();
+  let roleCount = 0;
+  return value.map((reward): DiscordFishingLevelRoleReward => {
+    if (!reward || typeof reward !== 'object') throw new ApiError(400, 'Each Fishing reward level must be valid.');
+    const { level, roleIds } = reward as { level?: unknown; roleIds?: unknown };
+    const parsedLevel = parsePositiveInteger(level, 'Fishing reward level', 1, 10000);
+    if (seenLevels.has(parsedLevel)) throw new ApiError(400, 'Each Fishing reward level can only be configured once.');
+    seenLevels.add(parsedLevel);
+    if (!Array.isArray(roleIds) || roleIds.length === 0) throw new ApiError(400, 'Each Fishing reward level needs at least one Discord role.');
+    const parsedRoleIds = roleIds.map((roleId) => {
+      if (typeof roleId !== 'string' || !/^[0-9]{17,20}$/.test(roleId)) {
+        throw new ApiError(400, 'Choose a valid Discord role for every Fishing reward.');
+      }
+      if (seenRoleIds.has(roleId)) throw new ApiError(400, 'A Fishing reward role can only be selected once.');
+      seenRoleIds.add(roleId);
+      return roleId;
+    });
+    roleCount += parsedRoleIds.length;
+    if (roleCount > 50) throw new ApiError(400, 'Provide up to 50 total Fishing reward roles.');
+    return { level: parsedLevel, roleIds: parsedRoleIds };
   }).sort((left, right) => left.level - right.level);
 }
 
@@ -517,6 +581,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const xpPerMessage = parsePositiveInteger(body.xpPerMessage, 'XP per message', 1, 1000);
     const cooldownSeconds = parsePositiveInteger(body.cooldownSeconds, 'Cooldown', 1, 3600);
     const roleRewards = parseRoleRewards(body.roleRewards);
+    const fishingRoleRewards = parseFishingRoleRewards(body.fishingRoleRewards);
     const levelUpMessageTemplate = parseOptionalMessageTemplate(body.levelUpMessageTemplate, 'Level-up message');
     if (!levelUpMessageTemplate) throw new ApiError(400, 'Level-up messages must contain between 1 and 500 characters.');
     const levelUpMessageChannelId = parseOptionalSnowflake(body.levelUpMessageChannelId, 'Level-up channel ID');
@@ -543,6 +608,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     }
     const fishingCommandAllChannels = body.fishingCommandAllChannels;
     const fishingCommandChannelIds = parseFishingCommandChannelIds(body.fishingCommandChannelIds);
+    const fishingTopFisherRoleId = parseOptionalSnowflake(body.fishingTopFisherRoleId, 'Top Fisher role');
     const skinClaimRarityWeights = parseSkinClaimRarityWeights(body.skinClaimRarityWeights);
     const skinClaimSellValues = parseSkinClaimSellValues(body.skinClaimSellValues);
     const guildId = getDiscordGuildId();
@@ -561,6 +627,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const assignableRoleIds = new Set((roles ?? []).filter((role) => role.assignable).map((role) => role.role_id));
     if (roleRewards.some((reward) => reward.roleIds.some((roleId) => !assignableRoleIds.has(roleId)))) {
       throw new ApiError(400, 'Choose reward roles that are available below the KnowLeague bot role.');
+    }
+    if (fishingRoleRewards.some((reward) => reward.roleIds.some((roleId) => !assignableRoleIds.has(roleId)))) {
+      throw new ApiError(400, 'Choose Fishing reward roles that are available below the KnowLeague bot role.');
     }
     const syncedRoleIds = new Set((roles ?? []).map((role) => role.role_id));
     if (manualXpRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
@@ -583,6 +652,22 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     }
     if (leaderboardTopRoleId && leaderboardExcludedRoleIds.includes(leaderboardTopRoleId)) {
       throw new ApiError(400, 'The leaderboard top role cannot exclude its own holders.');
+    }
+    if (fishingTopFisherRoleId && !assignableRoleIds.has(fishingTopFisherRoleId)) {
+      throw new ApiError(400, 'Choose a top Fisher role that is available below the KnowLeague bot role.');
+    }
+    if (fishingTopFisherRoleId && fishingRoleRewards.some((reward) => reward.roleIds.includes(fishingTopFisherRoleId))) {
+      throw new ApiError(400, 'The top Fisher role cannot also be a Fishing level reward.');
+    }
+    if (fishingTopFisherRoleId && roleRewards.some((reward) => reward.roleIds.includes(fishingTopFisherRoleId))) {
+      throw new ApiError(400, 'The top Fisher role cannot also be a chat level reward.');
+    }
+    if (fishingTopFisherRoleId && (
+      fishingTopFisherRoleId === leaderboardTopRoleId
+      || manualXpRoleIds.includes(fishingTopFisherRoleId)
+      || collectionAdminRoleIds.includes(fishingTopFisherRoleId)
+    )) {
+      throw new ApiError(400, 'Keep the top Fisher role dedicated to the Fishing leaderboard.');
     }
     const sendableChannelIds = new Set((channels ?? []).filter((channel) => channel.sendable).map((channel) => channel.channel_id));
     if (skinClaimChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
@@ -643,6 +728,13 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_updated_by: user.id,
     });
     if (fishingConfigurationError) throw fishingConfigurationError;
+    const { error: fishingRoleConfigurationError } = await supabase.rpc('replace_discord_fishing_role_configuration', {
+      p_guild_id: guildId,
+      p_role_rewards: fishingRoleRewards,
+      p_top_fisher_role_id: fishingTopFisherRoleId,
+      p_updated_by: user.id,
+    });
+    if (fishingRoleConfigurationError) throw fishingRoleConfigurationError;
     return NextResponse.json(await getLevelingData(guildId));
   } catch (error) {
     return getRouteErrorResponse(error);

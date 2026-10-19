@@ -4,15 +4,20 @@ import { buildFishingCataloguePanel, buildFishingLaunchResponse } from '../disco
 import {
   calculateFishingDurationSeconds,
   FISHING_BIOMES,
+  FISHING_CRATE_XP_BY_RARITY,
   FISHING_CRATE_DROP_RATES,
   FISHING_CRATE_LOOT,
   FISHING_CRATE_RARITIES,
   FISHING_CRATES,
   FISHING_FISH,
+  FISHING_EXPEDITION_XP_PER_BASE_CATCH,
   FISHING_MYTHIC_FISH,
   FISHING_UPGRADES,
   getFishingUpgrade,
   getFishingUpgradeCost,
+  getFishingLevelForTotalXp,
+  getFishingLevelUpKnowBucks,
+  getFishingTotalXpForLevel,
   getFishingExpeditionLength,
   getFishingCrate,
   resolveFishingCrateOpenings,
@@ -106,10 +111,10 @@ describe('Discord fishing command contract', () => {
 
 describe('Discord fishing reworked progression', () => {
   it('uses the requested unlock levels, duration, and crew time multiplier', () => {
-    expect(getFishingExpeditionLength(1)).toMatchObject({ requiredChatLevel: 0, durationSeconds: 5, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 });
-    expect(getFishingExpeditionLength(2)).toMatchObject({ requiredChatLevel: 10, durationSeconds: 60, catchCount: [12, 12], higherRarityWeightBonusPercent: 5 });
-    expect(getFishingExpeditionLength(3)).toMatchObject({ requiredChatLevel: 20, durationSeconds: 600, catchCount: [120, 120], higherRarityWeightBonusPercent: 10 });
-    expect(getFishingExpeditionLength(4)).toMatchObject({ requiredChatLevel: 30, durationSeconds: 3_600, catchCount: [720, 720], higherRarityWeightBonusPercent: 15 });
+    expect(getFishingExpeditionLength(1)).toMatchObject({ requiredFishingLevel: 0, durationSeconds: 5, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 });
+    expect(getFishingExpeditionLength(2)).toMatchObject({ requiredFishingLevel: 10, durationSeconds: 60, catchCount: [12, 12], higherRarityWeightBonusPercent: 5 });
+    expect(getFishingExpeditionLength(3)).toMatchObject({ requiredFishingLevel: 20, durationSeconds: 600, catchCount: [120, 120], higherRarityWeightBonusPercent: 10 });
+    expect(getFishingExpeditionLength(4)).toMatchObject({ requiredFishingLevel: 30, durationSeconds: 3_600, catchCount: [720, 720], higherRarityWeightBonusPercent: 15 });
     expect(calculateFishingDurationSeconds(4, false)).toBe(3_600);
     expect(calculateFishingDurationSeconds(4, true)).toBe(10_800);
   });
@@ -156,6 +161,34 @@ describe('Discord fishing reworked progression', () => {
     expect(fishCatches.every((entry) => (
       entry.rarity === 'Common'
     ))).toBe(true);
+    expect(first.fishingExpeditionXp).toBe(120 * FISHING_EXPEDITION_XP_PER_BASE_CATCH);
+  });
+
+  it('awards doubled expedition and crate Fishing XP, including the Giant Pearl bonus', () => {
+    const normal = resolveFishingExpedition('harbor', 4, { ...starterEquipment, rodItemId: 'master-rod' }, 548_921);
+    const pearl = resolveFishingExpedition('harbor', 4, {
+      ...starterEquipment,
+      passiveItemIds: ['gear-giant-pearl'],
+      rodItemId: 'master-rod',
+    }, 548_921);
+    const crateXp = normal.catches
+      .filter((entry) => entry.kind === 'crate')
+      .reduce((total, entry) => total + (entry.quantity * FISHING_CRATE_XP_BY_RARITY[entry.rarity]), 0);
+
+    expect(normal.fishingExpeditionXp).toBe(720 * FISHING_EXPEDITION_XP_PER_BASE_CATCH);
+    expect(normal.fishingCrateXp).toBe(crateXp);
+    expect(normal.fishingXpAwarded).toBe(normal.fishingExpeditionXp + normal.fishingCrateXp);
+    expect(pearl.fishingXpAwarded).toBe(Math.floor((pearl.fishingExpeditionXp + pearl.fishingCrateXp) * 1.25));
+  });
+
+  it('uses the shared XP curve and clean non-linear KnowBucks level rewards', () => {
+    expect(getFishingTotalXpForLevel(0)).toBe(0);
+    expect(getFishingTotalXpForLevel(20)).toBe(18_150);
+    expect(getFishingLevelForTotalXp(18_150)).toBe(20);
+    expect(getFishingLevelUpKnowBucks(1)).toBe(1_000);
+    expect(getFishingLevelUpKnowBucks(2)).toBe(1_000);
+    expect(getFishingLevelUpKnowBucks(3)).toBe(1_500);
+    expect(getFishingLevelUpKnowBucks(20)).toBe(18_500);
   });
 
   it('condenses repeated catches into counted result rows for long expeditions', () => {
@@ -225,12 +258,12 @@ describe('Discord fishing reworked progression', () => {
 
   it('defines the requested purchasable bait, skill, and one-time gear catalogue', () => {
     const byId = new Map(FISHING_UPGRADES.map((upgrade) => [upgrade.id, upgrade]));
-    expect(byId.get('chum')).toMatchObject({ cost: 10_000, requiredChatLevel: 5 });
-    expect(byId.get('magnet')).toMatchObject({ cost: 30_000, requiredChatLevel: 15 });
-    expect(byId.get('sonar')).toMatchObject({ cost: 75_000, requiredChatLevel: 25 });
-    expect(byId.get('bloodworms')).toMatchObject({ cost: 150_000, requiredChatLevel: 40 });
-    expect(byId.get('mysterious-sea-food')).toMatchObject({ cost: 250_000, requiredChatLevel: 55 });
-    expect(byId.get('truffle-worm')).toMatchObject({ cost: 1_000_000, requiredChatLevel: 80 });
+    expect(byId.get('chum')).toMatchObject({ cost: 10_000, requiredFishingLevel: 5 });
+    expect(byId.get('magnet')).toMatchObject({ cost: 30_000, requiredFishingLevel: 15 });
+    expect(byId.get('sonar')).toMatchObject({ cost: 75_000, requiredFishingLevel: 25 });
+    expect(byId.get('bloodworms')).toMatchObject({ cost: 150_000, requiredFishingLevel: 40 });
+    expect(byId.get('mysterious-sea-food')).toMatchObject({ cost: 250_000, requiredFishingLevel: 55 });
+    expect(byId.get('truffle-worm')).toMatchObject({ cost: 1_000_000, requiredFishingLevel: 80 });
     expect(FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear')).toHaveLength(11);
     expect(byId.get('gear-conduit')?.foundBiomeIds).toEqual(['warm-ocean']);
     expect(byId.get('gear-teleporter')?.foundBiomeIds).toEqual(['rallypoint-delta']);
@@ -277,6 +310,9 @@ describe('Discord fishing reworked progression', () => {
         },
       ],
       crateSaleValue: 125,
+      fishingCrateXp: 20,
+      fishingExpeditionXp: 30,
+      fishingXpAwarded: 50,
       fishSaleValue: 425,
       gearItems: [],
       knowBucksFound: 0,
@@ -296,6 +332,9 @@ describe('Discord fishing reworked progression', () => {
     const embed = buildFishingCompletionEmbed('harbor', {
       catches: [],
       crateSaleValue: 0,
+      fishingCrateXp: 0,
+      fishingExpeditionXp: 0,
+      fishingXpAwarded: 0,
       fishSaleValue: 0,
       gearItems: [],
       knowBucksFound: 0,

@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, type Guild } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, type Guild, type GuildMember } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   calculateFishingDurationSeconds,
@@ -14,9 +14,11 @@ import {
   getFishingCrate,
   getFishingExpeditionLength,
   getFishingSaleBonusPercent,
+  getFishingTotalXpForLevel,
   getFishingUpgrade,
   getFishingUpgradeCost,
   getFishingTimeReductionPercent,
+  getFishingXpToNextLevel,
   resolveFishingExpedition,
   resolveFishingCrateOpenings,
   shouldInstantlyCompleteFishingExpedition,
@@ -45,6 +47,11 @@ type FishingInventoryRow = {
   quantity: number;
 };
 
+type FishingSkillRow = {
+  level: number;
+  total_xp: number;
+};
+
 type FishingExpeditionRow = {
   biome_id: FishingBiomeId;
   completes_at: string;
@@ -69,6 +76,26 @@ type FishingCommandChannelRow = {
   channel_id: string;
 };
 
+type FishingLevelRoleRewardRow = {
+  discord_role_id: string;
+  level: number;
+};
+
+type FishingRoleSettingsRow = {
+  top_fisher_role_id: string | null;
+};
+
+type FishingTopRoleAssignmentRow = {
+  discord_role_id: string;
+  discord_user_id: string;
+};
+
+type FishingLeaderboardMemberRow = {
+  discord_user_id: string;
+  level: number;
+  total_xp: number;
+};
+
 type FishingCatalogueCatchRow = {
   biome_id: FishingBiomeId;
   fish_name: string;
@@ -82,6 +109,11 @@ type SettledExpeditionRow = {
   awarded_gear_item_ids: string[];
   current_balance: number | null;
   discord_user_id: string | null;
+  fishing_current_level: number | null;
+  fishing_knowbucks_awarded: number;
+  fishing_previous_level: number | null;
+  fishing_total_xp: number | null;
+  fishing_xp_awarded: number;
   knowbucks_awarded: number;
   notification_channel_id: string | null;
   result: FishingExpeditionResult | null;
@@ -93,7 +125,19 @@ export type FishingPlayerState = {
   chatLevel: number;
   crewSlots: number;
   equipment: FishingEquipmentSnapshot;
+  fishingLevel: number;
+  fishingTotalXp: number;
+  fishingXpIntoLevel: number;
+  fishingXpToNextLevel: number;
   inventory: FishingInventoryRow[];
+};
+
+type FishingSettlementSkillAward = {
+  currentLevel: number;
+  knowBucksAwarded: number;
+  previousLevel: number;
+  totalXp: number;
+  xpAwarded: number;
 };
 
 export type FishingCatalogueProgress = {
@@ -134,9 +178,16 @@ export type OpenedFishingCrates = {
 
 const FISHING_SCHEDULER_INTERVAL_MS = 5_000;
 const FISHING_COMMAND_SETTINGS_CACHE_MS = 30_000;
+const FISHING_LEVEL_REWARDS_CACHE_MS = 30_000;
+const FISHING_TOP_ROLE_RECONCILIATION_INTERVAL_MS = 60_000;
+const FISHING_TOP_ROLE_MAX_MEMBER_SCAN = 500;
 let scheduler: ReturnType<typeof setInterval> | null = null;
 let settlementInFlight: Promise<void> | null = null;
 let cachedFishingCommandSettings: { allowedChannelIds: Set<string> | null; expiresAt: number } | null = null;
+let cachedFishingLevelRewards: { expiresAt: number; guildId: string; value: FishingLevelRoleRewardRow[] } | null = null;
+let fishingLevelRewardsLoad: Promise<FishingLevelRoleRewardRow[]> | null = null;
+let fishingTopRoleSyncInFlight: Promise<void> | null = null;
+let lastFishingTopRoleReconciliationAt = 0;
 
 function getFirstResult<T>(data: T | T[] | null) {
   return Array.isArray(data) ? data[0] ?? null : data;
@@ -174,7 +225,7 @@ async function ensureFishingPlayer(config: DiscordBotConfig, discordUserId: stri
 export async function getFishingPlayerState(config: DiscordBotConfig, discordUserId: string): Promise<FishingPlayerState> {
   await ensureFishingPlayer(config, discordUserId);
   const supabase = createBotServiceClient(config);
-  const [playerResult, inventoryResult, balanceResult, levelResult] = await Promise.all([
+  const [playerResult, inventoryResult, balanceResult, levelResult, fishingSkillResult] = await Promise.all([
     supabase
       .from('discord_fishing_players')
       .select('crew_one_unlocked,crew_two_unlocked,equipped_bait_id,equipped_rod_id')
@@ -200,17 +251,27 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
       .eq('guild_id', config.guildId)
       .eq('discord_user_id', discordUserId)
       .maybeSingle<{ level: number }>(),
+    supabase
+      .from('discord_game_skill_progress')
+      .select('level,total_xp')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .eq('skill_id', 'fishing')
+      .maybeSingle<FishingSkillRow>(),
   ]);
   if (playerResult.error) throw new Error(`Unable to load Discord fishing profile: ${playerResult.error.message}`);
   if (inventoryResult.error) throw new Error(`Unable to load Discord fishing inventory: ${inventoryResult.error.message}`);
   if (balanceResult.error) throw new Error(`Unable to load Discord fishing balance: ${balanceResult.error.message}`);
   if (levelResult.error) throw new Error(`Unable to load Discord chat level for fishing: ${levelResult.error.message}`);
+  if (fishingSkillResult.error) throw new Error(`Unable to load Discord fishing level: ${fishingSkillResult.error.message}`);
   if (!playerResult.data) throw new Error('Discord fishing profile was not created.');
 
   const inventory = inventoryResult.data ?? [];
+  const fishingLevel = fishingSkillResult.data?.level ?? 0;
+  const fishingTotalXp = fishingSkillResult.data?.total_xp ?? 0;
   return {
     balance: balanceResult.data?.balance ?? 0,
-    chatLevel: levelResult.data?.level ?? 1,
+    chatLevel: levelResult.data?.level ?? 0,
     crewSlots: 1 + Number(playerResult.data.crew_one_unlocked) + Number(playerResult.data.crew_two_unlocked),
     equipment: normalizeEquipmentSnapshot({
       catalogueVersion: 4,
@@ -223,6 +284,10 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
           return item?.category === 'gear' || item?.category === 'skill';
         }),
     }),
+    fishingLevel,
+    fishingTotalXp,
+    fishingXpIntoLevel: Math.max(0, fishingTotalXp - getFishingTotalXpForLevel(fishingLevel)),
+    fishingXpToNextLevel: getFishingXpToNextLevel(fishingLevel),
     inventory,
   };
 }
@@ -324,6 +389,225 @@ export async function isFishingCommandAllowedInChannel(config: DiscordBotConfig,
     || cachedFishingCommandSettings.allowedChannelIds.has(channelId);
 }
 
+async function getConfiguredFishingLevelRewards(
+  config: DiscordBotConfig,
+  forceRefresh = false,
+): Promise<FishingLevelRoleRewardRow[]> {
+  const now = Date.now();
+  if (!forceRefresh
+    && cachedFishingLevelRewards
+    && cachedFishingLevelRewards.guildId === config.guildId
+    && cachedFishingLevelRewards.expiresAt > now) {
+    return cachedFishingLevelRewards.value;
+  }
+  if (!forceRefresh && fishingLevelRewardsLoad) {
+    return fishingLevelRewardsLoad;
+  }
+
+  const load = async () => {
+    const { data, error } = await createBotServiceClient(config)
+      .from('discord_fishing_level_role_rewards')
+      .select('discord_role_id,level')
+      .eq('guild_id', config.guildId)
+      .order('level', { ascending: true })
+      .returns<FishingLevelRoleRewardRow[]>();
+    if (error) throw new Error(`Unable to read Fishing level rewards: ${error.message}`);
+
+    const value = data ?? [];
+    cachedFishingLevelRewards = {
+      expiresAt: Date.now() + FISHING_LEVEL_REWARDS_CACHE_MS,
+      guildId: config.guildId,
+      value,
+    };
+    return value;
+  };
+
+  if (forceRefresh) return load();
+  fishingLevelRewardsLoad = load();
+  try {
+    return await fishingLevelRewardsLoad;
+  } finally {
+    fishingLevelRewardsLoad = null;
+  }
+}
+
+export async function grantEligibleFishingLevelRoles(
+  config: DiscordBotConfig,
+  member: GuildMember,
+  fishingLevel: number,
+) {
+  const rewards = await getConfiguredFishingLevelRewards(config);
+  const missingRoleIds = rewards
+    .filter((reward) => reward.level <= fishingLevel)
+    .map((reward) => reward.discord_role_id)
+    .filter((roleId) => !member.roles.cache.has(roleId))
+    .filter((roleId) => member.guild.roles.cache.get(roleId)?.editable);
+  if (missingRoleIds.length > 0) {
+    await member.roles.add(missingRoleIds, 'KnowLeague Fishing level reward');
+  }
+}
+
+export async function grantCurrentFishingLevelRoles(config: DiscordBotConfig, member: GuildMember) {
+  const { data, error } = await createBotServiceClient(config)
+    .from('discord_game_skill_progress')
+    .select('level')
+    .eq('guild_id', config.guildId)
+    .eq('discord_user_id', member.id)
+    .eq('skill_id', 'fishing')
+    .maybeSingle<Pick<FishingSkillRow, 'level'>>();
+  if (error) throw new Error(`Unable to read Fishing level rewards for member: ${error.message}`);
+  await grantEligibleFishingLevelRoles(config, member, data?.level ?? 0);
+}
+
+async function getCurrentTopFishingMember(
+  config: DiscordBotConfig,
+  guild: Guild,
+): Promise<(FishingLeaderboardMemberRow & { member: GuildMember }) | null> {
+  const supabase = createBotServiceClient(config);
+  const pageSize = 25;
+  let start = 0;
+  while (start < FISHING_TOP_ROLE_MAX_MEMBER_SCAN) {
+    const { data, error } = await supabase
+      .from('discord_game_skill_progress')
+      .select('discord_user_id,level,total_xp')
+      .eq('guild_id', config.guildId)
+      .eq('skill_id', 'fishing')
+      .gt('total_xp', 0)
+      .order('level', { ascending: false })
+      .order('total_xp', { ascending: false })
+      .order('discord_user_id', { ascending: true })
+      .range(start, Math.min(start + pageSize - 1, FISHING_TOP_ROLE_MAX_MEMBER_SCAN - 1))
+      .returns<FishingLeaderboardMemberRow[]>();
+    if (error) throw new Error(`Unable to load the Fishing leaderboard: ${error.message}`);
+    if (!data?.length) return null;
+
+    for (const entry of data) {
+      try {
+        const member = await guild.members.fetch(entry.discord_user_id);
+        if (!member.user.bot) return { ...entry, member };
+      } catch {
+        // Skill rows outlive ordinary Discord server departures. Skip them so
+        // a current member can hold the managed top-Fisher role.
+      }
+    }
+    if (data.length < pageSize) return null;
+    start += pageSize;
+  }
+  return null;
+}
+
+async function removeTrackedFishingTopRole(
+  guild: Guild,
+  assignment: FishingTopRoleAssignmentRow,
+): Promise<boolean> {
+  const role = await guild.roles.fetch(assignment.discord_role_id);
+  if (!role) return true;
+  if (!role.editable) {
+    console.error('Fishing top-role synchronization could not remove a role above the bot.');
+    return false;
+  }
+  try {
+    const member = await guild.members.fetch(assignment.discord_user_id);
+    if (member.roles.cache.has(role.id)) {
+      await member.roles.remove(role, 'KnowLeague top Fisher changed');
+    }
+    return true;
+  } catch {
+    // Discord removes member roles when a member leaves or is banned, so the
+    // stale assignment can safely be cleared when the member cannot be found.
+    return true;
+  }
+}
+
+async function performDiscordFishingTopRoleSync(config: DiscordBotConfig, guild: Guild) {
+  const supabase = createBotServiceClient(config);
+  const [settingsResult, assignmentResult] = await Promise.all([
+    supabase
+      .from('discord_fishing_settings')
+      .select('top_fisher_role_id')
+      .eq('guild_id', config.guildId)
+      .maybeSingle<FishingRoleSettingsRow>(),
+    supabase
+      .from('discord_fishing_top_role_assignments')
+      .select('discord_role_id,discord_user_id')
+      .eq('guild_id', config.guildId)
+      .maybeSingle<FishingTopRoleAssignmentRow>(),
+  ]);
+  if (settingsResult.error) throw new Error(`Unable to load top Fisher role settings: ${settingsResult.error.message}`);
+  if (assignmentResult.error) throw new Error(`Unable to load top Fisher role assignment: ${assignmentResult.error.message}`);
+
+  const assigned = assignmentResult.data;
+  const configuredRoleId = settingsResult.data?.top_fisher_role_id ?? null;
+  if (!configuredRoleId) {
+    if (!assigned || !(await removeTrackedFishingTopRole(guild, assigned))) return;
+    const { error } = await supabase
+      .from('discord_fishing_top_role_assignments')
+      .delete()
+      .eq('guild_id', config.guildId);
+    if (error) throw new Error(`Unable to clear the top Fisher role assignment: ${error.message}`);
+    return;
+  }
+
+  const role = await guild.roles.fetch(configuredRoleId);
+  if (!role) {
+    console.error('Fishing top-role synchronization could not find the configured role.');
+    return;
+  }
+  if (!role.editable) {
+    console.error('Fishing top-role synchronization requires the configured role to be below the bot role.');
+    return;
+  }
+
+  const leader = await getCurrentTopFishingMember(config, guild);
+  if (assigned && (!leader || assigned.discord_role_id !== role.id || assigned.discord_user_id !== leader.discord_user_id)) {
+    if (!(await removeTrackedFishingTopRole(guild, assigned))) return;
+    const { error } = await supabase
+      .from('discord_fishing_top_role_assignments')
+      .delete()
+      .eq('guild_id', config.guildId);
+    if (error) throw new Error(`Unable to clear the previous top Fisher role assignment: ${error.message}`);
+  }
+
+  if (!leader) return;
+  if (!leader.member.roles.cache.has(role.id)) {
+    await leader.member.roles.add(role, 'KnowLeague top Fisher');
+  }
+  const { error } = await supabase
+    .from('discord_fishing_top_role_assignments')
+    .upsert({
+      discord_role_id: role.id,
+      discord_user_id: leader.discord_user_id,
+      guild_id: config.guildId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'guild_id' });
+  if (error) throw new Error(`Unable to save the top Fisher role assignment: ${error.message}`);
+}
+
+export function syncDiscordFishingTopRole(config: DiscordBotConfig, guild: Guild): Promise<void> {
+  if (guild.id !== config.guildId) return Promise.resolve();
+  if (fishingTopRoleSyncInFlight) return fishingTopRoleSyncInFlight;
+
+  const work = performDiscordFishingTopRoleSync(config, guild);
+  fishingTopRoleSyncInFlight = work;
+  void work.then(
+    () => {
+      lastFishingTopRoleReconciliationAt = Date.now();
+      if (fishingTopRoleSyncInFlight === work) fishingTopRoleSyncInFlight = null;
+    },
+    () => {
+      if (fishingTopRoleSyncInFlight === work) fishingTopRoleSyncInFlight = null;
+    },
+  );
+  return work;
+}
+
+async function maybeSyncDiscordFishingTopRole(config: DiscordBotConfig, guild: Guild) {
+  if (guild.id !== config.guildId || Date.now() - lastFishingTopRoleReconciliationAt < FISHING_TOP_ROLE_RECONCILIATION_INTERVAL_MS) {
+    return;
+  }
+  await syncDiscordFishingTopRole(config, guild);
+}
+
 export async function startFishingExpedition(
   config: DiscordBotConfig,
   discordUserId: string,
@@ -344,8 +628,8 @@ export async function startFishingExpedition(
     activeExpeditions.map((expedition) => expedition.crew_slot),
     requestedCrewSlot,
   );
-  if (state.chatLevel < expeditionLength.requiredChatLevel) {
-    throw new Error(`Expedition length ${durationTier} unlocks at chat level ${expeditionLength.requiredChatLevel}.`);
+  if (state.fishingLevel < expeditionLength.requiredFishingLevel) {
+    throw new Error(`Expedition length ${durationTier} unlocks at fishing level ${expeditionLength.requiredFishingLevel}.`);
   }
   if (biome.requiredBoatUpgradeId && !state.inventory.some((item) => item.item_id === biome.requiredBoatUpgradeId)) {
     const upgrade = getFishingUpgrade(biome.requiredBoatUpgradeId);
@@ -463,7 +747,7 @@ export async function purchaseFishingUpgrade(config: DiscordBotConfig, discordUs
     p_discord_user_id: discordUserId,
     p_guild_id: config.guildId,
     p_item_id: upgrade.id,
-    p_required_chat_level: upgrade.requiredChatLevel ?? 1,
+    p_required_fishing_level: upgrade.requiredFishingLevel ?? 0,
   });
   if (error) throw new Error(`Unable to purchase fishing upgrade: ${error.message}`);
   const purchase = getFirstResult(data as PurchaseUpgradeRow | PurchaseUpgradeRow[] | null);
@@ -561,8 +845,22 @@ function buildFishingCatchFields(name: string, catches: FishingExpeditionResult[
   return values.map((value, index) => ({ name: index === 0 ? name : `${name} (continued)`, value }));
 }
 
-export function buildFishingCompletionEmbed(biomeId: FishingBiomeId, result: FishingExpeditionResult, reward: number, balance: number) {
+export function buildFishingCompletionEmbed(
+  biomeId: FishingBiomeId,
+  result: FishingExpeditionResult,
+  reward: number,
+  balance: number,
+  fishingSkillAward?: FishingSettlementSkillAward,
+) {
   const biome = getFishingBiome(biomeId);
+  const fishingSkillField = fishingSkillAward && fishingSkillAward.xpAwarded > 0
+    ? [{
+      name: 'Fishing skill',
+      value: `+${formatNumber(fishingSkillAward.xpAwarded)} Fishing XP · Level **${fishingSkillAward.currentLevel}**${fishingSkillAward.currentLevel > fishingSkillAward.previousLevel
+        ? ` · Level rewards: **${formatNumber(fishingSkillAward.knowBucksAwarded)} KnowBucks**`
+        : ''}`,
+    }]
+    : [];
   return new EmbedBuilder()
     .setColor(0x0EA5E9)
     .setTitle(`${biome?.name ?? 'Fishing'} expedition complete`)
@@ -570,6 +868,7 @@ export function buildFishingCompletionEmbed(biomeId: FishingBiomeId, result: Fis
       ? `You earned ${formatNumber(result.fishSaleValue)} KnowBucks from your sold fish. Crate items earned ${formatNumber(result.crateSaleValue)} KnowBucks. New balance: ${formatNumber(balance)} KnowBucks.`
       : `You earned ${formatNumber(reward)} KnowBucks from your sold fish. New balance: ${formatNumber(balance)} KnowBucks.`)
     .addFields(
+      ...fishingSkillField,
       ...buildFishingCatchFields('Fish caught', result.catches.filter((catchItem) => catchItem.kind === 'fish')),
       ...buildFishingCatchFields('Crates opened', result.catches.filter((catchItem) => catchItem.kind === 'crate')),
       ...buildFishingCatchFields('Gear found', result.catches.filter((catchItem) => catchItem.kind === 'gear')),
@@ -586,6 +885,20 @@ function buildFishingCompletionComponents(preset: FishingRepeatPreset) {
         .setLabel('Fish again'),
     ],
   }];
+}
+
+async function reconcileFishingRolesAfterSettlement(
+  config: DiscordBotConfig,
+  guild: Guild,
+  settled: SettledExpeditionRow,
+) {
+  if (settled.discord_user_id && settled.fishing_current_level !== null) {
+    const member = await guild.members.fetch(settled.discord_user_id).catch(() => null);
+    if (member && !member.user.bot) {
+      await grantEligibleFishingLevelRoles(config, member, settled.fishing_current_level);
+    }
+  }
+  await syncDiscordFishingTopRole(config, guild);
 }
 
 async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, expedition: FishingExpeditionRow) {
@@ -608,6 +921,9 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
   const settled = getFirstResult(data as SettledExpeditionRow | SettledExpeditionRow[] | null);
   if (!settled?.settled || !settled.discord_user_id || !settled.notification_channel_id || !settled.result) return;
 
+  void reconcileFishingRolesAfterSettlement(config, guild, settled)
+    .catch((roleError: unknown) => console.error(`Discord fishing expedition ${expedition.id} role reconciliation failed.`, roleError));
+
   const channel = await guild.channels.fetch(settled.notification_channel_id).catch(() => null);
   if (!channel?.isTextBased()) {
     console.error(`Discord fishing expedition ${expedition.id} completed, but its notification channel is unavailable.`);
@@ -620,6 +936,17 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
     catches: settled.result.catches.filter((catchItem) => catchItem.kind !== 'gear' || awardedGearItemIds.has(catchItem.itemId)),
     gearItems: (settled.result.gearItems ?? []).filter((gear) => awardedGearItemIds.has(gear.itemId)),
   };
+  const fishingSkillAward = settled.fishing_current_level === null
+    || settled.fishing_previous_level === null
+    || settled.fishing_total_xp === null
+    ? undefined
+    : {
+      currentLevel: settled.fishing_current_level,
+      knowBucksAwarded: settled.fishing_knowbucks_awarded,
+      previousLevel: settled.fishing_previous_level,
+      totalXp: settled.fishing_total_xp,
+      xpAwarded: settled.fishing_xp_awarded,
+    };
   const completion = {
     allowedMentions: { parse: [] as const },
     components: buildFishingCompletionComponents({
@@ -629,7 +956,13 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
       ownerDiscordUserId: settled.discord_user_id,
     }),
     content: `<@${settled.discord_user_id}> your fishing expedition is complete!`,
-    embeds: [buildFishingCompletionEmbed(expedition.biome_id, displayedResult, settled.knowbucks_awarded, settled.current_balance ?? settled.knowbucks_awarded)],
+    embeds: [buildFishingCompletionEmbed(
+      expedition.biome_id,
+      displayedResult,
+      settled.knowbucks_awarded,
+      settled.current_balance ?? settled.knowbucks_awarded,
+      fishingSkillAward,
+    )],
   };
 
   if (expedition.notification_message_id) {
@@ -651,7 +984,13 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
       ownerDiscordUserId: settled.discord_user_id,
     }),
     content: `<@${settled.discord_user_id}> your fishing expedition is complete!`,
-    embeds: [buildFishingCompletionEmbed(expedition.biome_id, displayedResult, settled.knowbucks_awarded, settled.current_balance ?? settled.knowbucks_awarded)],
+    embeds: [buildFishingCompletionEmbed(
+      expedition.biome_id,
+      displayedResult,
+      settled.knowbucks_awarded,
+      settled.current_balance ?? settled.knowbucks_awarded,
+      fishingSkillAward,
+    )],
   });
 }
 
@@ -691,6 +1030,8 @@ export function startDiscordFishingScheduler(config: DiscordBotConfig, guild: Gu
   const tick = () => {
     void reconcileDueFishingExpeditions(config, guild)
       .catch((error: unknown) => console.error('Discord fishing expedition reconciliation failed.', error));
+    void maybeSyncDiscordFishingTopRole(config, guild)
+      .catch((error: unknown) => console.error('Discord Fishing top-role synchronization failed.', error));
   };
   tick();
   scheduler = setInterval(tick, FISHING_SCHEDULER_INTERVAL_MS);

@@ -17,6 +17,127 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-19-discord-fishing-static-duration-copy',
+    patch: 'patch-2026-10-19-discord-fishing-static-duration-copy',
+    timestamp: '2026-10-19T06:34:42.809Z',
+    title: 'Replace fishing countdown timestamps with static duration estimates',
+    summary:
+      'Discord fishing launch and progress messages now state each trip’s estimated duration instead of showing a relative Discord countdown that can remain overdue during asynchronous settlement.',
+    details: [
+      'Launch messages now say “This trip takes about X” using the calculated duration, with no client-rendered completion timestamp.',
+      'The expedition-progress display now reports each active trip’s static stored duration rather than a relative completion timestamp.',
+      'The database continues to compute and persist the authoritative completion deadline. The five-second reconciler continues to settle due expeditions; only the potentially stale display timer was removed.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply the updated message copy. No website deployment, database migration, or slash-command registration is required.',
+      'Players will not see an expedition message display an overdue relative timer while the reconciliation cycle is processing completion.',
+    ],
+    files: [
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added launch-copy regression coverage that asserts a static duration estimate and no Discord relative timestamp.',
+      'Targeted fishing tests passed (16 checks); npm run check then passed lint, root type-check, the full Vitest suite (201 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'No migration was created, pushed, or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-repeat-expedition-control',
+    patch: 'patch-2026-10-19-discord-fishing-repeat-expedition-control',
+    timestamp: '2026-10-19T06:20:39.903Z',
+    title: 'Add owner-controlled repeat expedition button',
+    summary:
+      'Completed Discord fishing expedition results now include a Fish again button that starts another expedition with the same biome, length, and crew slot.',
+    details: [
+      'Each settlement adds a persistent owner-specific button to both the edited launch message and fallback completion notice. Selecting it replaces that completion result with the next expedition launch message.',
+      'The repeat identifier contains the original preset and is parsed defensively. Only the player who completed the trip can use it; malformed, cross-player, and channel-disabled attempts are rejected privately.',
+      'A repeat reuses the normal start path, so it rechecks channel configuration, chat level, boat ownership, crew availability, current equipment, duration modifiers, and instant-completion rules. It cannot duplicate a launch through the button.',
+      'The normal slash-command launch and the repeat launch now share their launch-message rendering and original-message attachment behavior.',
+    ],
+    impact: [
+      'Deploy the Discord bot to enable repeat controls for newly settled expeditions. Existing completed messages do not gain a button retroactively.',
+      'No website deployment, database migration, or slash-command registration is required.',
+    ],
+    files: [
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added regression coverage for serializing and validating an owner-specific completed-expedition repeat preset.',
+      'Targeted fishing tests passed (15 checks); npm run check passed lint, root type-check, the full Vitest suite (200 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'No migration was created, pushed, or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-expedition-level-gates',
+    patch: 'patch-2026-10-19-discord-fishing-expedition-level-gates',
+    timestamp: '2026-10-19T06:14:00.037Z',
+    title: 'Lower Discord fishing expedition level gates',
+    summary:
+      'Fishing expedition lengths now unlock at chat levels 0, 10, 20, and 30, while retaining their recently configured durations, fish-roll counts, and rarity-weight bonuses.',
+    details: [
+      'The four current expedition-length requirements changed from levels 1, 20, 50, and 80 to levels 0, 10, 20, and 30 respectively.',
+      'The registered /fish expedition selection labels and bot documentation now state the matching unlock levels.',
+      'Existing expeditions have already passed the launch-time eligibility check and are unaffected; new launches use the lower gates.',
+    ],
+    impact: [
+      'Deploy the Discord bot and re-register guild slash commands so Discord receives the updated expedition-choice descriptions. No website deployment or database migration is required.',
+      'Players can immediately launch the shortest expedition and access longer expedition scales earlier in chat-level progression.',
+    ],
+    files: [
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Updated regression coverage for all four expedition level gates.',
+      'Targeted fishing tests passed (14 checks); npm run check then passed lint, root type-check, the full Vitest suite (199 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'No migration was created, pushed, or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-expedition-scale-and-condensed-results',
+    patch: 'patch-2026-10-19-discord-fishing-expedition-scale-and-condensed-results',
+    timestamp: '2026-10-19T06:06:19.889Z',
+    title: 'Scale fishing expedition returns and condense completion rows',
+    summary:
+      'Fishing expedition lengths now run for 5 seconds, 1 minute, 10 minutes, or 1 hour and produce 1, 12, 120, or 720 fish-roll opportunities, while repeated fish and chests appear as counted rows.',
+    details: [
+      'Length 1 keeps the existing base rarity weights. Lengths 2, 3, and 4 add 5%, 10%, and 15% respectively to every non-Common rarity selection weight before owned Lucky and Rod Improvement Kit bonuses are added.',
+      'New launches save catalogue version 4 in their equipment snapshot. Resolver support for versions 2 and 3 retains the former duration, fish-roll count, and rarity-weight rules for expeditions that were already active during this release.',
+      'Resolved expedition catches are now aggregated by fish name and rarity, chest rarity, and gear identifier before persistence. This retains the exact total sale value and special-item quantities while keeping one-hour expeditions safely below database-result and Discord-embed limits.',
+      'Completion embeds display grouped rows such as a fish name, rarity, and x<count> with its combined sale value. Chest rows are grouped in the same way, while one-time gear keeps its prominent result row.',
+      'The registered /fish expedition length descriptions and bot documentation now state the new durations and fish-roll counts.',
+    ],
+    impact: [
+      'Deploy the Discord bot and re-register guild slash commands so Discord receives the updated expedition-length descriptions. No website deployment or database migration is required.',
+      'Existing active expeditions retain the duration and outcome rules saved at launch; new launches use the updated length configuration.',
+      'No fish prices, rods, bait behavior, chest rarity distribution, or player ownership data changes.',
+    ],
+    files: [
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Expanded the fishing suite for the four exact length scales and condensed long-expedition result rows.',
+      'Targeted fishing tests passed (14 checks); npm run check then passed lint, root type-check, the full Vitest suite (199 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'No migration was created, pushed, or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-18-discord-collections-centered-art-layout',
     patch: 'patch-2026-10-18-discord-collections-centered-art-layout',
     timestamp: '2026-10-18T12:30:00.000Z',

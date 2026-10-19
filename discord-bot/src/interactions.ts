@@ -15,21 +15,30 @@ import {
   attachFishingExpeditionMessage,
   describeFishingEquipment,
   FISHING_REPEAT_BUTTON_PREFIX,
+  FISHING_BIOMES,
+  FISHING_FISH,
+  FISHING_UPGRADES,
   formatFishingDuration,
   getFishingBiome,
+  getFishingCatalogueProgress,
+  getFishingCrate,
   getFishingPlayerState,
   getFishingShopItems,
   getFishingUpgrade,
   getFishingUpgradeCost,
-  isFishingChestItem,
+  openAllFishingCrates,
   purchaseFishingUpgrade,
   isFishingCommandAllowedInChannel,
+  isFishingFishCaught,
   equipFishingUpgrade,
   parseFishingRepeatCustomId,
   reconcileDueFishingExpeditions,
   startFishingExpedition,
+  syncDiscordFishingTopRole,
   getFishingProgress,
+  grantCurrentFishingLevelRoles,
   type FishingBiomeId,
+  type FishingCatalogueProgress,
   type FishingDurationTier,
   type FishingPlayerState,
   type StartedFishingExpedition,
@@ -85,6 +94,8 @@ const LEADERBOARD_COMMAND_COOLDOWN_MS = 10_000;
 const SKIN_COLLECTION_BUTTON_PREFIX = 'skin-collection';
 const FISHING_BUTTON_PREFIX = 'fish';
 const FISHING_SHOP_CATEGORIES: readonly FishingUpgradeCategory[] = ['rod', 'bait', 'boat', 'skill', 'crew'];
+const FISHING_INVENTORY_TABS = ['overview', 'rods', 'baits', 'skills', 'gear', 'boats'] as const;
+type FishingInventoryTab = typeof FISHING_INVENTORY_TABS[number];
 const FISHING_PANEL_TTL_MS = 60_000;
 const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
 let leaderboardCommandCooldownPruneAfter = 0;
@@ -160,7 +171,7 @@ function fishingShopCategoryLabel(category: FishingUpgradeCategory) {
 }
 
 function fishingPanelExpirationMessage() {
-  return 'This fishing panel has expired. Run `/fish shop` or `/fish inventory` to open a new one.';
+  return 'This fishing panel has expired. Run `/fish shop`, `/fish inventory`, or `/fish catalogue` to open a new one.';
 }
 
 function scheduleFishingPanelExpiry(message: { edit: (options: { components: []; content: string }) => Promise<unknown>; id: string }, expiresAt: number) {
@@ -178,10 +189,14 @@ function scheduleFishingPanelExpiry(message: { edit: (options: { components: [];
   fishingPanelExpiryTimers.set(message.id, timer);
 }
 
-function expireFishingPanel(interaction: ButtonInteraction) {
-  const existingTimer = fishingPanelExpiryTimers.get(interaction.message.id);
+function clearFishingPanelExpiry(messageId: string) {
+  const existingTimer = fishingPanelExpiryTimers.get(messageId);
   if (existingTimer) clearTimeout(existingTimer);
-  fishingPanelExpiryTimers.delete(interaction.message.id);
+  fishingPanelExpiryTimers.delete(messageId);
+}
+
+function expireFishingPanel(interaction: ButtonInteraction) {
+  clearFishingPanelExpiry(interaction.message.id);
   return interaction.update({ content: fishingPanelExpirationMessage(), components: [] });
 }
 
@@ -210,16 +225,37 @@ function fishingShopComponents(ownerDiscordUserId: string, category: FishingUpgr
       .setCustomId(`${FISHING_BUTTON_PREFIX}-buy:${ownerDiscordUserId}:${expiresAt}:${item.id}`)
       .setStyle(ButtonStyle.Success)
       .setLabel(`Buy ${item.name} (${formatXp(cost)})`)
-      .setDisabled(ownedItemIds.has(item.id) || missingRequiredUpgrade || state.balance < cost || state.chatLevel < (item.requiredChatLevel ?? 1));
+      .setDisabled(ownedItemIds.has(item.id) || missingRequiredUpgrade || state.balance < cost || state.fishingLevel < (item.requiredFishingLevel ?? 0));
   });
   return [...categoryRows, ...toComponentRows(purchaseButtons)];
 }
 
-function fishingInventoryComponents(ownerDiscordUserId: string, state: FishingPlayerState, expiresAt: number) {
-  const equipableItems = state.inventory
+function fishingInventoryTabLabel(tab: FishingInventoryTab) {
+  const labels: Record<FishingInventoryTab, string> = {
+    overview: 'Overview',
+    rods: 'Rods',
+    baits: 'Baits',
+    skills: 'Skills',
+    gear: 'Gear',
+    boats: 'Boats',
+  };
+  return labels[tab];
+}
+
+function ownedFishingUpgrades(state: FishingPlayerState, category?: FishingUpgradeCategory) {
+  return state.inventory
     .map((entry) => getFishingUpgrade(entry.item_id))
     .filter((item): item is NonNullable<ReturnType<typeof getFishingUpgrade>> => Boolean(item))
-    .filter((item) => item.category === 'rod' || item.category === 'bait');
+    .filter((item) => !category || item.category === category);
+}
+
+function fishingInventoryComponents(ownerDiscordUserId: string, state: FishingPlayerState, expiresAt: number, tab: FishingInventoryTab) {
+  const navigationButtons = FISHING_INVENTORY_TABS.map((entry) => new ButtonBuilder()
+    .setCustomId(`${FISHING_BUTTON_PREFIX}-inventory:${ownerDiscordUserId}:${expiresAt}:${entry}`)
+    .setStyle(entry === tab ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    .setLabel(fishingInventoryTabLabel(entry)));
+  const equipCategory = tab === 'rods' ? 'rod' : tab === 'baits' ? 'bait' : null;
+  const equipableItems = equipCategory ? ownedFishingUpgrades(state, equipCategory) : [];
   const equippedItemIds = new Set([
     state.equipment.rodItemId,
     state.equipment.baitItemId,
@@ -229,7 +265,7 @@ function fishingInventoryComponents(ownerDiscordUserId: string, state: FishingPl
     .setStyle(ButtonStyle.Secondary)
     .setLabel(equippedItemIds.has(item.id) ? `${item.name} equipped` : `Equip ${item.name}`)
     .setDisabled(equippedItemIds.has(item.id)));
-  return toComponentRows(buttons);
+  return [...toComponentRows(navigationButtons), ...toComponentRows(buttons)];
 }
 
 function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgradeCategory, state: FishingPlayerState, expiresAt: number, notice?: string) {
@@ -241,35 +277,126 @@ function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgr
       new EmbedBuilder()
         .setColor(0x0EA5E9)
         .setTitle(`Fishing shop · ${fishingShopCategoryLabel(category)}`)
-        .setDescription(`${notice ? `${notice}\n\n` : ''}Chat level: **${state.chatLevel}** · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent upgrades. Boat upgrades unlock travel and never need equipping.`)
+        .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent upgrades. Boat upgrades unlock travel and never need equipping.`)
         .addFields(items.map((item) => ({
           name: `${ownedItemIds.has(item.id) ? 'Owned · ' : ''}${item.name} · ${formatXp(getFishingUpgradeCost(item, [...ownedItemIds]))} KnowBucks`,
-          value: `${item.description}${item.requiredChatLevel ? `\nRequires chat level **${item.requiredChatLevel}**.` : ''}${item.requiredUpgradeId ? `\nRequires **${getFishingUpgrade(item.requiredUpgradeId)?.name ?? item.requiredUpgradeId}**.` : ''}`,
+          value: `${item.description}${item.requiredFishingLevel ? `\nRequires fishing level **${item.requiredFishingLevel}**.` : ''}${item.requiredUpgradeId ? `\nRequires **${getFishingUpgrade(item.requiredUpgradeId)?.name ?? item.requiredUpgradeId}**.` : ''}`,
         }))),
     ],
   };
 }
 
-function buildFishingInventoryPanel(ownerDiscordUserId: string, state: FishingPlayerState, expiresAt: number, notice?: string) {
+function splitFishingPanelField(name: string, lines: readonly string[], emptyValue: string) {
+  const values: string[] = [];
+  let currentValue = '';
+  for (const line of lines) {
+    const nextValue = currentValue ? `${currentValue}\n${line}` : line;
+    if (nextValue.length > 1_024 && currentValue) {
+      values.push(currentValue);
+      currentValue = line;
+    } else {
+      currentValue = nextValue;
+    }
+  }
+  if (currentValue) values.push(currentValue);
+  return values.length > 0
+    ? values.map((value, index) => ({ name: index === 0 ? name : `${name} (continued)`, value }))
+    : [{ name, value: emptyValue }];
+}
+
+function buildFishingInventoryTabbedPanel(
+  ownerDiscordUserId: string,
+  state: FishingPlayerState,
+  expiresAt: number,
+  tab: FishingInventoryTab = 'overview',
+  notice?: string,
+) {
   const equipment = describeFishingEquipment(state.equipment);
-  const knownItems = state.inventory
-    .map((entry) => ({ entry, item: getFishingUpgrade(entry.item_id) }))
-    .filter((entry): entry is { entry: FishingPlayerState['inventory'][number]; item: NonNullable<ReturnType<typeof getFishingUpgrade>> } => Boolean(entry.item));
-  const chests = state.inventory.filter((entry) => isFishingChestItem(entry.item_id));
-  const inventoryEmbed = new EmbedBuilder()
+  const legacyCrates = state.inventory
+    .map((entry) => ({ crate: getFishingCrate(entry.item_id), quantity: entry.quantity }))
+    .filter((entry): entry is { crate: NonNullable<ReturnType<typeof getFishingCrate>>; quantity: number } => Boolean(entry.crate));
+  const sharedDescription = `${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**`;
+  const embed = new EmbedBuilder()
     .setColor(0x0EA5E9)
-    .setTitle('Fishing inventory');
-  if (notice) inventoryEmbed.setDescription(notice);
+    .setTitle(`Fishing inventory · ${fishingInventoryTabLabel(tab)}`);
+
+  if (tab === 'overview') {
+    embed
+      .setDescription(`${sharedDescription}\nUse the category buttons to inspect your items. Rod and bait tabs include their own equip controls.`)
+      .addFields(
+        { name: 'Equipped', value: `Rod: **${equipment.rod}**\nBait: **${equipment.bait}**`, inline: true },
+        { name: 'Progression', value: `Crew slots: **${state.crewSlots}**\nPassives: **${equipment.passives}**`, inline: true },
+        ...splitFishingPanelField(
+          'Legacy crates',
+          legacyCrates.map(({ crate, quantity }) => `${crate.name} (${crate.rarity} · ${getFishingBiome(crate.biomeId)?.name ?? crate.biomeId}) x**${formatXp(quantity)}**`),
+          'No legacy crates. Newly caught crates open automatically during expeditions.',
+        ),
+      );
+  } else {
+    const categoryByTab: Partial<Record<FishingInventoryTab, FishingUpgradeCategory>> = {
+      rods: 'rod',
+      baits: 'bait',
+      skills: 'skill',
+      gear: 'gear',
+      boats: 'boat',
+    };
+    const category = categoryByTab[tab];
+    const ownedItems = category ? ownedFishingUpgrades(state, category) : [];
+    const categoryDescription = tab === 'rods'
+      ? 'Choose an owned rod below to equip it.'
+      : tab === 'baits'
+        ? 'Choose one owned bait below to equip it.'
+        : tab === 'gear'
+          ? 'Gear is permanent and activates automatically. Its descriptions below state each active benefit.'
+          : tab === 'skills'
+            ? 'Skills are permanent player-stat upgrades and apply automatically.'
+            : 'Boat upgrades are permanent and unlock expedition biomes automatically.';
+    embed
+      .setDescription(`${sharedDescription}\n${categoryDescription}`)
+      .addFields(...splitFishingPanelField(
+        `Owned ${fishingInventoryTabLabel(tab)}`,
+        ownedItems.map((item) => {
+          const isEquipped = item.id === state.equipment.rodItemId || item.id === state.equipment.baitItemId;
+          return `**${item.name}**${isEquipped ? ' (equipped)' : ''} — ${item.description}`;
+        }),
+        `No ${fishingInventoryTabLabel(tab).toLowerCase()} owned yet.`,
+      ));
+  }
 
   return {
-    components: fishingInventoryComponents(ownerDiscordUserId, state, expiresAt),
+    components: fishingInventoryComponents(ownerDiscordUserId, state, expiresAt, tab),
+    embeds: [embed],
+  };
+}
+
+function fishingCatalogueComponents(ownerDiscordUserId: string, biomeId: FishingBiomeId, expiresAt: number) {
+  return toComponentRows(FISHING_BIOMES.map((biome) => new ButtonBuilder()
+    .setCustomId(`${FISHING_BUTTON_PREFIX}-catalogue:${ownerDiscordUserId}:${expiresAt}:${biome.id}`)
+    .setStyle(biome.id === biomeId ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    .setLabel(biome.name)));
+}
+
+export function buildFishingCataloguePanel(
+  ownerDiscordUserId: string,
+  biomeId: FishingBiomeId,
+  expiresAt: number,
+  progress: FishingCatalogueProgress,
+) {
+  const biome = getFishingBiome(biomeId);
+  if (!biome) throw new Error('Fishing catalogue biome is invalid.');
+  const fish = FISHING_FISH.filter((entry) => entry.biomeId === biomeId);
+  const gear = FISHING_UPGRADES.filter((entry) => entry.category === 'gear'
+    && (!entry.foundBiomeIds || entry.foundBiomeIds.includes(biomeId)));
+  return {
+    components: fishingCatalogueComponents(ownerDiscordUserId, biomeId, expiresAt),
     embeds: [
-      inventoryEmbed
+      new EmbedBuilder()
+        .setColor(0x0EA5E9)
+        .setTitle(`Fishing catalogue · ${biome.name}`)
+        .setDescription(`${biome.description}\n✅ marks fish you have caught and gear you have found. ⬜ marks entries still to discover.`)
         .addFields(
-          { name: 'Equipped', value: `Rod: **${equipment.rod}**\nBait: **${equipment.bait}**`, inline: true },
-          { name: 'Progression', value: `Chat level: **${state.chatLevel}**\nCrew slots: **${state.crewSlots}**\nPassives: **${equipment.passives}**`, inline: true },
-          { name: 'Owned upgrades', value: knownItems.map(({ item }) => item.name).join(', ') || 'Starter equipment only.' },
-          { name: 'Chests', value: chests.length > 0 ? chests.map((chest) => `${chest.item_id.replace(/-chest$/, '').replace(/^./, (letter) => letter.toUpperCase())} Chest: **${chest.quantity}**`).join('\n') : 'No chests. Expeditions automatically sell normal fish and keep chests here.' },
+          ...splitFishingPanelField('Fish caught', fish.map((entry) => `${isFishingFishCaught(progress, entry) ? '✅ Caught' : '⬜ Not caught'} — **${entry.name}** (${entry.rarity})`), 'No fish recorded.'),
+          ...splitFishingPanelField('Gear found', gear.map((entry) => `${progress.ownedGearItemIds.has(entry.id) ? '✅ Found' : '⬜ Not found'} — **${entry.name}**`), 'No gear recorded.'),
         ),
     ],
   };
@@ -357,6 +484,8 @@ async function handleXpCommand(interaction: ChatInputCommandInteraction, config:
   } else {
     await grantEligibleLevelRoles(config, targetMember, update.current_level);
   }
+  await grantCurrentFishingLevelRoles(config, targetMember);
+  await syncDiscordFishingTopRole(config, interaction.guild);
   const detail = subcommand === 'add'
     ? `Added ${formatXp(interaction.options.getInteger('amount', true))} XP to ${targetUser}.`
     : `Set ${targetUser} to level ${update.current_level}.`;
@@ -513,27 +642,27 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
         new EmbedBuilder()
           .setColor(0x0EA5E9)
           .setTitle('KnowLeague fishing help')
-          .setDescription('Send expeditions to catch fish, earn KnowBucks, unlock new waters, and collect chests.')
+          .setDescription('Send expeditions to catch fish, earn KnowBucks, unlock new waters, and discover automatically opened crates.')
           .addFields(
             {
               name: 'Start an expedition',
-              value: '`/fish expedition-set biome:<biome> length:<1–4> [crew]` launches an available crew slot. Higher lengths require chat levels and catch more fish.',
+              value: '`/fish expedition-set biome:<biome> length:<1–4> [crew]` launches an available crew slot. Higher lengths require fishing levels and catch more fish.',
             },
             {
               name: 'Track your trips',
-              value: '`/fish expedition-progress` shows active expeditions and your latest return. Normal fish are sold automatically when an expedition completes.',
+              value: '`/fish expedition-progress` shows active expeditions, your latest return, and Fishing XP progress. Character level sets a minimum Fishing level; expeditions and crates can take it higher.',
             },
             {
               name: 'Build progression',
               value: '`/fish shop` spends KnowBucks on rods, bait, boat upgrades, skills, and crew contracts. Boat upgrades unlock their matching biomes.',
             },
             {
-              name: 'Inventory and chests',
-              value: '`/fish inventory` shows your equipment, upgrades, and held chests. `/fish chests-open` reports chest totals; named chest loot is still coming soon.',
+              name: 'Inventory, crates, and catalogue',
+              value: '`/fish inventory` has focused equipment, skill, gear-description, and boat tabs. Newly caught crates open automatically. `/fish chests-open` redeems all held legacy crates, while `/fish catalogue` tracks fish catches and found gear by biome.',
             },
             {
               name: 'Crew expeditions',
-              value: 'Crew 1 and Crew 2 unlock at higher chat levels. Their trips take three times as long and earn half the normal fish-sale reward.',
+              value: 'Crew 1 and Crew 2 unlock at higher fishing levels. Their trips take three times as long and earn half the normal fish-sale reward.',
             },
           ),
       ],
@@ -584,7 +713,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
       }).join('\n')
       : 'No active expeditions.';
     const recent = progress.mostRecent?.result
-      ? `Latest: **${getFishingBiome(progress.mostRecent.biome_id)?.name ?? progress.mostRecent.biome_id}** · ${formatXp(progress.mostRecent.result.fishSaleValue + progress.mostRecent.result.knowBucksFound)} KnowBucks earned`
+      ? `Latest: **${getFishingBiome(progress.mostRecent.biome_id)?.name ?? progress.mostRecent.biome_id}** · ${formatXp(progress.mostRecent.result.fishSaleValue + (progress.mostRecent.result.crateSaleValue ?? 0) + progress.mostRecent.result.knowBucksFound)} KnowBucks earned`
       : 'No completed expeditions yet.';
     await interaction.editReply({
       embeds: [
@@ -594,6 +723,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
           .addFields(
             { name: `Active expeditions (${progress.active.length}/${progress.state.crewSlots})`, value: active },
             { name: 'Most recent return', value: recent },
+            { name: 'Fishing skill', value: `Level **${progress.state.fishingLevel}** · **${formatXp(progress.state.fishingXpIntoLevel)}/${formatXp(progress.state.fishingXpToNextLevel)} XP** to next level\nCharacter level: **${progress.state.chatLevel}**` },
             { name: 'Current balance', value: `**${formatXp(progress.state.balance)} KnowBucks**` },
           ),
       ],
@@ -614,40 +744,31 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
     await interaction.deferReply();
     const state = await getFishingPlayerState(config, interaction.user.id);
     const expiresAt = Date.now() + FISHING_PANEL_TTL_MS;
-    await interaction.editReply(buildFishingInventoryPanel(interaction.user.id, state, expiresAt));
+    await interaction.editReply(buildFishingInventoryTabbedPanel(interaction.user.id, state, expiresAt));
     scheduleFishingPanelExpiry(await interaction.fetchReply(), expiresAt);
     return;
   }
 
   if (subcommand === 'chests-open') {
     await interaction.deferReply();
-    const state = await getFishingPlayerState(config, interaction.user.id);
-    const chestCount = state.inventory
-      .filter((entry) => isFishingChestItem(entry.item_id))
-      .reduce((total, entry) => total + entry.quantity, 0);
-    await interaction.editReply({
-      content: chestCount > 0
-        ? `You have **${chestCount}** fishing chest${chestCount === 1 ? '' : 's'}. Chest contents are intentionally on hold until the named chest-loot system is ready; no chest was consumed.`
-        : 'You do not have any fishing chests yet. Chest contents are intentionally on hold until the named chest-loot system is ready.',
-    });
+    try {
+      const opening = await openAllFishingCrates(config, interaction.user.id);
+      await interaction.editReply(buildFishingCrateOpeningResult(opening));
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('do not have any legacy fishing chests')
+        ? 'You do not have any legacy chests to open. Newly caught crates open automatically during expeditions.'
+        : 'Your legacy chests could not be opened. Please try again shortly.';
+      await interaction.editReply({ content: message });
+    }
     return;
   }
 
   if (subcommand === 'catalogue') {
-    /* Held until persistent catalogue progress ships.
-    const entries = LEGENDARY_FISH_CATALOGUE.map((fish) => {
-      const biome = getFishingBiome(fish.biomeId);
-      return `**${fish.name}** · ${biome?.name ?? fish.biomeId} · ${fish.minWeightGrams.toLocaleString()}–${fish.maxWeightGrams.toLocaleString()}g`;
-    });
-    */
-    await interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0x0EA5E9)
-          .setTitle('Fishing field guide')
-          .setDescription('Legendary fish are catchable and currently sell automatically. Their collection catalogue, treasure, and pets are intentionally held for the next fishing update.'),
-      ],
-    });
+    await interaction.deferReply();
+    const progress = await getFishingCatalogueProgress(config, interaction.user.id);
+    const expiresAt = Date.now() + FISHING_PANEL_TTL_MS;
+    await interaction.editReply(buildFishingCataloguePanel(interaction.user.id, 'harbor', expiresAt, progress));
+    scheduleFishingPanelExpiry(await interaction.fetchReply(), expiresAt);
     return;
   }
 
@@ -958,6 +1079,7 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
     return true;
   }
   if (!(await isFishingCommandAllowedInChannel(config, interaction.channelId))) {
+    clearFishingPanelExpiry(interaction.message.id);
     await interaction.update({ content: 'Fishing commands are no longer enabled in this channel, so this panel has expired.', components: [] });
     return true;
   }
@@ -971,6 +1093,32 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
     const state = await getFishingPlayerState(config, ownerDiscordUserId);
     const nextExpiresAt = Date.now() + FISHING_PANEL_TTL_MS;
     await interaction.editReply(buildFishingShopPanel(ownerDiscordUserId, argument as FishingUpgradeCategory, state, nextExpiresAt));
+    scheduleFishingPanelExpiry(interaction.message, nextExpiresAt);
+    return true;
+  }
+
+  if (prefix === `${FISHING_BUTTON_PREFIX}-inventory`) {
+    if (!FISHING_INVENTORY_TABS.includes(argument as FishingInventoryTab)) {
+      await interaction.reply({ content: 'This fishing inventory panel is outdated. Run /fish inventory to open the current inventory.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    await interaction.deferUpdate();
+    const state = await getFishingPlayerState(config, ownerDiscordUserId);
+    const nextExpiresAt = Date.now() + FISHING_PANEL_TTL_MS;
+    await interaction.editReply(buildFishingInventoryTabbedPanel(ownerDiscordUserId, state, nextExpiresAt, argument as FishingInventoryTab));
+    scheduleFishingPanelExpiry(interaction.message, nextExpiresAt);
+    return true;
+  }
+
+  if (prefix === `${FISHING_BUTTON_PREFIX}-catalogue`) {
+    if (!FISHING_BIOMES.some((biome) => biome.id === argument)) {
+      await interaction.reply({ content: 'This fishing catalogue panel is outdated. Run /fish catalogue to open the current field guide.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    await interaction.deferUpdate();
+    const progress = await getFishingCatalogueProgress(config, ownerDiscordUserId);
+    const nextExpiresAt = Date.now() + FISHING_PANEL_TTL_MS;
+    await interaction.editReply(buildFishingCataloguePanel(ownerDiscordUserId, argument as FishingBiomeId, nextExpiresAt, progress));
     scheduleFishingPanelExpiry(interaction.message, nextExpiresAt);
     return true;
   }
@@ -1019,19 +1167,34 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
     try {
       const equipped = await equipFishingUpgrade(config, ownerDiscordUserId, argument);
       const state = await getFishingPlayerState(config, ownerDiscordUserId);
-      await interaction.editReply(buildFishingInventoryPanel(ownerDiscordUserId, state, nextExpiresAt, `Equipped **${equipped.name}**.`));
+      await interaction.editReply(buildFishingInventoryTabbedPanel(ownerDiscordUserId, state, nextExpiresAt, equipped.category === 'rod' ? 'rods' : 'baits', `Equipped **${equipped.name}**.`));
     } catch (error) {
       const state = await getFishingPlayerState(config, ownerDiscordUserId);
       const notice = error instanceof Error && error.message.includes('do not own')
         ? 'You no longer own that upgrade.'
         : 'That upgrade could not be equipped.';
-      await interaction.editReply(buildFishingInventoryPanel(ownerDiscordUserId, state, nextExpiresAt, notice));
+      await interaction.editReply(buildFishingInventoryTabbedPanel(ownerDiscordUserId, state, nextExpiresAt, upgrade.category === 'rod' ? 'rods' : 'baits', notice));
     }
     scheduleFishingPanelExpiry(interaction.message, nextExpiresAt);
     return true;
   }
 
   return false;
+}
+
+function buildFishingCrateOpeningResult(opening: Awaited<ReturnType<typeof openAllFishingCrates>>) {
+  const foundItems = opening.items
+    .map((item) => `**${item.name}** (${item.rarity})${item.quantity > 1 ? ` x${formatXp(item.quantity)}` : ''} — sold for ${formatXp(item.saleValue)} KnowBucks`);
+  return {
+    components: [],
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x0EA5E9)
+        .setTitle('Legacy fishing chests opened')
+        .setDescription(`Opened **${formatXp(opening.openedCount)}** legacy chest${opening.openedCount === 1 ? '' : 's'}. You earned **${formatXp(opening.totalSaleValue)} KnowBucks**. New balance: **${formatXp(opening.currentBalance)} KnowBucks**.`)
+        .addFields(...splitFishingPanelField('Found', foundItems, 'No crate items found.')),
+    ],
+  };
 }
 
 export async function handleButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
@@ -1084,8 +1247,8 @@ export async function handleChatInputCommand(
             { name: '/knowbucks pay member amount', value: 'Pay KnowBucks to another server member.' },
             { name: '/knowbucks add/remove/set', value: 'Manage a member\'s KnowBucks. Requires a role selected in Discord Configuration.' },
             { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent gear apply to the saved trip; crew runs take three times as long and return half fish-sale rewards.' },
-            { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or equip an owned rod or one bait from public panels.' },
-            { name: '/fish chests-open, catalogue, help', value: 'View held biome-specific chests without consuming them, see the field-guide status, or open focused fishing help. Treasure gear can now be found during expeditions.' },
+            { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or use the inventory tabs to inspect gear descriptions and equip an owned rod or bait.' },
+            { name: '/fish chests-open, catalogue, help', value: 'Redeem all held legacy chests, browse the biome-filtered field guide, or open focused fishing help. Newly caught crates open automatically during expeditions.' },
             { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Use Show details to see collection metadata and the skin\'s sell value.' },
             { name: '/collections give member skin-id', value: 'Give one of your claimed skins to another current server member by its four-digit ID.' },
             { name: '/collections summon', value: 'Spend the configured summon cost (5,000 KnowBucks by default) to summon a claimable drop in this channel, with your grace period first.' },

@@ -1,14 +1,14 @@
 export const FISHING_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic'] as const;
-export const FISHING_CHEST_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] as const;
+export const FISHING_CRATE_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] as const;
 
 export type FishingRarity = typeof FISHING_RARITIES[number];
-export type FishingChestRarity = typeof FISHING_CHEST_RARITIES[number];
+export type FishingCrateRarity = typeof FISHING_CRATE_RARITIES[number];
 export type FishingBiomeId = 'harbor' | 'warm-ocean' | 'hydroplant-reservoir' | 'sunken-sea' | 'kelp-forest' | 'crystaline-caverns' | 'rallypoint-delta';
 export type FishingUpgradeCategory = 'rod' | 'bait' | 'boat' | 'gear' | 'skill' | 'crew';
 export type FishingDurationTier = 1 | 2 | 3 | 4;
 
 export interface FishingBiome {
-  chestRarities: readonly FishingChestRarity[];
+  crateRarities: readonly FishingCrateRarity[];
   description: string;
   id: FishingBiomeId;
   name: string;
@@ -19,7 +19,7 @@ export interface FishingExpeditionLength {
   catchCount: readonly [number, number];
   durationSeconds: number;
   higherRarityWeightBonusPercent: number;
-  requiredChatLevel: number;
+  requiredFishingLevel: number;
   tier: FishingDurationTier;
 }
 
@@ -33,6 +33,23 @@ export interface FishingFish {
   tags: readonly string[];
 }
 
+export interface FishingCrate {
+  biomeId: FishingBiomeId;
+  id: string;
+  name: string;
+  rarity: FishingCrateRarity;
+}
+
+export interface FishingCrateLoot {
+  biomeId: FishingBiomeId;
+  id: string;
+  maxSaleValue: number;
+  minSaleValue: number;
+  name: string;
+  rarity: FishingCrateRarity;
+  valueBonusPercent: number;
+}
+
 export interface FishingUpgrade {
   catchableRarities?: readonly FishingRarity[];
   category: FishingUpgradeCategory;
@@ -43,7 +60,7 @@ export interface FishingUpgrade {
   higherRarityBonusPercent?: number;
   id: string;
   name: string;
-  requiredChatLevel?: number;
+  requiredFishingLevel?: number;
   requiredUpgradeId?: string;
   saleBonusPercent?: number;
   timeReductionPercent?: number;
@@ -67,12 +84,16 @@ export interface ResolvedFishingFishCatch {
   saleValue: number;
 }
 
-export interface ResolvedFishingChestCatch {
+export interface ResolvedFishingCrateCatch {
   itemId: string;
-  kind: 'chest';
+  kind: 'crate';
+  lootItemId: string;
+  lootName: string;
+  lootRarity: FishingCrateRarity;
   name: string;
   quantity: number;
-  rarity: FishingChestRarity;
+  rarity: FishingCrateRarity;
+  saleValue: number;
 }
 
 export interface ResolvedFishingGearCatch {
@@ -82,31 +103,85 @@ export interface ResolvedFishingGearCatch {
   quantity: number;
 }
 
-export type ResolvedFishingCatch = ResolvedFishingFishCatch | ResolvedFishingChestCatch | ResolvedFishingGearCatch;
+export type ResolvedFishingCatch = ResolvedFishingFishCatch | ResolvedFishingCrateCatch | ResolvedFishingGearCatch;
 
 export interface FishingExpeditionResult {
   catches: ResolvedFishingCatch[];
-  chestItems: Array<{ itemId: string; quantity: number }>;
+  crateSaleValue: number;
+  fishingCrateXp: number;
+  fishingExpeditionXp: number;
+  fishingXpAwarded: number;
   fishSaleValue: number;
   gearItems: Array<{ itemId: string; quantity: number }>;
   knowBucksFound: number;
 }
 
+export interface FishingCrateOpeningResult {
+  crate: FishingCrate;
+  items: Array<{ itemId: string; name: string; quantity: number; rarity: FishingCrateRarity; saleValue: number }>;
+  totalSaleValue: number;
+}
+
 export const FISHING_BIOMES: readonly FishingBiome[] = [
-  { id: 'harbor', name: 'Harbor', description: 'Free starting waters with a broad mix of familiar catches.', chestRarities: ['Common', 'Uncommon'] },
-  { id: 'warm-ocean', name: 'Warm Ocean', description: 'Bright open waters unlocked by the Sail boat upgrade.', requiredBoatUpgradeId: 'sail', chestRarities: ['Uncommon', 'Rare', 'Epic'] },
-  { id: 'hydroplant-reservoir', name: 'Hydroplant Reservoir', description: 'An unstable industrial reservoir unlocked by the Abiotic Turbine.', requiredBoatUpgradeId: 'abiotic-turbine', chestRarities: ['Common', 'Uncommon', 'Rare'] },
-  { id: 'sunken-sea', name: 'Sunken Sea', description: 'A submerged world reached with the Submersible Pod.', requiredBoatUpgradeId: 'submersible-pod', chestRarities: ['Uncommon', 'Rare'] },
-  { id: 'kelp-forest', name: 'Kelp Forest', description: 'A strange jelly-filled biome reached with the Magic Conch Navigator.', requiredBoatUpgradeId: 'magic-conch-navigator', chestRarities: ['Uncommon', 'Rare'] },
-  { id: 'crystaline-caverns', name: 'Crystaline Caverns', description: 'A dangerous underground biome reached with the Drill Unit.', requiredBoatUpgradeId: 'drill-unit', chestRarities: ['Rare', 'Epic', 'Legendary'] },
-  { id: 'rallypoint-delta', name: 'Rallypoint Delta', description: 'A hostile high-tier frontier reached with the Radar Scanner.', requiredBoatUpgradeId: 'radar-scanner', chestRarities: ['Epic', 'Legendary'] },
+  { id: 'harbor', name: 'Harbor', description: 'Free starting waters with a broad mix of familiar catches.', crateRarities: ['Common', 'Uncommon'] },
+  { id: 'warm-ocean', name: 'Warm Ocean', description: 'Bright open waters unlocked by the Sail boat upgrade.', requiredBoatUpgradeId: 'sail', crateRarities: ['Uncommon', 'Rare', 'Epic'] },
+  { id: 'hydroplant-reservoir', name: 'Hydroplant Reservoir', description: 'An unstable industrial reservoir unlocked by the Abiotic Turbine.', requiredBoatUpgradeId: 'abiotic-turbine', crateRarities: ['Common', 'Uncommon', 'Rare'] },
+  { id: 'sunken-sea', name: 'Sunken Sea', description: 'A submerged world reached with the Submersible Pod.', requiredBoatUpgradeId: 'submersible-pod', crateRarities: ['Uncommon', 'Rare'] },
+  { id: 'kelp-forest', name: 'Kelp Forest', description: 'A strange jelly-filled biome reached with the Magic Conch Navigator.', requiredBoatUpgradeId: 'magic-conch-navigator', crateRarities: ['Uncommon', 'Rare'] },
+  { id: 'crystaline-caverns', name: 'Crystaline Caverns', description: 'A dangerous underground biome reached with the Drill Unit.', requiredBoatUpgradeId: 'drill-unit', crateRarities: ['Rare', 'Epic', 'Legendary'] },
+  { id: 'rallypoint-delta', name: 'Rallypoint Delta', description: 'A hostile high-tier frontier reached with the Radar Scanner.', requiredBoatUpgradeId: 'radar-scanner', crateRarities: ['Epic', 'Legendary'] },
+] as const;
+
+const crate = (biomeId: FishingBiomeId, rarity: FishingCrateRarity, name: string): FishingCrate => ({
+  biomeId,
+  id: `${biomeId}-${rarity.toLowerCase()}-crate`,
+  name,
+  rarity,
+});
+
+export const FISHING_CRATES: readonly FishingCrate[] = [
+  crate('harbor', 'Common', 'Damaged Crate'),
+  crate('harbor', 'Uncommon', 'Wooden Crate'),
+  crate('harbor', 'Rare', 'Hardened Crate'),
+  crate('harbor', 'Epic', 'Pristine Crate'),
+  crate('harbor', 'Legendary', 'Gem-Crusted Crate'),
+  crate('warm-ocean', 'Common', 'Waterlogged Crate'),
+  crate('warm-ocean', 'Uncommon', 'Coral Crate'),
+  crate('warm-ocean', 'Rare', 'Fishing Crate'),
+  crate('warm-ocean', 'Epic', 'Ender Crate'),
+  crate('warm-ocean', 'Legendary', 'Guardian Crate'),
+  crate('hydroplant-reservoir', 'Common', 'Storage Crate'),
+  crate('hydroplant-reservoir', 'Uncommon', 'Hydro Crate'),
+  crate('hydroplant-reservoir', 'Rare', 'Compact Storage Crate'),
+  crate('hydroplant-reservoir', 'Epic', 'Void Chest'),
+  crate('hydroplant-reservoir', 'Legendary', 'Otherwordly Crate'),
+  crate('sunken-sea', 'Common', 'Wooden Crate'),
+  crate('sunken-sea', 'Uncommon', 'Iron Crate'),
+  crate('sunken-sea', 'Rare', 'Water Crate'),
+  crate('sunken-sea', 'Epic', 'Eutrophic Crate'),
+  crate('sunken-sea', 'Legendary', 'Prism Crate'),
+  crate('kelp-forest', 'Common', 'Mossy Crate'),
+  crate('kelp-forest', 'Uncommon', 'Supply Crate'),
+  crate('kelp-forest', 'Rare', 'Sponge Crate'),
+  crate('kelp-forest', 'Epic', 'Magic Crate'),
+  crate('kelp-forest', 'Legendary', 'Buried Crate'),
+  crate('crystaline-caverns', 'Common', 'Dusty Crate'),
+  crate('crystaline-caverns', 'Uncommon', 'Stone Crate'),
+  crate('crystaline-caverns', 'Rare', 'Crystallized Crate'),
+  crate('crystaline-caverns', 'Epic', 'Alien Crate'),
+  crate('crystaline-caverns', 'Legendary', 'Technological Crate'),
+  crate('rallypoint-delta', 'Common', 'Damaged UES Crate'),
+  crate('rallypoint-delta', 'Uncommon', 'UES Crate'),
+  crate('rallypoint-delta', 'Rare', 'Mechanical Crate'),
+  crate('rallypoint-delta', 'Epic', 'Military Crate'),
+  crate('rallypoint-delta', 'Legendary', 'Lunar Crate'),
 ] as const;
 
 export const FISHING_EXPEDITION_LENGTHS: readonly FishingExpeditionLength[] = [
-  { tier: 1, requiredChatLevel: 0, durationSeconds: 5, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 },
-  { tier: 2, requiredChatLevel: 10, durationSeconds: 60, catchCount: [12, 12], higherRarityWeightBonusPercent: 5 },
-  { tier: 3, requiredChatLevel: 20, durationSeconds: 600, catchCount: [120, 120], higherRarityWeightBonusPercent: 10 },
-  { tier: 4, requiredChatLevel: 30, durationSeconds: 3_600, catchCount: [720, 720], higherRarityWeightBonusPercent: 15 },
+  { tier: 1, requiredFishingLevel: 0, durationSeconds: 5, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 },
+  { tier: 2, requiredFishingLevel: 10, durationSeconds: 60, catchCount: [12, 12], higherRarityWeightBonusPercent: 5 },
+  { tier: 3, requiredFishingLevel: 20, durationSeconds: 600, catchCount: [120, 120], higherRarityWeightBonusPercent: 10 },
+  { tier: 4, requiredFishingLevel: 30, durationSeconds: 3_600, catchCount: [720, 720], higherRarityWeightBonusPercent: 15 },
 ] as const;
 
 /**
@@ -115,33 +190,33 @@ export const FISHING_EXPEDITION_LENGTHS: readonly FishingExpeditionLength[] = [
  * FISHING_EXPEDITION_LENGTHS values above.
  */
 const LEGACY_FISHING_EXPEDITION_LENGTHS: readonly FishingExpeditionLength[] = [
-  { tier: 1, requiredChatLevel: 1, durationSeconds: 30, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 },
-  { tier: 2, requiredChatLevel: 20, durationSeconds: 60, catchCount: [2, 3], higherRarityWeightBonusPercent: 0 },
-  { tier: 3, requiredChatLevel: 50, durationSeconds: 120, catchCount: [5, 6], higherRarityWeightBonusPercent: 0 },
-  { tier: 4, requiredChatLevel: 80, durationSeconds: 300, catchCount: [12, 15], higherRarityWeightBonusPercent: 0 },
+  { tier: 1, requiredFishingLevel: 0, durationSeconds: 30, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 },
+  { tier: 2, requiredFishingLevel: 10, durationSeconds: 60, catchCount: [2, 3], higherRarityWeightBonusPercent: 0 },
+  { tier: 3, requiredFishingLevel: 20, durationSeconds: 120, catchCount: [5, 6], higherRarityWeightBonusPercent: 0 },
+  { tier: 4, requiredFishingLevel: 30, durationSeconds: 300, catchCount: [12, 15], higherRarityWeightBonusPercent: 0 },
 ] as const;
 
 export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
   { id: 'plastic-rod', name: 'Plastic Rod', category: 'rod', cost: 0, description: 'Starter rod that catches common fish.', catchableRarities: ['Common'] },
-  { id: 'wooden-rod', name: 'Wooden Rod', category: 'rod', cost: 5_000, requiredChatLevel: 5, description: 'Catches common and uncommon fish.', catchableRarities: ['Common', 'Uncommon'] },
-  { id: 'fiberglass-rod', name: 'Fiberglass Rod', category: 'rod', cost: 15_000, requiredChatLevel: 10, description: 'Catches common, uncommon, and rare fish.', catchableRarities: ['Common', 'Uncommon', 'Rare'] },
-  { id: 'reinforced-rod', name: 'Reinforced Rod', category: 'rod', cost: 30_000, requiredChatLevel: 15, description: 'Catches common through epic fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic'] },
-  { id: 'master-rod', name: 'Master Rod', category: 'rod', cost: 50_000, requiredChatLevel: 20, description: 'Catches common through legendary fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] },
-  { id: 'celestial-rod', name: 'Celestial Rod', category: 'rod', cost: 250_000, requiredChatLevel: 50, description: 'Catches uncommon through legendary fish.', catchableRarities: ['Uncommon', 'Rare', 'Epic', 'Legendary'] },
-  { id: 'god-rod', name: 'God Rod', category: 'rod', cost: 1_000_000, requiredChatLevel: 80, description: 'Catches rare, epic, legendary, and future Mythic fish.', catchableRarities: ['Rare', 'Epic', 'Legendary', 'Mythic'] },
+  { id: 'wooden-rod', name: 'Wooden Rod', category: 'rod', cost: 5_000, requiredFishingLevel: 5, description: 'Catches common and uncommon fish.', catchableRarities: ['Common', 'Uncommon'] },
+  { id: 'fiberglass-rod', name: 'Fiberglass Rod', category: 'rod', cost: 15_000, requiredFishingLevel: 10, description: 'Catches common, uncommon, and rare fish.', catchableRarities: ['Common', 'Uncommon', 'Rare'] },
+  { id: 'reinforced-rod', name: 'Reinforced Rod', category: 'rod', cost: 30_000, requiredFishingLevel: 15, description: 'Catches common through epic fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic'] },
+  { id: 'master-rod', name: 'Master Rod', category: 'rod', cost: 50_000, requiredFishingLevel: 20, description: 'Catches common through legendary fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] },
+  { id: 'celestial-rod', name: 'Celestial Rod', category: 'rod', cost: 250_000, requiredFishingLevel: 50, description: 'Catches uncommon through legendary fish.', catchableRarities: ['Uncommon', 'Rare', 'Epic', 'Legendary'] },
+  { id: 'god-rod', name: 'God Rod', category: 'rod', cost: 1_000_000, requiredFishingLevel: 80, description: 'Catches rare, epic, legendary, and future Mythic fish.', catchableRarities: ['Rare', 'Epic', 'Legendary', 'Mythic'] },
   { id: 'basic-bait', name: 'Basic Bait', category: 'bait', cost: 0, description: 'Starter bait with no expedition modifier.' },
-  { id: 'chum', name: 'Chum', category: 'bait', cost: 10_000, requiredChatLevel: 5, description: 'Each common or uncommon fish has a 10–30% chance to return one additional fish.' },
-  { id: 'magnet', name: 'Magnet', category: 'bait', cost: 30_000, requiredChatLevel: 15, description: 'Increases each chest-spawn chance by 50% of its original odds.' },
-  { id: 'sonar', name: 'Sonar', category: 'bait', cost: 75_000, requiredChatLevel: 25, description: 'Halves fish-roll success while doubling gear-find chance.' },
-  { id: 'bloodworms', name: 'Bloodworms', category: 'bait', cost: 150_000, requiredChatLevel: 40, description: 'Each rare or epic fish has a 10–30% chance to return one additional fish.' },
-  { id: 'mysterious-sea-food', name: 'Mysterious Sea Food', category: 'bait', cost: 250_000, requiredChatLevel: 55, description: 'Has a 20% chance to add 50% more fish rolls to an expedition.' },
-  { id: 'truffle-worm', name: 'Truffle Worm', category: 'bait', cost: 1_000_000, requiredChatLevel: 80, description: 'Triples legendary odds, but only legendary fish can return.' },
-  { id: 'sail', name: 'Sail', category: 'boat', cost: 10_000, requiredChatLevel: 10, description: 'Permanent boat upgrade that unlocks travel to the Warm Ocean.' },
-  { id: 'abiotic-turbine', name: 'Abiotic Turbine', category: 'boat', cost: 25_000, requiredChatLevel: 20, description: 'Permanent boat upgrade that unlocks travel to the Hydroplant Reservoir.' },
-  { id: 'submersible-pod', name: 'Submersible Pod', category: 'boat', cost: 60_000, requiredChatLevel: 30, description: 'Permanent boat upgrade that unlocks travel to the Sunken Sea.' },
-  { id: 'magic-conch-navigator', name: 'Magic Conch Navigator', category: 'boat', cost: 100_000, requiredChatLevel: 40, description: 'Permanent boat upgrade that unlocks travel to the Kelp Forest.' },
-  { id: 'drill-unit', name: 'Drill Unit', category: 'boat', cost: 150_000, requiredChatLevel: 50, description: 'Permanent boat upgrade that unlocks travel to the Crystaline Caverns.' },
-  { id: 'radar-scanner', name: 'Radar Scanner', category: 'boat', cost: 250_000, requiredChatLevel: 60, description: 'Permanent boat upgrade that unlocks travel to Rallypoint Delta.' },
+  { id: 'chum', name: 'Chum', category: 'bait', cost: 10_000, requiredFishingLevel: 5, description: 'Each common or uncommon fish has a 10–30% chance to return one additional fish.' },
+  { id: 'magnet', name: 'Magnet', category: 'bait', cost: 30_000, requiredFishingLevel: 15, description: 'Increases each crate-spawn chance by 50% of its original odds.' },
+  { id: 'sonar', name: 'Sonar', category: 'bait', cost: 75_000, requiredFishingLevel: 25, description: 'Halves fish-roll success while doubling gear-find chance.' },
+  { id: 'bloodworms', name: 'Bloodworms', category: 'bait', cost: 150_000, requiredFishingLevel: 40, description: 'Each rare or epic fish has a 10–30% chance to return one additional fish.' },
+  { id: 'mysterious-sea-food', name: 'Mysterious Sea Food', category: 'bait', cost: 250_000, requiredFishingLevel: 55, description: 'Has a 20% chance to add 50% more fish rolls to an expedition.' },
+  { id: 'truffle-worm', name: 'Truffle Worm', category: 'bait', cost: 1_000_000, requiredFishingLevel: 80, description: 'Triples legendary odds, but only legendary fish can return.' },
+  { id: 'sail', name: 'Sail', category: 'boat', cost: 10_000, requiredFishingLevel: 10, description: 'Permanent boat upgrade that unlocks travel to the Warm Ocean.' },
+  { id: 'abiotic-turbine', name: 'Abiotic Turbine', category: 'boat', cost: 25_000, requiredFishingLevel: 20, description: 'Permanent boat upgrade that unlocks travel to the Hydroplant Reservoir.' },
+  { id: 'submersible-pod', name: 'Submersible Pod', category: 'boat', cost: 60_000, requiredFishingLevel: 30, description: 'Permanent boat upgrade that unlocks travel to the Sunken Sea.' },
+  { id: 'magic-conch-navigator', name: 'Magic Conch Navigator', category: 'boat', cost: 100_000, requiredFishingLevel: 40, description: 'Permanent boat upgrade that unlocks travel to the Kelp Forest.' },
+  { id: 'drill-unit', name: 'Drill Unit', category: 'boat', cost: 150_000, requiredFishingLevel: 50, description: 'Permanent boat upgrade that unlocks travel to the Crystaline Caverns.' },
+  { id: 'radar-scanner', name: 'Radar Scanner', category: 'boat', cost: 250_000, requiredFishingLevel: 60, description: 'Permanent boat upgrade that unlocks travel to Rallypoint Delta.' },
   { id: 'lucky-1', name: 'Lucky I', category: 'skill', cost: 2_500, description: 'Increases higher-rarity fishing odds by 5%.', higherRarityBonusPercent: 5 },
   { id: 'lucky-2', name: 'Lucky II', category: 'skill', cost: 15_000, description: 'Increases higher-rarity fishing odds by another 5%.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-1' },
   { id: 'lucky-3', name: 'Lucky III', category: 'skill', cost: 50_000, description: 'Increases higher-rarity fishing odds by another 5%.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-2' },
@@ -163,13 +238,13 @@ export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
   { id: 'gear-rod-improvement-kit', name: 'Rod Improvement Kit', category: 'gear', cost: 0, description: 'Permanent treasure: increases higher-rarity fishing odds by 5%.', higherRarityBonusPercent: 5 },
   { id: 'gear-lost-pursasion-device', name: 'Lost Pursasion Device', category: 'gear', cost: 0, description: 'Permanent treasure: reduces costs by 5%.', costReductionPercent: 5 },
   { id: 'gear-conduit', name: 'Conduit', category: 'gear', cost: 0, description: 'Permanent treasure: doubles gear-find chance.', foundBiomeIds: ['warm-ocean'] },
-  { id: 'gear-reservoir-growth', name: 'Reservoir Growth', category: 'gear', cost: 0, description: 'Permanent treasure: raises chest-spawn chance by 10%.', foundBiomeIds: ['hydroplant-reservoir'] },
-  { id: 'gear-giant-pearl', name: 'Giant Pearl', category: 'gear', cost: 0, description: 'Permanent treasure: reserves a 25% XP bonus for future XP-granting game rewards.', foundBiomeIds: ['sunken-sea'] },
+  { id: 'gear-reservoir-growth', name: 'Reservoir Growth', category: 'gear', cost: 0, description: 'Permanent treasure: raises crate-spawn chance by 10%.', foundBiomeIds: ['hydroplant-reservoir'] },
+  { id: 'gear-giant-pearl', name: 'Giant Pearl', category: 'gear', cost: 0, description: 'Permanent treasure: increases Fishing XP earned by 25%.', foundBiomeIds: ['sunken-sea'] },
   { id: 'gear-magic-conch', name: 'Magic Conch', category: 'gear', cost: 0, description: 'Permanent treasure: each fish has a 10% chance to upgrade one rarity.', foundBiomeIds: ['kelp-forest'] },
-  { id: 'gear-gemcracker', name: 'Gemcracker', category: 'gear', cost: 0, description: 'Permanent treasure: reserves improved chest loot for the upcoming chest-opening system.', foundBiomeIds: ['crystaline-caverns'] },
+  { id: 'gear-gemcracker', name: 'Gemcracker', category: 'gear', cost: 0, description: 'Permanent treasure: reserves improved crate loot for a future balance update.', foundBiomeIds: ['crystaline-caverns'] },
   { id: 'gear-teleporter', name: 'Teleporter', category: 'gear', cost: 0, description: 'Permanent treasure: 5% chance to instantly complete a non-crew expedition.', foundBiomeIds: ['rallypoint-delta'] },
-  { id: 'crew-1', name: 'Crew 1 Contract', category: 'crew', cost: 100_000, requiredChatLevel: 40, description: 'Unlocks Crew 1. Crew expeditions take 3x as long and earn half rewards.' },
-  { id: 'crew-2', name: 'Crew 2 Contract', category: 'crew', cost: 250_000, requiredChatLevel: 80, description: 'Unlocks Crew 2. Requires Crew 1; crew expeditions take 3x as long and earn half rewards.' },
+  { id: 'crew-1', name: 'Crew 1 Contract', category: 'crew', cost: 100_000, requiredFishingLevel: 40, description: 'Unlocks Crew 1. Crew expeditions take 3x as long and earn half rewards.' },
+  { id: 'crew-2', name: 'Crew 2 Contract', category: 'crew', cost: 250_000, requiredFishingLevel: 80, description: 'Unlocks Crew 2. Requires Crew 1; crew expeditions take 3x as long and earn half rewards.' },
 ] as const;
 
 const fish = (biomeId: FishingBiomeId, id: string, name: string, rarity: FishingRarity, minSaleValue: number, maxSaleValue: number, tags: readonly string[] = []): FishingFish => ({ biomeId, id, name, rarity, minSaleValue, maxSaleValue, tags });
@@ -192,16 +267,112 @@ export const FISHING_FISH: readonly FishingFish[] = [
 /** Reserved for the Mythic fish catalogue. Mythic catches are intentionally not live yet. */
 export const FISHING_MYTHIC_FISH: readonly FishingFish[] = [];
 
+function crateLoot(biomeId: FishingBiomeId, rarity: FishingCrateRarity, names: readonly string[]): FishingCrateLoot[] {
+  const comparableFish = FISHING_FISH.filter((entry) => entry.biomeId === biomeId && entry.rarity === rarity);
+  if (comparableFish.length === 0) throw new Error(`Crate loot requires ${rarity} fish in ${biomeId}.`);
+  const averageMinSaleValue = comparableFish.reduce((total, fish) => total + fish.minSaleValue, 0) / comparableFish.length;
+  const averageMaxSaleValue = comparableFish.reduce((total, fish) => total + fish.maxSaleValue, 0) / comparableFish.length;
+  const increment = names.length > 1 ? 30 / (names.length - 1) : 15;
+  return names.map((name, index) => {
+    const valueBonusPercent = Math.round(index * increment);
+    const valueMultiplier = 1 + (valueBonusPercent / 100);
+    const minSaleValue = Math.max(1, Math.round(averageMinSaleValue * valueMultiplier));
+    return {
+      biomeId,
+      id: `${biomeId}-${rarity.toLowerCase()}-loot-${index + 1}`,
+      maxSaleValue: Math.max(minSaleValue, Math.round(averageMaxSaleValue * valueMultiplier)),
+      minSaleValue,
+      name,
+      rarity,
+      valueBonusPercent,
+    };
+  });
+}
+
+export const FISHING_CRATE_LOOT: readonly FishingCrateLoot[] = [
+  ...crateLoot('harbor', 'Common', ['Soggy Boot', 'Cool Stick']),
+  ...crateLoot('harbor', 'Uncommon', ['Silver Fork', 'Sea Glass']),
+  ...crateLoot('harbor', 'Rare', ['Beautiful Shell', 'Message in a Bottle']),
+  ...crateLoot('harbor', 'Epic', ['Aquamarine Gem', 'Gold Nugget']),
+  ...crateLoot('harbor', 'Legendary', ['Diamond Necklace', 'Lost Heirloom']),
+  ...crateLoot('warm-ocean', 'Common', ['Sand Block', 'Gravel Block', 'Clay Block']),
+  ...crateLoot('warm-ocean', 'Uncommon', ['Coral Block', 'Sea Grass']),
+  ...crateLoot('warm-ocean', 'Rare', ['Ink Sac', 'Shark Tooth']),
+  ...crateLoot('warm-ocean', 'Epic', ['Enchanted Book', 'Treasure Map']),
+  ...crateLoot('warm-ocean', 'Legendary', ['Heart of the Ocean', 'Conduit']),
+  ...crateLoot('hydroplant-reservoir', 'Common', ['Hydro Pipe', 'Cog']),
+  ...crateLoot('hydroplant-reservoir', 'Uncommon', ['Rotary Pump', 'Coil Winding']),
+  ...crateLoot('hydroplant-reservoir', 'Rare', ['Motor', 'Toroidal Power Transformer']),
+  ...crateLoot('hydroplant-reservoir', 'Epic', ['Transformer Bushing', 'Photon Receptor']),
+  ...crateLoot('hydroplant-reservoir', 'Legendary', ['IS-0023 Figurine', 'IS-0059 Figurine']),
+  ...crateLoot('sunken-sea', 'Common', ['Navystone', 'Eutrophic Sand']),
+  ...crateLoot('sunken-sea', 'Uncommon', ['Sea Prism', 'Prism Shard']),
+  ...crateLoot('sunken-sea', 'Rare', ['White Pearl', 'Mollusk Husk']),
+  ...crateLoot('sunken-sea', 'Epic', ['Black Pearl', 'Pink Pearl']),
+  ...crateLoot('sunken-sea', 'Legendary', ['Music Box', 'Giant Clam Trophy']),
+  ...crateLoot('kelp-forest', 'Common', ['Kelp']),
+  ...crateLoot('kelp-forest', 'Uncommon', ['Bench', 'Tent']),
+  ...crateLoot('kelp-forest', 'Rare', ['Piece of Sponge']),
+  ...crateLoot('kelp-forest', 'Epic', ['Broken Conch']),
+  ...crateLoot('kelp-forest', 'Legendary', ['Kelp Forest Map', 'Crashed Plane']),
+  ...crateLoot('crystaline-caverns', 'Common', ['Quartz', 'Spider Web']),
+  ...crateLoot('crystaline-caverns', 'Uncommon', ['Blue Crystal', 'Morkite']),
+  ...crateLoot('crystaline-caverns', 'Rare', ['Aquarq', 'Electrocrystal']),
+  ...crateLoot('crystaline-caverns', 'Epic', ['Wall Eye', 'Bismor']),
+  ...crateLoot('crystaline-caverns', 'Legendary', ['Jadiz', 'ERR://23¤Y%/']),
+  ...crateLoot('rallypoint-delta', 'Common', ['Barrel', 'Chest']),
+  ...crateLoot('rallypoint-delta', 'Uncommon', ['Large Chest', '3D Printer']),
+  ...crateLoot('rallypoint-delta', 'Rare', ['Crashed Drone', 'Lunar Coin']),
+  ...crateLoot('rallypoint-delta', 'Epic', ['Radio Scanner', 'Cloaked Chest']),
+  ...crateLoot('rallypoint-delta', 'Legendary', ['Lunar Pod', 'Wisp', 'Preon Accumulator']),
+];
+
 const rarityRank: Record<FishingRarity, number> = { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4, Mythic: 5 };
 const rarityWeight: Record<FishingRarity, number> = { Common: 1_000, Uncommon: 200, Rare: 100, Epic: 20, Legendary: 1, Mythic: 0 };
-const chestDropRate: Record<FishingChestRarity, number> = { Common: 0.20, Uncommon: 0.10, Rare: 0.05, Epic: 0.01, Legendary: 0.001 };
+export const FISHING_EXPEDITION_XP_PER_BASE_CATCH = 30;
+export const FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, number>> = {
+  Common: 20,
+  Uncommon: 50,
+  Rare: 150,
+  Epic: 500,
+  Legendary: 2_000,
+};
+export const FISHING_CRATE_DROP_RATES: Readonly<Record<FishingCrateRarity, number>> = { Common: 0.05, Uncommon: 0.025, Rare: 0.0125, Epic: 0.0025, Legendary: 0.00025 };
+const crateLootRarityWeight: Record<FishingCrateRarity, number> = { Common: 1_000, Uncommon: 200, Rare: 50, Epic: 10, Legendary: 1 };
 const GEAR_DROP_RATE = 0.001;
+
+/** Uses the same cumulative curve as character/chat levels. */
+export function getFishingTotalXpForLevel(level: number) {
+  const targetLevel = Math.max(0, Math.min(10_000, Math.floor(level)));
+  if (targetLevel === 0) return 0;
+  return (50 * targetLevel * targetLevel) - (100 * targetLevel) + 150;
+}
+
+export function getFishingLevelForTotalXp(totalXp: number) {
+  const normalizedTotalXp = Math.max(0, Math.floor(totalXp));
+  let level = 0;
+  while (level < 10_000 && normalizedTotalXp >= getFishingTotalXpForLevel(level + 1)) level += 1;
+  return level;
+}
+
+export function getFishingXpToNextLevel(level: number) {
+  const currentLevel = Math.max(0, Math.min(9_999, Math.floor(level)));
+  return getFishingTotalXpForLevel(currentLevel + 1) - getFishingTotalXpForLevel(currentLevel);
+}
+
+/** Rewards scale with the XP threshold of the level that was reached. */
+export function getFishingLevelUpKnowBucks(level: number) {
+  const targetLevel = Math.max(1, Math.min(10_000, Math.floor(level)));
+  const xpRequired = getFishingTotalXpForLevel(targetLevel) - getFishingTotalXpForLevel(targetLevel - 1);
+  return Math.max(1_000, xpRequired * 10);
+}
 
 export function getFishingBiome(biomeId: string) { return FISHING_BIOMES.find((biome) => biome.id === biomeId); }
 export function getFishingExpeditionLength(tier: number, catalogueVersion = 4) {
   const lengths = catalogueVersion < 4 ? LEGACY_FISHING_EXPEDITION_LENGTHS : FISHING_EXPEDITION_LENGTHS;
   return lengths.find((length) => length.tier === tier);
 }
+export function getFishingCrate(itemId: string) { return FISHING_CRATES.find((crate) => crate.id === itemId); }
 export function getFishingUpgrade(itemId: string) { return FISHING_UPGRADES.find((upgrade) => upgrade.id === itemId); }
 export function getFishingUpgradeCategoryItems(category: FishingUpgradeCategory) { return FISHING_UPGRADES.filter((upgrade) => upgrade.category === category); }
 
@@ -218,6 +389,15 @@ export function getFishingUpgradeCost(upgrade: FishingUpgrade, ownedItemIds: rea
 export function getFishingTimeReductionPercent(equipment: FishingEquipmentSnapshot) {
   return Math.min(90, getOwnedFishingUpgrades(equipment.passiveItemIds)
     .reduce((total, item) => total + (item.timeReductionPercent ?? 0), 0));
+}
+
+export function getFishingSaleBonusPercent(equipment: FishingEquipmentSnapshot) {
+  return getOwnedFishingUpgrades(equipment.passiveItemIds)
+    .reduce((total, item) => total + (item.saleBonusPercent ?? 0), 0);
+}
+
+export function getFishingXpBonusPercent(equipment: FishingEquipmentSnapshot) {
+  return equipment.passiveItemIds.includes('gear-giant-pearl') ? 25 : 0;
 }
 
 export function shouldInstantlyCompleteFishingExpedition(equipment: FishingEquipmentSnapshot, outcomeSeed: number, isCrew: boolean) {
@@ -260,10 +440,56 @@ function weightedPick<T>(items: readonly T[], getWeight: (item: T) => number, ra
   return items[items.length - 1];
 }
 
-function chooseChestRarity(biome: FishingBiome, random: () => number, dropRateMultiplier: number) {
-  const totalRate = biome.chestRarities.reduce((total, rarity) => total + chestDropRate[rarity], 0);
+function chooseCrateRarity(biome: FishingBiome, random: () => number, dropRateMultiplier: number) {
+  const totalRate = biome.crateRarities.reduce((total, rarity) => total + FISHING_CRATE_DROP_RATES[rarity], 0);
   if (random() >= Math.min(1, totalRate * dropRateMultiplier)) return null;
-  return weightedPick(biome.chestRarities, (rarity) => chestDropRate[rarity], random);
+  return weightedPick(biome.crateRarities, (rarity) => FISHING_CRATE_DROP_RATES[rarity], random);
+}
+
+function resolveSingleFishingCrateOpening(
+  crate: FishingCrate,
+  saleBonusPercent: number,
+  random: () => number,
+) {
+  const eligibleLoot = FISHING_CRATE_LOOT.filter((item) => (
+    item.biomeId === crate.biomeId && rarityRank[item.rarity] >= rarityRank[crate.rarity]
+  ));
+  if (eligibleLoot.length === 0) throw new Error('This fishing crate has no available loot.');
+  const item = weightedPick(eligibleLoot, (candidate) => crateLootRarityWeight[candidate.rarity], random);
+  const baseValue = item.minSaleValue + (random() * (item.maxSaleValue - item.minSaleValue));
+  return {
+    item,
+    saleValue: Math.max(1, Math.round(baseValue * Math.max(0, 1 + (saleBonusPercent / 100)))),
+  };
+}
+
+export function resolveFishingCrateOpenings(
+  crateItemId: string,
+  amount: number,
+  saleBonusPercent: number,
+  seed: number,
+): FishingCrateOpeningResult {
+  const crate = getFishingCrate(crateItemId);
+  if (!crate || !Number.isInteger(amount) || amount < 1 || amount > 1_000_000 || !Number.isFinite(saleBonusPercent)) {
+    throw new Error('Fishing crate opening data is invalid.');
+  }
+
+  const random = createSeededRandom(seed);
+  const openedItems = new Map<string, { itemId: string; name: string; quantity: number; rarity: FishingCrateRarity; saleValue: number }>();
+  let totalSaleValue = 0;
+  for (let index = 0; index < amount; index += 1) {
+    const { item, saleValue } = resolveSingleFishingCrateOpening(crate, saleBonusPercent, random);
+    totalSaleValue += saleValue;
+    const openedItem = openedItems.get(item.id);
+    if (openedItem) {
+      openedItem.quantity += 1;
+      openedItem.saleValue += saleValue;
+    } else {
+      openedItems.set(item.id, { itemId: item.id, name: item.name, quantity: 1, rarity: item.rarity, saleValue });
+    }
+  }
+
+  return { crate, items: [...openedItems.values()], totalSaleValue };
 }
 
 export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: FishingDurationTier, equipment: FishingEquipmentSnapshot, seed: number, isCrew = false): FishingExpeditionResult {
@@ -276,24 +502,25 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   const passives = getOwnedFishingUpgrades(equipment.passiveItemIds);
   const higherRarityBonus = length.higherRarityWeightBonusPercent
     + passives.reduce((total, item) => total + (item.higherRarityBonusPercent ?? 0), 0);
-  const saleMultiplier = 1 + (passives.reduce((total, item) => total + (item.saleBonusPercent ?? 0), 0) / 100);
+  const saleMultiplier = 1 + (getFishingSaleBonusPercent(equipment) / 100);
   const fishCandidates = [...FISHING_FISH, ...FISHING_MYTHIC_FISH]
     .filter((entry) => entry.biomeId === biomeId && rod.catchableRarities!.includes(entry.rarity));
   if (fishCandidates.length === 0) throw new Error('No fish are available for this expedition.');
 
   const random = createSeededRandom(seed);
   const catches = new Map<string, ResolvedFishingCatch>();
-  const chestItems = new Map<string, number>();
   const gearItems = new Map<string, number>();
   const foundGearItemIds = new Set(equipment.passiveItemIds);
   const availableGear = () => FISHING_UPGRADES.filter((item) => item.category === 'gear'
     && !foundGearItemIds.has(item.id)
     && (!item.foundBiomeIds || item.foundBiomeIds.includes(biomeId)));
-  const chestDropRateMultiplier = (bait.id === 'magnet' ? 1.5 : 1)
+  const crateDropRateMultiplier = (bait.id === 'magnet' ? 1.5 : 1)
     * (equipment.passiveItemIds.includes('gear-reservoir-growth') ? 1.1 : 1);
   const gearDropRateMultiplier = (bait.id === 'sonar' ? 2 : 1)
     * (equipment.passiveItemIds.includes('gear-conduit') ? 2 : 1);
   let fishSaleValue = 0;
+  let crateSaleValue = 0;
+  let fishingCrateXp = 0;
   const baseCatchCount = length.catchCount[0] + Math.floor(random() * (length.catchCount[1] - length.catchCount[0] + 1));
   const mysteriousSeaFoodExtraRolls = bait.id === 'mysterious-sea-food' && random() < 0.2
     ? Math.ceil(baseCatchCount * 0.5)
@@ -330,16 +557,30 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   };
 
   for (let index = 0; index < catchCount; index += 1) {
-    const chestRarity = chooseChestRarity(biome, random, chestDropRateMultiplier);
-    if (chestRarity) {
-      const itemId = `${chestRarity.toLowerCase()}-chest`;
-      chestItems.set(itemId, (chestItems.get(itemId) ?? 0) + 1);
-      const catchKey = `chest:${itemId}`;
+    const crateRarity = chooseCrateRarity(biome, random, crateDropRateMultiplier);
+    if (crateRarity) {
+      const crate = getFishingCrate(`${biomeId}-${crateRarity.toLowerCase()}-crate`);
+      if (!crate) throw new Error(`Missing ${biomeId} ${crateRarity} fishing crate.`);
+      const opening = resolveSingleFishingCrateOpening(crate, getFishingSaleBonusPercent(equipment), random);
+      crateSaleValue += opening.saleValue;
+      fishingCrateXp += FISHING_CRATE_XP_BY_RARITY[crateRarity];
+      const catchKey = `crate:${crate.id}:${opening.item.id}`;
       const existingCatch = catches.get(catchKey);
-      if (existingCatch?.kind === 'chest') {
+      if (existingCatch?.kind === 'crate') {
         existingCatch.quantity += 1;
+        existingCatch.saleValue += opening.saleValue;
       } else {
-        catches.set(catchKey, { kind: 'chest', name: `${chestRarity} Chest`, quantity: 1, rarity: chestRarity, itemId });
+        catches.set(catchKey, {
+          itemId: crate.id,
+          kind: 'crate',
+          lootItemId: opening.item.id,
+          lootName: opening.item.name,
+          lootRarity: opening.item.rarity,
+          name: crate.name,
+          quantity: 1,
+          rarity: crate.rarity,
+          saleValue: opening.saleValue,
+        });
       }
     }
 
@@ -363,9 +604,15 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     if (random() < bonusFishChance) addFish(selectedFish);
   }
 
+  const fishingExpeditionXp = baseCatchCount * FISHING_EXPEDITION_XP_PER_BASE_CATCH;
+  const fishingXpAwarded = Math.floor((fishingExpeditionXp + fishingCrateXp) * (1 + (getFishingXpBonusPercent(equipment) / 100)));
+
   return {
     catches: [...catches.values()],
-    chestItems: [...chestItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })),
+    crateSaleValue,
+    fishingCrateXp,
+    fishingExpeditionXp,
+    fishingXpAwarded,
     fishSaleValue,
     gearItems: [...gearItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })),
     knowBucksFound: 0,

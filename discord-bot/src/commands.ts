@@ -143,16 +143,10 @@ export const commandDefinitions = [
       .setDescription('View owned upgrades and equip rods or bait.'))
     .addSubcommand((subcommand) => subcommand
       .setName('chests-open')
-      .setDescription('View your held fishing chests; chest contents are coming soon.')
-      .addIntegerOption((option) => option
-        .setName('amount')
-        .setDescription('Reserved for the upcoming named chest-loot system.')
-        .setMinValue(1)
-        .setMaxValue(10)
-        .setRequired(false)))
+      .setDescription('Open every held legacy fishing chest for KnowBucks.'))
     .addSubcommand((subcommand) => subcommand
       .setName('catalogue')
-      .setDescription('View the fishing field guide status.')),
+      .setDescription('Browse the fishing field guide by biome.')),
   createCollectionsCommand(),
   new SlashCommandBuilder()
     .setName('leaderboard')

@@ -1,5 +1,6 @@
 import { ChannelType, PermissionFlagsBits, type Guild, type GuildMember, type Message, type VoiceState } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
+import { grantCurrentFishingLevelRoles, syncDiscordFishingTopRole } from './fishing.js';
 import { createBotServiceClient } from './supabase.js';
 
 export type XpUpdate = {
@@ -796,6 +797,8 @@ export async function handleDiscordVoiceStateUpdate(
 
   await grantEligibleLevelRoles(config, member, award.current_level);
   if (award.current_level > award.previous_level) {
+    await grantCurrentFishingLevelRoles(config, member);
+    await syncDiscordFishingTopRole(config, newState.guild);
     await announceLevelUp(config, newState.guild, member, award);
   }
 }
@@ -827,6 +830,8 @@ export async function awardMessageXp(config: DiscordBotConfig, message: Message)
   const member = message.member ?? await message.guild.members.fetch(message.author.id);
   await grantEligibleLevelRoles(config, member, award.current_level);
   if (award.current_level > award.previous_level) {
+    await grantCurrentFishingLevelRoles(config, member);
+    await syncDiscordFishingTopRole(config, message.guild!);
     await announceLevelUp(config, message.guild!, member, award, message.channel);
   }
 }

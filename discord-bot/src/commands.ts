@@ -118,12 +118,12 @@ export const commandDefinitions = [
         .setRequired(true))
       .addIntegerOption((option) => option
         .setName('length')
-        .setDescription('1 = 30s, 2 = 60s, 3 = 120s, 4 = 300s. Longer trips catch more fish.')
+        .setDescription('1 = 5s, 2 = 60s, 3 = 10m, 4 = 1h. Longer trips return more fish.')
         .addChoices(
-          { name: 'Length 1 — 30 seconds', value: 1 },
-          { name: 'Length 2 — level 20 · 60 seconds', value: 2 },
-          { name: 'Length 3 — level 50 · 120 seconds', value: 3 },
-          { name: 'Length 4 — level 80 · 300 seconds', value: 4 },
+          { name: 'Length 1 — level 0 · 5 seconds · 1 fish roll', value: 1 },
+          { name: 'Length 2 — level 10 · 60 seconds · 12 fish rolls', value: 2 },
+          { name: 'Length 3 — level 20 · 10 minutes · 120 fish rolls', value: 3 },
+          { name: 'Length 4 — level 30 · 1 hour · 720 fish rolls', value: 4 },
         )
         .setRequired(true))
       .addIntegerOption((option) => option

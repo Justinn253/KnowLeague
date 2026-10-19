@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { EmbedBuilder, type Guild } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, type Guild } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   calculateFishingDurationSeconds,
@@ -83,12 +83,20 @@ export type FishingPlayerState = {
 
 export type StartedFishingExpedition = {
   biomeName: string;
-  completesAt: string;
   crewSlot: number;
   durationSeconds: number;
   expeditionId: number;
   instantCompletion: boolean;
 };
+
+export type FishingRepeatPreset = {
+  biomeId: FishingBiomeId;
+  crewSlot: number;
+  durationTier: FishingDurationTier;
+  ownerDiscordUserId: string;
+};
+
+export const FISHING_REPEAT_BUTTON_PREFIX = 'fish-repeat';
 
 export type FishingShopPurchase = {
   balance: number;
@@ -122,7 +130,10 @@ function normalizeEquipmentSnapshot(snapshot: FishingEquipmentSnapshot): Fishing
       const item = getFishingUpgrade(itemId);
       return item?.category === 'gear' || item?.category === 'skill';
     });
-  return { catalogueVersion: 3, rodItemId: rod.id, baitItemId: bait.id, passiveItemIds };
+  const catalogueVersion = snapshot.catalogueVersion === 2 || snapshot.catalogueVersion === 3
+    ? snapshot.catalogueVersion
+    : 4;
+  return { catalogueVersion, rodItemId: rod.id, baitItemId: bait.id, passiveItemIds };
 }
 
 async function ensureFishingPlayer(config: DiscordBotConfig, discordUserId: string) {
@@ -175,7 +186,7 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
     chatLevel: levelResult.data?.level ?? 1,
     crewSlots: 1 + Number(playerResult.data.crew_one_unlocked) + Number(playerResult.data.crew_two_unlocked),
     equipment: normalizeEquipmentSnapshot({
-      catalogueVersion: 2,
+      catalogueVersion: 4,
       rodItemId: playerResult.data.equipped_rod_id,
       baitItemId: playerResult.data.equipped_bait_id,
       passiveItemIds: inventory
@@ -216,6 +227,43 @@ export function selectFishingCrewSlot(
     throw new Error(`Crew slot ${crewSlot} is already on an expedition.`);
   }
   return crewSlot;
+}
+
+export function buildFishingRepeatCustomId(preset: FishingRepeatPreset) {
+  return [
+    FISHING_REPEAT_BUTTON_PREFIX,
+    preset.ownerDiscordUserId,
+    preset.biomeId,
+    preset.durationTier,
+    preset.crewSlot,
+  ].join(':');
+}
+
+export function parseFishingRepeatCustomId(customId: string): FishingRepeatPreset | null {
+  const [prefix, ownerDiscordUserId, biomeId, durationTierRaw, crewSlotRaw, ...extra] = customId.split(':');
+  if (prefix !== FISHING_REPEAT_BUTTON_PREFIX || !ownerDiscordUserId || !biomeId || !durationTierRaw || !crewSlotRaw || extra.length > 0) {
+    return null;
+  }
+
+  const durationTier = Number(durationTierRaw);
+  const crewSlot = Number(crewSlotRaw);
+  if (
+    !Number.isSafeInteger(durationTier)
+    || !Number.isSafeInteger(crewSlot)
+    || !getFishingBiome(biomeId as FishingBiomeId)
+    || !getFishingExpeditionLength(durationTier as FishingDurationTier)
+    || crewSlot < 1
+    || crewSlot > 3
+  ) {
+    return null;
+  }
+
+  return {
+    biomeId: biomeId as FishingBiomeId,
+    crewSlot,
+    durationTier: durationTier as FishingDurationTier,
+    ownerDiscordUserId,
+  };
 }
 
 export async function isFishingCommandAllowedInChannel(config: DiscordBotConfig, channelId: string) {
@@ -297,7 +345,7 @@ export async function startFishingExpedition(
   if (error) throw new Error(`Unable to start Discord fishing expedition: ${error.message}`);
   const started = getFirstResult(data as StartedExpeditionRow | StartedExpeditionRow[] | null);
   if (!started) throw new Error('Discord fishing expedition did not return a result.');
-  return { biomeName: biome.name, completesAt: started.completes_at, crewSlot, durationSeconds, expeditionId: started.expedition_id, instantCompletion };
+  return { biomeName: biome.name, crewSlot, durationSeconds, expeditionId: started.expedition_id, instantCompletion };
 }
 
 export async function attachFishingExpeditionMessage(
@@ -384,11 +432,12 @@ const FISHING_CHEST_RARITY_MARKERS: Record<FishingChestRarity, string> = {
 };
 
 function formatCatch(catchItem: FishingExpeditionResult['catches'][number]) {
+  const quantity = catchItem.quantity > 1 ? ` x${formatNumber(catchItem.quantity)}` : '';
   if (catchItem.kind === 'fish') {
-    return `**${catchItem.name}** (${catchItem.rarity}) — sold for ${formatNumber(catchItem.saleValue)} KnowBucks`;
+    return `**${catchItem.name}** (${catchItem.rarity})${quantity} — sold for ${formatNumber(catchItem.saleValue)} KnowBucks`;
   }
   if (catchItem.kind === 'chest') {
-    return `${FISHING_CHEST_RARITY_MARKERS[catchItem.rarity]} **${catchItem.name}** — added to inventory`;
+    return `${FISHING_CHEST_RARITY_MARKERS[catchItem.rarity]} **${catchItem.name}**${quantity} — added to inventory`;
   }
   return `✨ **GEAR FOUND: ${catchItem.name}** — permanently added to inventory`;
 }
@@ -419,6 +468,18 @@ export function buildFishingCompletionEmbed(biomeId: FishingBiomeId, result: Fis
     .setTitle(`${biome?.name ?? 'Fishing'} expedition complete`)
     .setDescription(`You earned ${formatNumber(reward)} KnowBucks from your sold fish. New balance: ${formatNumber(balance)} KnowBucks.`)
     .addFields(buildFishingCatchFields(result.catches));
+}
+
+function buildFishingCompletionComponents(preset: FishingRepeatPreset) {
+  return [{
+    type: 1 as const,
+    components: [
+      new ButtonBuilder()
+        .setCustomId(buildFishingRepeatCustomId(preset))
+        .setStyle(ButtonStyle.Primary)
+        .setLabel('Fish again'),
+    ],
+  }];
 }
 
 async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, expedition: FishingExpeditionRow) {
@@ -455,7 +516,12 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
   };
   const completion = {
     allowedMentions: { parse: [] as const },
-    components: [],
+    components: buildFishingCompletionComponents({
+      biomeId: expedition.biome_id,
+      crewSlot: expedition.crew_slot,
+      durationTier: expedition.duration_tier,
+      ownerDiscordUserId: settled.discord_user_id,
+    }),
     content: `<@${settled.discord_user_id}> your fishing expedition is complete!`,
     embeds: [buildFishingCompletionEmbed(expedition.biome_id, displayedResult, settled.knowbucks_awarded, settled.current_balance ?? settled.knowbucks_awarded)],
   };

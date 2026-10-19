@@ -18,6 +18,7 @@ export interface FishingBiome {
 export interface FishingExpeditionLength {
   catchCount: readonly [number, number];
   durationSeconds: number;
+  higherRarityWeightBonusPercent: number;
   requiredChatLevel: number;
   tier: FishingDurationTier;
 }
@@ -52,7 +53,7 @@ export interface FishingUpgrade {
 export interface FishingEquipmentSnapshot {
   baitItemId: string;
   boatItemId?: string;
-  catalogueVersion: 2 | 3;
+  catalogueVersion: 2 | 3 | 4;
   passiveItemIds: string[];
   rodItemId: string;
   storageItemId?: string;
@@ -61,6 +62,7 @@ export interface FishingEquipmentSnapshot {
 export interface ResolvedFishingFishCatch {
   kind: 'fish';
   name: string;
+  quantity: number;
   rarity: FishingRarity;
   saleValue: number;
 }
@@ -69,6 +71,7 @@ export interface ResolvedFishingChestCatch {
   itemId: string;
   kind: 'chest';
   name: string;
+  quantity: number;
   rarity: FishingChestRarity;
 }
 
@@ -76,6 +79,7 @@ export interface ResolvedFishingGearCatch {
   itemId: string;
   kind: 'gear';
   name: string;
+  quantity: number;
 }
 
 export type ResolvedFishingCatch = ResolvedFishingFishCatch | ResolvedFishingChestCatch | ResolvedFishingGearCatch;
@@ -99,10 +103,22 @@ export const FISHING_BIOMES: readonly FishingBiome[] = [
 ] as const;
 
 export const FISHING_EXPEDITION_LENGTHS: readonly FishingExpeditionLength[] = [
-  { tier: 1, requiredChatLevel: 1, durationSeconds: 30, catchCount: [1, 1] },
-  { tier: 2, requiredChatLevel: 20, durationSeconds: 60, catchCount: [2, 3] },
-  { tier: 3, requiredChatLevel: 50, durationSeconds: 120, catchCount: [5, 6] },
-  { tier: 4, requiredChatLevel: 80, durationSeconds: 300, catchCount: [12, 15] },
+  { tier: 1, requiredChatLevel: 0, durationSeconds: 5, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 },
+  { tier: 2, requiredChatLevel: 10, durationSeconds: 60, catchCount: [12, 12], higherRarityWeightBonusPercent: 5 },
+  { tier: 3, requiredChatLevel: 20, durationSeconds: 600, catchCount: [120, 120], higherRarityWeightBonusPercent: 10 },
+  { tier: 4, requiredChatLevel: 30, durationSeconds: 3_600, catchCount: [720, 720], higherRarityWeightBonusPercent: 15 },
+] as const;
+
+/**
+ * Active trips from before the beta length-scale revision resolve with the
+ * rules that were saved when they launched. New trips always use the current
+ * FISHING_EXPEDITION_LENGTHS values above.
+ */
+const LEGACY_FISHING_EXPEDITION_LENGTHS: readonly FishingExpeditionLength[] = [
+  { tier: 1, requiredChatLevel: 1, durationSeconds: 30, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 },
+  { tier: 2, requiredChatLevel: 20, durationSeconds: 60, catchCount: [2, 3], higherRarityWeightBonusPercent: 0 },
+  { tier: 3, requiredChatLevel: 50, durationSeconds: 120, catchCount: [5, 6], higherRarityWeightBonusPercent: 0 },
+  { tier: 4, requiredChatLevel: 80, durationSeconds: 300, catchCount: [12, 15], higherRarityWeightBonusPercent: 0 },
 ] as const;
 
 export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
@@ -182,7 +198,10 @@ const chestDropRate: Record<FishingChestRarity, number> = { Common: 0.20, Uncomm
 const GEAR_DROP_RATE = 0.001;
 
 export function getFishingBiome(biomeId: string) { return FISHING_BIOMES.find((biome) => biome.id === biomeId); }
-export function getFishingExpeditionLength(tier: number) { return FISHING_EXPEDITION_LENGTHS.find((length) => length.tier === tier); }
+export function getFishingExpeditionLength(tier: number, catalogueVersion = 4) {
+  const lengths = catalogueVersion < 4 ? LEGACY_FISHING_EXPEDITION_LENGTHS : FISHING_EXPEDITION_LENGTHS;
+  return lengths.find((length) => length.tier === tier);
+}
 export function getFishingUpgrade(itemId: string) { return FISHING_UPGRADES.find((upgrade) => upgrade.id === itemId); }
 export function getFishingUpgradeCategoryItems(category: FishingUpgradeCategory) { return FISHING_UPGRADES.filter((upgrade) => upgrade.category === category); }
 
@@ -251,18 +270,19 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   const biome = getFishingBiome(biomeId);
   const rod = getFishingUpgrade(equipment.rodItemId);
   const bait = getFishingUpgrade(equipment.baitItemId);
-  const length = getFishingExpeditionLength(durationTier);
+  const length = getFishingExpeditionLength(durationTier, equipment.catalogueVersion);
   if (!biome || !rod?.catchableRarities || !length || bait?.category !== 'bait') throw new Error('Fishing expedition contains invalid equipment data.');
 
   const passives = getOwnedFishingUpgrades(equipment.passiveItemIds);
-  const higherRarityBonus = passives.reduce((total, item) => total + (item.higherRarityBonusPercent ?? 0), 0);
+  const higherRarityBonus = length.higherRarityWeightBonusPercent
+    + passives.reduce((total, item) => total + (item.higherRarityBonusPercent ?? 0), 0);
   const saleMultiplier = 1 + (passives.reduce((total, item) => total + (item.saleBonusPercent ?? 0), 0) / 100);
   const fishCandidates = [...FISHING_FISH, ...FISHING_MYTHIC_FISH]
     .filter((entry) => entry.biomeId === biomeId && rod.catchableRarities!.includes(entry.rarity));
   if (fishCandidates.length === 0) throw new Error('No fish are available for this expedition.');
 
   const random = createSeededRandom(seed);
-  const catches: ResolvedFishingCatch[] = [];
+  const catches = new Map<string, ResolvedFishingCatch>();
   const chestItems = new Map<string, number>();
   const gearItems = new Map<string, number>();
   const foundGearItemIds = new Set(equipment.passiveItemIds);
@@ -299,7 +319,14 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     const soloSaleValue = Math.max(1, Math.round((upgradedFish.minSaleValue + (random() * (upgradedFish.maxSaleValue - upgradedFish.minSaleValue))) * saleMultiplier));
     const saleValue = isCrew ? Math.floor(soloSaleValue / 2) : soloSaleValue;
     fishSaleValue += saleValue;
-    catches.push({ kind: 'fish', name: upgradedFish.name, rarity: upgradedFish.rarity, saleValue });
+    const catchKey = `fish:${upgradedFish.name}:${upgradedFish.rarity}`;
+    const existingCatch = catches.get(catchKey);
+    if (existingCatch?.kind === 'fish') {
+      existingCatch.quantity += 1;
+      existingCatch.saleValue += saleValue;
+      return;
+    }
+    catches.set(catchKey, { kind: 'fish', name: upgradedFish.name, quantity: 1, rarity: upgradedFish.rarity, saleValue });
   };
 
   for (let index = 0; index < catchCount; index += 1) {
@@ -307,7 +334,13 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     if (chestRarity) {
       const itemId = `${chestRarity.toLowerCase()}-chest`;
       chestItems.set(itemId, (chestItems.get(itemId) ?? 0) + 1);
-      catches.push({ kind: 'chest', name: `${chestRarity} Chest`, rarity: chestRarity, itemId });
+      const catchKey = `chest:${itemId}`;
+      const existingCatch = catches.get(catchKey);
+      if (existingCatch?.kind === 'chest') {
+        existingCatch.quantity += 1;
+      } else {
+        catches.set(catchKey, { kind: 'chest', name: `${chestRarity} Chest`, quantity: 1, rarity: chestRarity, itemId });
+      }
     }
 
     const eligibleGear = availableGear();
@@ -315,7 +348,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
       const gear = weightedPick(eligibleGear, () => 1, random);
       foundGearItemIds.add(gear.id);
       gearItems.set(gear.id, 1);
-      catches.push({ kind: 'gear', name: gear.name, itemId: gear.id });
+      catches.set(`gear:${gear.id}`, { kind: 'gear', name: gear.name, quantity: 1, itemId: gear.id });
     }
 
     if (bait.id === 'sonar' && random() >= 0.5) continue;
@@ -331,7 +364,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   }
 
   return {
-    catches,
+    catches: [...catches.values()],
     chestItems: [...chestItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })),
     fishSaleValue,
     gearItems: [...gearItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })),

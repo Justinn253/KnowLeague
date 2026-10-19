@@ -1,4 +1,4 @@
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   addManualXp,
@@ -14,6 +14,7 @@ import { findLinkedProfile } from './profiles.js';
 import {
   attachFishingExpeditionMessage,
   describeFishingEquipment,
+  FISHING_REPEAT_BUTTON_PREFIX,
   formatFishingDuration,
   getFishingBiome,
   getFishingPlayerState,
@@ -24,12 +25,14 @@ import {
   purchaseFishingUpgrade,
   isFishingCommandAllowedInChannel,
   equipFishingUpgrade,
+  parseFishingRepeatCustomId,
   reconcileDueFishingExpeditions,
   startFishingExpedition,
   getFishingProgress,
   type FishingBiomeId,
   type FishingDurationTier,
   type FishingPlayerState,
+  type StartedFishingExpedition,
   type FishingUpgradeCategory,
 } from './fishing.js';
 import {
@@ -86,6 +89,38 @@ const FISHING_PANEL_TTL_MS = 60_000;
 const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
 let leaderboardCommandCooldownPruneAfter = 0;
 const fishingPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export function buildFishingLaunchResponse(expedition: StartedFishingExpedition) {
+  return {
+    components: [],
+    content: '',
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x0EA5E9)
+        .setTitle(`${expedition.biomeName} expedition launched`)
+        .setDescription(expedition.instantCompletion
+          ? `Crew slot **${expedition.crewSlot}** triggered the Teleporter and is returning immediately.`
+          : `Crew slot **${expedition.crewSlot}** is now fishing. This trip takes about **${formatFishingDuration(expedition.durationSeconds)}**.`),
+    ],
+  };
+}
+
+async function attachFishingLaunchMessage(
+  config: DiscordBotConfig,
+  discordUserId: string,
+  expedition: StartedFishingExpedition,
+  messageId: string,
+  guild: Guild | null,
+) {
+  try {
+    await attachFishingExpeditionMessage(config, discordUserId, expedition.expeditionId, messageId);
+    if (expedition.instantCompletion && guild) await reconcileDueFishingExpeditions(config, guild);
+  } catch (error) {
+    // Settlement still succeeds and falls back to a completion notice if the
+    // launch message cannot be persisted for later editing.
+    console.warn(`Discord fishing expedition ${expedition.expeditionId} launch message could not be attached.`, error);
+  }
+}
 
 function skinCollectionButtons(
   viewerDiscordUserId: string,
@@ -520,24 +555,11 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
         interaction.channelId,
         requestedCrewSlot,
       );
-      const completionTimestamp = Math.floor(new Date(expedition.completesAt).getTime() / 1_000);
-      await interaction.editReply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0x0EA5E9)
-            .setTitle(`${expedition.biomeName} expedition launched`)
-            .setDescription(expedition.instantCompletion
-              ? `Crew slot **${expedition.crewSlot}** triggered the Teleporter and is returning immediately.`
-              : `Crew slot **${expedition.crewSlot}** is now fishing. The trip takes about **${formatFishingDuration(expedition.durationSeconds)}** and will finish <t:${completionTimestamp}:R>.`),
-        ],
-      });
+      await interaction.editReply(buildFishingLaunchResponse(expedition));
       try {
         const launchMessage = await interaction.fetchReply();
-        await attachFishingExpeditionMessage(config, interaction.user.id, expedition.expeditionId, launchMessage.id);
-        if (expedition.instantCompletion) await reconcileDueFishingExpeditions(config, interaction.guild);
+        await attachFishingLaunchMessage(config, interaction.user.id, expedition, launchMessage.id, interaction.guild);
       } catch (messageAttachmentError) {
-        // Settlement still succeeds and falls back to a completion notice if a
-        // launch message was deleted before it could be persisted.
         console.warn(`Discord fishing expedition ${expedition.expeditionId} launch message could not be attached.`, messageAttachmentError);
       }
     } catch (error) {
@@ -557,7 +579,8 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
     const active = progress.active.length > 0
       ? progress.active.map((expedition) => {
         const biome = getFishingBiome(expedition.biome_id);
-        return `Crew ${expedition.crew_slot}: **${biome?.name ?? expedition.biome_id}** · completes <t:${Math.floor(new Date(expedition.completes_at).getTime() / 1_000)}:R>`;
+        const durationSeconds = Math.max(0, Math.round((new Date(expedition.completes_at).getTime() - new Date(expedition.started_at).getTime()) / 1_000));
+        return `Crew ${expedition.crew_slot}: **${biome?.name ?? expedition.biome_id}** · trip duration: **${formatFishingDuration(durationSeconds)}**`;
       }).join('\n')
       : 'No active expeditions.';
     const recent = progress.mostRecent?.result
@@ -887,6 +910,42 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
 }
 
 async function handleFishingButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  if (interaction.customId === FISHING_REPEAT_BUTTON_PREFIX || interaction.customId.startsWith(`${FISHING_REPEAT_BUTTON_PREFIX}:`)) {
+    const preset = parseFishingRepeatCustomId(interaction.customId);
+    if (!preset) {
+      await interaction.reply({ content: 'This fishing repeat control is no longer valid. Run `/fish expedition-set` to launch a new trip.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (interaction.user.id !== preset.ownerDiscordUserId) {
+      await interaction.reply({ content: 'Only the member who completed this expedition can repeat it.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (!(await isFishingCommandAllowedInChannel(config, interaction.channelId))) {
+      await interaction.reply({ content: 'Fishing commands are not enabled in this channel. An administrator can change this in Discord Configuration.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+
+    await interaction.deferUpdate();
+    try {
+      const expedition = await startFishingExpedition(
+        config,
+        preset.ownerDiscordUserId,
+        preset.biomeId,
+        preset.durationTier,
+        interaction.channelId,
+        preset.crewSlot,
+      );
+      await interaction.editReply(buildFishingLaunchResponse(expedition));
+      await attachFishingLaunchMessage(config, preset.ownerDiscordUserId, expedition, interaction.message.id, interaction.guild);
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message.replace(/^Unable to start Discord fishing expedition: /, '')
+        : 'KnowLeague could not start that fishing expedition. Please try again shortly.';
+      await interaction.followUp({ content: message, flags: MessageFlags.Ephemeral });
+    }
+    return true;
+  }
+
   const [prefix, ownerDiscordUserId, expiresAtRaw, argument] = interaction.customId.split(':');
   if (!prefix.startsWith(`${FISHING_BUTTON_PREFIX}-`) || !ownerDiscordUserId) return false;
   const expiresAt = Number(expiresAtRaw);

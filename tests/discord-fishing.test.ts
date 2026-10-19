@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
+import { buildFishingLaunchResponse } from '../discord-bot/src/interactions';
 import {
   calculateFishingDurationSeconds,
   FISHING_BIOMES,
@@ -13,7 +14,12 @@ import {
   type FishingExpeditionResult,
   type FishingEquipmentSnapshot,
 } from '../discord-bot/src/fishing-catalog';
-import { buildFishingCompletionEmbed, selectFishingCrewSlot } from '../discord-bot/src/fishing';
+import {
+  buildFishingCompletionEmbed,
+  buildFishingRepeatCustomId,
+  parseFishingRepeatCustomId,
+  selectFishingCrewSlot,
+} from '../discord-bot/src/fishing';
 
 type SerializedSubcommand = {
   choices?: readonly unknown[];
@@ -22,7 +28,7 @@ type SerializedSubcommand = {
 };
 
 const starterEquipment: FishingEquipmentSnapshot = {
-  catalogueVersion: 2,
+  catalogueVersion: 4,
   rodItemId: 'plastic-rod',
   baitItemId: 'basic-bait',
   passiveItemIds: [],
@@ -38,16 +44,47 @@ describe('Discord fishing command contract', () => {
     expect(biomeOption?.choices).toHaveLength(7);
     expect(lengthOption?.choices).toHaveLength(4);
   });
+
+  it('encodes the completed expedition preset in an owner-specific repeat control', () => {
+    const customId = buildFishingRepeatCustomId({
+      biomeId: 'kelp-forest',
+      crewSlot: 2,
+      durationTier: 3,
+      ownerDiscordUserId: '123456789012345678',
+    });
+    expect(customId).toBe('fish-repeat:123456789012345678:kelp-forest:3:2');
+    expect(parseFishingRepeatCustomId(customId)).toEqual({
+      biomeId: 'kelp-forest',
+      crewSlot: 2,
+      durationTier: 3,
+      ownerDiscordUserId: '123456789012345678',
+    });
+    expect(parseFishingRepeatCustomId('fish-repeat:123:kelp-forest:4:0')).toBeNull();
+    expect(parseFishingRepeatCustomId('fish-repeat:123:not-a-biome:4:1')).toBeNull();
+  });
+
+  it('uses a static duration estimate instead of a stale Discord relative timer', () => {
+    const launch = buildFishingLaunchResponse({
+      biomeName: 'Harbor',
+      crewSlot: 1,
+      durationSeconds: 5,
+      expeditionId: 42,
+      instantCompletion: false,
+    });
+    const description = launch.embeds[0]?.data.description;
+    expect(description).toBe('Crew slot **1** is now fishing. This trip takes about **5s**.');
+    expect(description).not.toContain('<t:');
+  });
 });
 
 describe('Discord fishing reworked progression', () => {
   it('uses the requested unlock levels, duration, and crew time multiplier', () => {
-    expect(getFishingExpeditionLength(1)).toMatchObject({ requiredChatLevel: 1, durationSeconds: 30, catchCount: [1, 1] });
-    expect(getFishingExpeditionLength(2)).toMatchObject({ requiredChatLevel: 20, durationSeconds: 60, catchCount: [2, 3] });
-    expect(getFishingExpeditionLength(3)).toMatchObject({ requiredChatLevel: 50, durationSeconds: 120, catchCount: [5, 6] });
-    expect(getFishingExpeditionLength(4)).toMatchObject({ requiredChatLevel: 80, durationSeconds: 300, catchCount: [12, 15] });
-    expect(calculateFishingDurationSeconds(4, false)).toBe(300);
-    expect(calculateFishingDurationSeconds(4, true)).toBe(900);
+    expect(getFishingExpeditionLength(1)).toMatchObject({ requiredChatLevel: 0, durationSeconds: 5, catchCount: [1, 1], higherRarityWeightBonusPercent: 0 });
+    expect(getFishingExpeditionLength(2)).toMatchObject({ requiredChatLevel: 10, durationSeconds: 60, catchCount: [12, 12], higherRarityWeightBonusPercent: 5 });
+    expect(getFishingExpeditionLength(3)).toMatchObject({ requiredChatLevel: 20, durationSeconds: 600, catchCount: [120, 120], higherRarityWeightBonusPercent: 10 });
+    expect(getFishingExpeditionLength(4)).toMatchObject({ requiredChatLevel: 30, durationSeconds: 3_600, catchCount: [720, 720], higherRarityWeightBonusPercent: 15 });
+    expect(calculateFishingDurationSeconds(4, false)).toBe(3_600);
+    expect(calculateFishingDurationSeconds(4, true)).toBe(10_800);
   });
 
   it('includes every named biome and applies its chest rarity scope', () => {
@@ -70,11 +107,28 @@ describe('Discord fishing reworked progression', () => {
     const second = resolveFishingExpedition('harbor', 3, starterEquipment, 548_921);
     expect(second).toEqual(first);
     const fishCatches = first.catches.filter((entry) => entry.kind === 'fish');
-    expect(fishCatches.length).toBeGreaterThanOrEqual(5);
-    expect(fishCatches.length).toBeLessThanOrEqual(6);
+    expect(fishCatches.reduce((total, entry) => total + entry.quantity, 0)).toBe(120);
     expect(fishCatches.every((entry) => (
       entry.rarity === 'Common'
     ))).toBe(true);
+  });
+
+  it('condenses repeated catches into counted result rows for long expeditions', () => {
+    const equipment: FishingEquipmentSnapshot = { ...starterEquipment, rodItemId: 'master-rod' };
+    const result = resolveFishingExpedition('harbor', 4, equipment, 548_921);
+    const fishCatches = result.catches.filter((entry) => entry.kind === 'fish');
+    expect(fishCatches.reduce((total, entry) => total + entry.quantity, 0)).toBe(720);
+    expect(fishCatches.some((entry) => entry.quantity > 1)).toBe(true);
+    expect(fishCatches.length).toBeLessThanOrEqual(FISHING_FISH.filter((fish) => fish.biomeId === 'harbor').length);
+  });
+
+  it('preserves the original return scale for an active pre-revision expedition snapshot', () => {
+    const legacyResult = resolveFishingExpedition('harbor', 4, { ...starterEquipment, catalogueVersion: 3, rodItemId: 'master-rod' }, 548_921);
+    const legacyFishRolls = legacyResult.catches
+      .filter((entry) => entry.kind === 'fish')
+      .reduce((total, entry) => total + entry.quantity, 0);
+    expect(legacyFishRolls).toBeGreaterThanOrEqual(12);
+    expect(legacyFishRolls).toBeLessThanOrEqual(15);
   });
 
   it('makes legendary fish catchable with the legendary rod and halves crew money rewards', () => {
@@ -150,17 +204,17 @@ describe('Discord fishing reworked progression', () => {
     const woodenRod = getFishingUpgrade('wooden-rod');
     expect(woodenRod).toBeDefined();
     expect(getFishingUpgradeCost(woodenRod!, ['cheapskate-1', 'gear-lost-pursasion-device'])).toBe(4_500);
-    expect(calculateFishingDurationSeconds(4, false, 30)).toBe(210);
+    expect(calculateFishingDurationSeconds(4, false, 30)).toBe(2_520);
   });
 
   it('uses the sold-fish completion copy and color-coded chest rarity markers', () => {
     const result: FishingExpeditionResult = {
       catches: [
-        { kind: 'chest', name: 'Common Chest', rarity: 'Common', itemId: 'common-chest' },
-        { kind: 'chest', name: 'Uncommon Chest', rarity: 'Uncommon', itemId: 'uncommon-chest' },
-        { kind: 'chest', name: 'Rare Chest', rarity: 'Rare', itemId: 'rare-chest' },
-        { kind: 'chest', name: 'Epic Chest', rarity: 'Epic', itemId: 'epic-chest' },
-        { kind: 'chest', name: 'Legendary Chest', rarity: 'Legendary', itemId: 'legendary-chest' },
+        { kind: 'chest', name: 'Common Chest', quantity: 2, rarity: 'Common', itemId: 'common-chest' },
+        { kind: 'chest', name: 'Uncommon Chest', quantity: 1, rarity: 'Uncommon', itemId: 'uncommon-chest' },
+        { kind: 'chest', name: 'Rare Chest', quantity: 1, rarity: 'Rare', itemId: 'rare-chest' },
+        { kind: 'chest', name: 'Epic Chest', quantity: 1, rarity: 'Epic', itemId: 'epic-chest' },
+        { kind: 'chest', name: 'Legendary Chest', quantity: 1, rarity: 'Legendary', itemId: 'legendary-chest' },
       ],
       chestItems: [],
       fishSaleValue: 425,
@@ -171,7 +225,7 @@ describe('Discord fishing reworked progression', () => {
     const embed = buildFishingCompletionEmbed('harbor', result, 425, 1_250);
     expect(embed.data.description).toBe('You earned 425 KnowBucks from your sold fish. New balance: 1,250 KnowBucks.');
     const catches = embed.data.fields?.[0]?.value;
-    expect(catches).toContain('⬜ **Common Chest** — added to inventory');
+    expect(catches).toContain('⬜ **Common Chest** x2 — added to inventory');
     expect(catches).toContain('🟩 **Uncommon Chest** — added to inventory');
     expect(catches).toContain('🟦 **Rare Chest** — added to inventory');
     expect(catches).toContain('🟪 **Epic Chest** — added to inventory');

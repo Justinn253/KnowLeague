@@ -1,4 +1,4 @@
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type ChatInputCommandInteraction } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   addManualXp,
@@ -42,6 +42,7 @@ import {
   gambleSkinClaim,
   getSkinClaimAdminRoleIds,
   getSkinCollectionPage,
+  isSkinCollectionCommandAllowedInChannel,
   purchaseSkinCollectionCapacity,
   sellSkinClaim,
   skinCollectionCode,
@@ -64,7 +65,7 @@ function profileButton(config: DiscordBotConfig, username?: string) {
 export function isDiscordAdministrativeCommand(commandName: string, subcommand: string | null) {
   return (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
     || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
-    || ((commandName === 'collections' || commandName === 'cl') && (subcommand === 'spawn' || subcommand === 'capacity-force-add'));
+    || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'));
 }
 
 function formatXp(value: number) {
@@ -86,17 +87,31 @@ const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
 let leaderboardCommandCooldownPruneAfter = 0;
 const fishingPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-function skinCollectionButtons(ownerDiscordUserId: string, page: number, total: number) {
+function skinCollectionButtons(
+  viewerDiscordUserId: string,
+  ownerDiscordUserId: string,
+  page: number,
+  total: number,
+  showDetails: boolean,
+) {
+  const customId = (requestedPage: number, view: 'details' | 'summary') => (
+    `${SKIN_COLLECTION_BUTTON_PREFIX}:${viewerDiscordUserId}:${ownerDiscordUserId}:${requestedPage}:${view}`
+  );
   return [{
     type: 1 as const,
     components: [
       new ButtonBuilder()
-        .setCustomId(`${SKIN_COLLECTION_BUTTON_PREFIX}:${ownerDiscordUserId}:${page - 1}`)
+        .setCustomId(customId(page - 1, showDetails ? 'details' : 'summary'))
         .setStyle(ButtonStyle.Secondary)
         .setLabel('Previous')
         .setDisabled(page <= 0),
       new ButtonBuilder()
-        .setCustomId(`${SKIN_COLLECTION_BUTTON_PREFIX}:${ownerDiscordUserId}:${page + 1}`)
+        .setCustomId(customId(page, showDetails ? 'summary' : 'details'))
+        .setStyle(ButtonStyle.Primary)
+        .setLabel(showDetails ? 'Hide details' : 'Show details')
+        .setDisabled(total === 0),
+      new ButtonBuilder()
+        .setCustomId(customId(page + 1, showDetails ? 'details' : 'summary'))
         .setStyle(ButtonStyle.Secondary)
         .setLabel('Next')
         .setDisabled(total === 0 || page >= total - 1),
@@ -619,12 +634,29 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
 async function handleCollectionsCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand !== 'spawn' && !(await isSkinCollectionCommandAllowedInChannel(config, interaction.channelId))) {
+    await interaction.reply({ content: 'Collections commands are not enabled in this channel. An administrator can change the Collections commands channel in Discord Configuration. `/collections spawn` remains available to collection administrators in any channel where the bot can post.' });
+    return;
+  }
+
   if (subcommand === 'collection') {
+    const targetUser = interaction.options.getUser('member') ?? interaction.user;
+    if (targetUser.bot) {
+      await interaction.reply({ content: 'Bot accounts do not have skin collections.' });
+      return;
+    }
+    let targetMember: GuildMember;
+    try {
+      targetMember = await interaction.guild.members.fetch(targetUser.id);
+    } catch {
+      await interaction.reply({ content: 'Choose a current server member to view their collection.' });
+      return;
+    }
     await interaction.deferReply();
-    const page = await getSkinCollectionPage(config, interaction.user.id, 0);
+    const page = await getSkinCollectionPage(config, targetUser.id, 0);
     await interaction.editReply({
-      components: skinCollectionButtons(interaction.user.id, page.page, page.total),
-      embeds: [buildSkinCollectionEmbed(page, interaction.user.username)],
+      components: skinCollectionButtons(interaction.user.id, targetUser.id, page.page, page.total, false),
+      embeds: [buildSkinCollectionEmbed(page, targetMember.displayName)],
     });
     return;
   }
@@ -645,7 +677,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
       await interaction.editReply({ content: 'Skin claim drops are disabled in Discord Configuration.' });
       return;
     }
-    await interaction.editReply({ content: 'Enable skin claims and allow this text channel in Discord Configuration before using /collections spawn.' });
+    await interaction.editReply({ content: 'Enable skin claims before using /collections spawn. The bot must also be able to post in this channel.' });
     return;
   }
 
@@ -946,17 +978,29 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
 export async function handleButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   if (interaction.guildId !== config.guildId) return;
   if (await handleFishingButtonInteraction(interaction, config)) return;
-  const [prefix, ownerDiscordUserId, requestedPage] = interaction.customId.split(':');
-  if (prefix !== SKIN_COLLECTION_BUTTON_PREFIX || !ownerDiscordUserId || !/^\d+$/.test(requestedPage ?? '')) return;
-  if (interaction.user.id !== ownerDiscordUserId) {
+  const parts = interaction.customId.split(':');
+  const [prefix, viewerDiscordUserId, ownerOrRequestedPage, requestedPageOrView, requestedView] = parts;
+  const legacyCollectionPanel = parts.length === 3;
+  const ownerDiscordUserId = legacyCollectionPanel ? viewerDiscordUserId : ownerOrRequestedPage;
+  const requestedPage = legacyCollectionPanel ? ownerOrRequestedPage : requestedPageOrView;
+  const view = legacyCollectionPanel ? 'summary' : requestedView;
+  if (
+    prefix !== SKIN_COLLECTION_BUTTON_PREFIX
+    || !viewerDiscordUserId
+    || !ownerDiscordUserId
+    || !/^\d+$/.test(requestedPage ?? '')
+    || (view !== 'details' && view !== 'summary')
+  ) return;
+  if (interaction.user.id !== viewerDiscordUserId) {
     await interaction.reply({ content: 'Only the member who opened this collection can browse it.', flags: MessageFlags.Ephemeral });
     return;
   }
   await interaction.deferUpdate();
   const page = await getSkinCollectionPage(config, ownerDiscordUserId, Number(requestedPage));
+  const ownerMember = interaction.guild ? await interaction.guild.members.fetch(ownerDiscordUserId).catch(() => null) : null;
   await interaction.editReply({
-    components: skinCollectionButtons(ownerDiscordUserId, page.page, page.total),
-    embeds: [buildSkinCollectionEmbed(page, interaction.user.username)],
+    components: skinCollectionButtons(viewerDiscordUserId, ownerDiscordUserId, page.page, page.total, view === 'details'),
+    embeds: [buildSkinCollectionEmbed(page, ownerMember?.displayName ?? 'Member', view === 'details')],
   });
 }
 
@@ -983,7 +1027,7 @@ export async function handleChatInputCommand(
             { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent gear apply to the saved trip; crew runs take three times as long and return half fish-sale rewards.' },
             { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or equip an owned rod or one bait from public panels.' },
             { name: '/fish chests-open, catalogue, help', value: 'View held biome-specific chests without consuming them, see the field-guide status, or open focused fishing help. Treasure gear can now be found during expeditions.' },
-            { name: '/collections collection', value: 'Post your claimed skin collection for the server to view, one skin at a time. `/cl` offers the same collection commands.' },
+            { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Use Show details to see collection metadata and the skin\'s sell value.' },
             { name: '/collections give member skin-id', value: 'Give one of your claimed skins to another current server member by its four-digit ID.' },
             { name: '/collections summon', value: 'Spend the configured summon cost (5,000 KnowBucks by default) to summon a claimable drop in this channel, with your grace period first.' },
             { name: '/collections capacity-add slots', value: 'Buy collection space in multiples of five slots for the configured rate (500 KnowBucks per five slots by default). Staff can use `capacity-force-add` for a free member upgrade.' },
@@ -1012,7 +1056,7 @@ export async function handleChatInputCommand(
     return;
   }
 
-  if (interaction.commandName === 'collections' || interaction.commandName === 'cl') {
+  if (interaction.commandName === 'collections') {
     await handleCollectionsCommand(interaction, config);
     return;
   }

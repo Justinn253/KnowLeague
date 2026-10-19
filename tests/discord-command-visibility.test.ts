@@ -8,7 +8,7 @@ describe('Discord slash-command visibility', () => {
     expect(isDiscordAdministrativeCommand('knowbucks', 'balance')).toBe(false);
     expect(isDiscordAdministrativeCommand('knowbucks', 'set')).toBe(true);
     expect(isDiscordAdministrativeCommand('collections', 'summon')).toBe(false);
-    expect(isDiscordAdministrativeCommand('cl', 'capacity-force-add')).toBe(true);
+    expect(isDiscordAdministrativeCommand('cl', 'capacity-force-add')).toBe(false);
     expect(isDiscordAdministrativeCommand('leaderboard', null)).toBe(false);
   });
 });

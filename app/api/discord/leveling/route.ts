@@ -78,6 +78,7 @@ type StoredGuildChannelRow = {
 type StoredSkinClaimSettingsRow = {
   all_channels: boolean;
   claim_window_minutes: number;
+  command_channel_id: string | null;
   enabled: boolean;
   maximum_interval_minutes: number;
   minimum_interval_minutes: number;
@@ -128,6 +129,7 @@ type LevelingSettingsBody = {
   skinClaimClaimGracePeriodSeconds?: unknown;
   skinClaimChannelIds?: unknown;
   skinClaimClaimWindowMinutes?: unknown;
+  skinClaimCommandChannelId?: unknown;
   skinClaimCollectionCapacityUpgradeCost?: unknown;
   skinClaimCollectionStealChancePercent?: unknown;
   skinClaimDefaultCollectionCapacity?: unknown;
@@ -178,6 +180,7 @@ function toSkinClaimSettings(
     allChannels: row.all_channels,
     claimWindowMinutes: row.claim_window_minutes,
     claimGracePeriodSeconds: economy?.claim_grace_period_seconds ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.claimGracePeriodSeconds,
+    commandChannelId: row.command_channel_id,
     collectionCapacityUpgradeCost: economy?.collection_capacity_upgrade_cost ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionCapacityUpgradeCost,
     collectionStealChancePercent: economy?.collection_steal_chance_percent ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionStealChancePercent,
     defaultCollectionCapacity: economy?.default_collection_capacity ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.defaultCollectionCapacity,
@@ -284,7 +287,7 @@ async function getLevelingData(guildId: string) {
       .order('channel_name', { ascending: true })
       .returns<StoredGuildChannelRow[]>(),
     supabase.from('discord_skin_claim_settings')
-      .select('enabled, minimum_interval_minutes, maximum_interval_minutes, claim_window_minutes, all_channels')
+      .select('enabled, minimum_interval_minutes, maximum_interval_minutes, claim_window_minutes, all_channels, command_channel_id')
       .eq('guild_id', guildId)
       .maybeSingle<StoredSkinClaimSettingsRow>(),
     supabase.from('discord_skin_claim_channels')
@@ -524,6 +527,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const skinClaimMinimumIntervalMinutes = parsePositiveInteger(body.skinClaimMinimumIntervalMinutes, 'Skin-claim minimum interval', 1, 10080);
     const skinClaimMaximumIntervalMinutes = parsePositiveInteger(body.skinClaimMaximumIntervalMinutes, 'Skin-claim maximum interval', skinClaimMinimumIntervalMinutes, 10080);
     const skinClaimClaimWindowMinutes = parsePositiveInteger(body.skinClaimClaimWindowMinutes, 'Skin-claim window', 1, 1440);
+    const skinClaimCommandChannelId = parseOptionalSnowflake(body.skinClaimCommandChannelId, 'Collections commands channel ID');
     const skinClaimSummonBaseCost = parsePositiveInteger(body.skinClaimSummonBaseCost, 'Summon base cost', 1, 1_000_000_000);
     const skinClaimDefaultCollectionCapacity = parsePositiveInteger(body.skinClaimDefaultCollectionCapacity, 'Default collection size', 1, 10_000);
     const skinClaimCollectionCapacityUpgradeCost = parsePositiveInteger(body.skinClaimCollectionCapacityUpgradeCost, 'Collection level-up cost', 1, 1_000_000_000);
@@ -584,6 +588,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (skinClaimChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose skin-claim channels that are currently available to the KnowLeague bot.');
     }
+    if (skinClaimCommandChannelId && !sendableChannelIds.has(skinClaimCommandChannelId)) {
+      throw new ApiError(400, 'Choose a Collections commands channel that is currently available to the KnowLeague bot.');
+    }
     if (fishingCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose fishing command channels that are currently available to the KnowLeague bot.');
     }
@@ -623,6 +630,12 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_sell_values: skinClaimSellValues,
     });
     if (error) throw error;
+    const { error: collectionCommandChannelError } = await supabase.rpc('replace_discord_skin_claim_command_channel', {
+      p_command_channel_id: skinClaimCommandChannelId,
+      p_guild_id: guildId,
+      p_updated_by: user.id,
+    });
+    if (collectionCommandChannelError) throw collectionCommandChannelError;
     const { error: fishingConfigurationError } = await supabase.rpc('replace_discord_fishing_command_configuration', {
       p_command_all_channels: fishingCommandAllChannels,
       p_command_channel_ids: fishingCommandChannelIds,

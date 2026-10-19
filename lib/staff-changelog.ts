@@ -17,6 +17,47 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-18-discord-collections-command-channel-and-compact-panels',
+    patch: 'patch-2026-10-18-discord-collections-command-channel-and-compact-panels',
+    timestamp: '2026-10-18T12:00:00.000Z',
+    title: 'Restrict Collections commands and compact skin panels',
+    summary:
+      'Discord Collections can now be restricted to one configured command channel while retaining the staff spawn exception, and collection cards now reveal detailed metadata and sell value only on demand.',
+    details: [
+      'The new optional Collections commands channel is validated against synchronized sendable Discord text channels. When configured, it gates every /collections subcommand except the collection-admin-only /collections spawn command; an empty setting retains the current all-channel behavior.',
+      'The manual-drop reservation RPC now preserves the existing enabled-state, skin validation, four-digit ID, and one-live-drop protections while deliberately allowing an authorized /collections spawn in any channel where the bot can send. Automatic, summon, and gamble drop-channel rules remain unchanged.',
+      'The retired /cl alias is removed from the registered guild command definitions and interaction routing. /collections collection now accepts an optional current-server member, allowing public browsing of another member\'s collection.',
+      'The local skin catalogue now records CommunityDragon’s centered splash path for every skin. Collection panels begin with only the skin name, rarity, collection position, and a compact centered-art thumbnail; the opener can use Show details to reveal champion, skin line, release date, acquisition information, KnowLeague ID, and the configured sale value. Spawn, claimed, and catalogue-preview embeds use the same compact treatment instead of a full-width splash image, and existing collected skins resolve their saved catalogue ID to the centered local-catalogue asset.',
+    ],
+    impact: [
+      'Apply migration 163 before deploying the matching website or bot: it adds the nullable command-channel setting, provides its service-role-only update RPC, and makes the existing manual-reservation RPC honor the documented spawn exception. Existing configuration defaults to all command channels and no collections are altered.',
+      'Deploy both the website and Discord bot together after the migration. Re-register guild slash commands so Discord removes /cl and exposes the optional member parameter on /collections collection.',
+      'No browser receives service-role access. Command-channel enforcement occurs in the bot against persisted configuration, and the website validates administrator input against synchronized bot-sendable channels.',
+    ],
+    files: [
+      'supabase/migrations/163_discord_collections_command_channel_and_compact_panels.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'components/discord-leveling-settings.tsx',
+      'app/api/discord/leveling/route.ts',
+      'lib/discord-skin-claims.ts',
+      'scripts/generate-catalogs.mjs',
+      'data/catalogs/skin-items.json',
+      'data/catalogs/skin-release-dates.json',
+      'data/catalogs/champion-gameplay-metadata.json',
+      'tests/discord-skin-claims.test.ts',
+      'tests/discord-command-visibility.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Collections command and embed tests passed (10 checks).',
+      'Regenerated the local catalogue (845 ability items and 1,978 skin items) and verified a generated CommunityDragon centered-splash URL returns an image/jpeg response. The generator retained its existing champion-metadata fallback after that remote metadata source returned incomplete data.',
+      'npm run check passed: root lint and type-check, the complete Vitest suite (197 tests), and the Discord bot TypeScript check all completed successfully. Existing unrelated Next.js <img> lint warnings remain.',
+      'Migration 163 was created locally only and has not been pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-19-discord-fishing-beta-hardening',
     patch: 'patch-2026-10-19-discord-fishing-beta-hardening',
     timestamp: '2026-10-19T03:30:31.681Z',

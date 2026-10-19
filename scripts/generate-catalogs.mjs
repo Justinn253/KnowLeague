@@ -95,6 +95,12 @@ const SPECIES_LABEL_OVERRIDES = {
   'Voidborn': 'Void-Being',
 };
 
+function toCommunityDragonAssetUrl(assetPath) {
+  return typeof assetPath === 'string' && assetPath.startsWith('/lol-game-data/assets/')
+    ? `${COMMUNITY_DRAGON_BASE_URL}/${assetPath.slice('/lol-game-data/assets/'.length).toLowerCase()}`
+    : '';
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
@@ -549,6 +555,7 @@ async function buildSkinItems(releaseDates, championMetadata) {
         title: 'Skin Splash',
         question: skin.name,
         answer: skin.name,
+        centeredImageUrl: toCommunityDragonAssetUrl(skin.splashPath),
         imageUrl: champion ? toSkinSplashUrl(champion.alias, skinNumber) : '',
         champion: champion?.name ?? 'Unknown',
         releaseDate,

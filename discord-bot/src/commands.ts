@@ -9,13 +9,17 @@ function addSkinIdOption(command: SlashCommandSubcommandBuilder) {
     .setRequired(true));
 }
 
-function createCollectionsCommand(name: 'collections' | 'cl') {
+function createCollectionsCommand() {
   return new SlashCommandBuilder()
-    .setName(name)
+    .setName('collections')
     .setDescription('Browse and manage KnowLeague skin collections.')
     .addSubcommand((subcommand) => subcommand
       .setName('collection')
-      .setDescription('Browse your claimed skins one at a time.'))
+      .setDescription('Browse a member\'s claimed skins one at a time.')
+      .addUserOption((option) => option
+        .setName('member')
+        .setDescription('Member whose collection to browse. Defaults to you.')
+        .setRequired(false)))
     .addSubcommand((subcommand) => subcommand
       .setName('give')
       .setDescription('Give one of your claimed skins to another server member.')
@@ -149,8 +153,7 @@ export const commandDefinitions = [
     .addSubcommand((subcommand) => subcommand
       .setName('catalogue')
       .setDescription('View the fishing field guide status.')),
-  createCollectionsCommand('collections'),
-  createCollectionsCommand('cl'),
+  createCollectionsCommand(),
   new SlashCommandBuilder()
     .setName('leaderboard')
     .setDescription('Show the server chat XP leaderboard.')

@@ -17,6 +17,31 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-18-discord-collections-centered-art-layout',
+    patch: 'patch-2026-10-18-discord-collections-centered-art-layout',
+    timestamp: '2026-10-18T12:30:00.000Z',
+    title: 'Restore full-width centered skin art in Discord Collections',
+    summary:
+      'Collections continues to use centered CommunityDragon splash art, now in Discord’s normal full-width image position below each skin panel’s metadata.',
+    details: [
+      'Skin drop, claimed-skin, collection, and catalogue-preview embeds now use Discord’s embed image slot instead of its thumbnail slot. This restores the established bottom placement and full-width presentation while retaining the centered artwork source.',
+      'The compact collection summary, Show details control, sale-value detail, collection pagination, and public collection access remain unchanged.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply this display-only correction. It does not require a website deployment, database migration, or slash-command registration on its own.',
+      'The preceding Collections feature patch still requires its unapplied migration 163, coordinated website and bot deployments, and guild command registration before that broader feature set can be released.',
+    ],
+    files: [
+      'discord-bot/src/skin-claims.ts',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Collections embed tests passed.',
+      'npm run check passed: root lint and type-check, the complete Vitest suite, and the Discord bot TypeScript check. Existing unrelated Next.js <img> lint warnings remain.',
+    ],
+  },
+  {
     id: 'patch-2026-10-18-discord-collections-command-channel-and-compact-panels',
     patch: 'patch-2026-10-18-discord-collections-command-channel-and-compact-panels',
     timestamp: '2026-10-18T12:00:00.000Z',

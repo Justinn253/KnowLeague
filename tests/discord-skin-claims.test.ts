@@ -109,7 +109,7 @@ describe('Discord skin-claim command contract', () => {
 
     expect(embed.description).toBe('**Elderwood Ahri** · **Epic**');
     expect(embed.fields).toBeUndefined();
-    expect(embed.thumbnail?.url).toBe('https://example.com/ahri.jpg');
+    expect(embed.image?.url).toBe('https://example.com/ahri.jpg');
   });
 
   it('shows collection metadata and the configured sale value only when details are requested', () => {
@@ -153,6 +153,6 @@ describe('Discord skin-claim command contract', () => {
     const fields = embed.fields ?? [];
 
     expect(fields).toContainEqual(expect.objectContaining({ name: 'KnowLeague ID', value: '#103000' }));
-    expect(embed.thumbnail?.url).toBe('https://example.com/ahri-centered.jpg');
+    expect(embed.image?.url).toBe('https://example.com/ahri-centered.jpg');
   });
 });

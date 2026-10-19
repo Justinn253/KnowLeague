@@ -294,7 +294,7 @@ function skinDropEmbed(
     .setColor(RARITY_COLORS[drop.rarity] ?? 0xF59E0B)
     .setTitle(`${claimed ? 'Claimed skin' : 'Skin drop'} · #${formatSkinCode(drop.skin_code)}`)
     .setDescription(details.join('\n'))
-    .setThumbnail(drop.image_url);
+    .setImage(drop.image_url);
   if (!collection) {
     embed.setDescription([
       claimed ? `<@${claimedByUserId}> claimed this skin.` : 'React to this message first to add this skin to your collection.',
@@ -836,7 +836,7 @@ export function buildSkinSearchEmbed(skin: CatalogSkin) {
     .setColor(RARITY_COLORS[normalizeRarity(skin.rarity)] ?? 0xF59E0B)
     .setTitle(`Skin preview · ${skin.answer}`)
     .setDescription('Catalogue preview only — this skin cannot be claimed from this message.')
-    .setThumbnail(getSkinDisplayImageUrl(skin))
+    .setImage(getSkinDisplayImageUrl(skin))
     .addFields(
       { name: 'Champion', value: skin.champion, inline: true },
       { name: 'Rarity', value: normalizeRarity(skin.rarity), inline: true },
@@ -857,7 +857,7 @@ export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: st
     .setColor(RARITY_COLORS[page.item.rarity] ?? 0xF59E0B)
     .setTitle(`${ownerName}'s skin collection · ${page.page + 1} of ${page.total} (max ${page.capacity})`)
     .setDescription(`**${page.item.skin_name}** · **${page.item.rarity}**`)
-    .setThumbnail(getClaimedSkinDisplayImageUrl(page.item))
+    .setImage(getClaimedSkinDisplayImageUrl(page.item))
     .setFooter({ text: `Skin ${page.page + 1} of ${page.total} · Use /collections give to transfer #${formatSkinCode(page.item.skin_code)}.` });
 
   if (!showDetails) return embed;

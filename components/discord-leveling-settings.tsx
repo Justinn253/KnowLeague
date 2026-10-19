@@ -214,10 +214,11 @@ export function DiscordLevelingSettings() {
         fishingCommandSettings: { ...current.fishingCommandSettings, allChannels: true },
       };
     }
+    const fishingCommandChannelIds = toggleId(current.fishingCommandChannelIds, channelId);
     return {
       ...current,
-      fishingCommandChannelIds: toggleId(current.fishingCommandChannelIds, channelId),
-      fishingCommandSettings: { ...current.fishingCommandSettings, allChannels: false },
+      fishingCommandChannelIds,
+      fishingCommandSettings: { ...current.fishingCommandSettings, allChannels: fishingCommandChannelIds.length === 0 },
     };
   });
   const updateSkinClaimRarityWeight = (rarity: DiscordSkinClaimRarityWeight['rarity'], weight: number) => setData((current) => ({

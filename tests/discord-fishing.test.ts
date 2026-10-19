@@ -5,6 +5,7 @@ import {
   FISHING_BIOMES,
   FISHING_FISH,
   FISHING_MYTHIC_FISH,
+  FISHING_UPGRADES,
   getFishingUpgrade,
   getFishingUpgradeCost,
   getFishingExpeditionLength,
@@ -12,7 +13,7 @@ import {
   type FishingExpeditionResult,
   type FishingEquipmentSnapshot,
 } from '../discord-bot/src/fishing-catalog';
-import { buildFishingCompletionEmbed } from '../discord-bot/src/fishing';
+import { buildFishingCompletionEmbed, selectFishingCrewSlot } from '../discord-bot/src/fishing';
 
 type SerializedSubcommand = {
   choices?: readonly unknown[];
@@ -93,6 +94,56 @@ describe('Discord fishing reworked progression', () => {
     expect(getFishingUpgrade('celestial-rod')?.catchableRarities).toEqual(['Uncommon', 'Rare', 'Epic', 'Legendary']);
     expect(getFishingUpgrade('god-rod')?.catchableRarities).toEqual(['Rare', 'Epic', 'Legendary', 'Mythic']);
     expect(FISHING_MYTHIC_FISH).toEqual([]);
+  });
+
+  it('keeps every resolved fish within its equipped rod rarity scope', () => {
+    const rodIds = ['plastic-rod', 'wooden-rod', 'fiberglass-rod', 'reinforced-rod', 'master-rod', 'celestial-rod', 'god-rod'];
+    for (const rodItemId of rodIds) {
+      const rod = getFishingUpgrade(rodItemId);
+      expect(rod?.catchableRarities).toBeDefined();
+      for (let seed = 1; seed <= 200; seed += 1) {
+        const result = resolveFishingExpedition('harbor', 4, { ...starterEquipment, rodItemId }, seed);
+        const fishCatches = result.catches.filter((entry) => entry.kind === 'fish');
+        expect(fishCatches.every((entry) => rod!.catchableRarities!.includes(entry.rarity))).toBe(true);
+        expect(fishCatches.some((entry) => entry.rarity === 'Mythic')).toBe(false);
+      }
+    }
+  });
+
+  it('enforces bait and permanent-gear result invariants', () => {
+    const truffleEquipment: FishingEquipmentSnapshot = {
+      ...starterEquipment,
+      baitItemId: 'truffle-worm',
+      rodItemId: 'master-rod',
+    };
+    for (let seed = 1; seed <= 500; seed += 1) {
+      const result = resolveFishingExpedition('harbor', 4, truffleEquipment, seed);
+      const fishCatches = result.catches.filter((entry) => entry.kind === 'fish');
+      expect(fishCatches.every((entry) => entry.rarity === 'Legendary')).toBe(true);
+      expect(new Set(result.gearItems.map((entry) => entry.itemId)).size).toBe(result.gearItems.length);
+    }
+  });
+
+  it('defines the requested purchasable bait, skill, and one-time gear catalogue', () => {
+    const byId = new Map(FISHING_UPGRADES.map((upgrade) => [upgrade.id, upgrade]));
+    expect(byId.get('chum')).toMatchObject({ cost: 10_000, requiredChatLevel: 5 });
+    expect(byId.get('magnet')).toMatchObject({ cost: 30_000, requiredChatLevel: 15 });
+    expect(byId.get('sonar')).toMatchObject({ cost: 75_000, requiredChatLevel: 25 });
+    expect(byId.get('bloodworms')).toMatchObject({ cost: 150_000, requiredChatLevel: 40 });
+    expect(byId.get('mysterious-sea-food')).toMatchObject({ cost: 250_000, requiredChatLevel: 55 });
+    expect(byId.get('truffle-worm')).toMatchObject({ cost: 1_000_000, requiredChatLevel: 80 });
+    expect(FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear')).toHaveLength(11);
+    expect(byId.get('gear-conduit')?.foundBiomeIds).toEqual(['warm-ocean']);
+    expect(byId.get('gear-teleporter')?.foundBiomeIds).toEqual(['rallypoint-delta']);
+    expect(byId.get('lucky-5')?.requiredUpgradeId).toBe('lucky-4');
+    expect(byId.get('haste-4')?.requiredUpgradeId).toBe('haste-3');
+  });
+
+  it('rejects an already-active requested crew slot before reaching the database', () => {
+    expect(selectFishingCrewSlot(3, [1], undefined)).toBe(2);
+    expect(selectFishingCrewSlot(3, [1], 2)).toBe(2);
+    expect(() => selectFishingCrewSlot(3, [1], 1)).toThrow('Crew slot 1 is already on an expedition.');
+    expect(() => selectFishingCrewSlot(3, [], 0)).toThrow('Every unlocked crew slot is already on an expedition.');
   });
 
   it('stacks cost and time reductions from skills and gear', () => {

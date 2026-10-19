@@ -17,6 +17,38 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-19-discord-fishing-beta-hardening',
+    patch: 'patch-2026-10-19-discord-fishing-beta-hardening',
+    timestamp: '2026-10-19T03:30:31.681Z',
+    title: 'Harden Discord fishing settlement and crew selection',
+    summary:
+      'Discord fishing now rejects a selected active crew slot before its database call, and settlement returns its committed balance in the same transaction used to award rewards and one-time gear.',
+    details: [
+      'The expedition launcher now validates both automatic and explicitly selected crew slots against the player\'s active trips. This avoids an unnecessary unique-slot write attempt and gives a precise member-facing message.',
+      'Migration 162 changes settlement locking so the player record is locked before the expedition record, avoiding a start-versus-settlement lock cycle. It re-checks the active expedition after acquiring that lock so simultaneous reconcilers remain idempotent.',
+      'Settlement now creates or locks the KnowBucks balance for every completed expedition, including no-fish returns, and returns that exact final balance alongside the committed result. Completion delivery no longer depends on a second database read after the settlement transaction.',
+      'Discord Configuration now switches back to the all-channels default when an administrator deselects the last individually allowed fishing channel, preserving the selected-channels invariant before the settings request is sent.',
+      'Fishing tests now exercise every rod\'s rarity boundary across deterministic outcomes, Truffle Worm and gear result invariants, requested crew-slot rejection, and the complete beta bait, skill, and gear catalogue.',
+    ],
+    impact: [
+      'Apply migration 162 after migrations 157 through 161 and before the matching bot deployment. It remains local only; existing expeditions, inventories, and balances are preserved.',
+      'This is a Discord bot, database, and configuration-page reliability patch. It does not change slash-command shapes or player-visible balance rules.',
+      'The completion-message fallback behavior is retained, while the final balance shown in a completion embed now comes from the same atomic settlement that granted it.',
+    ],
+    files: [
+      'supabase/migrations/162_harden_discord_fishing_settlement.sql',
+      'discord-bot/src/fishing.ts',
+      'components/discord-leveling-settings.tsx',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Expanded deterministic fishing tests for catalogue, rarity, bait, gear, and crew-slot safety.',
+      'Targeted fishing tests passed (12 checks); npm run check then passed lint, root type-check, the full Vitest suite (196 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain.',
+      'Migration 162 was created locally only and has not been pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-18-discord-fishing-rods-baits-skills-and-gear',
     patch: 'patch-2026-10-18-discord-fishing-rods-baits-skills-and-gear',
     timestamp: '2026-10-18T02:30:00.000Z',

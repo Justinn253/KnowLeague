@@ -65,6 +65,7 @@ type StartedExpeditionRow = { completes_at: string; expedition_id: number };
 type PurchaseUpgradeRow = { crew_slots: number; current_balance: number };
 type SettledExpeditionRow = {
   awarded_gear_item_ids: string[];
+  current_balance: number | null;
   discord_user_id: string | null;
   knowbucks_awarded: number;
   notification_channel_id: string | null;
@@ -201,6 +202,22 @@ async function getActiveExpeditions(config: DiscordBotConfig, discordUserId: str
   return data ?? [];
 }
 
+export function selectFishingCrewSlot(
+  crewSlots: number,
+  activeCrewSlots: readonly number[],
+  requestedCrewSlot?: number,
+) {
+  const crewSlot = requestedCrewSlot ?? Array.from({ length: crewSlots }, (_, index) => index + 1)
+    .find((slot) => !activeCrewSlots.includes(slot));
+  if (!Number.isInteger(crewSlot) || !crewSlot || crewSlot < 1 || crewSlot > crewSlots) {
+    throw new Error('Every unlocked crew slot is already on an expedition.');
+  }
+  if (activeCrewSlots.includes(crewSlot)) {
+    throw new Error(`Crew slot ${crewSlot} is already on an expedition.`);
+  }
+  return crewSlot;
+}
+
 export async function isFishingCommandAllowedInChannel(config: DiscordBotConfig, channelId: string) {
   const now = Date.now();
   if (!cachedFishingCommandSettings || cachedFishingCommandSettings.expiresAt <= now) {
@@ -247,11 +264,11 @@ export async function startFishingExpedition(
     getFishingPlayerState(config, discordUserId),
     getActiveExpeditions(config, discordUserId),
   ]);
-  const crewSlot = requestedCrewSlot ?? Array.from({ length: state.crewSlots }, (_, index) => index + 1)
-    .find((slot) => !activeExpeditions.some((expedition) => expedition.crew_slot === slot));
-  if (!crewSlot || crewSlot > state.crewSlots) {
-    throw new Error('Every unlocked crew slot is already on an expedition.');
-  }
+  const crewSlot = selectFishingCrewSlot(
+    state.crewSlots,
+    activeExpeditions.map((expedition) => expedition.crew_slot),
+    requestedCrewSlot,
+  );
   if (state.chatLevel < expeditionLength.requiredChatLevel) {
     throw new Error(`Expedition length ${durationTier} unlocks at chat level ${expeditionLength.requiredChatLevel}.`);
   }
@@ -430,14 +447,6 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
     return;
   }
 
-  const { data: balance, error: balanceError } = await createBotServiceClient(config)
-    .from('discord_knowbucks_balances')
-    .select('balance')
-    .eq('guild_id', config.guildId)
-    .eq('discord_user_id', settled.discord_user_id)
-    .maybeSingle<{ balance: number }>();
-  if (balanceError) throw new Error(`Unable to load completed fishing balance: ${balanceError.message}`);
-
   const awardedGearItemIds = new Set(settled.awarded_gear_item_ids ?? []);
   const displayedResult: FishingExpeditionResult = {
     ...settled.result,
@@ -448,7 +457,7 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
     allowedMentions: { parse: [] as const },
     components: [],
     content: `<@${settled.discord_user_id}> your fishing expedition is complete!`,
-    embeds: [buildFishingCompletionEmbed(expedition.biome_id, displayedResult, settled.knowbucks_awarded, balance?.balance ?? settled.knowbucks_awarded)],
+    embeds: [buildFishingCompletionEmbed(expedition.biome_id, displayedResult, settled.knowbucks_awarded, settled.current_balance ?? settled.knowbucks_awarded)],
   };
 
   if (expedition.notification_message_id) {
@@ -464,7 +473,7 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
   await channel.send({
     allowedMentions: { users: [settled.discord_user_id] },
     content: `<@${settled.discord_user_id}> your fishing expedition is complete!`,
-    embeds: [buildFishingCompletionEmbed(expedition.biome_id, displayedResult, settled.knowbucks_awarded, balance?.balance ?? settled.knowbucks_awarded)],
+    embeds: [buildFishingCompletionEmbed(expedition.biome_id, displayedResult, settled.knowbucks_awarded, settled.current_balance ?? settled.knowbucks_awarded)],
   });
 }
 

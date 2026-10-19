@@ -23,11 +23,15 @@ import {
   type DiscordSkinClaimSettings,
 } from '@/lib/discord-skin-claims';
 import {
+  DEFAULT_DISCORD_FISHING_BONUS_SETTINGS,
   DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
   DEFAULT_DISCORD_FISHING_ROLE_SETTINGS,
+  DISCORD_FISHING_WEEKDAY_PHENOMENA,
+  type DiscordFishingBonusSettings,
   type DiscordFishingCommandSettings,
   type DiscordFishingLevelRoleReward,
   type DiscordFishingRoleSettings,
+  type DiscordFishingWeekdayPhenomenonId,
 } from '@/lib/discord-fishing';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -45,6 +49,7 @@ type LevelingSettingsResponse = {
   skinClaimSettings: DiscordSkinClaimSettings;
   fishingCommandChannelIds: string[];
   fishingCommandSettings: DiscordFishingCommandSettings;
+  fishingBonusSettings: DiscordFishingBonusSettings;
   fishingRoleRewards: DiscordFishingLevelRoleReward[];
   fishingRoleSettings: DiscordFishingRoleSettings;
 };
@@ -63,6 +68,7 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
   skinClaimSettings: DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
   fishingCommandChannelIds: [],
   fishingCommandSettings: DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
+  fishingBonusSettings: DEFAULT_DISCORD_FISHING_BONUS_SETTINGS,
   fishingRoleRewards: [],
   fishingRoleSettings: DEFAULT_DISCORD_FISHING_ROLE_SETTINGS,
 };
@@ -70,6 +76,22 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
 const ALL_SKIN_CLAIM_CHANNELS_VALUE = '__all__';
 const ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE = '__all_collections_commands__';
 const ALL_FISHING_COMMAND_CHANNELS_VALUE = '__all_fishing_commands__';
+const FISHING_WEEKDAY_OPTIONS = [
+  { value: '0', label: 'Sunday' },
+  { value: '1', label: 'Monday' },
+  { value: '2', label: 'Tuesday' },
+  { value: '3', label: 'Wednesday' },
+  { value: '4', label: 'Thursday' },
+  { value: '5', label: 'Friday' },
+  { value: '6', label: 'Saturday' },
+] as const;
+const FISHING_PHENOMENON_DETAILS: Record<DiscordFishingWeekdayPhenomenonId, { description: string; label: string }> = {
+  'double-xp': { label: 'Double Fishing XP', description: 'Doubles Fishing XP from the expedition and its crates.' },
+  'double-knowbucks': { label: 'Double KnowBucks', description: 'Doubles sold fish, crate-loot, and Fishing level-up KnowBucks.' },
+  'higher-fish-rarity': { label: 'Higher fish rarity', description: 'Adds 25% to eligible non-Common fish rarity weights.' },
+  'shorter-expeditions': { label: 'Shorter expeditions', description: 'Reduces the selected expedition duration by 25%.' },
+  'extra-crate-loot': { label: 'Extra crate loot', description: 'Gives each automatically opened crate a 50% chance to roll one additional loot item.' },
+};
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat().format(value);
@@ -173,8 +195,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -213,6 +235,11 @@ export function DiscordLevelingSettings() {
     ]);
     return data.roles.filter((role) => role.assignable && (!protectedRoleIds.has(role.id) || role.id === data.fishingRoleSettings.topFisherRoleId));
   }, [data.collectionAdminRoleIds, data.fishingRoleRewards, data.fishingRoleSettings.topFisherRoleId, data.manualXpRoleIds, data.roleRewards, data.roles, data.settings.leaderboardTopRoleId]);
+  const fishingBonusRoleOptions = useMemo(() => data.roles.map((role) => ({
+    value: role.id,
+    label: role.name,
+    description: `Discord role ID: ${role.id}${role.assignable ? '' : ' · This role is not bot-assignable, but can still receive the member bonus.'}`,
+  })), [data.roles]);
   const updateSettings = <TKey extends keyof DiscordLevelingSettings>(key: TKey, value: DiscordLevelingSettings[TKey]) => {
     setData((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
   };
@@ -225,6 +252,27 @@ export function DiscordLevelingSettings() {
   const toggleId = (values: string[], value: string) => values.includes(value) ? values.filter((item) => item !== value) : [...values, value].sort();
   const toggleRewardRole = (roleId: string) => setSelectedRoleIds((current) => toggleId(current, roleId));
   const toggleFishingRewardRole = (roleId: string) => setSelectedFishingRoleIds((current) => toggleId(current, roleId));
+  const toggleFishingBonusRole = (roleId: string) => setData((current) => ({
+    ...current,
+    fishingBonusSettings: {
+      ...current.fishingBonusSettings,
+      bonusRoleIds: toggleId(current.fishingBonusSettings.bonusRoleIds, roleId),
+    },
+  }));
+  const toggleFishingPhenomenonWeekday = (phenomenon: DiscordFishingWeekdayPhenomenonId, weekdayValue: string) => {
+    setData((current) => {
+      const existing = current.fishingBonusSettings.weekdayPhenomena.find((entry) => entry.phenomenon === phenomenon);
+      const weekdays = toggleId((existing?.weekdays ?? []).map(String), weekdayValue).map(Number).sort((left, right) => left - right);
+      const weekdayPhenomena = current.fishingBonusSettings.weekdayPhenomena.filter((entry) => entry.phenomenon !== phenomenon);
+      return {
+        ...current,
+        fishingBonusSettings: {
+          ...current.fishingBonusSettings,
+          weekdayPhenomena: weekdays.length ? [...weekdayPhenomena, { phenomenon, weekdays }] : weekdayPhenomena,
+        },
+      };
+    });
+  };
   const toggleManualRole = (roleId: string) => setData((current) => ({ ...current, manualXpRoleIds: toggleId(current.manualXpRoleIds, roleId) }));
   const toggleCollectionAdminRole = (roleId: string) => setData((current) => ({ ...current, collectionAdminRoleIds: toggleId(current.collectionAdminRoleIds, roleId) }));
   const toggleLeaderboardExcludedRole = (roleId: string) => setData((current) => ({ ...current, leaderboardExcludedRoleIds: toggleId(current.leaderboardExcludedRoleIds, roleId) }));
@@ -350,13 +398,15 @@ export function DiscordLevelingSettings() {
           skinClaimSummonBaseCost: data.skinClaimSettings.summonBaseCost,
           fishingCommandAllChannels: data.fishingCommandSettings.allChannels,
           fishingCommandChannelIds: data.fishingCommandChannelIds,
+          fishingBonusRoleIds: data.fishingBonusSettings.bonusRoleIds,
           fishingRoleRewards: data.fishingRoleRewards,
           fishingTopFisherRoleId: data.fishingRoleSettings.topFisherRoleId,
+          fishingWeekdayPhenomena: data.fishingBonusSettings.weekdayPhenomena,
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
       setMessage('Discord Configuration saved. Fishing reward roles are granted when eligible members next gain Fishing XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
@@ -467,6 +517,45 @@ export function DiscordLevelingSettings() {
               />
             </div>
             <p className="mt-3 text-xs leading-5 text-slate-400">A change takes effect in the bot within about 30 seconds. Existing expeditions continue and update their original launch message when complete.</p>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Fishing member bonus roles</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Members who hold any selected role receive 10% more Fishing XP and KnowBucks. The bonus is evaluated and saved when each expedition starts, so later role changes do not alter an active trip.</p>
+            </div>
+            <div className="mt-4 max-w-2xl">
+              <AppSelectMenu
+                label="Roles receiving the Fishing member bonus"
+                value={data.fishingBonusSettings.bonusRoleIds[0] ?? ''}
+                selectedValues={data.fishingBonusSettings.bonusRoleIds}
+                multiple
+                onToggle={toggleFishingBonusRole}
+                disabled={!fishingBonusRoleOptions.length}
+                disabledDescription="No Discord roles have been synced yet."
+                headerDescription="Choose one or more roles. Roles do not need to be bot-assignable because this is a membership benefit."
+                searchable
+                searchPlaceholder="Type a role name or ID"
+                options={fishingBonusRoleOptions}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Scheduled Fishing phenomena</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Choose the UTC weekdays for each effect. Active effects are saved with an expedition at launch, so calendar edits never change a trip already in progress.</p>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              {DISCORD_FISHING_WEEKDAY_PHENOMENA.map((phenomenon) => {
+                const details = FISHING_PHENOMENON_DETAILS[phenomenon];
+                const weekdays = data.fishingBonusSettings.weekdayPhenomena.find((entry) => entry.phenomenon === phenomenon)?.weekdays ?? [];
+                return <div key={phenomenon} className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                  <h3 className="text-sm font-black text-white">{details.label}</h3>
+                  <p className="mt-1 min-h-10 text-xs leading-5 text-slate-400">{details.description}</p>
+                  <div className="mt-3"><AppSelectMenu label={'UTC weekdays for ' + details.label} value={weekdays[0]?.toString() ?? ''} selectedValues={weekdays.map(String)} multiple onToggle={(weekday) => toggleFishingPhenomenonWeekday(phenomenon, weekday)} headerDescription="Select one or more UTC weekdays, or clear every selection to disable this phenomenon." options={[...FISHING_WEEKDAY_OPTIONS]} /></div>
+                </div>;
+              })}
+            </div>
           </section>
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>

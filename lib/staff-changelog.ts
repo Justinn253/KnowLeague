@@ -17,6 +17,132 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-19-discord-fishing-level-reward-increase',
+    patch: 'patch-2026-10-19-discord-fishing-level-reward-increase',
+    timestamp: '2026-10-19T23:00:00.000Z',
+    title: 'Raise the Fishing level-up KnowBucks curve',
+    summary:
+      'Fishing level-up rewards now use a 500-KnowBuck floor and 1.5 times the reached level’s XP requirement, increasing the initial post-beta curve without restoring its prior scale.',
+    details: [
+      'Raised the minimum Fishing level-up award from 250 to 500 KnowBucks and increased the XP-requirement multiplier from one to 1.5. Levels 1 through 4 now award 500 KnowBucks, level 5 awards 525, and level 20 awards 2,775.',
+      'Added migration 172, which updates the authoritative four-argument Fishing settlement calculation. The stable signature and migration-170 five-argument role/phenomenon bonus wrapper are preserved, so role and Double KnowBucks modifiers continue to apply atomically.',
+      'Updated the bot-side display helper, Fishing documentation, and regression tests so visible estimates stay aligned with the settlement-time database award.',
+    ],
+    impact: [
+      'Apply migration 172 after migrations 157 through 171, then deploy the Discord bot. Migration 172 is local only and has not been pushed or applied.',
+      'No website deployment or slash-command registration is required. Existing Fishing levels and XP remain unchanged; future settlement level-up rewards use the increased curve.',
+    ],
+    files: [
+      'supabase/migrations/172_increase_discord_fishing_level_reward_curve.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Updated Fishing-level reward regression coverage for the 500 KnowBuck floor and 1.5× XP-requirement scale.',
+      'npm run check passed lint, root type-check, the full Vitest suite (209 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+      'Migration 172 remains local only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-relic-rate-adjustment',
+    patch: 'patch-2026-10-19-discord-fishing-relic-rate-adjustment',
+    timestamp: '2026-10-19T22:45:00.000Z',
+    title: 'Raise the Fishing Relic discovery rate',
+    summary:
+      'Fishing Relics now have a 0.01% base discovery chance per expedition catch roll, up from the beta 0.001% rate.',
+    details: [
+      'Raised FISHING_RELIC_DROP_RATE from 0.00001 to 0.0001: ten times the immediately preceding rate while still remaining one-tenth of the original 0.1% baseline.',
+      'Sonar and Conduit retain their existing double-rate behavior, so their combined multiplier remains four times the configured base rate.',
+      'Updated operator documentation and regression coverage to make the configured rate and resulting balance explicit.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply the higher rate. No database migration, website deployment, or slash-command registration is required.',
+      'The rate is resolved when an expedition settles, so active expeditions will use the new rate after the bot deploys.',
+    ],
+    files: [
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Updated the Fishing catalogue regression assertion for the 0.01% base Relic rate.',
+      'npm run check passed lint, root type-check, the full Vitest suite (209 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-xp-and-level-reward-rebalance',
+    patch: 'patch-2026-10-19-discord-fishing-xp-and-level-reward-rebalance',
+    timestamp: '2026-10-19T22:30:00.000Z',
+    title: 'Substantially lower Fishing XP and level-up KnowBucks',
+    summary:
+      'New Fishing expeditions now earn 75% less base expedition XP, and Fishing level-up KnowBucks use a substantially lower XP-scaled curve with a 250-KnowBuck floor.',
+    details: [
+      'Reduced base expedition XP from 30 to 7.5 per fish roll. Whole-XP settlement rounds down, producing 7, 90, 900, and 5,400 base XP for the four current expedition lengths; crate XP, Giant Pearl, role bonuses, and Double XP continue to apply afterward.',
+      'Bumped the saved Fishing catalogue version to 6. New expeditions use the lower XP scale, while active version-5 and earlier expeditions retain their launch-time 30-XP-per-roll scale when they settle.',
+      'Reduced Fishing level-up rewards from max(1,000, 10 times the level XP requirement) to max(250, the level XP requirement). Levels 1 through 4 award 250 KnowBucks, level 5 awards 350, and level 20 awards 1,850 instead of 18,500. Role and Double KnowBucks multipliers still apply to the reduced award.',
+      'Added migration 171, which replaces the four-argument Fishing settlement function with the new level-reward calculation while preserving its return contract and compatibility with the five-argument role/phenomenon bonus wrapper from migration 170.',
+    ],
+    impact: [
+      'Apply migration 171 after migrations 157 through 170, then deploy the Discord bot. Migration 171 is local only and has not been pushed or applied.',
+      'No website deployment or slash-command registration is required for this rebalance. Existing active expeditions keep their prior XP scale; completed expeditions are unaffected.',
+      'Fishing level thresholds do not change, so players retain their current Fishing level and total XP. Only future settlement XP and level-up KnowBucks awards change.',
+    ],
+    files: [
+      'supabase/migrations/171_rebalance_discord_fishing_xp_and_level_rewards.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added regression coverage for the revised level-reward curve and the catalogue-version split between active and new expeditions.',
+      'npm run check passed lint, root type-check, the full Vitest suite (209 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+      'Migration 171 remains local only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-fishing-relics-and-phenomena',
+    patch: 'patch-2026-10-19-discord-fishing-relics-and-phenomena',
+    timestamp: '2026-10-19T22:15:00.000Z',
+    title: 'Add Fishing relics, member bonuses, and weekday phenomena',
+    summary:
+      'Discord Fishing now calls permanent treasure Relics, reduces their base discovery rate to 0.001%, preserves full Crew rewards, and supports launch-snapshotted role and UTC weekday bonuses.',
+    details: [
+      'Reduced the per-catch-roll permanent Relic discovery rate from 0.1% to 0.001%, exactly one percent of the prior rate. Sonar and Conduit still double that reduced base chance; stable database item IDs and internal category values remain unchanged for compatibility.',
+      'Renamed all member-facing Gear wording to Relics across Fishing help, inventory, catalogue, completion embeds, upgrade descriptions, and operator documentation. Crew expeditions still take three times as long, but no longer halve fish-sale rewards.',
+      'Added Fishing Configuration controls for up to 25 synced membership roles. Holding any selected role snapshots a 10% Fishing XP and KnowBucks bonus when an expedition starts; this includes the Fishing level-up KnowBucks payout through the atomic settlement wrapper.',
+      'Added UTC weekday controls for Double XP, Double KnowBucks, +25% higher fish-rarity weights, 25% shorter expeditions, and Extra Crate Loot. Effects are evaluated once at launch and stored on the equipment snapshot. Extra Crate Loot gives every auto-opened crate a 50% chance to roll a second item, averaging 50% more crate items without altering the crate XP award.',
+      'Added migration 169 for service-role-only role and weekday configuration with database validation, and migration 170 for the five-argument settlement RPC that atomically adds snapshot-based Fishing level-up KnowBucks bonuses while preserving the existing four-argument RPC for older callers.',
+    ],
+    impact: [
+      'Apply migrations 169 and 170, in order, after migrations 157 through 168; both remain local only and have not been pushed or applied.',
+      'Deploy both the website and Discord bot after the migrations. A bot deploy enables Relics, Crew reward correction, and expedition mechanics; a website deploy exposes the new configuration controls.',
+      'No slash-command shape changed, so command registration is not required for this patch. Existing expeditions retain their prior saved behavior; only new expeditions receive the configured bonuses.',
+    ],
+    files: [
+      'supabase/migrations/169_add_discord_fishing_bonus_configuration.sql',
+      'supabase/migrations/170_add_discord_fishing_settlement_bonus_multiplier.sql',
+      'lib/discord-fishing.ts',
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Regression coverage was extended for the reduced Relic rate, Crew reward parity, modifier duration, role and weekday reward stacking, Relic catalogue labels, and empty completion sections.',
+      'npm run check passed lint, root type-check, the full Vitest suite (208 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+      'Migrations 169 and 170 remain local only and have not been pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-19-discord-fishing-level-roles',
     patch: 'patch-2026-10-19-discord-fishing-level-roles',
     timestamp: '2026-10-19T21:20:00.000Z',

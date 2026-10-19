@@ -13,6 +13,7 @@ import {
   getFishingBiome,
   getFishingCrate,
   getFishingExpeditionLength,
+  getFishingKnowBucksMultiplier,
   getFishingSaleBonusPercent,
   getFishingTotalXpForLevel,
   getFishingUpgrade,
@@ -27,6 +28,7 @@ import {
   type FishingCrateRarity,
   type FishingDurationTier,
   type FishingEquipmentSnapshot,
+  type FishingExpeditionModifiers,
   type FishingExpeditionResult,
   type FishingFish,
   type FishingRarity,
@@ -74,6 +76,17 @@ type FishingCommandSettingsRow = {
 
 type FishingCommandChannelRow = {
   channel_id: string;
+};
+
+type FishingBonusRoleRow = {
+  discord_role_id: string;
+};
+
+type FishingWeekdayPhenomenonId = 'double-xp' | 'double-knowbucks' | 'higher-fish-rarity' | 'shorter-expeditions' | 'extra-crate-loot';
+
+type FishingWeekdayPhenomenonRow = {
+  phenomenon: FishingWeekdayPhenomenonId;
+  weekday: number;
 };
 
 type FishingLevelRoleRewardRow = {
@@ -146,6 +159,7 @@ export type FishingCatalogueProgress = {
 };
 
 export type StartedFishingExpedition = {
+  activeModifierLabels?: string[];
   biomeName: string;
   crewSlot: number;
   durationSeconds: number;
@@ -178,16 +192,24 @@ export type OpenedFishingCrates = {
 
 const FISHING_SCHEDULER_INTERVAL_MS = 5_000;
 const FISHING_COMMAND_SETTINGS_CACHE_MS = 30_000;
+const FISHING_BONUS_SETTINGS_CACHE_MS = 30_000;
 const FISHING_LEVEL_REWARDS_CACHE_MS = 30_000;
 const FISHING_TOP_ROLE_RECONCILIATION_INTERVAL_MS = 60_000;
 const FISHING_TOP_ROLE_MAX_MEMBER_SCAN = 500;
 let scheduler: ReturnType<typeof setInterval> | null = null;
 let settlementInFlight: Promise<void> | null = null;
 let cachedFishingCommandSettings: { allowedChannelIds: Set<string> | null; expiresAt: number } | null = null;
+let cachedFishingBonusSettings: { expiresAt: number; guildId: string; value: FishingBonusSettings } | null = null;
+let fishingBonusSettingsLoad: Promise<FishingBonusSettings> | null = null;
 let cachedFishingLevelRewards: { expiresAt: number; guildId: string; value: FishingLevelRoleRewardRow[] } | null = null;
 let fishingLevelRewardsLoad: Promise<FishingLevelRoleRewardRow[]> | null = null;
 let fishingTopRoleSyncInFlight: Promise<void> | null = null;
 let lastFishingTopRoleReconciliationAt = 0;
+
+type FishingBonusSettings = {
+  bonusRoleIds: ReadonlySet<string>;
+  weekdaysByPhenomenon: ReadonlyMap<FishingWeekdayPhenomenonId, ReadonlySet<number>>;
+};
 
 function getFirstResult<T>(data: T | T[] | null) {
   return Array.isArray(data) ? data[0] ?? null : data;
@@ -208,10 +230,18 @@ function normalizeEquipmentSnapshot(snapshot: FishingEquipmentSnapshot): Fishing
       const item = getFishingUpgrade(itemId);
       return item?.category === 'gear' || item?.category === 'skill';
     });
-  const catalogueVersion = snapshot.catalogueVersion === 2 || snapshot.catalogueVersion === 3
+  const catalogueVersion = snapshot.catalogueVersion === 2 || snapshot.catalogueVersion === 3 || snapshot.catalogueVersion === 4 || snapshot.catalogueVersion === 5
     ? snapshot.catalogueVersion
-    : 4;
-  return { catalogueVersion, rodItemId: rod.id, baitItemId: bait.id, passiveItemIds };
+    : 6;
+  const modifiers: FishingExpeditionModifiers = {
+    doubleKnowBucks: snapshot.modifiers?.doubleKnowBucks === true,
+    doubleXp: snapshot.modifiers?.doubleXp === true,
+    extraCrateLoot: snapshot.modifiers?.extraCrateLoot === true,
+    higherFishRarity: snapshot.modifiers?.higherFishRarity === true,
+    roleBonus: snapshot.modifiers?.roleBonus === true,
+    shorterExpeditions: snapshot.modifiers?.shorterExpeditions === true,
+  };
+  return { catalogueVersion, rodItemId: rod.id, baitItemId: bait.id, passiveItemIds, modifiers };
 }
 
 async function ensureFishingPlayer(config: DiscordBotConfig, discordUserId: string) {
@@ -274,7 +304,7 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
     chatLevel: levelResult.data?.level ?? 0,
     crewSlots: 1 + Number(playerResult.data.crew_one_unlocked) + Number(playerResult.data.crew_two_unlocked),
     equipment: normalizeEquipmentSnapshot({
-      catalogueVersion: 4,
+      catalogueVersion: 6,
       rodItemId: playerResult.data.equipped_rod_id,
       baitItemId: playerResult.data.equipped_bait_id,
       passiveItemIds: inventory
@@ -387,6 +417,81 @@ export async function isFishingCommandAllowedInChannel(config: DiscordBotConfig,
 
   return cachedFishingCommandSettings.allowedChannelIds === null
     || cachedFishingCommandSettings.allowedChannelIds.has(channelId);
+}
+
+async function getConfiguredFishingBonusSettings(config: DiscordBotConfig): Promise<FishingBonusSettings> {
+  const now = Date.now();
+  if (cachedFishingBonusSettings
+    && cachedFishingBonusSettings.guildId === config.guildId
+    && cachedFishingBonusSettings.expiresAt > now) {
+    return cachedFishingBonusSettings.value;
+  }
+  if (fishingBonusSettingsLoad) return fishingBonusSettingsLoad;
+
+  fishingBonusSettingsLoad = (async () => {
+    const supabase = createBotServiceClient(config);
+    const [rolesResult, phenomenaResult] = await Promise.all([
+      supabase
+        .from('discord_fishing_bonus_roles')
+        .select('discord_role_id')
+        .eq('guild_id', config.guildId)
+        .returns<FishingBonusRoleRow[]>(),
+      supabase
+        .from('discord_fishing_weekday_phenomena')
+        .select('phenomenon,weekday')
+        .eq('guild_id', config.guildId)
+        .returns<FishingWeekdayPhenomenonRow[]>(),
+    ]);
+    if (rolesResult.error) throw new Error(`Unable to load Fishing bonus roles: ${rolesResult.error.message}`);
+    if (phenomenaResult.error) throw new Error(`Unable to load Fishing weekday phenomena: ${phenomenaResult.error.message}`);
+
+    const weekdaysByPhenomenon = new Map<FishingWeekdayPhenomenonId, ReadonlySet<number>>();
+    for (const row of phenomenaResult.data ?? []) {
+      const weekdays = new Set(weekdaysByPhenomenon.get(row.phenomenon) ?? []);
+      weekdays.add(row.weekday);
+      weekdaysByPhenomenon.set(row.phenomenon, weekdays);
+    }
+    const value: FishingBonusSettings = {
+      bonusRoleIds: new Set((rolesResult.data ?? []).map((row) => row.discord_role_id)),
+      weekdaysByPhenomenon,
+    };
+    cachedFishingBonusSettings = { expiresAt: Date.now() + FISHING_BONUS_SETTINGS_CACHE_MS, guildId: config.guildId, value };
+    return value;
+  })();
+
+  try {
+    return await fishingBonusSettingsLoad;
+  } finally {
+    fishingBonusSettingsLoad = null;
+  }
+}
+
+function getFishingExpeditionModifiers(
+  settings: FishingBonusSettings,
+  memberRoleIds: readonly string[],
+  launchedAt: Date,
+): FishingExpeditionModifiers {
+  const weekday = launchedAt.getUTCDay();
+  const isActive = (phenomenon: FishingWeekdayPhenomenonId) => settings.weekdaysByPhenomenon.get(phenomenon)?.has(weekday) ?? false;
+  return {
+    doubleKnowBucks: isActive('double-knowbucks'),
+    doubleXp: isActive('double-xp'),
+    extraCrateLoot: isActive('extra-crate-loot'),
+    higherFishRarity: isActive('higher-fish-rarity'),
+    roleBonus: memberRoleIds.some((roleId) => settings.bonusRoleIds.has(roleId)),
+    shorterExpeditions: isActive('shorter-expeditions'),
+  };
+}
+
+function getFishingModifierLabels(modifiers: FishingExpeditionModifiers) {
+  const labels: string[] = [];
+  if (modifiers.roleBonus) labels.push('Role bonus: +10% Fishing XP and KnowBucks');
+  if (modifiers.doubleXp) labels.push('Double Fishing XP');
+  if (modifiers.doubleKnowBucks) labels.push('Double KnowBucks');
+  if (modifiers.higherFishRarity) labels.push('+25% higher fish rarity');
+  if (modifiers.shorterExpeditions) labels.push('25% shorter expedition');
+  if (modifiers.extraCrateLoot) labels.push('50% more crate loot');
+  return labels;
 }
 
 async function getConfiguredFishingLevelRewards(
@@ -615,13 +720,15 @@ export async function startFishingExpedition(
   durationTier: FishingDurationTier,
   notificationChannelId: string,
   requestedCrewSlot?: number,
+  memberRoleIds: readonly string[] = [],
 ): Promise<StartedFishingExpedition> {
   const biome = getFishingBiome(biomeId);
   const expeditionLength = getFishingExpeditionLength(durationTier);
   if (!biome || !expeditionLength) throw new Error('Choose a valid fishing biome and expedition length.');
-  const [state, activeExpeditions] = await Promise.all([
+  const [state, activeExpeditions, bonusSettings] = await Promise.all([
     getFishingPlayerState(config, discordUserId),
     getActiveExpeditions(config, discordUserId),
+    getConfiguredFishingBonusSettings(config),
   ]);
   const crewSlot = selectFishingCrewSlot(
     state.crewSlots,
@@ -635,11 +742,22 @@ export async function startFishingExpedition(
     const upgrade = getFishingUpgrade(biome.requiredBoatUpgradeId);
     throw new Error(`${biome.name} requires the ${upgrade?.name ?? 'required boat upgrade'}.`);
   }
+  const modifiers = getFishingExpeditionModifiers(bonusSettings, memberRoleIds, new Date());
+  const equipment: FishingEquipmentSnapshot = {
+    ...state.equipment,
+    catalogueVersion: 6,
+    modifiers,
+  };
   const outcomeSeed = randomInt(1, 2_147_483_648);
-  const instantCompletion = shouldInstantlyCompleteFishingExpedition(state.equipment, outcomeSeed, crewSlot > 1);
+  const instantCompletion = shouldInstantlyCompleteFishingExpedition(equipment, outcomeSeed, crewSlot > 1);
   const durationSeconds = instantCompletion
     ? 0
-    : calculateFishingDurationSeconds(durationTier, crewSlot > 1, getFishingTimeReductionPercent(state.equipment));
+    : calculateFishingDurationSeconds(
+      durationTier,
+      crewSlot > 1,
+      getFishingTimeReductionPercent(equipment),
+      modifiers.shorterExpeditions ? 25 : 0,
+    );
   if (durationSeconds === null) throw new Error('Fishing expedition duration is invalid.');
 
   const { data, error } = await createBotServiceClient(config).rpc('start_discord_fishing_expedition', {
@@ -648,7 +766,7 @@ export async function startFishingExpedition(
     p_discord_user_id: discordUserId,
     p_duration_seconds: durationSeconds,
     p_duration_tier: durationTier,
-    p_equipment_snapshot: state.equipment,
+    p_equipment_snapshot: equipment,
     p_guild_id: config.guildId,
     p_notification_channel_id: notificationChannelId,
     p_outcome_seed: outcomeSeed,
@@ -656,7 +774,14 @@ export async function startFishingExpedition(
   if (error) throw new Error(`Unable to start Discord fishing expedition: ${error.message}`);
   const started = getFirstResult(data as StartedExpeditionRow | StartedExpeditionRow[] | null);
   if (!started) throw new Error('Discord fishing expedition did not return a result.');
-  return { biomeName: biome.name, crewSlot, durationSeconds, expeditionId: started.expedition_id, instantCompletion };
+  return {
+    activeModifierLabels: getFishingModifierLabels(modifiers),
+    biomeName: biome.name,
+    crewSlot,
+    durationSeconds,
+    expeditionId: started.expedition_id,
+    instantCompletion,
+  };
 }
 
 export async function attachFishingExpeditionMessage(
@@ -825,7 +950,7 @@ function formatCatch(catchItem: FishingExpeditionResult['catches'][number]) {
   if (catchItem.kind === 'crate') {
     return `${FISHING_CRATE_RARITY_MARKERS[catchItem.rarity]} **${catchItem.name}** -> **${catchItem.lootName}** (${catchItem.lootRarity})${quantity} — sold for ${formatNumber(catchItem.saleValue)} KnowBucks`;
   }
-  return `✨ **GEAR FOUND: ${catchItem.name}** — permanently added to inventory`;
+  return `✨ **RELIC FOUND: ${catchItem.name}** — permanently added to inventory`;
 }
 
 function buildFishingCatchFields(name: string, catches: FishingExpeditionResult['catches']) {
@@ -871,7 +996,7 @@ export function buildFishingCompletionEmbed(
       ...fishingSkillField,
       ...buildFishingCatchFields('Fish caught', result.catches.filter((catchItem) => catchItem.kind === 'fish')),
       ...buildFishingCatchFields('Crates opened', result.catches.filter((catchItem) => catchItem.kind === 'crate')),
-      ...buildFishingCatchFields('Gear found', result.catches.filter((catchItem) => catchItem.kind === 'gear')),
+      ...buildFishingCatchFields('Relics found', result.catches.filter((catchItem) => catchItem.kind === 'gear')),
     );
 }
 
@@ -913,6 +1038,7 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
   const reward = result.fishSaleValue + result.crateSaleValue + result.knowBucksFound;
   const { data, error } = await createBotServiceClient(config).rpc('settle_discord_fishing_expedition', {
     p_expedition_id: expedition.id,
+    p_fishing_level_knowbucks_multiplier_basis_points: Math.round(getFishingKnowBucksMultiplier(equipment.modifiers) * 10_000),
     p_knowbucks_awarded: reward,
     p_result: result,
     p_special_items: result.gearItems ?? [],

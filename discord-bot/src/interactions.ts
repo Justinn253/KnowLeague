@@ -102,6 +102,9 @@ let leaderboardCommandCooldownPruneAfter = 0;
 const fishingPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function buildFishingLaunchResponse(expedition: StartedFishingExpedition) {
+  const modifierDescription = expedition.activeModifierLabels?.length
+    ? `\n\nActive modifiers: ${expedition.activeModifierLabels.map((label) => `**${label}**`).join(' · ')}`
+    : '';
   return {
     components: [],
     content: '',
@@ -110,8 +113,8 @@ export function buildFishingLaunchResponse(expedition: StartedFishingExpedition)
         .setColor(0x0EA5E9)
         .setTitle(`${expedition.biomeName} expedition launched`)
         .setDescription(expedition.instantCompletion
-          ? `Crew slot **${expedition.crewSlot}** triggered the Teleporter and is returning immediately.`
-          : `Crew slot **${expedition.crewSlot}** is now fishing. This trip takes about **${formatFishingDuration(expedition.durationSeconds)}**.`),
+          ? `Crew slot **${expedition.crewSlot}** triggered the Teleporter and is returning immediately.${modifierDescription}`
+          : `Crew slot **${expedition.crewSlot}** is now fishing. This trip takes about **${formatFishingDuration(expedition.durationSeconds)}**.${modifierDescription}`),
     ],
   };
 }
@@ -236,7 +239,7 @@ function fishingInventoryTabLabel(tab: FishingInventoryTab) {
     rods: 'Rods',
     baits: 'Baits',
     skills: 'Skills',
-    gear: 'Gear',
+    gear: 'Relics',
     boats: 'Boats',
   };
   return labels[tab];
@@ -347,7 +350,7 @@ function buildFishingInventoryTabbedPanel(
       : tab === 'baits'
         ? 'Choose one owned bait below to equip it.'
         : tab === 'gear'
-          ? 'Gear is permanent and activates automatically. Its descriptions below state each active benefit.'
+          ? 'Relics are permanent and activate automatically. Their descriptions below state each active benefit.'
           : tab === 'skills'
             ? 'Skills are permanent player-stat upgrades and apply automatically.'
             : 'Boat upgrades are permanent and unlock expedition biomes automatically.';
@@ -393,10 +396,10 @@ export function buildFishingCataloguePanel(
       new EmbedBuilder()
         .setColor(0x0EA5E9)
         .setTitle(`Fishing catalogue · ${biome.name}`)
-        .setDescription(`${biome.description}\n✅ marks fish you have caught and gear you have found. ⬜ marks entries still to discover.`)
+        .setDescription(`${biome.description}\n✅ marks fish you have caught and relics you have found. ⬜ marks entries still to discover.`)
         .addFields(
           ...splitFishingPanelField('Fish caught', fish.map((entry) => `${isFishingFishCaught(progress, entry) ? '✅ Caught' : '⬜ Not caught'} — **${entry.name}** (${entry.rarity})`), 'No fish recorded.'),
-          ...splitFishingPanelField('Gear found', gear.map((entry) => `${progress.ownedGearItemIds.has(entry.id) ? '✅ Found' : '⬜ Not found'} — **${entry.name}**`), 'No gear recorded.'),
+          ...splitFishingPanelField('Relics found', gear.map((entry) => `${progress.ownedGearItemIds.has(entry.id) ? '✅ Found' : '⬜ Not found'} — **${entry.name}**`), 'No relics recorded.'),
         ),
     ],
   };
@@ -658,11 +661,11 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
             },
             {
               name: 'Inventory, crates, and catalogue',
-              value: '`/fish inventory` has focused equipment, skill, gear-description, and boat tabs. Newly caught crates open automatically. `/fish chests-open` redeems all held legacy crates, while `/fish catalogue` tracks fish catches and found gear by biome.',
+              value: '`/fish inventory` has focused equipment, skill, relic-description, and boat tabs. Newly caught crates open automatically. `/fish chests-open` redeems all held legacy crates, while `/fish catalogue` tracks fish catches and found relics by biome.',
             },
             {
               name: 'Crew expeditions',
-              value: 'Crew 1 and Crew 2 unlock at higher fishing levels. Their trips take three times as long and earn half the normal fish-sale reward.',
+              value: 'Crew 1 and Crew 2 unlock at higher fishing levels. Their trips take three times as long, with normal expedition rewards.',
             },
           ),
       ],
@@ -676,6 +679,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
     const requestedCrewSlot = interaction.options.getInteger('crew') ?? undefined;
     await interaction.deferReply();
     try {
+      const member = await interaction.guild.members.fetch(interaction.user.id);
       const expedition = await startFishingExpedition(
         config,
         interaction.user.id,
@@ -683,6 +687,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
         durationTier,
         interaction.channelId,
         requestedCrewSlot,
+        [...member.roles.cache.keys()],
       );
       await interaction.editReply(buildFishingLaunchResponse(expedition));
       try {
@@ -1048,6 +1053,9 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
 
     await interaction.deferUpdate();
     try {
+      const member = interaction.guild
+        ? await interaction.guild.members.fetch(preset.ownerDiscordUserId)
+        : null;
       const expedition = await startFishingExpedition(
         config,
         preset.ownerDiscordUserId,
@@ -1055,6 +1063,7 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
         preset.durationTier,
         interaction.channelId,
         preset.crewSlot,
+        member ? [...member.roles.cache.keys()] : [],
       );
       await interaction.editReply(buildFishingLaunchResponse(expedition));
       await attachFishingLaunchMessage(config, preset.ownerDiscordUserId, expedition, interaction.message.id, interaction.guild);
@@ -1246,8 +1255,8 @@ export async function handleChatInputCommand(
             { name: '/knowbucks balance [member]', value: 'View your KnowBucks balance or another member\'s balance.' },
             { name: '/knowbucks pay member amount', value: 'Pay KnowBucks to another server member.' },
             { name: '/knowbucks add/remove/set', value: 'Manage a member\'s KnowBucks. Requires a role selected in Discord Configuration.' },
-            { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent gear apply to the saved trip; crew runs take three times as long and return half fish-sale rewards.' },
-            { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or use the inventory tabs to inspect gear descriptions and equip an owned rod or bait.' },
+            { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent relics apply to the saved trip; crew runs take three times as long with normal rewards.' },
+            { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or use the inventory tabs to inspect relic descriptions and equip an owned rod or bait.' },
             { name: '/fish chests-open, catalogue, help', value: 'Redeem all held legacy chests, browse the biome-filtered field guide, or open focused fishing help. Newly caught crates open automatically during expeditions.' },
             { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Use Show details to see collection metadata and the skin\'s sell value.' },
             { name: '/collections give member skin-id', value: 'Give one of your claimed skins to another current server member by its four-digit ID.' },

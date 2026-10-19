@@ -12,6 +12,7 @@ import {
   FISHING_FISH,
   FISHING_EXPEDITION_XP_PER_BASE_CATCH,
   FISHING_MYTHIC_FISH,
+  FISHING_RELIC_DROP_RATE,
   FISHING_UPGRADES,
   getFishingUpgrade,
   getFishingUpgradeCost,
@@ -40,7 +41,7 @@ type SerializedSubcommand = {
 };
 
 const starterEquipment: FishingEquipmentSnapshot = {
-  catalogueVersion: 4,
+  catalogueVersion: 6,
   rodItemId: 'plastic-rod',
   baitItemId: 'basic-bait',
   passiveItemIds: [],
@@ -90,7 +91,7 @@ describe('Discord fishing command contract', () => {
     expect(description).not.toContain('<t:');
   });
 
-  it('shows only fish collection status and found gear in the biome catalogue', () => {
+  it('shows only fish collection status and found relics in the biome catalogue', () => {
     const progress: FishingCatalogueProgress = {
       caughtFish: [{ biomeId: 'harbor', name: 'Carp', rarity: 'Common' }],
       ownedGearItemIds: new Set(['gear-sea-star']),
@@ -98,13 +99,13 @@ describe('Discord fishing command contract', () => {
     const panel = buildFishingCataloguePanel('123456789012345678', 'harbor', Date.now() + 60_000, progress);
     const fields = panel.embeds[0]?.data.fields ?? [];
     const fish = fields.find((field) => field.name === 'Fish caught')?.value;
-    const gear = fields.find((field) => field.name === 'Gear found')?.value;
+    const relic = fields.find((field) => field.name === 'Relics found')?.value;
 
     expect(fish).toContain('Caught');
     expect(fish).toContain('Carp');
-    expect(gear).toContain('Found');
-    expect(gear).toContain('Sea Star');
-    expect(gear).not.toContain('Permanent treasure');
+    expect(relic).toContain('Found');
+    expect(relic).toContain('Sea Star');
+    expect(relic).not.toContain('Permanent relic');
     expect(fields.some((field) => field.name.startsWith('Crates') || field.name.startsWith('Crate loot'))).toBe(false);
   });
 });
@@ -117,6 +118,7 @@ describe('Discord fishing reworked progression', () => {
     expect(getFishingExpeditionLength(4)).toMatchObject({ requiredFishingLevel: 30, durationSeconds: 3_600, catchCount: [720, 720], higherRarityWeightBonusPercent: 15 });
     expect(calculateFishingDurationSeconds(4, false)).toBe(3_600);
     expect(calculateFishingDurationSeconds(4, true)).toBe(10_800);
+    expect(calculateFishingDurationSeconds(4, false, 0, 25)).toBe(2_700);
   });
 
   it('includes every named biome and applies its crate rarity scope', () => {
@@ -185,10 +187,12 @@ describe('Discord fishing reworked progression', () => {
     expect(getFishingTotalXpForLevel(0)).toBe(0);
     expect(getFishingTotalXpForLevel(20)).toBe(18_150);
     expect(getFishingLevelForTotalXp(18_150)).toBe(20);
-    expect(getFishingLevelUpKnowBucks(1)).toBe(1_000);
-    expect(getFishingLevelUpKnowBucks(2)).toBe(1_000);
-    expect(getFishingLevelUpKnowBucks(3)).toBe(1_500);
-    expect(getFishingLevelUpKnowBucks(20)).toBe(18_500);
+    expect(getFishingLevelUpKnowBucks(1)).toBe(500);
+    expect(getFishingLevelUpKnowBucks(2)).toBe(500);
+    expect(getFishingLevelUpKnowBucks(3)).toBe(500);
+    expect(getFishingLevelUpKnowBucks(4)).toBe(500);
+    expect(getFishingLevelUpKnowBucks(5)).toBe(525);
+    expect(getFishingLevelUpKnowBucks(20)).toBe(2_775);
   });
 
   it('condenses repeated catches into counted result rows for long expeditions', () => {
@@ -209,7 +213,15 @@ describe('Discord fishing reworked progression', () => {
     expect(legacyFishRolls).toBeLessThanOrEqual(15);
   });
 
-  it('makes legendary fish catchable with the legendary rod and halves crew money rewards', () => {
+  it('reduces new expedition XP by 75% without changing active expedition snapshots', () => {
+    const currentResult = resolveFishingExpedition('harbor', 1, starterEquipment, 123);
+    const activeResult = resolveFishingExpedition('harbor', 1, { ...starterEquipment, catalogueVersion: 5 }, 123);
+
+    expect(currentResult.fishingExpeditionXp).toBe(7);
+    expect(activeResult.fishingExpeditionXp).toBe(30);
+  });
+
+  it('makes legendary fish catchable with the legendary rod while preserving crew rewards', () => {
     const equipment: FishingEquipmentSnapshot = {
       ...starterEquipment,
       rodItemId: 'master-rod',
@@ -217,7 +229,7 @@ describe('Discord fishing reworked progression', () => {
     const solo = resolveFishingExpedition('rallypoint-delta', 4, equipment, 77, false);
     const crew = resolveFishingExpedition('rallypoint-delta', 4, equipment, 77, true);
     expect(FISHING_FISH.some((fish) => fish.rarity === 'Legendary')).toBe(true);
-    expect(crew.fishSaleValue).toBeLessThanOrEqual(Math.floor(solo.fishSaleValue / 2));
+    expect(crew.fishSaleValue).toBe(solo.fishSaleValue);
     expect(crew.crateSaleValue).toBe(solo.crateSaleValue);
   });
 
@@ -256,7 +268,7 @@ describe('Discord fishing reworked progression', () => {
     }
   });
 
-  it('defines the requested purchasable bait, skill, and one-time gear catalogue', () => {
+  it('defines the requested purchasable bait, skill, and one-time relic catalogue', () => {
     const byId = new Map(FISHING_UPGRADES.map((upgrade) => [upgrade.id, upgrade]));
     expect(byId.get('chum')).toMatchObject({ cost: 10_000, requiredFishingLevel: 5 });
     expect(byId.get('magnet')).toMatchObject({ cost: 30_000, requiredFishingLevel: 15 });
@@ -265,6 +277,7 @@ describe('Discord fishing reworked progression', () => {
     expect(byId.get('mysterious-sea-food')).toMatchObject({ cost: 250_000, requiredFishingLevel: 55 });
     expect(byId.get('truffle-worm')).toMatchObject({ cost: 1_000_000, requiredFishingLevel: 80 });
     expect(FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear')).toHaveLength(11);
+    expect(FISHING_RELIC_DROP_RATE).toBe(0.0001);
     expect(byId.get('gear-conduit')?.foundBiomeIds).toEqual(['warm-ocean']);
     expect(byId.get('gear-teleporter')?.foundBiomeIds).toEqual(['rallypoint-delta']);
     expect(byId.get('lucky-5')?.requiredUpgradeId).toBe('lucky-4');
@@ -283,6 +296,26 @@ describe('Discord fishing reworked progression', () => {
     expect(woodenRod).toBeDefined();
     expect(getFishingUpgradeCost(woodenRod!, ['cheapskate-1', 'gear-lost-pursasion-device'])).toBe(4_500);
     expect(calculateFishingDurationSeconds(4, false, 30)).toBe(2_520);
+  });
+
+  it('applies snapshotted role and weekday expedition bonuses', () => {
+    const base = resolveFishingExpedition('harbor', 4, { ...starterEquipment, rodItemId: 'master-rod' }, 548_921);
+    const boosted = resolveFishingExpedition('harbor', 4, {
+      ...starterEquipment,
+      rodItemId: 'master-rod',
+      modifiers: {
+        doubleKnowBucks: true,
+        doubleXp: true,
+        extraCrateLoot: true,
+        roleBonus: true,
+      },
+    }, 548_921);
+
+    expect(boosted.fishingXpAwarded).toBe(Math.floor((boosted.fishingExpeditionXp + boosted.fishingCrateXp) * 2.2));
+    expect(boosted.fishSaleValue).toBeGreaterThan(base.fishSaleValue * 2);
+    expect(boosted.crateSaleValue).toBeGreaterThan(base.crateSaleValue * 2);
+    expect(boosted.catches.filter((entry) => entry.kind === 'crate').reduce((total, entry) => total + entry.quantity, 0))
+      .toBeGreaterThan(base.catches.filter((entry) => entry.kind === 'crate').reduce((total, entry) => total + entry.quantity, 0));
   });
 
   it('opens expedition crates automatically and presents them separately from fish', () => {
@@ -325,7 +358,7 @@ describe('Discord fishing reworked progression', () => {
     expect(fish).toContain('Anchovy');
     expect(crates).toContain('Damaged Crate');
     expect(crates).toContain('Soggy Boot');
-    expect(embed.data.fields?.some((field) => field.name === 'Gear found')).toBe(false);
+    expect(embed.data.fields?.some((field) => field.name === 'Relics found')).toBe(false);
   });
 
   it('omits every empty completion category', () => {

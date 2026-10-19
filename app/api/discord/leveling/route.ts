@@ -21,11 +21,16 @@ import {
   type DiscordSkinClaimSettings,
 } from '@/lib/discord-skin-claims';
 import {
+  DEFAULT_DISCORD_FISHING_BONUS_SETTINGS,
   DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
   DEFAULT_DISCORD_FISHING_ROLE_SETTINGS,
+  DISCORD_FISHING_WEEKDAY_PHENOMENA,
+  type DiscordFishingBonusSettings,
   type DiscordFishingCommandSettings,
   type DiscordFishingLevelRoleReward,
   type DiscordFishingRoleSettings,
+  type DiscordFishingWeekdayPhenomenon,
+  type DiscordFishingWeekdayPhenomenonId,
 } from '@/lib/discord-fishing';
 import { requireAdminAccess } from '@/lib/moderation';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -123,6 +128,15 @@ type StoredFishingRoleRewardRow = {
   level: number;
 };
 
+type StoredFishingBonusRoleRow = {
+  discord_role_id: string;
+};
+
+type StoredFishingWeekdayPhenomenonRow = {
+  phenomenon: DiscordFishingWeekdayPhenomenonId;
+  weekday: number;
+};
+
 type LevelingSettingsBody = {
   collectionAdminRoleIds?: unknown;
   cooldownSeconds?: unknown;
@@ -150,8 +164,10 @@ type LevelingSettingsBody = {
   skinClaimSummonBaseCost?: unknown;
   fishingCommandAllChannels?: unknown;
   fishingCommandChannelIds?: unknown;
+  fishingBonusRoleIds?: unknown;
   fishingRoleRewards?: unknown;
   fishingTopFisherRoleId?: unknown;
+  fishingWeekdayPhenomena?: unknown;
   xpPerMessage?: unknown;
 };
 
@@ -208,6 +224,27 @@ function toFishingCommandSettings(row: StoredFishingCommandSettingsRow | null): 
 
 function toFishingRoleSettings(row: StoredFishingCommandSettingsRow | null): DiscordFishingRoleSettings {
   return row ? { topFisherRoleId: row.top_fisher_role_id } : DEFAULT_DISCORD_FISHING_ROLE_SETTINGS;
+}
+
+function toFishingBonusSettings(
+  roles: StoredFishingBonusRoleRow[],
+  phenomena: StoredFishingWeekdayPhenomenonRow[],
+): DiscordFishingBonusSettings {
+  if (roles.length === 0 && phenomena.length === 0) return DEFAULT_DISCORD_FISHING_BONUS_SETTINGS;
+  const weekdaysByPhenomenon = new Map<DiscordFishingWeekdayPhenomenonId, number[]>();
+  for (const phenomenon of phenomena) {
+    weekdaysByPhenomenon.set(phenomenon.phenomenon, [
+      ...(weekdaysByPhenomenon.get(phenomenon.phenomenon) ?? []),
+      phenomenon.weekday,
+    ]);
+  }
+  return {
+    bonusRoleIds: roles.map((role) => role.discord_role_id),
+    weekdayPhenomena: DISCORD_FISHING_WEEKDAY_PHENOMENA.flatMap((phenomenon): DiscordFishingWeekdayPhenomenon[] => {
+      const weekdays = weekdaysByPhenomenon.get(phenomenon) ?? [];
+      return weekdays.length ? [{ phenomenon, weekdays: [...weekdays].sort((left, right) => left - right) }] : [];
+    }),
+  };
 }
 
 function normalizeSkinClaimRarityWeights(rows: StoredSkinClaimRarityWeightRow[]): DiscordSkinClaimRarityWeight[] {
@@ -270,6 +307,8 @@ async function getLevelingData(guildId: string) {
     fishingCommandSettingsResult,
     fishingCommandChannelsResult,
     fishingRoleRewardsResult,
+    fishingBonusRolesResult,
+    fishingWeekdayPhenomenaResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
       .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
@@ -348,6 +387,17 @@ async function getLevelingData(guildId: string) {
       .order('level', { ascending: true })
       .order('discord_role_id', { ascending: true })
       .returns<StoredFishingRoleRewardRow[]>(),
+    supabase.from('discord_fishing_bonus_roles')
+      .select('discord_role_id')
+      .eq('guild_id', guildId)
+      .order('discord_role_id', { ascending: true })
+      .returns<StoredFishingBonusRoleRow[]>(),
+    supabase.from('discord_fishing_weekday_phenomena')
+      .select('phenomenon,weekday')
+      .eq('guild_id', guildId)
+      .order('phenomenon', { ascending: true })
+      .order('weekday', { ascending: true })
+      .returns<StoredFishingWeekdayPhenomenonRow[]>(),
   ]);
 
   if (settingsResult.error) throw settingsResult.error;
@@ -366,6 +416,8 @@ async function getLevelingData(guildId: string) {
   if (fishingCommandSettingsResult.error) throw fishingCommandSettingsResult.error;
   if (fishingCommandChannelsResult.error) throw fishingCommandChannelsResult.error;
   if (fishingRoleRewardsResult.error) throw fishingRoleRewardsResult.error;
+  if (fishingBonusRolesResult.error) throw fishingBonusRolesResult.error;
+  if (fishingWeekdayPhenomenaResult.error) throw fishingWeekdayPhenomenaResult.error;
 
   return {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
@@ -383,6 +435,10 @@ async function getLevelingData(guildId: string) {
     fishingCommandSettings: toFishingCommandSettings(fishingCommandSettingsResult.data),
     fishingRoleRewards: groupFishingRoleRewards(fishingRoleRewardsResult.data ?? []),
     fishingRoleSettings: toFishingRoleSettings(fishingCommandSettingsResult.data),
+    fishingBonusSettings: toFishingBonusSettings(
+      fishingBonusRolesResult.data ?? [],
+      fishingWeekdayPhenomenaResult.data ?? [],
+    ),
   };
 }
 
@@ -471,6 +527,32 @@ function parseFishingRoleRewards(value: unknown) {
     if (roleCount > 50) throw new ApiError(400, 'Provide up to 50 total Fishing reward roles.');
     return { level: parsedLevel, roleIds: parsedRoleIds };
   }).sort((left, right) => left.level - right.level);
+}
+
+function parseFishingWeekdayPhenomena(value: unknown): DiscordFishingWeekdayPhenomenon[] {
+  if (!Array.isArray(value) || value.length > DISCORD_FISHING_WEEKDAY_PHENOMENA.length) {
+    throw new ApiError(400, 'Provide up to five Fishing weekday phenomena.');
+  }
+
+  const seenPhenomena = new Set<DiscordFishingWeekdayPhenomenonId>();
+  return value.map((entry) => {
+    if (!entry || typeof entry !== 'object') throw new ApiError(400, 'Each Fishing weekday phenomenon must be valid.');
+    const { phenomenon, weekdays } = entry as { phenomenon?: unknown; weekdays?: unknown };
+    if (typeof phenomenon !== 'string' || !DISCORD_FISHING_WEEKDAY_PHENOMENA.includes(phenomenon as DiscordFishingWeekdayPhenomenonId)) {
+      throw new ApiError(400, 'Choose a supported Fishing weekday phenomenon.');
+    }
+    const typedPhenomenon = phenomenon as DiscordFishingWeekdayPhenomenonId;
+    if (seenPhenomena.has(typedPhenomenon)) throw new ApiError(400, 'Each Fishing weekday phenomenon can only be configured once.');
+    seenPhenomena.add(typedPhenomenon);
+    if (!Array.isArray(weekdays) || weekdays.length === 0 || weekdays.length > 7) {
+      throw new ApiError(400, 'Choose one or more weekdays for every Fishing phenomenon.');
+    }
+    const parsedWeekdays = weekdays.map((weekday) => parsePositiveInteger(weekday, 'Fishing phenomenon weekday', 0, 6));
+    if (new Set(parsedWeekdays).size !== parsedWeekdays.length) {
+      throw new ApiError(400, 'Each Fishing phenomenon weekday can only be selected once.');
+    }
+    return { phenomenon: typedPhenomenon, weekdays: parsedWeekdays.sort((left, right) => left - right) };
+  });
 }
 
 function parseRoleIds(value: unknown, label: string, maximum: number) {
@@ -582,6 +664,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const cooldownSeconds = parsePositiveInteger(body.cooldownSeconds, 'Cooldown', 1, 3600);
     const roleRewards = parseRoleRewards(body.roleRewards);
     const fishingRoleRewards = parseFishingRoleRewards(body.fishingRoleRewards);
+    const fishingBonusRoleIds = parseRoleIds(body.fishingBonusRoleIds, 'Fishing bonus roles', 25);
+    const fishingWeekdayPhenomena = parseFishingWeekdayPhenomena(body.fishingWeekdayPhenomena);
     const levelUpMessageTemplate = parseOptionalMessageTemplate(body.levelUpMessageTemplate, 'Level-up message');
     if (!levelUpMessageTemplate) throw new ApiError(400, 'Level-up messages must contain between 1 and 500 characters.');
     const levelUpMessageChannelId = parseOptionalSnowflake(body.levelUpMessageChannelId, 'Level-up channel ID');
@@ -640,6 +724,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     }
     if (leaderboardExcludedRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose leaderboard exclusion roles that are currently synced from Discord.');
+    }
+    if (fishingBonusRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
+      throw new ApiError(400, 'Choose Fishing bonus roles that are currently synced from Discord.');
     }
     if (leaderboardTopRoleId && !assignableRoleIds.has(leaderboardTopRoleId)) {
       throw new ApiError(400, 'Choose a leaderboard top role that is available below the KnowLeague bot role.');
@@ -735,6 +822,13 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_updated_by: user.id,
     });
     if (fishingRoleConfigurationError) throw fishingRoleConfigurationError;
+    const { error: fishingBonusConfigurationError } = await supabase.rpc('replace_discord_fishing_bonus_configuration', {
+      p_bonus_role_ids: fishingBonusRoleIds,
+      p_guild_id: guildId,
+      p_updated_by: user.id,
+      p_weekday_phenomena: fishingWeekdayPhenomena,
+    });
+    if (fishingBonusConfigurationError) throw fishingBonusConfigurationError;
     return NextResponse.json(await getLevelingData(guildId));
   } catch (error) {
     return getRouteErrorResponse(error);

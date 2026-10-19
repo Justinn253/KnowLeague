@@ -25,6 +25,7 @@ export type DiscordSkinClaimSettings = {
   allChannels: boolean;
   claimWindowMinutes: number;
   claimGracePeriodSeconds: number;
+  commandChannelId: string | null;
   collectionCapacityUpgradeCost: number;
   collectionStealChancePercent: number;
   defaultCollectionCapacity: number;
@@ -67,6 +68,7 @@ export const DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS: DiscordSkinClaimSettings = {
   allChannels: true,
   claimWindowMinutes: 30,
   claimGracePeriodSeconds: 10,
+  commandChannelId: null,
   collectionCapacityUpgradeCost: 500,
   collectionStealChancePercent: 1,
   defaultCollectionCapacity: 10,

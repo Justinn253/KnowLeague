@@ -7,11 +7,11 @@ This is the long-running Discord companion for the KnowLeague web app. It is int
 - `/link` directs a Discord user to the existing KnowLeague profile-link flow.
 - `/profile` confirms the caller's linked KnowLeague profile and links to its public page.
 - `/help` describes every KnowLeague bot command and its usage.
-- `/xp view [member]` privately shows a member's level, total XP, segmented progress bar, and remaining XP. It defaults to the caller.
+- `/xp view [member]` shows a member's level, total XP, segmented progress bar, and remaining XP. It defaults to the caller.
 - `/xp add` grants a member XP and `/xp set-level` sets a member to a level; both are available only to members whose Discord role is selected in **Discord Configuration**.
 - `/leaderboard [count]` posts the top active server members by XP, with 10 entries by default and up to 25 on request.
-- `/knowbucks balance [member]` privately shows your balance or a selected member's balance.
-- `/knowbucks pay member amount` privately transfers KnowBucks to another non-bot server member.
+- `/knowbucks balance [member]` shows your balance or a selected member's balance.
+- `/knowbucks pay member amount` transfers KnowBucks to another non-bot server member.
 - `/knowbucks add`, `/knowbucks remove`, and `/knowbucks set` are available to members whose Discord role is selected in **Discord Configuration**.
 - `/collections collection` publicly displays your claimed skins one at a time with Previous and Next buttons. `/cl` is a mirrored shortcut command because Discord does not support native slash-command aliases.
 - `/collections give member skin-id` transfers one of your claimed skins to a current server member by its four-digit KnowLeague ID.
@@ -19,6 +19,9 @@ This is the long-running Discord companion for the KnowLeague web app. It is int
 - `/collections summon` spends the configured KnowBucks cost (5,000 by default) to post a skin drop in the current channel. The summoner has the configured grace period to claim it first.
 - `/collections capacity-add slots` buys collection space in multiples of five slots at the configured price (500 KnowBucks per five slots by default), while role-authorized staff can use `/collections capacity-force-add member slots` at no cost.
 - `/collections steal` costs three times the claimed skin's configured sell value and applies a 30-minute cooldown after a paid attempt. `/collections favorite`, `/collections gamble`, `/collections search`, and `/collections sell` manage a collection by four-digit KnowLeague skin ID. Search results are catalogue previews only and cannot be claimed.
+- `/fish expedition-set biome length [crew]` sends the first available, or selected unlocked, crew slot to one of seven biomes. Lengths are 30 seconds (level 1), 60 seconds (level 20), 120 seconds (level 50), and 300 seconds (level 80); crew trips take three times as long.
+- `/fish expedition-progress` shows active expeditions and the most recent return. `/fish shop` has public, owner-controlled category panels for KnowBucks upgrades, while `/fish inventory` shows equipped rods/bait, permanent upgrades, treasure gear, and held chests.
+- `/fish help` provides the fishing-specific command and progression guide. `/fish chests-open` shows held chests without consuming them until named chest loot is implemented, while `/fish catalogue` explains the held catalogue and pet systems.
 
 All non-administrative slash-command responses are public to the server, including profiles, XP, KnowBucks balances and payments, and collection actions. XP/KnowBucks staff commands and `/collections spawn` or `/collections capacity-force-add` remain ephemeral, including authorization failures and action results. Collection-page button denials remain private to avoid channel spam. Leveling and skin claims observe eligible messages, reactions, and voice-state changes through the non-privileged `Guilds`, `GuildMessages`, `GuildMessageReactions`, `GuildModeration`, and `GuildVoiceStates` gateway intents. The bot does not read or store message text or voice audio, registers commands to one configured guild, and ignores all events from every other guild.
 
@@ -39,6 +42,16 @@ When a member is banned while the bot is running, their existing chat XP is rese
 KnowBucks is the server currency that will support the future shop. Every level reached through automatic chat or voice XP grants `level × 1,000` KnowBucks. If one award crosses several levels, it grants the sum for every level crossed. Manual XP and level corrections intentionally do not mint KnowBucks.
 
 Balances, level rewards, staff adjustments, and payments are atomic server-side transactions. The selected **Discord staff permissions** roles can add, remove, or set balances; remove never makes a balance negative. Members can publicly view balances and pay another non-bot server member, while staff adjustments stay private.
+
+## Fishing expeditions
+
+Fishing is a server-authoritative expedition system. Harbor is free; the permanent Sail, Abiotic Turbine, Submersible Pod, Magic Conch Navigator, Drill Unit, and Radar Scanner unlock Warm Ocean, Hydroplant Reservoir, Sunken Sea, Kelp Forest, Crystaline Caverns, and Rallypoint Delta respectively. Each boat upgrade has both its listed chat-level and KnowBucks requirement. Boat upgrades are permanent and do not need equipping. Kelp Forest chest drops are Uncommon or Rare.
+
+Every expedition saves its rod, one equipped bait, passive skills and gear, crew slot, and private result seed before it starts. Plastic through God Rods progressively gate the eligible fish rarities; God Rod is already Mythic-ready, although the Mythic fish catalogue is intentionally empty for now. Chum and Bloodworms can add matching-rarity fish, Magnet increases chest odds by 50%, Sonar halves fish-roll success while doubling gear odds, Mysterious Sea Food can add 50% more fish rolls, and Truffle Worm triples legendary odds while suppressing non-legendary fish. The four expedition lengths return 1, 2-3, 5-6, or 12-15 catches respectively before bait and gear effects. Crew 1 requires level 40 and 100,000 KnowBucks, Crew 2 requires level 80, Crew 1, and 250,000 KnowBucks. Crew runs take three times as long and return half normal-fish sale value.
+
+The bot uses one five-second reconciliation loop to settle due expeditions atomically, credit automatic fish sales, and store biome-appropriate chest rarities. Completion replaces the original launch message with the catches, reward, and resulting balance; if that message was deleted, the bot posts a fallback result. The Fishing tab in Discord Configuration defaults `/fish` to all channels and can restrict it to selected synced channels. Shop and inventory controls expire after one minute of inactivity. A restart therefore cannot duplicate or lose an already-started trip.
+
+Each fish-roll opportunity has a 0.1% base chance to find one permanent gear item that the player does not yet own; Sonar and Conduit each double that chance. Gear is awarded atomically and marked prominently in the expedition result. Sea Star, Alien Engine, Dual Hook, Rod Improvement Kit, Lost Pursasion Device, Conduit, Reservoir Growth, Magic Conch, and Teleporter have active fishing effects. Giant Pearl and Gemcracker are retained now for their future cross-game XP and chest-loot effects. Named chest contents, pets, catalogue progress, and storage remain held for later fishing updates.
 
 ## Skin claim drops
 
@@ -80,6 +93,13 @@ Deploy the website and bot as independent services from the same Git repository:
 For Railway, Render, Fly.io, or a container host, set the repository root as the Docker build context and point it to `discord-bot/Dockerfile`. Do not set the host's root directory to `discord-bot`, because the bot intentionally uses the root npm workspace and lockfile.
 
 After changing `src/commands.ts`, run `npm run discord:commands:register` once with production bot credentials. Guild commands update quickly and do not require a website deployment.
+
+After applying fishing migrations 157, 158, and 159, restart or redeploy the bot and register the revised command set:
+
+```bash
+npx supabase db push
+npm run discord:commands:register
+```
 
 For a test bot, make sure `discord-bot/.env` contains that test application's `DISCORD_APPLICATION_ID`, token, and private-server `DISCORD_GUILD_ID`, then run the registration command from the repository root. Starting the bot alone does not create slash commands.
 

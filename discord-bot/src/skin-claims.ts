@@ -14,6 +14,7 @@ import { createBotServiceClient } from './supabase.js';
 type CatalogSkin = {
   answer: string;
   champion: string;
+  centeredImageUrl?: string;
   id: string;
   imageUrl: string;
   rarity: string;
@@ -48,6 +49,10 @@ type SkinClaimAdminRoleRow = {
   discord_role_id: string;
 };
 
+type SkinClaimCommandSettingsRow = {
+  command_channel_id: string | null;
+};
+
 type SkinClaimRuntimeSettings = {
   claimWindowMinutes: number;
   eligibleChannelIds: Set<string>;
@@ -75,6 +80,7 @@ type ClaimedSkinDrop = {
   rarity: string;
   release_date: string;
   skin_code: number;
+  skin_catalog_id?: string;
   skin_line: string;
   skin_name: string;
 };
@@ -83,6 +89,7 @@ export type SkinCollectionPage = {
   capacity: number;
   item: ClaimedSkinDrop | null;
   page: number;
+  sellValue: number | null;
   total: number;
 };
 
@@ -92,6 +99,11 @@ type CollectionCapacitySettingsRow = {
 
 type CollectionCapacityRow = {
   extra_slots: number;
+};
+
+type CollectionSellValueRow = {
+  amount: number;
+  rarity: string;
 };
 
 type TransferredSkin = {
@@ -249,6 +261,23 @@ function formatAcquiredDate(value: string | null | undefined) {
   return `<t:${Math.floor(date.getTime() / 1_000)}:D>`;
 }
 
+function formatKnowBucks(value: number | null) {
+  return value === null ? 'Not configured' : `${new Intl.NumberFormat('en-US').format(value)} KnowBucks`;
+}
+
+function getSkinDisplayImageUrl(skin: Pick<CatalogSkin, 'centeredImageUrl' | 'imageUrl'>) {
+  return skin.centeredImageUrl && /^https:\/\//.test(skin.centeredImageUrl)
+    ? skin.centeredImageUrl
+    : skin.imageUrl;
+}
+
+function getClaimedSkinDisplayImageUrl(drop: Pick<ClaimedSkinDrop, 'image_url' | 'skin_catalog_id'>) {
+  const catalogSkin = drop.skin_catalog_id
+    ? loadSkinCatalog().find((skin) => skin.id === drop.skin_catalog_id)
+    : null;
+  return catalogSkin ? getSkinDisplayImageUrl(catalogSkin) : drop.image_url;
+}
+
 function skinDropEmbed(
   drop: Omit<ClaimedSkinDrop, 'claimed'>,
   claimedByUserId?: string,
@@ -256,39 +285,22 @@ function skinDropEmbed(
   raritySpawnPercent?: number,
 ) {
   const claimed = Boolean(claimedByUserId) || collection;
+  const details = [
+    `**${drop.skin_name}**`,
+    `Rarity: **${drop.rarity}**`,
+    ...(raritySpawnPercent === undefined ? [] : [`Rarity spawn chance: **${formatRaritySpawnPercent(raritySpawnPercent)}**`]),
+  ];
   const embed = new EmbedBuilder()
     .setColor(RARITY_COLORS[drop.rarity] ?? 0xF59E0B)
     .setTitle(`${claimed ? 'Claimed skin' : 'Skin drop'} · #${formatSkinCode(drop.skin_code)}`)
-    .setImage(drop.image_url)
-    .addFields(
-      {
-        name: 'Skin',
-        value: [
-          `**Name**\n${drop.skin_name}`,
-          `**Rarity**\n${drop.rarity}`,
-          ...(raritySpawnPercent === undefined ? [] : [`**Rarity spawn chance**\n${formatRaritySpawnPercent(raritySpawnPercent)}`]),
-          `**Skin line**\n${drop.skin_line}`,
-        ].join('\n\n'),
-        inline: true,
-      },
-      {
-        name: 'Details',
-        value: [
-          `**Champion**\n${drop.champion_name}`,
-          `**Release date**\n${formatReleaseDate(drop.release_date)}`,
-          `**KnowLeague ID**\n#${formatSkinCode(drop.skin_code)}`,
-          ...(collection
-            ? [
-              `**Acquired**\n${formatAcquiredDate(drop.owner_acquired_at)}`,
-              `**Method**\n${formatOwnershipMethod(drop.ownership_method)}`,
-            ]
-            : []),
-        ].join('\n\n'),
-        inline: true,
-      },
-    );
+    .setDescription(details.join('\n'))
+    .setImage(drop.image_url);
   if (!collection) {
-    embed.setDescription(claimed ? `<@${claimedByUserId}> claimed this skin.` : 'React to this message first to add this skin to your collection.');
+    embed.setDescription([
+      claimed ? `<@${claimedByUserId}> claimed this skin.` : 'React to this message first to add this skin to your collection.',
+      '',
+      ...details,
+    ].join('\n'));
   }
   return embed.setFooter({ text: claimed ? 'Use /collections collection to browse your collection.' : 'The first human reaction wins.' });
 }
@@ -375,7 +387,7 @@ async function abandonUnsentDrop(config: DiscordBotConfig, dropId: number) {
 function toSkinDrop(skin: CatalogSkin, reserved: ReservedSkinDrop) {
   return {
     champion_name: skin.champion,
-    image_url: skin.imageUrl,
+    image_url: getSkinDisplayImageUrl(skin),
     rarity: normalizeRarity(skin.rarity),
     release_date: skin.releaseDate,
     skin_code: reserved.skin_code,
@@ -433,7 +445,7 @@ async function reserveAndSendSkinDrop(
     p_channel_id: channelId,
     p_champion_name: skin.champion,
     p_guild_id: config.guildId,
-    p_image_url: skin.imageUrl,
+    p_image_url: getSkinDisplayImageUrl(skin),
     p_rarity: normalizeRarity(skin.rarity),
     p_release_date: skin.releaseDate,
     p_skin_catalog_id: skin.id,
@@ -476,7 +488,6 @@ export async function forceSkinClaimDrop(
   const settings = await getSkinClaimSettings(config, true);
   if (!settings) return { status: 'not-configured' };
   if (!settings.enabled) return { status: 'disabled' };
-  if (!settings.eligibleChannelIds.has(channelId)) return { status: 'not-configured' };
 
   const spawned = await reserveAndSendSkinDrop(
     config,
@@ -500,12 +511,27 @@ export async function getSkinClaimAdminRoleIds(config: DiscordBotConfig) {
   return new Set((data ?? []).map((role) => role.discord_role_id));
 }
 
+/**
+ * A configured command channel applies to every member-facing collection
+ * command except the staff-only spawn command. An absent settings row keeps
+ * the default open-channel behavior for guilds that have not configured drops.
+ */
+export async function isSkinCollectionCommandAllowedInChannel(config: DiscordBotConfig, channelId: string) {
+  const { data, error } = await createBotServiceClient(config)
+    .from('discord_skin_claim_settings')
+    .select('command_channel_id')
+    .eq('guild_id', config.guildId)
+    .maybeSingle<SkinClaimCommandSettingsRow>();
+  if (error) throw new Error(`Unable to load Discord collection command channel: ${error.message}`);
+  return !data?.command_channel_id || data.command_channel_id === channelId;
+}
+
 function skinDropArguments(config: DiscordBotConfig, channelId: string, skin: CatalogSkin) {
   return {
     p_channel_id: channelId,
     p_champion_name: skin.champion,
     p_guild_id: config.guildId,
-    p_image_url: skin.imageUrl,
+    p_image_url: getSkinDisplayImageUrl(skin),
     p_rarity: normalizeRarity(skin.rarity),
     p_release_date: skin.releaseDate,
     p_skin_catalog_id: skin.id,
@@ -656,10 +682,10 @@ export async function handleSkinClaimReaction(
 export async function getSkinCollectionPage(config: DiscordBotConfig, discordUserId: string, requestedPage: number): Promise<SkinCollectionPage> {
   const supabase = createBotServiceClient(config);
   const page = Math.max(0, Math.floor(requestedPage));
-  const [collectionResult, settingsResult, capacityResult] = await Promise.all([
+  const [collectionResult, settingsResult, capacityResult, sellValuesResult] = await Promise.all([
     supabase
       .from('discord_skin_claim_drops')
-      .select('skin_code, skin_name, champion_name, rarity, release_date, skin_line, image_url, owner_acquired_at, ownership_method, is_favorite', { count: 'exact' })
+      .select('skin_code, skin_catalog_id, skin_name, champion_name, rarity, release_date, skin_line, image_url, owner_acquired_at, ownership_method, is_favorite', { count: 'exact' })
       .eq('guild_id', config.guildId)
       .eq('owner_discord_user_id', discordUserId)
       .eq('status', 'claimed')
@@ -679,10 +705,16 @@ export async function getSkinCollectionPage(config: DiscordBotConfig, discordUse
       .eq('guild_id', config.guildId)
       .eq('discord_user_id', discordUserId)
       .maybeSingle<CollectionCapacityRow>(),
+    supabase
+      .from('discord_skin_claim_sell_values')
+      .select('rarity, amount')
+      .eq('guild_id', config.guildId)
+      .returns<CollectionSellValueRow[]>(),
   ]);
   if (collectionResult.error) throw new Error(`Unable to read Discord skin collection: ${collectionResult.error.message}`);
   if (settingsResult.error) throw new Error(`Unable to read Discord collection capacity: ${settingsResult.error.message}`);
   if (capacityResult.error) throw new Error(`Unable to read Discord collection capacity: ${capacityResult.error.message}`);
+  if (sellValuesResult.error) throw new Error(`Unable to read Discord skin sell values: ${sellValuesResult.error.message}`);
   if (!settingsResult.data) throw new Error('Discord collection economy has not been configured.');
   const total = collectionResult.count ?? 0;
   const capacity = settingsResult.data.default_collection_capacity + (capacityResult.data?.extra_slots ?? 0);
@@ -690,7 +722,11 @@ export async function getSkinCollectionPage(config: DiscordBotConfig, discordUse
   if (normalizedPage !== page) {
     return getSkinCollectionPage(config, discordUserId, normalizedPage);
   }
-  return { capacity, item: collectionResult.data?.[0] ? { ...collectionResult.data[0], claimed: true } : null, page: normalizedPage, total };
+  const item = collectionResult.data?.[0] ? { ...collectionResult.data[0], claimed: true } : null;
+  const sellValue = item
+    ? (sellValuesResult.data ?? []).find((entry) => entry.rarity === item.rarity)?.amount ?? null
+    : null;
+  return { capacity, item, page: normalizedPage, sellValue, total };
 }
 
 export async function transferSkinClaim(
@@ -800,7 +836,7 @@ export function buildSkinSearchEmbed(skin: CatalogSkin) {
     .setColor(RARITY_COLORS[normalizeRarity(skin.rarity)] ?? 0xF59E0B)
     .setTitle(`Skin preview · ${skin.answer}`)
     .setDescription('Catalogue preview only — this skin cannot be claimed from this message.')
-    .setImage(skin.imageUrl)
+    .setImage(getSkinDisplayImageUrl(skin))
     .addFields(
       { name: 'Champion', value: skin.champion, inline: true },
       { name: 'Rarity', value: normalizeRarity(skin.rarity), inline: true },
@@ -810,16 +846,43 @@ export function buildSkinSearchEmbed(skin: CatalogSkin) {
     );
 }
 
-export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: string) {
+export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: string, showDetails = false) {
   if (!page.item) {
     return new EmbedBuilder()
       .setColor(0x64748B)
       .setTitle(`${ownerName}'s skin collection (max ${page.capacity})`)
       .setDescription('No skins claimed yet. Watch for a skin drop and react first to claim it.');
   }
-  return skinDropEmbed(page.item, undefined, true)
+  const embed = new EmbedBuilder()
+    .setColor(RARITY_COLORS[page.item.rarity] ?? 0xF59E0B)
     .setTitle(`${ownerName}'s skin collection · ${page.page + 1} of ${page.total} (max ${page.capacity})`)
+    .setDescription(`**${page.item.skin_name}** · **${page.item.rarity}**`)
+    .setImage(getClaimedSkinDisplayImageUrl(page.item))
     .setFooter({ text: `Skin ${page.page + 1} of ${page.total} · Use /collections give to transfer #${formatSkinCode(page.item.skin_code)}.` });
+
+  if (!showDetails) return embed;
+
+  return embed.addFields(
+    {
+      name: 'Skin',
+      value: [
+        `**Champion**\n${page.item.champion_name}`,
+        `**Skin line**\n${page.item.skin_line}`,
+        `**Release date**\n${formatReleaseDate(page.item.release_date)}`,
+      ].join('\n\n'),
+      inline: true,
+    },
+    {
+      name: 'Collection details',
+      value: [
+        `**KnowLeague ID**\n#${formatSkinCode(page.item.skin_code)}`,
+        `**Sells for**\n${formatKnowBucks(page.sellValue)}`,
+        `**Acquired**\n${formatAcquiredDate(page.item.owner_acquired_at)}`,
+        `**Method**\n${formatOwnershipMethod(page.item.ownership_method)}`,
+      ].join('\n\n'),
+      inline: true,
+    },
+  );
 }
 
 export function skinCollectionCode(skinCode: number) {

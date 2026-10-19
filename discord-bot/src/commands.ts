@@ -9,13 +9,17 @@ function addSkinIdOption(command: SlashCommandSubcommandBuilder) {
     .setRequired(true));
 }
 
-function createCollectionsCommand(name: 'collections' | 'cl') {
+function createCollectionsCommand() {
   return new SlashCommandBuilder()
-    .setName(name)
+    .setName('collections')
     .setDescription('Browse and manage KnowLeague skin collections.')
     .addSubcommand((subcommand) => subcommand
       .setName('collection')
-      .setDescription('Browse your claimed skins one at a time.'))
+      .setDescription('Browse a member\'s claimed skins one at a time.')
+      .addUserOption((option) => option
+        .setName('member')
+        .setDescription('Member whose collection to browse. Defaults to you.')
+        .setRequired(false)))
     .addSubcommand((subcommand) => subcommand
       .setName('give')
       .setDescription('Give one of your claimed skins to another server member.')
@@ -90,8 +94,66 @@ export const commandDefinitions = [
   new SlashCommandBuilder()
     .setName('profile')
     .setDescription('View your linked KnowLeague profile.'),
-  createCollectionsCommand('collections'),
-  createCollectionsCommand('cl'),
+  new SlashCommandBuilder()
+    .setName('fish')
+    .setDescription('Send fishing expeditions and manage fishing upgrades.')
+    .addSubcommand((subcommand) => subcommand
+      .setName('help')
+      .setDescription('Learn how Discord fishing expeditions and progression work.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('expedition-set')
+      .setDescription('Send one available crew slot on a fishing expedition.')
+      .addStringOption((option) => option
+        .setName('biome')
+        .setDescription('Fishing biome to visit.')
+        .addChoices(
+          { name: 'Harbor — free', value: 'harbor' },
+          { name: 'Warm Ocean — Sail', value: 'warm-ocean' },
+          { name: 'Hydroplant Reservoir — Abiotic Turbine', value: 'hydroplant-reservoir' },
+          { name: 'Sunken Sea — Submersible Pod', value: 'sunken-sea' },
+          { name: 'Kelp Forest — Magic Conch Navigator', value: 'kelp-forest' },
+          { name: 'Crystaline Caverns — Drill Unit', value: 'crystaline-caverns' },
+          { name: 'Rallypoint Delta — Radar Scanner', value: 'rallypoint-delta' },
+        )
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('length')
+        .setDescription('1 = 30s, 2 = 60s, 3 = 120s, 4 = 300s. Longer trips catch more fish.')
+        .addChoices(
+          { name: 'Length 1 — 30 seconds', value: 1 },
+          { name: 'Length 2 — level 20 · 60 seconds', value: 2 },
+          { name: 'Length 3 — level 50 · 120 seconds', value: 3 },
+          { name: 'Length 4 — level 80 · 300 seconds', value: 4 },
+        )
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('crew')
+        .setDescription('Unlocked crew slot to use. Defaults to the first available slot.')
+        .setMinValue(1)
+        .setMaxValue(3)
+        .setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('expedition-progress')
+      .setDescription('View active expeditions and your latest completed trip.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('shop')
+      .setDescription('Browse fishing upgrades and spend KnowBucks.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('inventory')
+      .setDescription('View owned upgrades and equip rods or bait.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('chests-open')
+      .setDescription('View your held fishing chests; chest contents are coming soon.')
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('Reserved for the upcoming named chest-loot system.')
+        .setMinValue(1)
+        .setMaxValue(10)
+        .setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('catalogue')
+      .setDescription('View the fishing field guide status.')),
+  createCollectionsCommand(),
   new SlashCommandBuilder()
     .setName('leaderboard')
     .setDescription('Show the server chat XP leaderboard.')

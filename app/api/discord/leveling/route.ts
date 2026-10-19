@@ -20,6 +20,10 @@ import {
   type DiscordSkinClaimSellValue,
   type DiscordSkinClaimSettings,
 } from '@/lib/discord-skin-claims';
+import {
+  DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS,
+  type DiscordFishingCommandSettings,
+} from '@/lib/discord-fishing';
 import { requireAdminAccess } from '@/lib/moderation';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
@@ -74,6 +78,7 @@ type StoredGuildChannelRow = {
 type StoredSkinClaimSettingsRow = {
   all_channels: boolean;
   claim_window_minutes: number;
+  command_channel_id: string | null;
   enabled: boolean;
   maximum_interval_minutes: number;
   minimum_interval_minutes: number;
@@ -101,6 +106,14 @@ type StoredSkinClaimSellValueRow = {
   rarity: DiscordSkinClaimRarity;
 };
 
+type StoredFishingCommandSettingsRow = {
+  command_all_channels: boolean;
+};
+
+type StoredFishingCommandChannelRow = {
+  channel_id: string;
+};
+
 type LevelingSettingsBody = {
   collectionAdminRoleIds?: unknown;
   cooldownSeconds?: unknown;
@@ -116,6 +129,7 @@ type LevelingSettingsBody = {
   skinClaimClaimGracePeriodSeconds?: unknown;
   skinClaimChannelIds?: unknown;
   skinClaimClaimWindowMinutes?: unknown;
+  skinClaimCommandChannelId?: unknown;
   skinClaimCollectionCapacityUpgradeCost?: unknown;
   skinClaimCollectionStealChancePercent?: unknown;
   skinClaimDefaultCollectionCapacity?: unknown;
@@ -125,6 +139,8 @@ type LevelingSettingsBody = {
   skinClaimRarityWeights?: unknown;
   skinClaimSellValues?: unknown;
   skinClaimSummonBaseCost?: unknown;
+  fishingCommandAllChannels?: unknown;
+  fishingCommandChannelIds?: unknown;
   xpPerMessage?: unknown;
 };
 
@@ -164,6 +180,7 @@ function toSkinClaimSettings(
     allChannels: row.all_channels,
     claimWindowMinutes: row.claim_window_minutes,
     claimGracePeriodSeconds: economy?.claim_grace_period_seconds ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.claimGracePeriodSeconds,
+    commandChannelId: row.command_channel_id,
     collectionCapacityUpgradeCost: economy?.collection_capacity_upgrade_cost ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionCapacityUpgradeCost,
     collectionStealChancePercent: economy?.collection_steal_chance_percent ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionStealChancePercent,
     defaultCollectionCapacity: economy?.default_collection_capacity ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.defaultCollectionCapacity,
@@ -172,6 +189,10 @@ function toSkinClaimSettings(
     minimumIntervalMinutes: row.minimum_interval_minutes,
     summonBaseCost: economy?.summon_base_cost ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.summonBaseCost,
   } : DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS;
+}
+
+function toFishingCommandSettings(row: StoredFishingCommandSettingsRow | null): DiscordFishingCommandSettings {
+  return row ? { allChannels: row.command_all_channels } : DEFAULT_DISCORD_FISHING_COMMAND_SETTINGS;
 }
 
 function normalizeSkinClaimRarityWeights(rows: StoredSkinClaimRarityWeightRow[]): DiscordSkinClaimRarityWeight[] {
@@ -221,6 +242,8 @@ async function getLevelingData(guildId: string) {
     skinClaimRarityWeightsResult,
     skinClaimEconomySettingsResult,
     skinClaimSellValuesResult,
+    fishingCommandSettingsResult,
+    fishingCommandChannelsResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
       .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
@@ -264,7 +287,7 @@ async function getLevelingData(guildId: string) {
       .order('channel_name', { ascending: true })
       .returns<StoredGuildChannelRow[]>(),
     supabase.from('discord_skin_claim_settings')
-      .select('enabled, minimum_interval_minutes, maximum_interval_minutes, claim_window_minutes, all_channels')
+      .select('enabled, minimum_interval_minutes, maximum_interval_minutes, claim_window_minutes, all_channels, command_channel_id')
       .eq('guild_id', guildId)
       .maybeSingle<StoredSkinClaimSettingsRow>(),
     supabase.from('discord_skin_claim_channels')
@@ -284,6 +307,15 @@ async function getLevelingData(guildId: string) {
       .select('rarity, amount')
       .eq('guild_id', guildId)
       .returns<StoredSkinClaimSellValueRow[]>(),
+    supabase.from('discord_fishing_settings')
+      .select('command_all_channels')
+      .eq('guild_id', guildId)
+      .maybeSingle<StoredFishingCommandSettingsRow>(),
+    supabase.from('discord_fishing_command_channels')
+      .select('channel_id')
+      .eq('guild_id', guildId)
+      .order('channel_id', { ascending: true })
+      .returns<StoredFishingCommandChannelRow[]>(),
   ]);
 
   if (settingsResult.error) throw settingsResult.error;
@@ -299,6 +331,8 @@ async function getLevelingData(guildId: string) {
   if (skinClaimRarityWeightsResult.error) throw skinClaimRarityWeightsResult.error;
   if (skinClaimEconomySettingsResult.error) throw skinClaimEconomySettingsResult.error;
   if (skinClaimSellValuesResult.error) throw skinClaimSellValuesResult.error;
+  if (fishingCommandSettingsResult.error) throw fishingCommandSettingsResult.error;
+  if (fishingCommandChannelsResult.error) throw fishingCommandChannelsResult.error;
 
   return {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
@@ -312,6 +346,8 @@ async function getLevelingData(guildId: string) {
     skinClaimRarityWeights: normalizeSkinClaimRarityWeights(skinClaimRarityWeightsResult.data ?? []),
     skinClaimSellValues: normalizeSkinClaimSellValues(skinClaimSellValuesResult.data ?? []),
     skinClaimSettings: toSkinClaimSettings(skinClaimSettingsResult.data, skinClaimEconomySettingsResult.data),
+    fishingCommandChannelIds: (fishingCommandChannelsResult.data ?? []).map((channel) => channel.channel_id),
+    fishingCommandSettings: toFishingCommandSettings(fishingCommandSettingsResult.data),
   };
 }
 
@@ -399,6 +435,22 @@ function parseSkinClaimChannelIds(value: unknown) {
   return channelIds;
 }
 
+function parseFishingCommandChannelIds(value: unknown) {
+  if (!Array.isArray(value) || value.length > 100) {
+    throw new ApiError(400, 'Provide up to 100 fishing command channels.');
+  }
+  const channelIds = value.map((channelId) => {
+    if (typeof channelId !== 'string' || !/^[0-9]{17,20}$/.test(channelId)) {
+      throw new ApiError(400, 'Choose a valid Discord channel for every fishing command channel.');
+    }
+    return channelId;
+  });
+  if (new Set(channelIds).size !== channelIds.length) {
+    throw new ApiError(400, 'Each fishing command channel can only be selected once.');
+  }
+  return channelIds;
+}
+
 function parseSkinClaimRarityWeights(value: unknown): DiscordSkinClaimRarityWeight[] {
   if (!Array.isArray(value) || value.length !== DISCORD_SKIN_CLAIM_RARITIES.length) {
     throw new ApiError(400, 'Provide one weight for every skin rarity.');
@@ -475,6 +527,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const skinClaimMinimumIntervalMinutes = parsePositiveInteger(body.skinClaimMinimumIntervalMinutes, 'Skin-claim minimum interval', 1, 10080);
     const skinClaimMaximumIntervalMinutes = parsePositiveInteger(body.skinClaimMaximumIntervalMinutes, 'Skin-claim maximum interval', skinClaimMinimumIntervalMinutes, 10080);
     const skinClaimClaimWindowMinutes = parsePositiveInteger(body.skinClaimClaimWindowMinutes, 'Skin-claim window', 1, 1440);
+    const skinClaimCommandChannelId = parseOptionalSnowflake(body.skinClaimCommandChannelId, 'Collections commands channel ID');
     const skinClaimSummonBaseCost = parsePositiveInteger(body.skinClaimSummonBaseCost, 'Summon base cost', 1, 1_000_000_000);
     const skinClaimDefaultCollectionCapacity = parsePositiveInteger(body.skinClaimDefaultCollectionCapacity, 'Default collection size', 1, 10_000);
     const skinClaimCollectionCapacityUpgradeCost = parsePositiveInteger(body.skinClaimCollectionCapacityUpgradeCost, 'Collection level-up cost', 1, 1_000_000_000);
@@ -485,6 +538,11 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     }
     const skinClaimAllChannels = body.skinClaimAllChannels;
     const skinClaimChannelIds = parseSkinClaimChannelIds(body.skinClaimChannelIds);
+    if (typeof body.fishingCommandAllChannels !== 'boolean') {
+      throw new ApiError(400, 'Fishing command channel scope must be all channels or selected channels.');
+    }
+    const fishingCommandAllChannels = body.fishingCommandAllChannels;
+    const fishingCommandChannelIds = parseFishingCommandChannelIds(body.fishingCommandChannelIds);
     const skinClaimRarityWeights = parseSkinClaimRarityWeights(body.skinClaimRarityWeights);
     const skinClaimSellValues = parseSkinClaimSellValues(body.skinClaimSellValues);
     const guildId = getDiscordGuildId();
@@ -530,8 +588,17 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (skinClaimChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose skin-claim channels that are currently available to the KnowLeague bot.');
     }
+    if (skinClaimCommandChannelId && !sendableChannelIds.has(skinClaimCommandChannelId)) {
+      throw new ApiError(400, 'Choose a Collections commands channel that is currently available to the KnowLeague bot.');
+    }
+    if (fishingCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
+      throw new ApiError(400, 'Choose fishing command channels that are currently available to the KnowLeague bot.');
+    }
     if (body.skinClaimEnabled && (!sendableChannelIds.size || (!skinClaimAllChannels && !skinClaimChannelIds.length))) {
       throw new ApiError(400, 'Enable skin claims only after Discord has synced a sendable channel or you select at least one eligible channel.');
+    }
+    if (!fishingCommandAllChannels && !fishingCommandChannelIds.length) {
+      throw new ApiError(400, 'Choose at least one channel when fishing commands are not enabled in all channels.');
     }
 
     const { error } = await supabase.rpc('replace_discord_collection_configuration', {
@@ -563,6 +630,19 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_sell_values: skinClaimSellValues,
     });
     if (error) throw error;
+    const { error: collectionCommandChannelError } = await supabase.rpc('replace_discord_skin_claim_command_channel', {
+      p_command_channel_id: skinClaimCommandChannelId,
+      p_guild_id: guildId,
+      p_updated_by: user.id,
+    });
+    if (collectionCommandChannelError) throw collectionCommandChannelError;
+    const { error: fishingConfigurationError } = await supabase.rpc('replace_discord_fishing_command_configuration', {
+      p_command_all_channels: fishingCommandAllChannels,
+      p_command_channel_ids: fishingCommandChannelIds,
+      p_guild_id: guildId,
+      p_updated_by: user.id,
+    });
+    if (fishingConfigurationError) throw fishingConfigurationError;
     return NextResponse.json(await getLevelingData(guildId));
   } catch (error) {
     return getRouteErrorResponse(error);

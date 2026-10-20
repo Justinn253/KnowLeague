@@ -17,6 +17,82 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-19-discord-snipe-attachment-preview-and-text-fix',
+    patch: 'patch-2026-10-19-discord-snipe-attachment-preview-and-text-fix',
+    timestamp: '2026-10-19T23:30:00.000Z',
+    title: 'Preview snipe images and correct KnowBucks text encoding',
+    summary:
+      'Snipe results now render cached image attachments directly, while the KnowBucks leaderboard and snipe cost footer use ASCII separators that display consistently in Discord.',
+    details: [
+      'Replaced the malformed encoded divider strings in the new KnowBucks leaderboard and `/snipe` balance footer with plain ASCII separators, preventing the visible `â€”` and `â€¢` artifacts.',
+      'Expanded the bounded in-memory snipe attachment snapshot to retain each cached attachment\'s filename, URL, and image classification for up to three attachments. No attachment binary data or message content is persisted to Supabase.',
+      'A `/snipe` result now embeds its first cached image in the primary deleted-message card and each additional cached image in a separate card. Non-image files remain named clickable links in the message card.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply the presentation fixes. No migration, gateway-intent change, permission change, or slash-command registration is required.',
+      'The in-memory snipe cache starts empty after deployment, so only messages deleted after the restarted bot observes them can include the new image previews.',
+    ],
+    files: [
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/snipe.ts',
+      'discord-bot/README.md',
+      'discord-bot/AGENTS.md',
+      'tests/discord-message-features.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added regression coverage confirming image attachments are selected for previews while named non-image attachments remain links.',
+      'npm run check passed lint, root type-check, the full Vitest suite (214 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-19-discord-knowbucks-engagement-tools',
+    patch: 'patch-2026-10-19-discord-knowbucks-engagement-tools',
+    timestamp: '2026-10-19T23:15:00.000Z',
+    title: 'Add Discord KnowBucks games, rewards, snipe, and emoji import',
+    summary:
+      'The Discord companion now supports atomic KnowBucks coinflips and leaderboards, chance-based message rewards, confirmed DISBOARD bump rewards, paid short-lived message sniping, and administrator-only external emoji import.',
+    details: [
+      'Added `/knowbucks coinflip amount`, which uses a cryptographically secure 50/50 bot-side roll and an atomic database settlement. A win applies a net gain equal to the wager (the stake returns doubled); a loss removes the wager, with separate auditable transaction sources.',
+      'Added `/knowbucks leaderboard [count]`, returning up to 25 current non-bot guild members sorted by positive KnowBucks balances. Departed accounts and bots retain their auditable balances but do not occupy visible ranks.',
+      'Added a one-percent per eligible human-message reward trigger with the requested 75/15/5/4/1 distribution for 1,000/2,500/5,000/10,000/25,000 KnowBucks. Successful message IDs are recorded without message content so gateway delivery retries cannot mint twice.',
+      'Added `/snipe` for 1,000 KnowBucks. The bot keeps no database copy of chat text: it holds at most 5,000 recent in-memory messages for six hours and retains only each channel\'s last deleted snapshot for one hour; a missing cache never charges the user.',
+      'Added administrator-only `/steal-emoji message-id`. It accepts a same-channel message ID or same-guild copied message link, imports unique external static and animated custom emoji sequentially, skips expressions already owned by the guild, and reports capacity, permission, or upload failures privately.',
+      'Added an opt-in `DISCORD_BUMP_CHANNEL_ID` configuration. Only a fresh success confirmation from DISBOARD\'s official bot in that channel awards the identified bumper 2,500 KnowBucks; attempted commands, cooldown notices, and duplicate gateway deliveries do not award currency.',
+      'Enabled and documented the narrowly required Discord Message Content gateway intent. It is used only for the bounded snipe cache, administrator-selected emoji source parsing, and DISBOARD success confirmation; Guild Members and Presence intents remain disabled.',
+      'Added migration 173 for the new atomic economy RPCs, source constraints, and idempotent message-reward receipts. It remains local only and has not been pushed or applied.',
+    ],
+    impact: [
+      'Apply migration 173 after migration 172, enable Message Content in the Discord Developer Portal, add Create Expressions to the bot role if `/steal-emoji` is wanted, deploy the bot, and run `npm run discord:commands:register` with the deployment environment configured.',
+      'Set `DISCORD_BUMP_CHANNEL_ID` to enable the confirmed DISBOARD reward; leaving it empty safely disables that integration. Existing KnowBucks balances, XP, and Fishing data are unchanged.',
+      'The snipe cache starts empty after every bot restart, is intentionally not recoverable, and displays only messages the bot observed while running. Discord administrators should review the documented one-hour deleted-message retention before deployment.',
+    ],
+    files: [
+      'supabase/migrations/173_add_discord_knowbucks_engagement_rewards.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/config.ts',
+      'discord-bot/src/knowbucks.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/src/message-rewards.ts',
+      'discord-bot/src/snipe.ts',
+      'discord-bot/src/emoji-import.ts',
+      'discord-bot/src/disboard.ts',
+      'discord-bot/README.md',
+      'discord-bot/AGENTS.md',
+      'discord-bot/.env.example',
+      'tests/discord-knowbucks.test.ts',
+      'tests/discord-command-visibility.test.ts',
+      'tests/discord-message-features.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added targeted command-shape, message-reward distribution, external static/animated emoji parsing, and DISBOARD success-detection coverage.',
+      'npm run check passed lint, root type-check, the full Vitest suite (213 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+      'Production migration, Discord Developer Portal intent/permission changes, command registration, and deployment remain intentionally operator-controlled.',
+    ],
+  },
+  {
     id: 'patch-2026-10-19-discord-fishing-level-reward-increase',
     patch: 'patch-2026-10-19-discord-fishing-level-reward-increase',
     timestamp: '2026-10-19T23:00:00.000Z',

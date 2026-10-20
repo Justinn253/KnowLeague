@@ -3,7 +3,7 @@
 ## Scope
 - This is the standalone, single-guild Discord companion for the root KnowLeague web app.
 - It is a long-running Node.js process. Do not move gateway handling into Next.js API routes.
-- Chat leveling uses `GatewayIntentBits.GuildMessages` to observe message events. It must not inspect or persist message content, and Message Content, Guild Members, and Presence intents must remain disabled unless a separately authorized feature requires them.
+- Chat leveling uses `GatewayIntentBits.GuildMessages` to observe message events. Message Content is deliberately enabled for the authorized `/snipe`, `/steal-emoji`, and confirmed DISBOARD-bump features: retain only the in-memory, bounded snipe cache (message content plus metadata and URLs for up to three attachments), never persist general message text, and do not reuse content for unrelated features. Guild Members and Presence intents remain disabled.
 - Keep every command guild-scoped and ignore events outside `DISCORD_GUILD_ID`.
 
 ## Data and identity

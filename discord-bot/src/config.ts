@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 export type DiscordBotConfig = {
   applicationId: string;
+  bumpChannelId: string | null;
   guildId: string;
   siteUrl: string;
   supabaseServiceRoleKey: string;
@@ -27,9 +28,19 @@ function canonicalSiteUrl(value: string) {
   return url.origin;
 }
 
+function optionalSnowflakeEnvironmentVariable(name: string) {
+  const value = process.env[name]?.trim() ?? '';
+  if (!value) return null;
+  if (!/^[0-9]{17,20}$/.test(value)) {
+    throw new Error(`${name} must be a Discord snowflake when configured.`);
+  }
+  return value;
+}
+
 export function loadBotConfig(): DiscordBotConfig {
   return {
     applicationId: requiredEnvironmentVariable('DISCORD_APPLICATION_ID'),
+    bumpChannelId: optionalSnowflakeEnvironmentVariable('DISCORD_BUMP_CHANNEL_ID'),
     guildId: requiredEnvironmentVariable('DISCORD_GUILD_ID'),
     siteUrl: canonicalSiteUrl(requiredEnvironmentVariable('KNOWLEAGUE_SITE_URL')),
     supabaseServiceRoleKey: requiredEnvironmentVariable('SUPABASE_SERVICE_ROLE_KEY'),

@@ -13,6 +13,9 @@ import {
 } from './leveling.js';
 import { attemptSkinClaimDropFromMessage, handleSkinClaimReaction, startDiscordSkinClaimScheduler } from './skin-claims.js';
 import { startDiscordFishingScheduler } from './fishing.js';
+import { maybeAwardDisboardBump } from './disboard.js';
+import { maybeAwardMessageKnowBucks } from './message-rewards.js';
+import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
 
 const config = loadBotConfig();
 const client = new Client({ intents: [
@@ -21,13 +24,16 @@ const client = new Client({ intents: [
   GatewayIntentBits.GuildMessageReactions,
   GatewayIntentBits.GuildModeration,
   GatewayIntentBits.GuildVoiceStates,
+  // Required for the deliberately narrow snipe, external-emoji import, and
+  // DISBOARD confirmation flows. See discord-bot/AGENTS.md for retention.
+  GatewayIntentBits.MessageContent,
 ], partials: [Partials.Channel, Partials.Message, Partials.Reaction] });
 let voiceXpInitialReconciliation: Promise<void> = Promise.resolve();
 
 async function replyWithFailure(interaction: Parameters<typeof handleChatInputCommand>[0] | Parameters<typeof handleButtonInteraction>[0]) {
   const message = 'KnowLeague could not complete that request. Please try again shortly.';
   const ephemeral = !interaction.isChatInputCommand()
-    || isDiscordAdministrativeCommand(interaction.commandName, interaction.options.getSubcommand());
+    || isDiscordAdministrativeCommand(interaction.commandName, interaction.options.getSubcommand(false));
   if (interaction.deferred) {
     await interaction.editReply({ content: message });
     return;
@@ -90,8 +96,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 client.on(Events.MessageCreate, (message) => {
+  trackSnipeMessage(config, message);
+
   void awardMessageXp(config, message)
     .catch((error: unknown) => console.error('Discord chat leveling failed.', error));
+
+  void maybeAwardMessageKnowBucks(config, message)
+    .catch((error: unknown) => console.error('Discord message KnowBucks reward failed.', error));
+
+  void maybeAwardDisboardBump(config, message)
+    .catch((error: unknown) => console.error('DISBOARD bump KnowBucks reward failed.', error));
 
   void attemptSkinClaimDropFromMessage(config, message)
     .catch((error: unknown) => console.error('Discord skin-claim message trigger failed.', error));
@@ -99,6 +113,21 @@ client.on(Events.MessageCreate, (message) => {
   if (message.inGuild() && message.guildId === config.guildId && !message.author.bot && !message.system) {
     void maybeSyncDiscordLeaderboardRoleOnMessage(config, message.guild!)
       .catch((error: unknown) => console.error('Discord leaderboard role synchronization failed.', error));
+  }
+});
+
+client.on(Events.MessageDelete, (message) => {
+  trackDeletedSnipeMessage(config, message.id);
+});
+
+client.on(Events.MessageUpdate, (_, message) => {
+  trackSnipeMessage(config, message);
+});
+
+client.on(Events.MessageBulkDelete, (messages) => {
+  const deletedMessages = [...messages.values()].sort((first, second) => first.createdTimestamp - second.createdTimestamp);
+  for (const message of deletedMessages) {
+    trackDeletedSnipeMessage(config, message.id);
   }
 });
 

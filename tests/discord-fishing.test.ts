@@ -11,6 +11,8 @@ import {
   FISHING_CRATES,
   FISHING_FISH,
   FISHING_EXPEDITION_XP_PER_BASE_CATCH,
+  FISHING_FISH_RARITY_WEIGHTS,
+  FISHING_LEGENDARY_FISH_SALE_MULTIPLIER,
   FISHING_MYTHIC_FISH,
   FISHING_RELIC_DROP_RATE,
   FISHING_UPGRADES,
@@ -243,6 +245,36 @@ describe('Discord fishing reworked progression', () => {
     expect(getFishingUpgrade('celestial-rod')?.catchableRarities).toEqual(['Uncommon', 'Rare', 'Epic', 'Legendary']);
     expect(getFishingUpgrade('god-rod')?.catchableRarities).toEqual(['Rare', 'Epic', 'Legendary', 'Mythic']);
     expect(FISHING_MYTHIC_FISH).toEqual([]);
+  });
+
+  it('uses the configured base fish rarity weights', () => {
+    expect(FISHING_FISH_RARITY_WEIGHTS).toEqual({
+      Common: 1_000,
+      Uncommon: 200,
+      Rare: 50,
+      Epic: 10,
+      Legendary: 0.1,
+      Mythic: 0,
+    });
+  });
+
+  it('multiplies Legendary fish values by fifteen before other bonuses', () => {
+    expect(FISHING_LEGENDARY_FISH_SALE_MULTIPLIER).toBe(15);
+    const legendaryResult = Array.from({ length: 100 }, (_, index) => resolveFishingExpedition('rallypoint-delta', 4, {
+      ...starterEquipment,
+      baitItemId: 'truffle-worm',
+      rodItemId: 'master-rod',
+    }, index + 1)).find((result) => result.catches.some((catchItem) => catchItem.kind === 'fish'));
+    const legendaryCatches = legendaryResult?.catches.filter((catchItem) => catchItem.kind === 'fish') ?? [];
+
+    expect(legendaryCatches.length).toBeGreaterThan(0);
+    for (const catchItem of legendaryCatches) {
+      if (catchItem.kind !== 'fish') continue;
+      const fish = FISHING_FISH.find((entry) => entry.name === catchItem.name && entry.rarity === catchItem.rarity);
+      expect(fish).toBeDefined();
+      expect(catchItem.saleValue).toBeGreaterThanOrEqual(fish!.minSaleValue * catchItem.quantity * 15);
+      expect(catchItem.saleValue).toBeLessThanOrEqual(fish!.maxSaleValue * catchItem.quantity * 15);
+    }
   });
 
   it('keeps every resolved fish within its equipped rod rarity scope', () => {

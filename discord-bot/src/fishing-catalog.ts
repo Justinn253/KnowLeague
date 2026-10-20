@@ -358,7 +358,17 @@ export const FISHING_CRATE_LOOT: readonly FishingCrateLoot[] = [
 ];
 
 const rarityRank: Record<FishingRarity, number> = { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4, Mythic: 5 };
-const rarityWeight: Record<FishingRarity, number> = { Common: 1_000, Uncommon: 200, Rare: 100, Epic: 20, Legendary: 1, Mythic: 0 };
+/** Base fish selection weights before rod, bait, skill, Relic, and event modifiers. */
+export const FISHING_FISH_RARITY_WEIGHTS: Readonly<Record<FishingRarity, number>> = {
+  Common: 1_000,
+  Uncommon: 200,
+  Rare: 50,
+  Epic: 10,
+  Legendary: 0.1,
+  Mythic: 0,
+};
+/** Legendary catches receive this multiplier before Relic, role, and event bonuses. */
+export const FISHING_LEGENDARY_FISH_SALE_MULTIPLIER = 15;
 /** 25% lower than the immediately preceding 7.5 XP-per-roll beta balance. */
 export const FISHING_EXPEDITION_XP_PER_BASE_CATCH = 5.625;
 const PREVIOUS_FISHING_EXPEDITION_XP_PER_BASE_CATCH = 7.5;
@@ -606,14 +616,14 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   const chooseFish = () => weightedPick(fishCandidates, (candidate) => {
     const rarityMultiplier = rarityRank[candidate.rarity] === 0 ? 1 : 1 + (higherRarityBonus / 100);
     const truffleMultiplier = bait.id === 'truffle-worm' && candidate.rarity === 'Legendary' ? 3 : 1;
-    return rarityWeight[candidate.rarity] * rarityMultiplier * truffleMultiplier;
+    return FISHING_FISH_RARITY_WEIGHTS[candidate.rarity] * rarityMultiplier * truffleMultiplier;
   }, random);
 
   const maybeUpgradeFishRarity = (fish: FishingFish) => {
     if (!hasRelic('gear-magic-conch') || random() >= 0.1) return fish;
     const upgradedCandidates = fishCandidates.filter((candidate) => rarityRank[candidate.rarity] === rarityRank[fish.rarity] + 1);
     return upgradedCandidates.length > 0
-      ? weightedPick(upgradedCandidates, (candidate) => rarityWeight[candidate.rarity], random)
+      ? weightedPick(upgradedCandidates, (candidate) => FISHING_FISH_RARITY_WEIGHTS[candidate.rarity], random)
       : fish;
   };
 
@@ -625,7 +635,8 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     const catalogueFishKey = `${biomeId}:${upgradedFish.name}:${upgradedFish.rarity}`;
     const firstCatchBonus = hasRelic('gear-pearl-divers-log') && !knownFishKeys.has(catalogueFishKey);
     if (firstCatchBonus) knownFishKeys.add(catalogueFishKey);
-    const raritySaleMultiplier = (upgradedFish.rarity === 'Legendary' && hasRelic('gear-knowleague-lure') ? 1.1 : 1)
+    const raritySaleMultiplier = (upgradedFish.rarity === 'Legendary' ? FISHING_LEGENDARY_FISH_SALE_MULTIPLIER : 1)
+      * (upgradedFish.rarity === 'Legendary' && hasRelic('gear-knowleague-lure') ? 1.1 : 1)
       * ((upgradedFish.rarity === 'Epic' || upgradedFish.rarity === 'Legendary') && hasRelic('gear-crystal-resonator') ? 1.1 : 1)
       * (firstCatchBonus ? 5 : 1)
       * (hasRelic('gear-lucky-coin') && random() < 0.03 ? 2 : 1);

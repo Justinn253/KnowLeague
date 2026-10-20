@@ -17,6 +17,60 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-20-discord-fishing-legendary-value-multiplier',
+    patch: 'patch-2026-10-20-discord-fishing-legendary-value-multiplier',
+    timestamp: '2026-10-20T17:30:00.000Z',
+    title: 'Multiply Legendary Fishing sale values by fifteen',
+    summary:
+      'Every Legendary fish now sells for 15 times its configured base value before existing Fishing bonuses apply.',
+    details: [
+      'Added a named 15x Legendary sale multiplier to the deterministic expedition resolver.',
+      'The multiplier composes with existing Legendary-specific Relics, other Relics, role bonuses, and weekday phenomena; non-Legendary fish and crate items are unchanged.',
+      'Documented the value rule and added a regression assertion for the configured multiplier.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply the new Legendary values to expeditions settled after deployment. No database migration or slash-command registration is required.',
+      'Deploy the website only to publish this staff-changelog record. No migration was created or applied.',
+    ],
+    files: [
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added coverage for the named Legendary sale multiplier and resolved Legendary catch-value bounds.',
+      'npm run check passed lint (with seven existing Next.js <img> warnings), root type-check, the full Vitest suite (42 files, 218 tests), and Discord bot type-check.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-20-discord-fishing-rarity-weight-tuning',
+    patch: 'patch-2026-10-20-discord-fishing-rarity-weight-tuning',
+    timestamp: '2026-10-20T17:15:00.000Z',
+    title: 'Lower upper-rarity Fishing catch weights',
+    summary:
+      'Fishing now uses the requested 1,000/200/50/10/0.1 base weights for Common through Legendary fish.',
+    details: [
+      'Changed Rare from 100 to 50, Epic from 20 to 10, and Legendary from 1 to 0.1; Common remains 1,000 and Uncommon remains 200.',
+      'Kept Mythic at zero because Mythic fish remain intentionally unavailable. Rod eligibility, bait rules, skills, Relics, and event multipliers continue to apply to these base weights.',
+      'Exported the immutable base-weight table and added regression coverage for all six rarity entries.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply the revised weights to expeditions that settle after deployment. No database migration or slash-command registration is required.',
+      'Deploy the website only to publish this staff-changelog record. No migration was created or applied.',
+    ],
+    files: [
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added a full base-rarity-weight regression assertion.',
+      'npm run check passed lint (with seven existing Next.js <img> warnings), root type-check, the full Vitest suite (42 files, 217 tests), and Discord bot type-check.',
+    ],
+  },
+  {
     id: 'patch-2026-10-20-discord-fishing-relic-expansion-and-xp-tuning',
     patch: 'patch-2026-10-20-discord-fishing-relic-expansion-and-xp-tuning',
     timestamp: '2026-10-20T16:50:00.000Z',

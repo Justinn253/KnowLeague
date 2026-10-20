@@ -146,7 +146,13 @@ export const commandDefinitions = [
       .setDescription('Open every held legacy fishing chest for KnowBucks.'))
     .addSubcommand((subcommand) => subcommand
       .setName('catalogue')
-      .setDescription('Browse the fishing field guide by biome.')),
+      .setDescription('Browse the fishing field guide by biome.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('event-help')
+      .setDescription('See the active fishing event, its catches, crates, and title.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('event-catalogue')
+      .setDescription('View your active fishing event fish and title discoveries.')),
   createCollectionsCommand(),
   new SlashCommandBuilder()
     .setName('leaderboard')

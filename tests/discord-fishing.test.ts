@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
-import { buildFishingCataloguePanel, buildFishingLaunchResponse } from '../discord-bot/src/interactions';
+import { buildFishingCataloguePanel, buildFishingEventCataloguePanel, buildFishingEventHelpPanel, buildFishingLaunchResponse, getFishingShopSkillEmoji } from '../discord-bot/src/interactions';
 import {
   calculateFishingDurationSeconds,
   FISHING_BIOMES,
@@ -11,7 +11,9 @@ import {
   FISHING_CRATES,
   FISHING_FISH,
   FISHING_EXPEDITION_XP_PER_BASE_CATCH,
+  FISHING_EVENTS,
   FISHING_FISH_RARITY_WEIGHTS,
+  FISHING_HALLOWEEN_FISH_RARITY_WEIGHTS,
   FISHING_LEGENDARY_FISH_SALE_MULTIPLIER,
   FISHING_MYTHIC_FISH,
   FISHING_RELIC_DROP_RATE,
@@ -22,6 +24,7 @@ import {
   getFishingLevelUpKnowBucks,
   getFishingTotalXpForLevel,
   getFishingExpeditionLength,
+  getFishingEventForOutcomeSeed,
   getFishingCrate,
   resolveFishingCrateOpenings,
   resolveFishingExpedition,
@@ -35,6 +38,7 @@ import {
   parseFishingRepeatCustomId,
   selectFishingCrewSlot,
   type FishingCatalogueProgress,
+  type FishingEventCatalogueProgress,
 } from '../discord-bot/src/fishing';
 
 type SerializedSubcommand = {
@@ -57,6 +61,8 @@ describe('Discord fishing command contract', () => {
     const biomeOption = expedition?.options?.find((option) => option.name === 'biome');
     const lengthOption = expedition?.options?.find((option) => option.name === 'length');
     expect(fish?.options?.some((option) => option.name === 'help')).toBe(true);
+    expect(fish?.options?.some((option) => option.name === 'event-help')).toBe(true);
+    expect(fish?.options?.some((option) => option.name === 'event-catalogue')).toBe(true);
     expect(biomeOption?.choices).toHaveLength(7);
     expect(lengthOption?.choices).toHaveLength(4);
     const chestsOpen = fish?.options?.find((option) => option.name === 'chests-open');
@@ -90,8 +96,29 @@ describe('Discord fishing command contract', () => {
       instantCompletion: false,
     });
     const description = launch.embeds[0]?.data.description;
+    expect(launch.embeds[0]?.data.title).toBe('🚣 Harbor expedition launched 🚣');
     expect(description).toBe('Crew slot **1** is now fishing. This trip takes about **5s**.');
     expect(description).not.toContain('<t:');
+  });
+
+  it('uses default emoji for every Fishing skill track in the shop', () => {
+    expect(getFishingShopSkillEmoji('haste-1')).toBe('⏩');
+    expect(getFishingShopSkillEmoji('lucky-5')).toBe('🍀');
+    expect(getFishingShopSkillEmoji('cheapskate-3')).toBe('📉');
+    expect(getFishingShopSkillEmoji('money-mouser-2')).toBe('💰');
+  });
+
+  it('documents and tracks the active Halloween event catalogue separately', () => {
+    const help = buildFishingEventHelpPanel();
+    const progress: FishingEventCatalogueProgress = {
+      caughtFish: [{ name: 'Oarfish', rarity: 'Common' }],
+      ownedTitleItemIds: new Set(['gear-title-ghoulish-seafarer']),
+    };
+    const catalogue = buildFishingEventCataloguePanel(progress);
+    expect(help.embeds[0]?.data.title).toContain('Halloween Event');
+    expect(help.embeds[0]?.data.description).toContain('25%');
+    expect(catalogue.embeds[0]?.data.title).toContain('Hellish Abyss');
+    expect(catalogue.embeds[0]?.data.fields?.some((field) => field.value.includes('Ghoulish Seafarer'))).toBe(true);
   });
 
   it('shows only fish collection status and found relics in the biome catalogue', () => {
@@ -167,6 +194,27 @@ describe('Discord fishing reworked progression', () => {
       entry.rarity === 'Common'
     ))).toBe(true);
     expect(first.fishingExpeditionXp).toBe(120 * FISHING_EXPEDITION_XP_PER_BASE_CATCH);
+  });
+
+  it('resolves a snapshotted Halloween replacement with selected-biome values and event-only catalogue catches', () => {
+    const event = FISHING_EVENTS.find((entry) => entry.id === 'halloween');
+    expect(event).toBeDefined();
+    expect(getFishingEventForOutcomeSeed(4)?.id).toBe('halloween');
+    expect(getFishingEventForOutcomeSeed(5)).toBeUndefined();
+    expect(FISHING_HALLOWEEN_FISH_RARITY_WEIGHTS).toEqual({ Common: 1_000, Uncommon: 200, Rare: 50, Epic: 10, Legendary: 1, Mythic: 0.1 });
+
+    const result = resolveFishingExpedition('harbor', 4, {
+      ...starterEquipment,
+      eventId: 'halloween',
+      rodItemId: 'master-rod',
+    }, 548_921);
+    const fish = result.catches.filter((entry) => entry.kind === 'fish');
+    const crates = result.catches.filter((entry) => entry.kind === 'crate');
+    expect(fish.length).toBeGreaterThan(0);
+    expect(fish.every((entry) => entry.catalogueBiomeId === 'hellish-abyss')).toBe(true);
+    expect(fish.every((entry) => event!.fish.some((candidate) => candidate.name === entry.name))).toBe(true);
+    expect(crates.every((entry) => event!.crates.some((candidate) => candidate.name === entry.name))).toBe(true);
+    expect(result.fishSaleValue).toBeGreaterThan(0);
   });
 
   it('awards doubled expedition and crate Fishing XP, including the Giant Pearl bonus', () => {
@@ -448,12 +496,13 @@ describe('Discord fishing reworked progression', () => {
 
     const embed = buildFishingCompletionEmbed('harbor', result, 550, 1_550);
     expect(embed.data.description).toBe('You earned 425 KnowBucks from your sold fish. Crate items earned 125 KnowBucks. New balance: 1,550 KnowBucks.');
-    const fish = embed.data.fields?.find((field) => field.name === 'Fish caught')?.value;
-    const crates = embed.data.fields?.find((field) => field.name === 'Crates opened')?.value;
+    expect(embed.data.title).toBe('✅ Harbor expedition complete ✅');
+    const fish = embed.data.fields?.find((field) => field.name === '🐟 Fish caught')?.value;
+    const crates = embed.data.fields?.find((field) => field.name === '🎁 Crates found')?.value;
     expect(fish).toContain('Anchovy');
     expect(crates).toContain('Damaged Crate');
     expect(crates).toContain('Soggy Boot');
-    expect(embed.data.fields?.some((field) => field.name === 'Relics found')).toBe(false);
+    expect(embed.data.fields?.some((field) => field.name === '💎 Relics found')).toBe(false);
   });
 
   it('omits every empty completion category', () => {

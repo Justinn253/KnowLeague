@@ -17,6 +17,66 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-20-discord-fishing-emoji-presentation',
+    patch: 'patch-2026-10-20-discord-fishing-emoji-presentation',
+    timestamp: '2026-10-20T18:15:00.000Z',
+    title: 'Style Discord Fishing expedition and Skill panels with default emoji',
+    summary:
+      'Fishing expedition launch and completion embeds now use clear default emoji headings, and the shop labels each Skill progression track with its requested emoji.',
+    details: [
+      'Launch embeds now use rowboat-wrapped biome headings. Completion embeds use checkmark-wrapped headings and emoji-prefixed Fishing skill, fish, crate, Relic, and title sections.',
+      'Title discoveries remain a distinct completion section and retain their separate milestone announcement. Empty catch categories remain hidden.',
+      'Added fast-forward, four-leaf clover, downward chart, and money bag prefixes for Haste, Lucky, Cheapskate, and Money Mouser shop titles respectively.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply the presentation update. No database migration, website deployment, or slash-command registration is required.',
+      'No data, reward, event, or interaction authorization behavior changed.',
+    ],
+    files: [
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/fishing.ts',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added regression coverage for launch/completion headings and all four Skill track emoji mappings.',
+      'npm run check passed lint (with seven existing Next.js <img> warnings), root type-check, the full Vitest suite, and Discord bot type-check.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-20-discord-fishing-halloween-event',
+    patch: 'patch-2026-10-20-discord-fishing-halloween-event',
+    timestamp: '2026-10-20T18:00:00.000Z',
+    title: 'Add the Hellish Abyss Halloween Fishing event',
+    summary:
+      'A deterministic 25% Halloween replacement event now sends selected expeditions to Hellish Abyss while retaining the selected biome’s sale values and trip scale.',
+    details: [
+      'Added Hellish Abyss’s full weighted fish and auto-opened crate catalogues, including the non-sellable Mythic Cthulhu and its inventory collectible. Event fish use the selected biome’s rarity value ranges; event crate loot uses the same selected-biome 0–30% rarity value treatment as ordinary crates.',
+      'Saved the event outcome in each new expedition equipment snapshot from its launch seed, preventing active trips from changing behavior before settlement. Existing trips with no event snapshot retain their current behavior.',
+      'Added /fish event-help and /fish event-catalogue, public event discoveries, event launch/progress/completion presentation, and the Inventory Titles tab. Ghoulish Seafarer is a one-time permanent title with a 0.1% roll per caught event fish and is announced separately when first awarded.',
+      'Added migration 174 to permit the Hellish Abyss catalogue biome and atomically record event discoveries through the existing settlement routine without changing ordinary biome catalogue entries.',
+    ],
+    impact: [
+      'Apply migration 174 before deploying the Discord bot; it was created locally only and was not pushed or applied. The migration preserves existing settlement signatures and service-role-only access.',
+      'Deploy the Discord bot to enable event launches, settlement, announcements, title inventory, and catalogue views, then run npm run discord:commands:register with the bot deployment environment configured for the two new /fish subcommands.',
+      'No production website behavior changes. Deploy the website only to publish this staff-changelog record.',
+    ],
+    files: [
+      'supabase/migrations/174_add_halloween_discord_fishing_event.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added command, event-help/catalogue presentation, deterministic event-selection, event catch, crate, selected-biome value, and separate-catalogue regression coverage.',
+      'npm run discord:check and npm run check passed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-20-discord-fishing-legendary-value-multiplier',
     patch: 'patch-2026-10-20-discord-fishing-legendary-value-multiplier',
     timestamp: '2026-10-20T17:30:00.000Z',

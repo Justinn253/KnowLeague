@@ -19,12 +19,15 @@ import {
   describeFishingEquipment,
   FISHING_REPEAT_BUTTON_PREFIX,
   FISHING_BIOMES,
+  FISHING_EVENTS,
   FISHING_FISH,
   FISHING_UPGRADES,
   formatFishingDuration,
   getFishingBiome,
   getFishingCatalogueProgress,
+  getFishingEventCatalogueProgress,
   getFishingCrate,
+  getFishingEvent,
   getFishingPlayerState,
   getVisibleFishingShopItems,
   getFishingUpgrade,
@@ -42,6 +45,7 @@ import {
   grantCurrentFishingLevelRoles,
   type FishingBiomeId,
   type FishingCatalogueProgress,
+  type FishingEventCatalogueProgress,
   type FishingDurationTier,
   type FishingPlayerState,
   type StartedFishingExpedition,
@@ -98,7 +102,7 @@ const LEADERBOARD_COMMAND_COOLDOWN_MS = 10_000;
 const SKIN_COLLECTION_BUTTON_PREFIX = 'skin-collection';
 const FISHING_BUTTON_PREFIX = 'fish';
 const FISHING_SHOP_CATEGORIES: readonly FishingUpgradeCategory[] = ['rod', 'bait', 'boat', 'skill', 'crew'];
-const FISHING_INVENTORY_TABS = ['overview', 'rods', 'baits', 'skills', 'gear', 'boats'] as const;
+const FISHING_INVENTORY_TABS = ['overview', 'rods', 'baits', 'skills', 'gear', 'boats', 'titles'] as const;
 type FishingInventoryTab = typeof FISHING_INVENTORY_TABS[number];
 const FISHING_PANEL_TTL_MS = 60_000;
 const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
@@ -109,16 +113,19 @@ export function buildFishingLaunchResponse(expedition: StartedFishingExpedition)
   const modifierDescription = expedition.activeModifierLabels?.length
     ? `\n\nActive modifiers: ${expedition.activeModifierLabels.map((label) => `**${label}**`).join(' · ')}`
     : '';
+  const eventDescription = expedition.eventName && expedition.selectedBiomeName
+    ? `\n\n🎃 **${expedition.eventName}:** ${expedition.biomeName} has replaced your selected ${expedition.selectedBiomeName} waters. Fish and crate values still follow ${expedition.selectedBiomeName}.`
+    : '';
   return {
     components: [],
     content: '',
     embeds: [
       new EmbedBuilder()
         .setColor(0x0EA5E9)
-        .setTitle(`${expedition.biomeName} expedition launched`)
+        .setTitle(`🚣 ${expedition.biomeName} expedition launched 🚣`)
         .setDescription(expedition.instantCompletion
-          ? `Crew slot **${expedition.crewSlot}** triggered the Teleporter and is returning immediately.${modifierDescription}`
-          : `Crew slot **${expedition.crewSlot}** is now fishing. This trip takes about **${formatFishingDuration(expedition.durationSeconds)}**.${modifierDescription}`),
+          ? `Crew slot **${expedition.crewSlot}** triggered the Teleporter and is returning immediately.${eventDescription}${modifierDescription}`
+          : `Crew slot **${expedition.crewSlot}** is now fishing. This trip takes about **${formatFishingDuration(expedition.durationSeconds)}**.${eventDescription}${modifierDescription}`),
     ],
   };
 }
@@ -245,6 +252,7 @@ function fishingInventoryTabLabel(tab: FishingInventoryTab) {
     skills: 'Skills',
     gear: 'Relics',
     boats: 'Boats',
+    titles: 'Titles',
   };
   return labels[tab];
 }
@@ -275,6 +283,16 @@ function fishingInventoryComponents(ownerDiscordUserId: string, state: FishingPl
   return [...toComponentRows(navigationButtons), ...toComponentRows(buttons)];
 }
 
+export function getFishingShopSkillEmoji(itemId: string) {
+  const emojiByTrack: Record<string, string> = {
+    haste: '⏩',
+    lucky: '🍀',
+    cheapskate: '📉',
+    'money-mouser': '💰',
+  };
+  return emojiByTrack[itemId.replace(/-\d+$/, '')];
+}
+
 function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgradeCategory, state: FishingPlayerState, expiresAt: number, notice?: string) {
   const ownedItemIds = new Set(state.inventory.map((item) => item.item_id));
   const items = getVisibleFishingShopItems(category, [...ownedItemIds]);
@@ -286,7 +304,7 @@ function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgr
         .setTitle(`Fishing shop · ${fishingShopCategoryLabel(category)}`)
         .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent upgrades. Skills show only the next available tier in each track. Boat upgrades unlock travel and never need equipping.`)
         .addFields(items.map((item) => ({
-          name: `${ownedItemIds.has(item.id) ? 'Owned · ' : ''}${item.name} · ${formatXp(getFishingUpgradeCost(item, [...ownedItemIds]))} KnowBucks`,
+          name: `${ownedItemIds.has(item.id) ? 'Owned · ' : ''}${item.category === 'skill' ? `${getFishingShopSkillEmoji(item.id) ?? ''} ` : ''}${item.name} · ${formatXp(getFishingUpgradeCost(item, [...ownedItemIds]))} KnowBucks`,
           value: `${item.description}${item.requiredFishingLevel ? `\nRequires fishing level **${item.requiredFishingLevel}**.` : ''}${item.requiredUpgradeId ? `\nRequires **${getFishingUpgrade(item.requiredUpgradeId)?.name ?? item.requiredUpgradeId}**.` : ''}`,
         }))),
     ],
@@ -339,6 +357,17 @@ function buildFishingInventoryTabbedPanel(
           'No legacy crates. Newly caught crates open automatically during expeditions.',
         ),
       );
+  } else if (tab === 'titles') {
+    const titles = FISHING_EVENTS.map((event) => event.title);
+    embed
+      .setDescription(`${sharedDescription}\nTitles are permanent event achievements. They do not change your fishing bonuses.`)
+      .addFields(...splitFishingPanelField(
+        'Owned titles',
+        titles
+          .filter((title) => state.inventory.some((item) => item.item_id === title.itemId))
+          .map((title) => `🏷️ **${title.name}**`),
+        'No titles earned yet.',
+      ));
   } else {
     const categoryByTab: Partial<Record<FishingInventoryTab, FishingUpgradeCategory>> = {
       rods: 'rod',
@@ -404,6 +433,69 @@ export function buildFishingCataloguePanel(
         .addFields(
           ...splitFishingPanelField('Fish caught', fish.map((entry) => `${isFishingFishCaught(progress, entry) ? '✅ Caught' : '⬜ Not caught'} — **${entry.name}** (${entry.rarity})`), 'No fish recorded.'),
           ...splitFishingPanelField('Relics found', gear.map((entry) => `${progress.ownedGearItemIds.has(entry.id) ? '✅ Found' : '⬜ Not found'} — **${entry.name}**`), 'No relics recorded.'),
+        ),
+    ],
+  };
+}
+
+export function buildFishingEventHelpPanel() {
+  const event = FISHING_EVENTS[0];
+  if (!event) {
+    return { embeds: [new EmbedBuilder().setColor(0x64748B).setTitle('Fishing events').setDescription('There is no active fishing event right now.')] };
+  }
+  const fishByRarity = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic'] as const;
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xF97316)
+        .setTitle(`${event.name} · ${event.biomeName}`)
+        .setDescription(`Each new expedition has a **${Math.round(event.replacementChance * 100)}%** chance to enter the ${event.biomeName} instead of its selected biome. Expedition length and fish/crate sale values still use the selected biome. This event remains active until it is rotated out.`)
+        .addFields(
+          ...splitFishingPanelField(
+            'Event fish',
+            fishByRarity.map((rarity) => {
+              const fish = event.fish.filter((entry) => entry.rarity === rarity);
+              const names = fish.map((entry) => entry.nonSellable ? `${entry.name} (non-sellable; stored)` : entry.name).join(', ');
+              return `**${rarity}** — ${names}`;
+            }),
+            'No event fish are active.',
+          ),
+          ...splitFishingPanelField(
+            'Event crates',
+            event.crates.map((crate) => `**${crate.rarity} · ${crate.name}** — ${crate.items.join(', ')}`),
+            'No event crates are active.',
+          ),
+          {
+            name: 'Event title',
+            value: `🏷️ **${event.title.name}** — weight 1, ${(event.title.dropRate * 100).toFixed(1)}% chance per fish caught. It is a permanent title and is announced when found.`,
+          },
+        ),
+    ],
+  };
+}
+
+export function buildFishingEventCataloguePanel(progress: FishingEventCatalogueProgress) {
+  const event = FISHING_EVENTS[0];
+  if (!event) {
+    return { embeds: [new EmbedBuilder().setColor(0x64748B).setTitle('Fishing event catalogue').setDescription('There is no active fishing event right now.')] };
+  }
+  const caught = (name: string, rarity: string) => progress.caughtFish.some((fish) => fish.name === name && fish.rarity === rarity);
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xF97316)
+        .setTitle(`${event.name} catalogue · ${event.biomeName}`)
+        .setDescription('✅ marks event fish you have caught. ⬜ marks entries still to discover.')
+        .addFields(
+          ...splitFishingPanelField(
+            'Event fish',
+            event.fish.map((fish) => `${caught(fish.name, fish.rarity) ? '✅ Caught' : '⬜ Not caught'} — **${fish.name}** (${fish.rarity})`),
+            'No event fish are active.',
+          ),
+          {
+            name: 'Event title',
+            value: `${progress.ownedTitleItemIds.has(event.title.itemId) ? '✅ Earned' : '⬜ Not earned'} — **${event.title.name}**`,
+          },
         ),
     ],
   };
@@ -883,9 +975,25 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
               name: 'Crew expeditions',
               value: 'Crew 1 and Crew 2 unlock at higher fishing levels. Their trips take three times as long, with normal expedition rewards.',
             },
+            {
+              name: 'Active events',
+              value: '`/fish event-help` explains the active event and its rewards. `/fish event-catalogue` tracks its fish and title discoveries.',
+            },
           ),
       ],
     });
+    return;
+  }
+
+  if (subcommand === 'event-help') {
+    await interaction.reply(buildFishingEventHelpPanel());
+    return;
+  }
+
+  if (subcommand === 'event-catalogue') {
+    await interaction.deferReply();
+    const progress = await getFishingEventCatalogueProgress(config, interaction.user.id);
+    await interaction.editReply(buildFishingEventCataloguePanel(progress));
     return;
   }
 
@@ -929,12 +1037,15 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
     const active = progress.active.length > 0
       ? progress.active.map((expedition) => {
         const biome = getFishingBiome(expedition.biome_id);
+        const event = getFishingEvent(expedition.equipment_snapshot?.eventId);
         const durationSeconds = Math.max(0, Math.round((new Date(expedition.completes_at).getTime() - new Date(expedition.started_at).getTime()) / 1_000));
-        return `Crew ${expedition.crew_slot}: **${biome?.name ?? expedition.biome_id}** · trip duration: **${formatFishingDuration(durationSeconds)}**`;
+        const displayBiomeName = event?.biomeName ?? biome?.name ?? expedition.biome_id;
+        const selectedBiome = event ? ` (event · selected ${biome?.name ?? expedition.biome_id})` : '';
+        return `Crew ${expedition.crew_slot}: **${displayBiomeName}**${selectedBiome} · trip duration: **${formatFishingDuration(durationSeconds)}**`;
       }).join('\n')
       : 'No active expeditions.';
     const recent = progress.mostRecent?.result
-      ? `Latest: **${getFishingBiome(progress.mostRecent.biome_id)?.name ?? progress.mostRecent.biome_id}** · ${formatXp(progress.mostRecent.result.fishSaleValue + (progress.mostRecent.result.crateSaleValue ?? 0) + progress.mostRecent.result.knowBucksFound)} KnowBucks earned`
+      ? `Latest: **${getFishingEvent(progress.mostRecent.equipment_snapshot?.eventId)?.biomeName ?? getFishingBiome(progress.mostRecent.biome_id)?.name ?? progress.mostRecent.biome_id}** · ${formatXp(progress.mostRecent.result.fishSaleValue + (progress.mostRecent.result.crateSaleValue ?? 0) + progress.mostRecent.result.knowBucksFound)} KnowBucks earned`
       : 'No completed expeditions yet.';
     await interaction.editReply({
       embeds: [

@@ -55,7 +55,7 @@ import {
   buildSkinSearchEmbed,
   buildSkinCollectionEmbed,
   favoriteSkinClaim,
-  findSkinCatalogEntry,
+  findSkinCollectionSearchResult,
   forceAddSkinCollectionCapacity,
   forceSkinClaimDrop,
   gambleSkinClaim,
@@ -1108,7 +1108,8 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
 }
 
 async function handleCollectionsCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
-  if (!interaction.guild) return;
+  const guild = interaction.guild;
+  if (!guild) return;
   const subcommand = interaction.options.getSubcommand();
   if (subcommand !== 'spawn' && !(await isSkinCollectionCommandAllowedInChannel(config, interaction.channelId))) {
     await interaction.reply({ content: 'Collections commands are not enabled in this channel. An administrator can change the Collections commands channel in Discord Configuration. `/collections spawn` remains available to collection administrators in any channel where the bot can post.' });
@@ -1178,10 +1179,6 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
 
   if (subcommand === 'capacity-add') {
     const slots = interaction.options.getInteger('slots', true);
-    if (slots % 5 !== 0) {
-      await interaction.reply({ content: 'Collection capacity must be added in multiples of five slots.' });
-      return;
-    }
     await interaction.deferReply();
     try {
       const purchase = await purchaseSkinCollectionCapacity(config, interaction.user.id, slots);
@@ -1189,6 +1186,10 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
     } catch (error) {
       if (error instanceof Error && error.message.includes('Insufficient KnowBucks balance')) {
         await interaction.editReply({ content: 'You do not have enough KnowBucks for that collection capacity upgrade.' });
+        return;
+      }
+      if (error instanceof Error && error.message.includes('Collection capacity cannot exceed 50 slots')) {
+        await interaction.editReply({ content: 'Collection capacity cannot exceed 50 slots.' });
         return;
       }
       throw error;
@@ -1204,8 +1205,16 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
       return;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const capacity = await forceAddSkinCollectionCapacity(config, targetUser.id, interaction.options.getInteger('slots', true));
-    await interaction.editReply({ content: `Added collection capacity for ${targetUser}. Their capacity is now ${formatXp(capacity)} slots.` });
+    try {
+      const capacity = await forceAddSkinCollectionCapacity(config, targetUser.id, interaction.options.getInteger('slots', true));
+      await interaction.editReply({ content: `Added collection capacity for ${targetUser}. Their capacity is now ${formatXp(capacity)} slots.` });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Collection capacity cannot exceed 50 slots')) {
+        await interaction.editReply({ content: `${targetUser}'s collection capacity cannot exceed 50 slots.` });
+        return;
+      }
+      throw error;
+    }
     return;
   }
 
@@ -1294,12 +1303,28 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   }
 
   if (subcommand === 'search') {
-    const skin = findSkinCatalogEntry(interaction.options.getString('skin-name', true));
-    if (!skin) {
-      await interaction.reply({ content: 'No matching skin was found in the local KnowLeague catalogue.' });
+    const skinName = interaction.options.getString('skin-name');
+    const skinCode = interaction.options.getInteger('skin-id');
+    if ((skinName && skinCode !== null) || (!skinName && skinCode === null)) {
+      await interaction.reply({ content: 'Search by either a skin name or a four-digit KnowLeague ID.' });
       return;
     }
-    await interaction.reply({ embeds: [buildSkinSearchEmbed(skin)] });
+    await interaction.deferReply();
+    const result = await findSkinCollectionSearchResult(config, { skinCode, skinName });
+    if (!result) {
+      await interaction.editReply({ content: 'No matching skin was found in the local KnowLeague catalogue or active collection.' });
+      return;
+    }
+    const owners = await Promise.all(result.claims.map(async (claim) => {
+      if (!claim.owner_discord_user_id) return { skinCode: claim.skin_code, username: null };
+      try {
+        const member = await guild.members.fetch(claim.owner_discord_user_id);
+        return { skinCode: claim.skin_code, username: member.user.username };
+      } catch {
+        return { skinCode: claim.skin_code, username: 'Former member' };
+      }
+    }));
+    await interaction.editReply({ embeds: [buildSkinSearchEmbed(result.skin, owners)] });
     return;
   }
 
@@ -1592,9 +1617,9 @@ export async function handleChatInputCommand(
             { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Use Show details to see collection metadata and the skin\'s sell value.' },
             { name: '/collections give member skin-id', value: 'Give one of your claimed skins to another current server member by its four-digit ID.' },
             { name: '/collections summon', value: 'Spend the configured summon cost (5,000 KnowBucks by default) to summon a claimable drop in this channel, with your grace period first.' },
-            { name: '/collections capacity-add slots', value: 'Buy collection space in multiples of five slots for the configured rate (500 KnowBucks per five slots by default). Staff can use `capacity-force-add` for a free member upgrade.' },
+            { name: '/collections capacity-add slots', value: 'Buy one or more collection slots for the configured per-slot rate (500 KnowBucks per slot by default), up to 50 total slots. Staff can use `capacity-force-add` for a free member upgrade within that limit.' },
             { name: '/collections steal/favorite/gamble/sell', value: 'Attempt a steal for 3x the skin’s configured sell value (with a 30-minute cooldown), choose your first collection item, gamble a skin, or sell one by its four-digit ID.' },
-            { name: '/collections search skin-name', value: 'Preview a catalogue skin. The preview cannot be claimed.' },
+            { name: '/collections search [skin-name] [skin-id]', value: 'Preview a catalogue skin by name or four-digit KnowLeague ID, including its current owner when assigned. The preview cannot be claimed.' },
             { name: '/collections spawn', value: 'Immediately post a skin drop in this channel. Requires a role selected in Discord Configuration.' },
             { name: 'Chat leveling', value: 'Eligible non-bot messages earn XP. Level rewards and messages are configured on the website.' },
           ),

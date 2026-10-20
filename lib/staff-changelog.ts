@@ -17,6 +17,40 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-20-discord-collections-unique-skins-capacity-and-search',
+    patch: 'patch-2026-10-20-discord-collections-unique-skins-capacity-and-search',
+    timestamp: '2026-10-20T20:13:05.267Z',
+    title: 'Enforce unique Collections skins and per-slot capacity pricing',
+    summary:
+      'Collections now prevents future duplicate skin copies, supports searching by four-digit KnowLeague ID with ownership visibility, and prices new capacity per slot up to 50 total slots.',
+    details: [
+      'The /collections search command now accepts either a skin name or a four-digit KnowLeague ID. Its preview shows assigned collection IDs and the owner username, or an unclaimed state when no active copy exists. Existing legacy duplicate claims are shown as multiple owners for staff visibility.',
+      'A database-backed active catalogue registry and trigger reserve each skin catalogue ID while it is pending or claimed. The registry is released when the item expires, cannot be sent, is sold, or is gambled away, so every spawn, summon, and successful gamble can only produce an unowned skin. The trigger is authoritative against races and direct database writes.',
+      'Capacity additions now accept individual slots and cost the configured rate multiplied by slots added (500 KnowBucks per slot by default). Paid and collection-admin force additions both stop at 50 total slots; the configuration screen and API enforce the same maximum while preserving any grandfathered capacity.',
+      'Migration 175 seeds registry rows for active legacy records without deleting or reassigning existing duplicate claims. It normalizes any configured default above 50 down to 50 while preserving existing player items and grandfathered capacity records.',
+    ],
+    impact: [
+      'Apply migration 175 before deploying the matching bot or website. It adds protected registry storage, trigger-based uniqueness enforcement, and the database-side capacity rules. The migration is local only and has not been pushed or applied.',
+      'Deploy both the website and Discord bot, then run npm run discord:commands:register with the bot deployment environment configured. Registration is required because /collections search gains the optional skin-id parameter and capacity option limits change.',
+      'The registry is service-role-readable only and mutation occurs inside a security-definer trigger. Browser clients receive no service-role access.',
+    ],
+    files: [
+      'supabase/migrations/175_discord_collections_unique_skins_and_capacity_cap.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'components/discord-leveling-settings.tsx',
+      'app/api/discord/leveling/route.ts',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Collections command and embed tests passed.',
+      'npm run check passed: root lint and type-check, the complete Vitest suite, and the Discord bot TypeScript check. Existing unrelated Next.js <img> lint warnings remain.',
+      'Migration 175 was created locally only and has not been pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-20-discord-fishing-emoji-presentation',
     patch: 'patch-2026-10-20-discord-fishing-emoji-presentation',
     timestamp: '2026-10-20T18:15:00.000Z',

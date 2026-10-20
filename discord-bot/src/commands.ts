@@ -41,12 +41,12 @@ function createCollectionsCommand() {
       .setDescription('Spend 5,000 KnowBucks to summon a skin drop in this channel.'))
     .addSubcommand((subcommand) => subcommand
       .setName('capacity-add')
-      .setDescription('Spend 500 KnowBucks per five slots to expand your collection.')
+      .setDescription('Spend 500 KnowBucks per added slot to expand your collection up to 50 slots.')
       .addIntegerOption((option) => option
         .setName('slots')
-        .setDescription('Slots to add, in multiples of five.')
-        .setMinValue(5)
-        .setMaxValue(5000)
+        .setDescription('Slots to add, up to the 50-slot collection maximum.')
+        .setMinValue(1)
+        .setMaxValue(50)
         .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('capacity-force-add')
@@ -57,9 +57,9 @@ function createCollectionsCommand() {
         .setRequired(true))
       .addIntegerOption((option) => option
         .setName('slots')
-        .setDescription('Slots to add.')
+        .setDescription('Slots to add, up to the 50-slot collection maximum.')
         .setMinValue(1)
-        .setMaxValue(5000)
+        .setMaxValue(50)
         .setRequired(true)))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('steal')
@@ -78,7 +78,13 @@ function createCollectionsCommand() {
         .setDescription('All or part of a skin name.')
         .setMinLength(1)
         .setMaxLength(150)
-        .setRequired(true)))
+        .setRequired(false))
+      .addIntegerOption((option) => option
+        .setName('skin-id')
+        .setDescription('The four-digit KnowLeague ID assigned to a spawned skin.')
+        .setMinValue(1000)
+        .setMaxValue(9999)
+        .setRequired(false)))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('sell')
       .setDescription('Sell one of your skins for KnowBucks.')));

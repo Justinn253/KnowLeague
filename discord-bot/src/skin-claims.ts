@@ -53,6 +53,16 @@ type SkinClaimCommandSettingsRow = {
   command_channel_id: string | null;
 };
 
+type SkinClaimCatalogLockRow = {
+  skin_catalog_id: string;
+};
+
+type SkinSearchClaimRow = {
+  owner_discord_user_id: string | null;
+  skin_catalog_id: string;
+  skin_code: number;
+};
+
 type SkinClaimRuntimeSettings = {
   claimWindowMinutes: number;
   eligibleChannelIds: Set<string>;
@@ -91,6 +101,11 @@ export type SkinCollectionPage = {
   page: number;
   sellValue: number | null;
   total: number;
+};
+
+export type SkinSearchResult = {
+  claims: Array<Pick<SkinSearchClaimRow, 'owner_discord_user_id' | 'skin_code'>>;
+  skin: CatalogSkin;
 };
 
 type CollectionCapacitySettingsRow = {
@@ -200,8 +215,8 @@ function loadSkinCatalog() {
   return catalogCache;
 }
 
-function chooseWeightedSkin(rarityWeights: Map<string, number>) {
-  const candidates = loadSkinCatalog().map((skin) => ({ skin, weight: rarityWeights.get(normalizeRarity(skin.rarity)) ?? 0 }))
+function chooseWeightedSkin(rarityWeights: ReadonlyMap<string, number>, catalog: readonly CatalogSkin[] = loadSkinCatalog()) {
+  const candidates = catalog.map((skin) => ({ skin, weight: rarityWeights.get(normalizeRarity(skin.rarity)) ?? 0 }))
     .filter((candidate) => candidate.weight > 0);
   const totalWeight = candidates.reduce((total, candidate) => total + candidate.weight, 0);
   if (totalWeight <= 0) {
@@ -213,6 +228,20 @@ function chooseWeightedSkin(rarityWeights: Map<string, number>) {
     if (selection < 0) return candidate.skin;
   }
   return candidates[candidates.length - 1]!.skin;
+}
+
+async function chooseAvailableWeightedSkin(config: DiscordBotConfig, rarityWeights: ReadonlyMap<string, number>) {
+  const { data, error } = await createBotServiceClient(config)
+    .from('discord_skin_claim_catalog_locks')
+    .select('skin_catalog_id')
+    .eq('guild_id', config.guildId)
+    .returns<SkinClaimCatalogLockRow[]>();
+  if (error) throw new Error(`Unable to load claimed Discord collection skins: ${error.message}`);
+
+  const lockedCatalogIds = new Set((data ?? []).map((entry) => entry.skin_catalog_id));
+  const catalog = loadSkinCatalog().filter((skin) => !lockedCatalogIds.has(skin.id));
+  if (!catalog.length) throw new Error('Every skin in the local KnowLeague catalogue is already in a collection.');
+  return { catalog, skin: chooseWeightedSkin(rarityWeights, catalog) };
 }
 
 export function calculateSkinRaritySpawnPercent(
@@ -440,7 +469,7 @@ async function reserveAndSendSkinDrop(
   triggerType: 'manual' | 'message' | 'timer',
   settings: SkinClaimRuntimeSettings,
 ) {
-  const skin = chooseWeightedSkin(settings.rarityWeights);
+  const { catalog, skin } = await chooseAvailableWeightedSkin(config, settings.rarityWeights);
   const dropArguments = {
     p_channel_id: channelId,
     p_champion_name: skin.champion,
@@ -466,7 +495,7 @@ async function reserveAndSendSkinDrop(
     channelId,
     skin,
     reserved,
-    calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights),
+    calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights, catalog),
   );
 }
 
@@ -557,7 +586,7 @@ export async function summonSkinClaimDrop(
   if (!settings.enabled) return { status: 'disabled' };
   if (!settings.eligibleChannelIds.has(channelId)) return { status: 'not-configured' };
 
-  const skin = chooseWeightedSkin(settings.rarityWeights);
+  const { catalog, skin } = await chooseAvailableWeightedSkin(config, settings.rarityWeights);
   const { data, error } = await createBotServiceClient(config).rpc('summon_discord_skin_claim_drop', {
     ...skinDropArguments(config, channelId, skin),
     p_discord_user_id: discordUserId,
@@ -575,7 +604,7 @@ export async function summonSkinClaimDrop(
     channelId,
     skin,
     reserved,
-    calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights),
+    calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights, catalog),
   );
   return spawned
     ? { channelId, remainingBalance: reserved.remaining_balance, status: 'spawned' }
@@ -597,7 +626,7 @@ export async function gambleSkinClaim(
   const settings = await getSkinClaimSettings(config, true);
   if (!settings?.enabled || !settings.eligibleChannelIds.has(channelId)) return { status: 'not-configured' };
 
-  const skin = chooseWeightedSkin(settings.rarityWeights);
+  const { catalog, skin } = await chooseAvailableWeightedSkin(config, settings.rarityWeights);
   const { data, error } = await createBotServiceClient(config).rpc('gamble_discord_skin_claim', {
     ...skinDropArguments(config, channelId, skin),
     p_discord_user_id: discordUserId,
@@ -616,7 +645,7 @@ export async function gambleSkinClaim(
     drop_id: result.drop_id,
     expires_at: result.expires_at,
     skin_code: result.new_skin_code,
-  }, calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights));
+  }, calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights, catalog));
   return spawned
     ? { status: 'spawned', skinName: result.skin_name }
     : { status: 'active-drop', skinName: result.skin_name };
@@ -831,7 +860,58 @@ export function findSkinCatalogEntry(query: string) {
   })[0] ?? null;
 }
 
-export function buildSkinSearchEmbed(skin: CatalogSkin) {
+export async function findSkinCollectionSearchResult(
+  config: DiscordBotConfig,
+  input: { skinCode?: number | null; skinName?: string | null },
+): Promise<SkinSearchResult | null> {
+  const skinName = input.skinName?.trim() ?? '';
+  const skinCode = input.skinCode ?? null;
+  if ((skinName && skinCode !== null) || (!skinName && skinCode === null)) {
+    throw new Error('Search for a skin by either its name or its four-digit KnowLeague ID.');
+  }
+
+  const supabase = createBotServiceClient(config);
+  if (skinCode !== null) {
+    const { data, error } = await supabase
+      .from('discord_skin_claim_drops')
+      .select('skin_catalog_id, skin_code, owner_discord_user_id')
+      .eq('guild_id', config.guildId)
+      .eq('skin_code', skinCode)
+      .in('status', ['pending', 'claimed'])
+      .returns<SkinSearchClaimRow[]>();
+    if (error) throw new Error(`Unable to search Discord collection skins: ${error.message}`);
+    const claim = data?.[0];
+    if (!claim) return null;
+    const skin = loadSkinCatalog().find((entry) => entry.id === claim.skin_catalog_id);
+    return skin ? { claims: [claim], skin } : null;
+  }
+
+  const skin = findSkinCatalogEntry(skinName);
+  if (!skin) return null;
+  const { data, error } = await supabase
+    .from('discord_skin_claim_drops')
+    .select('skin_catalog_id, skin_code, owner_discord_user_id')
+    .eq('guild_id', config.guildId)
+    .eq('skin_catalog_id', skin.id)
+    .in('status', ['pending', 'claimed'])
+    .order('skin_code', { ascending: true })
+    .returns<SkinSearchClaimRow[]>();
+  if (error) throw new Error(`Unable to search Discord collection skins: ${error.message}`);
+  return { claims: data ?? [], skin };
+}
+
+export type SkinSearchOwner = {
+  skinCode: number;
+  username: string | null;
+};
+
+export function buildSkinSearchEmbed(skin: CatalogSkin, owners: readonly SkinSearchOwner[] = []) {
+  const knowLeagueIds = owners.length
+    ? owners.map((owner) => `#${formatSkinCode(owner.skinCode)}`).join(', ')
+    : 'Not assigned yet';
+  const ownerValue = owners.length
+    ? owners.map((owner) => owner.username ?? 'Unclaimed').join('\n')
+    : 'Unclaimed';
   return new EmbedBuilder()
     .setColor(RARITY_COLORS[normalizeRarity(skin.rarity)] ?? 0xF59E0B)
     .setTitle(`Skin preview · ${skin.answer}`)
@@ -842,7 +922,8 @@ export function buildSkinSearchEmbed(skin: CatalogSkin) {
       { name: 'Rarity', value: normalizeRarity(skin.rarity), inline: true },
       { name: 'Release date', value: formatReleaseDate(skin.releaseDate), inline: true },
       { name: 'Skin line', value: skin.skinLine, inline: true },
-      { name: 'KnowLeague ID', value: `#${skin.id}`, inline: true },
+      { name: 'KnowLeague ID', value: knowLeagueIds, inline: true },
+      { name: owners.length > 1 ? 'Owners' : 'Owner', value: ownerValue, inline: true },
     );
 }
 

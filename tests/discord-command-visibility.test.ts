@@ -10,5 +10,6 @@ describe('Discord slash-command visibility', () => {
     expect(isDiscordAdministrativeCommand('collections', 'summon')).toBe(false);
     expect(isDiscordAdministrativeCommand('cl', 'capacity-force-add')).toBe(false);
     expect(isDiscordAdministrativeCommand('leaderboard', null)).toBe(false);
+    expect(isDiscordAdministrativeCommand('steal-emoji', null)).toBe(true);
   });
 });

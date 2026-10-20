@@ -1,3 +1,4 @@
+import { PermissionFlagsBits } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
 
@@ -8,13 +9,15 @@ type SerializedSubcommand = {
 };
 
 describe('Discord KnowBucks command contract', () => {
-  it('registers balance, payment, and staff management subcommands', () => {
+  it('registers balance, payment, games, leaderboard, and staff management subcommands', () => {
     const command = serializedCommandDefinitions().find((definition) => definition.name === 'knowbucks');
 
     expect(command).toBeDefined();
     expect(command?.options?.map((option) => option.name)).toEqual([
       'balance',
       'pay',
+      'coinflip',
+      'leaderboard',
       'add',
       'remove',
       'set',
@@ -29,8 +32,17 @@ describe('Discord KnowBucks command contract', () => {
     ]));
     const setAmount = subcommands.get('set')?.options?.find((option) => option.name === 'amount');
     const payAmount = subcommands.get('pay')?.options?.find((option) => option.name === 'amount');
+    const coinflipAmount = subcommands.get('coinflip')?.options?.find((option) => option.name === 'amount');
 
     expect(setAmount?.min_value).toBe(0);
     expect(payAmount?.min_value).toBe(1);
+    expect(coinflipAmount?.min_value).toBe(1);
+  });
+
+  it('registers the emoji import command for Discord administrators only', () => {
+    const command = serializedCommandDefinitions().find((definition) => definition.name === 'steal-emoji');
+
+    expect(command?.default_member_permissions).toBe(PermissionFlagsBits.Administrator.toString());
+    expect(command?.options?.[0]?.name).toBe('message-id');
   });
 });

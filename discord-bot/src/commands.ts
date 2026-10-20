@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type SlashCommandSubcommandBuilder } from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder, type SlashCommandSubcommandBuilder } from 'discord.js';
 
 function addSkinIdOption(command: SlashCommandSubcommandBuilder) {
   return command.addIntegerOption((option) => option
@@ -181,6 +181,24 @@ export const commandDefinitions = [
         .setMaxValue(1_000_000_000)
         .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
+      .setName('coinflip')
+      .setDescription('Wager KnowBucks on a 50/50 coinflip. A win returns double your wager.')
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('KnowBucks to wager, from 1 to 1,000,000,000.')
+        .setMinValue(1)
+        .setMaxValue(1_000_000_000)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('leaderboard')
+      .setDescription('Show the server KnowBucks leaderboard.')
+      .addIntegerOption((option) => option
+        .setName('count')
+        .setDescription('Number of members to show, from 1 to 25. Defaults to 10.')
+        .setMinValue(1)
+        .setMaxValue(25)
+        .setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
       .setName('add')
       .setDescription('Give KnowBucks to a server member.')
       .addUserOption((option) => option
@@ -219,6 +237,19 @@ export const commandDefinitions = [
         .setMinValue(0)
         .setMaxValue(1_000_000_000)
         .setRequired(true))),
+  new SlashCommandBuilder()
+    .setName('snipe')
+    .setDescription('Spend 1,000 KnowBucks to reveal this channel\'s latest cached deleted message.'),
+  new SlashCommandBuilder()
+    .setName('steal-emoji')
+    .setDescription('Import external custom emoji used in a message from this server.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addStringOption((option) => option
+      .setName('message-id')
+      .setDescription('Message ID in this channel, or a copied message link from this server.')
+      .setMinLength(17)
+      .setMaxLength(200)
+      .setRequired(true)),
   new SlashCommandBuilder()
     .setName('xp')
     .setDescription('Manage Discord chat leveling XP.')

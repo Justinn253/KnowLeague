@@ -1,4 +1,5 @@
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember } from 'discord.js';
+import { randomInt } from 'node:crypto';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   addManualXp,
@@ -9,8 +10,10 @@ import {
   reconcileLevelRewardRoles,
   setManualLevel,
 } from './leveling.js';
-import { getKnowBucksBalance, payKnowBucks, updateKnowBucks } from './knowbucks.js';
+import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
+import { importExternalMessageEmojis } from './emoji-import.js';
 import { findLinkedProfile } from './profiles.js';
+import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
   attachFishingExpeditionMessage,
   describeFishingEquipment,
@@ -77,7 +80,8 @@ function profileButton(config: DiscordBotConfig, username?: string) {
 export function isDiscordAdministrativeCommand(commandName: string, subcommand: string | null) {
   return (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
     || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
-    || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'));
+    || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
+    || commandName === 'steal-emoji';
 }
 
 function formatXp(value: number) {
@@ -515,13 +519,14 @@ async function handleLeaderboardCommand(interaction: ChatInputCommandInteraction
       if (expiry <= now) leaderboardCommandAvailableAtByUserId.delete(userId);
     }
   }
-  const availableAt = leaderboardCommandAvailableAtByUserId.get(interaction.user.id) ?? 0;
+  const cooldownKey = `${interaction.commandName}:${interaction.user.id}`;
+  const availableAt = leaderboardCommandAvailableAtByUserId.get(cooldownKey) ?? 0;
   if (availableAt > now) {
     const seconds = Math.ceil((availableAt - now) / 1_000);
     await interaction.reply({ content: `Please wait ${seconds} second${seconds === 1 ? '' : 's'} before using /leaderboard again.` });
     return;
   }
-  leaderboardCommandAvailableAtByUserId.set(interaction.user.id, now + LEADERBOARD_COMMAND_COOLDOWN_MS);
+  leaderboardCommandAvailableAtByUserId.set(cooldownKey, now + LEADERBOARD_COMMAND_COOLDOWN_MS);
 
   const count = interaction.options.getInteger('count') ?? 10;
   await interaction.deferReply();
@@ -545,12 +550,58 @@ async function handleLeaderboardCommand(interaction: ChatInputCommandInteraction
   });
 }
 
+async function handleKnowBucksLeaderboardCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+
+  const now = Date.now();
+  if (now >= leaderboardCommandCooldownPruneAfter) {
+    leaderboardCommandCooldownPruneAfter = now + 5 * 60 * 1_000;
+    for (const [key, expiry] of leaderboardCommandAvailableAtByUserId) {
+      if (expiry <= now) leaderboardCommandAvailableAtByUserId.delete(key);
+    }
+  }
+  const cooldownKey = `${interaction.commandName}:${interaction.options.getSubcommand()}:${interaction.user.id}`;
+  const availableAt = leaderboardCommandAvailableAtByUserId.get(cooldownKey) ?? 0;
+  if (availableAt > now) {
+    const seconds = Math.ceil((availableAt - now) / 1_000);
+    await interaction.reply({ content: `Please wait ${seconds} second${seconds === 1 ? '' : 's'} before using /knowbucks leaderboard again.` });
+    return;
+  }
+  leaderboardCommandAvailableAtByUserId.set(cooldownKey, now + LEADERBOARD_COMMAND_COOLDOWN_MS);
+
+  const count = interaction.options.getInteger('count') ?? 10;
+  await interaction.deferReply();
+  const entries = await getKnowBucksLeaderboard(config, interaction.guild, count);
+  if (!entries.length) {
+    await interaction.editReply({ content: 'No current server members hold KnowBucks yet.' });
+    return;
+  }
+
+  await interaction.editReply({
+    allowedMentions: { parse: [] },
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xF59E0B)
+        .setTitle('KnowLeague KnowBucks leaderboard')
+        .setDescription(entries.map((entry, index) => (
+          `**${index + 1}.** <@${entry.userId}> - **${formatXp(entry.balance)} KnowBucks**`
+        )).join('\n'))
+        .setFooter({ text: `Top ${entries.length} active server member${entries.length === 1 ? '' : 's'} by KnowBucks` }),
+    ],
+  });
+}
+
 async function handleKnowBucksCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) {
     return;
   }
 
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === 'leaderboard') {
+    await handleKnowBucksLeaderboardCommand(interaction, config);
+    return;
+  }
+
   if (subcommand === 'balance') {
     const targetUser = interaction.options.getUser('member') ?? interaction.user;
     if (targetUser.bot) {
@@ -566,6 +617,31 @@ async function handleKnowBucksCommand(interaction: ChatInputCommandInteraction, 
           .setDescription(`**${formatXp(balance)} KnowBucks**`),
       ],
     });
+    return;
+  }
+
+  if (subcommand === 'coinflip') {
+    const amount = interaction.options.getInteger('amount', true);
+    const won = randomInt(2) === 0;
+    try {
+      const result = await flipKnowBucks(config, interaction.user.id, amount, won);
+      await interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(result.won ? 0x22C55E : 0xEF4444)
+            .setTitle(result.won ? 'Coinflip won!' : 'Coinflip lost')
+            .setDescription(result.won
+              ? `You won **${formatXp(result.wager_amount)} KnowBucks** on the **${formatXp(result.wager_amount)} KnowBucks** wager.\nBalance: **${formatXp(result.current_balance)} KnowBucks**.`
+              : `You lost **${formatXp(result.wager_amount)} KnowBucks**.\nBalance: **${formatXp(result.current_balance)} KnowBucks**.`),
+        ],
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Insufficient KnowBucks balance')) {
+        await interaction.reply({ content: 'You do not have enough KnowBucks for that coinflip.' });
+        return;
+      }
+      throw error;
+    }
     return;
   }
 
@@ -628,6 +704,146 @@ async function handleKnowBucksCommand(interaction: ChatInputCommandInteraction, 
         .setDescription(`${detail}\nCurrent balance: **${formatXp(update.current_balance)} KnowBucks**.`),
     ],
     flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleSnipeCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  const sniped = getSnipedMessage(interaction.channelId);
+  if (!sniped) {
+    await interaction.reply({ content: 'There is no cached deleted message in this channel. No KnowBucks were spent.' });
+    return;
+  }
+
+  try {
+    const purchase = await purchaseSnipe(config, interaction.user.id);
+    const imageAttachments = getSnipeImageAttachments(sniped);
+    const snipeEmbed = new EmbedBuilder()
+      .setColor(0x64748B)
+      .setTitle('Last deleted message')
+      .setDescription(formatSnipedMessage(sniped))
+      .setFooter({ text: `1,000 KnowBucks spent | Your balance: ${formatXp(purchase.current_balance)} KnowBucks` })
+      .setTimestamp(sniped.deletedAt);
+    if (imageAttachments[0]) snipeEmbed.setImage(imageAttachments[0].url);
+
+    await interaction.reply({
+      allowedMentions: { parse: [] },
+      embeds: [
+        snipeEmbed,
+        ...imageAttachments.slice(1).map((attachment, index) => new EmbedBuilder()
+          .setColor(0x64748B)
+          .setTitle(`Image attachment ${index + 2}`)
+          .setImage(attachment.url)),
+      ],
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Insufficient KnowBucks balance')) {
+      await interaction.reply({ content: 'You need at least 1,000 KnowBucks to use /snipe.' });
+      return;
+    }
+    throw error;
+  }
+}
+
+type EmojiMessageReference =
+  | { channelId: string; messageId: string; status: 'ok' }
+  | { status: 'different-guild' | 'invalid' };
+
+function parseEmojiMessageReference(value: string, currentChannelId: string, guildId: string): EmojiMessageReference {
+  const trimmed = value.trim();
+  if (/^[0-9]{17,20}$/.test(trimmed)) {
+    return { channelId: currentChannelId, messageId: trimmed, status: 'ok' };
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (!['discord.com', 'www.discord.com', 'discordapp.com', 'www.discordapp.com', 'ptb.discord.com', 'canary.discord.com'].includes(url.hostname)) {
+      return { status: 'invalid' };
+    }
+    const [, route, linkGuildId, channelId, messageId] = url.pathname.split('/');
+    if (route !== 'channels' || !/^[0-9]{17,20}$/.test(linkGuildId ?? '') || !/^[0-9]{17,20}$/.test(channelId ?? '') || !/^[0-9]{17,20}$/.test(messageId ?? '')) {
+      return { status: 'invalid' };
+    }
+    if (linkGuildId !== guildId) {
+      return { status: 'different-guild' };
+    }
+    return { channelId: channelId!, messageId: messageId!, status: 'ok' };
+  } catch {
+    return { status: 'invalid' };
+  }
+}
+
+async function fetchEmojiSourceMessage(
+  interaction: ChatInputCommandInteraction,
+  reference: Extract<EmojiMessageReference, { status: 'ok' }>,
+): Promise<Message | null> {
+  if (!interaction.guild) return null;
+  const channel = reference.channelId === interaction.channelId
+    ? interaction.channel
+    : await interaction.guild.channels.fetch(reference.channelId);
+  if (!channel || !channel.isTextBased() || !('messages' in channel)) {
+    return null;
+  }
+  return channel.messages.fetch(reference.messageId).catch(() => null);
+}
+
+async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: 'Only server administrators can use /steal-emoji.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const botMember = await interaction.guild.members.fetchMe();
+  const canCreateExpressions = botMember.permissions.has(PermissionFlagsBits.CreateGuildExpressions)
+    || botMember.permissions.has(PermissionFlagsBits.ManageGuildExpressions);
+  if (!canCreateExpressions) {
+    await interaction.editReply({ content: 'KnowLeague needs the Create Expressions permission before it can import emoji.' });
+    return;
+  }
+
+  const reference = parseEmojiMessageReference(
+    interaction.options.getString('message-id', true),
+    interaction.channelId,
+    config.guildId,
+  );
+  if (reference.status !== 'ok') {
+    await interaction.editReply({
+      content: reference.status === 'different-guild'
+        ? 'The source message must be from this server. KnowLeague cannot read messages in another server.'
+        : 'Enter a message ID from this channel, or paste a Discord message link from this server.',
+    });
+    return;
+  }
+
+  const sourceMessage = await fetchEmojiSourceMessage(interaction, reference);
+  if (!sourceMessage) {
+    await interaction.editReply({ content: 'KnowLeague could not read that message. Check the ID or link and its Read Message History permission.' });
+    return;
+  }
+
+  const result = await importExternalMessageEmojis(
+    interaction.guild,
+    sourceMessage,
+    `Imported by ${interaction.user.tag} through KnowLeague /steal-emoji`,
+  );
+  if (result.imported.length === 0 && result.skippedExisting.length === 0 && result.failed.length === 0) {
+    await interaction.editReply({ content: 'That message does not contain custom emoji from another server.' });
+    return;
+  }
+
+  const details = [
+    result.imported.length > 0 ? `Imported: ${result.imported.map((name) => `:${name}:`).join(', ')}` : null,
+    result.skippedExisting.length > 0 ? `Already in this server: ${result.skippedExisting.map((name) => `:${name}:`).join(', ')}` : null,
+    result.failed.length > 0 ? `Could not import: ${result.failed.map((name) => `:${name}:`).join(', ')}` : null,
+  ].filter((value): value is string => value !== null);
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(result.failed.length > 0 ? 0xF59E0B : 0x22C55E)
+        .setTitle('External emoji import complete')
+        .setDescription(details.join('\n')),
+    ],
   });
 }
 
@@ -1254,7 +1470,11 @@ export async function handleChatInputCommand(
             { name: '/xp view [member]', value: 'View your chat level and XP progress, or select another member to view theirs.' },
             { name: '/knowbucks balance [member]', value: 'View your KnowBucks balance or another member\'s balance.' },
             { name: '/knowbucks pay member amount', value: 'Pay KnowBucks to another server member.' },
+            { name: '/knowbucks coinflip amount', value: 'Wager KnowBucks on a 50/50 coinflip. A win returns double the wager.' },
+            { name: '/knowbucks leaderboard [count]', value: 'Show the top 10 current server members by KnowBucks, or request from 1 to 25 members.' },
             { name: '/knowbucks add/remove/set', value: 'Manage a member\'s KnowBucks. Requires a role selected in Discord Configuration.' },
+            { name: '/snipe', value: 'Spend 1,000 KnowBucks to show this channel\'s latest cached deleted message.' },
+            { name: '/steal-emoji message-id', value: 'Administrator only: import external custom emoji used in a message. A copied message link can target another channel in this server.' },
             { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent relics apply to the saved trip; crew runs take three times as long with normal rewards.' },
             { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or use the inventory tabs to inspect relic descriptions and equip an owned rod or bait.' },
             { name: '/fish chests-open, catalogue, help', value: 'Redeem all held legacy chests, browse the biome-filtered field guide, or open focused fishing help. Newly caught crates open automatically during expeditions.' },
@@ -1279,6 +1499,16 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'knowbucks') {
     await handleKnowBucksCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'snipe') {
+    await handleSnipeCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'steal-emoji') {
+    await handleStealEmojiCommand(interaction, config);
     return;
   }
 

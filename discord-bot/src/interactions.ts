@@ -26,7 +26,7 @@ import {
   getFishingCatalogueProgress,
   getFishingCrate,
   getFishingPlayerState,
-  getFishingShopItems,
+  getVisibleFishingShopItems,
   getFishingUpgrade,
   getFishingUpgradeCost,
   openAllFishingCrates,
@@ -225,7 +225,7 @@ function fishingShopComponents(ownerDiscordUserId: string, category: FishingUpgr
         .setLabel(fishingShopCategoryLabel(entry))),
     }));
   const ownedItemIds = new Set(state.inventory.map((item) => item.item_id));
-  const purchaseButtons = getFishingShopItems(category).map((item) => {
+  const purchaseButtons = getVisibleFishingShopItems(category, [...ownedItemIds]).map((item) => {
     const cost = getFishingUpgradeCost(item, [...ownedItemIds]);
     const missingRequiredUpgrade = Boolean(item.requiredUpgradeId && !ownedItemIds.has(item.requiredUpgradeId));
     return new ButtonBuilder()
@@ -276,15 +276,15 @@ function fishingInventoryComponents(ownerDiscordUserId: string, state: FishingPl
 }
 
 function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgradeCategory, state: FishingPlayerState, expiresAt: number, notice?: string) {
-  const items = getFishingShopItems(category);
   const ownedItemIds = new Set(state.inventory.map((item) => item.item_id));
+  const items = getVisibleFishingShopItems(category, [...ownedItemIds]);
   return {
     components: fishingShopComponents(ownerDiscordUserId, category, state, expiresAt),
     embeds: [
       new EmbedBuilder()
         .setColor(0x0EA5E9)
         .setTitle(`Fishing shop · ${fishingShopCategoryLabel(category)}`)
-        .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent upgrades. Boat upgrades unlock travel and never need equipping.`)
+        .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent upgrades. Skills show only the next available tier in each track. Boat upgrades unlock travel and never need equipping.`)
         .addFields(items.map((item) => ({
           name: `${ownedItemIds.has(item.id) ? 'Owned · ' : ''}${item.name} · ${formatXp(getFishingUpgradeCost(item, [...ownedItemIds]))} KnowBucks`,
           value: `${item.description}${item.requiredFishingLevel ? `\nRequires fishing level **${item.requiredFishingLevel}**.` : ''}${item.requiredUpgradeId ? `\nRequires **${getFishingUpgrade(item.requiredUpgradeId)?.name ?? item.requiredUpgradeId}**.` : ''}`,

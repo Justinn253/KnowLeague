@@ -70,7 +70,9 @@ export interface FishingUpgrade {
 export interface FishingEquipmentSnapshot {
   baitItemId: string;
   boatItemId?: string;
-  catalogueVersion: 2 | 3 | 4 | 5 | 6;
+  /** Fish already catalogued when the trip launched, used by Pearl Diver's Log. */
+  catalogueFishKeys?: string[];
+  catalogueVersion: 2 | 3 | 4 | 5 | 6 | 7;
   /** Bonuses locked in when an expedition starts, so later config changes cannot alter it. */
   modifiers?: FishingExpeditionModifiers;
   passiveItemIds: string[];
@@ -79,11 +81,17 @@ export interface FishingEquipmentSnapshot {
 }
 
 export interface FishingExpeditionModifiers {
+  /** Number of consecutive Genesys Loop relaunches before this trip. */
+  genesysLoopCount?: number;
+  /** The Early Bird Bell's first-launch-of-the-day bonus was eligible at launch. */
+  earlyBirdBonus?: boolean;
   doubleKnowBucks?: boolean;
   doubleXp?: boolean;
   extraCrateLoot?: boolean;
   higherFishRarity?: boolean;
   roleBonus?: boolean;
+  /** Streak Charm's launch-time value bonus, capped at 10%. */
+  streakSaleBonusPercent?: number;
   shorterExpeditions?: boolean;
 }
 
@@ -254,6 +262,17 @@ export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
   { id: 'gear-magic-conch', name: 'Magic Conch', category: 'gear', cost: 0, description: 'Permanent relic: each fish has a 10% chance to upgrade one rarity.', foundBiomeIds: ['kelp-forest'] },
   { id: 'gear-gemcracker', name: 'Gemcracker', category: 'gear', cost: 0, description: 'Permanent relic: reserves improved crate loot for a future balance update.', foundBiomeIds: ['crystaline-caverns'] },
   { id: 'gear-teleporter', name: 'Teleporter', category: 'gear', cost: 0, description: 'Permanent relic: 5% chance to instantly complete a non-crew expedition.', foundBiomeIds: ['rallypoint-delta'] },
+  { id: 'gear-lucky-coin', name: 'Lucky Coin', category: 'gear', cost: 0, description: 'Permanent relic: each fish or crate catch has a 3% chance to sell for double.', },
+  { id: 'gear-streak-charm', name: 'Streak Charm', category: 'gear', cost: 0, description: 'Permanent relic: consecutive expeditions in the same location gain 0.5% value each, up to 10%; changing location resets the streak.', },
+  { id: 'gear-early-bird-bell', name: 'Early Bird Bell', category: 'gear', cost: 0, description: 'Permanent relic: the first expedition launched each UTC day earns 50% more KnowBucks.', },
+  { id: 'gear-knowleague-lure', name: 'KnowLeague Lure', category: 'gear', cost: 0, description: 'Permanent relic: legendary fish sell for 10% more.', },
+  { id: 'gear-dockhands-ledger', name: "Harbor Dockhand's Ledger", category: 'gear', cost: 0, description: 'Permanent relic: crew expeditions earn 2.5% more KnowBucks.', foundBiomeIds: ['harbor'] },
+  { id: 'gear-sunstone', name: 'Sunstone', category: 'gear', cost: 0, description: 'Permanent relic: Warm Ocean fish value rolls skew toward the top of their ranges.', foundBiomeIds: ['warm-ocean'] },
+  { id: 'gear-genesys-loop', name: 'Genesys Loop', category: 'gear', cost: 0, description: 'Permanent relic: after an expedition settles, launches the same preset again up to twice in a row.', foundBiomeIds: ['hydroplant-reservoir'] },
+  { id: 'gear-pearl-divers-log', name: "Pearl Diver's Log", category: 'gear', cost: 0, description: 'Permanent relic: the first catch of each fish pays five times its normal value.', foundBiomeIds: ['sunken-sea'] },
+  { id: 'gear-tangle-net', name: 'Tangle Net', category: 'gear', cost: 0, description: 'Permanent relic: each distinct fish rarity in a haul adds 3% value to its fish sales.', foundBiomeIds: ['kelp-forest'] },
+  { id: 'gear-crystal-resonator', name: 'Crystal Resonator', category: 'gear', cost: 0, description: 'Permanent relic: epic and legendary fish sell for 10% more.', foundBiomeIds: ['crystaline-caverns'] },
+  { id: 'gear-autopilot-relay', name: 'Autopilot Relay', category: 'gear', cost: 0, description: 'Permanent relic: crew expeditions earn 20% more KnowBucks and finish 10% faster.', foundBiomeIds: ['rallypoint-delta'] },
   { id: 'crew-1', name: 'Crew 1 Contract', category: 'crew', cost: 100_000, requiredFishingLevel: 40, description: 'Unlocks Crew 1. Crew expeditions take 3x as long.' },
   { id: 'crew-2', name: 'Crew 2 Contract', category: 'crew', cost: 250_000, requiredFishingLevel: 80, description: 'Unlocks Crew 2. Requires Crew 1; crew expeditions take 3x as long.' },
 ] as const;
@@ -340,10 +359,18 @@ export const FISHING_CRATE_LOOT: readonly FishingCrateLoot[] = [
 
 const rarityRank: Record<FishingRarity, number> = { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4, Mythic: 5 };
 const rarityWeight: Record<FishingRarity, number> = { Common: 1_000, Uncommon: 200, Rare: 100, Epic: 20, Legendary: 1, Mythic: 0 };
-/** 75% lower than the prior 30 XP per fish roll. Settlements use whole XP. */
-export const FISHING_EXPEDITION_XP_PER_BASE_CATCH = 7.5;
+/** 25% lower than the immediately preceding 7.5 XP-per-roll beta balance. */
+export const FISHING_EXPEDITION_XP_PER_BASE_CATCH = 5.625;
+const PREVIOUS_FISHING_EXPEDITION_XP_PER_BASE_CATCH = 7.5;
 const LEGACY_FISHING_EXPEDITION_XP_PER_BASE_CATCH = 30;
 export const FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, number>> = {
+  Common: 15,
+  Uncommon: 37.5,
+  Rare: 112.5,
+  Epic: 375,
+  Legendary: 1_500,
+};
+const PREVIOUS_FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, number>> = {
   Common: 20,
   Uncommon: 50,
   Rare: 150,
@@ -387,10 +414,17 @@ export function getFishingExpeditionLength(tier: number, catalogueVersion = 4) {
   return lengths.find((length) => length.tier === tier);
 }
 
-export function getFishingExpeditionXpPerBaseCatch(catalogueVersion = 6) {
-  return catalogueVersion < 6
-    ? LEGACY_FISHING_EXPEDITION_XP_PER_BASE_CATCH
+export function getFishingExpeditionXpPerBaseCatch(catalogueVersion = 7) {
+  if (catalogueVersion < 6) return LEGACY_FISHING_EXPEDITION_XP_PER_BASE_CATCH;
+  return catalogueVersion < 7
+    ? PREVIOUS_FISHING_EXPEDITION_XP_PER_BASE_CATCH
     : FISHING_EXPEDITION_XP_PER_BASE_CATCH;
+}
+
+export function getFishingCrateXp(crateRarity: FishingCrateRarity, catalogueVersion = 7) {
+  return catalogueVersion < 7
+    ? PREVIOUS_FISHING_CRATE_XP_BY_RARITY[crateRarity]
+    : FISHING_CRATE_XP_BY_RARITY[crateRarity];
 }
 export function getFishingCrate(itemId: string) { return FISHING_CRATES.find((crate) => crate.id === itemId); }
 export function getFishingUpgrade(itemId: string) { return FISHING_UPGRADES.find((upgrade) => upgrade.id === itemId); }
@@ -525,7 +559,7 @@ export function resolveFishingCrateOpenings(
   return { crate, items: [...openedItems.values()], totalSaleValue };
 }
 
-export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: FishingDurationTier, equipment: FishingEquipmentSnapshot, seed: number, _isCrew = false): FishingExpeditionResult {
+export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: FishingDurationTier, equipment: FishingEquipmentSnapshot, seed: number, isCrew = false): FishingExpeditionResult {
   const biome = getFishingBiome(biomeId);
   const rod = getFishingUpgrade(equipment.rodItemId);
   const bait = getFishingUpgrade(equipment.baitItemId);
@@ -534,10 +568,15 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
 
   const passives = getOwnedFishingUpgrades(equipment.passiveItemIds);
   const modifiers = equipment.modifiers;
+  const hasRelic = (itemId: string) => equipment.passiveItemIds.includes(itemId);
   const higherRarityBonus = length.higherRarityWeightBonusPercent
     + passives.reduce((total, item) => total + (item.higherRarityBonusPercent ?? 0), 0)
     + (modifiers?.higherFishRarity ? 25 : 0);
-  const saleMultiplier = (1 + (getFishingSaleBonusPercent(equipment) / 100))
+  const launchSaleBonusPercent = (modifiers?.earlyBirdBonus ? 50 : 0)
+    + Math.max(0, Math.min(10, modifiers?.streakSaleBonusPercent ?? 0))
+    + (isCrew && hasRelic('gear-dockhands-ledger') ? 2.5 : 0)
+    + (isCrew && hasRelic('gear-autopilot-relay') ? 20 : 0);
+  const saleMultiplier = (1 + ((getFishingSaleBonusPercent(equipment) + launchSaleBonusPercent) / 100))
     * getFishingKnowBucksMultiplier(modifiers);
   const fishCandidates = [...FISHING_FISH, ...FISHING_MYTHIC_FISH]
     .filter((entry) => entry.biomeId === biomeId && rod.catchableRarities!.includes(entry.rarity));
@@ -551,9 +590,10 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     && !foundGearItemIds.has(item.id)
     && (!item.foundBiomeIds || item.foundBiomeIds.includes(biomeId)));
   const crateDropRateMultiplier = (bait.id === 'magnet' ? 1.5 : 1)
-    * (equipment.passiveItemIds.includes('gear-reservoir-growth') ? 1.1 : 1);
+    * (hasRelic('gear-reservoir-growth') ? 1.1 : 1);
   const gearDropRateMultiplier = (bait.id === 'sonar' ? 2 : 1)
-    * (equipment.passiveItemIds.includes('gear-conduit') ? 2 : 1);
+    * (hasRelic('gear-conduit') ? 2 : 1);
+  const knownFishKeys = new Set(equipment.catalogueFishKeys ?? []);
   let fishSaleValue = 0;
   let crateSaleValue = 0;
   let fishingCrateXp = 0;
@@ -561,7 +601,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   const mysteriousSeaFoodExtraRolls = bait.id === 'mysterious-sea-food' && random() < 0.2
     ? Math.ceil(baseCatchCount * 0.5)
     : 0;
-  const catchCount = baseCatchCount + mysteriousSeaFoodExtraRolls + (equipment.passiveItemIds.includes('gear-dual-hook') ? 1 : 0);
+  const catchCount = baseCatchCount + mysteriousSeaFoodExtraRolls + (hasRelic('gear-dual-hook') ? 1 : 0);
 
   const chooseFish = () => weightedPick(fishCandidates, (candidate) => {
     const rarityMultiplier = rarityRank[candidate.rarity] === 0 ? 1 : 1 + (higherRarityBonus / 100);
@@ -570,7 +610,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   }, random);
 
   const maybeUpgradeFishRarity = (fish: FishingFish) => {
-    if (!equipment.passiveItemIds.includes('gear-magic-conch') || random() >= 0.1) return fish;
+    if (!hasRelic('gear-magic-conch') || random() >= 0.1) return fish;
     const upgradedCandidates = fishCandidates.filter((candidate) => rarityRank[candidate.rarity] === rarityRank[fish.rarity] + 1);
     return upgradedCandidates.length > 0
       ? weightedPick(upgradedCandidates, (candidate) => rarityWeight[candidate.rarity], random)
@@ -579,7 +619,21 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
 
   const addFish = (fish: FishingFish) => {
     const upgradedFish = maybeUpgradeFishRarity(fish);
-    const saleValue = Math.max(1, Math.round((upgradedFish.minSaleValue + (random() * (upgradedFish.maxSaleValue - upgradedFish.minSaleValue))) * saleMultiplier));
+    const valueRoll = hasRelic('gear-sunstone') && biomeId === 'warm-ocean'
+      ? 1 - ((1 - random()) ** 2)
+      : random();
+    const catalogueFishKey = `${biomeId}:${upgradedFish.name}:${upgradedFish.rarity}`;
+    const firstCatchBonus = hasRelic('gear-pearl-divers-log') && !knownFishKeys.has(catalogueFishKey);
+    if (firstCatchBonus) knownFishKeys.add(catalogueFishKey);
+    const raritySaleMultiplier = (upgradedFish.rarity === 'Legendary' && hasRelic('gear-knowleague-lure') ? 1.1 : 1)
+      * ((upgradedFish.rarity === 'Epic' || upgradedFish.rarity === 'Legendary') && hasRelic('gear-crystal-resonator') ? 1.1 : 1)
+      * (firstCatchBonus ? 5 : 1)
+      * (hasRelic('gear-lucky-coin') && random() < 0.03 ? 2 : 1);
+    const saleValue = Math.max(1, Math.round(
+      (upgradedFish.minSaleValue + (valueRoll * (upgradedFish.maxSaleValue - upgradedFish.minSaleValue)))
+      * saleMultiplier
+      * raritySaleMultiplier,
+    ));
     fishSaleValue += saleValue;
     const catchKey = `fish:${upgradedFish.name}:${upgradedFish.rarity}`;
     const existingCatch = catches.get(catchKey);
@@ -596,18 +650,20 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     if (crateRarity) {
       const crate = getFishingCrate(`${biomeId}-${crateRarity.toLowerCase()}-crate`);
       if (!crate) throw new Error(`Missing ${biomeId} ${crateRarity} fishing crate.`);
-      const crateSaleBonusPercent = ((1 + (getFishingSaleBonusPercent(equipment) / 100))
-        * getFishingKnowBucksMultiplier(modifiers) - 1) * 100;
-      fishingCrateXp += FISHING_CRATE_XP_BY_RARITY[crateRarity];
+      const crateSaleBonusPercent = (saleMultiplier - 1) * 100;
+      fishingCrateXp += getFishingCrateXp(crateRarity, equipment.catalogueVersion);
       const crateLootRolls = 1 + (modifiers?.extraCrateLoot && random() < 0.5 ? 1 : 0);
       for (let lootRoll = 0; lootRoll < crateLootRolls; lootRoll += 1) {
         const opening = resolveSingleFishingCrateOpening(crate, crateSaleBonusPercent, random);
-        crateSaleValue += opening.saleValue;
+        const saleValue = hasRelic('gear-lucky-coin') && random() < 0.03
+          ? opening.saleValue * 2
+          : opening.saleValue;
+        crateSaleValue += saleValue;
         const catchKey = `crate:${crate.id}:${opening.item.id}`;
         const existingCatch = catches.get(catchKey);
         if (existingCatch?.kind === 'crate') {
           existingCatch.quantity += 1;
-          existingCatch.saleValue += opening.saleValue;
+          existingCatch.saleValue += saleValue;
         } else {
           catches.set(catchKey, {
             itemId: crate.id,
@@ -618,7 +674,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
             name: crate.name,
             quantity: 1,
             rarity: crate.rarity,
-            saleValue: opening.saleValue,
+            saleValue,
           });
         }
       }
@@ -644,9 +700,17 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     if (random() < bonusFishChance) addFish(selectedFish);
   }
 
-  const fishingExpeditionXp = Math.floor(
-    baseCatchCount * getFishingExpeditionXpPerBaseCatch(equipment.catalogueVersion),
-  );
+  if (hasRelic('gear-tangle-net')) {
+    const fishCatches = [...catches.values()].filter((catchItem): catchItem is ResolvedFishingFishCatch => catchItem.kind === 'fish');
+    const tangleNetMultiplier = 1 + (new Set(fishCatches.map((catchItem) => catchItem.rarity)).size * 0.03);
+    for (const fishCatch of fishCatches) {
+      const adjustedSaleValue = Math.round(fishCatch.saleValue * tangleNetMultiplier);
+      fishSaleValue += adjustedSaleValue - fishCatch.saleValue;
+      fishCatch.saleValue = adjustedSaleValue;
+    }
+  }
+
+  const fishingExpeditionXp = baseCatchCount * getFishingExpeditionXpPerBaseCatch(equipment.catalogueVersion);
   const fishingXpAwarded = Math.floor((fishingExpeditionXp + fishingCrateXp)
     * (1 + (getFishingXpBonusPercent(equipment) / 100))
     * (modifiers?.roleBonus ? 1.1 : 1)

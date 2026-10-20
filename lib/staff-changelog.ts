@@ -17,6 +17,39 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-20-discord-fishing-relic-expansion-and-xp-tuning',
+    patch: 'patch-2026-10-20-discord-fishing-relic-expansion-and-xp-tuning',
+    timestamp: '2026-10-20T16:50:00.000Z',
+    title: 'Expand Fishing Relics, reduce XP, and streamline Skill shopping',
+    summary:
+      'Fishing now has eleven additional one-time Relics, every new source of Fishing XP is 25% lower, and the Skills shop exposes only the next purchasable tier in each progression track.',
+    details: [
+      'Added Lucky Coin, Streak Charm, Early Bird Bell, KnowLeague Lure, Harbor Dockhand\'s Ledger, Sunstone, Genesys Loop, Pearl Diver\'s Log, Tangle Net, Crystal Resonator, and Autopilot Relay. The requested catalogue exclusions, Piggy Bank and Ol\' Justin\'s Dock, were not added.',
+      'Renamed the Hydroplant automatic-repeat Relic to Genesys Loop and the Rallypoint crew-bonus Relic to Autopilot Relay. Genesys Loop relaunches the settled expedition preset at most twice before a player refreshes it manually; Autopilot Relay applies only to crew expeditions.',
+      'Saved history-dependent Relic eligibility on the expedition snapshot: Streak Charm, Early Bird Bell, and Pearl Diver\'s Log cannot change after launch. Completion remains deterministic, and the new current catalogue version preserves prior XP values for active version-6 trips and the original values for older trips.',
+      'Reduced new base expedition XP from 7.5 to 5.625 per base catch and reduced Common through Legendary crate XP from 20/50/150/500/2,000 to 15/37.5/112.5/375/1,500. The settlement continues to award whole XP by rounding the final total down.',
+      'Changed only the presentation selector for the Skills category: each unowned skill chain displays its next eligible tier, while purchase-time prerequisite, balance, and Fishing-level checks remain authoritative.',
+    ],
+    impact: [
+      'Deploy the Discord bot to enable the new Relics, XP balance, Skills panel, and version-7 expedition snapshots. No slash-command registration or database migration is required; deploy the website only to publish this staff-changelog record.',
+      'No migration was created or applied. Existing completed records are unchanged; active expeditions retain their saved catalogue balance and equipment snapshot.',
+      'Relics remain permanent, one-time inventory items using the existing Relic discovery and atomic settlement paths.',
+    ],
+    files: [
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added regression coverage for the 25% XP sources, active-snapshot versioning, expanded Relic catalogue and renamed IDs, next-tier Skill visibility, Sunstone, Pearl Diver\'s Log, and Autopilot Relay effects.',
+      'npm run typecheck, npm run test:run (42 files, 216 tests), and npm run discord:check passed. ESLint completed with its existing seven Next.js <img> warnings and no errors when run directly without cache.',
+      'npm run check was invoked but its Next lint step could not access the existing .next ESLint cache because another local process holds it open; no cache or dev-server files were changed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-19-discord-snipe-attachment-preview-and-text-fix',
     patch: 'patch-2026-10-19-discord-snipe-attachment-preview-and-text-fix',
     timestamp: '2026-10-19T23:30:00.000Z',

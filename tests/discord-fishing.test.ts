@@ -29,6 +29,7 @@ import {
 import {
   buildFishingCompletionEmbed,
   buildFishingRepeatCustomId,
+  getVisibleFishingShopItems,
   parseFishingRepeatCustomId,
   selectFishingCrewSlot,
   type FishingCatalogueProgress,
@@ -41,7 +42,7 @@ type SerializedSubcommand = {
 };
 
 const starterEquipment: FishingEquipmentSnapshot = {
-  catalogueVersion: 6,
+  catalogueVersion: 7,
   rodItemId: 'plastic-rod',
   baitItemId: 'basic-bait',
   passiveItemIds: [],
@@ -179,7 +180,7 @@ describe('Discord fishing reworked progression', () => {
 
     expect(normal.fishingExpeditionXp).toBe(720 * FISHING_EXPEDITION_XP_PER_BASE_CATCH);
     expect(normal.fishingCrateXp).toBe(crateXp);
-    expect(normal.fishingXpAwarded).toBe(normal.fishingExpeditionXp + normal.fishingCrateXp);
+    expect(normal.fishingXpAwarded).toBe(Math.floor(normal.fishingExpeditionXp + normal.fishingCrateXp));
     expect(pearl.fishingXpAwarded).toBe(Math.floor((pearl.fishingExpeditionXp + pearl.fishingCrateXp) * 1.25));
   });
 
@@ -213,12 +214,16 @@ describe('Discord fishing reworked progression', () => {
     expect(legacyFishRolls).toBeLessThanOrEqual(15);
   });
 
-  it('reduces new expedition XP by 75% without changing active expedition snapshots', () => {
+  it('reduces every new Fishing XP source by 25% without changing active expedition snapshots', () => {
     const currentResult = resolveFishingExpedition('harbor', 1, starterEquipment, 123);
-    const activeResult = resolveFishingExpedition('harbor', 1, { ...starterEquipment, catalogueVersion: 5 }, 123);
+    const activeResult = resolveFishingExpedition('harbor', 1, { ...starterEquipment, catalogueVersion: 6 }, 123);
+    const preRebalanceResult = resolveFishingExpedition('harbor', 1, { ...starterEquipment, catalogueVersion: 5 }, 123);
 
-    expect(currentResult.fishingExpeditionXp).toBe(7);
-    expect(activeResult.fishingExpeditionXp).toBe(30);
+    expect(FISHING_EXPEDITION_XP_PER_BASE_CATCH).toBe(5.625);
+    expect(FISHING_CRATE_XP_BY_RARITY).toEqual({ Common: 15, Uncommon: 37.5, Rare: 112.5, Epic: 375, Legendary: 1_500 });
+    expect(currentResult.fishingExpeditionXp).toBe(5.625);
+    expect(activeResult.fishingExpeditionXp).toBe(7.5);
+    expect(preRebalanceResult.fishingExpeditionXp).toBe(30);
   });
 
   it('makes legendary fish catchable with the legendary rod while preserving crew rewards', () => {
@@ -276,10 +281,14 @@ describe('Discord fishing reworked progression', () => {
     expect(byId.get('bloodworms')).toMatchObject({ cost: 150_000, requiredFishingLevel: 40 });
     expect(byId.get('mysterious-sea-food')).toMatchObject({ cost: 250_000, requiredFishingLevel: 55 });
     expect(byId.get('truffle-worm')).toMatchObject({ cost: 1_000_000, requiredFishingLevel: 80 });
-    expect(FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear')).toHaveLength(11);
+    expect(FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear')).toHaveLength(22);
     expect(FISHING_RELIC_DROP_RATE).toBe(0.0001);
     expect(byId.get('gear-conduit')?.foundBiomeIds).toEqual(['warm-ocean']);
     expect(byId.get('gear-teleporter')?.foundBiomeIds).toEqual(['rallypoint-delta']);
+    expect(byId.get('gear-genesys-loop')).toMatchObject({ name: 'Genesys Loop', foundBiomeIds: ['hydroplant-reservoir'] });
+    expect(byId.get('gear-autopilot-relay')).toMatchObject({ name: 'Autopilot Relay', foundBiomeIds: ['rallypoint-delta'] });
+    expect(byId.has('gear-piggy-bank')).toBe(false);
+    expect(byId.has('gear-justins-dock')).toBe(false);
     expect(byId.get('lucky-5')?.requiredUpgradeId).toBe('lucky-4');
     expect(byId.get('haste-4')?.requiredUpgradeId).toBe('haste-3');
   });
@@ -296,6 +305,60 @@ describe('Discord fishing reworked progression', () => {
     expect(woodenRod).toBeDefined();
     expect(getFishingUpgradeCost(woodenRod!, ['cheapskate-1', 'gear-lost-pursasion-device'])).toBe(4_500);
     expect(calculateFishingDurationSeconds(4, false, 30)).toBe(2_520);
+  });
+
+  it('shows only the next purchasable tier for each skill track', () => {
+    expect(getVisibleFishingShopItems('skill', []).map((item) => item.id)).toEqual([
+      'lucky-1',
+      'cheapskate-1',
+      'money-mouser-1',
+      'haste-1',
+    ]);
+    expect(getVisibleFishingShopItems('skill', ['lucky-1', 'cheapskate-1']).map((item) => item.id)).toEqual([
+      'lucky-2',
+      'cheapskate-2',
+      'money-mouser-1',
+      'haste-1',
+    ]);
+  });
+
+  it('applies the new relic-only fishing effects from the saved equipment snapshot', () => {
+    const baseline = resolveFishingExpedition('warm-ocean', 4, {
+      ...starterEquipment,
+      rodItemId: 'master-rod',
+    }, 4_212);
+    const sunstone = resolveFishingExpedition('warm-ocean', 4, {
+      ...starterEquipment,
+      passiveItemIds: ['gear-sunstone'],
+      rodItemId: 'master-rod',
+    }, 4_212);
+    const pearlDiversLog = resolveFishingExpedition('sunken-sea', 4, {
+      ...starterEquipment,
+      passiveItemIds: ['gear-pearl-divers-log'],
+      rodItemId: 'master-rod',
+    }, 4_212);
+    const knownFish = resolveFishingExpedition('sunken-sea', 4, {
+      ...starterEquipment,
+      catalogueFishKeys: FISHING_FISH
+        .filter((fish) => fish.biomeId === 'sunken-sea')
+        .map((fish) => `${fish.biomeId}:${fish.name}:${fish.rarity}`),
+      passiveItemIds: ['gear-pearl-divers-log'],
+      rodItemId: 'master-rod',
+    }, 4_212);
+    const crewBase = resolveFishingExpedition('rallypoint-delta', 4, {
+      ...starterEquipment,
+      rodItemId: 'master-rod',
+    }, 4_212, true);
+    const crewAutopilot = resolveFishingExpedition('rallypoint-delta', 4, {
+      ...starterEquipment,
+      passiveItemIds: ['gear-autopilot-relay'],
+      rodItemId: 'master-rod',
+    }, 4_212, true);
+
+    expect(sunstone.fishSaleValue).toBeGreaterThan(baseline.fishSaleValue);
+    expect(pearlDiversLog.fishSaleValue).toBeGreaterThan(knownFish.fishSaleValue);
+    expect(crewAutopilot.fishSaleValue).toBeGreaterThan(crewBase.fishSaleValue);
+    expect(calculateFishingDurationSeconds(4, true, 10)).toBe(9_720);
   });
 
   it('applies snapshotted role and weekday expedition bonuses', () => {

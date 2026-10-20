@@ -38,18 +38,28 @@ describe('Discord skin-claim command contract', () => {
     expect(member?.required).toBe(false);
   });
 
-  it('accepts only four-digit IDs when transferring, stealing, favoriting, gambling, or selling a skin', () => {
+  it('accepts only four-digit IDs when transferring, searching, stealing, favoriting, gambling, or selling a skin', () => {
     const command = serializedCommandDefinitions().find((definition) => definition.name === 'collections');
     const give = command?.options?.find((option) => option.name === 'give') as SerializedSubcommand | undefined;
     const skinId = give?.options?.find((option) => option.name === 'skin-id');
 
     expect(skinId?.min_value).toBe(1000);
     expect(skinId?.max_value).toBe(9999);
-    for (const name of ['steal', 'favorite', 'gamble', 'sell']) {
+    for (const name of ['steal', 'favorite', 'gamble', 'sell', 'search']) {
       const subcommand = command?.options?.find((option) => option.name === name) as SerializedSubcommand | undefined;
       const option = subcommand?.options?.find((entry) => entry.name === 'skin-id');
       expect(option?.min_value).toBe(1000);
       expect(option?.max_value).toBe(9999);
+    }
+  });
+
+  it('allows capacity additions one slot at a time, up to the 50-slot collection ceiling', () => {
+    const command = serializedCommandDefinitions().find((definition) => definition.name === 'collections');
+    for (const name of ['capacity-add', 'capacity-force-add']) {
+      const subcommand = command?.options?.find((option) => option.name === name) as SerializedSubcommand | undefined;
+      const slots = subcommand?.options?.find((option) => option.name === 'slots');
+      expect(slots?.min_value).toBe(1);
+      expect(slots?.max_value).toBe(50);
     }
   });
 
@@ -138,7 +148,7 @@ describe('Discord skin-claim command contract', () => {
     ]);
   });
 
-  it('includes a KnowLeague catalogue ID in a non-claimable search preview', () => {
+  it('includes the assigned KnowLeague ID and owner in a non-claimable search preview', () => {
     const skin: Parameters<typeof buildSkinSearchEmbed>[0] = {
       answer: 'Elderwood Ahri',
       champion: 'Ahri',
@@ -149,10 +159,11 @@ describe('Discord skin-claim command contract', () => {
       releaseDate: '2020-01-01',
       skinLine: 'Elderwood',
     };
-    const embed = buildSkinSearchEmbed(skin).toJSON();
+    const embed = buildSkinSearchEmbed(skin, [{ skinCode: 5260, username: 'Justin' }]).toJSON();
     const fields = embed.fields ?? [];
 
-    expect(fields).toContainEqual(expect.objectContaining({ name: 'KnowLeague ID', value: '#103000' }));
+    expect(fields).toContainEqual(expect.objectContaining({ name: 'KnowLeague ID', value: '#5260' }));
+    expect(fields).toContainEqual(expect.objectContaining({ name: 'Owner', value: 'Justin' }));
     expect(embed.image?.url).toBe('https://example.com/ahri-centered.jpg');
   });
 });

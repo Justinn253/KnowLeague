@@ -17,6 +17,100 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-20-discord-collections-unique-skins-capacity-and-search',
+    patch: 'patch-2026-10-20-discord-collections-unique-skins-capacity-and-search',
+    timestamp: '2026-10-20T20:13:05.267Z',
+    title: 'Enforce unique Collections skins and per-slot capacity pricing',
+    summary:
+      'Collections now prevents future duplicate skin copies, supports searching by four-digit KnowLeague ID with ownership visibility, and prices new capacity per slot up to 50 total slots.',
+    details: [
+      'The /collections search command now accepts either a skin name or a four-digit KnowLeague ID. Its preview shows assigned collection IDs and the owner username, or an unclaimed state when no active copy exists. Existing legacy duplicate claims are shown as multiple owners for staff visibility.',
+      'A database-backed active catalogue registry and trigger reserve each skin catalogue ID while it is pending or claimed. The registry is released when the item expires, cannot be sent, is sold, or is gambled away, so every spawn, summon, and successful gamble can only produce an unowned skin. The trigger is authoritative against races and direct database writes.',
+      'Capacity additions now accept individual slots and cost the configured rate multiplied by slots added (500 KnowBucks per slot by default). Paid and collection-admin force additions both stop at 50 total slots; the configuration screen and API enforce the same maximum while preserving any grandfathered capacity.',
+      'Migration 175 seeds registry rows for active legacy records without deleting or reassigning existing duplicate claims. It normalizes any configured default above 50 down to 50 while preserving existing player items and grandfathered capacity records.',
+    ],
+    impact: [
+      'Apply migration 175 before deploying the matching bot or website. It adds protected registry storage, trigger-based uniqueness enforcement, and the database-side capacity rules. The migration is local only and has not been pushed or applied.',
+      'Deploy both the website and Discord bot, then run npm run discord:commands:register with the bot deployment environment configured. Registration is required because /collections search gains the optional skin-id parameter and capacity option limits change.',
+      'The registry is service-role-readable only and mutation occurs inside a security-definer trigger. Browser clients receive no service-role access.',
+    ],
+    files: [
+      'supabase/migrations/175_discord_collections_unique_skins_and_capacity_cap.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'components/discord-leveling-settings.tsx',
+      'app/api/discord/leveling/route.ts',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Collections command and embed tests passed.',
+      'npm run check passed: root lint and type-check, the complete Vitest suite, and the Discord bot TypeScript check. Existing unrelated Next.js <img> lint warnings remain.',
+      'Migration 175 was created locally only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-20-discord-fishing-emoji-presentation',
+    patch: 'patch-2026-10-20-discord-fishing-emoji-presentation',
+    timestamp: '2026-10-20T18:15:00.000Z',
+    title: 'Style Discord Fishing expedition and Skill panels with default emoji',
+    summary:
+      'Fishing expedition launch and completion embeds now use clear default emoji headings, and the shop labels each Skill progression track with its requested emoji.',
+    details: [
+      'Launch embeds now use rowboat-wrapped biome headings. Completion embeds use checkmark-wrapped headings and emoji-prefixed Fishing skill, fish, crate, Relic, and title sections.',
+      'Title discoveries remain a distinct completion section and retain their separate milestone announcement. Empty catch categories remain hidden.',
+      'Added fast-forward, four-leaf clover, downward chart, and money bag prefixes for Haste, Lucky, Cheapskate, and Money Mouser shop titles respectively.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply the presentation update. No database migration, website deployment, or slash-command registration is required.',
+      'No data, reward, event, or interaction authorization behavior changed.',
+    ],
+    files: [
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/fishing.ts',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added regression coverage for launch/completion headings and all four Skill track emoji mappings.',
+      'npm run check passed lint (with seven existing Next.js <img> warnings), root type-check, the full Vitest suite, and Discord bot type-check.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-20-discord-fishing-halloween-event',
+    patch: 'patch-2026-10-20-discord-fishing-halloween-event',
+    timestamp: '2026-10-20T18:00:00.000Z',
+    title: 'Add the Hellish Abyss Halloween Fishing event',
+    summary:
+      'A deterministic 25% Halloween replacement event now sends selected expeditions to Hellish Abyss while retaining the selected biome’s sale values and trip scale.',
+    details: [
+      'Added Hellish Abyss’s full weighted fish and auto-opened crate catalogues, including the non-sellable Mythic Cthulhu and its inventory collectible. Event fish use the selected biome’s rarity value ranges; event crate loot uses the same selected-biome 0–30% rarity value treatment as ordinary crates.',
+      'Saved the event outcome in each new expedition equipment snapshot from its launch seed, preventing active trips from changing behavior before settlement. Existing trips with no event snapshot retain their current behavior.',
+      'Added /fish event-help and /fish event-catalogue, public event discoveries, event launch/progress/completion presentation, and the Inventory Titles tab. Ghoulish Seafarer is a one-time permanent title with a 0.1% roll per caught event fish and is announced separately when first awarded.',
+      'Added migration 174 to permit the Hellish Abyss catalogue biome and atomically record event discoveries through the existing settlement routine without changing ordinary biome catalogue entries.',
+    ],
+    impact: [
+      'Apply migration 174 before deploying the Discord bot; it was created locally only and was not pushed or applied. The migration preserves existing settlement signatures and service-role-only access.',
+      'Deploy the Discord bot to enable event launches, settlement, announcements, title inventory, and catalogue views, then run npm run discord:commands:register with the bot deployment environment configured for the two new /fish subcommands.',
+      'No production website behavior changes. Deploy the website only to publish this staff-changelog record.',
+    ],
+    files: [
+      'supabase/migrations/174_add_halloween_discord_fishing_event.sql',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/commands.ts',
+      'discord-bot/README.md',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added command, event-help/catalogue presentation, deterministic event-selection, event catch, crate, selected-biome value, and separate-catalogue regression coverage.',
+      'npm run discord:check and npm run check passed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-20-discord-fishing-legendary-value-multiplier',
     patch: 'patch-2026-10-20-discord-fishing-legendary-value-multiplier',
     timestamp: '2026-10-20T17:30:00.000Z',

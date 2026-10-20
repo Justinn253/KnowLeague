@@ -4,6 +4,9 @@ export const FISHING_CRATE_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Le
 export type FishingRarity = typeof FISHING_RARITIES[number];
 export type FishingCrateRarity = typeof FISHING_CRATE_RARITIES[number];
 export type FishingBiomeId = 'harbor' | 'warm-ocean' | 'hydroplant-reservoir' | 'sunken-sea' | 'kelp-forest' | 'crystaline-caverns' | 'rallypoint-delta';
+export type FishingEventId = 'halloween';
+export const HALLOWEEN_EVENT_CATALOGUE_BIOME_ID = 'hellish-abyss' as const;
+export type FishingEventCatalogueBiomeId = typeof HALLOWEEN_EVENT_CATALOGUE_BIOME_ID;
 export type FishingUpgradeCategory = 'rod' | 'bait' | 'boat' | 'gear' | 'skill' | 'crew';
 export type FishingDurationTier = 1 | 2 | 3 | 4;
 
@@ -50,6 +53,39 @@ export interface FishingCrateLoot {
   valueBonusPercent: number;
 }
 
+export interface FishingEventFish {
+  id: string;
+  name: string;
+  nonSellable?: boolean;
+  rarity: FishingRarity;
+}
+
+export interface FishingEventCrate {
+  id: string;
+  items: readonly string[];
+  name: string;
+  rarity: FishingCrateRarity;
+}
+
+export interface FishingEventTitle {
+  /** Persistent inventory ID. The gear prefix preserves the existing unique-item settlement contract. */
+  itemId: string;
+  name: string;
+  /** Chance per fish caught while the event is active (weight 1 against Common's 1,000). */
+  dropRate: number;
+}
+
+export interface FishingEvent {
+  biomeName: string;
+  catalogueBiomeId: FishingEventCatalogueBiomeId;
+  crates: readonly FishingEventCrate[];
+  fish: readonly FishingEventFish[];
+  id: FishingEventId;
+  name: string;
+  replacementChance: number;
+  title: FishingEventTitle;
+}
+
 export interface FishingUpgrade {
   catchableRarities?: readonly FishingRarity[];
   category: FishingUpgradeCategory;
@@ -73,11 +109,15 @@ export interface FishingEquipmentSnapshot {
   /** Fish already catalogued when the trip launched, used by Pearl Diver's Log. */
   catalogueFishKeys?: string[];
   catalogueVersion: 2 | 3 | 4 | 5 | 6 | 7;
+  /** The active event selected when this trip launched. */
+  eventId?: FishingEventId;
   /** Bonuses locked in when an expedition starts, so later config changes cannot alter it. */
   modifiers?: FishingExpeditionModifiers;
   passiveItemIds: string[];
   rodItemId: string;
   storageItemId?: string;
+  /** Existing event titles, captured to avoid rolling duplicate unique titles. */
+  titleItemIds?: string[];
 }
 
 export interface FishingExpeditionModifiers {
@@ -96,8 +136,11 @@ export interface FishingExpeditionModifiers {
 }
 
 export interface ResolvedFishingFishCatch {
+  catalogueBiomeId?: FishingEventCatalogueBiomeId;
+  itemId?: string;
   kind: 'fish';
   name: string;
+  nonSellable?: boolean;
   quantity: number;
   rarity: FishingRarity;
   saleValue: number;
@@ -122,7 +165,14 @@ export interface ResolvedFishingGearCatch {
   quantity: number;
 }
 
-export type ResolvedFishingCatch = ResolvedFishingFishCatch | ResolvedFishingCrateCatch | ResolvedFishingGearCatch;
+export interface ResolvedFishingTitleCatch {
+  itemId: string;
+  kind: 'title';
+  name: string;
+  quantity: number;
+}
+
+export type ResolvedFishingCatch = ResolvedFishingFishCatch | ResolvedFishingCrateCatch | ResolvedFishingGearCatch | ResolvedFishingTitleCatch;
 
 export interface FishingExpeditionResult {
   catches: ResolvedFishingCatch[];
@@ -133,6 +183,8 @@ export interface FishingExpeditionResult {
   fishSaleValue: number;
   gearItems: Array<{ itemId: string; quantity: number }>;
   knowBucksFound: number;
+  /** Inventory-only event collectibles and titles settled alongside Relics. */
+  specialItems?: Array<{ itemId: string; quantity: number }>;
 }
 
 export interface FishingCrateOpeningResult {
@@ -296,6 +348,84 @@ export const FISHING_FISH: readonly FishingFish[] = [
 
 /** Reserved for the Mythic fish catalogue. Mythic catches are intentionally not live yet. */
 export const FISHING_MYTHIC_FISH: readonly FishingFish[] = [];
+
+const halloweenFish = (id: string, name: string, rarity: FishingRarity, nonSellable = false): FishingEventFish => ({
+  id,
+  name,
+  nonSellable,
+  rarity,
+});
+
+const halloweenCrate = (id: string, name: string, rarity: FishingCrateRarity, items: readonly string[]): FishingEventCrate => ({
+  id,
+  items,
+  name,
+  rarity,
+});
+
+/**
+ * Active event content is kept outside the ordinary biome catalogue: it can
+ * temporarily replace any selected expedition while retaining that selected
+ * biome's sale-value ranges and expedition length.
+ */
+export const FISHING_EVENTS: readonly FishingEvent[] = [{
+  biomeName: 'Hellish Abyss',
+  catalogueBiomeId: HALLOWEEN_EVENT_CATALOGUE_BIOME_ID,
+  crates: [
+    halloweenCrate('halloween-ribcage', 'Ribcage', 'Common', ['Heart', 'Lungs', 'Intenstines', 'Spine']),
+    halloweenCrate('halloween-sunken-jack-o-lantern', 'Sunken Jack-o-Lantern', 'Uncommon', ['Ghostly Figurine', 'Spider Eggs']),
+    halloweenCrate('halloween-bloody-corpse', 'Bloody Corpse', 'Rare', ['Bloody Hands', 'Bloated Eye', 'Long-lost Letter']),
+    halloweenCrate('halloween-satanic-pouch', 'Satanic Pouch', 'Epic', ['Watching Eye', 'Pentagram', 'Otherwordly Idol']),
+    halloweenCrate('halloween-black-void-rift', 'Black-Void Rift', 'Legendary', ['Void Pearl', 'Hellish Embryo', 'Cthonic Void', 'Alluring Eye']),
+  ],
+  fish: [
+    halloweenFish('oarfish', 'Oarfish', 'Common'),
+    halloweenFish('angler-fish', 'Angler Fish', 'Common'),
+    halloweenFish('skelly-fish', 'Skelly Fish', 'Uncommon'),
+    halloweenFish('decayed-crab', 'Decayed Crab', 'Uncommon'),
+    halloweenFish('blobfish', 'Blobfish', 'Rare'),
+    halloweenFish('jack-o-fish', 'Jack-o-fish', 'Rare'),
+    halloweenFish('slimy-abomination', 'Slimy Abomination', 'Rare'),
+    halloweenFish('ghost-angler', 'Ghost Angler', 'Epic'),
+    halloweenFish('living-corpse', 'Living Corpse', 'Epic'),
+    halloweenFish('familiar-face', 'Familiar Face', 'Epic'),
+    halloweenFish('1000-tentacle-squid', '1000-Tentacle Squid', 'Legendary'),
+    halloweenFish('davy-jones', 'Davy Jones', 'Legendary'),
+    halloweenFish('abyssal-mermaid', 'Abyssal Mermaid', 'Legendary'),
+    halloweenFish('lost-soul', 'Lost Soul', 'Legendary'),
+    halloweenFish('cthulhu', 'Cthulhu', 'Mythic', true),
+  ],
+  id: 'halloween',
+  name: 'Halloween Event',
+  replacementChance: 0.25,
+  title: {
+    dropRate: 0.001,
+    itemId: 'gear-title-ghoulish-seafarer',
+    name: 'Ghoulish Seafarer',
+  },
+}] as const;
+
+export const FISHING_HALLOWEEN_FISH_RARITY_WEIGHTS: Readonly<Record<FishingRarity, number>> = {
+  Common: 1_000,
+  Uncommon: 200,
+  Rare: 50,
+  Epic: 10,
+  Legendary: 1,
+  Mythic: 0.1,
+};
+
+export function getFishingEvent(eventId: string | undefined | null) {
+  return FISHING_EVENTS.find((event) => event.id === eventId);
+}
+
+/**
+ * A 1-in-4 seed partition makes the event roll deterministic and exactly 25%
+ * for newly launched expeditions without advancing their reward RNG stream.
+ */
+export function getFishingEventForOutcomeSeed(outcomeSeed: number) {
+  const activeEvent = FISHING_EVENTS[0];
+  return activeEvent && Math.abs(Math.trunc(outcomeSeed)) % 4 === 0 ? activeEvent : undefined;
+}
 
 function crateLoot(biomeId: FishingBiomeId, rarity: FishingCrateRarity, names: readonly string[]): FishingCrateLoot[] {
   const comparableFish = FISHING_FISH.filter((entry) => entry.biomeId === biomeId && entry.rarity === rarity);
@@ -517,10 +647,10 @@ function weightedPick<T>(items: readonly T[], getWeight: (item: T) => number, ra
   return items[items.length - 1];
 }
 
-function chooseCrateRarity(biome: FishingBiome, random: () => number, dropRateMultiplier: number) {
-  const totalRate = biome.crateRarities.reduce((total, rarity) => total + FISHING_CRATE_DROP_RATES[rarity], 0);
+function chooseCrateRarity(crateRarities: readonly FishingCrateRarity[], random: () => number, dropRateMultiplier: number) {
+  const totalRate = crateRarities.reduce((total, rarity) => total + FISHING_CRATE_DROP_RATES[rarity], 0);
   if (random() >= Math.min(1, totalRate * dropRateMultiplier)) return null;
-  return weightedPick(biome.crateRarities, (rarity) => FISHING_CRATE_DROP_RATES[rarity], random);
+  return weightedPick(crateRarities, (rarity) => FISHING_CRATE_DROP_RATES[rarity], random);
 }
 
 function resolveSingleFishingCrateOpening(
@@ -532,6 +662,95 @@ function resolveSingleFishingCrateOpening(
     item.biomeId === crate.biomeId && rarityRank[item.rarity] >= rarityRank[crate.rarity]
   ));
   if (eligibleLoot.length === 0) throw new Error('This fishing crate has no available loot.');
+  const item = weightedPick(eligibleLoot, (candidate) => crateLootRarityWeight[candidate.rarity], random);
+  const baseValue = item.minSaleValue + (random() * (item.maxSaleValue - item.minSaleValue));
+  return {
+    item,
+    saleValue: Math.max(1, Math.round(baseValue * Math.max(0, 1 + (saleBonusPercent / 100)))),
+  };
+}
+
+type ResolvableFishingFish = FishingFish & {
+  catalogueBiomeId?: FishingEventCatalogueBiomeId;
+  nonSellable?: boolean;
+};
+
+type ResolvableFishingCrate = {
+  id: string;
+  name: string;
+  rarity: FishingCrateRarity;
+};
+
+type ResolvableFishingCrateLoot = {
+  id: string;
+  maxSaleValue: number;
+  minSaleValue: number;
+  name: string;
+  rarity: FishingCrateRarity;
+};
+
+function getSelectedBiomeRaritySaleRange(biomeId: FishingBiomeId, rarity: FishingCrateRarity) {
+  const comparableFish = FISHING_FISH.filter((entry) => entry.biomeId === biomeId && entry.rarity === rarity);
+  if (comparableFish.length === 0) throw new Error(`Fishing event loot requires ${rarity} fish in ${biomeId}.`);
+  return {
+    maxSaleValue: comparableFish.reduce((total, fish) => total + fish.maxSaleValue, 0) / comparableFish.length,
+    minSaleValue: comparableFish.reduce((total, fish) => total + fish.minSaleValue, 0) / comparableFish.length,
+  };
+}
+
+function createEventFishCandidates(event: FishingEvent, selectedBiomeId: FishingBiomeId): ResolvableFishingFish[] {
+  return event.fish.map((fish) => {
+    if (fish.nonSellable) {
+      return {
+        biomeId: selectedBiomeId,
+        catalogueBiomeId: event.catalogueBiomeId,
+        id: fish.id,
+        maxSaleValue: 0,
+        minSaleValue: 0,
+        name: fish.name,
+        nonSellable: true,
+        rarity: fish.rarity,
+        tags: [],
+      };
+    }
+    const saleRange = getSelectedBiomeRaritySaleRange(selectedBiomeId, fish.rarity as FishingCrateRarity);
+    return {
+      biomeId: selectedBiomeId,
+      catalogueBiomeId: event.catalogueBiomeId,
+      id: fish.id,
+      maxSaleValue: saleRange.maxSaleValue,
+      minSaleValue: saleRange.minSaleValue,
+      name: fish.name,
+      rarity: fish.rarity,
+      tags: [],
+    };
+  });
+}
+
+function resolveSingleEventCrateOpening(
+  crate: ResolvableFishingCrate,
+  event: FishingEvent,
+  selectedBiomeId: FishingBiomeId,
+  saleBonusPercent: number,
+  random: () => number,
+) {
+  const eligibleLoot = event.crates
+    .filter((eventCrate) => rarityRank[eventCrate.rarity] >= rarityRank[crate.rarity])
+    .flatMap((eventCrate) => {
+      const saleRange = getSelectedBiomeRaritySaleRange(selectedBiomeId, eventCrate.rarity);
+      const increment = eventCrate.items.length > 1 ? 30 / (eventCrate.items.length - 1) : 15;
+      return eventCrate.items.map((name, index): ResolvableFishingCrateLoot => {
+        const multiplier = 1 + ((index * increment) / 100);
+        return {
+          id: `${eventCrate.id}-loot-${index + 1}`,
+          maxSaleValue: Math.max(1, Math.round(saleRange.maxSaleValue * multiplier)),
+          minSaleValue: Math.max(1, Math.round(saleRange.minSaleValue * multiplier)),
+          name,
+          rarity: eventCrate.rarity,
+        };
+      });
+    });
+  if (eligibleLoot.length === 0) throw new Error('This event crate has no available loot.');
   const item = weightedPick(eligibleLoot, (candidate) => crateLootRarityWeight[candidate.rarity], random);
   const baseValue = item.minSaleValue + (random() * (item.maxSaleValue - item.minSaleValue));
   return {
@@ -574,6 +793,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   const rod = getFishingUpgrade(equipment.rodItemId);
   const bait = getFishingUpgrade(equipment.baitItemId);
   const length = getFishingExpeditionLength(durationTier, equipment.catalogueVersion);
+  const event = getFishingEvent(equipment.eventId);
   if (!biome || !rod?.catchableRarities || !length || bait?.category !== 'bait') throw new Error('Fishing expedition contains invalid equipment data.');
 
   const passives = getOwnedFishingUpgrades(equipment.passiveItemIds);
@@ -588,13 +808,16 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     + (isCrew && hasRelic('gear-autopilot-relay') ? 20 : 0);
   const saleMultiplier = (1 + ((getFishingSaleBonusPercent(equipment) + launchSaleBonusPercent) / 100))
     * getFishingKnowBucksMultiplier(modifiers);
-  const fishCandidates = [...FISHING_FISH, ...FISHING_MYTHIC_FISH]
-    .filter((entry) => entry.biomeId === biomeId && rod.catchableRarities!.includes(entry.rarity));
+  const fishCandidates: ResolvableFishingFish[] = (event
+    ? createEventFishCandidates(event, biomeId)
+    : [...FISHING_FISH, ...FISHING_MYTHIC_FISH].filter((entry) => entry.biomeId === biomeId))
+    .filter((entry) => rod.catchableRarities!.includes(entry.rarity));
   if (fishCandidates.length === 0) throw new Error('No fish are available for this expedition.');
 
   const random = createSeededRandom(seed);
   const catches = new Map<string, ResolvedFishingCatch>();
   const gearItems = new Map<string, number>();
+  const specialItems = new Map<string, number>();
   const foundGearItemIds = new Set(equipment.passiveItemIds);
   const availableGear = () => FISHING_UPGRADES.filter((item) => item.category === 'gear'
     && !foundGearItemIds.has(item.id)
@@ -604,6 +827,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   const gearDropRateMultiplier = (bait.id === 'sonar' ? 2 : 1)
     * (hasRelic('gear-conduit') ? 2 : 1);
   const knownFishKeys = new Set(equipment.catalogueFishKeys ?? []);
+  const knownTitleItemIds = new Set(equipment.titleItemIds ?? []);
   let fishSaleValue = 0;
   let crateSaleValue = 0;
   let fishingCrateXp = 0;
@@ -612,60 +836,80 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     ? Math.ceil(baseCatchCount * 0.5)
     : 0;
   const catchCount = baseCatchCount + mysteriousSeaFoodExtraRolls + (hasRelic('gear-dual-hook') ? 1 : 0);
+  const fishRarityWeights = event ? FISHING_HALLOWEEN_FISH_RARITY_WEIGHTS : FISHING_FISH_RARITY_WEIGHTS;
 
   const chooseFish = () => weightedPick(fishCandidates, (candidate) => {
     const rarityMultiplier = rarityRank[candidate.rarity] === 0 ? 1 : 1 + (higherRarityBonus / 100);
     const truffleMultiplier = bait.id === 'truffle-worm' && candidate.rarity === 'Legendary' ? 3 : 1;
-    return FISHING_FISH_RARITY_WEIGHTS[candidate.rarity] * rarityMultiplier * truffleMultiplier;
+    return fishRarityWeights[candidate.rarity] * rarityMultiplier * truffleMultiplier;
   }, random);
 
-  const maybeUpgradeFishRarity = (fish: FishingFish) => {
+  const maybeUpgradeFishRarity = (fish: ResolvableFishingFish) => {
     if (!hasRelic('gear-magic-conch') || random() >= 0.1) return fish;
     const upgradedCandidates = fishCandidates.filter((candidate) => rarityRank[candidate.rarity] === rarityRank[fish.rarity] + 1);
     return upgradedCandidates.length > 0
-      ? weightedPick(upgradedCandidates, (candidate) => FISHING_FISH_RARITY_WEIGHTS[candidate.rarity], random)
+      ? weightedPick(upgradedCandidates, (candidate) => fishRarityWeights[candidate.rarity], random)
       : fish;
   };
 
-  const addFish = (fish: FishingFish) => {
+  const addFish = (fish: ResolvableFishingFish) => {
     const upgradedFish = maybeUpgradeFishRarity(fish);
-    const valueRoll = hasRelic('gear-sunstone') && biomeId === 'warm-ocean'
-      ? 1 - ((1 - random()) ** 2)
-      : random();
-    const catalogueFishKey = `${biomeId}:${upgradedFish.name}:${upgradedFish.rarity}`;
-    const firstCatchBonus = hasRelic('gear-pearl-divers-log') && !knownFishKeys.has(catalogueFishKey);
+    const catalogueBiomeId = upgradedFish.catalogueBiomeId;
+    const catalogueFishKey = `${catalogueBiomeId ?? biomeId}:${upgradedFish.name}:${upgradedFish.rarity}`;
+    const firstCatchBonus = !upgradedFish.nonSellable && hasRelic('gear-pearl-divers-log') && !knownFishKeys.has(catalogueFishKey);
     if (firstCatchBonus) knownFishKeys.add(catalogueFishKey);
-    const raritySaleMultiplier = (upgradedFish.rarity === 'Legendary' ? FISHING_LEGENDARY_FISH_SALE_MULTIPLIER : 1)
-      * (upgradedFish.rarity === 'Legendary' && hasRelic('gear-knowleague-lure') ? 1.1 : 1)
-      * ((upgradedFish.rarity === 'Epic' || upgradedFish.rarity === 'Legendary') && hasRelic('gear-crystal-resonator') ? 1.1 : 1)
-      * (firstCatchBonus ? 5 : 1)
-      * (hasRelic('gear-lucky-coin') && random() < 0.03 ? 2 : 1);
-    const saleValue = Math.max(1, Math.round(
-      (upgradedFish.minSaleValue + (valueRoll * (upgradedFish.maxSaleValue - upgradedFish.minSaleValue)))
-      * saleMultiplier
-      * raritySaleMultiplier,
-    ));
-    fishSaleValue += saleValue;
-    const catchKey = `fish:${upgradedFish.name}:${upgradedFish.rarity}`;
+    let saleValue = 0;
+    if (!upgradedFish.nonSellable) {
+      const valueRoll = hasRelic('gear-sunstone') && biomeId === 'warm-ocean'
+        ? 1 - ((1 - random()) ** 2)
+        : random();
+      const raritySaleMultiplier = (upgradedFish.rarity === 'Legendary' ? FISHING_LEGENDARY_FISH_SALE_MULTIPLIER : 1)
+        * (upgradedFish.rarity === 'Legendary' && hasRelic('gear-knowleague-lure') ? 1.1 : 1)
+        * ((upgradedFish.rarity === 'Epic' || upgradedFish.rarity === 'Legendary') && hasRelic('gear-crystal-resonator') ? 1.1 : 1)
+        * (firstCatchBonus ? 5 : 1)
+        * (hasRelic('gear-lucky-coin') && random() < 0.03 ? 2 : 1);
+      saleValue = Math.max(1, Math.round(
+        (upgradedFish.minSaleValue + (valueRoll * (upgradedFish.maxSaleValue - upgradedFish.minSaleValue)))
+        * saleMultiplier
+        * raritySaleMultiplier,
+      ));
+      fishSaleValue += saleValue;
+    } else {
+      specialItems.set(`event-${event!.id}-${upgradedFish.id}`, (specialItems.get(`event-${event!.id}-${upgradedFish.id}`) ?? 0) + 1);
+    }
+    const catchKey = `fish:${catalogueBiomeId ?? biomeId}:${upgradedFish.name}:${upgradedFish.rarity}`;
     const existingCatch = catches.get(catchKey);
     if (existingCatch?.kind === 'fish') {
       existingCatch.quantity += 1;
       existingCatch.saleValue += saleValue;
-      return;
+      return upgradedFish;
     }
-    catches.set(catchKey, { kind: 'fish', name: upgradedFish.name, quantity: 1, rarity: upgradedFish.rarity, saleValue });
+    catches.set(catchKey, {
+      catalogueBiomeId,
+      itemId: upgradedFish.nonSellable ? `event-${event!.id}-${upgradedFish.id}` : undefined,
+      kind: 'fish',
+      name: upgradedFish.name,
+      nonSellable: upgradedFish.nonSellable,
+      quantity: 1,
+      rarity: upgradedFish.rarity,
+      saleValue,
+    });
+    return upgradedFish;
   };
 
   for (let index = 0; index < catchCount; index += 1) {
-    const crateRarity = chooseCrateRarity(biome, random, crateDropRateMultiplier);
+    const crateRarity = chooseCrateRarity(event ? FISHING_CRATE_RARITIES : biome.crateRarities, random, crateDropRateMultiplier);
     if (crateRarity) {
-      const crate = getFishingCrate(`${biomeId}-${crateRarity.toLowerCase()}-crate`);
+      const eventCrate = event?.crates.find((entry) => entry.rarity === crateRarity);
+      const crate: ResolvableFishingCrate | undefined = eventCrate ?? getFishingCrate(`${biomeId}-${crateRarity.toLowerCase()}-crate`);
       if (!crate) throw new Error(`Missing ${biomeId} ${crateRarity} fishing crate.`);
       const crateSaleBonusPercent = (saleMultiplier - 1) * 100;
       fishingCrateXp += getFishingCrateXp(crateRarity, equipment.catalogueVersion);
       const crateLootRolls = 1 + (modifiers?.extraCrateLoot && random() < 0.5 ? 1 : 0);
       for (let lootRoll = 0; lootRoll < crateLootRolls; lootRoll += 1) {
-        const opening = resolveSingleFishingCrateOpening(crate, crateSaleBonusPercent, random);
+        const opening = event
+          ? resolveSingleEventCrateOpening(crate, event, biomeId, crateSaleBonusPercent, random)
+          : resolveSingleFishingCrateOpening(crate as FishingCrate, crateSaleBonusPercent, random);
         const saleValue = hasRelic('gear-lucky-coin') && random() < 0.03
           ? opening.saleValue * 2
           : opening.saleValue;
@@ -704,6 +948,12 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     if (bait.id === 'truffle-worm' && selectedFish.rarity !== 'Legendary') continue;
     addFish(selectedFish);
 
+    if (event && !knownTitleItemIds.has(event.title.itemId) && random() < event.title.dropRate) {
+      knownTitleItemIds.add(event.title.itemId);
+      specialItems.set(event.title.itemId, 1);
+      catches.set(`title:${event.title.itemId}`, { itemId: event.title.itemId, kind: 'title', name: event.title.name, quantity: 1 });
+    }
+
     const bonusFishChance = (bait.id === 'chum' && (selectedFish.rarity === 'Common' || selectedFish.rarity === 'Uncommon'))
       || (bait.id === 'bloodworms' && (selectedFish.rarity === 'Rare' || selectedFish.rarity === 'Epic'))
       ? 0.1 + (random() * 0.2)
@@ -715,6 +965,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     const fishCatches = [...catches.values()].filter((catchItem): catchItem is ResolvedFishingFishCatch => catchItem.kind === 'fish');
     const tangleNetMultiplier = 1 + (new Set(fishCatches.map((catchItem) => catchItem.rarity)).size * 0.03);
     for (const fishCatch of fishCatches) {
+      if (fishCatch.nonSellable) continue;
       const adjustedSaleValue = Math.round(fishCatch.saleValue * tangleNetMultiplier);
       fishSaleValue += adjustedSaleValue - fishCatch.saleValue;
       fishCatch.saleValue = adjustedSaleValue;
@@ -736,5 +987,15 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
     fishSaleValue,
     gearItems: [...gearItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })),
     knowBucksFound: 0,
+    specialItems: [...specialItems.entries()].flatMap(([itemId, quantity]) => {
+      const items: Array<{ itemId: string; quantity: number }> = [];
+      let remaining = quantity;
+      while (remaining > 0) {
+        const nextQuantity = Math.min(1_000, remaining);
+        items.push({ itemId, quantity: nextQuantity });
+        remaining -= nextQuantity;
+      }
+      return items;
+    }),
   };
 }

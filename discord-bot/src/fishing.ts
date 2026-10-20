@@ -6,12 +6,15 @@ import {
   FISHING_BIOMES,
   FISHING_CRATES,
   FISHING_CRATE_LOOT,
+  FISHING_EVENTS,
   FISHING_EXPEDITION_LENGTHS,
   FISHING_FISH,
   FISHING_UPGRADES,
   formatFishingDuration,
   getFishingBiome,
   getFishingCrate,
+  getFishingEvent,
+  getFishingEventForOutcomeSeed,
   getFishingExpeditionLength,
   getFishingKnowBucksMultiplier,
   getFishingSaleBonusPercent,
@@ -28,6 +31,7 @@ import {
   type FishingCrateRarity,
   type FishingDurationTier,
   type FishingEquipmentSnapshot,
+  type FishingEventCatalogueBiomeId,
   type FishingExpeditionModifiers,
   type FishingExpeditionResult,
   type FishingFish,
@@ -114,7 +118,7 @@ type FishingLeaderboardMemberRow = {
 };
 
 type FishingCatalogueCatchRow = {
-  biome_id: FishingBiomeId;
+  biome_id: FishingBiomeId | FishingEventCatalogueBiomeId;
   fish_name: string;
   fish_rarity: FishingRarity;
 };
@@ -162,13 +166,20 @@ export type FishingCatalogueProgress = {
   ownedGearItemIds: ReadonlySet<string>;
 };
 
+export type FishingEventCatalogueProgress = {
+  caughtFish: readonly Pick<FishingFish, 'name' | 'rarity'>[];
+  ownedTitleItemIds: ReadonlySet<string>;
+};
+
 export type StartedFishingExpedition = {
   activeModifierLabels?: string[];
   biomeName: string;
   crewSlot: number;
   durationSeconds: number;
   expeditionId: number;
+  eventName?: string;
   instantCompletion: boolean;
+  selectedBiomeName?: string;
 };
 
 export type FishingRepeatPreset = {
@@ -255,7 +266,10 @@ function normalizeEquipmentSnapshot(snapshot: FishingEquipmentSnapshot): Fishing
   const catalogueFishKeys = [...new Set(snapshot.catalogueFishKeys ?? [])]
     .filter((fishKey): fishKey is string => typeof fishKey === 'string' && fishKey.length > 0 && fishKey.length <= 256)
     .slice(0, 250);
-  return { catalogueVersion, catalogueFishKeys, rodItemId: rod.id, baitItemId: bait.id, passiveItemIds, modifiers };
+  const titleItemIds = [...new Set(snapshot.titleItemIds ?? [])]
+    .filter((itemId): itemId is string => FISHING_EVENTS.some((event) => event.title.itemId === itemId));
+  const eventId = getFishingEvent(snapshot.eventId)?.id;
+  return { catalogueVersion, catalogueFishKeys, rodItemId: rod.id, baitItemId: bait.id, passiveItemIds, modifiers, titleItemIds, eventId };
 }
 
 async function ensureFishingPlayer(config: DiscordBotConfig, discordUserId: string) {
@@ -327,6 +341,9 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
           const item = getFishingUpgrade(itemId);
           return item?.category === 'gear' || item?.category === 'skill';
         }),
+      titleItemIds: inventory
+        .map((item) => item.item_id)
+        .filter((itemId) => FISHING_EVENTS.some((event) => event.title.itemId === itemId)),
     }),
     fishingLevel,
     fishingTotalXp,
@@ -838,13 +855,15 @@ export async function startFishingExpedition(
     genesysLoopCount: Math.max(0, Math.min(2, Math.floor(options?.genesysLoopCount ?? 0))),
     streakSaleBonusPercent: launchRelicState.streakSaleBonusPercent,
   };
+  const outcomeSeed = randomInt(1, 2_147_483_648);
+  const event = getFishingEventForOutcomeSeed(outcomeSeed);
   const equipment: FishingEquipmentSnapshot = {
     ...state.equipment,
     catalogueFishKeys: launchRelicState.catalogueFishKeys,
     catalogueVersion: 7,
+    eventId: event?.id,
     modifiers,
   };
-  const outcomeSeed = randomInt(1, 2_147_483_648);
   const instantCompletion = shouldInstantlyCompleteFishingExpedition(equipment, outcomeSeed, crewSlot > 1);
   const durationSeconds = instantCompletion
     ? 0
@@ -873,11 +892,13 @@ export async function startFishingExpedition(
   if (!started) throw new Error('Discord fishing expedition did not return a result.');
   return {
     activeModifierLabels: getFishingModifierLabels(modifiers),
-    biomeName: biome.name,
+    biomeName: event?.biomeName ?? biome.name,
     crewSlot,
     durationSeconds,
     expeditionId: started.expedition_id,
+    eventName: event?.name,
     instantCompletion,
+    selectedBiomeName: event ? biome.name : undefined,
   };
 }
 
@@ -931,17 +952,45 @@ export async function getFishingCatalogueProgress(
   if (catchesResult.error) throw new Error(`Unable to load fishing catalogue progress: ${catchesResult.error.message}`);
 
   return {
-    caughtFish: (catchesResult.data ?? []).map((entry) => ({
-      biomeId: entry.biome_id,
-      name: entry.fish_name,
-      rarity: entry.fish_rarity,
-    })),
+    caughtFish: (catchesResult.data ?? [])
+      .filter((entry): entry is FishingCatalogueCatchRow & { biome_id: FishingBiomeId } => Boolean(getFishingBiome(entry.biome_id)))
+      .map((entry) => ({
+        biomeId: entry.biome_id,
+        name: entry.fish_name,
+        rarity: entry.fish_rarity,
+      })),
     ownedGearItemIds: new Set(
       state.inventory
         .map((entry) => getFishingUpgrade(entry.item_id))
         .filter((item): item is FishingUpgrade => item?.category === 'gear')
         .map((item) => item.id),
     ),
+  };
+}
+
+export async function getFishingEventCatalogueProgress(
+  config: DiscordBotConfig,
+  discordUserId: string,
+): Promise<FishingEventCatalogueProgress> {
+  const activeEvent = FISHING_EVENTS[0];
+  if (!activeEvent) return { caughtFish: [], ownedTitleItemIds: new Set() };
+  const [state, catchesResult] = await Promise.all([
+    getFishingPlayerState(config, discordUserId),
+    createBotServiceClient(config)
+      .from('discord_fishing_catalogue_catches')
+      .select('biome_id,fish_name,fish_rarity')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .eq('biome_id', activeEvent.catalogueBiomeId)
+      .returns<FishingCatalogueCatchRow[]>(),
+  ]);
+  if (catchesResult.error) throw new Error(`Unable to load fishing event catalogue progress: ${catchesResult.error.message}`);
+
+  return {
+    caughtFish: (catchesResult.data ?? []).map((entry) => ({ name: entry.fish_name, rarity: entry.fish_rarity })),
+    ownedTitleItemIds: new Set(state.inventory
+      .map((entry) => entry.item_id)
+      .filter((itemId) => activeEvent.title.itemId === itemId)),
   };
 }
 
@@ -1042,12 +1091,18 @@ const FISHING_CRATE_RARITY_MARKERS: Record<FishingCrateRarity, string> = {
 function formatCatch(catchItem: FishingExpeditionResult['catches'][number]) {
   const quantity = catchItem.quantity > 1 ? ` x${formatNumber(catchItem.quantity)}` : '';
   if (catchItem.kind === 'fish') {
+    if (catchItem.nonSellable) {
+      return `🌌 **${catchItem.name}** (${catchItem.rarity})${quantity} — added to your inventory`;
+    }
     return `**${catchItem.name}** (${catchItem.rarity})${quantity} — sold for ${formatNumber(catchItem.saleValue)} KnowBucks`;
   }
   if (catchItem.kind === 'crate') {
     return `${FISHING_CRATE_RARITY_MARKERS[catchItem.rarity]} **${catchItem.name}** -> **${catchItem.lootName}** (${catchItem.lootRarity})${quantity} — sold for ${formatNumber(catchItem.saleValue)} KnowBucks`;
   }
-  return `✨ **RELIC FOUND: ${catchItem.name}** — permanently added to inventory`;
+  if (catchItem.kind === 'gear') {
+    return `✨ **RELIC FOUND: ${catchItem.name}** — permanently added to inventory`;
+  }
+  return `🏷️ **TITLE FOUND: ${catchItem.name}** — permanently added to your titles`;
 }
 
 function buildFishingCatchFields(name: string, catches: FishingExpeditionResult['catches']) {
@@ -1073,11 +1128,13 @@ export function buildFishingCompletionEmbed(
   reward: number,
   balance: number,
   fishingSkillAward?: FishingSettlementSkillAward,
+  eventId?: string,
 ) {
   const biome = getFishingBiome(biomeId);
+  const event = getFishingEvent(eventId);
   const fishingSkillField = fishingSkillAward && fishingSkillAward.xpAwarded > 0
     ? [{
-      name: 'Fishing skill',
+      name: '⬆️ Fishing skill',
       value: `+${formatNumber(fishingSkillAward.xpAwarded)} Fishing XP · Level **${fishingSkillAward.currentLevel}**${fishingSkillAward.currentLevel > fishingSkillAward.previousLevel
         ? ` · Level rewards: **${formatNumber(fishingSkillAward.knowBucksAwarded)} KnowBucks**`
         : ''}`,
@@ -1085,15 +1142,16 @@ export function buildFishingCompletionEmbed(
     : [];
   return new EmbedBuilder()
     .setColor(0x0EA5E9)
-    .setTitle(`${biome?.name ?? 'Fishing'} expedition complete`)
+    .setTitle(`✅ ${event?.biomeName ?? biome?.name ?? 'Fishing'} expedition complete ✅`)
     .setDescription(result.crateSaleValue > 0
       ? `You earned ${formatNumber(result.fishSaleValue)} KnowBucks from your sold fish. Crate items earned ${formatNumber(result.crateSaleValue)} KnowBucks. New balance: ${formatNumber(balance)} KnowBucks.`
       : `You earned ${formatNumber(reward)} KnowBucks from your sold fish. New balance: ${formatNumber(balance)} KnowBucks.`)
     .addFields(
       ...fishingSkillField,
-      ...buildFishingCatchFields('Fish caught', result.catches.filter((catchItem) => catchItem.kind === 'fish')),
-      ...buildFishingCatchFields('Crates opened', result.catches.filter((catchItem) => catchItem.kind === 'crate')),
-      ...buildFishingCatchFields('Relics found', result.catches.filter((catchItem) => catchItem.kind === 'gear')),
+      ...buildFishingCatchFields('🐟 Fish caught', result.catches.filter((catchItem) => catchItem.kind === 'fish')),
+      ...buildFishingCatchFields('🎁 Crates found', result.catches.filter((catchItem) => catchItem.kind === 'crate')),
+      ...buildFishingCatchFields('💎 Relics found', result.catches.filter((catchItem) => catchItem.kind === 'gear')),
+      ...buildFishingCatchFields('🏷️ Title found', result.catches.filter((catchItem) => catchItem.kind === 'title')),
     );
 }
 
@@ -1158,6 +1216,31 @@ async function launchGenesysLoopFollowUp(
   }
 }
 
+async function announceFishingEventMilestones(
+  channel: SendableChannels,
+  discordUserId: string,
+  result: FishingExpeditionResult,
+  equipment: FishingEquipmentSnapshot,
+  awardedGearItemIds: ReadonlySet<string>,
+) {
+  const event = getFishingEvent(equipment.eventId);
+  if (!event) return;
+
+  const mythicCatch = result.catches.find((catchItem) => catchItem.kind === 'fish' && catchItem.nonSellable);
+  if (mythicCatch?.kind === 'fish') {
+    await channel.send({
+      allowedMentions: { users: [discordUserId] },
+      content: `🌌 <@${discordUserId}> uncovered **${mythicCatch.name}**, the Mythic catch of the **${event.biomeName}**. It has been added to their inventory!`,
+    });
+  }
+  if (awardedGearItemIds.has(event.title.itemId)) {
+    await channel.send({
+      allowedMentions: { users: [discordUserId] },
+      content: `🏷️ <@${discordUserId}> earned the **${event.title.name}** title!`,
+    });
+  }
+}
+
 async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, expedition: FishingExpeditionRow) {
   const equipment = normalizeEquipmentSnapshot(expedition.equipment_snapshot);
   const result = resolveFishingExpedition(
@@ -1173,7 +1256,7 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
     p_fishing_level_knowbucks_multiplier_basis_points: Math.round(getFishingKnowBucksMultiplier(equipment.modifiers) * 10_000),
     p_knowbucks_awarded: reward,
     p_result: result,
-    p_special_items: result.gearItems ?? [],
+    p_special_items: [...(result.gearItems ?? []), ...(result.specialItems ?? [])],
   });
   if (error) throw new Error(`Unable to settle Discord fishing expedition: ${error.message}`);
   const settled = getFirstResult(data as SettledExpeditionRow | SettledExpeditionRow[] | null);
@@ -1191,7 +1274,9 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
   const awardedGearItemIds = new Set(settled.awarded_gear_item_ids ?? []);
   const displayedResult: FishingExpeditionResult = {
     ...settled.result,
-    catches: settled.result.catches.filter((catchItem) => catchItem.kind !== 'gear' || awardedGearItemIds.has(catchItem.itemId)),
+    catches: settled.result.catches.filter((catchItem) => (
+      (catchItem.kind !== 'gear' && catchItem.kind !== 'title') || awardedGearItemIds.has(catchItem.itemId)
+    )),
     gearItems: (settled.result.gearItems ?? []).filter((gear) => awardedGearItemIds.has(gear.itemId)),
   };
   const fishingSkillAward = settled.fishing_current_level === null
@@ -1220,6 +1305,7 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
       settled.knowbucks_awarded,
       settled.current_balance ?? settled.knowbucks_awarded,
       fishingSkillAward,
+      equipment.eventId,
     )],
   };
 
@@ -1227,6 +1313,8 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
     try {
       const message = await channel.messages.fetch(expedition.notification_message_id);
       await message.edit(completion);
+      await announceFishingEventMilestones(channel, settled.discord_user_id, settled.result, equipment, awardedGearItemIds)
+        .catch((announcementError: unknown) => console.warn(`Discord fishing expedition ${expedition.id} event announcement failed.`, announcementError));
       await launchGenesysLoopFollowUp(config, guild, expedition, equipment, channel);
       return;
     } catch (error) {
@@ -1249,8 +1337,11 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
       settled.knowbucks_awarded,
       settled.current_balance ?? settled.knowbucks_awarded,
       fishingSkillAward,
+      equipment.eventId,
     )],
   });
+  await announceFishingEventMilestones(channel, settled.discord_user_id, settled.result, equipment, awardedGearItemIds)
+    .catch((announcementError: unknown) => console.warn(`Discord fishing expedition ${expedition.id} event announcement failed.`, announcementError));
   await launchGenesysLoopFollowUp(config, guild, expedition, equipment, channel);
 }
 
@@ -1320,5 +1411,5 @@ export function describeFishingEquipment(equipment: FishingEquipmentSnapshot) {
   };
 }
 
-export { FISHING_BIOMES, FISHING_CRATES, FISHING_CRATE_LOOT, FISHING_EXPEDITION_LENGTHS, FISHING_FISH, FISHING_UPGRADES, formatFishingDuration, getFishingBiome, getFishingCrate, getFishingExpeditionLength, getFishingUpgrade, getFishingUpgradeCost };
+export { FISHING_BIOMES, FISHING_CRATES, FISHING_CRATE_LOOT, FISHING_EVENTS, FISHING_EXPEDITION_LENGTHS, FISHING_FISH, FISHING_UPGRADES, formatFishingDuration, getFishingBiome, getFishingCrate, getFishingEvent, getFishingExpeditionLength, getFishingUpgrade, getFishingUpgradeCost };
 export type { FishingBiomeId, FishingDurationTier, FishingUpgradeCategory };

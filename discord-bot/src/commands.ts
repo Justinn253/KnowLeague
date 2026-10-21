@@ -90,7 +90,32 @@ function createCollectionsCommand() {
       .setDescription('Sell one of your skins for KnowBucks.')));
 }
 
+function createLeagueCommand() {
+  return new SlashCommandBuilder()
+    .setName('league')
+    .setDescription('Use KnowLeague features from Discord.')
+    .addSubcommandGroup((group) => group
+      .setName('skindle')
+      .setDescription('Play the daily Skindle puzzle.')
+      .addSubcommand((subcommand) => subcommand
+        .setName('play')
+        .setDescription('Play the daily Skindle from KnowLeague.net.'))
+      .addSubcommand((subcommand) => subcommand
+        .setName('guess')
+        .setDescription('Submit one skin guess for today\'s Skindle.')
+        .addStringOption((option) => option
+          .setName('skin')
+          .setDescription('Exact skin name, such as Spirit Blossom Ahri.')
+          .setMinLength(2)
+          .setMaxLength(150)
+          .setRequired(true)))
+      .addSubcommand((subcommand) => subcommand
+        .setName('status')
+        .setDescription('View your private progress in today\'s Skindle.')));
+}
+
 export const commandDefinitions = [
+  createLeagueCommand(),
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('See KnowLeague Discord bot commands and usage.'),

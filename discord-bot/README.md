@@ -7,6 +7,7 @@ This is the long-running Discord companion for the KnowLeague web app. It is int
 - `/link` directs a Discord user to the existing KnowLeague profile-link flow.
 - `/profile` confirms the caller's linked KnowLeague profile and links to its public page.
 - `/help` describes every KnowLeague bot command and its usage.
+- `/league skindle play`, `/league skindle guess skin`, and `/league skindle status` provide a test version of the UTC daily Skindle. `/play` posts a public activity card, while clue feedback and the final skin reveal stay private. Completion posts a spoiler-free public guess-count card with square markers. Test runs are held in bot memory and reset after a bot restart; they do not yet synchronize with website Skindle progress or global statistics.
 - `/xp view [member]` shows a member's level, total XP, segmented progress bar, and remaining XP. It defaults to the caller.
 - `/xp add` grants a member XP and `/xp set-level` sets a member to a level; both are available only to members whose Discord role is selected in **Discord Configuration**.
 - `/leaderboard [count]` posts the top active server members by XP, with 10 entries by default and up to 25 on request.

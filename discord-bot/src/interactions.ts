@@ -15,6 +15,13 @@ import { importExternalMessageEmojis } from './emoji-import.js';
 import { findLinkedProfile } from './profiles.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
+  buildDiscordSkindleGuessEmbed,
+  buildDiscordSkindleShareEmbed,
+  buildDiscordSkindleSolvedEmbed,
+  discordSkindleSessionStore,
+  formatDiscordSkindleDate,
+} from './skindle.js';
+import {
   attachFishingExpeditionMessage,
   describeFishingEquipment,
   FISHING_REPEAT_BUTTON_PREFIX,
@@ -79,6 +86,17 @@ function profileButton(config: DiscordBotConfig, username?: string) {
     .setStyle(ButtonStyle.Link)
     .setLabel(username ? 'Open public profile' : 'Open profile settings')
     .setURL(profileUrl(config, username));
+}
+
+function skindleButton(config: DiscordBotConfig) {
+  return new ButtonBuilder()
+    .setStyle(ButtonStyle.Link)
+    .setLabel('Play Skindle on KnowLeague')
+    .setURL(new URL('/skindle', config.siteUrl).toString());
+}
+
+function skindleComponents(config: DiscordBotConfig) {
+  return [{ type: 1 as const, components: [skindleButton(config)] }];
 }
 
 export function isDiscordAdministrativeCommand(commandName: string, subcommand: string | null) {
@@ -1107,6 +1125,108 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
   throw new Error(`Unsupported fishing command: ${subcommand}`);
 }
 
+async function handleLeagueCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  const group = interaction.options.getSubcommandGroup();
+  if (group !== 'skindle') {
+    throw new Error(`Unsupported League command group: ${group ?? 'none'}`);
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  const currentStatus = () => discordSkindleSessionStore.getStatus(interaction.user.id);
+  if (subcommand === 'play') {
+    const status = currentStatus();
+    const activity = status.solved
+      ? `**${interaction.user.username}** has already completed today's Daily Skindle.`
+      : `**${interaction.user.username}** is playing today's Daily Skindle.`;
+    await interaction.reply({
+      components: skindleComponents(config),
+      embeds: [
+        new EmbedBuilder()
+          .setColor(status.solved ? 0x22C55E : 0x0EA5E9)
+          .setTitle('Daily Skindle')
+          .setDescription(`${activity}\n\nUse \`/league skindle guess\` with an exact skin name to make a guess.`),
+      ],
+    });
+    return;
+  }
+
+  if (subcommand === 'status') {
+    const status = currentStatus();
+    const progress = status.solved
+      ? `You have already solved today's Skindle in **${status.guessCount}** ${status.guessCount === 1 ? 'guess' : 'guesses'}. Your private solved card was shown when you completed it.`
+      : status.guessCount > 0
+        ? `You have made **${status.guessCount}** ${status.guessCount === 1 ? 'guess' : 'guesses'} so far. Use \`/league skindle guess\` to continue.`
+        : 'Your daily run is ready. Use `/league skindle guess` with an exact skin name to make your first guess.';
+    await interaction.reply({
+      components: skindleComponents(config),
+      embeds: [
+        new EmbedBuilder()
+          .setColor(status.solved ? 0x22C55E : 0x0EA5E9)
+          .setTitle('Daily Skindle')
+          .setDescription(progress),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (subcommand !== 'guess') {
+    throw new Error(`Unsupported League Skindle command: ${subcommand}`);
+  }
+
+  const result = discordSkindleSessionStore.guess(interaction.user.id, interaction.options.getString('skin', true));
+  if (result.kind === 'correct') {
+    await interaction.reply({
+      components: skindleComponents(config),
+      embeds: [buildDiscordSkindleSolvedEmbed(interaction.user.username, result)],
+      flags: MessageFlags.Ephemeral,
+    });
+    await interaction.followUp({
+      components: skindleComponents(config),
+      embeds: [buildDiscordSkindleShareEmbed(interaction.user.username, result)],
+    });
+    return;
+  }
+
+  if (result.kind === 'incorrect') {
+    await interaction.reply({
+      components: skindleComponents(config),
+      embeds: [buildDiscordSkindleGuessEmbed(result)],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (result.kind === 'already-solved') {
+    await interaction.reply({
+      content: `You already solved the ${formatDiscordSkindleDate(result.status.dateKey)} Daily Skindle in ${result.status.guessCount} ${result.status.guessCount === 1 ? 'guess' : 'guesses'}.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (result.kind === 'duplicate') {
+    await interaction.reply({
+      content: `You already guessed **${result.guess.answer}** today. Choose a different skin.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (result.kind === 'ambiguous') {
+    await interaction.reply({
+      content: `Use an exact skin name. Possible matches: ${result.suggestions.map((suggestion) => `**${suggestion}**`).join(', ')}.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.reply({
+    content: 'I could not find that skin. Use its exact name, such as `Spirit Blossom Ahri`.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
 async function handleCollectionsCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   const guild = interaction.guild;
   if (!guild) return;
@@ -1621,6 +1741,7 @@ export async function handleChatInputCommand(
             { name: '/collections steal/favorite/gamble/sell', value: 'Attempt a steal for 3x the skin’s configured sell value (with a 30-minute cooldown), choose your first collection item, gamble a skin, or sell one by its four-digit ID.' },
             { name: '/collections search [skin-name] [skin-id]', value: 'Preview a catalogue skin by name or four-digit KnowLeague ID, including its current owner when assigned. The preview cannot be claimed.' },
             { name: '/collections spawn', value: 'Immediately post a skin drop in this channel. Requires a role selected in Discord Configuration.' },
+            { name: '/league skindle play/guess/status', value: 'Start a public Daily Skindle activity card, keep clue and solution cards private, and share a spoiler-free result in the channel.' },
             { name: 'Chat leveling', value: 'Eligible non-bot messages earn XP. Level rewards and messages are configured on the website.' },
           ),
       ],
@@ -1630,6 +1751,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'xp') {
     await handleXpCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'league') {
+    await handleLeagueCommand(interaction, config);
     return;
   }
 

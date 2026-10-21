@@ -17,6 +17,43 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-21-discord-skindle-test',
+    patch: 'patch-2026-10-21-discord-skindle-test',
+    timestamp: '2026-10-21T02:08:08.302Z',
+    title: 'Refine the in-memory Discord Daily Skindle test',
+    summary:
+      'Refined the guild-scoped /league skindle test with public activity and spoiler-free completion cards, private clue and solution panels, Eastern calendar-date labels, larger clue splash art, and refreshed Lane/Resource catalogue metadata.',
+    details: [
+      'The /league skindle play command now posts a public activity card so the channel can see a player has started; status, invalid-input, duplicate-input, clue, and final-solution responses stay visible only to the invoking player. The public completion card contains only the display name, guess count, and black/green square sequence, avoiding target spoilers.',
+      'Private clue cards omit the obsolete target footer and privacy sentence, use the guessed skin as a full-width embed image, and show the daily date in America/New_York calendar format wherever a date is displayed.',
+      'Regenerated the local Skindle catalogue from the project\'s supported metadata sources so the Lane and Resource attributes no longer fall back to Unknown for normal champion records.',
+      'Discord sessions are keyed only by the invoking Discord user ID in the bot process. They prevent duplicate guesses and stop a solved daily run, but are intentionally reset after a bot restart and do not write Supabase, alter website progress, or contribute to website global Skindle statistics.',
+    ],
+    impact: [
+      'Deploy the Discord bot and run npm run discord:commands:register with the bot deployment environment configured before testing the new /league command. No database migration, website deployment, new secret, or privileged gateway intent is required.',
+      'This is a test implementation only. It deliberately has no cross-device, cross-restart, website-account, or shared global-statistics persistence; evaluate the Discord game flow before introducing durable Supabase state.',
+    ],
+    files: [
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skindle.ts',
+      'discord-bot/README.md',
+      'tests/discord-skindle.test.ts',
+      'scripts/generate-catalogs.mjs',
+      'data/catalogs/champion-gameplay-metadata.json',
+      'data/catalogs/champion-metadata.json',
+      'data/catalogs/skin-items.json',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Discord Skindle coverage passed: five tests cover website-target equivalence, generated Lane/Resource metadata, per-user state, the image-based private clue card, the spoiler-free square share card, Eastern date formatting, and command registration metadata.',
+      'npm run data:generate passed and regenerated champion metadata and Skindle skin items. The external wiki skin-release-date endpoint returned 502, so the existing committed release-date data was preserved.',
+      'npm run check and npm run discord:check passed. Lint retained only the repository\'s seven existing Next.js <img> warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
+      'git diff --check passed. No migration was created or applied.',
+      'Registered the updated guild-scoped slash-command set successfully with the configured Discord application.',
+    ],
+  },
+  {
     id: 'patch-2026-10-20-discord-collections-unique-skins-capacity-and-search',
     patch: 'patch-2026-10-20-discord-collections-unique-skins-capacity-and-search',
     timestamp: '2026-10-20T20:13:05.267Z',

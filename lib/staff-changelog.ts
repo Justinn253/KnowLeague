@@ -17,6 +17,31 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-21-discord-skindle-share-grid',
+    patch: 'patch-2026-10-21-discord-skindle-share-grid',
+    timestamp: '2026-10-21T18:21:30.115Z',
+    title: 'Render Discord Skindle completion history as a nine-clue grid',
+    summary:
+      'Fixed the public Discord Skindle completion card to show one nine-square comparison row for every accepted attempt instead of one aggregate row with one square per attempt.',
+    details: [
+      'Each in-memory daily run now retains its accepted guess comparisons in order, while duplicate guesses remain excluded. On completion, the public non-spoiler card maps Champion, Skin line, Rarity, Species, Gender, Role, Lane, Release year, and Resource to a compact exact/partial/miss square row for each attempt.',
+      'The solved target is still not named or pictured on the public card. The player continues to receive the complete target panel privately, while the final public row resolves as nine exact-match squares.',
+    ],
+    impact: [
+      'Deploy or restart the Discord bot to apply the in-memory run format and corrected public share grid. Existing runs in a restarted bot are intentionally reset under the test implementation; no database migration, website deployment, or new secret is required.',
+    ],
+    files: [
+      'discord-bot/src/skindle.ts',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Discord Skindle coverage passed: five tests include a five-attempt run that verifies five public rows of nine squares and a final all-exact row.',
+      'npm run discord:check and npm run check passed. Lint retained only the repository\'s seven existing Next.js <img> warnings in profile-screen.tsx, public-profile-screen.tsx, and riftbound-compact-deck-view.tsx.',
+      'No command shape, migration, or command-registration update was required. git diff --check passed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-21-discord-skindle-test',
     patch: 'patch-2026-10-21-discord-skindle-test',
     timestamp: '2026-10-21T02:08:08.302Z',

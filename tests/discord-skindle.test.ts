@@ -34,10 +34,10 @@ describe('Discord Skindle test implementation', () => {
   it('keeps clues and solved state scoped to one Discord user for the daily run', () => {
     const store = new DiscordSkindleSessionStore();
     const target = getDiscordSkindleDailyTarget(day);
-    const incorrect = getDiscordSkindleCatalog().find((skin) => skin.id !== target.id);
-    expect(incorrect).toBeDefined();
+    const incorrectGuesses = getDiscordSkindleCatalog().filter((skin) => skin.id !== target.id).slice(0, 4);
+    expect(incorrectGuesses).toHaveLength(4);
 
-    const firstGuess = store.guess('123456789012345678', incorrect!.answer, day);
+    const firstGuess = store.guess('123456789012345678', incorrectGuesses[0]!.answer, day);
     expect(firstGuess.kind).toBe('incorrect');
     if (firstGuess.kind !== 'incorrect') return;
     expect(firstGuess.status).toMatchObject({ dateKey: '2026-10-20', guessCount: 1, solved: false });
@@ -46,17 +46,24 @@ describe('Discord Skindle test implementation', () => {
     expect(guessEmbed.footer).toBeUndefined();
     expect(guessEmbed.image?.url).toBe(firstGuess.guess.imageUrl);
 
-    const duplicate = store.guess('123456789012345678', incorrect!.answer, day);
+    const duplicate = store.guess('123456789012345678', incorrectGuesses[0]!.answer, day);
     expect(duplicate.kind).toBe('duplicate');
+
+    for (const guess of incorrectGuesses.slice(1)) {
+      expect(store.guess('123456789012345678', guess.answer, day).kind).toBe('incorrect');
+    }
 
     const solve = store.guess('123456789012345678', target.answer, day);
     expect(solve.kind).toBe('correct');
     if (solve.kind !== 'correct') return;
-    expect(solve.status).toMatchObject({ guessCount: 2, solved: true });
+    expect(solve.status).toMatchObject({ guessCount: 5, solved: true });
     expect(solve.target.id).toBe(target.id);
     const shareEmbed = buildDiscordSkindleShareEmbed('Justin', solve).toJSON();
-    expect(shareEmbed.description).toContain('⬛🟩');
     expect(shareEmbed.description).not.toContain(target.answer);
+    const progressRows = shareEmbed.description!.split('\n').slice(-5);
+    expect(progressRows).toHaveLength(5);
+    expect(progressRows.every((row) => [...row].length === 9)).toBe(true);
+    expect([...progressRows.at(-1)!]).toEqual(Array(9).fill('\u{1F7E9}'));
 
     expect(store.getStatus('999999999999999999', day)).toMatchObject({ guessCount: 0, solved: false });
     expect(store.getStatus('123456789012345678', new Date('2026-10-21T00:00:00.000Z'))).toMatchObject({ guessCount: 0, solved: false });

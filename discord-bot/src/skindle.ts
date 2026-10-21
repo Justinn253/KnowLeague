@@ -50,13 +50,18 @@ export type DiscordSkindleGuessResult =
   | { kind: 'already-solved'; status: DiscordSkindleStatus }
   | { guess: DiscordSkindleSkin; kind: 'duplicate'; status: DiscordSkindleStatus }
   | { comparison: DiscordSkindleComparison; guess: DiscordSkindleSkin; kind: 'incorrect'; status: DiscordSkindleStatus }
-  | { comparison: DiscordSkindleComparison; guess: DiscordSkindleSkin; kind: 'correct'; status: DiscordSkindleStatus; target: DiscordSkindleSkin }
+  | { comparison: DiscordSkindleComparison; guess: DiscordSkindleSkin; kind: 'correct'; progress: readonly DiscordSkindleComparison[]; status: DiscordSkindleStatus; target: DiscordSkindleSkin }
   | { kind: 'ambiguous'; suggestions: string[] }
   | { kind: 'unknown'; suggestions: string[] };
 
+type DiscordSkindleAttempt = {
+  comparison: DiscordSkindleComparison;
+  skinId: string;
+};
+
 type DiscordSkindleRun = {
+  attempts: DiscordSkindleAttempt[];
   dateKey: string;
-  guessIds: Set<string>;
   solved: boolean;
 };
 
@@ -244,7 +249,7 @@ function findSkindleSkin(query: string) {
 function buildStatus(run: DiscordSkindleRun, now: Date): DiscordSkindleStatus {
   return {
     dateKey: getDateKey(now),
-    guessCount: run.guessIds.size,
+    guessCount: run.attempts.length,
     solved: run.solved,
   };
 }
@@ -273,17 +278,17 @@ export class DiscordSkindleSessionStore {
     const target = getDiscordSkindleDailyTarget(now);
     const existing = this.runsByDiscordUserId.get(discordUserId);
     const run = !existing || existing.dateKey !== dateKey
-      ? { dateKey, guessIds: new Set<string>(), solved: false }
+      ? { attempts: [], dateKey, solved: false }
       : existing;
     this.runsByDiscordUserId.set(discordUserId, run);
 
     const status = buildStatus(run, now);
     if (run.solved) return { kind: 'already-solved', status };
-    if (run.guessIds.has(match.skin.id)) return { guess: match.skin, kind: 'duplicate', status };
+    if (run.attempts.some((attempt) => attempt.skinId === match.skin.id)) return { guess: match.skin, kind: 'duplicate', status };
 
-    run.guessIds.add(match.skin.id);
-    const nextStatus = buildStatus(run, now);
     const comparison = compareDiscordSkindleGuess(match.skin, target);
+    run.attempts.push({ comparison, skinId: match.skin.id });
+    const nextStatus = buildStatus(run, now);
     if (match.skin.id !== target.id) {
       return { comparison, guess: match.skin, kind: 'incorrect', status: nextStatus };
     }
@@ -293,6 +298,7 @@ export class DiscordSkindleSessionStore {
       comparison,
       guess: match.skin,
       kind: 'correct',
+      progress: run.attempts.map((attempt) => attempt.comparison),
       status: buildStatus(run, now),
       target,
     };
@@ -339,15 +345,20 @@ export function buildDiscordSkindleSolvedEmbed(displayName: string, result: Extr
 }
 
 export function buildDiscordSkindleShareEmbed(displayName: string, result: Extract<DiscordSkindleGuessResult, { kind: 'correct' }>) {
-  const squares = Array.from(
-    { length: result.status.guessCount },
-    (_, index) => index === result.status.guessCount - 1 ? '🟩' : '⬛',
-  ).join('');
+  const progress = result.progress
+    .map((comparison) => SKINDLE_CATEGORY_IDS
+      .map((categoryId) => {
+        if (comparison.matches[categoryId]) return '\u{1F7E9}';
+        if (comparison.partialMatches[categoryId]) return '\u{1F7E8}';
+        return '\u2B1B';
+      })
+      .join(''))
+    .join('\n');
 
   return new EmbedBuilder()
     .setColor(0x22C55E)
     .setTitle('Daily Skindle completed')
-    .setDescription(`**${displayName}** solved the Daily Skindle in **${result.status.guessCount}** ${result.status.guessCount === 1 ? 'guess' : 'guesses'}!\n\n${squares}`)
+    .setDescription(`**${displayName}** solved the Daily Skindle in **${result.status.guessCount}** ${result.status.guessCount === 1 ? 'guess' : 'guesses'}!\n\n${progress}`)
     .setFooter({ text: `${formatDiscordSkindleDate(result.status.dateKey)} · KnowLeague.net` });
 }
 

@@ -17,6 +17,77 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-21-discord-multi-command-channels',
+    patch: 'patch-2026-10-21-discord-multi-command-channels',
+    timestamp: '2026-10-21T19:30:00.000Z',
+    title: 'Allow multiple General and Collections command channels',
+    summary:
+      'The General and Collections channel selectors now accept multiple command channels, with an empty selection preserving all-channel access.',
+    details: [
+      'Replaced the two single-channel command scopes with normalized, service-role-only channel tables. Migration 177 carries each existing General or Collections selection forward, so one configured channel remains selected after the upgrade.',
+      'Both multi-select controls use the shared Discord Configuration menu pattern: selecting one or more synchronized, sendable channels limits the corresponding commands to that set, and selecting All channels clears the set and restores unrestricted access.',
+      'The bot now checks General and Collections command-channel sets. The old single-channel columns remain synchronized to one selected value solely for a safe rolling deployment; the new channel tables are authoritative after the updated bot is deployed.',
+      'Extended General command-channel tests to cover unrestricted, selected, and rejected channels while preserving the explicit split between General and feature-scoped commands.',
+    ],
+    impact: [
+      'Apply migration 176 followed by migration 177, then deploy the website and Discord bot together. No slash-command registration or Discord permission change is required.',
+      'The migration is local only and has not been pushed or applied. A General or Collections setting with no selected channels remains open to all channels.',
+    ],
+    files: [
+      'supabase/migrations/177_add_discord_multi_command_channels.sql',
+      'lib/discord-general-settings.ts',
+      'lib/discord-skin-claims.ts',
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'discord-bot/src/general-settings.ts',
+      'discord-bot/src/skin-claims.ts',
+      'discord-bot/README.md',
+      'discord-bot/AGENTS.md',
+      'tests/discord-general-command-settings.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Extended command-channel scope regression coverage for multiple selected channels and the unrestricted empty selection.',
+      'npm run check passed lint, root type-check, the full Vitest suite (229 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+      'Migration 177 is local only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-21-discord-general-command-channel',
+    patch: 'patch-2026-10-21-discord-general-command-channel',
+    timestamp: '2026-10-21T19:00:00.000Z',
+    title: 'Add a private General command-channel rule for Discord',
+    summary:
+      'Discord Configuration now has a General tab that can restrict unscoped KnowLeague commands to one synchronized, sendable channel while keeping every wrong-channel response private.',
+    details: [
+      'Added a durable, service-role-only General command setting with an optional default command-channel ID. The setting defaults to unrestricted behavior and validates that a selected channel remains a synchronized channel where the KnowLeague bot can send messages.',
+      'The General rule covers `/help`, `/link`, `/profile`, `/xp`, `/leaderboard`, `/knowbucks`, `/snipe`, and `/steal-emoji`. Fishing, Collections, and `/league` remain feature-scoped: their existing channel rules retain precedence and do not inherit the General selection.',
+      'Changed Fishing and Collections command-channel rejection replies to ephemeral responses. General channel rejections are also ephemeral, so members do not create public channel noise by trying a command in the wrong place.',
+      'Added regression coverage for the explicit General-versus-feature command classification and documented the resulting command scope for operators.',
+    ],
+    impact: [
+      'Apply migration 176, deploy the website and Discord bot, then select the default channel from Discord Configuration > General. No slash-command registration or Discord permission change is required.',
+      'Until a channel is selected, all General commands continue working in every channel. The bot refreshes the selected General channel within 30 seconds of a saved change.',
+    ],
+    files: [
+      'supabase/migrations/176_add_discord_general_command_configuration.sql',
+      'lib/discord-general-settings.ts',
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'discord-bot/src/general-settings.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'discord-bot/AGENTS.md',
+      'tests/discord-general-command-settings.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Added General command-scope regression coverage.',
+      'npm run check passed lint, root type-check, the full Vitest suite (228 tests), and Discord bot type-check. Existing unrelated Next.js <img> lint warnings remain in profile and Riftbound components.',
+      'Migration 176 is local only and has not been pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-21-discord-skindle-share-grid',
     patch: 'patch-2026-10-21-discord-skindle-share-grid',
     timestamp: '2026-10-21T18:21:30.115Z',

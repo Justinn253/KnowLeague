@@ -14,6 +14,10 @@ import {
   type DiscordLevelingSettings,
 } from '@/lib/discord-leveling';
 import {
+  DEFAULT_DISCORD_GENERAL_SETTINGS,
+  type DiscordGeneralSettings,
+} from '@/lib/discord-general-settings';
+import {
   DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS,
   DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES,
   DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
@@ -38,12 +42,14 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 type LevelingSettingsResponse = {
   channels: DiscordGuildChannel[];
   collectionAdminRoleIds: string[];
+  generalSettings: DiscordGeneralSettings;
   leaderboardExcludedRoleIds: string[];
   manualXpRoleIds: string[];
   roleRewards: DiscordLevelingRoleReward[];
   roles: DiscordGuildRole[];
   settings: DiscordLevelingSettings;
   skinClaimChannelIds: string[];
+  skinClaimCommandChannelIds: string[];
   skinClaimRarityWeights: DiscordSkinClaimRarityWeight[];
   skinClaimSellValues: DiscordSkinClaimSellValue[];
   skinClaimSettings: DiscordSkinClaimSettings;
@@ -57,12 +63,14 @@ type LevelingSettingsResponse = {
 const EMPTY_RESPONSE: LevelingSettingsResponse = {
   channels: [],
   collectionAdminRoleIds: [],
+  generalSettings: DEFAULT_DISCORD_GENERAL_SETTINGS,
   leaderboardExcludedRoleIds: [],
   manualXpRoleIds: [],
   roleRewards: [],
   roles: [],
   settings: DEFAULT_DISCORD_LEVELING_SETTINGS,
   skinClaimChannelIds: [],
+  skinClaimCommandChannelIds: [],
   skinClaimRarityWeights: [...DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS],
   skinClaimSellValues: [...DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES],
   skinClaimSettings: DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
@@ -74,6 +82,7 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
 };
 
 const ALL_SKIN_CLAIM_CHANNELS_VALUE = '__all__';
+const ALL_GENERAL_COMMAND_CHANNELS_VALUE = '__all_general_commands__';
 const ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE = '__all_collections_commands__';
 const ALL_FISHING_COMMAND_CHANNELS_VALUE = '__all_fishing_commands__';
 const FISHING_WEEKDAY_OPTIONS = [
@@ -170,7 +179,7 @@ export function DiscordLevelingSettings() {
   const [data, setData] = useState<LevelingSettingsResponse>(EMPTY_RESPONSE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'leveling' | 'collections' | 'fishing'>('leveling');
+  const [activeTab, setActiveTab] = useState<'general' | 'leveling' | 'collections' | 'fishing'>('general');
   const [message, setMessage] = useState('');
   const [rewardLevel, setRewardLevel] = useState('5');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
@@ -195,8 +204,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -285,6 +294,28 @@ export function DiscordLevelingSettings() {
     }
     const skinClaimChannelIds = toggleId(current.skinClaimChannelIds, channelId);
     return { ...current, skinClaimChannelIds, skinClaimSettings: { ...current.skinClaimSettings, allChannels: false } };
+  });
+  const toggleGeneralCommandChannel = (channelId: string) => setData((current) => {
+    if (channelId === ALL_GENERAL_COMMAND_CHANNELS_VALUE) {
+      return current.generalSettings.commandChannelIds.length
+        ? { ...current, generalSettings: { ...current.generalSettings, commandChannelIds: [] } }
+        : current;
+    }
+    return {
+      ...current,
+      generalSettings: {
+        ...current.generalSettings,
+        commandChannelIds: toggleId(current.generalSettings.commandChannelIds, channelId),
+      },
+    };
+  });
+  const toggleSkinClaimCommandChannel = (channelId: string) => setData((current) => {
+    if (channelId === ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE) {
+      return current.skinClaimCommandChannelIds.length
+        ? { ...current, skinClaimCommandChannelIds: [] }
+        : current;
+    }
+    return { ...current, skinClaimCommandChannelIds: toggleId(current.skinClaimCommandChannelIds, channelId) };
   });
   const toggleFishingCommandChannel = (channelId: string) => setData((current) => {
     if (channelId === ALL_FISHING_COMMAND_CHANNELS_VALUE) {
@@ -378,6 +409,7 @@ export function DiscordLevelingSettings() {
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data.settings,
+          generalCommandChannelIds: data.generalSettings.commandChannelIds,
           collectionAdminRoleIds: data.collectionAdminRoleIds,
           leaderboardExcludedRoleIds: data.leaderboardExcludedRoleIds,
           manualXpRoleIds: data.manualXpRoleIds,
@@ -386,7 +418,7 @@ export function DiscordLevelingSettings() {
           skinClaimChannelIds: data.skinClaimChannelIds,
           skinClaimClaimWindowMinutes: data.skinClaimSettings.claimWindowMinutes,
           skinClaimClaimGracePeriodSeconds: data.skinClaimSettings.claimGracePeriodSeconds,
-          skinClaimCommandChannelId: data.skinClaimSettings.commandChannelId,
+          skinClaimCommandChannelIds: data.skinClaimCommandChannelIds,
           skinClaimEnabled: data.skinClaimSettings.enabled,
           skinClaimCollectionCapacityUpgradeCost: data.skinClaimSettings.collectionCapacityUpgradeCost,
           skinClaimCollectionStealChancePercent: data.skinClaimSettings.collectionStealChancePercent,
@@ -405,8 +437,8 @@ export function DiscordLevelingSettings() {
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
       setMessage('Discord Configuration saved. Fishing reward roles are granted when eligible members next gain Fishing XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
@@ -423,16 +455,45 @@ export function DiscordLevelingSettings() {
       </div>
       <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Discord Configuration</p>
-        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">{activeTab === 'leveling' ? 'Chat leveling' : activeTab === 'collections' ? 'Skin collections' : 'Fishing'}</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{activeTab === 'leveling' ? 'Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.' : activeTab === 'collections' ? 'Configure random skin drops, collection capacity, KnowBucks costs, claiming grace periods, and rarity-based sale values.' : 'Choose where members can use the `/fish` command. Additional fishing controls will appear here as the game grows.'}</p>
+        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">{activeTab === 'general' ? 'General settings' : activeTab === 'leveling' ? 'Chat leveling' : activeTab === 'collections' ? 'Skin collections' : 'Fishing'}</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{activeTab === 'general' ? 'Set server-wide Discord behavior for commands that do not have their own feature configuration.' : activeTab === 'leveling' ? 'Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.' : activeTab === 'collections' ? 'Configure random skin drops, collection capacity, KnowBucks costs, claiming grace periods, and rarity-based sale values.' : 'Choose where members can use the `/fish` command. Additional fishing controls will appear here as the game grows.'}</p>
       </section>
       {loading ? <div className="mt-5 flex min-h-48 items-center justify-center rounded-3xl border border-white/10 bg-slate-950/80 text-sm font-semibold text-slate-300"><LoaderCircle size={20} className="mr-2 animate-spin text-amber-300" />Loading Discord Configuration…</div> : (
         <form onSubmit={save} className="mt-5 grid gap-5">
           <div role="tablist" aria-label="Discord Configuration sections" className="inline-flex w-fit rounded-2xl border border-white/10 bg-slate-950/80 p-1">
+            <button type="button" role="tab" aria-selected={activeTab === 'general'} onClick={() => setActiveTab('general')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'general' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>General</button>
             <button type="button" role="tab" aria-selected={activeTab === 'leveling'} onClick={() => setActiveTab('leveling')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'leveling' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Chat leveling</button>
             <button type="button" role="tab" aria-selected={activeTab === 'collections'} onClick={() => setActiveTab('collections')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'collections' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Collections</button>
             <button type="button" role="tab" aria-selected={activeTab === 'fishing'} onClick={() => setActiveTab('fishing')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'fishing' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Fishing</button>
           </div>
+          {activeTab === 'general' ? <>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Default commands channels</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Choose one or more channels where members can use general KnowLeague commands. Attempts elsewhere receive a private note visible only to the member who ran the command.</p>
+            </div>
+            <div className="mt-4 max-w-xl">
+              <AppSelectMenu
+                label="Channels where general KnowLeague commands are usable"
+                value={data.generalSettings.commandChannelIds[0] ?? ALL_GENERAL_COMMAND_CHANNELS_VALUE}
+                selectedValues={data.generalSettings.commandChannelIds.length ? data.generalSettings.commandChannelIds : [ALL_GENERAL_COMMAND_CHANNELS_VALUE]}
+                multiple
+                onToggle={toggleGeneralCommandChannel}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="All channels is the default. Otherwise, choose one or more channels for /help, /link, /profile, /xp, /leaderboard, /knowbucks, /snipe, and /steal-emoji. Fishing, Collections, and /league Skindle keep their own feature rules."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: ALL_GENERAL_COMMAND_CHANNELS_VALUE, label: 'All channels', description: 'General KnowLeague commands remain available throughout the server.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">This does not change where level-up announcements, Fishing commands, Collections commands, skin drops, or Skindle can be used.</p>
+          </section>
+          </> : null}
           {activeTab === 'leveling' ? <>
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-lg font-black text-white">Earning rules</h2><p className="mt-1 text-sm leading-6 text-slate-400">The five-second default prevents channel hopping from multiplying message XP.</p></div><button type="button" role="switch" aria-checked={data.settings.enabled} onClick={() => updateSettings('enabled', !data.settings.enabled)} className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-bold text-white transition hover:border-amber-300/40"><ToggleSwitch checked={data.settings.enabled} />{data.settings.enabled ? 'Leveling enabled' : 'Leveling paused'}</button></div>
@@ -455,7 +516,7 @@ export function DiscordLevelingSettings() {
               <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Claim window in minutes</span><input type="number" min={1} max={1440} value={data.skinClaimSettings.claimWindowMinutes} onChange={(event) => updateSkinClaimSettings('claimWindowMinutes', Number(event.target.value))} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
             </div>
             <AppSelectMenu label="Channels that can trigger a drop" value={data.skinClaimSettings.allChannels ? ALL_SKIN_CLAIM_CHANNELS_VALUE : data.skinClaimChannelIds[0] ?? ''} selectedValues={data.skinClaimSettings.allChannels ? [ALL_SKIN_CLAIM_CHANNELS_VALUE] : data.skinClaimChannelIds} multiple onToggle={toggleSkinClaimChannel} disabled={!data.channels.some((channel) => channel.sendable)} disabledDescription="No Discord text channels are currently available to the bot." headerDescription="All is the default and includes every sendable text channel. Select one or more specific channels to limit both message-triggered and timer-based drops." searchable searchPlaceholder="Type a channel name or ID" options={[{ value: ALL_SKIN_CLAIM_CHANNELS_VALUE, label: 'All', description: 'Every sendable Discord text channel can trigger and receive a skin drop.' }, ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: '#' + channel.name, description: 'Discord channel ID: ' + channel.id }))]} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" />
-            <AppSelectMenu label="Collections commands channel" value={data.skinClaimSettings.commandChannelId ?? ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE} onChange={(channelId) => updateSkinClaimSettings('commandChannelId', channelId === ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE ? null : channelId)} disabled={!data.channels.some((channel) => channel.sendable)} disabledDescription="No Discord text channels are currently available to the bot." headerDescription="All channels is the default. Select one channel to limit every /collections command there; /collections spawn remains available to collection administrators in any channel where the bot can post." searchable searchPlaceholder="Type a channel name or ID" options={[{ value: ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE, label: 'All channels', description: 'Members can use Collections commands in any channel.' }, ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: '#' + channel.name, description: 'Discord channel ID: ' + channel.id }))]} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" />
+            <AppSelectMenu label="Channels where Collections commands are usable" value={data.skinClaimCommandChannelIds[0] ?? ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE} selectedValues={data.skinClaimCommandChannelIds.length ? data.skinClaimCommandChannelIds : [ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE]} multiple onToggle={toggleSkinClaimCommandChannel} disabled={!data.channels.some((channel) => channel.sendable)} disabledDescription="No Discord text channels are currently available to the bot." headerDescription="All channels is the default. Otherwise, select one or more channels for /collections; /collections spawn remains available to collection administrators in any channel where the bot can post." searchable searchPlaceholder="Type a channel name or ID" options={[{ value: ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE, label: 'All channels', description: 'Members can use Collections commands in any channel.' }, ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: '#' + channel.name, description: 'Discord channel ID: ' + channel.id }))]} menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]" />
             <div><h3 className="text-sm font-black text-white">Rarity weights</h3><p className="mt-1 text-xs leading-5 text-slate-400">Weights are relative chances, not percentages. Set a rarity to 0 to exclude it; at least one rarity must remain above 0.</p><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{data.skinClaimRarityWeights.map((entry) => <label key={entry.rarity} className="grid gap-2 rounded-2xl border border-white/10 bg-slate-900/60 p-3"><span className="text-sm font-bold text-slate-200">{entry.rarity}</span><input type="number" min={0} max={1000} value={entry.weight} onChange={(event) => updateSkinClaimRarityWeight(entry.rarity, Number(event.target.value))} className="h-10 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>)}</div></div>
             <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
               <h3 className="text-sm font-black text-white">Collection economy</h3>

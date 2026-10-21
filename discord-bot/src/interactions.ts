@@ -13,6 +13,7 @@ import {
 import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
 import { importExternalMessageEmojis } from './emoji-import.js';
 import { findLinkedProfile } from './profiles.js';
+import { isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
   buildDiscordSkindleGuessEmbed,
@@ -960,7 +961,10 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
 async function handleFishingCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
   if (!(await isFishingCommandAllowedInChannel(config, interaction.channelId))) {
-    await interaction.reply({ content: 'Fishing commands are not enabled in this channel. An administrator can change this in Discord Configuration.' });
+    await interaction.reply({
+      content: 'Fishing commands are not enabled in this channel. An administrator can change this in Discord Configuration.',
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
   const subcommand = interaction.options.getSubcommand();
@@ -1232,7 +1236,10 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   if (!guild) return;
   const subcommand = interaction.options.getSubcommand();
   if (subcommand !== 'spawn' && !(await isSkinCollectionCommandAllowedInChannel(config, interaction.channelId))) {
-    await interaction.reply({ content: 'Collections commands are not enabled in this channel. An administrator can change the Collections commands channel in Discord Configuration. `/collections spawn` remains available to collection administrators in any channel where the bot can post.' });
+    await interaction.reply({
+      content: 'Collections commands are not enabled in this channel. An administrator can change the Collections commands channel in Discord Configuration. `/collections spawn` remains available to collection administrators in any channel where the bot can post.',
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -1711,6 +1718,15 @@ export async function handleChatInputCommand(
   interaction: ChatInputCommandInteraction,
   config: DiscordBotConfig,
 ) {
+  if (usesDefaultCommandChannel(interaction.commandName)
+    && !(await isDefaultCommandChannel(config, interaction.channelId))) {
+    await interaction.reply({
+      content: 'This command is only available in the server\'s configured General commands channel.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   if (interaction.commandName === 'help') {
     await interaction.reply({
       embeds: [

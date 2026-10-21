@@ -49,8 +49,8 @@ type SkinClaimAdminRoleRow = {
   discord_role_id: string;
 };
 
-type SkinClaimCommandSettingsRow = {
-  command_channel_id: string | null;
+type SkinClaimCommandChannelRow = {
+  channel_id: string;
 };
 
 type SkinClaimCatalogLockRow = {
@@ -541,18 +541,19 @@ export async function getSkinClaimAdminRoleIds(config: DiscordBotConfig) {
 }
 
 /**
- * A configured command channel applies to every member-facing collection
+ * Configured command channels apply to every member-facing collection
  * command except the staff-only spawn command. An absent settings row keeps
  * the default open-channel behavior for guilds that have not configured drops.
  */
 export async function isSkinCollectionCommandAllowedInChannel(config: DiscordBotConfig, channelId: string) {
   const { data, error } = await createBotServiceClient(config)
-    .from('discord_skin_claim_settings')
-    .select('command_channel_id')
+    .from('discord_skin_claim_command_channels')
+    .select('channel_id')
     .eq('guild_id', config.guildId)
-    .maybeSingle<SkinClaimCommandSettingsRow>();
-  if (error) throw new Error(`Unable to load Discord collection command channel: ${error.message}`);
-  return !data?.command_channel_id || data.command_channel_id === channelId;
+    .returns<SkinClaimCommandChannelRow[]>();
+  if (error) throw new Error(`Unable to load Discord collection command channels: ${error.message}`);
+  const allowedChannelIds = new Set((data ?? []).map((entry) => entry.channel_id));
+  return allowedChannelIds.size === 0 || allowedChannelIds.has(channelId);
 }
 
 function skinDropArguments(config: DiscordBotConfig, channelId: string, skin: CatalogSkin) {

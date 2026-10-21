@@ -321,7 +321,10 @@ async function fetchSkinReleaseDates() {
 async function fetchChampionMetadata() {
   const [speciesRecords, genderRecords] = await Promise.all([
     fetchJson(CHAMPION_METADATA_SOURCE_URL),
-    fetchJson(CHAMPION_GENDER_SOURCE_URL),
+    fetchJson(CHAMPION_GENDER_SOURCE_URL).catch((error) => {
+      console.warn(`Unable to refresh supplementary champion gender metadata. Continuing with the primary metadata source. ${error.message}`);
+      return [];
+    }),
   ]);
 
   const metadata = Object.fromEntries(
@@ -382,7 +385,9 @@ async function fetchChampionMetadata() {
     metadata[championName] = {
       ...(metadata[championName] ?? {}),
       ...override,
-      species: normalizeSpecies(override.species),
+      species: override.species
+        ? normalizeSpecies(override.species)
+        : metadata[championName]?.species ?? 'Unknown',
     };
   });
 

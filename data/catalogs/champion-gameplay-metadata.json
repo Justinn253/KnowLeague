@@ -1,690 +1,694 @@
 {
   "Lux": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Aatrox": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "No Mana",
+    "lane": "Top"
   },
   "Ahri": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Akali": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Energy",
+    "lane": "Top/Middle"
   },
   "Akshan": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Alistar": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Amumu": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle/Support"
   },
   "Anivia": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Annie": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Aphelios": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Ashe": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom/Support"
   },
   "Aurelion Sol": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Azir": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Bard": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Blitzcrank": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Brand": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle/Middle/Support"
   },
   "Braum": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Caitlyn": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Camille": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Support"
   },
   "Cassiopeia": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Cho'Gath": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Corki": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Darius": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Diana": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle/Middle"
   },
   "Dr. Mundo": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Health Costs",
+    "lane": "Top"
   },
   "Draven": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Ekko": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Elise": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Evelynn": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Ezreal": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Fiddlesticks": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Fiora": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Fizz": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Galio": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Gangplank": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Garen": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "No Mana",
+    "lane": "Top"
   },
   "Gnar": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Rage",
+    "lane": "Top"
   },
   "Gragas": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle/Middle"
   },
   "Graves": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Gwen": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Hecarim": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Heimerdinger": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle/Support"
   },
   "Illaoi": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Irelia": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle"
   },
   "Ivern": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Janna": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Jarvan IV": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Jax": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle"
   },
   "Jayce": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle"
   },
   "Jhin": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Jinx": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Kai'Sa": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Kalista": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Karma": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle/Support"
   },
   "Karthus": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Kassadin": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Katarina": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "No Mana",
+    "lane": "Middle"
   },
   "Kayle": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Kayn": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Kennen": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Energy",
+    "lane": "Top"
   },
   "Kha'Zix": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Kindred": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Kled": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Courage",
+    "lane": "Top"
   },
   "Kog'Maw": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "LeBlanc": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Lee Sin": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Energy",
+    "lane": "Jungle"
   },
   "Leona": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Lillia": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Lissandra": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Lucian": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Lulu": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Malphite": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle/Support"
   },
   "Malzahar": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Maokai": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle/Support"
   },
   "Master Yi": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Miss Fortune": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Mordekaiser": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Shield",
+    "lane": "Top"
   },
   "Morgana": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Nami": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Nasus": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Nautilus": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Neeko": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Nidalee": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Nocturne": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Nunu & Willump": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Olaf": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Orianna": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Ornn": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Pantheon": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle/Middle/Support"
   },
   "Poppy": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle"
   },
   "Pyke": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Qiyana": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Quinn": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Rakan": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Rammus": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Rek'Sai": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Rage",
+    "lane": "Jungle"
   },
   "Rell": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Renekton": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Fury",
+    "lane": "Top"
   },
   "Rengar": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Ferocity",
+    "lane": "Top/Jungle"
   },
   "Riven": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "No Mana",
+    "lane": "Top"
   },
   "Rumble": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Heat",
+    "lane": "Top/Middle"
   },
   "Ryze": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Samira": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Sejuani": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Senna": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom/Support"
   },
   "Seraphine": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom/Support"
   },
   "Sett": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Grit",
+    "lane": "Top"
   },
   "Shaco": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle/Support"
   },
   "Shen": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Energy",
+    "lane": "Top/Support"
   },
   "Shyvana": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Fury",
+    "lane": "Jungle"
   },
   "Singed": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Sion": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Sivir": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Skarner": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle"
   },
   "Sona": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Soraka": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Swain": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Sylas": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle"
   },
   "Syndra": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Tahm Kench": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Support"
   },
   "Taliyah": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle/Middle"
   },
   "Talon": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle/Middle"
   },
   "Taric": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Teemo": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle/Support"
   },
   "Thresh": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Tristana": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Bottom"
   },
   "Trundle": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle"
   },
   "Tryndamere": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Fury",
+    "lane": "Top"
   },
   "Twisted Fate": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle/Bottom"
   },
   "Twitch": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom/Support"
   },
   "Udyr": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle"
   },
   "Urgot": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Varus": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Vayne": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Bottom"
   },
   "Veigar": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Vel'Koz": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Vex": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Vi": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Viego": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "No Mana",
+    "lane": "Jungle"
   },
   "Viktor": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Vladimir": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Bloodthirst",
+    "lane": "Top/Middle"
   },
   "Volibear": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle"
   },
   "Warwick": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle"
   },
   "Wukong": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Jungle"
   },
   "Xayah": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Xerath": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Xin Zhao": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Jungle"
   },
   "Yasuo": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Flow",
+    "lane": "Top/Middle/Bottom"
   },
   "Yone": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "No Mana",
+    "lane": "Top/Middle"
   },
   "Yorick": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top"
   },
   "Yuumi": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Zac": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Health Costs",
+    "lane": "Top/Jungle/Support"
   },
   "Zed": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Energy",
+    "lane": "Jungle/Middle"
   },
   "Zeri": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Ziggs": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Bottom"
   },
   "Zilean": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Zoe": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Zyra": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Renata Glasc": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Bel'Veth": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "No Mana",
+    "lane": "Jungle"
   },
   "Nilah": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "K'Sante": {
+    "resourceType": "Mana",
+    "lane": "Top"
+  },
+  "Urf": {
     "resourceType": "Unknown",
-    "lane": "Unknown"
+    "lane": "Top"
   },
   "Ambessa": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Energy",
+    "lane": "Middle"
   },
   "Aurora": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle"
   },
   "Briar": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Health",
+    "lane": "Jungle"
   },
   "Hwei": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle/Support"
   },
   "Mel": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Milio": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Support"
   },
   "Naafiri": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Middle"
   },
   "Smolder": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Top/Middle/Bottom"
   },
   "Yunara": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "Mana",
+    "lane": "Bottom"
   },
   "Zaahen": {
-    "resourceType": "Unknown",
-    "lane": "Unknown"
+    "resourceType": "No Mana",
+    "lane": "Top"
   }
 }

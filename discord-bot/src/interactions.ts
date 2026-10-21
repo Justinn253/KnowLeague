@@ -13,7 +13,15 @@ import {
 import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
 import { importExternalMessageEmojis } from './emoji-import.js';
 import { findLinkedProfile } from './profiles.js';
+import { isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
+import {
+  buildDiscordSkindleGuessEmbed,
+  buildDiscordSkindleShareEmbed,
+  buildDiscordSkindleSolvedEmbed,
+  discordSkindleSessionStore,
+  formatDiscordSkindleDate,
+} from './skindle.js';
 import {
   attachFishingExpeditionMessage,
   describeFishingEquipment,
@@ -63,7 +71,9 @@ import {
   getSkinCollectionPage,
   isSkinCollectionCommandAllowedInChannel,
   purchaseSkinCollectionCapacity,
+  reorderSkinCollection,
   sellSkinClaim,
+  SKIN_CLAIM_ACTION_BUTTON_PREFIX,
   skinCollectionCode,
   stealSkinClaim,
   summonSkinClaimDrop,
@@ -79,6 +89,17 @@ function profileButton(config: DiscordBotConfig, username?: string) {
     .setStyle(ButtonStyle.Link)
     .setLabel(username ? 'Open public profile' : 'Open profile settings')
     .setURL(profileUrl(config, username));
+}
+
+function skindleButton(config: DiscordBotConfig) {
+  return new ButtonBuilder()
+    .setStyle(ButtonStyle.Link)
+    .setLabel('Play Skindle on KnowLeague')
+    .setURL(new URL('/skindle', config.siteUrl).toString());
+}
+
+function skindleComponents(config: DiscordBotConfig) {
+  return [{ type: 1 as const, components: [skindleButton(config)] }];
 }
 
 export function isDiscordAdministrativeCommand(commandName: string, subcommand: string | null) {
@@ -100,6 +121,7 @@ function getProgressBar(percent: number) {
 
 const LEADERBOARD_COMMAND_COOLDOWN_MS = 10_000;
 const SKIN_COLLECTION_BUTTON_PREFIX = 'skin-collection';
+const SKIN_COLLECTION_ACTION_BUTTON_PREFIX = 'skin-collection-action';
 const FISHING_BUTTON_PREFIX = 'fish';
 const FISHING_SHOP_CATEGORIES: readonly FishingUpgradeCategory[] = ['rod', 'bait', 'boat', 'skill', 'crew'];
 const FISHING_INVENTORY_TABS = ['overview', 'rods', 'baits', 'skills', 'gear', 'boats', 'titles'] as const;
@@ -153,11 +175,12 @@ function skinCollectionButtons(
   page: number,
   total: number,
   showDetails: boolean,
+  skinCode: number | null,
 ) {
   const customId = (requestedPage: number, view: 'details' | 'summary') => (
     `${SKIN_COLLECTION_BUTTON_PREFIX}:${viewerDiscordUserId}:${ownerDiscordUserId}:${requestedPage}:${view}`
   );
-  return [{
+  const rows = [{
     type: 1 as const,
     components: [
       new ButtonBuilder()
@@ -166,17 +189,31 @@ function skinCollectionButtons(
         .setLabel('Previous')
         .setDisabled(page <= 0),
       new ButtonBuilder()
-        .setCustomId(customId(page, showDetails ? 'summary' : 'details'))
-        .setStyle(ButtonStyle.Primary)
-        .setLabel(showDetails ? 'Hide details' : 'Show details')
-        .setDisabled(total === 0),
-      new ButtonBuilder()
         .setCustomId(customId(page + 1, showDetails ? 'details' : 'summary'))
         .setStyle(ButtonStyle.Secondary)
         .setLabel('Next')
         .setDisabled(total === 0 || page >= total - 1),
+      new ButtonBuilder()
+        .setCustomId(customId(page, showDetails ? 'summary' : 'details'))
+        .setStyle(ButtonStyle.Primary)
+        .setLabel(showDetails ? 'Hide details' : 'Show details')
+        .setDisabled(total === 0),
     ],
   }];
+  if (viewerDiscordUserId === ownerDiscordUserId && skinCode !== null) {
+    const actionId = (action: 'favorite' | 'gamble' | 'sell') => (
+      `${SKIN_COLLECTION_ACTION_BUTTON_PREFIX}:${viewerDiscordUserId}:${ownerDiscordUserId}:${page}:${showDetails ? 'details' : 'summary'}:${skinCode}:${action}`
+    );
+    rows.push({
+      type: 1 as const,
+      components: [
+        new ButtonBuilder().setCustomId(actionId('favorite')).setStyle(ButtonStyle.Success).setLabel('Favorite'),
+        new ButtonBuilder().setCustomId(actionId('gamble')).setStyle(ButtonStyle.Danger).setLabel('Gamble'),
+        new ButtonBuilder().setCustomId(actionId('sell')).setStyle(ButtonStyle.Danger).setLabel('Sell'),
+      ],
+    });
+  }
+  return rows;
 }
 
 function fishingShopCategoryLabel(category: FishingUpgradeCategory) {
@@ -942,7 +979,10 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
 async function handleFishingCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
   if (!(await isFishingCommandAllowedInChannel(config, interaction.channelId))) {
-    await interaction.reply({ content: 'Fishing commands are not enabled in this channel. An administrator can change this in Discord Configuration.' });
+    await interaction.reply({
+      content: 'Fishing commands are not enabled in this channel. An administrator can change this in Discord Configuration.',
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
   const subcommand = interaction.options.getSubcommand();
@@ -1107,12 +1147,117 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
   throw new Error(`Unsupported fishing command: ${subcommand}`);
 }
 
+async function handleLeagueCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  const group = interaction.options.getSubcommandGroup();
+  if (group !== 'skindle') {
+    throw new Error(`Unsupported League command group: ${group ?? 'none'}`);
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  const currentStatus = () => discordSkindleSessionStore.getStatus(interaction.user.id);
+  if (subcommand === 'play') {
+    const status = currentStatus();
+    const activity = status.solved
+      ? `**${interaction.user.username}** has already completed today's Daily Skindle.`
+      : `**${interaction.user.username}** is playing today's Daily Skindle.`;
+    await interaction.reply({
+      components: skindleComponents(config),
+      embeds: [
+        new EmbedBuilder()
+          .setColor(status.solved ? 0x22C55E : 0x0EA5E9)
+          .setTitle('Daily Skindle')
+          .setDescription(`${activity}\n\nUse \`/league skindle guess\` with an exact skin name to make a guess.`),
+      ],
+    });
+    return;
+  }
+
+  if (subcommand === 'status') {
+    const status = currentStatus();
+    const progress = status.solved
+      ? `You have already solved today's Skindle in **${status.guessCount}** ${status.guessCount === 1 ? 'guess' : 'guesses'}. Your private solved card was shown when you completed it.`
+      : status.guessCount > 0
+        ? `You have made **${status.guessCount}** ${status.guessCount === 1 ? 'guess' : 'guesses'} so far. Use \`/league skindle guess\` to continue.`
+        : 'Your daily run is ready. Use `/league skindle guess` with an exact skin name to make your first guess.';
+    await interaction.reply({
+      components: skindleComponents(config),
+      embeds: [
+        new EmbedBuilder()
+          .setColor(status.solved ? 0x22C55E : 0x0EA5E9)
+          .setTitle('Daily Skindle')
+          .setDescription(progress),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (subcommand !== 'guess') {
+    throw new Error(`Unsupported League Skindle command: ${subcommand}`);
+  }
+
+  const result = discordSkindleSessionStore.guess(interaction.user.id, interaction.options.getString('skin', true));
+  if (result.kind === 'correct') {
+    await interaction.reply({
+      components: skindleComponents(config),
+      embeds: [buildDiscordSkindleSolvedEmbed(interaction.user.username, result)],
+      flags: MessageFlags.Ephemeral,
+    });
+    await interaction.followUp({
+      components: skindleComponents(config),
+      embeds: [buildDiscordSkindleShareEmbed(interaction.user.username, result)],
+    });
+    return;
+  }
+
+  if (result.kind === 'incorrect') {
+    await interaction.reply({
+      components: skindleComponents(config),
+      embeds: [buildDiscordSkindleGuessEmbed(result)],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (result.kind === 'already-solved') {
+    await interaction.reply({
+      content: `You already solved the ${formatDiscordSkindleDate(result.status.dateKey)} Daily Skindle in ${result.status.guessCount} ${result.status.guessCount === 1 ? 'guess' : 'guesses'}.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (result.kind === 'duplicate') {
+    await interaction.reply({
+      content: `You already guessed **${result.guess.answer}** today. Choose a different skin.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (result.kind === 'ambiguous') {
+    await interaction.reply({
+      content: `Use an exact skin name. Possible matches: ${result.suggestions.map((suggestion) => `**${suggestion}**`).join(', ')}.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.reply({
+    content: 'I could not find that skin. Use its exact name, such as `Spirit Blossom Ahri`.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
 async function handleCollectionsCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   const guild = interaction.guild;
   if (!guild) return;
   const subcommand = interaction.options.getSubcommand();
   if (subcommand !== 'spawn' && !(await isSkinCollectionCommandAllowedInChannel(config, interaction.channelId))) {
-    await interaction.reply({ content: 'Collections commands are not enabled in this channel. An administrator can change the Collections commands channel in Discord Configuration. `/collections spawn` remains available to collection administrators in any channel where the bot can post.' });
+    await interaction.reply({
+      content: 'Collections commands are not enabled in this channel. An administrator can change the Collections commands channel in Discord Configuration. `/collections spawn` remains available to collection administrators in any channel where the bot can post.',
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -1132,7 +1277,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
     await interaction.deferReply();
     const page = await getSkinCollectionPage(config, targetUser.id, 0);
     await interaction.editReply({
-      components: skinCollectionButtons(interaction.user.id, targetUser.id, page.page, page.total, false),
+      components: skinCollectionButtons(interaction.user.id, targetUser.id, page.page, page.total, false, page.item?.skin_code ?? null),
       embeds: [buildSkinCollectionEmbed(page, targetMember.displayName)],
     });
     return;
@@ -1162,7 +1307,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
     await interaction.deferReply();
     const result = await summonSkinClaimDrop(config, interaction.guild, interaction.channelId, interaction.user.id);
     if (result.status === 'spawned') {
-      await interaction.editReply({ content: `A skin drop was summoned in this channel. Your remaining balance is ${formatXp(result.remainingBalance ?? 0)} KnowBucks.` });
+      await interaction.editReply({ content: `A skin drop was summoned in this channel. Your remaining balance is ${formatXp(result.remainingBalance ?? 0)} KnowBucks. You can summon again <t:${Math.floor(new Date(result.availableAt ?? Date.now()).getTime() / 1_000)}:R>.` });
       return;
     }
     if (result.status === 'insufficient-funds') {
@@ -1171,6 +1316,33 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
     }
     if (result.status === 'active-drop') {
       await interaction.editReply({ content: 'A live skin drop already exists. Wait for it to be claimed or expire before summoning another.' });
+      return;
+    }
+    if (result.status === 'cooldown' && result.availableAt) {
+      await interaction.editReply({ content: `Your next regular summon is available <t:${Math.floor(new Date(result.availableAt).getTime() / 1_000)}:R>. Use /collections summon-force to force a drop while this cooldown is active.` });
+      return;
+    }
+    await interaction.editReply({ content: 'Skin claims are not enabled for this channel.' });
+    return;
+  }
+
+  if (subcommand === 'summon-force') {
+    await interaction.deferReply();
+    const result = await summonSkinClaimDrop(config, interaction.guild, interaction.channelId, interaction.user.id, true);
+    if (result.status === 'spawned') {
+      await interaction.editReply({ content: `A skin drop was force-summoned in this channel for ${formatXp(result.cost ?? 0)} KnowBucks. Your remaining balance is ${formatXp(result.remainingBalance ?? 0)} KnowBucks. The next force-summon costs 50% more until the weekly reset.` });
+      return;
+    }
+    if (result.status === 'not-on-cooldown') {
+      await interaction.editReply({ content: 'Your regular summon is ready, so use `/collections summon` instead.' });
+      return;
+    }
+    if (result.status === 'insufficient-funds') {
+      await interaction.editReply({ content: `You need ${formatXp(result.cost ?? 0)} KnowBucks to force-summon a skin drop. Your balance is ${formatXp(result.remainingBalance ?? 0)} KnowBucks.` });
+      return;
+    }
+    if (result.status === 'active-drop') {
+      await interaction.editReply({ content: 'A live skin drop already exists. Wait for it to be claimed or expire before force-summoning another.' });
       return;
     }
     await interaction.editReply({ content: 'Skin claims are not enabled for this channel.' });
@@ -1274,17 +1446,53 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
     return;
   }
 
+  if (subcommand === 'collection-reorder') {
+    const skinCodes = Array.from({ length: 10 }, (_, index) => interaction.options.getInteger(`slot-${index + 1}`));
+    const firstMissingSlot = skinCodes.findIndex((skinCode) => skinCode === null);
+    const requestedSkinCodes = skinCodes.slice(0, firstMissingSlot < 0 ? skinCodes.length : firstMissingSlot);
+    if (!requestedSkinCodes.length || skinCodes.slice(requestedSkinCodes.length).some((skinCode) => skinCode !== null)) {
+      await interaction.reply({ content: 'Provide consecutive skin IDs starting with slot 1, with no gaps.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    if (new Set(requestedSkinCodes).size !== requestedSkinCodes.length) {
+      await interaction.reply({ content: 'Use each skin ID only once when reordering your collection.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await interaction.deferReply();
+    try {
+      await reorderSkinCollection(config, interaction.user.id, requestedSkinCodes as number[]);
+      await interaction.editReply({ content: `Updated the first ${requestedSkinCodes.length} collection slot${requestedSkinCodes.length === 1 ? '' : 's'}.` });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('do not own every requested skin')) {
+        await interaction.editReply({ content: 'You can only use skin IDs currently in your collection.' });
+        return;
+      }
+      throw error;
+    }
+    return;
+  }
+
   if (subcommand === 'gamble') {
     const skinCode = interaction.options.getInteger('skin-id', true);
     await interaction.deferReply();
     try {
-      const result = await gambleSkinClaim(config, interaction.guild, interaction.channelId, interaction.user.id, skinCode);
+      const result = await gambleSkinClaim(
+        config,
+        interaction.guild,
+        interaction.channelId,
+        interaction.user.id,
+        skinCode,
+        async (gamble) => {
+          await interaction.editReply({
+            content: `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance. A new skin drop is appearing now.`,
+          });
+        },
+      );
       if (result.status === 'spawned') {
-        await interaction.editReply({ content: `Your gamble consumed **${result.skinName}** and spawned a new skin in this channel. You have the configured grace period to claim it first.` });
         return;
       }
       if (result.status === 'lost') {
-        await interaction.editReply({ content: `Your gamble consumed **${result.skinName}**, but the 25% spawn chance did not succeed.` });
+        await interaction.editReply({ content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.` });
         return;
       }
       if (result.status === 'active-drop') {
@@ -1558,9 +1766,166 @@ function buildFishingCrateOpeningResult(opening: Awaited<ReturnType<typeof openA
   };
 }
 
+async function handleClaimedSkinActionButton(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  const [prefix, ownerDiscordUserId, skinCodeText, action] = interaction.customId.split(':');
+  if (
+    prefix !== SKIN_CLAIM_ACTION_BUTTON_PREFIX
+    || !ownerDiscordUserId
+    || !/^\d{4}$/.test(skinCodeText ?? '')
+    || !['favorite', 'gamble', 'sell'].includes(action ?? '')
+  ) return false;
+  if (interaction.user.id !== ownerDiscordUserId) {
+    await interaction.reply({ content: 'Only the member who claimed this skin can use its collection actions.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  const skinCode = Number(skinCodeText);
+  await interaction.deferUpdate();
+  try {
+    if (action === 'favorite') {
+      const skinName = await favoriteSkinClaim(config, ownerDiscordUserId, skinCode);
+      await interaction.followUp({ content: `**${skinName}** is now first in your collection.`, flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (action === 'sell') {
+      const sale = await sellSkinClaim(config, ownerDiscordUserId, skinCode);
+      await interaction.editReply({
+        components: [],
+        content: `**${interaction.user.username}** sold **${sale.skin_name}** - #${skinCollectionCode(skinCode)} for ${formatXp(sale.amount)} KnowBucks. Their balance is ${formatXp(sale.current_balance)} KnowBucks.`,
+        embeds: [],
+      });
+      return true;
+    }
+
+    const result = await gambleSkinClaim(
+      config,
+      interaction.guild!,
+      interaction.channelId,
+      ownerDiscordUserId,
+      skinCode,
+      async (gamble) => {
+        await interaction.editReply({
+          components: [],
+          content: `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance. A new skin drop is appearing now.`,
+          embeds: [],
+        });
+      },
+    );
+    if (result.status === 'spawned') {
+      return true;
+    }
+    if (result.status === 'lost') {
+      await interaction.editReply({
+        components: [],
+        content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.`,
+        embeds: [],
+      });
+      return true;
+    }
+    if (result.status === 'active-drop') {
+      await interaction.followUp({ content: 'A live skin drop already exists, so this skin was not consumed.' });
+      return true;
+    }
+    await interaction.followUp({ content: 'Skin claims are not enabled for this channel, so this skin was not consumed.' });
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('do not own a claimed skin')) {
+      await interaction.editReply({ components: [], content: 'This skin is no longer in a collection.' });
+      await interaction.followUp({ content: 'That skin is no longer in your collection.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    throw error;
+  }
+}
+
+async function refreshSkinCollectionPanel(
+  interaction: ButtonInteraction,
+  config: DiscordBotConfig,
+  viewerDiscordUserId: string,
+  ownerDiscordUserId: string,
+  requestedPage: number,
+  showDetails: boolean,
+) {
+  const page = await getSkinCollectionPage(config, ownerDiscordUserId, requestedPage);
+  const ownerMember = interaction.guild ? await interaction.guild.members.fetch(ownerDiscordUserId).catch(() => null) : null;
+  await interaction.editReply({
+    components: skinCollectionButtons(viewerDiscordUserId, ownerDiscordUserId, page.page, page.total, showDetails, page.item?.skin_code ?? null),
+    embeds: [buildSkinCollectionEmbed(page, ownerMember?.displayName ?? 'Member', showDetails)],
+  });
+}
+
+async function handleSkinCollectionActionButton(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  const [prefix, viewerDiscordUserId, ownerDiscordUserId, requestedPageText, view, skinCodeText, action] = interaction.customId.split(':');
+  if (
+    prefix !== SKIN_COLLECTION_ACTION_BUTTON_PREFIX
+    || !viewerDiscordUserId
+    || !ownerDiscordUserId
+    || !/^\d+$/.test(requestedPageText ?? '')
+    || !/^\d{4}$/.test(skinCodeText ?? '')
+    || (view !== 'details' && view !== 'summary')
+    || !['favorite', 'gamble', 'sell'].includes(action ?? '')
+  ) return false;
+  if (interaction.user.id !== viewerDiscordUserId || viewerDiscordUserId !== ownerDiscordUserId) {
+    await interaction.reply({ content: 'Only the collection owner can use these collection actions.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  const skinCode = Number(skinCodeText);
+  const requestedPage = Number(requestedPageText);
+  await interaction.deferUpdate();
+  try {
+    let notice: string | null = null;
+    let nextPage = requestedPage;
+    if (action === 'favorite') {
+      const skinName = await favoriteSkinClaim(config, ownerDiscordUserId, skinCode);
+      notice = `**${skinName}** is now first in your collection.`;
+      nextPage = 0;
+    } else if (action === 'sell') {
+      const sale = await sellSkinClaim(config, ownerDiscordUserId, skinCode);
+      notice = `Sold **${sale.skin_name}** for ${formatXp(sale.amount)} KnowBucks. Your balance is ${formatXp(sale.current_balance)} KnowBucks.`;
+    } else {
+      const result = await gambleSkinClaim(
+        config,
+        interaction.guild!,
+        interaction.channelId,
+        ownerDiscordUserId,
+        skinCode,
+        async (gamble) => {
+          await interaction.followUp({
+            content: `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance. A new skin drop is appearing now.`,
+          });
+        },
+      );
+      if (result.status === 'spawned') {
+        notice = null;
+      } else if (result.status === 'lost') {
+        notice = `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.`;
+      } else if (result.status === 'active-drop') {
+        notice = 'A live skin drop already exists, so this skin was not consumed.';
+      } else {
+        notice = 'Skin claims are not enabled for this channel, so this skin was not consumed.';
+      }
+    }
+    await refreshSkinCollectionPanel(interaction, config, viewerDiscordUserId, ownerDiscordUserId, nextPage, view === 'details');
+    if (notice) {
+      await interaction.followUp({ content: notice, ...(action === 'favorite' ? { flags: MessageFlags.Ephemeral } : {}) });
+    }
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('do not own a claimed skin')) {
+      await refreshSkinCollectionPanel(interaction, config, viewerDiscordUserId, ownerDiscordUserId, requestedPage, view === 'details');
+      await interaction.followUp({ content: 'That skin is no longer in your collection.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    throw error;
+  }
+}
+
 export async function handleButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   if (interaction.guildId !== config.guildId) return;
   if (await handleFishingButtonInteraction(interaction, config)) return;
+  if (await handleClaimedSkinActionButton(interaction, config)) return;
+  if (await handleSkinCollectionActionButton(interaction, config)) return;
   const parts = interaction.customId.split(':');
   const [prefix, viewerDiscordUserId, ownerOrRequestedPage, requestedPageOrView, requestedView] = parts;
   const legacyCollectionPanel = parts.length === 3;
@@ -1582,7 +1947,7 @@ export async function handleButtonInteraction(interaction: ButtonInteraction, co
   const page = await getSkinCollectionPage(config, ownerDiscordUserId, Number(requestedPage));
   const ownerMember = interaction.guild ? await interaction.guild.members.fetch(ownerDiscordUserId).catch(() => null) : null;
   await interaction.editReply({
-    components: skinCollectionButtons(viewerDiscordUserId, ownerDiscordUserId, page.page, page.total, view === 'details'),
+    components: skinCollectionButtons(viewerDiscordUserId, ownerDiscordUserId, page.page, page.total, view === 'details', page.item?.skin_code ?? null),
     embeds: [buildSkinCollectionEmbed(page, ownerMember?.displayName ?? 'Member', view === 'details')],
   });
 }
@@ -1591,6 +1956,15 @@ export async function handleChatInputCommand(
   interaction: ChatInputCommandInteraction,
   config: DiscordBotConfig,
 ) {
+  if (usesDefaultCommandChannel(interaction.commandName)
+    && !(await isDefaultCommandChannel(config, interaction.channelId))) {
+    await interaction.reply({
+      content: 'This command is only available in the server\'s configured General commands channel.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   if (interaction.commandName === 'help') {
     await interaction.reply({
       embeds: [
@@ -1616,11 +1990,13 @@ export async function handleChatInputCommand(
             { name: '/fish chests-open, catalogue, help', value: 'Redeem all held legacy chests, browse the biome-filtered field guide, or open focused fishing help. Newly caught crates open automatically during expeditions.' },
             { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Use Show details to see collection metadata and the skin\'s sell value.' },
             { name: '/collections give member skin-id', value: 'Give one of your claimed skins to another current server member by its four-digit ID.' },
-            { name: '/collections summon', value: 'Spend the configured summon cost (5,000 KnowBucks by default) to summon a claimable drop in this channel, with your grace period first.' },
+            { name: '/collections summon/summon-force', value: 'Summon a claimable drop for the configured cost (5,000 KnowBucks by default) every four hours, reduced by Haste. While on cooldown, force-summon for 5,000 KnowBucks with a 50% increase per successful force summon until the Monday UTC weekly reset; Cheapskate reduces either cost.' },
             { name: '/collections capacity-add slots', value: 'Buy one or more collection slots for the configured per-slot rate (500 KnowBucks per slot by default), up to 50 total slots. Staff can use `capacity-force-add` for a free member upgrade within that limit.' },
-            { name: '/collections steal/favorite/gamble/sell', value: 'Attempt a steal for 3x the skin’s configured sell value (with a 30-minute cooldown), choose your first collection item, gamble a skin, or sell one by its four-digit ID.' },
+            { name: '/collections steal/favorite/gamble/sell', value: 'Attempt a steal for 3x the configured sell value (with a 30-minute cooldown), choose your first collection item, gamble a skin, or sell one by its four-digit ID. Lucky improves steal and gamble odds, while Money Mouser increases only sale payouts.' },
+            { name: '/collections collection-reorder', value: 'Set one to ten consecutive skin IDs as the first collection slots. Favoriting a skin also moves it to slot one.' },
             { name: '/collections search [skin-name] [skin-id]', value: 'Preview a catalogue skin by name or four-digit KnowLeague ID, including its current owner when assigned. The preview cannot be claimed.' },
             { name: '/collections spawn', value: 'Immediately post a skin drop in this channel. Requires a role selected in Discord Configuration.' },
+            { name: '/league skindle play/guess/status', value: 'Start a public Daily Skindle activity card, keep clue and solution cards private, and share a spoiler-free result in the channel.' },
             { name: 'Chat leveling', value: 'Eligible non-bot messages earn XP. Level rewards and messages are configured on the website.' },
           ),
       ],
@@ -1630,6 +2006,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'xp') {
     await handleXpCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'league') {
+    await handleLeagueCommand(interaction, config);
     return;
   }
 

@@ -9,6 +9,19 @@ function addSkinIdOption(command: SlashCommandSubcommandBuilder) {
     .setRequired(true));
 }
 
+function addCollectionReorderOptions(command: SlashCommandSubcommandBuilder) {
+  let configuredCommand = command;
+  for (let slot = 1; slot <= 10; slot += 1) {
+    configuredCommand = configuredCommand.addIntegerOption((option) => option
+      .setName(`slot-${slot}`)
+      .setDescription(`Four-digit KnowLeague skin ID for collection slot ${slot}.`)
+      .setMinValue(1000)
+      .setMaxValue(9999)
+      .setRequired(false));
+  }
+  return configuredCommand;
+}
+
 function createCollectionsCommand() {
   return new SlashCommandBuilder()
     .setName('collections')
@@ -40,6 +53,9 @@ function createCollectionsCommand() {
       .setName('summon')
       .setDescription('Spend 5,000 KnowBucks to summon a skin drop in this channel.'))
     .addSubcommand((subcommand) => subcommand
+      .setName('summon-force')
+      .setDescription('During your summon cooldown, force a drop for 5,000 KnowBucks with a 50% weekly escalation.'))
+    .addSubcommand((subcommand) => subcommand
       .setName('capacity-add')
       .setDescription('Spend 500 KnowBucks per added slot to expand your collection up to 50 slots.')
       .addIntegerOption((option) => option
@@ -67,9 +83,12 @@ function createCollectionsCommand() {
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('favorite')
       .setDescription('Show one of your skins first in your collection.')))
+    .addSubcommand((subcommand) => addCollectionReorderOptions(subcommand
+      .setName('collection-reorder')
+      .setDescription('Set one to ten skins as the first collection slots, in order.')))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('gamble')
-      .setDescription('Destroy your skin for a 25% chance at a new claimable drop.')))
+      .setDescription('Destroy your skin for a 25-65% chance at a new claimable drop.')))
     .addSubcommand((subcommand) => subcommand
       .setName('search')
       .setDescription('Preview a catalogue skin; the result cannot be claimed.')
@@ -90,7 +109,32 @@ function createCollectionsCommand() {
       .setDescription('Sell one of your skins for KnowBucks.')));
 }
 
+function createLeagueCommand() {
+  return new SlashCommandBuilder()
+    .setName('league')
+    .setDescription('Use KnowLeague features from Discord.')
+    .addSubcommandGroup((group) => group
+      .setName('skindle')
+      .setDescription('Play the daily Skindle puzzle.')
+      .addSubcommand((subcommand) => subcommand
+        .setName('play')
+        .setDescription('Play the daily Skindle from KnowLeague.net.'))
+      .addSubcommand((subcommand) => subcommand
+        .setName('guess')
+        .setDescription('Submit one skin guess for today\'s Skindle.')
+        .addStringOption((option) => option
+          .setName('skin')
+          .setDescription('Exact skin name, such as Spirit Blossom Ahri.')
+          .setMinLength(2)
+          .setMaxLength(150)
+          .setRequired(true)))
+      .addSubcommand((subcommand) => subcommand
+        .setName('status')
+        .setDescription('View your private progress in today\'s Skindle.')));
+}
+
 export const commandDefinitions = [
+  createLeagueCommand(),
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('See KnowLeague Discord bot commands and usage.'),

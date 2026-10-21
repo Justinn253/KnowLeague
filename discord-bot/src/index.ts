@@ -11,7 +11,7 @@ import {
   syncDiscordGuildTextChannels,
   syncDiscordLeaderboardRole,
 } from './leveling.js';
-import { attemptSkinClaimDropFromMessage, handleSkinClaimReaction, startDiscordSkinClaimScheduler } from './skin-claims.js';
+import { attemptSkinClaimDropFromMessage, clearSkinCollection, handleSkinClaimReaction, startDiscordSkinClaimScheduler, startDiscordSkinCollectionUpkeepScheduler } from './skin-claims.js';
 import { startDiscordFishingScheduler } from './fishing.js';
 import { maybeAwardDisboardBump } from './disboard.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
@@ -23,6 +23,9 @@ const client = new Client({ intents: [
   GatewayIntentBits.GuildMessages,
   GatewayIntentBits.GuildMessageReactions,
   GatewayIntentBits.GuildModeration,
+  // Required only to release claimed skins when a member leaves or is kicked.
+  // This is the collection lifecycle contract; no member profiles are stored.
+  GatewayIntentBits.GuildMembers,
   GatewayIntentBits.GuildVoiceStates,
   // Required for the deliberately narrow snipe, external-emoji import, and
   // DISBOARD confirmation flows. See discord-bot/AGENTS.md for retention.
@@ -65,6 +68,7 @@ client.once(Events.ClientReady, (readyClient) => {
   // sync. Start it immediately so a transient sync failure cannot leave an
   // otherwise valid expedition active past its completion time.
   startDiscordSkinClaimScheduler(config, guild);
+  startDiscordSkinCollectionUpkeepScheduler(config);
   startDiscordFishingScheduler(config, guild);
   void syncDiscordGuildRoles(config, guild)
     .then(() => syncDiscordGuildTextChannels(config, guild))
@@ -149,6 +153,17 @@ client.on(Events.GuildBanAdd, (ban) => {
 
   void resetBannedMemberXp(config, ban.user.id)
     .catch((error: unknown) => console.error('Discord ban XP reset failed.', error));
+  void clearSkinCollection(config, ban.user.id)
+    .catch((error: unknown) => console.error('Discord ban collection cleanup failed.', error));
+});
+
+client.on(Events.GuildMemberRemove, (member) => {
+  if (member.guild.id !== config.guildId) {
+    return;
+  }
+
+  void clearSkinCollection(config, member.id)
+    .catch((error: unknown) => console.error('Discord member collection cleanup failed.', error));
 });
 
 function syncGuildRolesOnChange(guildId: string) {

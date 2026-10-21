@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
 import { buildSkinCollectionEmbed, buildSkinSearchEmbed, calculateSkinRaritySpawnPercent } from '../discord-bot/src/skin-claims';
-import { DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS } from '../lib/discord-skin-claims';
+import { DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES, DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS } from '../lib/discord-skin-claims';
 
 type SerializedSubcommand = {
   description?: string;
@@ -28,7 +28,7 @@ describe('Discord skin-claim command contract', () => {
   it('registers the full Collections command set without a /cl alias', () => {
     const command = serializedCommandDefinitions().find((definition) => definition.name === 'collections');
     const alias = serializedCommandDefinitions().find((definition) => definition.name === 'cl');
-    const expectedSubcommands = ['collection', 'give', 'spawn', 'summon', 'capacity-add', 'capacity-force-add', 'steal', 'favorite', 'gamble', 'search', 'sell'];
+    const expectedSubcommands = ['collection', 'give', 'spawn', 'summon', 'summon-force', 'capacity-add', 'capacity-force-add', 'steal', 'favorite', 'collection-reorder', 'gamble', 'search', 'sell'];
 
     expect(command?.options?.map((option) => option.name)).toEqual(expectedSubcommands);
     expect(alias).toBeUndefined();
@@ -68,8 +68,36 @@ describe('Discord skin-claim command contract', () => {
     const descriptionFor = (name: string) => (command?.options?.find((option) => option.name === name) as SerializedSubcommand | undefined)?.description;
 
     expect(descriptionFor('summon')).toContain('5,000 KnowBucks');
+    expect(descriptionFor('summon-force')).toContain('5,000 KnowBucks');
+    expect(descriptionFor('summon-force')).toContain('50%');
     expect(descriptionFor('capacity-add')).toContain('500 KnowBucks');
     expect(descriptionFor('steal')).toContain('3x its sell price');
+  });
+
+  it('registers one to ten optional, ordered skin IDs for collection reordering', () => {
+    const command = serializedCommandDefinitions().find((definition) => definition.name === 'collections');
+    const reorder = command?.options?.find((option) => option.name === 'collection-reorder') as SerializedSubcommand | undefined;
+    const slots = reorder?.options ?? [];
+
+    expect(slots.map((slot) => slot.name)).toEqual(Array.from({ length: 10 }, (_, index) => `slot-${index + 1}`));
+    expect(slots.every((slot) => slot.required === false && slot.min_value === 1000 && slot.max_value === 9999)).toBe(true);
+  });
+
+  it('uses the agreed Collection sell-price defaults', () => {
+    expect(DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES).toEqual([
+      { rarity: 'Common', amount: 500 },
+      { rarity: 'Rare', amount: 1000 },
+      { rarity: 'Epic', amount: 2500 },
+      { rarity: 'Legendary', amount: 10000 },
+      { rarity: 'Mythic', amount: 5000 },
+      { rarity: 'Ultimate', amount: 25000 },
+      { rarity: 'Exalted', amount: 100000 },
+      { rarity: 'Transcendent', amount: 100000 },
+    ]);
+  });
+
+  it('defaults daily upkeep to 100 KnowBucks for each skin over the first 10', () => {
+    expect(DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionUpkeepDailyCostPerExcessSkin).toBe(100);
   });
 
   it('shows a collection capacity in its header with the compact skin summary', () => {
@@ -90,11 +118,12 @@ describe('Discord skin-claim command contract', () => {
       page: 0,
       sellValue: 1000,
       total: 1,
+      upkeep: { dailyCost: 0, excessSkinCount: 0, graceExpiresAt: null, outstandingAmount: 0 },
     }, 'Summoner');
     const serialized = embed.toJSON();
 
     expect(serialized.title).toBe('Summoner\'s skin collection · 1 of 1 (max 15)');
-    expect(serialized.description).toBe('**Elderwood Ahri** · **Epic**');
+    expect(serialized.description).toBe('**Elderwood Ahri (#1234)** · **Epic**');
   });
 
   it('starts a collection card with only the skin name, rarity, and compact artwork', () => {
@@ -115,9 +144,10 @@ describe('Discord skin-claim command contract', () => {
       page: 0,
       sellValue: 1000,
       total: 1,
+      upkeep: { dailyCost: 0, excessSkinCount: 0, graceExpiresAt: null, outstandingAmount: 0 },
     }, 'Summoner').toJSON();
 
-    expect(embed.description).toBe('**Elderwood Ahri** · **Epic**');
+    expect(embed.description).toBe('**Elderwood Ahri (#1234)** · **Epic**');
     expect(embed.fields).toBeUndefined();
     expect(embed.image?.url).toBe('https://example.com/ahri.jpg');
   });
@@ -140,6 +170,7 @@ describe('Discord skin-claim command contract', () => {
       page: 0,
       sellValue: 1000,
       total: 1,
+      upkeep: { dailyCost: 0, excessSkinCount: 0, graceExpiresAt: null, outstandingAmount: 0 },
     }, 'Summoner', true).toJSON().fields ?? [];
 
     expect(fields).toEqual([

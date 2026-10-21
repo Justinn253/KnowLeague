@@ -17,6 +17,81 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-21-discord-collections-upkeep-and-public-actions',
+    patch: 'patch-2026-10-21-discord-collections-upkeep-and-public-actions',
+    timestamp: '2026-10-21T21:30:00.000Z',
+    title: 'Add Collections upkeep and refine public action panels',
+    summary:
+      'Collections now charges configurable daily upkeep for skins above the first ten, gives an exact one-day payment grace period before releasing only excess skins, uses a 50% force-summon escalation, and presents sale and gamble button outcomes publicly in the requested order.',
+    details: [
+      'Migration 179 adds a service-role-only daily upkeep amount, initially 100 KnowBucks per currently owned skin above ten. Lucky reduces the total by 5% per level, the result rounds up, and the first ten skins remain free regardless of purchased capacity.',
+      'The bot reconciles upkeep once at startup, then shortly after each UTC midnight or an open grace deadline. Database state records the assessed UTC date and the exact unpaid amount, preventing double charges across restarts. Insufficient funds open a 24-hour grace period; payment at the deadline debits the preserved amount, while another shortfall deletes only the collection entries after the memberâ€™s ordered top ten so their catalogue locks are released and those skins can spawn again.',
+      'Collection detail panels now display the calculated daily upkeep and any active payment deadline. The configuration page lets staff set the daily KnowBucks cost per skin above ten and explains the free threshold.',
+      'Force summons now grow by 50% from the previous weekly cost rather than 20%. Collection browsing orders its first row as Previous, Next, Show details and uses green Favorite plus red Gamble and Sell controls. The compact skin label now reads Name (#ID) before the rarity.',
+      'Sale and gamble button outcomes are public. A successful gamble first updates or posts its public action message, then posts the new claimable skin, preserving the requested visible sequence. Ownership checks, live-drop protection, grace rules, and atomic economy mutations remain unchanged.',
+    ],
+    impact: [
+      'Apply migration 178 followed by migration 179 after the earlier pending Collections migrations, then deploy the website and Discord bot. Both migrations are local only and have not been pushed or applied.',
+      'Run npm run discord:commands:register with the production bot environment so Discord receives the revised summon-force description. No new bot role permission or privileged intent is required beyond the previously documented Guild Members intent for departure cleanup.',
+      'No separate Railway worker, cron service, or Supabase scheduled job is added. The existing bot makes one small indexed settlement RPC per UTC day, with an additional call only when a pending grace deadline falls outside that daily window.',
+    ],
+    files: [
+      'supabase/migrations/178_expand_discord_collections_economy_and_lifecycle.sql',
+      'supabase/migrations/179_discord_collections_upkeep.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'lib/discord-skin-claims.ts',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Collections regression coverage passed, including the revised force-summon wording, 100-KnowBucks upkeep default, compact ID placement, command registration, and detail-panel contract.',
+      'npm run check passed: root lint, root type-check, all 44 Vitest files (232 tests), and the Discord bot type-check. Lint retained only the repositoryâ€™s seven existing Next.js <img> warnings.',
+      'Migration 179 remains local only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-21-discord-collections-summon-skills-lifecycle',
+    patch: 'patch-2026-10-21-discord-collections-summon-skills-lifecycle',
+    timestamp: '2026-10-21T20:10:00.000Z',
+    title: 'Expand Collections summoning, skill effects, ordering, and cleanup',
+    summary:
+      'Collections now has per-member summon cooldowns and weekly-reset force summons, durable top-ten ordering, owner-only panel actions, fishing-skill economy effects, agreed sell values, and collection cleanup when Discord members or linked profiles are removed.',
+    details: [
+      'Migration 178 adds an atomic per-member summon state: normal summons have a four-hour cooldown reduced by 5% for each Haste level, while /collections summon-force only works during that cooldown and starts at 5,000 KnowBucks. Every successful force summon costs 50% more than the last, rounds up after Cheapskate, and resets automatically at Monday 00:00 UTC without a scheduled job or polling process.',
+      'Collections now reads existing Fishing skill ownership server-side. Lucky adds 1 percentage point per level to steals, adds 10 percentage points per level to gamble success up to 65%, and gives summons a 1% per-level chance to promote exactly one rarity tier up to Mythic. Cheapskate reduces normal-summon, force-summon, and steal costs by 5% per level; Money Mouser increases sale payouts by 50% per level while steals remain based on three times the configured base sell value.',
+      'The migration stores a deterministic collection order, backfills existing collections, and exposes an atomic /collections collection-reorder command with one to ten contiguous slot IDs. Favorite uses the same ordering transaction and moves the selected skin to slot one while preserving the rest of the collection sequence.',
+      'Claimed-drop cards and a member’s own collection browser now include Favorite, Gamble, and Sell buttons. The bot validates the owner in every button interaction, refreshes collection panels after mutations, and removes consumed-item controls so stale messages cannot operate on a sold or gambled skin.',
+      'The configured sell values are updated to Common 500, Rare 1,000, Epic 2,500, Legendary 10,000, Mythic 5,000, Ultimate 25,000, Exalted 100,000, and Transcendent 100,000 KnowBucks. Defaults shown for unconfigured Collections use the same values.',
+      'Discord departures, kicks, and bans now release claimed skins, active personal-grace drops, capacity additions, and cooldown state through an idempotent cleanup RPC. A profile-private-details deletion trigger applies equivalent cleanup during account deletion while leaving a normal Discord unlink untouched.',
+    ],
+    impact: [
+      'Apply migration 178 after the earlier pending Collections migrations, then deploy both the website and Discord bot. The migration is local only and has not been pushed or applied.',
+      'Run npm run discord:commands:register with the production bot environment before members can use summon-force or collection-reorder. Enable the privileged Guild Members intent for the Discord application before deploying the bot so leave and kick events can release collections; the bot does not cache member profiles from that intent.',
+      'The added work is low-volume and on demand: a small number of indexed Supabase reads/writes per command or button press. Collection upkeep is added separately by local migration 179 and remains inactive until both migrations are applied.',
+    ],
+    files: [
+      'supabase/migrations/178_expand_discord_collections_economy_and_lifecycle.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/AGENTS.md',
+      'lib/discord-skin-claims.ts',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Collections command and embed coverage passed, including force-summon/reorder registration and sell-price defaults.',
+      'npm run discord:check passed after the command, interaction, reaction-panel, lifecycle, and economy changes.',
+      'npm run check passed: root lint, root type-check, all 44 Vitest files (231 tests), and the Discord bot type-check. Lint retained only the repository’s seven existing Next.js <img> warnings. Migration 178 remains local only and is not pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-21-discord-multi-command-channels',
     patch: 'patch-2026-10-21-discord-multi-command-channels',
     timestamp: '2026-10-21T19:30:00.000Z',

@@ -27,6 +27,7 @@ export type DiscordSkinClaimSettings = {
   claimGracePeriodSeconds: number;
   collectionCapacityUpgradeCost: number;
   collectionStealChancePercent: number;
+  collectionUpkeepDailyCostPerExcessSkin: number;
   defaultCollectionCapacity: number;
   enabled: boolean;
   maximumIntervalMinutes: number;
@@ -53,14 +54,14 @@ export const DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS: readonly DiscordSkinClai
 ];
 
 export const DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES: readonly DiscordSkinClaimSellValue[] = [
-  { rarity: 'Common', amount: 100 },
-  { rarity: 'Rare', amount: 500 },
-  { rarity: 'Epic', amount: 1000 },
-  { rarity: 'Legendary', amount: 2500 },
+  { rarity: 'Common', amount: 500 },
+  { rarity: 'Rare', amount: 1000 },
+  { rarity: 'Epic', amount: 2500 },
+  { rarity: 'Legendary', amount: 10000 },
   { rarity: 'Mythic', amount: 5000 },
-  { rarity: 'Ultimate', amount: 10000 },
-  { rarity: 'Exalted', amount: 15000 },
-  { rarity: 'Transcendent', amount: 30000 },
+  { rarity: 'Ultimate', amount: 25000 },
+  { rarity: 'Exalted', amount: 100000 },
+  { rarity: 'Transcendent', amount: 100000 },
 ];
 
 export const DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS: DiscordSkinClaimSettings = {
@@ -69,6 +70,7 @@ export const DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS: DiscordSkinClaimSettings = {
   claimGracePeriodSeconds: 10,
   collectionCapacityUpgradeCost: 500,
   collectionStealChancePercent: 1,
+  collectionUpkeepDailyCostPerExcessSkin: 100,
   defaultCollectionCapacity: 10,
   enabled: false,
   maximumIntervalMinutes: 120,

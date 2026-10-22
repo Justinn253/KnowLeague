@@ -109,7 +109,7 @@ Deploy the website and bot as independent services from the same Git repository:
 
 For Railway, Render, Fly.io, or a container host, set the repository root as the Docker build context and point it to `discord-bot/Dockerfile`. Do not set the host's root directory to `discord-bot`, because the bot intentionally uses the root npm workspace and lockfile.
 
-`KNOWLEAGUE_SITE_URL` must be the canonical public HTTPS website origin in production and must not contain URL credentials. Each `/league account` screenshot runs in an isolated browser context, has bounded page/image waits and a small capture queue, and is rejected before Discord upload when its PNG exceeds 8 MiB. The bot does not disable Chromium's sandbox.
+`KNOWLEAGUE_SITE_URL` must be the canonical public HTTPS website origin in production and must not contain URL credentials. Each `/league account` screenshot runs in an isolated browser context, has bounded page/image waits and a small capture queue, and is rejected before Discord upload when its PNG exceeds 8 MiB. The image explicitly installs Debian's `chromium-sandbox` helper and verifies it at build time; the bot does not disable Chromium's sandbox.
 
 After changing `src/commands.ts`, run `npm run discord:commands:register` once with production bot credentials. Guild commands update quickly and do not require a website deployment. After applying migration 173, deploy the bot and register the revised command set; do not enable Message Content until the narrow retention policy above has been reviewed.
 

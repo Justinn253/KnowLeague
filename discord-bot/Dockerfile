@@ -3,7 +3,9 @@ FROM node:22-bookworm-slim AS base
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends chromium ca-certificates fonts-liberation \
+  && apt-get install -y --no-install-recommends chromium chromium-sandbox ca-certificates fonts-liberation \
+  && test -x /usr/bin/chromium \
+  && test -u /usr/lib/chromium/chrome-sandbox \
   && rm -rf /var/lib/apt/lists/*
 
 FROM base AS build

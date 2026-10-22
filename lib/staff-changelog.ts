@@ -17,6 +17,31 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-22-discord-league-account-viewer-capture-diagnostics',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-capture-diagnostics',
+    timestamp: '2026-10-22T20:49:12.632Z',
+    title: 'Harden final League Account Viewer screenshot capture stages',
+    summary:
+      'Discord League Account Viewer captures no longer fail solely because the optional animation-freezing stylesheet cannot be injected, and now return stage-specific safe guidance for browser, loading, and image-render failures.',
+    details: [
+      'The optional screenshot-only style injection is now best-effort, so a production content-security-policy or browser styling limitation cannot prevent an otherwise ready League Account Viewer page from being captured.',
+      'Unclassified capture exceptions are categorized as browser/context startup, viewer loading/readiness, or image rendering. Discord members receive the corresponding safe message instead of an undifferentiated snapshot failure.',
+      'The bot logs only the capture stage and JavaScript error class for operator diagnosis; it deliberately does not log the Riot ID, viewer URL, raw provider text, headers, cookies, or screenshots.',
+    ],
+    impact: [
+      'Deploy the independently built Discord bot to apply the final-capture resiliency and safe diagnostics. No slash-command re-registration, website deployment, database migration, Discord permission, or privileged-intent change is required.',
+    ],
+    files: [
+      'discord-bot/src/league-account-viewer.ts',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused Discord viewer coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 12 tests).',
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 241 tests passed; Discord bot TypeScript check passed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-22-discord-league-account-viewer-canonical-redirect',
     patch: 'patch-2026-10-22-discord-league-account-viewer-canonical-redirect',
     timestamp: '2026-10-22T20:43:58.208Z',

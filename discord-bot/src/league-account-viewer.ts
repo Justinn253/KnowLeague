@@ -38,6 +38,8 @@ type LeagueAccountViewerSnapshot = {
   viewerUrl: string;
 };
 
+type LeagueAccountViewerCaptureStage = 'start-browser' | 'create-context' | 'load-viewer' | 'wait-for-viewer' | 'capture-image';
+
 let browserPromise: Promise<Browser> | null = null;
 let captureTail: Promise<void> = Promise.resolve();
 let pendingCaptureCount = 0;
@@ -108,6 +110,16 @@ export function getLeagueAccountViewerAttachmentError(byteLength: number) {
   return byteLength > MAX_SCREENSHOT_BYTES
     ? 'The League Account Viewer image is too large to attach. Please open the interactive viewer instead.'
     : null;
+}
+
+export function formatLeagueAccountViewerCaptureFailure(stage: LeagueAccountViewerCaptureStage) {
+  if (stage === 'start-browser' || stage === 'create-context') {
+    return 'The League Account Viewer screenshot browser is temporarily unavailable. Please try again shortly.';
+  }
+  if (stage === 'load-viewer' || stage === 'wait-for-viewer') {
+    return 'The League Account Viewer did not finish loading in time. Please try again shortly.';
+  }
+  return 'The League Account Viewer loaded, but its image could not be created. Please try again shortly.';
 }
 
 function hostnameWithoutWww(hostname: string) {
@@ -213,9 +225,11 @@ export async function captureLeagueAccountViewer(
   let resolvedViewerUrl = viewerUrl;
 
   return runOneCapture(async () => {
-    const browser = await getBrowser(config);
     let context: BrowserContext | null = null;
+    let captureStage: LeagueAccountViewerCaptureStage = 'start-browser';
     try {
+      const browser = await getBrowser(config);
+      captureStage = 'create-context';
       context = await browser.createBrowserContext();
       const page = await context.newPage();
       let viewerApiResponseStatus: number | null = null;
@@ -232,6 +246,7 @@ export async function captureLeagueAccountViewer(
       page.setDefaultNavigationTimeout(PAGE_LOAD_TIMEOUT_MS);
       page.setDefaultTimeout(PAGE_LOAD_TIMEOUT_MS);
       await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+      captureStage = 'load-viewer';
       const navigationResponse = await page.goto(viewerUrl, { timeout: PAGE_LOAD_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
       if (navigationResponse && navigationResponse.status() >= 500) {
         throw new LeagueAccountViewerSnapshotError('The KnowLeague website is temporarily unavailable. Please try again shortly.');
@@ -244,6 +259,7 @@ export async function captureLeagueAccountViewer(
         throw new LeagueAccountViewerSnapshotError('The League Account Viewer redirected unexpectedly. Please try again shortly.');
       }
       resolvedViewerUrl = finalViewerUrl.toString();
+      captureStage = 'wait-for-viewer';
       await page.waitForSelector('[data-lav-capture-ready="true"], [data-lav-capture-error="true"]', {
         timeout: PAGE_LOAD_TIMEOUT_MS,
       });
@@ -268,11 +284,12 @@ export async function captureLeagueAccountViewer(
             transition-duration: 0ms !important;
           }
         `,
-      });
+      }).catch(() => undefined);
       await page.waitForFunction(() => Array.from(document.images).every((image) => image.complete), {
         timeout: IMAGE_SETTLE_TIMEOUT_MS,
       }).catch(() => undefined);
 
+      captureStage = 'capture-image';
       const image = await page.screenshot({ captureBeyondViewport: true, fullPage: true, type: 'png' });
       const buffer = Buffer.from(image);
       const attachmentError = getLeagueAccountViewerAttachmentError(buffer.byteLength);
@@ -286,7 +303,11 @@ export async function captureLeagueAccountViewer(
       };
     } catch (error) {
       if (error instanceof LeagueAccountViewerSnapshotError) throw error;
-      throw new LeagueAccountViewerSnapshotError('KnowLeague could not create the League Account Viewer snapshot. Please try again shortly.');
+      console.warn('Discord League Account Viewer snapshot capture failed.', {
+        errorName: error instanceof Error ? error.name : 'non-error',
+        stage: captureStage,
+      });
+      throw new LeagueAccountViewerSnapshotError(formatLeagueAccountViewerCaptureFailure(captureStage));
     } finally {
       await context?.close().catch(() => undefined);
     }

@@ -14,6 +14,7 @@ import {
   getLeagueAccountViewerAttachmentError,
   formatLeagueAccountViewerError,
   formatLeagueAccountViewerResponseError,
+  isTrustedLeagueAccountViewerOrigin,
   normalizeLeagueRiotId,
 } from '../discord-bot/src/league-account-viewer';
 import { getRiotAccountViewerErrorStatus } from '@/lib/riot-account-viewer-error-status';
@@ -109,6 +110,13 @@ describe('Discord Skindle test implementation', () => {
     expect(() => normalizeLeagueRiotId('Thebausffs')).toThrow('GameName#TagLine');
     expect(buildLeagueAccountViewerUrl({ siteUrl: 'https://knowleague.example' }, 'Thebausffs#COOL', 'EUW1'))
       .toBe('https://knowleague.example/riot-account-viewer?riotId=Thebausffs%23COOL&platform=EUW1&tab=overview');
+  });
+
+  it('allows only the trusted www canonical-host redirect for the viewer', () => {
+    expect(isTrustedLeagueAccountViewerOrigin('https://www.knowleague.net/riot-account-viewer', 'https://knowleague.net/riot-account-viewer')).toBe(true);
+    expect(isTrustedLeagueAccountViewerOrigin('https://knowleague.net/riot-account-viewer', 'https://www.knowleague.net/riot-account-viewer')).toBe(true);
+    expect(isTrustedLeagueAccountViewerOrigin('http://knowleague.net/riot-account-viewer', 'https://knowleague.net/riot-account-viewer')).toBe(false);
+    expect(isTrustedLeagueAccountViewerOrigin('https://accounts.knowleague.net/riot-account-viewer', 'https://knowleague.net/riot-account-viewer')).toBe(false);
   });
 
   it('maps website viewer failures to safe, specific Discord messages', () => {

@@ -38,9 +38,14 @@ type LeagueAccountViewerSnapshot = {
   viewerUrl: string;
 };
 
+type LeagueAccountViewerBrowserConnection = {
+  browser: Browser;
+  isRemote: boolean;
+};
+
 type LeagueAccountViewerCaptureStage = 'start-browser' | 'create-context' | 'load-viewer' | 'wait-for-viewer' | 'capture-image';
 
-let browserPromise: Promise<Browser> | null = null;
+let browserConnectionPromise: Promise<LeagueAccountViewerBrowserConnection> | null = null;
 let captureTail: Promise<void> = Promise.resolve();
 let pendingCaptureCount = 0;
 
@@ -154,38 +159,48 @@ export function buildLeagueAccountViewerUrl(
   return viewerUrl.toString();
 }
 
-async function getBrowser(config: Pick<DiscordBotConfig, 'leagueAccountViewerChromeExecutablePath'>) {
-  if (browserPromise) return browserPromise;
+async function getBrowser(config: Pick<DiscordBotConfig, 'leagueAccountViewerBrowserWsEndpoint' | 'leagueAccountViewerChromeExecutablePath'>) {
+  if (browserConnectionPromise) return browserConnectionPromise;
 
-  const executablePath = config.leagueAccountViewerChromeExecutablePath;
-  if (!executablePath || !existsSync(executablePath)) {
-    throw new LeagueAccountViewerSnapshotError('The League Account Viewer screenshot browser is not available on this bot deployment.');
+  const isRemote = Boolean(config.leagueAccountViewerBrowserWsEndpoint);
+  if (!isRemote) {
+    const executablePath = config.leagueAccountViewerChromeExecutablePath;
+    if (!executablePath || !existsSync(executablePath)) {
+      throw new LeagueAccountViewerSnapshotError('The League Account Viewer screenshot browser is not available on this bot deployment.');
+    }
   }
 
-  const request = puppeteer.launch({
-    args: [
-      '--disable-background-networking',
-      '--disable-component-update',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-sync',
-      '--mute-audio',
-      '--no-default-browser-check',
-      '--no-first-run',
-    ],
-    executablePath,
-    headless: true,
-    protocolTimeout: PAGE_LOAD_TIMEOUT_MS,
-  });
-  browserPromise = request;
-  try {
-    const browser = await request;
-    browser.on('disconnected', () => {
-      if (browserPromise === request) browserPromise = null;
+  const request = isRemote
+    ? puppeteer.connect({
+      browserWSEndpoint: config.leagueAccountViewerBrowserWsEndpoint!,
+      protocolTimeout: PAGE_LOAD_TIMEOUT_MS,
+    })
+    : puppeteer.launch({
+      args: [
+        '--disable-background-networking',
+        '--disable-component-update',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-sync',
+        '--mute-audio',
+        '--no-default-browser-check',
+        '--no-first-run',
+      ],
+      executablePath: config.leagueAccountViewerChromeExecutablePath!,
+      headless: true,
+      protocolTimeout: PAGE_LOAD_TIMEOUT_MS,
     });
-    return browser;
+  const connection = request.then((browser) => {
+    browser.on('disconnected', () => {
+      if (browserConnectionPromise === connection) browserConnectionPromise = null;
+    });
+    return { browser, isRemote };
+  });
+  browserConnectionPromise = connection;
+  try {
+    return await connection;
   } catch (error) {
-    if (browserPromise === request) browserPromise = null;
+    if (browserConnectionPromise === connection) browserConnectionPromise = null;
     throw error;
   }
 }
@@ -212,7 +227,7 @@ async function runOneCapture<T>(operation: () => Promise<T>) {
 }
 
 export async function captureLeagueAccountViewer(
-  config: Pick<DiscordBotConfig, 'leagueAccountViewerChromeExecutablePath' | 'siteUrl'>,
+  config: Pick<DiscordBotConfig, 'leagueAccountViewerBrowserWsEndpoint' | 'leagueAccountViewerChromeExecutablePath' | 'siteUrl'>,
   submittedRiotId: string,
   submittedPlatform: string,
 ): Promise<LeagueAccountViewerSnapshot> {
@@ -228,9 +243,9 @@ export async function captureLeagueAccountViewer(
     let context: BrowserContext | null = null;
     let captureStage: LeagueAccountViewerCaptureStage = 'start-browser';
     try {
-      const browser = await getBrowser(config);
+      const browserConnection = await getBrowser(config);
       captureStage = 'create-context';
-      context = await browser.createBrowserContext();
+      context = await browserConnection.browser.createBrowserContext();
       const page = await context.newPage();
       let viewerApiResponseStatus: number | null = null;
       page.on('response', (response) => {
@@ -315,12 +330,17 @@ export async function captureLeagueAccountViewer(
 }
 
 export async function closeLeagueAccountViewerBrowser() {
-  const currentBrowser = browserPromise;
-  browserPromise = null;
-  if (!currentBrowser) return;
+  const currentConnection = browserConnectionPromise;
+  browserConnectionPromise = null;
+  if (!currentConnection) return;
 
-  const browser = await currentBrowser.catch(() => null);
-  await browser?.close().catch(() => undefined);
+  const connection = await currentConnection.catch(() => null);
+  if (!connection) return;
+  if (connection.isRemote) {
+    connection.browser.disconnect();
+    return;
+  }
+  await connection.browser.close().catch(() => undefined);
 }
 
 export { SCREENSHOT_FILE_NAME };

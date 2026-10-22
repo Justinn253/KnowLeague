@@ -34,6 +34,18 @@ function createCollectionsCommand() {
         .setDescription('Member whose collection to browse. Defaults to you.')
         .setRequired(false)))
     .addSubcommand((subcommand) => subcommand
+      .setName('upkeep-view')
+      .setDescription('View your daily Collection upkeep and how long your funds cover it.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('upkeep-pay')
+      .setDescription('Irreversibly set aside KnowBucks for Collection upkeep, up to 100,000 total.')
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('KnowBucks to set aside. Any amount above your remaining allocation cap stays in your balance.')
+        .setMinValue(1)
+        .setMaxValue(1_000_000_000)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
       .setName('give')
       .setDescription('Give one of your claimed skins to another server member.')
       .addUserOption((option) => option

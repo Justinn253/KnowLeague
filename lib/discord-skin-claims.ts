@@ -27,7 +27,6 @@ export type DiscordSkinClaimSettings = {
   claimGracePeriodSeconds: number;
   collectionCapacityUpgradeCost: number;
   collectionStealChancePercent: number;
-  collectionUpkeepDailyCostPerExcessSkin: number;
   defaultCollectionCapacity: number;
   enabled: boolean;
   maximumIntervalMinutes: number;
@@ -70,7 +69,6 @@ export const DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS: DiscordSkinClaimSettings = {
   claimGracePeriodSeconds: 10,
   collectionCapacityUpgradeCost: 500,
   collectionStealChancePercent: 1,
-  collectionUpkeepDailyCostPerExcessSkin: 100,
   defaultCollectionCapacity: 10,
   enabled: false,
   maximumIntervalMinutes: 120,

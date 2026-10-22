@@ -17,6 +17,44 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-22-discord-collections-tiered-upkeep-allocations',
+    patch: 'patch-2026-10-22-discord-collections-tiered-upkeep-allocations',
+    timestamp: '2026-10-22T18:25:41.000Z',
+    title: 'Add tiered Collections upkeep and protected prepayment allocations',
+    summary:
+      'Collections now shows every viewed collection\'s current daily upkeep, charges marginal ten-skin tiers, and gives members private commands to inspect or irrevocably reserve up to 100,000 KnowBucks for future upkeep.',
+    details: [
+      'Migration 180 replaces the configurable flat rate with marginal daily tiers: skins 1-10 are free, 11-20 cost 100 each, 21-30 cost 500 each, 31-40 cost 1,000 each, and 41-50 cost 2,500 each. Lucky still reduces the total by 5% per level and the resulting amount rounds up.',
+      'The collection browser now displays the owner\'s calculated current daily upkeep in compact view, so it is visible for both the invoker\'s collection and another member\'s public collection. Detailed view retains the exact over-ten count and any payment deadline.',
+      'The new private `/collections upkeep-view` panel shows daily cost, pending grace amount and deadline, protected allocation, regular balance, combined funds, and the number of complete future daily charges those funds cover. `/collections upkeep-pay amount` moves only the accepted portion of a request from the normal balance into an irreversible 100,000-KnowBucks allocation; any amount above the remaining cap remains in the normal balance.',
+      'The daily settlement and grace-deadline payment now draw from the allocation before the regular balance. Both allocation funding and consumption are atomic and recorded through service-role-only ledgers; when combined funds are insufficient, no partial amount is consumed before the normal one-day grace rule applies.',
+      'Collection departure and linked-account deletion cleanup now removes the allocation and cascades its audit rows with the related collection state.',
+      'The website Collections settings screen no longer exposes the retired flat upkeep-rate input and instead documents the fixed tier schedule.',
+    ],
+    impact: [
+      'Apply local migration 180 after migrations 178 and 179, then deploy the website and Discord bot. No migration was pushed or applied by this patch.',
+      'Run `npm run discord:commands:register` with the production bot environment so Discord receives `upkeep-view` and `upkeep-pay`. No new privileged intent, bot role permission, Supabase scheduled job, or separate Railway service is required.',
+      'Operational cost remains low: one allocation row per participating member, one compact allocation-ledger row per funding or allocated daily payment, and the existing once-per-day indexed settlement RPC.',
+    ],
+    files: [
+      'supabase/migrations/180_discord_collections_tiered_upkeep_and_allocation.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'discord-bot/README.md',
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'lib/discord-skin-claims.ts',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Collections regression coverage passed: 15 tests cover the tier boundaries, Lucky rounding, the allocation-command cap contract, and compact collection upkeep display.',
+      'npm run check passed: root lint, root type-check, all 44 Vitest files (234 tests), and the Discord bot type-check. Lint retained only the repository\'s seven existing Next.js <img> warnings.',
+      'Migration 180 is local only and has not been pushed or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-22-discord-collections-all-channel-save-recovery',
     patch: 'patch-2026-10-22-discord-collections-all-channel-save-recovery',
     timestamp: '2026-10-22T17:16:00.000Z',

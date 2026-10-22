@@ -103,7 +103,6 @@ type StoredSkinClaimEconomySettingsRow = {
   claim_grace_period_seconds: number;
   collection_capacity_upgrade_cost: number;
   collection_steal_chance_percent: number;
-  collection_upkeep_daily_cost_per_excess_skin: number;
   default_collection_capacity: number;
   summon_base_cost: number;
 };
@@ -168,7 +167,6 @@ type LevelingSettingsBody = {
   skinClaimCommandChannelIds?: unknown;
   skinClaimCollectionCapacityUpgradeCost?: unknown;
   skinClaimCollectionStealChancePercent?: unknown;
-  skinClaimCollectionUpkeepDailyCostPerExcessSkin?: unknown;
   skinClaimDefaultCollectionCapacity?: unknown;
   skinClaimEnabled?: unknown;
   skinClaimMaximumIntervalMinutes?: unknown;
@@ -227,7 +225,6 @@ function toSkinClaimSettings(
     claimGracePeriodSeconds: economy?.claim_grace_period_seconds ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.claimGracePeriodSeconds,
     collectionCapacityUpgradeCost: economy?.collection_capacity_upgrade_cost ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionCapacityUpgradeCost,
     collectionStealChancePercent: economy?.collection_steal_chance_percent ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionStealChancePercent,
-    collectionUpkeepDailyCostPerExcessSkin: economy?.collection_upkeep_daily_cost_per_excess_skin ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.collectionUpkeepDailyCostPerExcessSkin,
     defaultCollectionCapacity: economy?.default_collection_capacity ?? DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.defaultCollectionCapacity,
     enabled: row.enabled,
     maximumIntervalMinutes: row.maximum_interval_minutes,
@@ -395,7 +392,7 @@ async function getLevelingData(guildId: string) {
       .eq('guild_id', guildId)
       .returns<StoredSkinClaimRarityWeightRow[]>(),
     supabase.from('discord_skin_claim_economy_settings')
-      .select('summon_base_cost, default_collection_capacity, collection_capacity_upgrade_cost, collection_steal_chance_percent, collection_upkeep_daily_cost_per_excess_skin, claim_grace_period_seconds')
+      .select('summon_base_cost, default_collection_capacity, collection_capacity_upgrade_cost, collection_steal_chance_percent, claim_grace_period_seconds')
       .eq('guild_id', guildId)
       .maybeSingle<StoredSkinClaimEconomySettingsRow>(),
     supabase.from('discord_skin_claim_sell_values')
@@ -716,7 +713,6 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const skinClaimDefaultCollectionCapacity = parsePositiveInteger(body.skinClaimDefaultCollectionCapacity, 'Default collection size', 1, 50);
     const skinClaimCollectionCapacityUpgradeCost = parsePositiveInteger(body.skinClaimCollectionCapacityUpgradeCost, 'Collection level-up cost', 1, 1_000_000_000);
     const skinClaimCollectionStealChancePercent = parsePositiveInteger(body.skinClaimCollectionStealChancePercent, 'Collection steal base chance', 0, 100);
-    const skinClaimCollectionUpkeepDailyCostPerExcessSkin = parsePositiveInteger(body.skinClaimCollectionUpkeepDailyCostPerExcessSkin, 'Daily collection upkeep cost', 1, 1_000_000_000);
     const skinClaimClaimGracePeriodSeconds = parsePositiveInteger(body.skinClaimClaimGracePeriodSeconds, 'Collection claim grace period', 0, 600);
     if (typeof body.skinClaimAllChannels !== 'boolean') {
       throw new ApiError(400, 'Skin-claim channel scope must be all channels or selected channels.');
@@ -844,12 +840,6 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_sell_values: skinClaimSellValues,
     });
     if (error) throw error;
-    const { error: collectionUpkeepError } = await supabase.rpc('replace_discord_skin_claim_upkeep_settings', {
-      p_daily_cost_per_excess_skin: skinClaimCollectionUpkeepDailyCostPerExcessSkin,
-      p_guild_id: guildId,
-      p_updated_by: user.id,
-    });
-    if (collectionUpkeepError) throw collectionUpkeepError;
     const { error: generalCommandChannelsError } = await supabase.rpc('replace_discord_general_command_channels', {
       p_command_channel_ids: generalCommandChannelIds,
       p_guild_id: guildId,

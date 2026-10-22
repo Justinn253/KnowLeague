@@ -62,13 +62,16 @@ import {
 import {
   buildSkinSearchEmbed,
   buildSkinCollectionEmbed,
+  COLLECTION_UPKEEP_ALLOCATION_MAXIMUM,
   favoriteSkinClaim,
   findSkinCollectionSearchResult,
+  fundSkinCollectionUpkeep,
   forceAddSkinCollectionCapacity,
   forceSkinClaimDrop,
   gambleSkinClaim,
   getSkinClaimAdminRoleIds,
   getSkinCollectionPage,
+  getSkinCollectionUpkeepOverview,
   isSkinCollectionCommandAllowedInChannel,
   purchaseSkinCollectionCapacity,
   reorderSkinCollection,
@@ -78,6 +81,7 @@ import {
   stealSkinClaim,
   summonSkinClaimDrop,
   transferSkinClaim,
+  type CollectionUpkeepOverview,
 } from './skin-claims.js';
 
 function profileUrl(config: DiscordBotConfig, username?: string) {
@@ -111,6 +115,34 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
 
 function formatXp(value: number) {
   return new Intl.NumberFormat().format(value);
+}
+
+function buildCollectionUpkeepEmbed(overview: CollectionUpkeepOverview) {
+  const outstandingPayment = overview.outstandingAmount;
+  const fundingAfterOutstanding = Math.max(0, overview.combinedFunds - outstandingPayment);
+  const coveredPayments = overview.dailyCost > 0
+    ? Math.floor(fundingAfterOutstanding / overview.dailyCost)
+    : null;
+  const dailyCost = formatXp(overview.dailyCost);
+  const description = [
+    `**Collection size:** ${formatXp(overview.totalSkins)} skin${overview.totalSkins === 1 ? '' : 's'}`,
+    `**Daily upkeep:** ${overview.dailyCost > 0 ? `${dailyCost} KnowBucks` : 'Free (the first 10 skins are free)'}`,
+    `**Upkeep allocation:** ${formatXp(overview.allocationBalance)} / ${formatXp(COLLECTION_UPKEEP_ALLOCATION_MAXIMUM)} KnowBucks`,
+    `**Regular balance:** ${formatXp(overview.regularBalance)} KnowBucks`,
+    `**Combined upkeep funds:** ${formatXp(overview.combinedFunds)} KnowBucks`,
+    overview.dailyCost > 0
+      ? `**Coverage:** ${formatXp(coveredPayments ?? 0)} full daily upkeep payment${coveredPayments === 1 ? '' : 's'}${outstandingPayment > 0 ? ' after the current overdue payment' : ''}.`
+      : '**Coverage:** No daily upkeep is due while your collection has 10 or fewer skins.',
+    ...(overview.graceExpiresAt
+      ? [`**Payment due:** ${formatXp(outstandingPayment)} KnowBucks by <t:${Math.floor(new Date(overview.graceExpiresAt).getTime() / 1_000)}:F> (<t:${Math.floor(new Date(overview.graceExpiresAt).getTime() / 1_000)}:R>).`]
+      : []),
+    'Allocated KnowBucks are used before your regular balance and cannot be withdrawn.',
+  ];
+
+  return new EmbedBuilder()
+    .setColor(0xF59E0B)
+    .setTitle('Collection upkeep')
+    .setDescription(description.join('\n\n'));
 }
 
 function getProgressBar(percent: number) {
@@ -1261,6 +1293,34 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
     return;
   }
 
+  if (subcommand === 'upkeep-view') {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const overview = await getSkinCollectionUpkeepOverview(config, interaction.user.id);
+    await interaction.editReply({ embeds: [buildCollectionUpkeepEmbed(overview)] });
+    return;
+  }
+
+  if (subcommand === 'upkeep-pay') {
+    const amount = interaction.options.getInteger('amount', true);
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const funding = await fundSkinCollectionUpkeep(config, interaction.user.id, amount);
+    if (funding.outcome === 'allocation-full') {
+      await interaction.editReply({ content: `Your Collection upkeep allocation is already at its ${formatXp(COLLECTION_UPKEEP_ALLOCATION_MAXIMUM)} KnowBucks maximum. Allocated KnowBucks cannot be withdrawn.` });
+      return;
+    }
+    if (funding.outcome === 'insufficient-funds') {
+      await interaction.editReply({ content: `You need ${formatXp(funding.capped_amount)} KnowBucks to reserve that amount for upkeep. Your current balance is ${formatXp(funding.remaining_balance)} KnowBucks and your upkeep allocation is ${formatXp(funding.allocation_balance)} / ${formatXp(COLLECTION_UPKEEP_ALLOCATION_MAXIMUM)}.` });
+      return;
+    }
+    const unallocatedAmount = amount - funding.allocated_amount;
+    const overview = await getSkinCollectionUpkeepOverview(config, interaction.user.id);
+    await interaction.editReply({
+      content: `Set aside ${formatXp(funding.allocated_amount)} KnowBucks for Collection upkeep. Your allocation is now ${formatXp(funding.allocation_balance)} / ${formatXp(COLLECTION_UPKEEP_ALLOCATION_MAXIMUM)} and your regular balance is ${formatXp(funding.remaining_balance)}.${unallocatedAmount > 0 ? ` The remaining ${formatXp(unallocatedAmount)} KnowBucks stayed in your regular balance because the allocation is capped.` : ''}`,
+      embeds: [buildCollectionUpkeepEmbed(overview)],
+    });
+    return;
+  }
+
   if (subcommand === 'collection') {
     const targetUser = interaction.options.getUser('member') ?? interaction.user;
     if (targetUser.bot) {
@@ -1988,7 +2048,8 @@ export async function handleChatInputCommand(
             { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent relics apply to the saved trip; crew runs take three times as long with normal rewards.' },
             { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or use the inventory tabs to inspect relic descriptions and equip an owned rod or bait.' },
             { name: '/fish chests-open, catalogue, help', value: 'Redeem all held legacy chests, browse the biome-filtered field guide, or open focused fishing help. Newly caught crates open automatically during expeditions.' },
-            { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Use Show details to see collection metadata and the skin\'s sell value.' },
+            { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Every panel shows that collection\'s current daily upkeep; use Show details for metadata and the skin\'s sell value.' },
+            { name: '/collections upkeep-view/upkeep-pay amount', value: 'Privately view your daily upkeep, allocation, regular balance, and full-payment coverage, or irrevocably reserve KnowBucks for upkeep. Allocations are capped at 100,000, are used before your regular balance, and cannot be withdrawn.' },
             { name: '/collections give member skin-id', value: 'Give one of your claimed skins to another current server member by its four-digit ID.' },
             { name: '/collections summon/summon-force', value: 'Summon a claimable drop for the configured cost (5,000 KnowBucks by default) every four hours, reduced by Haste. While on cooldown, force-summon for 5,000 KnowBucks with a 50% increase per successful force summon until the Monday UTC weekly reset; Cheapskate reduces either cost.' },
             { name: '/collections capacity-add slots', value: 'Buy one or more collection slots for the configured per-slot rate (500 KnowBucks per slot by default), up to 50 total slots. Staff can use `capacity-force-add` for a free member upgrade within that limit.' },

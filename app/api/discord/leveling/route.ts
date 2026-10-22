@@ -722,7 +722,10 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       throw new ApiError(400, 'Skin-claim channel scope must be all channels or selected channels.');
     }
     const skinClaimAllChannels = body.skinClaimAllChannels;
-    const skinClaimChannelIds = parseSkinClaimChannelIds(body.skinClaimChannelIds);
+    // Specific channels are deliberately ignored in all-channel mode. This lets
+    // staff recover from a deleted channel or a bot-permission change that left
+    // behind an obsolete saved selection while preserving the unrestricted scope.
+    const skinClaimChannelIds = skinClaimAllChannels ? [] : parseSkinClaimChannelIds(body.skinClaimChannelIds);
     if (typeof body.fishingCommandAllChannels !== 'boolean') {
       throw new ApiError(400, 'Fishing command channel scope must be all channels or selected channels.');
     }

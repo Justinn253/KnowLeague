@@ -17,6 +17,32 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-22-discord-collections-all-channel-save-recovery',
+    patch: 'patch-2026-10-22-discord-collections-all-channel-save-recovery',
+    timestamp: '2026-10-22T17:16:00.000Z',
+    title: 'Recover Collections all-channel saves from stale channel metadata',
+    summary:
+      'Discord Configuration now clears obsolete specific drop-channel selections whenever Collections uses the All channel scope, preventing an inaccessible historical channel from blocking unrelated settings saves.',
+    details: [
+      'Selecting All in the Collections drop-channel selector clears its specific channel list immediately. The save request also submits an empty list whenever All is enabled.',
+      'The API now deliberately ignores specific drop-channel IDs when the submitted scope is All. Selected-channel mode remains strict: every selected channel must still be synchronized and sendable by the KnowLeague bot.',
+      'This fixes saves that failed with "Choose skin-claim channels that are currently available to the KnowLeague bot" after a previously selected Discord channel was deleted or the bot lost its View Channel or Send Messages permission.',
+    ],
+    impact: [
+      'Deploy the website to fix the production settings screen. No migration, Discord bot deployment, slash-command registration, or Discord permission change is required for this recovery behavior.',
+      'If Collections should use selected rather than All channels, restore the bot View Channel and Send Messages permissions in every selected channel, then select only the currently available channels in Discord Configuration.',
+    ],
+    files: [
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: root lint, root type-check, all 44 Vitest files (232 tests), and the Discord bot type-check. Lint retained only the repository\'s seven existing Next.js <img> warnings.',
+      'No database migration was created or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-21-discord-collections-upkeep-and-public-actions',
     patch: 'patch-2026-10-21-discord-collections-upkeep-and-public-actions',
     timestamp: '2026-10-21T21:30:00.000Z',

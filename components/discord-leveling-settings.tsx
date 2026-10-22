@@ -289,6 +289,7 @@ export function DiscordLevelingSettings() {
     if (channelId === ALL_SKIN_CLAIM_CHANNELS_VALUE) {
       return {
         ...current,
+        skinClaimChannelIds: current.skinClaimSettings.allChannels ? current.skinClaimChannelIds : [],
         skinClaimSettings: { ...current.skinClaimSettings, allChannels: !current.skinClaimSettings.allChannels },
       };
     }
@@ -415,7 +416,10 @@ export function DiscordLevelingSettings() {
           manualXpRoleIds: data.manualXpRoleIds,
           roleRewards: data.roleRewards,
           skinClaimAllChannels: data.skinClaimSettings.allChannels,
-          skinClaimChannelIds: data.skinClaimChannelIds,
+          // Specific selections have no meaning in the All-channels mode. Sending
+          // an empty list also clears a previously selected channel that the bot
+          // can no longer access, so that stale metadata cannot block a save.
+          skinClaimChannelIds: data.skinClaimSettings.allChannels ? [] : data.skinClaimChannelIds,
           skinClaimClaimWindowMinutes: data.skinClaimSettings.claimWindowMinutes,
           skinClaimClaimGracePeriodSeconds: data.skinClaimSettings.claimGracePeriodSeconds,
           skinClaimCommandChannelIds: data.skinClaimCommandChannelIds,

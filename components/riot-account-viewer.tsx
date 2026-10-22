@@ -2238,7 +2238,7 @@ export function RiotAccountViewer() {
   const title = data ? `${data.account.gameName}#${data.account.tagLine}` : 'KnowLeague - League Account Viewer';
 
   return (
-    <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
+    <main className="min-h-[100dvh] bg-slate-950 text-slate-100" data-lav-capture-ready={data ? 'true' : undefined}>
       <section className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-8 lg:px-10">
         <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -2356,7 +2356,7 @@ export function RiotAccountViewer() {
             </p>
           ) : null}
           {autoLoadMessage ? <p className="mt-3 text-sm text-amber-200">{autoLoadMessage}</p> : null}
-          {error ? <p className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-950/30 px-4 py-3 text-sm font-semibold text-rose-100">{error}</p> : null}
+          {error ? <p data-lav-capture-error="true" className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-950/30 px-4 py-3 text-sm font-semibold text-rose-100">{error}</p> : null}
         </header>
 
         {data ? (

@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
 import { loadBotConfig } from './config.js';
 import { handleButtonInteraction, handleChatInputCommand, isDiscordAdministrativeCommand } from './interactions.js';
+import { closeLeagueAccountViewerBrowser } from './league-account-viewer.js';
 import {
   awardMessageXp,
   handleDiscordVoiceStateUpdate,
@@ -49,9 +50,10 @@ async function replyWithFailure(interaction: Parameters<typeof handleChatInputCo
   await interaction.reply({ content: message, ...(ephemeral ? { flags: MessageFlags.Ephemeral } : {}) });
 }
 
-function shutdown(signal: NodeJS.Signals) {
+async function shutdown(signal: NodeJS.Signals) {
   console.info(`Received ${signal}; disconnecting KnowLeague Discord bot.`);
   client.destroy();
+  await closeLeagueAccountViewerBrowser();
 }
 
 client.once(Events.ClientReady, (readyClient) => {
@@ -206,7 +208,7 @@ client.on(Events.Error, (error) => {
   console.error('Discord client error.', error);
 });
 
-process.once('SIGINT', () => shutdown('SIGINT'));
-process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
 
 void client.login(config.token);

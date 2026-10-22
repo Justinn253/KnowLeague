@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   addManualXp,
@@ -15,6 +15,11 @@ import { importExternalMessageEmojis } from './emoji-import.js';
 import { findLinkedProfile } from './profiles.js';
 import { isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
+import {
+  captureLeagueAccountViewer,
+  LeagueAccountViewerSnapshotError,
+  SCREENSHOT_FILE_NAME,
+} from './league-account-viewer.js';
 import {
   buildDiscordSkindleGuessEmbed,
   buildDiscordSkindleShareEmbed,
@@ -104,6 +109,38 @@ function skindleButton(config: DiscordBotConfig) {
 
 function skindleComponents(config: DiscordBotConfig) {
   return [{ type: 1 as const, components: [skindleButton(config)] }];
+}
+
+const ACCOUNT_VIEWER_CAPTURE_WINDOW_MS = 60_000;
+const ACCOUNT_VIEWER_CAPTURE_LIMIT = 6;
+const ACCOUNT_VIEWER_USER_COOLDOWN_MS = 30_000;
+const accountViewerCaptureTimestamps: number[] = [];
+const accountViewerUserCaptureTimes = new Map<string, number>();
+
+function accountViewerCaptureAvailability(discordUserId: string) {
+  const now = Date.now();
+  while (accountViewerCaptureTimestamps[0] && now - accountViewerCaptureTimestamps[0] >= ACCOUNT_VIEWER_CAPTURE_WINDOW_MS) {
+    accountViewerCaptureTimestamps.shift();
+  }
+  for (const [userId, lastCaptureAt] of accountViewerUserCaptureTimes) {
+    if (now - lastCaptureAt >= ACCOUNT_VIEWER_USER_COOLDOWN_MS) {
+      accountViewerUserCaptureTimes.delete(userId);
+    }
+  }
+
+  const priorUserCapture = accountViewerUserCaptureTimes.get(discordUserId);
+  if (priorUserCapture && now - priorUserCapture < ACCOUNT_VIEWER_USER_COOLDOWN_MS) {
+    return Math.ceil((ACCOUNT_VIEWER_USER_COOLDOWN_MS - (now - priorUserCapture)) / 1_000);
+  }
+
+  if (accountViewerCaptureTimestamps.length >= ACCOUNT_VIEWER_CAPTURE_LIMIT) {
+    const nextAvailableAt = accountViewerCaptureTimestamps[0]! + ACCOUNT_VIEWER_CAPTURE_WINDOW_MS;
+    return Math.max(1, Math.ceil((nextAvailableAt - now) / 1_000));
+  }
+
+  accountViewerCaptureTimestamps.push(now);
+  accountViewerUserCaptureTimes.set(discordUserId, now);
+  return null;
 }
 
 export function isDiscordAdministrativeCommand(commandName: string, subcommand: string | null) {
@@ -1181,11 +1218,47 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
 
 async function handleLeagueCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   const group = interaction.options.getSubcommandGroup();
+  const subcommand = interaction.options.getSubcommand();
+  if (group === null && subcommand === 'account') {
+    const retryAfterSeconds = accountViewerCaptureAvailability(interaction.user.id);
+    if (retryAfterSeconds !== null) {
+      await interaction.reply({
+        content: `League Account Viewer snapshots are limited while this test is running. Please try again in ${retryAfterSeconds} seconds.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const submittedRiotId = interaction.options.getString('riot-id', true);
+    const submittedPlatform = interaction.options.getString('region', true);
+    await interaction.deferReply();
+    try {
+      const snapshot = await captureLeagueAccountViewer(config, submittedRiotId, submittedPlatform);
+      await interaction.editReply({
+        allowedMentions: { parse: [] },
+        components: [{
+          type: 1,
+          components: [new ButtonBuilder()
+            .setStyle(ButtonStyle.Link)
+            .setLabel('Open interactive viewer')
+            .setURL(snapshot.viewerUrl)],
+        }],
+        content: `League Account Viewer snapshot for **${escapeMarkdown(snapshot.riotId)}** (${submittedPlatform}).`,
+        files: [{ attachment: snapshot.buffer, name: SCREENSHOT_FILE_NAME }],
+      });
+    } catch (error) {
+      const message = error instanceof LeagueAccountViewerSnapshotError
+        ? error.message
+        : 'KnowLeague could not create the League Account Viewer snapshot. Please try again shortly.';
+      await interaction.editReply({ content: message });
+    }
+    return;
+  }
+
   if (group !== 'skindle') {
     throw new Error(`Unsupported League command group: ${group ?? 'none'}`);
   }
 
-  const subcommand = interaction.options.getSubcommand();
   const currentStatus = () => discordSkindleSessionStore.getStatus(interaction.user.id);
   if (subcommand === 'play') {
     const status = currentStatus();

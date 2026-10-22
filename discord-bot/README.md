@@ -8,6 +8,7 @@ This is the long-running Discord companion for the KnowLeague web app. It is int
 - `/profile` confirms the caller's linked KnowLeague profile and links to its public page.
 - `/help` describes every KnowLeague bot command and its usage.
 - `/league skindle play`, `/league skindle guess skin`, and `/league skindle status` provide a test version of the UTC daily Skindle. `/play` posts a public activity card, while clue feedback and the final skin reveal stay private. Completion posts a spoiler-free public guess-count card with square markers. Test runs are held in bot memory and reset after a bot restart; they do not yet synchronize with website Skindle progress or global statistics.
+- `/league account riot-id region` is a public snapshot test for the League Account Viewer. It opens the existing website viewer at a 1,400px desktop viewport for the supplied `GameName#TagLine` and selected League region (including NA, EUW, EUNE, KR, JP, OCE, BR, LAN, LAS, TR, RU, PH, SG, TH, TW, and VN), then posts its full overview as a PNG attachment and includes an interactive-viewer link. Captures are serialized, limited to six per minute for the server and one every 30 seconds per member so this test remains within the website viewer's lookup protection. The command needs a local Chromium executable; the production Docker image supplies `/usr/bin/chromium`, while a local deployment can set `LEAGUE_ACCOUNT_VIEWER_CHROME_EXECUTABLE_PATH`.
 - `/xp view [member]` shows a member's level, total XP, segmented progress bar, and remaining XP. It defaults to the caller.
 - `/xp add` grants a member XP and `/xp set-level` sets a member to a level; both are available only to members whose Discord role is selected in **Discord Configuration**.
 - `/leaderboard [count]` posts the top active server members by XP, with 10 entries by default and up to 25 on request.
@@ -107,6 +108,8 @@ Deploy the website and bot as independent services from the same Git repository:
 | Discord bot | repository root, Dockerfile `discord-bot/Dockerfile` | Docker image command | values from `discord-bot/.env.example` |
 
 For Railway, Render, Fly.io, or a container host, set the repository root as the Docker build context and point it to `discord-bot/Dockerfile`. Do not set the host's root directory to `discord-bot`, because the bot intentionally uses the root npm workspace and lockfile.
+
+`KNOWLEAGUE_SITE_URL` must be the canonical public HTTPS website origin in production and must not contain URL credentials. Each `/league account` screenshot runs in an isolated browser context, has bounded page/image waits and a small capture queue, and is rejected before Discord upload when its PNG exceeds 8 MiB. The bot does not disable Chromium's sandbox.
 
 After changing `src/commands.ts`, run `npm run discord:commands:register` once with production bot credentials. Guild commands update quickly and do not require a website deployment. After applying migration 173, deploy the bot and register the revised command set; do not enable Message Content until the narrow retention policy above has been reviewed.
 

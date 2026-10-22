@@ -1281,7 +1281,7 @@ export async function riotFetch<T>(url: string, options?: { optional404?: boolea
     if (response.status === 404) {
       throw new Error('Riot account data not found for that Riot ID and region.');
     }
-    if (response.status === 403) {
+    if (response.status === 401 || response.status === 403) {
       throw new Error('Riot API rejected the configured API key.');
     }
     if (response.status === 429) {

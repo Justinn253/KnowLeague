@@ -17,6 +17,31 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-22-discord-league-account-viewer-chromium-sandbox',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-chromium-sandbox',
+    timestamp: '2026-10-22T20:56:43.759Z',
+    title: 'Install Chromium sandbox support for Discord viewer captures',
+    summary:
+      'The Discord bot image now explicitly installs and verifies Debian’s Chromium setuid sandbox helper so `/league account` can launch Chromium under the non-root bot user without disabling browser sandboxing.',
+    details: [
+      'The Docker image previously used --no-install-recommends for Chromium, which omits Debian’s separately packaged chromium-sandbox helper. Chromium then cannot start in hosts where user namespaces are unavailable.',
+      'The image now installs chromium-sandbox alongside Chromium and checks that /usr/bin/chromium is executable and /usr/lib/chromium/chrome-sandbox retains its setuid bit during the build.',
+      'The bot remains a non-root runtime user and does not add Chromium’s unsafe --no-sandbox launch option.',
+    ],
+    impact: [
+      'Rebuild and redeploy the Discord bot image from the repository root using discord-bot/Dockerfile. Hosts using a non-Docker Node deployment must install a sandbox-capable Chromium and set LEAGUE_ACCOUNT_VIEWER_CHROME_EXECUTABLE_PATH. No slash-command re-registration, website deployment, database migration, Discord permission, or privileged-intent change is required.',
+    ],
+    files: [
+      'discord-bot/Dockerfile',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 241 tests passed; Discord bot TypeScript check passed.',
+      'Docker is unavailable in the local development environment, so image construction and Chromium launch require deployment or a Docker-enabled host.',
+    ],
+  },
+  {
     id: 'patch-2026-10-22-discord-league-account-viewer-capture-diagnostics',
     patch: 'patch-2026-10-22-discord-league-account-viewer-capture-diagnostics',
     timestamp: '2026-10-22T20:49:12.632Z',

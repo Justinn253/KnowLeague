@@ -4,6 +4,7 @@ export type DiscordBotConfig = {
   applicationId: string;
   bumpChannelId: string | null;
   guildId: string;
+  leagueAccountViewerBrowserWsEndpoint: string | null;
   leagueAccountViewerChromeExecutablePath: string | null;
   siteUrl: string;
   supabaseServiceRoleKey: string;
@@ -55,11 +56,27 @@ function leagueAccountViewerChromeExecutablePath() {
   return '/usr/bin/chromium';
 }
 
+function leagueAccountViewerBrowserWsEndpoint() {
+  const value = process.env.LEAGUE_ACCOUNT_VIEWER_BROWSER_WS_ENDPOINT?.trim();
+  if (!value) return null;
+
+  const url = new URL(value);
+  if (!['ws:', 'wss:'].includes(url.protocol)) {
+    throw new Error('LEAGUE_ACCOUNT_VIEWER_BROWSER_WS_ENDPOINT must use ws or wss.');
+  }
+  if (url.username || url.password) {
+    throw new Error('LEAGUE_ACCOUNT_VIEWER_BROWSER_WS_ENDPOINT must not include URL credentials.');
+  }
+
+  return url.toString();
+}
+
 export function loadBotConfig(): DiscordBotConfig {
   return {
     applicationId: requiredEnvironmentVariable('DISCORD_APPLICATION_ID'),
     bumpChannelId: optionalSnowflakeEnvironmentVariable('DISCORD_BUMP_CHANNEL_ID'),
     guildId: requiredEnvironmentVariable('DISCORD_GUILD_ID'),
+    leagueAccountViewerBrowserWsEndpoint: leagueAccountViewerBrowserWsEndpoint(),
     leagueAccountViewerChromeExecutablePath: leagueAccountViewerChromeExecutablePath(),
     siteUrl: canonicalSiteUrl(requiredEnvironmentVariable('KNOWLEAGUE_SITE_URL')),
     supabaseServiceRoleKey: requiredEnvironmentVariable('SUPABASE_SERVICE_ROLE_KEY'),

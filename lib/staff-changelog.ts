@@ -17,6 +17,34 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-22-discord-league-account-viewer-browserless',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-browserless',
+    timestamp: '2026-10-22T21:12:30.849Z',
+    title: 'Isolate Discord League Account Viewer rendering in Browserless',
+    summary:
+      'The Discord bot can now render League Account Viewer screenshots through a private Browserless WebSocket service instead of launching Chromium beside Discord and Supabase credentials.',
+    details: [
+      'When LEAGUE_ACCOUNT_VIEWER_BROWSER_WS_ENDPOINT is set, the bot connects to that ws/wss endpoint with Puppeteer, creates and closes an isolated browser context per capture, and disconnects rather than terminating the shared remote browser during bot shutdown.',
+      'The Browserless endpoint stays server-only. It receives only public KnowLeague viewer URLs; the bot’s Discord token, Supabase service-role key, Riot configuration, and other bot environment variables are not sent to Browserless.',
+      'The production bot image no longer installs Chromium or a browser sandbox helper, reducing its image size and browser attack surface. Local development continues to support an explicit local Chrome executable when no remote endpoint is configured.',
+    ],
+    impact: [
+      'Deploy a private Browserless service in the same Railway environment, then set the bot variable LEAGUE_ACCOUNT_VIEWER_BROWSER_WS_ENDPOINT from Browserless.BROWSER_WS_ENDPOINT_PRIVATE and redeploy the bot. Keep Browserless without a public domain. No slash-command re-registration, website deployment, database migration, Discord permission, or privileged-intent change is required.',
+    ],
+    files: [
+      'discord-bot/src/config.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/Dockerfile',
+      'discord-bot/.env.example',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 241 tests passed; Discord bot TypeScript check passed.',
+      'Browserless deployment/integration requires a Railway environment and was not run locally.',
+    ],
+  },
+  {
     id: 'patch-2026-10-22-discord-league-account-viewer-chromium-sandbox',
     patch: 'patch-2026-10-22-discord-league-account-viewer-chromium-sandbox',
     timestamp: '2026-10-22T20:56:43.759Z',

@@ -17,6 +17,31 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-22-discord-league-account-viewer-canonical-redirect',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-canonical-redirect',
+    timestamp: '2026-10-22T20:43:58.208Z',
+    title: 'Allow the trusted canonical website redirect in Discord captures',
+    summary:
+      'Discord League Account Viewer captures now follow KnowLeague’s normal www/non-www canonical-host redirect while continuing to reject protocol, port, subdomain, path, and external redirects.',
+    details: [
+      'The capture validates that the final page remains the League Account Viewer and that its HTTPS host differs from the configured origin only by a leading www label. This accommodates production canonical-host redirects without broadening navigation to any other host.',
+      'Viewer API response status observation uses the same restricted host comparison, so a canonical redirect does not remove the specific Riot lookup error classification.',
+      'The attached interactive-viewer button now uses the verified final canonical URL reached by Chromium.',
+    ],
+    impact: [
+      'Deploy the independently built Discord bot to allow the production website’s canonical-host redirect. No slash-command re-registration, website deployment, database migration, Discord permission, or privileged-intent change is required.',
+    ],
+    files: [
+      'discord-bot/src/league-account-viewer.ts',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused Discord viewer coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 11 tests).',
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 240 tests passed; Discord bot TypeScript check passed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-22-discord-league-account-viewer-capture-hardening',
     patch: 'patch-2026-10-22-discord-league-account-viewer-capture-hardening',
     timestamp: '2026-10-22T20:23:18.722Z',

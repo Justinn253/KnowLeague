@@ -110,6 +110,22 @@ export function getLeagueAccountViewerAttachmentError(byteLength: number) {
     : null;
 }
 
+function hostnameWithoutWww(hostname: string) {
+  return hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+}
+
+export function isTrustedLeagueAccountViewerOrigin(candidateUrl: string, configuredViewerUrl: string) {
+  const candidate = new URL(candidateUrl);
+  const configured = new URL(configuredViewerUrl);
+  return candidate.protocol === configured.protocol
+    && candidate.port === configured.port
+    && hostnameWithoutWww(candidate.hostname) === hostnameWithoutWww(configured.hostname);
+}
+
+function isLeagueAccountViewerPage(url: URL) {
+  return url.pathname.replace(/\/+$/, '') === '/riot-account-viewer';
+}
+
 function isLeagueAccountViewerPlatform(value: string): value is LeagueAccountViewerPlatform {
   return LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS.some((platform) => platform.value === value);
 }
@@ -194,7 +210,7 @@ export async function captureLeagueAccountViewer(
     throw new LeagueAccountViewerSnapshotError('Choose a supported League region.');
   }
   const viewerUrl = buildLeagueAccountViewerUrl(config, riotId, platform);
-  const viewerOrigin = new URL(viewerUrl).origin;
+  let resolvedViewerUrl = viewerUrl;
 
   return runOneCapture(async () => {
     const browser = await getBrowser(config);
@@ -205,7 +221,7 @@ export async function captureLeagueAccountViewer(
       let viewerApiResponseStatus: number | null = null;
       page.on('response', (response) => {
         const responseUrl = new URL(response.url());
-        if (responseUrl.origin === viewerOrigin && responseUrl.pathname === '/api/riot-account/viewer') {
+        if (isTrustedLeagueAccountViewerOrigin(responseUrl.toString(), viewerUrl) && responseUrl.pathname === '/api/riot-account/viewer') {
           viewerApiResponseStatus = response.status();
         }
       });
@@ -223,9 +239,11 @@ export async function captureLeagueAccountViewer(
       if (navigationResponse && navigationResponse.status() >= 400) {
         throw new LeagueAccountViewerSnapshotError('The League Account Viewer could not be opened. Please try again shortly.');
       }
-      if (new URL(page.url()).origin !== viewerOrigin) {
+      const finalViewerUrl = new URL(page.url());
+      if (!isTrustedLeagueAccountViewerOrigin(finalViewerUrl.toString(), viewerUrl) || !isLeagueAccountViewerPage(finalViewerUrl)) {
         throw new LeagueAccountViewerSnapshotError('The League Account Viewer redirected unexpectedly. Please try again shortly.');
       }
+      resolvedViewerUrl = finalViewerUrl.toString();
       await page.waitForSelector('[data-lav-capture-ready="true"], [data-lav-capture-error="true"]', {
         timeout: PAGE_LOAD_TIMEOUT_MS,
       });
@@ -264,7 +282,7 @@ export async function captureLeagueAccountViewer(
       return {
         buffer,
         riotId,
-        viewerUrl,
+        viewerUrl: resolvedViewerUrl,
       };
     } catch (error) {
       if (error instanceof LeagueAccountViewerSnapshotError) throw error;

@@ -12,6 +12,7 @@ import { getDailySkindleTarget } from '@/lib/skindle-daily';
 import {
   buildLeagueAccountViewerUrl,
   getLeagueAccountViewerAttachmentError,
+  formatLeagueAccountViewerCaptureFailure,
   formatLeagueAccountViewerError,
   formatLeagueAccountViewerResponseError,
   isTrustedLeagueAccountViewerOrigin,
@@ -151,6 +152,15 @@ describe('Discord Skindle test implementation', () => {
     expect(getLeagueAccountViewerAttachmentError(8 * 1024 * 1024)).toBeNull();
     expect(getLeagueAccountViewerAttachmentError((8 * 1024 * 1024) + 1))
       .toBe('The League Account Viewer image is too large to attach. Please open the interactive viewer instead.');
+  });
+
+  it('returns a safe, actionable failure message for each screenshot capture stage', () => {
+    expect(formatLeagueAccountViewerCaptureFailure('start-browser'))
+      .toBe('The League Account Viewer screenshot browser is temporarily unavailable. Please try again shortly.');
+    expect(formatLeagueAccountViewerCaptureFailure('wait-for-viewer'))
+      .toBe('The League Account Viewer did not finish loading in time. Please try again shortly.');
+    expect(formatLeagueAccountViewerCaptureFailure('capture-image'))
+      .toBe('The League Account Viewer loaded, but its image could not be created. Please try again shortly.');
   });
 
   it('does not present upstream Riot or data-provider failures as invalid viewer input', () => {

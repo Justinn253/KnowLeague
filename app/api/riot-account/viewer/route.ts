@@ -18,6 +18,7 @@ import {
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { getServerCache, setServerCache } from '@/lib/server-memory-cache';
 import { logServerEvent } from '@/lib/server-log';
+import { getRiotAccountViewerErrorStatus } from '@/lib/riot-account-viewer-error-status';
 
 export const runtime = 'nodejs';
 
@@ -112,15 +113,6 @@ async function recordViewerSearch(data: ViewerData, dedupeKey: string) {
     tagLine: data.account.tagLine,
     platform: data.platform,
   }, dedupeKey);
-}
-
-function getErrorStatus(error: unknown) {
-  const message = error instanceof Error ? error.message : '';
-  if (message.includes('not configured')) return 503;
-  if (message.includes('not found') || message.includes('stored Riot ID mapping')) return 404;
-  if (message.includes('rate limit')) return 429;
-  if (message.includes('rejected')) return 403;
-  return 400;
 }
 
 export const GET = withApiMetrics('/api/riot-account/viewer', async function GET(request: Request) {
@@ -233,10 +225,11 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load Riot account data.';
-    logServerEvent(getErrorStatus(error) >= 500 ? 'error' : 'warn', 'riot_account_viewer_error', {
-      status: getErrorStatus(error),
+    const status = getRiotAccountViewerErrorStatus(error);
+    logServerEvent(status >= 500 ? 'error' : 'warn', 'riot_account_viewer_error', {
+      status,
       message,
     });
-    return NextResponse.json({ error: message }, { status: getErrorStatus(error) });
+    return NextResponse.json({ error: message }, { status });
   }
 });

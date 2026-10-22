@@ -117,7 +117,6 @@ export type SkinSearchResult = {
 };
 
 type CollectionCapacitySettingsRow = {
-  collection_upkeep_daily_cost_per_excess_skin: number;
   default_collection_capacity: number;
 };
 
@@ -133,6 +132,32 @@ type CollectionSellValueRow = {
 type CollectionUpkeepRow = {
   grace_expires_at: string | null;
   outstanding_amount: number;
+};
+
+type CollectionUpkeepAllocationRow = {
+  balance: number;
+};
+
+type KnowBucksBalanceRow = {
+  balance: number;
+};
+
+type CollectionUpkeepFunding = {
+  allocated_amount: number;
+  allocation_balance: number;
+  capped_amount: number;
+  outcome: 'allocation-full' | 'funded' | 'insufficient-funds';
+  remaining_balance: number;
+};
+
+export type CollectionUpkeepOverview = {
+  allocationBalance: number;
+  combinedFunds: number;
+  dailyCost: number;
+  graceExpiresAt: string | null;
+  outstandingAmount: number;
+  regularBalance: number;
+  totalSkins: number;
 };
 
 type CollectionUpkeepSettlement = {
@@ -195,6 +220,7 @@ type SoldSkinClaim = {
 const SKIN_CLAIM_SETTINGS_CACHE_DURATION_MS = 15_000;
 const SKIN_CLAIM_TIMER_INTERVAL_MS = 30_000;
 const COLLECTION_UPKEEP_FREE_SKIN_COUNT = 10;
+export const COLLECTION_UPKEEP_ALLOCATION_MAXIMUM = 100_000;
 export const SKIN_CLAIM_ACTION_BUTTON_PREFIX = 'skin-claim-action';
 const RARITY_ALIASES: Record<string, string> = {
   kExalted: 'Exalted',
@@ -352,6 +378,22 @@ function formatAcquiredDate(value: string | null | undefined) {
 
 function formatKnowBucks(value: number | null) {
   return value === null ? 'Not configured' : `${new Intl.NumberFormat('en-US').format(value)} KnowBucks`;
+}
+
+/**
+ * Collection upkeep is marginal by ten-skin tier. Lucky's upkeep discount is
+ * applied to the full tiered amount and rounded up, matching the authoritative
+ * database settlement function.
+ */
+export function calculateCollectionDailyUpkeep(ownedSkinCount: number, luckyLevel: number) {
+  const owned = Math.max(0, Math.floor(ownedSkinCount));
+  const tieredAmount = (
+    Math.max(0, Math.min(owned, 20) - 10) * 100
+    + Math.max(0, Math.min(owned, 30) - 20) * 500
+    + Math.max(0, Math.min(owned, 40) - 30) * 1000
+    + Math.max(0, owned - 40) * 2500
+  );
+  return Math.ceil(tieredAmount * Math.max(0, 1 - (Math.max(0, luckyLevel) * 0.05)));
 }
 
 function getSkinDisplayImageUrl(skin: Pick<CatalogSkin, 'centeredImageUrl' | 'imageUrl'>) {
@@ -906,7 +948,7 @@ export async function getSkinCollectionPage(config: DiscordBotConfig, discordUse
       .returns<Omit<ClaimedSkinDrop, 'claimed'>[]>(),
     supabase
       .from('discord_skin_claim_economy_settings')
-      .select('default_collection_capacity, collection_upkeep_daily_cost_per_excess_skin')
+      .select('default_collection_capacity')
       .eq('guild_id', config.guildId)
       .maybeSingle<CollectionCapacitySettingsRow>(),
     supabase
@@ -948,11 +990,7 @@ export async function getSkinCollectionPage(config: DiscordBotConfig, discordUse
     ? null
     : Math.ceil(baseSellValue * (1 + (skillLevels.money_mouser_level * 0.5)));
   const excessSkinCount = Math.max(0, total - COLLECTION_UPKEEP_FREE_SKIN_COUNT);
-  const dailyCost = excessSkinCount
-    ? Math.ceil(settingsResult.data.collection_upkeep_daily_cost_per_excess_skin
-      * excessSkinCount
-      * Math.max(0, 1 - (skillLevels.lucky_level * 0.05)))
-    : 0;
+  const dailyCost = calculateCollectionDailyUpkeep(total, skillLevels.lucky_level);
   return {
     capacity,
     item,
@@ -966,6 +1004,50 @@ export async function getSkinCollectionPage(config: DiscordBotConfig, discordUse
       outstandingAmount: upkeepResult.data?.outstanding_amount ?? 0,
     },
   };
+}
+
+export async function getSkinCollectionUpkeepOverview(config: DiscordBotConfig, discordUserId: string): Promise<CollectionUpkeepOverview> {
+  const supabase = createBotServiceClient(config);
+  const [page, balanceResult, allocationResult] = await Promise.all([
+    getSkinCollectionPage(config, discordUserId, 0),
+    supabase
+      .from('discord_knowbucks_balances')
+      .select('balance')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .maybeSingle<KnowBucksBalanceRow>(),
+    supabase
+      .from('discord_skin_claim_collection_upkeep_allocations')
+      .select('balance')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .maybeSingle<CollectionUpkeepAllocationRow>(),
+  ]);
+  if (balanceResult.error) throw new Error(`Unable to read Discord KnowBucks balance: ${balanceResult.error.message}`);
+  if (allocationResult.error) throw new Error(`Unable to read Discord collection upkeep allocation: ${allocationResult.error.message}`);
+  const regularBalance = balanceResult.data?.balance ?? 0;
+  const allocationBalance = allocationResult.data?.balance ?? 0;
+  return {
+    allocationBalance,
+    combinedFunds: regularBalance + allocationBalance,
+    dailyCost: page.upkeep.dailyCost,
+    graceExpiresAt: page.upkeep.graceExpiresAt,
+    outstandingAmount: page.upkeep.outstandingAmount,
+    regularBalance,
+    totalSkins: page.total,
+  };
+}
+
+export async function fundSkinCollectionUpkeep(config: DiscordBotConfig, discordUserId: string, amount: number) {
+  const { data, error } = await createBotServiceClient(config).rpc('fund_discord_skin_collection_upkeep', {
+    p_amount: amount,
+    p_discord_user_id: discordUserId,
+    p_guild_id: config.guildId,
+  });
+  if (error) throw new Error(`Unable to fund Discord collection upkeep: ${error.message}`);
+  const funding = getFirstResult(data as CollectionUpkeepFunding | CollectionUpkeepFunding[] | null);
+  if (!funding) throw new Error('Collection upkeep funding did not return a result.');
+  return funding;
 }
 
 export async function transferSkinClaim(
@@ -1155,11 +1237,14 @@ export function buildSkinSearchEmbed(skin: CatalogSkin, owners: readonly SkinSea
 }
 
 export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: string, showDetails = false) {
+  const upkeepSummary = page.upkeep.excessSkinCount
+    ? `${formatKnowBucks(page.upkeep.dailyCost)} daily for ${page.upkeep.excessSkinCount} skin${page.upkeep.excessSkinCount === 1 ? '' : 's'} over 10`
+    : 'Free (the first 10 skins are free)';
   if (!page.item) {
     return new EmbedBuilder()
       .setColor(0x64748B)
       .setTitle(`${ownerName}'s skin collection (max ${page.capacity})`)
-      .setDescription('No skins claimed yet. Watch for a skin drop and react first to claim it.');
+      .setDescription(`No skins claimed yet. Watch for a skin drop and react first to claim it.\n\n**Daily collection upkeep:** ${upkeepSummary}`);
   }
   const embed = new EmbedBuilder()
     .setColor(RARITY_COLORS[page.item.rarity] ?? 0xF59E0B)
@@ -1168,6 +1253,7 @@ export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: st
     .setImage(getClaimedSkinDisplayImageUrl(page.item))
     .setFooter({ text: `Skin ${page.page + 1} of ${page.total} · Use /collections give to transfer #${formatSkinCode(page.item.skin_code)}.` });
 
+  embed.setDescription(`${embed.data.description ?? ''}\n**Daily collection upkeep:** ${upkeepSummary}`);
   if (!showDetails) return embed;
 
   return embed.addFields(

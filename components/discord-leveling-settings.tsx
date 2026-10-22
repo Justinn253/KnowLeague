@@ -289,6 +289,7 @@ export function DiscordLevelingSettings() {
     if (channelId === ALL_SKIN_CLAIM_CHANNELS_VALUE) {
       return {
         ...current,
+        skinClaimChannelIds: current.skinClaimSettings.allChannels ? current.skinClaimChannelIds : [],
         skinClaimSettings: { ...current.skinClaimSettings, allChannels: !current.skinClaimSettings.allChannels },
       };
     }
@@ -415,14 +416,16 @@ export function DiscordLevelingSettings() {
           manualXpRoleIds: data.manualXpRoleIds,
           roleRewards: data.roleRewards,
           skinClaimAllChannels: data.skinClaimSettings.allChannels,
-          skinClaimChannelIds: data.skinClaimChannelIds,
+          // Specific selections have no meaning in the All-channels mode. Sending
+          // an empty list also clears a previously selected channel that the bot
+          // can no longer access, so that stale metadata cannot block a save.
+          skinClaimChannelIds: data.skinClaimSettings.allChannels ? [] : data.skinClaimChannelIds,
           skinClaimClaimWindowMinutes: data.skinClaimSettings.claimWindowMinutes,
           skinClaimClaimGracePeriodSeconds: data.skinClaimSettings.claimGracePeriodSeconds,
           skinClaimCommandChannelIds: data.skinClaimCommandChannelIds,
           skinClaimEnabled: data.skinClaimSettings.enabled,
           skinClaimCollectionCapacityUpgradeCost: data.skinClaimSettings.collectionCapacityUpgradeCost,
           skinClaimCollectionStealChancePercent: data.skinClaimSettings.collectionStealChancePercent,
-          skinClaimCollectionUpkeepDailyCostPerExcessSkin: data.skinClaimSettings.collectionUpkeepDailyCostPerExcessSkin,
           skinClaimDefaultCollectionCapacity: data.skinClaimSettings.defaultCollectionCapacity,
           skinClaimMaximumIntervalMinutes: data.skinClaimSettings.maximumIntervalMinutes,
           skinClaimMinimumIntervalMinutes: data.skinClaimSettings.minimumIntervalMinutes,
@@ -521,12 +524,11 @@ export function DiscordLevelingSettings() {
             <div><h3 className="text-sm font-black text-white">Rarity weights</h3><p className="mt-1 text-xs leading-5 text-slate-400">Weights are relative chances, not percentages. Set a rarity to 0 to exclude it; at least one rarity must remain above 0.</p><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{data.skinClaimRarityWeights.map((entry) => <label key={entry.rarity} className="grid gap-2 rounded-2xl border border-white/10 bg-slate-900/60 p-3"><span className="text-sm font-bold text-slate-200">{entry.rarity}</span><input type="number" min={0} max={1000} value={entry.weight} onChange={(event) => updateSkinClaimRarityWeight(entry.rarity, Number(event.target.value))} className="h-10 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>)}</div></div>
             <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
               <h3 className="text-sm font-black text-white">Collection economy</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-400">These amounts apply to the `/collections` commands. Capacity purchases cost the configured amount per added slot, every collection is capped at 50 slots, and the first 10 owned skins are always upkeep-free. Lucky reduces the calculated daily upkeep by 5% per level.</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">These amounts apply to the `/collections` commands. Capacity purchases cost the configured amount per added slot, every collection is capped at 50 slots, and the first 10 owned skins are always upkeep-free. Daily upkeep is tiered: skins 11-20 cost 100 each, 21-30 cost 500 each, 31-40 cost 1,000 each, and 41-50 cost 2,500 each. Lucky reduces the calculated daily upkeep by 5% per level.</p>
               <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Summon base cost</span><input type="number" min={1} max={1000000000} value={data.skinClaimSettings.summonBaseCost} onChange={(event) => updateSkinClaimSettings('summonBaseCost', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
                 <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Default collection size (max 50)</span><input type="number" min={1} max={50} value={data.skinClaimSettings.defaultCollectionCapacity} onChange={(event) => updateSkinClaimSettings('defaultCollectionCapacity', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
                 <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Cost per added slot</span><input type="number" min={1} max={1000000000} value={data.skinClaimSettings.collectionCapacityUpgradeCost} onChange={(event) => updateSkinClaimSettings('collectionCapacityUpgradeCost', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
-                <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Daily upkeep per skin over 10</span><input type="number" min={1} max={1000000000} value={data.skinClaimSettings.collectionUpkeepDailyCostPerExcessSkin} onChange={(event) => updateSkinClaimSettings('collectionUpkeepDailyCostPerExcessSkin', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
                 <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Steal base chance (%)</span><input type="number" min={0} max={100} value={data.skinClaimSettings.collectionStealChancePercent} onChange={(event) => updateSkinClaimSettings('collectionStealChancePercent', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
                 <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Summon and gamble grace (seconds)</span><input type="number" min={0} max={600} value={data.skinClaimSettings.claimGracePeriodSeconds} onChange={(event) => updateSkinClaimSettings('claimGracePeriodSeconds', Number(event.target.value))} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
               </div>

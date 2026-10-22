@@ -17,6 +17,245 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-22-discord-league-account-viewer-capture-hardening',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-capture-hardening',
+    timestamp: '2026-10-22T20:23:18.722Z',
+    title: 'Harden Discord League Account Viewer screenshot captures',
+    summary:
+      'League Account Viewer captures now isolate browser state per request, bound queue and upload resources, validate navigation origin and response failures, and prevent user-supplied Riot IDs from creating Discord mentions or formatting.',
+    details: [
+      'Each capture uses a disposable Chromium browser context and closes it on every result path, preventing cookies, storage, and HTTP cache from one member’s lookup being reused by another. Chromium background networking, component updates, sync, audio, first-run work, and GPU are disabled without disabling the browser sandbox.',
+      'The worker allows at most two active-or-queued captures, has fixed page and image-settle timeouts, handles JavaScript dialogs, rejects unexpected cross-origin redirects, differentiates unavailable/invalid website navigation responses, and refuses PNG attachments over 8 MiB before calling Discord.',
+      'Discord output now escapes the submitted/canonical Riot ID and disables allowed mentions. The short-lived per-member capture map removes expired entries as new capture requests arrive.',
+      'Production bot configuration requires a credential-free HTTPS KnowLeague website origin; local HTTP development remains supported.',
+    ],
+    impact: [
+      'Deploy the independently built Discord bot to receive the capture hardening. Update the production website URL setting to its canonical HTTPS origin if it is not already configured. No slash-command re-registration, website deployment, database migration, Discord permission, or privileged-intent change is required for this patch.',
+    ],
+    files: [
+      'discord-bot/src/config.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/.env.example',
+      'discord-bot/README.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused Discord viewer coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 10 tests).',
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 239 tests passed; Discord bot TypeScript check passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-22-discord-league-account-viewer-upstream-statuses',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-upstream-statuses',
+    timestamp: '2026-10-22T20:17:32.974Z',
+    title: 'Preserve upstream League Account Viewer failure categories',
+    summary:
+      'The League Account Viewer API no longer mislabels an upstream Riot/Data Dragon connection failure as invalid Riot ID or region input, allowing the Discord snapshot to return the correct availability or authorization response.',
+    details: [
+      'The viewer API now returns 503 for an upstream fetch failure, 502 for an unclassified Riot or Data Dragon HTTP failure, and preserves its existing 404, 429, and 403 classifications for missing accounts, quota exhaustion, and rejected Riot API authorization.',
+      'Riot API HTTP 401 now follows the existing rejected-key path alongside 403, so a missing, expired, or invalid key is not presented as a Riot ID/region validation error.',
+      'A small pure error-status helper is covered by Discord viewer tests. Error bodies, headers, API keys, and provider response content are not exposed or recorded by this change.',
+    ],
+    impact: [
+      'Deploy the website API and independently deploy the Discord bot together. No slash-command re-registration, database migration, Discord permission, or privileged-intent change is required.',
+      'Discord members who choose NA receive platform=NA1 through the existing website viewer request; the bot now reports an upstream outage or authorization failure rather than asking them to change that valid region.',
+    ],
+    files: [
+      'app/api/riot-account/viewer/route.ts',
+      'lib/riot-account-viewer-error-status.ts',
+      'lib/riot-account-viewer.ts',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused League Account Viewer error coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 9 tests).',
+      'Verified a local viewer request with platform=NA1 reaches the API and now returns 503 fetch failed rather than a false 400 validation error; the local environment cannot reach the upstream Riot service.',
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 238 tests passed; Discord bot TypeScript check passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-22-discord-league-account-viewer-api-status-errors',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-api-status-errors',
+    timestamp: '2026-10-22T20:10:55.148Z',
+    title: 'Use League Account Viewer API status for Discord failures',
+    summary:
+      'Discord League Account Viewer captures now classify the viewer API response status directly, distinguishing Riot API authorization, request quota, missing accounts, invalid input, and upstream availability even when the page error text is unstructured.',
+    details: [
+      'The screenshot page now observes only its same-origin /api/riot-account/viewer response status; it does not inspect or retain API response bodies, headers, Riot IDs, tokens, or other request data.',
+      'HTTP 401/403 maps to a temporarily unavailable Riot account lookup, 429 maps to the lookup quota response, 404 maps to an account-and-region mismatch, 400 maps to invalid input, and 5xx maps to temporary League account-data unavailability.',
+      'Unstructured webpage errors now safely state that Riot account lookup is temporarily unavailable instead of showing an unexpected-viewer message. The screenshot-worker fallback for a browser failure remains unchanged.',
+    ],
+    impact: [
+      'Deploy the independently built Discord bot to apply status-based errors. No slash-command re-registration, database migration, website deployment, Discord permission, or privileged-intent change is required.',
+    ],
+    files: [
+      'discord-bot/src/league-account-viewer.ts',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused Discord viewer-error coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 8 tests).',
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 237 tests passed; Discord bot TypeScript check passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-22-discord-league-account-viewer-provider-errors',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-provider-errors',
+    timestamp: '2026-10-22T20:08:00.120Z',
+    title: 'Classify League Account Viewer provider failures for Discord',
+    summary:
+      'Discord League Account Viewer snapshots now identify unavailable Riot or Data Dragon account-data providers instead of returning the generic unexpected-viewer message.',
+    details: [
+      'The snapshot error classifier now maps Riot API request failures, Data Dragon request failures, and an unstructured website account-data load failure to one member-safe temporary-unavailability message.',
+      'Provider HTTP status details and raw upstream responses remain server-side; Discord members receive no API internals, identifiers beyond their submitted Riot ID, headers, keys, or other sensitive information.',
+      'The generic unexpected-viewer message remains only for genuinely unrecognized failures, preserving a safe fallback for new website failure states.',
+    ],
+    impact: [
+      'Deploy the independently built Discord bot to apply the new provider-unavailable response. No slash-command re-registration, database migration, website deployment, permission, or privileged-intent change is required.',
+    ],
+    files: [
+      'discord-bot/src/league-account-viewer.ts',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused Discord viewer-error coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 7 tests).',
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 236 tests passed; Discord bot TypeScript check passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-22-discord-league-account-viewer-specific-errors',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-specific-errors',
+    timestamp: '2026-10-22T19:38:00.000Z',
+    title: 'Clarify Discord League Account Viewer lookup failures',
+    summary:
+      'Discord League Account Viewer snapshots now distinguish missing accounts from rate limits, unavailable lookup protection, unavailable Riot configuration, invalid input, and unexpected viewer errors.',
+    details: [
+      'The screenshot worker reads the existing viewer error text only after the viewer has rendered a visible failure state, classifies known safe failure categories, and sends a member-facing message that accurately describes the next action.',
+      'A valid account can no longer be described as missing merely because the Riot API is rate-limited, request protection is unavailable, the server lookup is unavailable, or the viewer fails unexpectedly.',
+      'The error classifier does not relay raw provider responses, headers, request data, tokens, or any server-only details into Discord.',
+    ],
+    impact: [
+      'Deploy the independently built Discord bot to apply the clearer chat responses. No slash-command re-registration, database migration, website deployment, Discord permission, or privileged intent change is required.',
+      'Members should select the region that matches the Riot account. A genuine missing-account response now explicitly identifies the Riot ID and selected-region combination as the item to check.',
+    ],
+    files: [
+      'discord-bot/src/league-account-viewer.ts',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused Discord viewer-error coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 7 tests).',
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 236 tests passed; Discord bot TypeScript check passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-22-discord-league-account-viewer-snapshot-test',
+    patch: 'patch-2026-10-22-discord-league-account-viewer-snapshot-test',
+    timestamp: '2026-10-22T19:17:00.000Z',
+    title: 'Add Discord League Account Viewer snapshot test',
+    summary:
+      'The guild-scoped Discord bot can now post a full PNG snapshot of the existing League Account Viewer overview through `/league account riot-id`, rather than reformatting account data as a Discord embed.',
+    details: [
+      'The new public `/league account riot-id region` command validates the supplied `GameName#TagLine` and required League region, loads the existing website viewer at a fixed 1,400px desktop viewport, waits for its normal profile request to resolve, and attaches the complete Overview page as a PNG with a link to the interactive viewer.',
+      'The screenshot is produced only by the standalone bot process through a local Chromium instance. The browser receives the public website URL and no Discord, Supabase, Riot, or other server-only credential is placed in the screenshot page or browser request.',
+      'The bot serializes captures, limits the experimental command to six captures per rolling minute across the guild and one capture per member every 30 seconds, and returns private retry guidance when a limit applies. The website viewer remains the single source of display and data behavior.',
+      'The bot container now uses Debian Slim with Chromium and Liberation fonts. The local default is Google Chrome on Windows, while `LEAGUE_ACCOUNT_VIEWER_CHROME_EXECUTABLE_PATH` can override the executable path for a nonstandard local installation.',
+      'The viewer exposes nonvisual capture-ready and capture-error data attributes so the bot waits for completed real UI data instead of timing an arbitrary delay. No browser-visible layout or account-viewer behavior changed.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot together, then run `npm run discord:commands:register` with the bot deployment environment to publish `/league account` in the configured guild.',
+      'This first test supports every website League platform through an explicit required region selection. The Mastery, Match History, and Challenges capture contracts remain intentionally pending the requested tab-by-tab design details.',
+      'The bot image gains Chromium and its minimal font/runtime dependencies. It needs no new Discord privileged intent, permission, Supabase migration, database write, Riot key, or browser-exposed secret.',
+    ],
+    files: [
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/src/config.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/Dockerfile',
+      'discord-bot/.env.example',
+      'discord-bot/README.md',
+      'components/riot-account-viewer.tsx',
+      'tests/discord-skindle.test.ts',
+      'discord-bot/package.json',
+      'package-lock.json',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: root lint, root type-check, all 44 Vitest files (235 tests), and the Discord bot type-check. Lint retained only the repository\'s seven existing Next.js <img> warnings.',
+      'npm run discord:commands:register completed successfully for the configured guild, publishing the new `/league account` command shape.',
+      'The configured local bot URL now resolves after starting the single local Next.js dev server. A local Windows headless-Chrome render could not initialize its restricted GPU process even for about:blank, so final attachment pixels must be exercised after the independently deployed Debian/Chromium bot image is running. No website production build was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-22-discord-collections-tiered-upkeep-allocations',
+    patch: 'patch-2026-10-22-discord-collections-tiered-upkeep-allocations',
+    timestamp: '2026-10-22T18:25:41.000Z',
+    title: 'Add tiered Collections upkeep and protected prepayment allocations',
+    summary:
+      'Collections now shows every viewed collection\'s current daily upkeep, charges marginal ten-skin tiers, and gives members private commands to inspect or irrevocably reserve up to 100,000 KnowBucks for future upkeep.',
+    details: [
+      'Migration 180 replaces the configurable flat rate with marginal daily tiers: skins 1-10 are free, 11-20 cost 100 each, 21-30 cost 500 each, 31-40 cost 1,000 each, and 41-50 cost 2,500 each. Lucky still reduces the total by 5% per level and the resulting amount rounds up.',
+      'The collection browser now displays the owner\'s calculated current daily upkeep in compact view, so it is visible for both the invoker\'s collection and another member\'s public collection. Detailed view retains the exact over-ten count and any payment deadline.',
+      'The new private `/collections upkeep-view` panel shows daily cost, pending grace amount and deadline, protected allocation, regular balance, combined funds, and the number of complete future daily charges those funds cover. `/collections upkeep-pay amount` moves only the accepted portion of a request from the normal balance into an irreversible 100,000-KnowBucks allocation; any amount above the remaining cap remains in the normal balance.',
+      'The daily settlement and grace-deadline payment now draw from the allocation before the regular balance. Both allocation funding and consumption are atomic and recorded through service-role-only ledgers; when combined funds are insufficient, no partial amount is consumed before the normal one-day grace rule applies.',
+      'Collection departure and linked-account deletion cleanup now removes the allocation and cascades its audit rows with the related collection state.',
+      'The website Collections settings screen no longer exposes the retired flat upkeep-rate input and instead documents the fixed tier schedule.',
+    ],
+    impact: [
+      'Apply local migration 180 after migrations 178 and 179, then deploy the website and Discord bot. No migration was pushed or applied by this patch.',
+      'Run `npm run discord:commands:register` with the production bot environment so Discord receives `upkeep-view` and `upkeep-pay`. No new privileged intent, bot role permission, Supabase scheduled job, or separate Railway service is required.',
+      'Operational cost remains low: one allocation row per participating member, one compact allocation-ledger row per funding or allocated daily payment, and the existing once-per-day indexed settlement RPC.',
+    ],
+    files: [
+      'supabase/migrations/180_discord_collections_tiered_upkeep_and_allocation.sql',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'discord-bot/README.md',
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'lib/discord-skin-claims.ts',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused Collections regression coverage passed: 15 tests cover the tier boundaries, Lucky rounding, the allocation-command cap contract, and compact collection upkeep display.',
+      'npm run check passed: root lint, root type-check, all 44 Vitest files (234 tests), and the Discord bot type-check. Lint retained only the repository\'s seven existing Next.js <img> warnings.',
+      'Migration 180 is local only and has not been pushed or applied.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-22-discord-collections-all-channel-save-recovery',
+    patch: 'patch-2026-10-22-discord-collections-all-channel-save-recovery',
+    timestamp: '2026-10-22T17:16:00.000Z',
+    title: 'Recover Collections all-channel saves from stale channel metadata',
+    summary:
+      'Discord Configuration now clears obsolete specific drop-channel selections whenever Collections uses the All channel scope, preventing an inaccessible historical channel from blocking unrelated settings saves.',
+    details: [
+      'Selecting All in the Collections drop-channel selector clears its specific channel list immediately. The save request also submits an empty list whenever All is enabled.',
+      'The API now deliberately ignores specific drop-channel IDs when the submitted scope is All. Selected-channel mode remains strict: every selected channel must still be synchronized and sendable by the KnowLeague bot.',
+      'This fixes saves that failed with "Choose skin-claim channels that are currently available to the KnowLeague bot" after a previously selected Discord channel was deleted or the bot lost its View Channel or Send Messages permission.',
+    ],
+    impact: [
+      'Deploy the website to fix the production settings screen. No migration, Discord bot deployment, slash-command registration, or Discord permission change is required for this recovery behavior.',
+      'If Collections should use selected rather than All channels, restore the bot View Channel and Send Messages permissions in every selected channel, then select only the currently available channels in Discord Configuration.',
+    ],
+    files: [
+      'app/api/discord/leveling/route.ts',
+      'components/discord-leveling-settings.tsx',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: root lint, root type-check, all 44 Vitest files (232 tests), and the Discord bot type-check. Lint retained only the repository\'s seven existing Next.js <img> warnings.',
+      'No database migration was created or applied.',
+    ],
+  },
+  {
     id: 'patch-2026-10-21-discord-collections-upkeep-and-public-actions',
     patch: 'patch-2026-10-21-discord-collections-upkeep-and-public-actions',
     timestamp: '2026-10-21T21:30:00.000Z',

@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   addManualXp,
@@ -15,6 +15,11 @@ import { importExternalMessageEmojis } from './emoji-import.js';
 import { findLinkedProfile } from './profiles.js';
 import { isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
+import {
+  captureLeagueAccountViewer,
+  LeagueAccountViewerSnapshotError,
+  SCREENSHOT_FILE_NAME,
+} from './league-account-viewer.js';
 import {
   buildDiscordSkindleGuessEmbed,
   buildDiscordSkindleShareEmbed,
@@ -62,13 +67,16 @@ import {
 import {
   buildSkinSearchEmbed,
   buildSkinCollectionEmbed,
+  COLLECTION_UPKEEP_ALLOCATION_MAXIMUM,
   favoriteSkinClaim,
   findSkinCollectionSearchResult,
+  fundSkinCollectionUpkeep,
   forceAddSkinCollectionCapacity,
   forceSkinClaimDrop,
   gambleSkinClaim,
   getSkinClaimAdminRoleIds,
   getSkinCollectionPage,
+  getSkinCollectionUpkeepOverview,
   isSkinCollectionCommandAllowedInChannel,
   purchaseSkinCollectionCapacity,
   reorderSkinCollection,
@@ -78,6 +86,7 @@ import {
   stealSkinClaim,
   summonSkinClaimDrop,
   transferSkinClaim,
+  type CollectionUpkeepOverview,
 } from './skin-claims.js';
 
 function profileUrl(config: DiscordBotConfig, username?: string) {
@@ -102,6 +111,38 @@ function skindleComponents(config: DiscordBotConfig) {
   return [{ type: 1 as const, components: [skindleButton(config)] }];
 }
 
+const ACCOUNT_VIEWER_CAPTURE_WINDOW_MS = 60_000;
+const ACCOUNT_VIEWER_CAPTURE_LIMIT = 6;
+const ACCOUNT_VIEWER_USER_COOLDOWN_MS = 30_000;
+const accountViewerCaptureTimestamps: number[] = [];
+const accountViewerUserCaptureTimes = new Map<string, number>();
+
+function accountViewerCaptureAvailability(discordUserId: string) {
+  const now = Date.now();
+  while (accountViewerCaptureTimestamps[0] && now - accountViewerCaptureTimestamps[0] >= ACCOUNT_VIEWER_CAPTURE_WINDOW_MS) {
+    accountViewerCaptureTimestamps.shift();
+  }
+  for (const [userId, lastCaptureAt] of accountViewerUserCaptureTimes) {
+    if (now - lastCaptureAt >= ACCOUNT_VIEWER_USER_COOLDOWN_MS) {
+      accountViewerUserCaptureTimes.delete(userId);
+    }
+  }
+
+  const priorUserCapture = accountViewerUserCaptureTimes.get(discordUserId);
+  if (priorUserCapture && now - priorUserCapture < ACCOUNT_VIEWER_USER_COOLDOWN_MS) {
+    return Math.ceil((ACCOUNT_VIEWER_USER_COOLDOWN_MS - (now - priorUserCapture)) / 1_000);
+  }
+
+  if (accountViewerCaptureTimestamps.length >= ACCOUNT_VIEWER_CAPTURE_LIMIT) {
+    const nextAvailableAt = accountViewerCaptureTimestamps[0]! + ACCOUNT_VIEWER_CAPTURE_WINDOW_MS;
+    return Math.max(1, Math.ceil((nextAvailableAt - now) / 1_000));
+  }
+
+  accountViewerCaptureTimestamps.push(now);
+  accountViewerUserCaptureTimes.set(discordUserId, now);
+  return null;
+}
+
 export function isDiscordAdministrativeCommand(commandName: string, subcommand: string | null) {
   return (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
     || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
@@ -111,6 +152,34 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
 
 function formatXp(value: number) {
   return new Intl.NumberFormat().format(value);
+}
+
+function buildCollectionUpkeepEmbed(overview: CollectionUpkeepOverview) {
+  const outstandingPayment = overview.outstandingAmount;
+  const fundingAfterOutstanding = Math.max(0, overview.combinedFunds - outstandingPayment);
+  const coveredPayments = overview.dailyCost > 0
+    ? Math.floor(fundingAfterOutstanding / overview.dailyCost)
+    : null;
+  const dailyCost = formatXp(overview.dailyCost);
+  const description = [
+    `**Collection size:** ${formatXp(overview.totalSkins)} skin${overview.totalSkins === 1 ? '' : 's'}`,
+    `**Daily upkeep:** ${overview.dailyCost > 0 ? `${dailyCost} KnowBucks` : 'Free (the first 10 skins are free)'}`,
+    `**Upkeep allocation:** ${formatXp(overview.allocationBalance)} / ${formatXp(COLLECTION_UPKEEP_ALLOCATION_MAXIMUM)} KnowBucks`,
+    `**Regular balance:** ${formatXp(overview.regularBalance)} KnowBucks`,
+    `**Combined upkeep funds:** ${formatXp(overview.combinedFunds)} KnowBucks`,
+    overview.dailyCost > 0
+      ? `**Coverage:** ${formatXp(coveredPayments ?? 0)} full daily upkeep payment${coveredPayments === 1 ? '' : 's'}${outstandingPayment > 0 ? ' after the current overdue payment' : ''}.`
+      : '**Coverage:** No daily upkeep is due while your collection has 10 or fewer skins.',
+    ...(overview.graceExpiresAt
+      ? [`**Payment due:** ${formatXp(outstandingPayment)} KnowBucks by <t:${Math.floor(new Date(overview.graceExpiresAt).getTime() / 1_000)}:F> (<t:${Math.floor(new Date(overview.graceExpiresAt).getTime() / 1_000)}:R>).`]
+      : []),
+    'Allocated KnowBucks are used before your regular balance and cannot be withdrawn.',
+  ];
+
+  return new EmbedBuilder()
+    .setColor(0xF59E0B)
+    .setTitle('Collection upkeep')
+    .setDescription(description.join('\n\n'));
 }
 
 function getProgressBar(percent: number) {
@@ -1149,11 +1218,47 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
 
 async function handleLeagueCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   const group = interaction.options.getSubcommandGroup();
+  const subcommand = interaction.options.getSubcommand();
+  if (group === null && subcommand === 'account') {
+    const retryAfterSeconds = accountViewerCaptureAvailability(interaction.user.id);
+    if (retryAfterSeconds !== null) {
+      await interaction.reply({
+        content: `League Account Viewer snapshots are limited while this test is running. Please try again in ${retryAfterSeconds} seconds.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const submittedRiotId = interaction.options.getString('riot-id', true);
+    const submittedPlatform = interaction.options.getString('region', true);
+    await interaction.deferReply();
+    try {
+      const snapshot = await captureLeagueAccountViewer(config, submittedRiotId, submittedPlatform);
+      await interaction.editReply({
+        allowedMentions: { parse: [] },
+        components: [{
+          type: 1,
+          components: [new ButtonBuilder()
+            .setStyle(ButtonStyle.Link)
+            .setLabel('Open interactive viewer')
+            .setURL(snapshot.viewerUrl)],
+        }],
+        content: `League Account Viewer snapshot for **${escapeMarkdown(snapshot.riotId)}** (${submittedPlatform}).`,
+        files: [{ attachment: snapshot.buffer, name: SCREENSHOT_FILE_NAME }],
+      });
+    } catch (error) {
+      const message = error instanceof LeagueAccountViewerSnapshotError
+        ? error.message
+        : 'KnowLeague could not create the League Account Viewer snapshot. Please try again shortly.';
+      await interaction.editReply({ content: message });
+    }
+    return;
+  }
+
   if (group !== 'skindle') {
     throw new Error(`Unsupported League command group: ${group ?? 'none'}`);
   }
 
-  const subcommand = interaction.options.getSubcommand();
   const currentStatus = () => discordSkindleSessionStore.getStatus(interaction.user.id);
   if (subcommand === 'play') {
     const status = currentStatus();
@@ -1257,6 +1362,34 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
     await interaction.reply({
       content: 'Collections commands are not enabled in this channel. An administrator can change the Collections commands channel in Discord Configuration. `/collections spawn` remains available to collection administrators in any channel where the bot can post.',
       flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (subcommand === 'upkeep-view') {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const overview = await getSkinCollectionUpkeepOverview(config, interaction.user.id);
+    await interaction.editReply({ embeds: [buildCollectionUpkeepEmbed(overview)] });
+    return;
+  }
+
+  if (subcommand === 'upkeep-pay') {
+    const amount = interaction.options.getInteger('amount', true);
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const funding = await fundSkinCollectionUpkeep(config, interaction.user.id, amount);
+    if (funding.outcome === 'allocation-full') {
+      await interaction.editReply({ content: `Your Collection upkeep allocation is already at its ${formatXp(COLLECTION_UPKEEP_ALLOCATION_MAXIMUM)} KnowBucks maximum. Allocated KnowBucks cannot be withdrawn.` });
+      return;
+    }
+    if (funding.outcome === 'insufficient-funds') {
+      await interaction.editReply({ content: `You need ${formatXp(funding.capped_amount)} KnowBucks to reserve that amount for upkeep. Your current balance is ${formatXp(funding.remaining_balance)} KnowBucks and your upkeep allocation is ${formatXp(funding.allocation_balance)} / ${formatXp(COLLECTION_UPKEEP_ALLOCATION_MAXIMUM)}.` });
+      return;
+    }
+    const unallocatedAmount = amount - funding.allocated_amount;
+    const overview = await getSkinCollectionUpkeepOverview(config, interaction.user.id);
+    await interaction.editReply({
+      content: `Set aside ${formatXp(funding.allocated_amount)} KnowBucks for Collection upkeep. Your allocation is now ${formatXp(funding.allocation_balance)} / ${formatXp(COLLECTION_UPKEEP_ALLOCATION_MAXIMUM)} and your regular balance is ${formatXp(funding.remaining_balance)}.${unallocatedAmount > 0 ? ` The remaining ${formatXp(unallocatedAmount)} KnowBucks stayed in your regular balance because the allocation is capped.` : ''}`,
+      embeds: [buildCollectionUpkeepEmbed(overview)],
     });
     return;
   }
@@ -1988,7 +2121,8 @@ export async function handleChatInputCommand(
             { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent relics apply to the saved trip; crew runs take three times as long with normal rewards.' },
             { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or use the inventory tabs to inspect relic descriptions and equip an owned rod or bait.' },
             { name: '/fish chests-open, catalogue, help', value: 'Redeem all held legacy chests, browse the biome-filtered field guide, or open focused fishing help. Newly caught crates open automatically during expeditions.' },
-            { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Use Show details to see collection metadata and the skin\'s sell value.' },
+            { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Every panel shows that collection\'s current daily upkeep; use Show details for metadata and the skin\'s sell value.' },
+            { name: '/collections upkeep-view/upkeep-pay amount', value: 'Privately view your daily upkeep, allocation, regular balance, and full-payment coverage, or irrevocably reserve KnowBucks for upkeep. Allocations are capped at 100,000, are used before your regular balance, and cannot be withdrawn.' },
             { name: '/collections give member skin-id', value: 'Give one of your claimed skins to another current server member by its four-digit ID.' },
             { name: '/collections summon/summon-force', value: 'Summon a claimable drop for the configured cost (5,000 KnowBucks by default) every four hours, reduced by Haste. While on cooldown, force-summon for 5,000 KnowBucks with a 50% increase per successful force summon until the Monday UTC weekly reset; Cheapskate reduces either cost.' },
             { name: '/collections capacity-add slots', value: 'Buy one or more collection slots for the configured per-slot rate (500 KnowBucks per slot by default), up to 50 total slots. Staff can use `capacity-force-add` for a free member upgrade within that limit.' },

@@ -1,4 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder, type SlashCommandSubcommandBuilder } from 'discord.js';
+import { LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS } from './league-account-viewer.js';
 
 function addSkinIdOption(command: SlashCommandSubcommandBuilder) {
   return command.addIntegerOption((option) => option
@@ -33,6 +34,18 @@ function createCollectionsCommand() {
         .setName('member')
         .setDescription('Member whose collection to browse. Defaults to you.')
         .setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('upkeep-view')
+      .setDescription('View your daily Collection upkeep and how long your funds cover it.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('upkeep-pay')
+      .setDescription('Irreversibly set aside KnowBucks for Collection upkeep, up to 100,000 total.')
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('KnowBucks to set aside. Any amount above your remaining allocation cap stays in your balance.')
+        .setMinValue(1)
+        .setMaxValue(1_000_000_000)
+        .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('give')
       .setDescription('Give one of your claimed skins to another server member.')
@@ -113,6 +126,23 @@ function createLeagueCommand() {
   return new SlashCommandBuilder()
     .setName('league')
     .setDescription('Use KnowLeague features from Discord.')
+    .addSubcommand((subcommand) => subcommand
+      .setName('account')
+      .setDescription('Post a League Account Viewer image for a Riot ID.')
+      .addStringOption((option) => option
+        .setName('riot-id')
+        .setDescription('Riot ID in the format GameName#TagLine.')
+        .setMinLength(3)
+        .setMaxLength(64)
+        .setRequired(true))
+      .addStringOption((option) => option
+        .setName('region')
+        .setDescription('League region for this Riot ID.')
+        .addChoices(...LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS.map((platform) => ({
+          name: platform.label,
+          value: platform.value,
+        })))
+        .setRequired(true)))
     .addSubcommandGroup((group) => group
       .setName('skindle')
       .setDescription('Play the daily Skindle puzzle.')

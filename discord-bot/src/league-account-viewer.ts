@@ -7,7 +7,11 @@ const PAGE_LOAD_TIMEOUT_MS = 45_000;
 const IMAGE_SETTLE_TIMEOUT_MS = 10_000;
 const MAX_PENDING_CAPTURES = 2;
 const MAX_SCREENSHOT_BYTES = 8 * 1024 * 1024;
-const SCREENSHOT_FILE_NAME = 'knowleague-league-account.png';
+const DISCORD_SNAPSHOT_TARGETS = [
+  { id: 'overview', fileName: 'knowleague-league-account-overview.png' },
+  { id: 'mastery', fileName: 'knowleague-league-account-mastery.png' },
+  { id: 'matches', fileName: 'knowleague-league-account-match-history.png' },
+] as const;
 
 export const LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS = [
   { label: 'BR — Brazil', value: 'BR1' },
@@ -33,7 +37,10 @@ export type LeagueAccountViewerPlatform = (typeof LEAGUE_ACCOUNT_VIEWER_PLATFORM
 export class LeagueAccountViewerSnapshotError extends Error {}
 
 type LeagueAccountViewerSnapshot = {
-  buffer: Buffer;
+  files: Array<{
+    buffer: Buffer;
+    fileName: string;
+  }>;
   riotId: string;
   viewerUrl: string;
 };
@@ -139,8 +146,8 @@ export function isTrustedLeagueAccountViewerOrigin(candidateUrl: string, configu
     && hostnameWithoutWww(candidate.hostname) === hostnameWithoutWww(configured.hostname);
 }
 
-function isLeagueAccountViewerPage(url: URL) {
-  return url.pathname.replace(/\/+$/, '') === '/riot-account-viewer';
+function isLeagueAccountViewerPage(url: URL, expectedPath: string) {
+  return url.pathname.replace(/\/+$/, '') === expectedPath;
 }
 
 function isLeagueAccountViewerPlatform(value: string): value is LeagueAccountViewerPlatform {
@@ -156,6 +163,17 @@ export function buildLeagueAccountViewerUrl(
   viewerUrl.searchParams.set('riotId', riotId);
   viewerUrl.searchParams.set('platform', platform);
   viewerUrl.searchParams.set('tab', 'overview');
+  return viewerUrl.toString();
+}
+
+export function buildLeagueAccountViewerSnapshotUrl(
+  config: Pick<DiscordBotConfig, 'siteUrl'>,
+  riotId: string,
+  platform: LeagueAccountViewerPlatform,
+) {
+  const viewerUrl = new URL('/riot-account-viewer/discord-snapshot', config.siteUrl);
+  viewerUrl.searchParams.set('riotId', riotId);
+  viewerUrl.searchParams.set('platform', platform);
   return viewerUrl.toString();
 }
 
@@ -237,6 +255,7 @@ export async function captureLeagueAccountViewer(
     throw new LeagueAccountViewerSnapshotError('Choose a supported League region.');
   }
   const viewerUrl = buildLeagueAccountViewerUrl(config, riotId, platform);
+  const snapshotUrl = buildLeagueAccountViewerSnapshotUrl(config, riotId, platform);
   let resolvedViewerUrl = viewerUrl;
 
   return runOneCapture(async () => {
@@ -250,7 +269,7 @@ export async function captureLeagueAccountViewer(
       let viewerApiResponseStatus: number | null = null;
       page.on('response', (response) => {
         const responseUrl = new URL(response.url());
-        if (isTrustedLeagueAccountViewerOrigin(responseUrl.toString(), viewerUrl) && responseUrl.pathname === '/api/riot-account/viewer') {
+        if (isTrustedLeagueAccountViewerOrigin(responseUrl.toString(), snapshotUrl) && responseUrl.pathname === '/api/riot-account/viewer') {
           viewerApiResponseStatus = response.status();
         }
       });
@@ -262,7 +281,7 @@ export async function captureLeagueAccountViewer(
       page.setDefaultTimeout(PAGE_LOAD_TIMEOUT_MS);
       await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
       captureStage = 'load-viewer';
-      const navigationResponse = await page.goto(viewerUrl, { timeout: PAGE_LOAD_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
+      const navigationResponse = await page.goto(snapshotUrl, { timeout: PAGE_LOAD_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
       if (navigationResponse && navigationResponse.status() >= 500) {
         throw new LeagueAccountViewerSnapshotError('The KnowLeague website is temporarily unavailable. Please try again shortly.');
       }
@@ -270,10 +289,12 @@ export async function captureLeagueAccountViewer(
         throw new LeagueAccountViewerSnapshotError('The League Account Viewer could not be opened. Please try again shortly.');
       }
       const finalViewerUrl = new URL(page.url());
-      if (!isTrustedLeagueAccountViewerOrigin(finalViewerUrl.toString(), viewerUrl) || !isLeagueAccountViewerPage(finalViewerUrl)) {
+      if (!isTrustedLeagueAccountViewerOrigin(finalViewerUrl.toString(), snapshotUrl) || !isLeagueAccountViewerPage(finalViewerUrl, '/riot-account-viewer/discord-snapshot')) {
         throw new LeagueAccountViewerSnapshotError('The League Account Viewer redirected unexpectedly. Please try again shortly.');
       }
-      resolvedViewerUrl = finalViewerUrl.toString();
+      const finalInteractiveViewerUrl = new URL('/riot-account-viewer', finalViewerUrl);
+      finalInteractiveViewerUrl.search = new URL(viewerUrl).search;
+      resolvedViewerUrl = finalInteractiveViewerUrl.toString();
       captureStage = 'wait-for-viewer';
       await page.waitForSelector('[data-lav-capture-ready="true"], [data-lav-capture-error="true"]', {
         timeout: PAGE_LOAD_TIMEOUT_MS,
@@ -305,14 +326,23 @@ export async function captureLeagueAccountViewer(
       }).catch(() => undefined);
 
       captureStage = 'capture-image';
-      const image = await page.screenshot({ captureBeyondViewport: true, fullPage: true, type: 'png' });
-      const buffer = Buffer.from(image);
-      const attachmentError = getLeagueAccountViewerAttachmentError(buffer.byteLength);
-      if (attachmentError) {
-        throw new LeagueAccountViewerSnapshotError(attachmentError);
+      const files = [] as LeagueAccountViewerSnapshot['files'];
+      for (const target of DISCORD_SNAPSHOT_TARGETS) {
+        const selector = `[data-lav-discord-snapshot="${target.id}"]`;
+        const targetElement = await page.waitForSelector(selector, { timeout: PAGE_LOAD_TIMEOUT_MS });
+        if (!targetElement) {
+          throw new LeagueAccountViewerSnapshotError('The League Account Viewer did not finish loading in time. Please try again shortly.');
+        }
+        const image = await targetElement.screenshot({ type: 'png' });
+        const buffer = Buffer.from(image);
+        const attachmentError = getLeagueAccountViewerAttachmentError(buffer.byteLength);
+        if (attachmentError) {
+          throw new LeagueAccountViewerSnapshotError(attachmentError);
+        }
+        files.push({ buffer, fileName: target.fileName });
       }
       return {
-        buffer,
+        files,
         riotId,
         viewerUrl: resolvedViewerUrl,
       };
@@ -342,5 +372,3 @@ export async function closeLeagueAccountViewerBrowser() {
   }
   await connection.browser.close().catch(() => undefined);
 }
-
-export { SCREENSHOT_FILE_NAME };

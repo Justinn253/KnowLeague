@@ -17,6 +17,37 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-23-discord-league-account-viewer-render-mode',
+    patch: 'patch-2026-10-23-discord-league-account-viewer-render-mode',
+    timestamp: '2026-10-23T19:40:28.876Z',
+    title: 'Render purpose-built League Account Viewer image panels for Discord',
+    summary:
+      'The Discord `/league account` command now captures dedicated Overview, top-15 Mastery, and Current Game/recent-six Match History panels instead of taking one full interactive-page screenshot.',
+    details: [
+      'A non-indexed `/riot-account-viewer/discord-snapshot` route renders the existing account data in a static Discord-specific mode. It omits the website header, search controls, tab navigation, dropdowns, update/copy/share actions, and Mastery Master launch action while leaving the interactive viewer unchanged.',
+      'The Overview panel retains summoner level, total mastery, recent win rate, challenge points, ranked queue placement, and five signature champions. The Mastery panel shows exactly the 15 highest-mastery champions. The Match History panel includes an active game when Riot reports one and orders then limits returned match history to the six most recent matches.',
+      'The bot loads the account once in one isolated Browserless/local-browser context and captures the three explicitly marked render panels as individual PNG attachments. The interactive-viewer button continues to point only to the normal, verified website viewer route rather than the non-indexed render target.',
+      'Each attachment continues to be individually limited to 8 MiB before Discord upload; navigation, origin validation, response-status error mapping, browser-context cleanup, queue limits, and safe Discord output handling remain in force.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot together, because the bot capture target is a new website route. No slash-command re-registration, database migration, Discord permission, privileged-intent, or Browserless variable change is required.',
+      'Discord members receive three clearly named images for successful account lookups. Website visitors retain the existing interactive League Account Viewer controls and layouts.',
+    ],
+    files: [
+      'app/riot-account-viewer/discord-snapshot/page.tsx',
+      'components/riot-account-viewer.tsx',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 241 tests passed; Discord bot TypeScript check passed.',
+      'Passed focused Discord viewer coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 12 tests).',
+    ],
+  },
+  {
     id: 'patch-2026-10-22-discord-league-account-viewer-browserless',
     patch: 'patch-2026-10-22-discord-league-account-viewer-browserless',
     timestamp: '2026-10-22T21:12:30.849Z',

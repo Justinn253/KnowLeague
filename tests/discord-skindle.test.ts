@@ -11,6 +11,7 @@ import {
 import { getDailySkindleTarget } from '@/lib/skindle-daily';
 import {
   buildLeagueAccountViewerUrl,
+  buildLeagueAccountViewerSnapshotUrl,
   getLeagueAccountViewerAttachmentError,
   formatLeagueAccountViewerCaptureFailure,
   formatLeagueAccountViewerError,
@@ -111,6 +112,8 @@ describe('Discord Skindle test implementation', () => {
     expect(() => normalizeLeagueRiotId('Thebausffs')).toThrow('GameName#TagLine');
     expect(buildLeagueAccountViewerUrl({ siteUrl: 'https://knowleague.example' }, 'Thebausffs#COOL', 'EUW1'))
       .toBe('https://knowleague.example/riot-account-viewer?riotId=Thebausffs%23COOL&platform=EUW1&tab=overview');
+    expect(buildLeagueAccountViewerSnapshotUrl({ siteUrl: 'https://knowleague.example' }, 'Thebausffs#COOL', 'EUW1'))
+      .toBe('https://knowleague.example/riot-account-viewer/discord-snapshot?riotId=Thebausffs%23COOL&platform=EUW1');
   });
 
   it('allows only the trusted www canonical-host redirect for the viewer', () => {

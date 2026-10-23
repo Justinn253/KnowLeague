@@ -18,7 +18,6 @@ import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from 
 import {
   captureLeagueAccountViewer,
   LeagueAccountViewerSnapshotError,
-  SCREENSHOT_FILE_NAME,
 } from './league-account-viewer.js';
 import {
   buildDiscordSkindleGuessEmbed,
@@ -1243,8 +1242,8 @@ async function handleLeagueCommand(interaction: ChatInputCommandInteraction, con
             .setLabel('Open interactive viewer')
             .setURL(snapshot.viewerUrl)],
         }],
-        content: `League Account Viewer snapshot for **${escapeMarkdown(snapshot.riotId)}** (${submittedPlatform}).`,
-        files: [{ attachment: snapshot.buffer, name: SCREENSHOT_FILE_NAME }],
+        content: `League Account Viewer snapshots for **${escapeMarkdown(snapshot.riotId)}** (${submittedPlatform}).`,
+        files: snapshot.files.map((file) => ({ attachment: file.buffer, name: file.fileName })),
       });
     } catch (error) {
       const message = error instanceof LeagueAccountViewerSnapshotError

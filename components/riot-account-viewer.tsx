@@ -14,6 +14,7 @@ import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 const platformRoutes = ['NA1', 'BR1', 'LA1', 'LA2', 'EUW1', 'EUN1', 'KR', 'JP1', 'OC1', 'TR1', 'RU', 'PH2', 'SG2', 'TH2', 'TW2', 'VN2'] as const;
 type ViewerTab = 'overview' | 'mastery' | 'matches' | 'challenges';
 type PlatformRoute = (typeof platformRoutes)[number];
+type RiotAccountViewerRenderMode = 'interactive' | 'discord-snapshot';
 type SharedRiotIdSuggestion = {
   riotId: string;
   platform: PlatformRoute;
@@ -720,7 +721,15 @@ function MasteryLevelPlate({ championLevel }: { championLevel: number }) {
   );
 }
 
-function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; onTabChange: (tab: ViewerTab) => void }) {
+function OverviewTab({
+  data,
+  onTabChange,
+  snapshot = false,
+}: {
+  data: RiotAccountViewerResponse;
+  onTabChange: (tab: ViewerTab) => void;
+  snapshot?: boolean;
+}) {
   const soloQueue = data.ranked.find((entry) => entry.queueType === 'RANKED_SOLO_5x5');
   const flexQueue = data.ranked.find((entry) => entry.queueType === 'RANKED_FLEX_SR');
   const topMasteries = data.masteries.slice(0, 5);
@@ -739,7 +748,7 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
   }, [data.matches]);
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-5" data-lav-discord-snapshot={snapshot ? 'overview' : undefined}>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Summoner Level" value={formatNumber(data.summoner.summonerLevel)} icon={Shield} />
         <StatTile
@@ -748,13 +757,13 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
           icon={Medal}
           topPercent={formatGlobalTopPercent(data.analytics.totalMasteryTopPercent, data.analytics.sampleSize, 14.2)}
           topPercentTitle={globalRankingTooltip}
-          onClick={() => onTabChange('mastery')}
+          onClick={snapshot ? undefined : () => onTabChange('mastery')}
         />
         <StatTile
           label="Recent Win Rate"
           value={data.summary.recentWinRate === null ? 'No matches' : `${data.summary.recentWinRate}%`}
           icon={Trophy}
-          onClick={() => onTabChange('matches')}
+          onClick={snapshot ? undefined : () => onTabChange('matches')}
         />
         <StatTile
           label="Challenge Points"
@@ -762,7 +771,7 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
           icon={Crown}
           topPercent={formatGlobalTopPercent(data.analytics.challengePointsTopPercent, data.analytics.sampleSize, 21.8)}
           topPercentTitle={globalRankingTooltip}
-          onClick={() => onTabChange('challenges')}
+          onClick={snapshot ? undefined : () => onTabChange('challenges')}
         />
       </div>
 
@@ -821,10 +830,12 @@ function OverviewTab({ data, onTabChange }: { data: RiotAccountViewerResponse; o
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Signature champions</p>
-            <a href={buildMasteryMasterUrl(data)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 py-2 text-xs font-black text-slate-950   transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
-              <Play size={14} fill="currentColor" />
-              Play Mastery Master
-            </a>
+            {!snapshot ? (
+              <a href={buildMasteryMasterUrl(data)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-300 to-cyan-300 px-3 py-2 text-xs font-black text-slate-950   transition hover:-translate-y-0.5 hover:border-white hover:brightness-110">
+                <Play size={14} fill="currentColor" />
+                Play Mastery Master
+              </a>
+            ) : null}
           </div>
           <div className="mt-5 grid gap-3">
             {topMasteries.map((mastery) => {
@@ -1109,6 +1120,69 @@ function MasteryTab({ data }: { data: RiotAccountViewerResponse }) {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiscordMasterySnapshot({ data }: { data: RiotAccountViewerResponse }) {
+  const masteries = useMemo(() => [...data.masteries]
+    .sort((left, right) => right.championPoints - left.championPoints)
+    .slice(0, 15), [data.masteries]);
+  const maxPoints = Math.max(...masteries.map((mastery) => mastery.championPoints), 1);
+  const markers = [1, 0.75, 0.5, 0.25, 0];
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 p-5" data-lav-discord-snapshot="mastery">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Top Champion Mastery</p>
+      {masteries.length === 0 ? (
+        <p className="mt-6 rounded-2xl border border-dashed border-white/10 bg-slate-900/30 p-8 text-center text-sm text-slate-400">No champion mastery data was returned for this player.</p>
+      ) : (
+        <div className="relative mt-6 pl-14">
+          <div className="pointer-events-none absolute left-0 right-0 top-16 z-20 h-[300px]">
+            {markers.map((marker) => (
+              <div
+                key={marker}
+                className="absolute left-0 right-0 flex items-center"
+                style={{ top: `${(1 - marker) * 300}px` }}
+              >
+                <div className="flex w-12 items-center justify-end gap-2 text-[0.65rem] font-semibold text-slate-500">
+                  <span>{formatNumber(Math.round(maxPoints * marker))}</span>
+                  <span className="h-px w-2 bg-white/15" />
+                </div>
+                <span className="ml-2 h-px flex-1 bg-white/10" />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex min-w-[67rem] items-start gap-2 pr-4">
+            {masteries.map((mastery, index) => {
+              const height = Math.max(28, Math.round((mastery.championPoints / maxPoints) * 300));
+              return (
+                <div key={mastery.champion.id} className="relative flex w-16 shrink-0 flex-col items-center gap-3">
+                  <div className="flex h-16 items-end justify-center">
+                    <MasteryCrest championLevel={mastery.championLevel} />
+                  </div>
+                  <div className="flex h-[300px] items-end justify-center">
+                    <div
+                      className={`w-10 rounded-t-xl border ${masteryBarClass(mastery.championLevel)}`}
+                      style={{ height }}
+                      aria-label={`${mastery.champion.name}: ${mastery.championPoints} mastery points`}
+                    >
+                      <div className={`h-full rounded-t-xl ${masteryBarFillClass(mastery.championLevel)}`} />
+                    </div>
+                  </div>
+                  <ChampionIcon src={mastery.champion.imageUrl} name={mastery.champion.name} />
+                  <div className="min-h-16 text-center">
+                    <p className="w-16 truncate text-sm font-bold text-white">{mastery.champion.name}</p>
+                    <MasteryLevelPlate championLevel={mastery.championLevel} />
+                    <p className="text-[0.68rem] font-bold text-amber-300">#{index + 1}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1608,6 +1682,79 @@ function MatchHistoryTab({ data, focusedMatchId, onFocusedMatchConsumed }: { dat
   );
 }
 
+function DiscordMatchHistorySnapshot({ data }: { data: RiotAccountViewerResponse }) {
+  const matches = useMemo(() => [...data.matches]
+    .sort((left, right) => (right.gameStartTimestamp ?? right.gameCreation) - (left.gameStartTimestamp ?? left.gameCreation))
+    .slice(0, 6), [data.matches]);
+  const averageEnemyRank = useMemo(() => getAverageEnemyRankForMatches(matches), [matches]);
+
+  return (
+    <div className="grid gap-5" data-lav-discord-snapshot="matches">
+      <CurrentGameSection data={data} />
+
+      <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Recent Matches</p>
+          <div className="mt-2">
+            <AverageEnemyRankSummary averageRank={averageEnemyRank} />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          {matches.map((match) => {
+            const matchAverageEnemyRank = getAverageEnemyRank(match);
+            const knownQueue = isKnownQueue(match.queueId);
+            const matchMeta = [formatDateTime(match.gameStartTimestamp ?? match.gameCreation), formatDuration(match.gameDuration)].join(' - ');
+            const remake = isRemakeMatch(match.gameDuration);
+            const resultCardClass = remake
+              ? 'border-slate-400/20 bg-slate-800/50'
+              : match.win
+                ? 'border-emerald-300/30 bg-emerald-950/20'
+                : 'border-rose-300/30 bg-rose-950/20';
+
+            return (
+              <article key={match.matchId} className={`rounded-2xl border ${resultCardClass}`}>
+                <div className="grid gap-4 p-4 text-left lg:grid-cols-[1fr_auto] lg:items-center">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <ChampionIcon src={match.champion.imageUrl} name={match.champion.name} size="lg" />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-white">{match.champion.name}</p>
+                        <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300">
+                          {formatQueueLabel(match.queueId)}
+                        </span>
+                        <AverageEnemyRankBadge averageRank={matchAverageEnemyRank} />
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                        <span>{matchMeta}</span>
+                        {knownQueue && match.position ? (
+                          <>
+                            <span aria-hidden="true">-</span>
+                            <MatchRole position={match.position} />
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-3 text-sm lg:min-w-[34rem]">
+                    <MatchHeaderMetric icon={Swords} label="KDA" value={`${match.kills}/${match.deaths}/${match.assists}`} />
+                    <MatchHeaderMetric icon={Coins} label="Gold" value={formatNumber(match.goldEarned)} />
+                    <MatchHeaderMetric icon={CircleDot} label="CS" value={formatNumber(match.creepScore)} />
+                    <MatchHeaderMetric icon={Swords} label="Damage" value={formatNumber(match.damageToChampions)} />
+                    <MatchHeaderMetric icon={Eye} label="Vision" value={formatNumber(match.visionScore)} />
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          {matches.length === 0 ? <p className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-400">No recent matches were returned for this player.</p> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ChallengesTab({ data }: { data: RiotAccountViewerResponse }) {
   if (!data.challenges) {
     return (
@@ -2041,7 +2188,7 @@ function EmptyState() {
   );
 }
 
-export function RiotAccountViewer() {
+export function RiotAccountViewer({ renderMode = 'interactive' }: { renderMode?: RiotAccountViewerRenderMode }) {
   const [riotId, setRiotId] = useState('');
   const [platform, setPlatform] = useState<PlatformRoute>('NA1');
   const [activeTab, setActiveTab] = useState<ViewerTab>('overview');
@@ -2236,6 +2383,26 @@ export function RiotAccountViewer() {
   }, [riotIdSuggestions, sharedSuggestions]);
 
   const title = data ? `${data.account.gameName}#${data.account.tagLine}` : 'KnowLeague - League Account Viewer';
+
+  if (renderMode === 'discord-snapshot') {
+    return (
+      <main className="min-h-[100dvh] bg-slate-950 text-slate-100" data-lav-capture-ready={data ? 'true' : undefined}>
+        <section className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-8 lg:px-10">
+          {data ? (
+            <>
+              <OverviewTab data={data} onTabChange={handleTabChange} snapshot />
+              <DiscordMasterySnapshot data={data} />
+              <DiscordMatchHistorySnapshot data={data} />
+            </>
+          ) : error ? (
+            <p data-lav-capture-error="true" className="rounded-2xl border border-rose-400/30 bg-rose-950/30 px-4 py-3 text-sm font-semibold text-rose-100">{error}</p>
+          ) : (
+            <EmptyState />
+          )}
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-[100dvh] bg-slate-950 text-slate-100" data-lav-capture-ready={data ? 'true' : undefined}>

@@ -1,5 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder, type SlashCommandSubcommandBuilder } from 'discord.js';
-import { LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS } from './league-account-viewer.js';
+import { CHAMPION_CATALOGUE_SNAPSHOT_SECTION_OPTIONS, LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS } from './league-account-viewer.js';
 
 function addSkinIdOption(command: SlashCommandSubcommandBuilder) {
   return command.addIntegerOption((option) => option
@@ -141,6 +141,23 @@ function createLeagueCommand() {
         .addChoices(...LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS.map((platform) => ({
           name: platform.label,
           value: platform.value,
+        })))
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('champion')
+      .setDescription('Post Champion Catalogue images for a champion.')
+      .addStringOption((option) => option
+        .setName('champion')
+        .setDescription('Champion name, such as Aatrox or Miss Fortune.')
+        .setMinLength(2)
+        .setMaxLength(64)
+        .setRequired(true))
+      .addStringOption((option) => option
+        .setName('section')
+        .setDescription('Champion Catalogue section or all sections to post.')
+        .addChoices(...CHAMPION_CATALOGUE_SNAPSHOT_SECTION_OPTIONS.map((section) => ({
+          name: section.label,
+          value: section.value,
         })))
         .setRequired(true)))
     .addSubcommandGroup((group) => group

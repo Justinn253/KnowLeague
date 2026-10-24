@@ -17,6 +17,137 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-24-discord-snapshot-cost-hardening',
+    patch: 'patch-2026-10-24-discord-snapshot-cost-hardening',
+    timestamp: '2026-10-24T00:26:55.611Z',
+    title: 'Harden Discord screenshot rendering and document its operating cost model',
+    summary:
+      'Discord League Account Viewer and Champion Catalogue rendering now limits browser navigation, response size, idle remote-browser time, and multi-image request cost; operators also have a documented Railway and Browserless cost model.',
+    details: [
+      'Each snapshot browser page now allows top-level navigation only to the configured KnowLeague origin (including its canonical www form), blocking an unexpected redirect before the remote browser follows it. Known advertising and telemetry hosts are also blocked during capture, while website and game-asset requests remain available for visual fidelity.',
+      'The production site URL now rejects private and loopback hostnames, in addition to its prior HTTPS and no-credentials checks. Capture API-response inspection handles an unexpected non-URL response without an event-handler exception. Isolated contexts, static render paths, final-route validation, bounded waits, and safe output messages continue to apply.',
+      'The shared Browserless client disconnects after two inactive minutes, releasing a remote browser session while retaining the separately deployed Browserless service. Each output PNG remains limited to 8 MiB, and the complete attachment set is now limited to 20 MiB so an eight-image command cannot retain or upload an unbounded batch.',
+      'The former command-count limiter is now a six-work-unit rolling budget. Account renders reserve two units, Champion All sections reserve four, Ability details reserve three, and each one-image Champion section reserves one. This reflects the relative render/upload work while preserving the 30-second member cooldown, single active renderer, and two-item queue.',
+      'docs/discord-snapshot-operations.md records self-hosted Railway pricing inputs, a transparent formula and illustrative scenarios, Browserless Cloud unit implications, capacity ceilings, and Railway cost-control recommendations. It deliberately distinguishes the current private Railway Browserless deployment from Browserless Cloud billing.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply all runtime hardening. No website deployment, database migration, Discord permission, Riot configuration, Browserless variable, or slash-command registration change is required.',
+      'A full Champion image set can be requested once in a fresh one-minute server budget, and a member still waits 30 seconds between capture commands. If the bot is scaled beyond one replica, move the process-local work budget to an atomic shared store before raising replica count.',
+      'Operators should set Railway resource and usage limits, retain Browserless without a public domain, and use actual per-service metrics for final sizing. No sensitive identifier, URL, credential, provider text, or screenshot content is added to bot logs or this changelog.',
+    ],
+    files: [
+      'discord-bot/src/config.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/README.md',
+      'docs/discord-snapshot-operations.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused Discord snapshot coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 15 tests).',
+      'Passed npm run discord:check and npm run check; lint retained only the repository\'s existing next/image warnings.',
+      'Passed git diff --check; CRLF normalization notices from Git were informational only.',
+      'Reviewed current official Railway and Browserless pricing and cost-control documentation; no deployment configuration or external provider state was changed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-24-discord-champion-snapshot-sections',
+    patch: 'patch-2026-10-24-discord-champion-snapshot-sections',
+    timestamp: '2026-10-24T00:12:08.592Z',
+    title: 'Let Discord members request specific Champion Catalogue sections',
+    summary:
+      'The required `section` option on `/league champion` now lets members post all eight images or only Overview, Statistics and playstyle, Ability details, or All skins.',
+    details: [
+      'The guild-scoped command exposes five bounded Discord choices: all, overview, stats, abilities, and skins. The bot validates the submitted choice again before building the website URL, so untrusted interaction data cannot select an arbitrary capture surface. During deployment, a still-registered prior command without the new option safely defaults to all sections until registration completes.',
+      'The non-indexed Champion capture route accepts the validated section query and renders only the corresponding marked panels. The bot captures one overview, one statistics/playstyle panel, five ability panels, one skin gallery, or all eight in their established order.',
+      'Section-specific requests avoid rendering and attaching unrelated panels. Skins retains its eager asset handling and successful-image wait; all capture contexts, URL validation, attachment-size limits, queues, cooldowns, and safe messages remain intact.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot, then run `npm run discord:commands:register` with the bot deployment environment to add the required command option. No database migration, Discord permission, privileged intent, Riot API, or Browserless configuration change is required.',
+    ],
+    files: [
+      'app/champions/discord-snapshot/page.tsx',
+      'components/champion-discord-snapshot.tsx',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/README.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; application and Discord bot TypeScript checks passed; 44 Vitest files / 243 tests passed.',
+      'Passed focused command coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 14 tests).',
+      'Passed git diff --check; CRLF normalization notices from Git were informational only.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-24-discord-champion-snapshot-assets',
+    patch: 'patch-2026-10-24-discord-champion-snapshot-assets',
+    timestamp: '2026-10-24T00:03:10.655Z',
+    title: 'Remove global chrome and incomplete skin galleries from Discord Champion captures',
+    summary:
+      'Champion Catalogue Discord snapshots now omit website chrome and the overview ability kit, while the gallery capture waits until every skin image has loaded successfully.',
+    details: [
+      'The global header, achievement surfaces, player-stat synchronization, and toast container are excluded only on the two non-indexed Discord snapshot routes. This prevents the sticky site header from overlaying an element screenshot; normal website routes remain unchanged.',
+      'The Champion Overview capture now stops after the profile header, lore, combat/playstyle profile, and Eternals. The interactive Overview preserves its ability kit and all existing controls.',
+      'The static Champion gallery marks every skin splash and rarity gem as eager. Before taking any image, the bot waits up to 30 seconds for every gallery image to complete with a positive natural width; an incomplete or failed image now produces a safe retry message instead of an incomplete gallery attachment.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot together: the website supplies the capture-only layout and eager gallery assets, while the bot enforces the successful-image wait. No slash-command re-registration, database migration, Discord permission, Riot API, or Browserless configuration change is required.',
+    ],
+    files: [
+      'components/global-actions.tsx',
+      'components/champion-profile.tsx',
+      'components/champion-skins.tsx',
+      'components/champion-discord-snapshot.tsx',
+      'discord-bot/src/league-account-viewer.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; application and Discord bot TypeScript checks passed; 44 Vitest files / 243 tests passed.',
+      'Passed git diff --check; CRLF normalization notices from Git were informational only.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-23-discord-champion-catalogue-snapshots',
+    patch: 'patch-2026-10-23-discord-champion-catalogue-snapshots',
+    timestamp: '2026-10-23T21:09:12.658Z',
+    title: 'Add Discord Champion Catalogue snapshot command',
+    summary:
+      'Discord now supports `/league champion champion`, which posts eight purpose-built Champion Catalogue panels for a selected champion without changing the interactive catalogue.',
+    details: [
+      'A non-indexed `/champions/discord-snapshot` website route resolves normalized local champion names, slugs, and supported catalogue search aliases. It renders a compact capture-only surface from the generated local catalogue; it does not call Riot or CommunityDragon at request time.',
+      'The command attaches Overview (without the official-page and coming-soon actions), Champion Statistics plus playstyle, Passive, Q, W, E, R ability-detail panels, and the complete All Skins gallery. Each ability image is explicitly marked and captured in the catalogue Passive-through-R order.',
+      'Champion capture reuses the protected Browserless/local-browser connection, creates one disposable browser context per command, validates the final canonical website origin and expected render route, bounds waits, freezes animation best-effort, and verifies every PNG remains within Discord’s 8 MiB per-file limit.',
+      'Champion and account renders share one serialized browser queue and the existing six-per-minute server limit plus 30-second member cooldown. This prevents either command from monopolizing the rendering service while preserving isolated capture contexts and safe error messages.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot together because the command captures a new website route. Then run `npm run discord:commands:register` with the bot deployment environment so the guild receives the new `/league champion` shape.',
+      'No database migration, Riot API configuration, Discord permission, privileged intent, or additional Browserless variable is needed. Successful commands use only local Champion Catalogue data and offer a link to the normal interactive catalogue page.',
+    ],
+    files: [
+      'app/champions/discord-snapshot/page.tsx',
+      'components/champion-detail-shell.tsx',
+      'components/champion-discord-snapshot.tsx',
+      'components/champion-gameplay-details.tsx',
+      'components/champion-profile.tsx',
+      'components/champion-skins.tsx',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/README.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; application and Discord bot TypeScript checks passed; 44 Vitest files / 243 tests passed.',
+      'Passed focused command coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 14 tests).',
+      'Passed git diff --check; CRLF normalization notices from Git were informational only.',
+    ],
+  },
+  {
     id: 'patch-2026-10-23-discord-league-account-viewer-render-mode',
     patch: 'patch-2026-10-23-discord-league-account-viewer-render-mode',
     timestamp: '2026-10-23T19:40:28.876Z',

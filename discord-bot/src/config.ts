@@ -32,8 +32,31 @@ function canonicalSiteUrl(value: string) {
   if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
     throw new Error('KNOWLEAGUE_SITE_URL must use https in production.');
   }
+  if (process.env.NODE_ENV === 'production' && isPrivateOrLoopbackHostname(url.hostname)) {
+    throw new Error('KNOWLEAGUE_SITE_URL must not resolve to a private or loopback host in production.');
+  }
 
   return url.origin;
+}
+
+function isPrivateOrLoopbackHostname(hostname: string) {
+  const normalizedHostname = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (normalizedHostname === 'localhost' || normalizedHostname.endsWith('.localhost') || normalizedHostname === '::1') {
+    return true;
+  }
+
+  const octets = normalizedHostname.split('.').map((part) => Number(part));
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+
+  const [first, second] = octets;
+  return first === 0
+    || first === 10
+    || first === 127
+    || (first === 169 && second === 254)
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && second === 168);
 }
 
 function optionalSnowflakeEnvironmentVariable(name: string) {

@@ -16,7 +16,11 @@ import { findLinkedProfile } from './profiles.js';
 import { isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
+  captureChampionCatalogue,
   captureLeagueAccountViewer,
+  ChampionCatalogueSnapshotError,
+  getChampionCatalogueSnapshotRequestWeight,
+  LEAGUE_ACCOUNT_VIEWER_SNAPSHOT_REQUEST_WEIGHT,
   LeagueAccountViewerSnapshotError,
 } from './league-account-viewer.js';
 import {
@@ -110,35 +114,45 @@ function skindleComponents(config: DiscordBotConfig) {
   return [{ type: 1 as const, components: [skindleButton(config)] }];
 }
 
-const ACCOUNT_VIEWER_CAPTURE_WINDOW_MS = 60_000;
-const ACCOUNT_VIEWER_CAPTURE_LIMIT = 6;
-const ACCOUNT_VIEWER_USER_COOLDOWN_MS = 30_000;
-const accountViewerCaptureTimestamps: number[] = [];
-const accountViewerUserCaptureTimes = new Map<string, number>();
+const LEAGUE_SNAPSHOT_CAPTURE_WINDOW_MS = 60_000;
+const LEAGUE_SNAPSHOT_CAPTURE_WORK_LIMIT = 6;
+const LEAGUE_SNAPSHOT_USER_COOLDOWN_MS = 30_000;
+const leagueSnapshotCaptureReservations: Array<{ createdAt: number; work: number }> = [];
+const leagueSnapshotUserCaptureTimes = new Map<string, number>();
 
-function accountViewerCaptureAvailability(discordUserId: string) {
+function leagueSnapshotCaptureAvailability(discordUserId: string, requestedWork: number) {
   const now = Date.now();
-  while (accountViewerCaptureTimestamps[0] && now - accountViewerCaptureTimestamps[0] >= ACCOUNT_VIEWER_CAPTURE_WINDOW_MS) {
-    accountViewerCaptureTimestamps.shift();
+  while (
+    leagueSnapshotCaptureReservations[0]
+    && now - leagueSnapshotCaptureReservations[0].createdAt >= LEAGUE_SNAPSHOT_CAPTURE_WINDOW_MS
+  ) {
+    leagueSnapshotCaptureReservations.shift();
   }
-  for (const [userId, lastCaptureAt] of accountViewerUserCaptureTimes) {
-    if (now - lastCaptureAt >= ACCOUNT_VIEWER_USER_COOLDOWN_MS) {
-      accountViewerUserCaptureTimes.delete(userId);
+  for (const [userId, lastCaptureAt] of leagueSnapshotUserCaptureTimes) {
+    if (now - lastCaptureAt >= LEAGUE_SNAPSHOT_USER_COOLDOWN_MS) {
+      leagueSnapshotUserCaptureTimes.delete(userId);
     }
   }
 
-  const priorUserCapture = accountViewerUserCaptureTimes.get(discordUserId);
-  if (priorUserCapture && now - priorUserCapture < ACCOUNT_VIEWER_USER_COOLDOWN_MS) {
-    return Math.ceil((ACCOUNT_VIEWER_USER_COOLDOWN_MS - (now - priorUserCapture)) / 1_000);
+  const priorUserCapture = leagueSnapshotUserCaptureTimes.get(discordUserId);
+  if (priorUserCapture && now - priorUserCapture < LEAGUE_SNAPSHOT_USER_COOLDOWN_MS) {
+    return Math.ceil((LEAGUE_SNAPSHOT_USER_COOLDOWN_MS - (now - priorUserCapture)) / 1_000);
   }
 
-  if (accountViewerCaptureTimestamps.length >= ACCOUNT_VIEWER_CAPTURE_LIMIT) {
-    const nextAvailableAt = accountViewerCaptureTimestamps[0]! + ACCOUNT_VIEWER_CAPTURE_WINDOW_MS;
-    return Math.max(1, Math.ceil((nextAvailableAt - now) / 1_000));
+  const workInWindow = leagueSnapshotCaptureReservations.reduce((total, reservation) => total + reservation.work, 0);
+  if (workInWindow + requestedWork > LEAGUE_SNAPSHOT_CAPTURE_WORK_LIMIT) {
+    let releasedWork = 0;
+    for (const reservation of leagueSnapshotCaptureReservations) {
+      releasedWork += reservation.work;
+      if (workInWindow - releasedWork + requestedWork <= LEAGUE_SNAPSHOT_CAPTURE_WORK_LIMIT) {
+        return Math.max(1, Math.ceil(((reservation.createdAt + LEAGUE_SNAPSHOT_CAPTURE_WINDOW_MS) - now) / 1_000));
+      }
+    }
+    return Math.ceil(LEAGUE_SNAPSHOT_CAPTURE_WINDOW_MS / 1_000);
   }
 
-  accountViewerCaptureTimestamps.push(now);
-  accountViewerUserCaptureTimes.set(discordUserId, now);
+  leagueSnapshotCaptureReservations.push({ createdAt: now, work: requestedWork });
+  leagueSnapshotUserCaptureTimes.set(discordUserId, now);
   return null;
 }
 
@@ -1219,7 +1233,7 @@ async function handleLeagueCommand(interaction: ChatInputCommandInteraction, con
   const group = interaction.options.getSubcommandGroup();
   const subcommand = interaction.options.getSubcommand();
   if (group === null && subcommand === 'account') {
-    const retryAfterSeconds = accountViewerCaptureAvailability(interaction.user.id);
+    const retryAfterSeconds = leagueSnapshotCaptureAvailability(interaction.user.id, LEAGUE_ACCOUNT_VIEWER_SNAPSHOT_REQUEST_WEIGHT);
     if (retryAfterSeconds !== null) {
       await interaction.reply({
         content: `League Account Viewer snapshots are limited while this test is running. Please try again in ${retryAfterSeconds} seconds.`,
@@ -1249,6 +1263,48 @@ async function handleLeagueCommand(interaction: ChatInputCommandInteraction, con
       const message = error instanceof LeagueAccountViewerSnapshotError
         ? error.message
         : 'KnowLeague could not create the League Account Viewer snapshot. Please try again shortly.';
+      await interaction.editReply({ content: message });
+    }
+    return;
+  }
+
+  if (group === null && subcommand === 'champion') {
+    // Supports the short rollout window where Discord may still serve the prior command shape.
+    const submittedSection = interaction.options.getString('section', false) ?? 'all';
+    const requestWeight = getChampionCatalogueSnapshotRequestWeight(
+      submittedSection === 'overview' || submittedSection === 'stats' || submittedSection === 'abilities' || submittedSection === 'skins'
+        ? submittedSection
+        : 'all',
+    );
+    const retryAfterSeconds = leagueSnapshotCaptureAvailability(interaction.user.id, requestWeight);
+    if (retryAfterSeconds !== null) {
+      await interaction.reply({
+        content: `Champion Catalogue snapshots are limited while this test is running. Please try again in ${retryAfterSeconds} seconds.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const submittedChampion = interaction.options.getString('champion', true);
+    await interaction.deferReply();
+    try {
+      const snapshot = await captureChampionCatalogue(config, submittedChampion, submittedSection);
+      await interaction.editReply({
+        allowedMentions: { parse: [] },
+        components: [{
+          type: 1,
+          components: [new ButtonBuilder()
+            .setStyle(ButtonStyle.Link)
+            .setLabel('Open Champion Catalogue')
+            .setURL(snapshot.viewerUrl)],
+        }],
+        content: `Champion Catalogue ${snapshot.section === 'all' ? 'snapshots' : `${snapshot.section} snapshots`} for **${escapeMarkdown(snapshot.championName)}**.`,
+        files: snapshot.files.map((file) => ({ attachment: file.buffer, name: file.fileName })),
+      });
+    } catch (error) {
+      const message = error instanceof ChampionCatalogueSnapshotError
+        ? error.message
+        : 'KnowLeague could not create the Champion Catalogue snapshots. Please try again shortly.';
       await interaction.editReply({ content: message });
     }
     return;

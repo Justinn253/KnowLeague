@@ -16,6 +16,10 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { AppRole } from '@/lib/moderation';
 
 const SESSION_VALIDATION_INTERVAL_MS = 5 * 60_000;
+const DISCORD_SNAPSHOT_PATHS = new Set([
+  '/riot-account-viewer/discord-snapshot',
+  '/champions/discord-snapshot',
+]);
 
 function dispatchAchievementNotification(row: unknown) {
   const achievement = toAchievementNotification(row as Parameters<typeof toAchievementNotification>[0]);
@@ -30,6 +34,7 @@ function dispatchAchievementNotification(row: unknown) {
 
 export function GlobalActions({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const isDiscordSnapshotRoute = DISCORD_SNAPSHOT_PATHS.has(pathname);
   const router = useRouter();
   const appActivity = useAppActivity();
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
@@ -300,23 +305,27 @@ export function GlobalActions({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {!pathname.startsWith('/riftbound') ? <PlayerGameStatsSync /> : null}
-      <CumulativeAchievementTracker />
+      {!isDiscordSnapshotRoute && !pathname.startsWith('/riftbound') ? <PlayerGameStatsSync /> : null}
+      {!isDiscordSnapshotRoute ? <CumulativeAchievementTracker /> : null}
 
-      <AppHeader
-        isLoggedIn={isLoggedIn}
-        profileAvatarUrl={profileAvatarUrl}
-        profileUsername={profileUsername}
-        profileAway={profileAway}
-        pendingFriendRequests={pendingFriendRequests}
-        moderationRole={moderationRole}
-        onPendingFriendRequestsChange={setPendingFriendRequests}
-        onLogOut={() => void logOut()}
-      />
+      {!isDiscordSnapshotRoute ? (
+        <AppHeader
+          isLoggedIn={isLoggedIn}
+          profileAvatarUrl={profileAvatarUrl}
+          profileUsername={profileUsername}
+          profileAway={profileAway}
+          pendingFriendRequests={pendingFriendRequests}
+          moderationRole={moderationRole}
+          onPendingFriendRequestsChange={setPendingFriendRequests}
+          onLogOut={() => void logOut()}
+        />
+      ) : null}
 
-      <div className="fixed bottom-3 right-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-end gap-2 sm:bottom-5 sm:right-5 sm:gap-3">
-        <AchievementToasts profileUsername={profileUsername} />
-      </div>
+      {!isDiscordSnapshotRoute ? (
+        <div className="fixed bottom-3 right-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-end gap-2 sm:bottom-5 sm:right-5 sm:gap-3">
+          <AchievementToasts profileUsername={profileUsername} />
+        </div>
+      ) : null}
       {children}
     </>
   );

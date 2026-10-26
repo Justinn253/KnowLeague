@@ -17,6 +17,131 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-26-discord-collection-upkeep-ambiguity',
+    patch: 'patch-2026-10-26-discord-collection-upkeep-ambiguity',
+    timestamp: '2026-10-26T20:48:08.149Z',
+    title: 'Restore Discord collection upkeep reconciliation',
+    summary:
+      'Fixed the PostgreSQL ambiguity that prevented the Discord bot from reconciling collection upkeep at startup.',
+    details: [
+      'Added an append-only migration that replaces `process_discord_skin_collection_upkeep(text)` with explicit aliases for every mutable table reference involving `discord_user_id`.',
+      'The function returns a `discord_user_id` field, which PostgreSQL also exposes as a PL/pgSQL variable. The migration sets column precedence and removes the ambiguous unqualified references that caused the RPC to fail before processing any upkeep records.',
+      'Collection capacity, daily charge, Lucky reduction, allocation use, grace period, and release calculations are unchanged.',
+    ],
+    impact: [
+      'Apply migration 184, then restart the Discord bot (or let its scheduled reconciliation run) to resume collection upkeep processing.',
+      'The correction changes no player balances, claims, or command definitions by itself; it only makes the existing upkeep procedure executable again.',
+    ],
+    files: [
+      'supabase/migrations/184_fix_discord_collection_upkeep_user_id_ambiguity.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed every `discord_user_id` condition in the replacement function to ensure it is qualified through its table alias, with an explicit PL/pgSQL column-precedence directive as a safeguard.',
+      'npm run discord:check and no-cache ESLint for the changelog source passed after the patch.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-collection-rarity-weighted-items',
+    patch: 'patch-2026-10-26-discord-collection-rarity-weighted-items',
+    timestamp: '2026-10-26T20:44:06.882Z',
+    title: 'Filter and rarity-weight Discord collection items and runes',
+    summary:
+      'Discord Collections now shows Common through Mythic rarity labels for items and runes, filters non-item catalogue records, cleans Ornn Masterwork names, and applies the configured skin rarity weights to every manual drop type.',
+    details: [
+      'The item generator removes Enchantment entries, recalls, UI placeholders, malformed localised names, and non-purchasable records while retaining explicit special no-price entries and Ornn Masterwork upgrades. It strips the `%i:ornnIcon%` display token from Masterwork names and removes harmless line-break markup from actual item names.',
+      'The regenerated 587-item catalogue remains one highest-cost version per item name. It now stores and exports Common/Rare/Epic/Legendary/Mythic labels instead of displaying implementation tier numbers. Item rarity follows the established price brackets, while sub-runes are Rare, keystones Epic, and rune styles Legendary.',
+      'Manual `/collections spawn item` and `/collections spawn rune` selections now use the same configured per-rarity weights as skins. Each type independently normalizes against its available rarities, so a requested item or rune drop has the configured relative rarity distribution and reports its exact resulting rarity chance.',
+      'The existing database-side collection tier-to-rarity conversion remains the shared economy mapping: Common, Rare, Epic, Legendary, Mythic. Drop embeds and collection pages now display those rarity names and reuse their existing colors.',
+    ],
+    impact: [
+      'Deploy the bot with the regenerated local catalogues to expose the filtered pool and weighted rarity behavior. No additional command registration or database migration is required beyond migration 183 for the original item/rune collection support.',
+      'Existing claimed entries remain untouched. Item/rune manual drops continue to share the one-live-drop, ownership, capacity, and service-role-only reservation protections already used by Collections.',
+    ],
+    files: [
+      'data/catalogs/discord-collection-item-tiers.md',
+      'data/catalogs/discord-collection-items.json',
+      'data/catalogs/discord-collection-rune-tiers.md',
+      'data/catalogs/discord-collection-runes.json',
+      'discord-bot/README.md',
+      'discord-bot/src/skin-claims.ts',
+      'scripts/generate-discord-collection-catalog.mjs',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:discord-collections completed across all 404 Data Dragon item and 224 Reforged-rune snapshots, generating 587 items and 80 runes.',
+      'Post-generation validation found zero duplicate item names, zero retained enchantment/recall/placeholder/markup/Ornn-token names, six approved no-price Mythic items, and zero item or rune rarity-conversion mismatches.',
+      'npm run discord:check, the targeted Discord collection test file (16 tests), and no-cache ESLint for the changed generator, bot, tests, and changelog sources passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-collection-item-tier-rebalance',
+    patch: 'patch-2026-10-26-discord-collection-item-tier-rebalance',
+    timestamp: '2026-10-26T20:26:21.329Z',
+    title: 'Deduplicate and cost-sort Discord collection items',
+    summary:
+      'The Discord item catalogue now contains one highest-cost version per item name, uses a 4,000-gold Tier 5 threshold, and exports the item review list in ascending cost order.',
+    details: [
+      'Changed item tiers to under 1,000 (Tier 1), 1,000–1,999 (Tier 2), 2,000–2,999 (Tier 3), 3,000–3,999 (Tier 4), and 4,000 or more (Tier 5). All unpriced items are removed except one no-price version each of Kalista\'s Black Spear, Scarecrow Effigy, Poro-Snax, Head of Kha\'Zix, Eye of the Herald, and Bonetooth Necklace, which remain Tier 5.',
+      'The generator now tracks the highest historical cost for a visual item variant, then normalizes item names and retains one representative with the highest cost. Cost ties prefer the most recently available version. The resulting 685-item catalogue has no duplicate names.',
+      'The regenerated item export is sorted by cost ascending, adds the Data Dragon version that supplied its highest cost, and retains mode and availability information. The six allowed no-price items follow the priced Tier 5 entries.',
+      'The existing manual collection reservation mapping remains explicit and unchanged: Tier 1 maps to Common, Tier 2 Rare, Tier 3 Epic, Tier 4 Legendary, and Tier 5 Mythic. This keeps items compatible with existing Collections sell-value/economy tables while item and rune UI continues to show their Tier label.',
+    ],
+    impact: [
+      'Deploy the Discord bot with the regenerated catalogue files to use the revised item pool. No slash-command registration or new database migration is required for this data and generator adjustment; migration 183 remains required for the overall item/rune feature.',
+      'Members no longer encounter arbitrary no-price Tier 5 entries or duplicate item names. Existing claimed collection records are not modified.',
+    ],
+    files: [
+      'data/catalogs/discord-collection-item-tiers.md',
+      'data/catalogs/discord-collection-items.json',
+      'discord-bot/README.md',
+      'scripts/generate-discord-collection-catalog.mjs',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:discord-collections completed against all 404 available Data Dragon item snapshots and produced 685 unique item names.',
+      'Post-generation validation confirmed one row for each item name; exactly six no-price entries matching the approved list; valid Tier 1–5 cost boundaries; and ascending numeric cost order with no-price exceptions last.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-collection-items-runes',
+    patch: 'patch-2026-10-26-discord-collection-items-runes',
+    timestamp: '2026-10-26T20:07:40.199Z',
+    title: 'Add historical items and runes to Discord Collections',
+    summary:
+      'Discord Collections can now hold image-backed historical League items and Reforged runes, with a staff-only type selector on `/collections spawn`.',
+    details: [
+      'Added a generated local catalogue containing 1,511 image-backed item records from all 404 available Data Dragon snapshots and 80 Reforged-rune records from 224 snapshots. Item tiers use total price: below 1,000 is Tier 1; 1,000–1,999 Tier 2; 2,000–2,999 Tier 3; 3,000 or above Tier 4; no listed price Tier 5. Sub-runes, keystones, and rune styles are Tier 2, Tier 3, and Tier 4 respectively.',
+      'Added tier-ordered Markdown exports for items and runes. Each item entry records the icon-backed historical variant, known game-mode maps, first/last available Data Dragon version, and most recent known total cost for that variant.',
+      '`/collections spawn [type]` accepts `skin`, `item`, or `rune`; omitting the option randomly selects an available type. Automatic message/timer drops and paid summon/gamble drops remain skin-only and retain their existing configured rarity weights and economy.',
+      'Migration 183 expands the existing collection record with a type, tier, and metadata object, preserves every existing skin row, permits namespaced catalogue locks, and adds a service-role-only atomic manual item/rune reservation RPC. Collection browsing and reaction-claim messages render the entry type, tier, item cost/modes/version span, or rune classification/style.',
+    ],
+    impact: [
+      'Apply migration 183 before deploying the bot; it is required for item/rune rows and the new reservation RPC. Deploy the bot image with the generated catalogues and register the changed guild slash-command definition before staff use `/collections spawn [type]`.',
+      'Existing Collections data, skin rarity configuration, unique catalogue-entry ownership, capacity, upkeep, sale, transfer, and security boundaries remain intact. New catalogue data is local at bot runtime; it does not request League data while members use commands.',
+    ],
+    files: [
+      'data/catalogs/discord-collection-items.json',
+      'data/catalogs/discord-collection-runes.json',
+      'data/catalogs/discord-collection-item-tiers.md',
+      'data/catalogs/discord-collection-rune-tiers.md',
+      'discord-bot/Dockerfile',
+      'discord-bot/README.md',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'package.json',
+      'scripts/generate-discord-collection-catalog.mjs',
+      'supabase/migrations/183_discord_collection_items_and_runes.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:discord-collections completed from the available historical Data Dragon source snapshots and produced 1,511 items and 80 runes with HTTPS image URLs.',
+      'npx eslint app components lib scripts tests discord-bot/src --ext .ts,.tsx,.js,.mjs --no-cache, npm run typecheck, npm run test:run (44 files / 245 tests), npm run discord:check, guild command registration, and git diff --check passed. ESLint retained only seven existing next/image warnings; npm run check could not access the active development server\'s locked .next ESLint cache.',
+    ],
+  },
+  {
     id: 'patch-2026-10-26-discord-help-category-tabs',
     patch: 'patch-2026-10-26-discord-help-category-tabs',
     timestamp: '2026-10-26T19:48:03.034Z',

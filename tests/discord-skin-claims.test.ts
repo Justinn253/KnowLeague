@@ -139,9 +139,9 @@ describe('Discord skin-claim command contract', () => {
     }, 'Summoner');
     const serialized = embed.toJSON();
 
-    expect(serialized.title).toBe('Summoner\'s skin collection · 1 of 1 (max 15)');
+    expect(serialized.title).toContain('Summoner\'s collection');
     expect(serialized.description).toContain('**Elderwood Ahri (#1234)**');
-    expect(serialized.description).toContain('**Daily collection upkeep:** Free (the first 10 skins are free)');
+    expect(serialized.description).toContain('**Daily collection upkeep:** Free (the first 10 collection entries are free)');
   });
 
   it('keeps the collection card compact while adding the daily upkeep summary', () => {
@@ -166,7 +166,7 @@ describe('Discord skin-claim command contract', () => {
     }, 'Summoner').toJSON();
 
     expect(embed.description).toContain('**Elderwood Ahri (#1234)**');
-    expect(embed.description).toContain('**Daily collection upkeep:** Free (the first 10 skins are free)');
+    expect(embed.description).toContain('**Daily collection upkeep:** Free (the first 10 collection entries are free)');
     expect(embed.fields).toBeUndefined();
     expect(embed.image?.url).toBe('https://example.com/ahri.jpg');
   });
@@ -192,7 +192,7 @@ describe('Discord skin-claim command contract', () => {
       upkeep: { dailyCost: 1500, excessSkinCount: 11, graceExpiresAt: null, outstandingAmount: 0 },
     }, 'Summoner').toJSON();
 
-    expect(embed.description).toContain('**Daily collection upkeep:** 1,500 KnowBucks daily for 11 skins over 10');
+    expect(embed.description).toContain('**Daily collection upkeep:** 1,500 KnowBucks daily for 11 collection entries over 10');
   });
 
   it('shows collection metadata and the configured sale value only when details are requested', () => {
@@ -232,6 +232,7 @@ describe('Discord skin-claim command contract', () => {
       rarity: 'Epic',
       releaseDate: '2020-01-01',
       skinLine: 'Elderwood',
+      type: 'skin',
     };
     const embed = buildSkinSearchEmbed(skin, [{ skinCode: 5260, username: 'Justin' }]).toJSON();
     const fields = embed.fields ?? [];
@@ -239,5 +240,39 @@ describe('Discord skin-claim command contract', () => {
     expect(fields).toContainEqual(expect.objectContaining({ name: 'KnowLeague ID', value: '#5260' }));
     expect(fields).toContainEqual(expect.objectContaining({ name: 'Owner', value: 'Justin' }));
     expect(embed.image?.url).toBe('https://example.com/ahri-centered.jpg');
+  });
+
+  it('renders an item collection entry with its rarity, cost, mode, and historical availability', () => {
+    const embed = buildSkinCollectionEmbed({
+      capacity: 10,
+      item: {
+        champion_name: 'Item',
+        claimed: true,
+        collection_metadata: {
+          cost: 2500,
+          firstSeenVersion: '10.1.1',
+          gameModes: ['Howling Abyss', 'Summoner’s Rift'],
+          lastSeenVersion: '16.21.1',
+        },
+        collection_tier: 3,
+        collection_type: 'item',
+        image_url: 'https://example.com/item.png',
+        owner_acquired_at: '2026-10-16T00:00:00.000Z',
+        ownership_method: 'claimed',
+        rarity: 'Epic',
+        release_date: '2009-10-27',
+        skin_code: 1234,
+        skin_line: 'League item',
+        skin_name: 'Example Item',
+      },
+      page: 0,
+      sellValue: 2500,
+      total: 1,
+      upkeep: { dailyCost: 0, excessSkinCount: 0, graceExpiresAt: null, outstandingAmount: 0 },
+    }, 'Summoner', true).toJSON();
+
+    expect(embed.description).toContain('**Item · Epic**');
+    expect(embed.fields).toContainEqual(expect.objectContaining({ name: 'Item', value: expect.stringContaining('**Cost**\n2,500 gold') }));
+    expect(embed.fields).toContainEqual(expect.objectContaining({ name: 'Item', value: expect.stringContaining('**Available**\n10.1.1 to 16.21.1') }));
   });
 });

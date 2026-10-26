@@ -107,6 +107,7 @@ import {
   stealSkinClaim,
   summonSkinClaimDrop,
   transferSkinClaim,
+  type CollectionSpawnType,
   type CollectionUpkeepOverview,
 } from './skin-claims.js';
 
@@ -296,7 +297,7 @@ function helpFields(tab: HelpTab): HelpField[] {
       { name: '/collections steal, favorite, gamble, sell', value: 'Manage an owned skin or risk it for a new drop.' },
       { name: '/collections collection-reorder', value: 'Set up to ten consecutive skin IDs as the first collection slots.' },
       { name: '/collections search [skin-name] [skin-id]', value: 'Preview a local catalogue skin and its current owner, if assigned.' },
-      { name: '/collections spawn', value: 'Immediately post a drop. Requires a Collections administrator role.' },
+      { name: '/collections spawn [type]', value: 'Immediately post a skin, item, rune, or random drop. Requires a Collections administrator role.' },
     ];
   }
   return [
@@ -1912,10 +1913,11 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
 
   if (subcommand === 'spawn') {
     if (!(await canManageCollectionAdminCommands(interaction, config))) return;
+    const requestedType = interaction.options.getString('type') as CollectionSpawnType | null;
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const result = await forceSkinClaimDrop(config, interaction.guild, interaction.channelId);
+    const result = await forceSkinClaimDrop(config, interaction.guild, interaction.channelId, requestedType ?? undefined);
     if (result.status === 'spawned') {
-      await interaction.editReply({ content: 'A skin drop was posted in this channel.' });
+      await interaction.editReply({ content: `A ${result.collectionType ?? requestedType ?? 'random'} drop was posted in this channel.` });
       return;
     }
     if (result.status === 'active-drop') {
@@ -1923,10 +1925,10 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
       return;
     }
     if (result.status === 'disabled') {
-      await interaction.editReply({ content: 'Skin claim drops are disabled in Discord Configuration.' });
+      await interaction.editReply({ content: 'Collection drops are disabled in Discord Configuration.' });
       return;
     }
-    await interaction.editReply({ content: 'Enable skin claims before using /collections spawn. The bot must also be able to post in this channel.' });
+    await interaction.editReply({ content: 'Enable collection drops before using /collections spawn. The bot must also be able to post in this channel.' });
     return;
   }
 

@@ -26,10 +26,10 @@ function addCollectionReorderOptions(command: SlashCommandSubcommandBuilder) {
 function createCollectionsCommand() {
   return new SlashCommandBuilder()
     .setName('collections')
-    .setDescription('Browse and manage KnowLeague skin collections.')
+    .setDescription('Browse and manage KnowLeague collections.')
     .addSubcommand((subcommand) => subcommand
       .setName('collection')
-      .setDescription('Browse a member\'s claimed skins one at a time.')
+      .setDescription('Browse a member\'s claimed collection entries one at a time.')
       .addUserOption((option) => option
         .setName('member')
         .setDescription('Member whose collection to browse. Defaults to you.')
@@ -48,7 +48,7 @@ function createCollectionsCommand() {
         .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('give')
-      .setDescription('Give one of your claimed skins to another server member.')
+      .setDescription('Give one claimed collection entry to another server member.')
       .addUserOption((option) => option
         .setName('member')
         .setDescription('Member who should receive the skin.')
@@ -61,7 +61,16 @@ function createCollectionsCommand() {
         .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('spawn')
-      .setDescription('Immediately post a skin drop in this channel.'))
+      .setDescription('Immediately post a collection drop in this channel.')
+      .addStringOption((option) => option
+        .setName('type')
+        .setDescription('Drop type. Defaults to a random skin, item, or rune.')
+        .addChoices(
+          { name: 'Skin', value: 'skin' },
+          { name: 'Item', value: 'item' },
+          { name: 'Rune', value: 'rune' },
+        )
+        .setRequired(false)))
     .addSubcommand((subcommand) => subcommand
       .setName('summon')
       .setDescription('Spend 5,000 KnowBucks to summon a skin drop in this channel.'))
@@ -92,13 +101,13 @@ function createCollectionsCommand() {
         .setRequired(true)))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('steal')
-      .setDescription('Spend 3x its sell price to attempt to steal an owned skin.')))
+      .setDescription('Spend 3x its sell price to attempt to steal an owned collection entry.')))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('favorite')
-      .setDescription('Show one of your skins first in your collection.')))
+      .setDescription('Show one collection entry first.')))
     .addSubcommand((subcommand) => addCollectionReorderOptions(subcommand
       .setName('collection-reorder')
-      .setDescription('Set one to ten skins as the first collection slots, in order.')))
+      .setDescription('Set one to ten collection entries as the first slots, in order.')))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('gamble')
       .setDescription('Destroy your skin for a 25-65% chance at a new claimable drop.')))
@@ -119,7 +128,7 @@ function createCollectionsCommand() {
         .setRequired(false)))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('sell')
-      .setDescription('Sell one of your skins for KnowBucks.')));
+      .setDescription('Sell one collection entry for KnowBucks.')));
 }
 
 function createLeagueCommand() {

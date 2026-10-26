@@ -13,6 +13,7 @@
     "discord:check": "npm run check --workspace=@knowleague/discord-bot",
     "discord:commands:register": "npm run commands:register --workspace=@knowleague/discord-bot",
     "data:generate": "node scripts/generate-catalogs.mjs",
+    "data:generate:discord-collections": "node scripts/generate-discord-collection-catalog.mjs",
     "data:generate:champion-abilities": "node scripts/generate-champion-ability-details.mjs",
     "data:generate:champion-hub-overviews": "node scripts/generate-champion-hub-overviews.mjs",
     "data:generate:champion-hub-gameplay-details": "node scripts/generate-champion-hub-gameplay-details.mjs",

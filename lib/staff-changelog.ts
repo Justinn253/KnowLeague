@@ -17,6 +17,66 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-26-discord-player-inventory-equipment',
+    patch: 'patch-2026-10-26-discord-player-inventory-equipment',
+    timestamp: '2026-10-26T19:07:55.000Z',
+    title: 'Show purchased player-shop equipment in Discord inventory',
+    summary:
+      'The Discord player inventory now lists a selected member’s purchased robbery equipment, including active Bodyguard charges, instead of only reserving a placeholder for future inventory features.',
+    details: [
+      '`/player inventory [user]` reads the service-role-only player inventory, filters it to the Mask, Knife, Gun, Safe, and Bodyguard shop catalogue, and presents each owned item with its active effect. Bodyguard inventory rows display their remaining charge count.',
+      'The Player Shop remains free of automatic-effect and Bodyguard-charge copy, preserving the requested cleaner purchase surface while Inventory becomes the place to inspect owned equipment.',
+    ],
+    impact: [
+      'No database migration, command registration, website deployment, permission, or privileged-intent update is required. Deploy the Discord bot to expose the inventory contents.',
+      'Inventory requests remain limited to current non-bot guild members and use existing player-shop inventory data; no new user data, credentials, or browser-accessible database capability is introduced.',
+    ],
+    files: [
+      'discord-bot/src/player.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run discord:check passed after the inventory query and render changes.',
+      'Final repository and whitespace verification are recorded with this patch.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-player-shop-robbery',
+    patch: 'patch-2026-10-26-discord-player-shop-robbery',
+    timestamp: '2026-10-26T18:16:37.419Z',
+    title: 'Add Discord player progression surfaces and atomic KnowBucks robberies',
+    summary:
+      'Discord now has player stats, a shared player shop, an inventory placeholder, and a protected robbery system; existing Fishing skill ownership is migrated into a reusable player inventory without changing the skills’ Fishing effects.',
+    details: [
+      'Added guild-scoped `/player shop`, `/player inventory [user]`, `/player stats [user]`, and `/rob user` commands. Player Stats has requester-controlled Stats and Skills tabs, while Inventory intentionally reserves its display surface for the next player systems and confirms that player-shop upgrades already apply automatically.',
+      'The player shop moves Lucky, Haste, Cheapskate, and Money Mouser purchase tiers out of `/fish shop`, preserves the existing owned tiers, prerequisites, price-reduction behavior, and Fishing modifiers, and sells permanent Mask, Knife, Gun, and Safe equipment plus ten-charge Bodyguard replenishments.',
+      'Robberies are settled by a service-role-only Supabase RPC under stable balance and inventory locks. It enforces a one-hour base cooldown reduced 5% per Haste level, 5% base success plus attacker Lucky and equipment, defender Lucky and equipment protection with a 1% minimum, the 100/20/1 weighted 5%/20%/75% outcomes, Safe protection, Mask anonymity, Bodyguard charge consumption, and KnowBucks ledger entries for every money transfer.',
+      'Migration 181 creates the reusable player inventory and robbery cooldown state, moves the established skill item IDs out of Fishing inventory, redirects the existing Collections skill helper to shared ownership, restricts all new storage and RPCs to the service role, and reloads PostgREST schema metadata.',
+    ],
+    impact: [
+      'Apply migration 181 before deploying the Discord bot. Then deploy the bot independently and register the revised guild command definitions with its deployment environment; no website deployment or Discord privileged-intent change is required.',
+      'Player and robbery commands follow the existing General command-channel configuration. Robberies only accept current non-bot guild members, reject self-targeting, do not consume cooldown for a zero-balance target, and publish Mask anonymity unless a defending Bodyguard reveals a failed robber.',
+    ],
+    files: [
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/player.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/README.md',
+      'discord-bot/AGENTS.md',
+      'supabase/migrations/181_discord_player_shop_and_robbery.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository’s existing next/image warnings; root typecheck, 44 Vitest files / 244 tests, and Discord bot typecheck passed.',
+      'git diff --check passed; Git’s CRLF normalization notices were informational only.',
+      'Registered the revised guild-scoped Discord command definitions with the configured bot environment. Migration 181 was created but not applied, because database deployment authority was not requested.',
+    ],
+  },
+  {
     id: 'patch-2026-10-24-discord-snapshot-cost-hardening',
     patch: 'patch-2026-10-24-discord-snapshot-cost-hardening',
     timestamp: '2026-10-24T00:26:55.611Z',

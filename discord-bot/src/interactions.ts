@@ -13,6 +13,20 @@ import {
 import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
 import { importExternalMessageEmojis } from './emoji-import.js';
 import { findLinkedProfile } from './profiles.js';
+import {
+  attemptRobbery,
+  getPlayerShopDisplayCost,
+  getPlayerEquipmentInventory,
+  getPlayerShopItem,
+  getPlayerShopItems,
+  getPlayerShopState,
+  getPlayerStats,
+  purchasePlayerShopItem,
+  type PlayerShopState,
+  type PlayerShopTab,
+  type PlayerStats,
+  type RobberyResult,
+} from './player.js';
 import { isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
@@ -205,13 +219,16 @@ const LEADERBOARD_COMMAND_COOLDOWN_MS = 10_000;
 const SKIN_COLLECTION_BUTTON_PREFIX = 'skin-collection';
 const SKIN_COLLECTION_ACTION_BUTTON_PREFIX = 'skin-collection-action';
 const FISHING_BUTTON_PREFIX = 'fish';
-const FISHING_SHOP_CATEGORIES: readonly FishingUpgradeCategory[] = ['rod', 'bait', 'boat', 'skill', 'crew'];
-const FISHING_INVENTORY_TABS = ['overview', 'rods', 'baits', 'skills', 'gear', 'boats', 'titles'] as const;
+const PLAYER_BUTTON_PREFIX = 'player';
+const FISHING_SHOP_CATEGORIES: readonly FishingUpgradeCategory[] = ['rod', 'bait', 'boat', 'crew'];
+const FISHING_INVENTORY_TABS = ['overview', 'rods', 'baits', 'gear', 'boats', 'titles'] as const;
 type FishingInventoryTab = typeof FISHING_INVENTORY_TABS[number];
 const FISHING_PANEL_TTL_MS = 60_000;
+const PLAYER_PANEL_TTL_MS = 60_000;
 const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
 let leaderboardCommandCooldownPruneAfter = 0;
 const fishingPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const playerPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function buildFishingLaunchResponse(expedition: StartedFishingExpedition) {
   const modifierDescription = expedition.activeModifierLabels?.length
@@ -350,7 +367,7 @@ function fishingShopComponents(ownerDiscordUserId: string, category: FishingUpgr
         .setStyle(entry === category ? ButtonStyle.Primary : ButtonStyle.Secondary)
         .setLabel(fishingShopCategoryLabel(entry))),
     }));
-  const ownedItemIds = new Set(state.inventory.map((item) => item.item_id));
+  const ownedItemIds = new Set([...state.inventory.map((item) => item.item_id), ...state.playerItemIds]);
   const purchaseButtons = getVisibleFishingShopItems(category, [...ownedItemIds]).map((item) => {
     const cost = getFishingUpgradeCost(item, [...ownedItemIds]);
     const missingRequiredUpgrade = Boolean(item.requiredUpgradeId && !ownedItemIds.has(item.requiredUpgradeId));
@@ -368,7 +385,6 @@ function fishingInventoryTabLabel(tab: FishingInventoryTab) {
     overview: 'Overview',
     rods: 'Rods',
     baits: 'Baits',
-    skills: 'Skills',
     gear: 'Relics',
     boats: 'Boats',
     titles: 'Titles',
@@ -413,7 +429,7 @@ export function getFishingShopSkillEmoji(itemId: string) {
 }
 
 function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgradeCategory, state: FishingPlayerState, expiresAt: number, notice?: string) {
-  const ownedItemIds = new Set(state.inventory.map((item) => item.item_id));
+  const ownedItemIds = new Set([...state.inventory.map((item) => item.item_id), ...state.playerItemIds]);
   const items = getVisibleFishingShopItems(category, [...ownedItemIds]);
   return {
     components: fishingShopComponents(ownerDiscordUserId, category, state, expiresAt),
@@ -421,12 +437,135 @@ function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgr
       new EmbedBuilder()
         .setColor(0x0EA5E9)
         .setTitle(`Fishing shop · ${fishingShopCategoryLabel(category)}`)
-        .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent upgrades. Skills show only the next available tier in each track. Boat upgrades unlock travel and never need equipping.`)
+        .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent fishing upgrades. Player-wide skills are available from \`/player shop\`. Boat upgrades unlock travel and never need equipping.`)
         .addFields(items.map((item) => ({
           name: `${ownedItemIds.has(item.id) ? 'Owned · ' : ''}${item.category === 'skill' ? `${getFishingShopSkillEmoji(item.id) ?? ''} ` : ''}${item.name} · ${formatXp(getFishingUpgradeCost(item, [...ownedItemIds]))} KnowBucks`,
           value: `${item.description}${item.requiredFishingLevel ? `\nRequires fishing level **${item.requiredFishingLevel}**.` : ''}${item.requiredUpgradeId ? `\nRequires **${getFishingUpgrade(item.requiredUpgradeId)?.name ?? item.requiredUpgradeId}**.` : ''}`,
         }))),
     ],
+  };
+}
+
+function playerPanelExpirationMessage() {
+  return 'This player panel has expired. Run `/player shop` or `/player stats` to open a new one.';
+}
+
+function schedulePlayerPanelExpiry(message: { edit: (options: { components: []; content: string }) => Promise<unknown>; id: string }, expiresAt: number) {
+  const existingTimer = playerPanelExpiryTimers.get(message.id);
+  if (existingTimer) clearTimeout(existingTimer);
+  const timer = setTimeout(() => {
+    void message.edit({ content: playerPanelExpirationMessage(), components: [] })
+      .catch((error: unknown) => console.warn(`Discord player panel ${message.id} could not be expired.`, error))
+      .finally(() => {
+        if (playerPanelExpiryTimers.get(message.id) === timer) playerPanelExpiryTimers.delete(message.id);
+      });
+  }, Math.max(0, expiresAt - Date.now()));
+  timer.unref();
+  playerPanelExpiryTimers.set(message.id, timer);
+}
+
+function clearPlayerPanelExpiry(messageId: string) {
+  const existingTimer = playerPanelExpiryTimers.get(messageId);
+  if (existingTimer) clearTimeout(existingTimer);
+  playerPanelExpiryTimers.delete(messageId);
+}
+
+function expirePlayerPanel(interaction: ButtonInteraction) {
+  clearPlayerPanelExpiry(interaction.message.id);
+  return interaction.update({ content: playerPanelExpirationMessage(), components: [] });
+}
+
+function playerShopTabLabel(tab: PlayerShopTab) {
+  return tab === 'skills' ? 'Skills' : 'Equipment';
+}
+
+function playerShopComponents(ownerDiscordUserId: string, tab: PlayerShopTab, state: PlayerShopState, expiresAt: number) {
+  const navigation = (['skills', 'items'] as const).map((entry) => new ButtonBuilder()
+    .setCustomId(`${PLAYER_BUTTON_PREFIX}-shop:${ownerDiscordUserId}:${expiresAt}:tab:${entry}`)
+    .setStyle(entry === tab ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    .setLabel(playerShopTabLabel(entry)));
+  const ownedItemIds = new Set(state.itemIds);
+  const purchaseButtons = getPlayerShopItems(tab, state.itemIds).map((item) => {
+    const cost = getPlayerShopDisplayCost(item, state.pricingItemIds);
+    const requiredItemId = 'category' in item ? item.requiredUpgradeId : undefined;
+    const missingRequiredItem = Boolean(requiredItemId && !ownedItemIds.has(requiredItemId));
+    const permanentlyOwned = !('replenishable' in item && item.replenishable) && ownedItemIds.has(item.id);
+    return new ButtonBuilder()
+      .setCustomId(`${PLAYER_BUTTON_PREFIX}-shop:${ownerDiscordUserId}:${expiresAt}:buy:${item.id}`)
+      .setStyle(ButtonStyle.Success)
+      .setLabel(`Buy ${item.name} (${formatXp(cost)})`)
+      .setDisabled(permanentlyOwned || missingRequiredItem || state.balance < cost);
+  });
+  return [...toComponentRows(navigation), ...toComponentRows(purchaseButtons)];
+}
+
+function buildPlayerShopPanel(ownerDiscordUserId: string, tab: PlayerShopTab, state: PlayerShopState, expiresAt: number, notice?: string) {
+  const ownedItemIds = new Set(state.itemIds);
+  const items = getPlayerShopItems(tab, state.itemIds);
+  const skillSummary = `Lucky ${state.skillLevels.lucky}/5 · Haste ${state.skillLevels.haste}/4 · Cheapskate ${state.skillLevels.cheapskate}/4 · Money Mouser ${state.skillLevels.moneyMouser}/2`;
+  return {
+    components: playerShopComponents(ownerDiscordUserId, tab, state, expiresAt),
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x8B5CF6)
+        .setTitle(`Player shop · ${playerShopTabLabel(tab)}`)
+        .setDescription(`${notice ? `${notice}\n\n` : ''}Balance: **${formatXp(state.balance)} KnowBucks**\n${tab === 'skills'
+          ? `Current levels: **${skillSummary}**.`
+          : ''}`)
+        .addFields(items.map((item) => {
+          const requiredItemId = 'category' in item ? item.requiredUpgradeId : undefined;
+          return {
+            name: `${ownedItemIds.has(item.id) && item.id !== 'bodyguard' ? 'Owned · ' : ''}${item.name} · ${formatXp(getPlayerShopDisplayCost(item, state.pricingItemIds))} KnowBucks`,
+            value: `${item.description}${requiredItemId ? `\nRequires **${getPlayerShopItem(requiredItemId)?.name ?? requiredItemId}**.` : ''}`,
+          };
+        })),
+    ],
+  };
+}
+
+type PlayerStatsTab = 'stats' | 'skills';
+
+function playerStatsComponents(viewerDiscordUserId: string, targetDiscordUserId: string, tab: PlayerStatsTab, expiresAt: number) {
+  return [{
+    type: 1 as const,
+    components: (['stats', 'skills'] as const).map((entry) => new ButtonBuilder()
+      .setCustomId(`${PLAYER_BUTTON_PREFIX}-stats:${viewerDiscordUserId}:${expiresAt}:${entry}:${targetDiscordUserId}`)
+      .setStyle(entry === tab ? ButtonStyle.Primary : ButtonStyle.Secondary)
+      .setLabel(entry === 'stats' ? 'Stats' : 'Skills')),
+  }];
+}
+
+function buildPlayerStatsPanel(
+  viewerDiscordUserId: string,
+  targetDiscordUserId: string,
+  targetDisplayName: string,
+  stats: PlayerStats,
+  tab: PlayerStatsTab,
+  expiresAt: number,
+) {
+  const title = `${targetDisplayName}'s player ${tab}`;
+  const embed = new EmbedBuilder().setColor(0x8B5CF6).setTitle(title);
+  if (tab === 'stats') {
+    embed
+      .setDescription('More player statistics will be added here as new bot systems are released.')
+      .addFields(
+        { name: 'Chat', value: `Level **${stats.chat.level}** · **${formatXp(stats.chat.totalXp)}** total XP\n**${formatXp(stats.chat.xpIntoLevel)}/${formatXp(stats.chat.xpForNextLevel)} XP** through this level`, inline: true },
+        { name: 'KnowBucks', value: `**${formatXp(stats.balance)} KnowBucks**`, inline: true },
+        { name: 'Fishing', value: `Level **${stats.fishing.level}** · **${formatXp(stats.fishing.totalXp)}** Fishing XP`, inline: true },
+      );
+  } else {
+    embed
+      .setDescription('Player skills are permanent upgrades that apply automatically wherever their effect is supported.')
+      .addFields(
+        { name: 'Lucky', value: `Level **${stats.skills.lucky}/5**\n+2% robbery chance per level; -1% robbery chance against you per level.`, inline: true },
+        { name: 'Haste', value: `Level **${stats.skills.haste}/4**\n-5% robbery cooldown per level.`, inline: true },
+        { name: 'Cheapskate', value: `Level **${stats.skills.cheapskate}/4**\n-5% Fishing shop cost per level.`, inline: true },
+        { name: 'Money Mouser', value: `Level **${stats.skills.moneyMouser}/2**\n+10% Fishing payout per level.`, inline: true },
+      );
+  }
+  return {
+    components: playerStatsComponents(viewerDiscordUserId, targetDiscordUserId, tab, expiresAt),
+    embeds: [embed],
   };
 }
 
@@ -491,7 +630,6 @@ function buildFishingInventoryTabbedPanel(
     const categoryByTab: Partial<Record<FishingInventoryTab, FishingUpgradeCategory>> = {
       rods: 'rod',
       baits: 'bait',
-      skills: 'skill',
       gear: 'gear',
       boats: 'boat',
     };
@@ -503,9 +641,7 @@ function buildFishingInventoryTabbedPanel(
         ? 'Choose one owned bait below to equip it.'
         : tab === 'gear'
           ? 'Relics are permanent and activate automatically. Their descriptions below state each active benefit.'
-          : tab === 'skills'
-            ? 'Skills are permanent player-stat upgrades and apply automatically.'
-            : 'Boat upgrades are permanent and unlock expedition biomes automatically.';
+          : 'Boat upgrades are permanent and unlock expedition biomes automatically.';
     embed
       .setDescription(`${sharedDescription}\n${categoryDescription}`)
       .addFields(...splitFishingPanelField(
@@ -1058,6 +1194,140 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
   });
 }
 
+async function getCurrentNonBotMember(interaction: ChatInputCommandInteraction, userId: string) {
+  if (!interaction.guild) return null;
+  const member = await interaction.guild.members.fetch(userId).catch(() => null);
+  return member && !member.user.bot ? member : null;
+}
+
+async function handlePlayerCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+  const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === 'shop') {
+    await interaction.deferReply();
+    const state = await getPlayerShopState(config, interaction.user.id);
+    const expiresAt = Date.now() + PLAYER_PANEL_TTL_MS;
+    await interaction.editReply(buildPlayerShopPanel(interaction.user.id, 'skills', state, expiresAt));
+    schedulePlayerPanelExpiry(await interaction.fetchReply(), expiresAt);
+    return;
+  }
+
+  const targetUser = interaction.options.getUser('user') ?? interaction.user;
+  const targetMember = await getCurrentNonBotMember(interaction, targetUser.id);
+  if (!targetMember) {
+    await interaction.reply({ content: 'Choose a current server member who is not a bot.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (subcommand === 'inventory') {
+    await interaction.deferReply();
+    const equipment = await getPlayerEquipmentInventory(config, targetUser.id);
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x8B5CF6)
+          .setTitle(`${targetMember.displayName}'s inventory`)
+          .setDescription(equipment.length > 0
+            ? 'Purchased player-shop equipment.'
+            : 'No player-shop equipment purchased yet. More inventory features are coming soon.')
+          .addFields(equipment.map(({ item, quantity }) => ({
+            name: item.id === 'bodyguard' ? `${item.name} · ${formatXp(quantity)} charges` : item.name,
+            value: item.description,
+          }))),
+      ],
+    });
+    return;
+  }
+
+  if (subcommand === 'stats') {
+    await interaction.deferReply();
+    const stats = await getPlayerStats(config, targetUser.id);
+    const expiresAt = Date.now() + PLAYER_PANEL_TTL_MS;
+    await interaction.editReply(buildPlayerStatsPanel(interaction.user.id, targetUser.id, targetMember.displayName, stats, 'stats', expiresAt));
+    schedulePlayerPanelExpiry(await interaction.fetchReply(), expiresAt);
+    return;
+  }
+
+  throw new Error(`Unsupported player command: ${subcommand}`);
+}
+
+function robberyCooldownRelativeTime(value: string | null) {
+  if (!value) return 'shortly';
+  const milliseconds = new Date(value).getTime();
+  return Number.isFinite(milliseconds) ? `<t:${Math.floor(milliseconds / 1_000)}:R>` : 'shortly';
+}
+
+function robberyBodyguardDetail(targetUser: { toString(): string }, result: RobberyResult) {
+  return result.bodyguardUsed
+    ? `\n${targetUser}’s Bodyguard used a charge (**${formatXp(result.bodyguardCharges)}** remaining).`
+    : '';
+}
+
+async function handleRobCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+  const targetUser = interaction.options.getUser('user', true);
+  if (targetUser.bot) {
+    await interaction.reply({ content: 'Bot accounts cannot be robbed.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (targetUser.id === interaction.user.id) {
+    await interaction.reply({ content: 'You cannot rob yourself.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (!(await getCurrentNonBotMember(interaction, targetUser.id))) {
+    await interaction.reply({ content: 'You can only rob a current server member.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await interaction.deferReply();
+  try {
+    const result = await attemptRobbery(config, interaction.user.id, targetUser.id);
+    if (result.outcome === 'cooldown') {
+      await interaction.editReply({ content: `Your next robbery attempt is available ${robberyCooldownRelativeTime(result.cooldownAvailableAt)}.` });
+      return;
+    }
+    if (result.outcome === 'target-empty') {
+      await interaction.editReply({ content: `${targetUser} has no KnowBucks available to rob. No cooldown was used.` });
+      return;
+    }
+
+    const robberIdentity = result.masked ? 'An unknown robber' : `${interaction.user}`;
+    if (result.outcome === 'success') {
+      const outcome = result.stolenAmount > 0
+        ? `${robberIdentity} robbed ${targetUser} for **${formatXp(result.stolenAmount)} KnowBucks** (${result.theftPercent}% outcome).`
+        : `${robberIdentity} got past ${targetUser}’s defenses, but their Safe protected every available KnowBuck.`;
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x22C55E)
+            .setTitle(result.stolenAmount > 0 ? 'Robbery succeeded' : 'Robbery found no unprotected funds')
+            .setDescription(`${outcome}${robberyBodyguardDetail(targetUser, result)}\nRobber balance: **${formatXp(result.robberBalance)} KnowBucks**. Next attempt: ${robberyCooldownRelativeTime(result.cooldownAvailableAt)}.`),
+        ],
+      });
+      return;
+    }
+
+    const failureIdentity = result.revealed ? `${interaction.user}` : robberIdentity;
+    const loss = result.failurePenalty > 0
+      ? `${failureIdentity} failed to rob ${targetUser} and forfeited **${formatXp(result.failurePenalty)} KnowBucks** to them.`
+      : `${failureIdentity} failed to rob ${targetUser}, but had no KnowBucks to forfeit.`;
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xEF4444)
+          .setTitle('Robbery failed')
+          .setDescription(`${loss}${robberyBodyguardDetail(targetUser, result)}\nRobber balance: **${formatXp(result.robberBalance)} KnowBucks**. Next attempt: ${robberyCooldownRelativeTime(result.cooldownAvailableAt)}.`),
+      ],
+    });
+  } catch (error) {
+    const message = error instanceof Error && error.message.includes('Unable to complete robbery:')
+      ? 'That robbery could not be completed. Please try again shortly.'
+      : 'That robbery could not be completed. Please try again shortly.';
+    await interaction.editReply({ content: message });
+  }
+}
+
 async function handleFishingCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
   if (!(await isFishingCommandAllowedInChannel(config, interaction.channelId))) {
@@ -1087,11 +1357,11 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
             },
             {
               name: 'Build progression',
-              value: '`/fish shop` spends KnowBucks on rods, bait, boat upgrades, skills, and crew contracts. Boat upgrades unlock their matching biomes.',
+              value: '`/fish shop` spends KnowBucks on rods, bait, boat upgrades, and crew contracts. Use `/player shop` for shared player skills.',
             },
             {
               name: 'Inventory, crates, and catalogue',
-              value: '`/fish inventory` has focused equipment, skill, relic-description, and boat tabs. Newly caught crates open automatically. `/fish chests-open` redeems all held legacy crates, while `/fish catalogue` tracks fish catches and found relics by biome.',
+              value: '`/fish inventory` has focused equipment, relic-description, and boat tabs. Newly caught crates open automatically. `/fish chests-open` redeems all held legacy crates, while `/fish catalogue` tracks fish catches and found relics by biome.',
             },
             {
               name: 'Crew expeditions',
@@ -1783,6 +2053,97 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   }
 }
 
+async function handlePlayerButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  const [prefix, ownerDiscordUserId, expiresAtRaw, action, argument] = interaction.customId.split(':');
+  if (!prefix.startsWith(`${PLAYER_BUTTON_PREFIX}-`) || !ownerDiscordUserId) return false;
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isSafeInteger(expiresAt) || !action || !argument || Date.now() >= expiresAt) {
+    await expirePlayerPanel(interaction);
+    return true;
+  }
+  if (interaction.user.id !== ownerDiscordUserId) {
+    await interaction.reply({ content: 'Only the member who opened this player panel can use its controls.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (!(await isDefaultCommandChannel(config, interaction.channelId))) {
+    clearPlayerPanelExpiry(interaction.message.id);
+    await interaction.update({ content: 'This channel is no longer configured for General commands, so this player panel has expired.', components: [] });
+    return true;
+  }
+
+  if (prefix === `${PLAYER_BUTTON_PREFIX}-shop`) {
+    if (action === 'tab') {
+      if (argument !== 'skills' && argument !== 'items') {
+        await interaction.reply({ content: 'This player shop panel is outdated. Run /player shop to open the current shop.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      await interaction.deferUpdate();
+      const state = await getPlayerShopState(config, ownerDiscordUserId);
+      const nextExpiresAt = Date.now() + PLAYER_PANEL_TTL_MS;
+      await interaction.editReply(buildPlayerShopPanel(ownerDiscordUserId, argument, state, nextExpiresAt));
+      schedulePlayerPanelExpiry(interaction.message, nextExpiresAt);
+      return true;
+    }
+
+    if (action !== 'buy') {
+      await interaction.reply({ content: 'This player shop panel is outdated. Run /player shop to open the current shop.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const item = getPlayerShopItem(argument);
+    if (!item) {
+      await interaction.reply({ content: 'That player-shop item is no longer available. Run /player shop to open the current shop.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    await interaction.deferUpdate();
+    const nextExpiresAt = Date.now() + PLAYER_PANEL_TTL_MS;
+    const tab: PlayerShopTab = 'category' in item && item.category === 'skill' ? 'skills' : 'items';
+    try {
+      const purchase = await purchasePlayerShopItem(config, ownerDiscordUserId, item.id);
+      const state = await getPlayerShopState(config, ownerDiscordUserId);
+      await interaction.editReply(buildPlayerShopPanel(
+        ownerDiscordUserId,
+        tab,
+        state,
+        nextExpiresAt,
+        `Purchased **${purchase.item.name}** for **${formatXp(purchase.chargedCost)} KnowBucks**.`,
+      ));
+    } catch (error) {
+      const state = await getPlayerShopState(config, ownerDiscordUserId);
+      const message = error instanceof Error && error.message.includes('Insufficient KnowBucks balance')
+        ? 'You do not have enough KnowBucks for that item.'
+        : error instanceof Error && error.message.includes('already own')
+          ? 'You already own that item.'
+          : error instanceof Error && error.message.includes('requires')
+            ? error.message.replace(/^Unable to purchase player-shop item: /, '')
+            : 'That player-shop purchase could not be completed.';
+      await interaction.editReply(buildPlayerShopPanel(ownerDiscordUserId, tab, state, nextExpiresAt, message));
+    }
+    schedulePlayerPanelExpiry(interaction.message, nextExpiresAt);
+    return true;
+  }
+
+  if (prefix === `${PLAYER_BUTTON_PREFIX}-stats`) {
+    if ((action !== 'stats' && action !== 'skills') || !interaction.guild) {
+      await interaction.reply({ content: 'This player stats panel is outdated. Run /player stats to open a new one.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const targetMember = await interaction.guild.members.fetch(argument).catch(() => null);
+    if (!targetMember || targetMember.user.bot) {
+      await interaction.update({ content: 'This member is no longer available, so this player stats panel has expired.', components: [] });
+      clearPlayerPanelExpiry(interaction.message.id);
+      return true;
+    }
+    await interaction.deferUpdate();
+    const stats = await getPlayerStats(config, targetMember.id);
+    const nextExpiresAt = Date.now() + PLAYER_PANEL_TTL_MS;
+    await interaction.editReply(buildPlayerStatsPanel(ownerDiscordUserId, targetMember.id, targetMember.displayName, stats, action, nextExpiresAt));
+    schedulePlayerPanelExpiry(interaction.message, nextExpiresAt);
+    return true;
+  }
+
+  return false;
+}
+
 async function handleFishingButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   if (interaction.customId === FISHING_REPEAT_BUTTON_PREFIX || interaction.customId.startsWith(`${FISHING_REPEAT_BUTTON_PREFIX}:`)) {
     const preset = parseFishingRepeatCustomId(interaction.customId);
@@ -2111,6 +2472,7 @@ async function handleSkinCollectionActionButton(interaction: ButtonInteraction, 
 
 export async function handleButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   if (interaction.guildId !== config.guildId) return;
+  if (await handlePlayerButtonInteraction(interaction, config)) return;
   if (await handleFishingButtonInteraction(interaction, config)) return;
   if (await handleClaimedSkinActionButton(interaction, config)) return;
   if (await handleSkinCollectionActionButton(interaction, config)) return;
@@ -2171,10 +2533,13 @@ export async function handleChatInputCommand(
             { name: '/knowbucks coinflip amount', value: 'Wager KnowBucks on a 50/50 coinflip. A win returns double the wager.' },
             { name: '/knowbucks leaderboard [count]', value: 'Show the top 10 current server members by KnowBucks, or request from 1 to 25 members.' },
             { name: '/knowbucks add/remove/set', value: 'Manage a member\'s KnowBucks. Requires a role selected in Discord Configuration.' },
+            { name: '/player stats [user], inventory [user]', value: 'View a current server member\'s character, Fishing, and KnowBucks progress with a skills tab. Inventory browsing is ready for upcoming player systems.' },
+            { name: '/player shop', value: 'Buy shared skill tiers and permanent robbery equipment with KnowBucks. Skills apply automatically wherever supported.' },
+            { name: '/rob user', value: 'Attempt a protected KnowBucks robbery against a current server member. Your success chance, one-hour Haste-reduced cooldown, equipment, and the target\'s defenses apply automatically.' },
             { name: '/snipe', value: 'Spend 1,000 KnowBucks to show this channel\'s latest cached deleted message.' },
             { name: '/steal-emoji message-id', value: 'Administrator only: import external custom emoji used in a message. A copied message link can target another channel in this server.' },
             { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent relics apply to the saved trip; crew runs take three times as long with normal rewards.' },
-            { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and skill levels, or use the inventory tabs to inspect relic descriptions and equip an owned rod or bait.' },
+            { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and crew contracts, or use the inventory tabs to inspect relic descriptions and equip an owned rod or bait.' },
             { name: '/fish chests-open, catalogue, help', value: 'Redeem all held legacy chests, browse the biome-filtered field guide, or open focused fishing help. Newly caught crates open automatically during expeditions.' },
             { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Every panel shows that collection\'s current daily upkeep; use Show details for metadata and the skin\'s sell value.' },
             { name: '/collections upkeep-view/upkeep-pay amount', value: 'Privately view your daily upkeep, allocation, regular balance, and full-payment coverage, or irrevocably reserve KnowBucks for upkeep. Allocations are capped at 100,000, are used before your regular balance, and cannot be withdrawn.' },
@@ -2205,6 +2570,16 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'knowbucks') {
     await handleKnowBucksCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'player') {
+    await handlePlayerCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'rob') {
+    await handleRobCommand(interaction, config);
     return;
   }
 

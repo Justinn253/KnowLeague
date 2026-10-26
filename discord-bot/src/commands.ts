@@ -192,6 +192,33 @@ export const commandDefinitions = [
     .setName('profile')
     .setDescription('View your linked KnowLeague profile.'),
   new SlashCommandBuilder()
+    .setName('player')
+    .setDescription('Browse your player progression, shared skills, and shop.')
+    .addSubcommand((subcommand) => subcommand
+      .setName('shop')
+      .setDescription('Browse player skills and robbery equipment to buy with KnowBucks.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('inventory')
+      .setDescription('View a player inventory. More inventory features are coming soon.')
+      .addUserOption((option) => option
+        .setName('user')
+        .setDescription('Player whose inventory to view. Defaults to you.')
+        .setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('stats')
+      .setDescription('View player levels, XP, KnowBucks, and shared skills.')
+      .addUserOption((option) => option
+        .setName('user')
+        .setDescription('Player whose stats to view. Defaults to you.')
+        .setRequired(false))),
+  new SlashCommandBuilder()
+    .setName('rob')
+    .setDescription('Attempt to rob a server member for KnowBucks.')
+    .addUserOption((option) => option
+      .setName('user')
+      .setDescription('Server member to rob.')
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName('fish')
     .setDescription('Send fishing expeditions and manage fishing upgrades.')
     .addSubcommand((subcommand) => subcommand

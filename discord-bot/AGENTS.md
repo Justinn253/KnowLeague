@@ -10,7 +10,7 @@
 - The bot reuses the website's existing `profile_private_details.discord_user_id` association. Never create an alternate linking table or persist a Discord token.
 - Bot reads and writes through a server-only Supabase service-role client. Never import bot modules into a browser component or expose its environment variables in a `NEXT_PUBLIC_*` value.
 - Prefer the web app's existing public/profile semantics; avoid exposing private profile or multiplayer data in a public Discord reply. Default command replies to ephemeral.
-- The optional General commands channels apply only to `/help`, `/link`, `/profile`, `/xp`, `/leaderboard`, `/knowbucks`, `/snipe`, and `/steal-emoji`. Fishing, Collections, and `/league` are feature-scoped and must retain their own channel behavior. Every command-channel denial must be ephemeral.
+- The optional General commands channels apply only to `/help`, `/link`, `/profile`, `/xp`, `/leaderboard`, `/knowbucks`, `/player`, `/rob`, `/snipe`, and `/steal-emoji`. Fishing, Collections, and `/league` are feature-scoped and must retain their own channel behavior. Every command-channel denial must be ephemeral.
 
 ## Commands and deployment
 - Keep command definitions in `src/commands.ts`, then register them explicitly with `npm run discord:commands:register`.

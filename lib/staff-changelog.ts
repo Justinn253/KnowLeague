@@ -17,6 +17,438 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-26-discord-collection-upkeep-ambiguity',
+    patch: 'patch-2026-10-26-discord-collection-upkeep-ambiguity',
+    timestamp: '2026-10-26T20:48:08.149Z',
+    title: 'Restore Discord collection upkeep reconciliation',
+    summary:
+      'Fixed the PostgreSQL ambiguity that prevented the Discord bot from reconciling collection upkeep at startup.',
+    details: [
+      'Added an append-only migration that replaces `process_discord_skin_collection_upkeep(text)` with explicit aliases for every mutable table reference involving `discord_user_id`.',
+      'The function returns a `discord_user_id` field, which PostgreSQL also exposes as a PL/pgSQL variable. The migration sets column precedence and removes the ambiguous unqualified references that caused the RPC to fail before processing any upkeep records.',
+      'Collection capacity, daily charge, Lucky reduction, allocation use, grace period, and release calculations are unchanged.',
+    ],
+    impact: [
+      'Apply migration 184, then restart the Discord bot (or let its scheduled reconciliation run) to resume collection upkeep processing.',
+      'The correction changes no player balances, claims, or command definitions by itself; it only makes the existing upkeep procedure executable again.',
+    ],
+    files: [
+      'supabase/migrations/184_fix_discord_collection_upkeep_user_id_ambiguity.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Reviewed every `discord_user_id` condition in the replacement function to ensure it is qualified through its table alias, with an explicit PL/pgSQL column-precedence directive as a safeguard.',
+      'npm run discord:check and no-cache ESLint for the changelog source passed after the patch.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-collection-rarity-weighted-items',
+    patch: 'patch-2026-10-26-discord-collection-rarity-weighted-items',
+    timestamp: '2026-10-26T20:44:06.882Z',
+    title: 'Filter and rarity-weight Discord collection items and runes',
+    summary:
+      'Discord Collections now shows Common through Mythic rarity labels for items and runes, filters non-item catalogue records, cleans Ornn Masterwork names, and applies the configured skin rarity weights to every manual drop type.',
+    details: [
+      'The item generator removes Enchantment entries, recalls, UI placeholders, malformed localised names, and non-purchasable records while retaining explicit special no-price entries and Ornn Masterwork upgrades. It strips the `%i:ornnIcon%` display token from Masterwork names and removes harmless line-break markup from actual item names.',
+      'The regenerated 587-item catalogue remains one highest-cost version per item name. It now stores and exports Common/Rare/Epic/Legendary/Mythic labels instead of displaying implementation tier numbers. Item rarity follows the established price brackets, while sub-runes are Rare, keystones Epic, and rune styles Legendary.',
+      'Manual `/collections spawn item` and `/collections spawn rune` selections now use the same configured per-rarity weights as skins. Each type independently normalizes against its available rarities, so a requested item or rune drop has the configured relative rarity distribution and reports its exact resulting rarity chance.',
+      'The existing database-side collection tier-to-rarity conversion remains the shared economy mapping: Common, Rare, Epic, Legendary, Mythic. Drop embeds and collection pages now display those rarity names and reuse their existing colors.',
+    ],
+    impact: [
+      'Deploy the bot with the regenerated local catalogues to expose the filtered pool and weighted rarity behavior. No additional command registration or database migration is required beyond migration 183 for the original item/rune collection support.',
+      'Existing claimed entries remain untouched. Item/rune manual drops continue to share the one-live-drop, ownership, capacity, and service-role-only reservation protections already used by Collections.',
+    ],
+    files: [
+      'data/catalogs/discord-collection-item-tiers.md',
+      'data/catalogs/discord-collection-items.json',
+      'data/catalogs/discord-collection-rune-tiers.md',
+      'data/catalogs/discord-collection-runes.json',
+      'discord-bot/README.md',
+      'discord-bot/src/skin-claims.ts',
+      'scripts/generate-discord-collection-catalog.mjs',
+      'tests/discord-skin-claims.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:discord-collections completed across all 404 Data Dragon item and 224 Reforged-rune snapshots, generating 587 items and 80 runes.',
+      'Post-generation validation found zero duplicate item names, zero retained enchantment/recall/placeholder/markup/Ornn-token names, six approved no-price Mythic items, and zero item or rune rarity-conversion mismatches.',
+      'npm run discord:check, the targeted Discord collection test file (16 tests), and no-cache ESLint for the changed generator, bot, tests, and changelog sources passed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-collection-item-tier-rebalance',
+    patch: 'patch-2026-10-26-discord-collection-item-tier-rebalance',
+    timestamp: '2026-10-26T20:26:21.329Z',
+    title: 'Deduplicate and cost-sort Discord collection items',
+    summary:
+      'The Discord item catalogue now contains one highest-cost version per item name, uses a 4,000-gold Tier 5 threshold, and exports the item review list in ascending cost order.',
+    details: [
+      'Changed item tiers to under 1,000 (Tier 1), 1,000–1,999 (Tier 2), 2,000–2,999 (Tier 3), 3,000–3,999 (Tier 4), and 4,000 or more (Tier 5). All unpriced items are removed except one no-price version each of Kalista\'s Black Spear, Scarecrow Effigy, Poro-Snax, Head of Kha\'Zix, Eye of the Herald, and Bonetooth Necklace, which remain Tier 5.',
+      'The generator now tracks the highest historical cost for a visual item variant, then normalizes item names and retains one representative with the highest cost. Cost ties prefer the most recently available version. The resulting 685-item catalogue has no duplicate names.',
+      'The regenerated item export is sorted by cost ascending, adds the Data Dragon version that supplied its highest cost, and retains mode and availability information. The six allowed no-price items follow the priced Tier 5 entries.',
+      'The existing manual collection reservation mapping remains explicit and unchanged: Tier 1 maps to Common, Tier 2 Rare, Tier 3 Epic, Tier 4 Legendary, and Tier 5 Mythic. This keeps items compatible with existing Collections sell-value/economy tables while item and rune UI continues to show their Tier label.',
+    ],
+    impact: [
+      'Deploy the Discord bot with the regenerated catalogue files to use the revised item pool. No slash-command registration or new database migration is required for this data and generator adjustment; migration 183 remains required for the overall item/rune feature.',
+      'Members no longer encounter arbitrary no-price Tier 5 entries or duplicate item names. Existing claimed collection records are not modified.',
+    ],
+    files: [
+      'data/catalogs/discord-collection-item-tiers.md',
+      'data/catalogs/discord-collection-items.json',
+      'discord-bot/README.md',
+      'scripts/generate-discord-collection-catalog.mjs',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:discord-collections completed against all 404 available Data Dragon item snapshots and produced 685 unique item names.',
+      'Post-generation validation confirmed one row for each item name; exactly six no-price entries matching the approved list; valid Tier 1–5 cost boundaries; and ascending numeric cost order with no-price exceptions last.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-collection-items-runes',
+    patch: 'patch-2026-10-26-discord-collection-items-runes',
+    timestamp: '2026-10-26T20:07:40.199Z',
+    title: 'Add historical items and runes to Discord Collections',
+    summary:
+      'Discord Collections can now hold image-backed historical League items and Reforged runes, with a staff-only type selector on `/collections spawn`.',
+    details: [
+      'Added a generated local catalogue containing 1,511 image-backed item records from all 404 available Data Dragon snapshots and 80 Reforged-rune records from 224 snapshots. Item tiers use total price: below 1,000 is Tier 1; 1,000–1,999 Tier 2; 2,000–2,999 Tier 3; 3,000 or above Tier 4; no listed price Tier 5. Sub-runes, keystones, and rune styles are Tier 2, Tier 3, and Tier 4 respectively.',
+      'Added tier-ordered Markdown exports for items and runes. Each item entry records the icon-backed historical variant, known game-mode maps, first/last available Data Dragon version, and most recent known total cost for that variant.',
+      '`/collections spawn [type]` accepts `skin`, `item`, or `rune`; omitting the option randomly selects an available type. Automatic message/timer drops and paid summon/gamble drops remain skin-only and retain their existing configured rarity weights and economy.',
+      'Migration 183 expands the existing collection record with a type, tier, and metadata object, preserves every existing skin row, permits namespaced catalogue locks, and adds a service-role-only atomic manual item/rune reservation RPC. Collection browsing and reaction-claim messages render the entry type, tier, item cost/modes/version span, or rune classification/style.',
+    ],
+    impact: [
+      'Apply migration 183 before deploying the bot; it is required for item/rune rows and the new reservation RPC. Deploy the bot image with the generated catalogues and register the changed guild slash-command definition before staff use `/collections spawn [type]`.',
+      'Existing Collections data, skin rarity configuration, unique catalogue-entry ownership, capacity, upkeep, sale, transfer, and security boundaries remain intact. New catalogue data is local at bot runtime; it does not request League data while members use commands.',
+    ],
+    files: [
+      'data/catalogs/discord-collection-items.json',
+      'data/catalogs/discord-collection-runes.json',
+      'data/catalogs/discord-collection-item-tiers.md',
+      'data/catalogs/discord-collection-rune-tiers.md',
+      'discord-bot/Dockerfile',
+      'discord-bot/README.md',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skin-claims.ts',
+      'package.json',
+      'scripts/generate-discord-collection-catalog.mjs',
+      'supabase/migrations/183_discord_collection_items_and_runes.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run data:generate:discord-collections completed from the available historical Data Dragon source snapshots and produced 1,511 items and 80 runes with HTTPS image URLs.',
+      'npx eslint app components lib scripts tests discord-bot/src --ext .ts,.tsx,.js,.mjs --no-cache, npm run typecheck, npm run test:run (44 files / 245 tests), npm run discord:check, guild command registration, and git diff --check passed. ESLint retained only seven existing next/image warnings; npm run check could not access the active development server\'s locked .next ESLint cache.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-help-category-tabs',
+    patch: 'patch-2026-10-26-discord-help-category-tabs',
+    timestamp: '2026-10-26T19:48:03.034Z',
+    title: 'Organize Discord help into category tabs',
+    summary:
+      'The Discord `/help` panel now uses button tabs to show General, League, Fishing, or Collections commands in one focused embed.',
+    details: [
+      'Added a public four-button tab row to `/help`. Each tab updates the original message with only its category’s command descriptions, retaining the selected tab style and keeping every embed below Discord’s field limit.',
+      'Help tabs are stateless and may be used by any server member viewing the shared help message; malformed or obsolete controls receive a private refresh instruction.',
+    ],
+    impact: [
+      'Members can browse the command guide without a dense multi-embed response. No command registration, migration, website deployment, permission, or privileged-intent change is required; deploy or restart the Discord bot to expose the interaction handler.',
+    ],
+    files: [
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check and git diff --check passed after the help-panel tab changes.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-skindle-migration-guard-help-pagination',
+    patch: 'patch-2026-10-26-discord-skindle-migration-guard-help-pagination',
+    timestamp: '2026-10-26T19:44:53.035Z',
+    title: 'Keep pre-migration Skindle sharing quiet and paginate Discord help',
+    summary:
+      'The Discord bot now disables website-Skindle share reconciliation for its current process when migration 182 is absent, and `/help` splits its command reference across Discord-safe embeds.',
+    details: [
+      'A missing `discord_skindle_share_outbox` PostgREST table now emits one actionable startup note, marks the optional sharing storage unavailable for the running bot process, and suppresses the prior 15-second error loop. Restarting the bot after migration 182 is applied automatically re-enables reconciliation.',
+      'The command reference grew beyond Discord’s 25-field embed limit after the new player and League commands. `/help` now uses a primary 25-field embed plus a continuation embed, preserving every command description without triggering Discord builder validation.',
+    ],
+    impact: [
+      'Existing bot deployments that have not yet applied migration 182 continue serving every unrelated feature without recurring share-reconciler error logs. Apply the migration and restart/redeploy the bot to activate website Skindle sharing.',
+      'Members can run `/help` successfully and receive the full command reference in two embeds.',
+    ],
+    files: [
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skindle-shares.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check and git diff --check passed after the follow-up handling changes.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-command-routing-league-skindle-sharing',
+    patch: 'patch-2026-10-26-discord-command-routing-league-skindle-sharing',
+    timestamp: '2026-10-26T19:24:21.271Z',
+    title: 'Improve Discord command routing, linked League accounts, and website Skindle sharing',
+    summary:
+      'Discord command denials now link members to the configured destination channels, `/rc` can replay a member’s latest command, League accounts can be saved for one-command snapshots, and linked website Skindle completions can publish through a configured Discord channel.',
+    details: [
+      'General, Fishing, and Collections channel denials remain private and now mention the actual configured channels. `/rc` stores a caller’s most recent slash-command shape in bot memory and replays it through the normal interaction handlers, retaining all existing permission, member, cooldown, balance, and channel validation.',
+      'Added private `/league account-link riot-id region` and public `/league account-mine` commands. The saved Riot ID and validated platform are kept per Discord user and guild in service-role-only storage; Account Mine uses the existing bounded Account Viewer capture path and does not store a Riot credential.',
+      'Discord Skindle treats an exact champion-name guess as a request for that champion’s complete sorted skin list instead of truncating it to eight partial matches. Long lists use Discord-safe embed fields.',
+      'Discord Configuration now has an optional website-Skindle results channel. An authenticated linked website player can queue a one-per-day result only after the endpoint verifies the submitted solved skin against the current deterministic daily target; the independent bot reconciler verifies the current Discord link and posts the established spoiler-free grid without exposing a bot token to the browser. The shared AppSelectMenu now focuses its search field when opened and caps lengthy menus with a themed scroll area.',
+      'Migration 182 creates protected linked League account, website Skindle sharing configuration, and outbox storage with server-only grants and one-result-per-player/day idempotency.',
+    ],
+    impact: [
+      'Apply migration 182, deploy the website and Discord bot independently, and run the guild command registration command so `/rc`, `/league account-link`, and `/league account-mine` become available. Select a sendable result channel in Discord Configuration only if website result sharing is desired.',
+      'Website sharing is opt-in at the guild configuration level and requires the player’s existing KnowLeague-to-Discord profile association. Guests, unlinked profiles, stale links, and disabled sharing settings do not post a result.',
+    ],
+    files: [
+      'app/api/discord/leveling/route.ts',
+      'app/api/skindle/discord-share/route.ts',
+      'components/app-select-menu.tsx',
+      'components/discord-leveling-settings.tsx',
+      'components/skindle.tsx',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/general-settings.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-accounts.ts',
+      'discord-bot/src/skindle-shares.ts',
+      'discord-bot/src/skindle.ts',
+      'supabase/migrations/182_discord_linked_league_accounts_and_skindle_shares.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository’s existing next/image warnings; root typecheck, 44 Vitest files / 244 tests, and Discord bot typecheck passed.',
+      'Command registration and final whitespace checks are recorded with this patch. Migration 182 was created but was not pushed because database deployment authority was not requested.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-player-inventory-equipment',
+    patch: 'patch-2026-10-26-discord-player-inventory-equipment',
+    timestamp: '2026-10-26T19:07:55.000Z',
+    title: 'Show purchased player-shop equipment in Discord inventory',
+    summary:
+      'The Discord player inventory now lists a selected member’s purchased robbery equipment, including active Bodyguard charges, instead of only reserving a placeholder for future inventory features.',
+    details: [
+      '`/player inventory [user]` reads the service-role-only player inventory, filters it to the Mask, Knife, Gun, Safe, and Bodyguard shop catalogue, and presents each owned item with its active effect. Bodyguard inventory rows display their remaining charge count.',
+      'The Player Shop remains free of automatic-effect and Bodyguard-charge copy, preserving the requested cleaner purchase surface while Inventory becomes the place to inspect owned equipment.',
+    ],
+    impact: [
+      'No database migration, command registration, website deployment, permission, or privileged-intent update is required. Deploy the Discord bot to expose the inventory contents.',
+      'Inventory requests remain limited to current non-bot guild members and use existing player-shop inventory data; no new user data, credentials, or browser-accessible database capability is introduced.',
+    ],
+    files: [
+      'discord-bot/src/player.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run discord:check passed after the inventory query and render changes.',
+      'Final repository and whitespace verification are recorded with this patch.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-player-shop-robbery',
+    patch: 'patch-2026-10-26-discord-player-shop-robbery',
+    timestamp: '2026-10-26T18:16:37.419Z',
+    title: 'Add Discord player progression surfaces and atomic KnowBucks robberies',
+    summary:
+      'Discord now has player stats, a shared player shop, an inventory placeholder, and a protected robbery system; existing Fishing skill ownership is migrated into a reusable player inventory without changing the skills’ Fishing effects.',
+    details: [
+      'Added guild-scoped `/player shop`, `/player inventory [user]`, `/player stats [user]`, and `/rob user` commands. Player Stats has requester-controlled Stats and Skills tabs, while Inventory intentionally reserves its display surface for the next player systems and confirms that player-shop upgrades already apply automatically.',
+      'The player shop moves Lucky, Haste, Cheapskate, and Money Mouser purchase tiers out of `/fish shop`, preserves the existing owned tiers, prerequisites, price-reduction behavior, and Fishing modifiers, and sells permanent Mask, Knife, Gun, and Safe equipment plus ten-charge Bodyguard replenishments.',
+      'Robberies are settled by a service-role-only Supabase RPC under stable balance and inventory locks. It enforces a one-hour base cooldown reduced 5% per Haste level, 5% base success plus attacker Lucky and equipment, defender Lucky and equipment protection with a 1% minimum, the 100/20/1 weighted 5%/20%/75% outcomes, Safe protection, Mask anonymity, Bodyguard charge consumption, and KnowBucks ledger entries for every money transfer.',
+      'Migration 181 creates the reusable player inventory and robbery cooldown state, moves the established skill item IDs out of Fishing inventory, redirects the existing Collections skill helper to shared ownership, restricts all new storage and RPCs to the service role, and reloads PostgREST schema metadata.',
+    ],
+    impact: [
+      'Apply migration 181 before deploying the Discord bot. Then deploy the bot independently and register the revised guild command definitions with its deployment environment; no website deployment or Discord privileged-intent change is required.',
+      'Player and robbery commands follow the existing General command-channel configuration. Robberies only accept current non-bot guild members, reject self-targeting, do not consume cooldown for a zero-balance target, and publish Mask anonymity unless a defending Bodyguard reveals a failed robber.',
+    ],
+    files: [
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/player.ts',
+      'discord-bot/src/fishing.ts',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/README.md',
+      'discord-bot/AGENTS.md',
+      'supabase/migrations/181_discord_player_shop_and_robbery.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository’s existing next/image warnings; root typecheck, 44 Vitest files / 244 tests, and Discord bot typecheck passed.',
+      'git diff --check passed; Git’s CRLF normalization notices were informational only.',
+      'Registered the revised guild-scoped Discord command definitions with the configured bot environment. Migration 181 was created but not applied, because database deployment authority was not requested.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-24-discord-snapshot-cost-hardening',
+    patch: 'patch-2026-10-24-discord-snapshot-cost-hardening',
+    timestamp: '2026-10-24T00:26:55.611Z',
+    title: 'Harden Discord screenshot rendering and document its operating cost model',
+    summary:
+      'Discord League Account Viewer and Champion Catalogue rendering now limits browser navigation, response size, idle remote-browser time, and multi-image request cost; operators also have a documented Railway and Browserless cost model.',
+    details: [
+      'Each snapshot browser page now allows top-level navigation only to the configured KnowLeague origin (including its canonical www form), blocking an unexpected redirect before the remote browser follows it. Known advertising and telemetry hosts are also blocked during capture, while website and game-asset requests remain available for visual fidelity.',
+      'The production site URL now rejects private and loopback hostnames, in addition to its prior HTTPS and no-credentials checks. Capture API-response inspection handles an unexpected non-URL response without an event-handler exception. Isolated contexts, static render paths, final-route validation, bounded waits, and safe output messages continue to apply.',
+      'The shared Browserless client disconnects after two inactive minutes, releasing a remote browser session while retaining the separately deployed Browserless service. Each output PNG remains limited to 8 MiB, and the complete attachment set is now limited to 20 MiB so an eight-image command cannot retain or upload an unbounded batch.',
+      'The former command-count limiter is now a six-work-unit rolling budget. Account renders reserve two units, Champion All sections reserve four, Ability details reserve three, and each one-image Champion section reserves one. This reflects the relative render/upload work while preserving the 30-second member cooldown, single active renderer, and two-item queue.',
+      'docs/discord-snapshot-operations.md records self-hosted Railway pricing inputs, a transparent formula and illustrative scenarios, Browserless Cloud unit implications, capacity ceilings, and Railway cost-control recommendations. It deliberately distinguishes the current private Railway Browserless deployment from Browserless Cloud billing.',
+    ],
+    impact: [
+      'Deploy the Discord bot to apply all runtime hardening. No website deployment, database migration, Discord permission, Riot configuration, Browserless variable, or slash-command registration change is required.',
+      'A full Champion image set can be requested once in a fresh one-minute server budget, and a member still waits 30 seconds between capture commands. If the bot is scaled beyond one replica, move the process-local work budget to an atomic shared store before raising replica count.',
+      'Operators should set Railway resource and usage limits, retain Browserless without a public domain, and use actual per-service metrics for final sizing. No sensitive identifier, URL, credential, provider text, or screenshot content is added to bot logs or this changelog.',
+    ],
+    files: [
+      'discord-bot/src/config.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/README.md',
+      'docs/discord-snapshot-operations.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed focused Discord snapshot coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 15 tests).',
+      'Passed npm run discord:check and npm run check; lint retained only the repository\'s existing next/image warnings.',
+      'Passed git diff --check; CRLF normalization notices from Git were informational only.',
+      'Reviewed current official Railway and Browserless pricing and cost-control documentation; no deployment configuration or external provider state was changed.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-24-discord-champion-snapshot-sections',
+    patch: 'patch-2026-10-24-discord-champion-snapshot-sections',
+    timestamp: '2026-10-24T00:12:08.592Z',
+    title: 'Let Discord members request specific Champion Catalogue sections',
+    summary:
+      'The required `section` option on `/league champion` now lets members post all eight images or only Overview, Statistics and playstyle, Ability details, or All skins.',
+    details: [
+      'The guild-scoped command exposes five bounded Discord choices: all, overview, stats, abilities, and skins. The bot validates the submitted choice again before building the website URL, so untrusted interaction data cannot select an arbitrary capture surface. During deployment, a still-registered prior command without the new option safely defaults to all sections until registration completes.',
+      'The non-indexed Champion capture route accepts the validated section query and renders only the corresponding marked panels. The bot captures one overview, one statistics/playstyle panel, five ability panels, one skin gallery, or all eight in their established order.',
+      'Section-specific requests avoid rendering and attaching unrelated panels. Skins retains its eager asset handling and successful-image wait; all capture contexts, URL validation, attachment-size limits, queues, cooldowns, and safe messages remain intact.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot, then run `npm run discord:commands:register` with the bot deployment environment to add the required command option. No database migration, Discord permission, privileged intent, Riot API, or Browserless configuration change is required.',
+    ],
+    files: [
+      'app/champions/discord-snapshot/page.tsx',
+      'components/champion-discord-snapshot.tsx',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/README.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; application and Discord bot TypeScript checks passed; 44 Vitest files / 243 tests passed.',
+      'Passed focused command coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 14 tests).',
+      'Passed git diff --check; CRLF normalization notices from Git were informational only.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-24-discord-champion-snapshot-assets',
+    patch: 'patch-2026-10-24-discord-champion-snapshot-assets',
+    timestamp: '2026-10-24T00:03:10.655Z',
+    title: 'Remove global chrome and incomplete skin galleries from Discord Champion captures',
+    summary:
+      'Champion Catalogue Discord snapshots now omit website chrome and the overview ability kit, while the gallery capture waits until every skin image has loaded successfully.',
+    details: [
+      'The global header, achievement surfaces, player-stat synchronization, and toast container are excluded only on the two non-indexed Discord snapshot routes. This prevents the sticky site header from overlaying an element screenshot; normal website routes remain unchanged.',
+      'The Champion Overview capture now stops after the profile header, lore, combat/playstyle profile, and Eternals. The interactive Overview preserves its ability kit and all existing controls.',
+      'The static Champion gallery marks every skin splash and rarity gem as eager. Before taking any image, the bot waits up to 30 seconds for every gallery image to complete with a positive natural width; an incomplete or failed image now produces a safe retry message instead of an incomplete gallery attachment.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot together: the website supplies the capture-only layout and eager gallery assets, while the bot enforces the successful-image wait. No slash-command re-registration, database migration, Discord permission, Riot API, or Browserless configuration change is required.',
+    ],
+    files: [
+      'components/global-actions.tsx',
+      'components/champion-profile.tsx',
+      'components/champion-skins.tsx',
+      'components/champion-discord-snapshot.tsx',
+      'discord-bot/src/league-account-viewer.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; application and Discord bot TypeScript checks passed; 44 Vitest files / 243 tests passed.',
+      'Passed git diff --check; CRLF normalization notices from Git were informational only.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-23-discord-champion-catalogue-snapshots',
+    patch: 'patch-2026-10-23-discord-champion-catalogue-snapshots',
+    timestamp: '2026-10-23T21:09:12.658Z',
+    title: 'Add Discord Champion Catalogue snapshot command',
+    summary:
+      'Discord now supports `/league champion champion`, which posts eight purpose-built Champion Catalogue panels for a selected champion without changing the interactive catalogue.',
+    details: [
+      'A non-indexed `/champions/discord-snapshot` website route resolves normalized local champion names, slugs, and supported catalogue search aliases. It renders a compact capture-only surface from the generated local catalogue; it does not call Riot or CommunityDragon at request time.',
+      'The command attaches Overview (without the official-page and coming-soon actions), Champion Statistics plus playstyle, Passive, Q, W, E, R ability-detail panels, and the complete All Skins gallery. Each ability image is explicitly marked and captured in the catalogue Passive-through-R order.',
+      'Champion capture reuses the protected Browserless/local-browser connection, creates one disposable browser context per command, validates the final canonical website origin and expected render route, bounds waits, freezes animation best-effort, and verifies every PNG remains within Discord’s 8 MiB per-file limit.',
+      'Champion and account renders share one serialized browser queue and the existing six-per-minute server limit plus 30-second member cooldown. This prevents either command from monopolizing the rendering service while preserving isolated capture contexts and safe error messages.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot together because the command captures a new website route. Then run `npm run discord:commands:register` with the bot deployment environment so the guild receives the new `/league champion` shape.',
+      'No database migration, Riot API configuration, Discord permission, privileged intent, or additional Browserless variable is needed. Successful commands use only local Champion Catalogue data and offer a link to the normal interactive catalogue page.',
+    ],
+    files: [
+      'app/champions/discord-snapshot/page.tsx',
+      'components/champion-detail-shell.tsx',
+      'components/champion-discord-snapshot.tsx',
+      'components/champion-gameplay-details.tsx',
+      'components/champion-profile.tsx',
+      'components/champion-skins.tsx',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/README.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; application and Discord bot TypeScript checks passed; 44 Vitest files / 243 tests passed.',
+      'Passed focused command coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 14 tests).',
+      'Passed git diff --check; CRLF normalization notices from Git were informational only.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-23-discord-league-account-viewer-render-mode',
+    patch: 'patch-2026-10-23-discord-league-account-viewer-render-mode',
+    timestamp: '2026-10-23T19:40:28.876Z',
+    title: 'Render purpose-built League Account Viewer image panels for Discord',
+    summary:
+      'The Discord `/league account` command now captures dedicated Overview, top-15 Mastery, and Current Game/recent-six Match History panels instead of taking one full interactive-page screenshot.',
+    details: [
+      'A non-indexed `/riot-account-viewer/discord-snapshot` route renders the existing account data in a static Discord-specific mode. It omits the website header, search controls, tab navigation, dropdowns, update/copy/share actions, and Mastery Master launch action while leaving the interactive viewer unchanged.',
+      'The Overview panel retains summoner level, total mastery, recent win rate, challenge points, ranked queue placement, and five signature champions. The Mastery panel shows exactly the 15 highest-mastery champions. The Match History panel includes an active game when Riot reports one and orders then limits returned match history to the six most recent matches.',
+      'The bot loads the account once in one isolated Browserless/local-browser context and captures the three explicitly marked render panels as individual PNG attachments. The interactive-viewer button continues to point only to the normal, verified website viewer route rather than the non-indexed render target.',
+      'Each attachment continues to be individually limited to 8 MiB before Discord upload; navigation, origin validation, response-status error mapping, browser-context cleanup, queue limits, and safe Discord output handling remain in force.',
+    ],
+    impact: [
+      'Deploy the website and independently deploy the Discord bot together, because the bot capture target is a new website route. No slash-command re-registration, database migration, Discord permission, privileged-intent, or Browserless variable change is required.',
+      'Discord members receive three clearly named images for successful account lookups. Website visitors retain the existing interactive League Account Viewer controls and layouts.',
+    ],
+    files: [
+      'app/riot-account-viewer/discord-snapshot/page.tsx',
+      'components/riot-account-viewer.tsx',
+      'discord-bot/src/league-account-viewer.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'tests/discord-skindle.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Passed npm run check: lint completed with 7 pre-existing next/image warnings; TypeScript checks passed; 44 Vitest files / 241 tests passed; Discord bot TypeScript check passed.',
+      'Passed focused Discord viewer coverage: npm run test:run -- tests/discord-skindle.test.ts (1 file, 12 tests).',
+    ],
+  },
+  {
     id: 'patch-2026-10-22-discord-league-account-viewer-browserless',
     patch: 'patch-2026-10-22-discord-league-account-viewer-browserless',
     timestamp: '2026-10-22T21:12:30.849Z',

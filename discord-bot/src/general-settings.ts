@@ -44,3 +44,11 @@ export async function isDefaultCommandChannel(config: DiscordBotConfig, channelI
   return cachedGeneralCommandChannels.allowedChannelIds === null
     || isAllowedCommandChannel(channelId, cachedGeneralCommandChannels.allowedChannelIds);
 }
+
+/** Returns the configured General command channels, or an empty array when General commands are open everywhere. */
+export async function getDefaultCommandChannelIds(config: DiscordBotConfig): Promise<readonly string[]> {
+  await isDefaultCommandChannel(config, '0');
+  return cachedGeneralCommandChannels?.allowedChannelIds
+    ? [...cachedGeneralCommandChannels.allowedChannelIds]
+    : [];
+}

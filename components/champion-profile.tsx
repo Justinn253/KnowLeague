@@ -233,7 +233,15 @@ function CombatProfile({ champion }: { champion: ChampionHubChampion }) {
   );
 }
 
-function AbilityPanel({ ability, champion }: { ability: ChampionHubAbility; champion: ChampionHubChampion }) {
+function AbilityPanel({
+  ability,
+  champion,
+  hideActions = false,
+}: {
+  ability: ChampionHubAbility;
+  champion: ChampionHubChampion;
+  hideActions?: boolean;
+}) {
   return (
     <div className="relative overflow-hidden p-5 sm:p-6">
       <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-red-500/10 blur-3xl" />
@@ -245,19 +253,21 @@ function AbilityPanel({ ability, champion }: { ability: ChampionHubAbility; cham
           <div className="min-w-0">
             <h2 className="text-3xl font-black tracking-tight text-white sm:text-4xl">{ability.name}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">{ability.description}</p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <a
-              href={champion.officialUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-200/45 bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:border-amber-100 hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-100"
-            >
-              Official champion page <ArrowUpRight size={15} aria-hidden="true" />
-            </a>
-            <span className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 px-4 text-sm font-bold text-slate-400">
-              <LockKeyhole size={14} aria-hidden="true" /> Gameplay details coming soon
-            </span>
-          </div>
+          {!hideActions ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <a
+                href={champion.officialUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-200/45 bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:border-amber-100 hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-100"
+              >
+                Official champion page <ArrowUpRight size={15} aria-hidden="true" />
+              </a>
+              <span className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 px-4 text-sm font-bold text-slate-400">
+                <LockKeyhole size={14} aria-hidden="true" /> Gameplay details coming soon
+              </span>
+            </div>
+          ) : null}
           </div>
         </div>
       </div>
@@ -433,13 +443,17 @@ export function LegacyChampionProfile({ champion }: ChampionProfileProps) {
   );
 }
 
-/** Overview content rendered inside the shared Champion Detail shell. */
-export function ChampionProfile({ champion }: ChampionProfileProps) {
+/** Overview content rendered inside the shared Champion Detail shell or static Discord capture target. */
+export function ChampionOverviewContent({
+  champion,
+  hideAbilityActions = false,
+  hideAbilityKit = false,
+}: ChampionProfileProps & { hideAbilityActions?: boolean; hideAbilityKit?: boolean }) {
   const [selectedAbilityId, setSelectedAbilityId] = useState(champion.abilities.find((ability) => ability.slot === 'Q')?.id ?? champion.abilities[0].id);
   const selectedAbility = champion.abilities.find((ability) => ability.id === selectedAbilityId) ?? champion.abilities[0];
 
   return (
-    <ChampionDetailShell champion={champion} activeTab="overview">
+    <>
       <section aria-label={`${champion.name} overview`} className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
           <p className="text-base leading-7 text-slate-200">{champion.lore}</p>
@@ -447,7 +461,7 @@ export function ChampionProfile({ champion }: ChampionProfileProps) {
         <ChampionCombatProfile champion={champion} />
       </section>
 
-      <section aria-label={`${champion.name} ability kit`} className="relative z-10 overflow-visible rounded-2xl border border-white/10 bg-slate-950/80">
+      {!hideAbilityKit ? <section aria-label={`${champion.name} ability kit`} className="relative z-10 overflow-visible rounded-2xl border border-white/10 bg-slate-950/80">
         <div role="tablist" aria-label={`${champion.name} abilities`} className="grid grid-cols-5 divide-x divide-white/10 border-b border-white/10">
           {champion.abilities.map((ability) => {
             const isSelected = ability.id === selectedAbility.id;
@@ -475,9 +489,9 @@ export function ChampionProfile({ champion }: ChampionProfileProps) {
           })}
         </div>
         <div id={`${selectedAbility.id}-panel`} role="tabpanel" aria-labelledby={`${selectedAbility.id}-tab`} className="overflow-hidden rounded-b-2xl bg-slate-950/45">
-          <AbilityPanel ability={selectedAbility} champion={champion} />
+          <AbilityPanel ability={selectedAbility} champion={champion} hideActions={hideAbilityActions} />
         </div>
-      </section>
+      </section> : null}
 
       {champion.eternals.length ? (
         <section aria-labelledby="eternals-heading" className="rounded-2xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
@@ -500,6 +514,15 @@ export function ChampionProfile({ champion }: ChampionProfileProps) {
           </div>
         </section>
       ) : null}
+    </>
+  );
+}
+
+/** Overview content rendered in the interactive Champion Catalogue. */
+export function ChampionProfile({ champion }: ChampionProfileProps) {
+  return (
+    <ChampionDetailShell champion={champion} activeTab="overview">
+      <ChampionOverviewContent champion={champion} />
     </ChampionDetailShell>
   );
 }

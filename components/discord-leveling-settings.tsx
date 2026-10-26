@@ -58,6 +58,7 @@ type LevelingSettingsResponse = {
   fishingBonusSettings: DiscordFishingBonusSettings;
   fishingRoleRewards: DiscordFishingLevelRoleReward[];
   fishingRoleSettings: DiscordFishingRoleSettings;
+  skindleShareChannelId: string | null;
 };
 
 const EMPTY_RESPONSE: LevelingSettingsResponse = {
@@ -79,6 +80,7 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
   fishingBonusSettings: DEFAULT_DISCORD_FISHING_BONUS_SETTINGS,
   fishingRoleRewards: [],
   fishingRoleSettings: DEFAULT_DISCORD_FISHING_ROLE_SETTINGS,
+  skindleShareChannelId: null,
 };
 
 const ALL_SKIN_CLAIM_CHANNELS_VALUE = '__all__';
@@ -204,8 +206,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !('skindleShareChannelId' in body)) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, skindleShareChannelId: body.skindleShareChannelId ?? null });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -438,11 +440,12 @@ export function DiscordLevelingSettings() {
           fishingRoleRewards: data.fishingRoleRewards,
           fishingTopFisherRoleId: data.fishingRoleSettings.topFisherRoleId,
           fishingWeekdayPhenomena: data.fishingBonusSettings.weekdayPhenomena,
+          skindleShareChannelId: data.skindleShareChannelId,
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !('skindleShareChannelId' in body)) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, skindleShareChannelId: body.skindleShareChannelId ?? null });
       setMessage('Discord Configuration saved. Fishing reward roles are granted when eligible members next gain Fishing XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
@@ -496,6 +499,29 @@ export function DiscordLevelingSettings() {
               />
             </div>
             <p className="mt-3 text-xs leading-5 text-slate-400">This does not change where level-up announcements, Fishing commands, Collections commands, skin drops, or Skindle can be used.</p>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Website Skindle results</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Optionally choose one channel for players who have linked their KnowLeague and Discord accounts to share a completed website Skindle. The bot posts the same spoiler-free result grid used by Discord Skindle.</p>
+            </div>
+            <div className="mt-4 max-w-xl">
+              <AppSelectMenu
+                label="Completed website Skindle channel"
+                value={data.skindleShareChannelId ?? ''}
+                onChange={(channelId) => setData((current) => ({ ...current, skindleShareChannelId: channelId || null }))}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="No channel keeps website Skindle completions private to the website."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: '', label: 'No sharing channel', description: 'Do not post website Skindle completions to Discord.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
           </section>
           </> : null}
           {activeTab === 'leveling' ? <>

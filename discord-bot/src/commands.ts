@@ -1,5 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder, type SlashCommandSubcommandBuilder } from 'discord.js';
-import { LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS } from './league-account-viewer.js';
+import { CHAMPION_CATALOGUE_SNAPSHOT_SECTION_OPTIONS, LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS } from './league-account-viewer.js';
 
 function addSkinIdOption(command: SlashCommandSubcommandBuilder) {
   return command.addIntegerOption((option) => option
@@ -26,10 +26,10 @@ function addCollectionReorderOptions(command: SlashCommandSubcommandBuilder) {
 function createCollectionsCommand() {
   return new SlashCommandBuilder()
     .setName('collections')
-    .setDescription('Browse and manage KnowLeague skin collections.')
+    .setDescription('Browse and manage KnowLeague collections.')
     .addSubcommand((subcommand) => subcommand
       .setName('collection')
-      .setDescription('Browse a member\'s claimed skins one at a time.')
+      .setDescription('Browse a member\'s claimed collection entries one at a time.')
       .addUserOption((option) => option
         .setName('member')
         .setDescription('Member whose collection to browse. Defaults to you.')
@@ -48,7 +48,7 @@ function createCollectionsCommand() {
         .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('give')
-      .setDescription('Give one of your claimed skins to another server member.')
+      .setDescription('Give one claimed collection entry to another server member.')
       .addUserOption((option) => option
         .setName('member')
         .setDescription('Member who should receive the skin.')
@@ -61,7 +61,16 @@ function createCollectionsCommand() {
         .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('spawn')
-      .setDescription('Immediately post a skin drop in this channel.'))
+      .setDescription('Immediately post a collection drop in this channel.')
+      .addStringOption((option) => option
+        .setName('type')
+        .setDescription('Drop type. Defaults to a random skin, item, or rune.')
+        .addChoices(
+          { name: 'Skin', value: 'skin' },
+          { name: 'Item', value: 'item' },
+          { name: 'Rune', value: 'rune' },
+        )
+        .setRequired(false)))
     .addSubcommand((subcommand) => subcommand
       .setName('summon')
       .setDescription('Spend 5,000 KnowBucks to summon a skin drop in this channel.'))
@@ -92,13 +101,13 @@ function createCollectionsCommand() {
         .setRequired(true)))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('steal')
-      .setDescription('Spend 3x its sell price to attempt to steal an owned skin.')))
+      .setDescription('Spend 3x its sell price to attempt to steal an owned collection entry.')))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('favorite')
-      .setDescription('Show one of your skins first in your collection.')))
+      .setDescription('Show one collection entry first.')))
     .addSubcommand((subcommand) => addCollectionReorderOptions(subcommand
       .setName('collection-reorder')
-      .setDescription('Set one to ten skins as the first collection slots, in order.')))
+      .setDescription('Set one to ten collection entries as the first slots, in order.')))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('gamble')
       .setDescription('Destroy your skin for a 25-65% chance at a new claimable drop.')))
@@ -119,7 +128,7 @@ function createCollectionsCommand() {
         .setRequired(false)))
     .addSubcommand((subcommand) => addSkinIdOption(subcommand
       .setName('sell')
-      .setDescription('Sell one of your skins for KnowBucks.')));
+      .setDescription('Sell one collection entry for KnowBucks.')));
 }
 
 function createLeagueCommand() {
@@ -141,6 +150,43 @@ function createLeagueCommand() {
         .addChoices(...LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS.map((platform) => ({
           name: platform.label,
           value: platform.value,
+        })))
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('account-link')
+      .setDescription('Save your Riot account for /league account-mine.')
+      .addStringOption((option) => option
+        .setName('riot-id')
+        .setDescription('Riot ID in the format GameName#TagLine.')
+        .setMinLength(3)
+        .setMaxLength(64)
+        .setRequired(true))
+      .addStringOption((option) => option
+        .setName('region')
+        .setDescription('League region for this Riot ID.')
+        .addChoices(...LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS.map((platform) => ({
+          name: platform.label,
+          value: platform.value,
+        })))
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('account-mine')
+      .setDescription('Post League Account Viewer images for your linked Riot account.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('champion')
+      .setDescription('Post Champion Catalogue images for a champion.')
+      .addStringOption((option) => option
+        .setName('champion')
+        .setDescription('Champion name, such as Aatrox or Miss Fortune.')
+        .setMinLength(2)
+        .setMaxLength(64)
+        .setRequired(true))
+      .addStringOption((option) => option
+        .setName('section')
+        .setDescription('Champion Catalogue section or all sections to post.')
+        .addChoices(...CHAMPION_CATALOGUE_SNAPSHOT_SECTION_OPTIONS.map((section) => ({
+          name: section.label,
+          value: section.value,
         })))
         .setRequired(true)))
     .addSubcommandGroup((group) => group
@@ -169,11 +215,41 @@ export const commandDefinitions = [
     .setName('help')
     .setDescription('See KnowLeague Discord bot commands and usage.'),
   new SlashCommandBuilder()
+    .setName('rc')
+    .setDescription('Repeat your most recent slash command in this bot session.'),
+  new SlashCommandBuilder()
     .setName('link')
     .setDescription('Learn how to link your KnowLeague account.'),
   new SlashCommandBuilder()
     .setName('profile')
     .setDescription('View your linked KnowLeague profile.'),
+  new SlashCommandBuilder()
+    .setName('player')
+    .setDescription('Browse your player progression, shared skills, and shop.')
+    .addSubcommand((subcommand) => subcommand
+      .setName('shop')
+      .setDescription('Browse player skills and robbery equipment to buy with KnowBucks.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('inventory')
+      .setDescription('View a player inventory. More inventory features are coming soon.')
+      .addUserOption((option) => option
+        .setName('user')
+        .setDescription('Player whose inventory to view. Defaults to you.')
+        .setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('stats')
+      .setDescription('View player levels, XP, KnowBucks, and shared skills.')
+      .addUserOption((option) => option
+        .setName('user')
+        .setDescription('Player whose stats to view. Defaults to you.')
+        .setRequired(false))),
+  new SlashCommandBuilder()
+    .setName('rob')
+    .setDescription('Attempt to rob a server member for KnowBucks.')
+    .addUserOption((option) => option
+      .setName('user')
+      .setDescription('Server member to rob.')
+      .setRequired(true)),
   new SlashCommandBuilder()
     .setName('fish')
     .setDescription('Send fishing expeditions and manage fishing upgrades.')

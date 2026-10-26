@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { playUiSound } from '@/lib/ui-sounds';
+import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 
 const APP_SELECT_MENU_OPEN_EVENT = 'knowleague:app-select-menu-open';
 
@@ -59,6 +60,7 @@ export function AppSelectMenu<T extends string | number | null>({
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const activeValues = multiple ? (selectedValues ?? [value]) : [value];
   const selectedOption = options.find((option) => option.value === value) ?? options[0];
   const selectedOptions = options.filter((option) => activeValues.includes(option.value));
@@ -99,6 +101,12 @@ export function AppSelectMenu<T extends string | number | null>({
     return () => window.cancelAnimationFrame(frame);
   }, [open, options.length, searchable]);
 
+  useEffect(() => {
+    if (!open || !searchable) return;
+    const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, searchable]);
+
   return (
     <div ref={rootRef} className={`relative grid gap-2 ${open ? 'z-[100]' : 'z-0'} ${disabledDescription ? 'group' : ''} ${className}`}>
       {!hideLabel ? <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span> : null}
@@ -129,13 +137,14 @@ export function AppSelectMenu<T extends string | number | null>({
           role="listbox"
           aria-multiselectable={multiple || undefined}
           aria-hidden={!open}
-          className={`absolute ${menuPlacement === 'right' ? 'right-0' : menuClassName ? 'left-0' : 'left-0 right-0'} ${opensUpward ? 'bottom-full mb-2' : 'top-full mt-2'} z-50 overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 transition-[opacity,transform] duration-100 ease-out sm:p-4 ${menuClassName} ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
+          className={`absolute ${menuPlacement === 'right' ? 'right-0' : menuClassName ? 'left-0' : 'left-0 right-0'} ${opensUpward ? 'bottom-full mb-2' : 'top-full mt-2'} z-50 flex max-h-[min(32rem,calc(100vh-1.5rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 transition-[opacity,transform] duration-100 ease-out sm:p-4 ${menuClassName} ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0'}`}
         >
-          <div className="mb-3 border-b border-white/10 pb-3"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">{label}</p>{headerDescription ? <p className="mt-2 text-xs leading-5 text-slate-400">{headerDescription}</p> : null}</div>
+          <div className="mb-3 shrink-0 border-b border-white/10 pb-3"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">{label}</p>{headerDescription ? <p className="mt-2 text-xs leading-5 text-slate-400">{headerDescription}</p> : null}</div>
           {searchable ? (
-            <label className="mb-3 block">
+            <label className="mb-3 block shrink-0">
               <span className="sr-only">Filter {label}</span>
               <input
+                ref={searchInputRef}
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
@@ -144,8 +153,9 @@ export function AppSelectMenu<T extends string | number | null>({
               />
             </label>
           ) : null}
-          <div className={`grid gap-2 py-1 ${optionsClassName}`}>
-            {visibleOptions.map((option) => {
+          <div className={`min-h-0 flex-1 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS} ${optionsClassName}`}>
+            <div className="grid gap-2 py-1">
+              {visibleOptions.map((option) => {
               const selected = activeValues.includes(option.value);
               return (
                 <button
@@ -170,8 +180,9 @@ export function AppSelectMenu<T extends string | number | null>({
                   <span><span className="block text-sm font-bold">{option.label}</span>{option.description ? <span className="mt-0.5 block text-xs leading-5 text-slate-400">{option.description}</span> : null}</span>
                 </button>
               );
-            })}
-            {visibleOptions.length === 0 ? <p className="rounded-xl border border-dashed border-white/15 px-3 py-4 text-sm text-slate-400">No matching options.</p> : null}
+              })}
+              {visibleOptions.length === 0 ? <p className="rounded-xl border border-dashed border-white/15 px-3 py-4 text-sm text-slate-400">No matching options.</p> : null}
+            </div>
           </div>
         </div>
       </div>

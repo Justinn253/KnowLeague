@@ -43,14 +43,14 @@ function skinHref(champion: ChampionHubChampion, skin: ChampionHubSkin) {
   return `/champions/${champion.slug}/skins?skin=${encodeURIComponent(skin.id)}`;
 }
 
-function RarityGem({ rarity }: { rarity: ChampionHubSkinRarity }) {
+function RarityGem({ rarity, loading }: { rarity: ChampionHubSkinRarity; loading?: 'eager' | 'lazy' }) {
   const gemPath = RARITY_GEM_PATH[rarity];
 
   if (!gemPath) return null;
 
   return (
     <span role="img" aria-label={`${rarity} skin`} className="inline-flex h-8 w-8 shrink-0 items-center justify-center">
-      <GameDirectImage src={gemPath} alt="" width={32} height={32} className="h-8 w-8 object-contain" />
+      <GameDirectImage src={gemPath} alt="" width={32} height={32} loading={loading} className="h-8 w-8 object-contain" />
     </span>
   );
 }
@@ -215,7 +215,16 @@ function SkinChromas({ skin }: { skin: ChampionHubSkin }) {
   );
 }
 
-function SkinCatalogue({ champion, selectedSkin }: { champion: ChampionHubChampion; selectedSkin: ChampionHubSkin }) {
+export function ChampionSkinCatalogue({
+  champion,
+  selectedSkin,
+  eagerImages = false,
+}: {
+  champion: ChampionHubChampion;
+  selectedSkin: ChampionHubSkin;
+  /** Forces every image to load before a complete Discord gallery screenshot is captured. */
+  eagerImages?: boolean;
+}) {
   return (
     <section aria-labelledby="skins-heading" className="rounded-2xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -241,10 +250,11 @@ function SkinCatalogue({ champion, selectedSkin }: { champion: ChampionHubChampi
                   alt={`${skin.name} splash art`}
                   fill
                   sizes="(min-width: 1280px) 250px, (min-width: 640px) 28vw, 48vw"
+                  loading={eagerImages ? 'eager' : undefined}
                   className="object-cover object-center transition duration-300 group-hover:scale-[1.025]"
                   style={{ imageRendering: 'auto' }}
                 />
-                <span className="absolute right-2 top-2"><RarityGem rarity={skin.rarity} /></span>
+                <span className="absolute right-2 top-2"><RarityGem rarity={skin.rarity} loading={eagerImages ? 'eager' : undefined} /></span>
               </div>
               <div className="min-h-16 p-3">
                 <p className={`line-clamp-2 text-sm font-black leading-5 ${RARITY_TEXT_CLASS[skin.rarity]}`}>{skin.name}</p>
@@ -271,7 +281,7 @@ export function ChampionSkins({ champion, selectedSkinId }: ChampionSkinsProps) 
       </section>
       <SkinLore skin={selectedSkin} />
       <SkinChromas skin={selectedSkin} />
-      <SkinCatalogue champion={champion} selectedSkin={selectedSkin} />
+      <ChampionSkinCatalogue champion={champion} selectedSkin={selectedSkin} />
     </ChampionDetailShell>
   );
 }

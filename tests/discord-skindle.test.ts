@@ -10,13 +10,22 @@ import {
 } from '../discord-bot/src/skindle';
 import { getDailySkindleTarget } from '@/lib/skindle-daily';
 import {
+  buildChampionCatalogueSnapshotUrl,
   buildLeagueAccountViewerUrl,
+  buildLeagueAccountViewerSnapshotUrl,
+  formatChampionCatalogueCaptureFailure,
+  getChampionCatalogueSnapshotFileNames,
+  getChampionCatalogueSnapshotRequestWeight,
   getLeagueAccountViewerAttachmentError,
+  getLeagueAccountViewerAttachmentSetError,
   formatLeagueAccountViewerCaptureFailure,
   formatLeagueAccountViewerError,
   formatLeagueAccountViewerResponseError,
   isTrustedLeagueAccountViewerOrigin,
+  normalizeChampionCatalogueSearch,
+  normalizeChampionCatalogueSnapshotSection,
   normalizeLeagueRiotId,
+  shouldBlockSnapshotBrowserRequest,
 } from '../discord-bot/src/league-account-viewer';
 import { getRiotAccountViewerErrorStatus } from '@/lib/riot-account-viewer-error-status';
 
@@ -84,7 +93,7 @@ describe('Discord Skindle test implementation', () => {
     expect(formatDiscordSkindleDate('2026-10-21')).toBe('Oct 20, 2026');
   });
 
-  it('registers the nested League Skindle commands with a bounded skin input', () => {
+  it('registers the League Account Viewer, Champion Catalogue, and nested Skindle commands with bounded inputs', () => {
     const league = serializedCommandDefinitions().find((definition) => definition.name === 'league');
     const account = league?.options?.find((option) => option.name === 'account') as SerializedCommandOption | undefined;
     const riotId = account?.options?.find((option) => option.name === 'riot-id');
@@ -94,6 +103,20 @@ describe('Discord Skindle test implementation', () => {
     expect(region).toMatchObject({ required: true });
     expect(region?.choices).toContainEqual({ name: 'NA — North America', value: 'NA1' });
     expect(region?.choices).toContainEqual({ name: 'EUW — Europe West', value: 'EUW1' });
+
+    const champion = league?.options?.find((option) => option.name === 'champion') as SerializedCommandOption | undefined;
+    const championName = champion?.options?.find((option) => option.name === 'champion');
+    const championSection = champion?.options?.find((option) => option.name === 'section');
+    expect(champion?.description).toBe('Post Champion Catalogue images for a champion.');
+    expect(championName).toMatchObject({ min_length: 2, max_length: 64, required: true });
+    expect(championSection).toMatchObject({ required: true });
+    expect(championSection?.choices).toEqual([
+      { name: 'All sections (8 images)', value: 'all' },
+      { name: 'Overview', value: 'overview' },
+      { name: 'Statistics and playstyle', value: 'stats' },
+      { name: 'Ability details (5 images)', value: 'abilities' },
+      { name: 'All skins', value: 'skins' },
+    ]);
 
     const skindle = league?.options?.find((option) => option.name === 'skindle') as SerializedCommandOption | undefined;
     expect(skindle?.options?.map((option) => option.name)).toEqual(['play', 'guess', 'status']);
@@ -111,6 +134,22 @@ describe('Discord Skindle test implementation', () => {
     expect(() => normalizeLeagueRiotId('Thebausffs')).toThrow('GameName#TagLine');
     expect(buildLeagueAccountViewerUrl({ siteUrl: 'https://knowleague.example' }, 'Thebausffs#COOL', 'EUW1'))
       .toBe('https://knowleague.example/riot-account-viewer?riotId=Thebausffs%23COOL&platform=EUW1&tab=overview');
+    expect(buildLeagueAccountViewerSnapshotUrl({ siteUrl: 'https://knowleague.example' }, 'Thebausffs#COOL', 'EUW1'))
+      .toBe('https://knowleague.example/riot-account-viewer/discord-snapshot?riotId=Thebausffs%23COOL&platform=EUW1');
+  });
+
+  it('normalizes a Champion Catalogue query and captures only its requested sections', () => {
+    expect(normalizeChampionCatalogueSearch('  Miss Fortune  ')).toBe('Miss Fortune');
+    expect(() => normalizeChampionCatalogueSearch(' ')).toThrow('between 2 and 64 characters');
+    expect(normalizeChampionCatalogueSnapshotSection(' ABILITIES ')).toBe('abilities');
+    expect(() => normalizeChampionCatalogueSnapshotSection('mastery')).toThrow('Choose all, overview, stats, abilities, or skins.');
+    expect(buildChampionCatalogueSnapshotUrl({ siteUrl: 'https://knowleague.example' }, 'Miss Fortune', 'skins'))
+      .toBe('https://knowleague.example/champions/discord-snapshot?champion=Miss+Fortune&section=skins');
+    expect(getChampionCatalogueSnapshotFileNames('overview')).toEqual(['knowleague-champion-overview.png']);
+    expect(getChampionCatalogueSnapshotFileNames('stats')).toEqual(['knowleague-champion-gameplay-statistics.png']);
+    expect(getChampionCatalogueSnapshotFileNames('abilities')).toHaveLength(5);
+    expect(getChampionCatalogueSnapshotFileNames('skins')).toEqual(['knowleague-champion-skins.png']);
+    expect(getChampionCatalogueSnapshotFileNames('all')).toHaveLength(8);
   });
 
   it('allows only the trusted www canonical-host redirect for the viewer', () => {
@@ -118,6 +157,18 @@ describe('Discord Skindle test implementation', () => {
     expect(isTrustedLeagueAccountViewerOrigin('https://knowleague.net/riot-account-viewer', 'https://www.knowleague.net/riot-account-viewer')).toBe(true);
     expect(isTrustedLeagueAccountViewerOrigin('http://knowleague.net/riot-account-viewer', 'https://knowleague.net/riot-account-viewer')).toBe(false);
     expect(isTrustedLeagueAccountViewerOrigin('https://accounts.knowleague.net/riot-account-viewer', 'https://knowleague.net/riot-account-viewer')).toBe(false);
+  });
+
+  it('budgets multi-image work and blocks off-origin or telemetry browser requests', () => {
+    const configuredViewerUrl = 'https://knowleague.net/champions/discord-snapshot';
+    expect(getChampionCatalogueSnapshotRequestWeight('overview')).toBe(1);
+    expect(getChampionCatalogueSnapshotRequestWeight('abilities')).toBe(3);
+    expect(getChampionCatalogueSnapshotRequestWeight('all')).toBe(4);
+    expect(shouldBlockSnapshotBrowserRequest('https://www.knowleague.net/champions/discord-snapshot', true, configuredViewerUrl)).toBe(false);
+    expect(shouldBlockSnapshotBrowserRequest('https://outside.example/redirect', true, configuredViewerUrl)).toBe(true);
+    expect(shouldBlockSnapshotBrowserRequest('https://www.google-analytics.com/analytics.js', false, configuredViewerUrl)).toBe(true);
+    expect(shouldBlockSnapshotBrowserRequest('https://ddragon.leagueoflegends.com/cdn/dragontail.png', false, configuredViewerUrl)).toBe(false);
+    expect(shouldBlockSnapshotBrowserRequest('not a URL', false, configuredViewerUrl)).toBe(true);
   });
 
   it('maps website viewer failures to safe, specific Discord messages', () => {
@@ -152,6 +203,9 @@ describe('Discord Skindle test implementation', () => {
     expect(getLeagueAccountViewerAttachmentError(8 * 1024 * 1024)).toBeNull();
     expect(getLeagueAccountViewerAttachmentError((8 * 1024 * 1024) + 1))
       .toBe('The League Account Viewer image is too large to attach. Please open the interactive viewer instead.');
+    expect(getLeagueAccountViewerAttachmentSetError(20 * 1024 * 1024)).toBeNull();
+    expect(getLeagueAccountViewerAttachmentSetError((20 * 1024 * 1024) + 1))
+      .toBe('The League Account Viewer images are too large to attach together. Please open the interactive viewer instead.');
   });
 
   it('returns a safe, actionable failure message for each screenshot capture stage', () => {
@@ -161,6 +215,15 @@ describe('Discord Skindle test implementation', () => {
       .toBe('The League Account Viewer did not finish loading in time. Please try again shortly.');
     expect(formatLeagueAccountViewerCaptureFailure('capture-image'))
       .toBe('The League Account Viewer loaded, but its image could not be created. Please try again shortly.');
+  });
+
+  it('returns scoped, safe failures for Champion Catalogue capture stages', () => {
+    expect(formatChampionCatalogueCaptureFailure('start-browser'))
+      .toBe('The Champion Catalogue screenshot browser is temporarily unavailable. Please try again shortly.');
+    expect(formatChampionCatalogueCaptureFailure('wait-for-viewer'))
+      .toBe('The Champion Catalogue did not finish loading in time. Please try again shortly.');
+    expect(formatChampionCatalogueCaptureFailure('capture-image'))
+      .toBe('The Champion Catalogue loaded, but its images could not be created. Please try again shortly.');
   });
 
   it('does not present upstream Riot or data-provider failures as invalid viewer input', () => {

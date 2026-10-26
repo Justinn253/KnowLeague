@@ -45,7 +45,7 @@ function GameplayStat({ stat }: { stat: ChampionHubGameplayStat }) {
   );
 }
 
-function ChampionStatistics({ champion }: { champion: ChampionHubChampion }) {
+export function ChampionGameplayStatistics({ champion }: { champion: ChampionHubChampion }) {
   return (
     <article aria-labelledby="champion-statistics-heading" className="relative overflow-hidden rounded-2xl border border-amber-200/20 bg-slate-950/80">
       <div className="pointer-events-none absolute -left-20 -top-20 h-56 w-56 rounded-full bg-amber-300/10 blur-3xl" />
@@ -153,10 +153,22 @@ function GameplayAbilityPanel({ champion, ability }: { champion: ChampionHubCham
   );
 }
 
-function GameplayAbilities({ champion }: { champion: ChampionHubChampion }) {
+export function ChampionGameplayAbilityDetails({
+  champion,
+  selectedAbilityId: snapshotAbilityId,
+  idPrefix = 'gameplay',
+}: {
+  champion: ChampionHubChampion;
+  selectedAbilityId?: string;
+  /** Keeps the repeated static Discord panels accessible without duplicate DOM IDs. */
+  idPrefix?: string;
+}) {
   const initialAbility = champion.gameplayDetails.abilities.find((ability) => champion.abilities.find((candidate) => candidate.id === ability.abilityId)?.slot === 'Q') ?? champion.gameplayDetails.abilities[0];
   const [selectedAbilityId, setSelectedAbilityId] = useState(initialAbility.abilityId);
-  const selectedAbility = champion.gameplayDetails.abilities.find((ability) => ability.abilityId === selectedAbilityId) ?? initialAbility;
+  const selectedAbility = champion.gameplayDetails.abilities.find((ability) => ability.abilityId === snapshotAbilityId)
+    ?? champion.gameplayDetails.abilities.find((ability) => ability.abilityId === selectedAbilityId)
+    ?? initialAbility;
+  const isStaticSnapshot = Boolean(snapshotAbilityId);
 
   return (
     <section aria-labelledby="gameplay-abilities-heading" className="relative z-10 overflow-visible rounded-2xl border border-white/10 bg-slate-950/80">
@@ -172,12 +184,12 @@ function GameplayAbilities({ champion }: { champion: ChampionHubChampion }) {
           return (
             <button
               key={gameplayAbility.abilityId}
-              id={`${gameplayAbility.abilityId}-gameplay-tab`}
+              id={`${idPrefix}-${gameplayAbility.abilityId}-tab`}
               type="button"
               role="tab"
               aria-selected={isSelected}
-              aria-controls={`${gameplayAbility.abilityId}-gameplay-panel`}
-              onClick={() => setSelectedAbilityId(gameplayAbility.abilityId)}
+              aria-controls={`${idPrefix}-${gameplayAbility.abilityId}-panel`}
+              onClick={isStaticSnapshot ? undefined : () => setSelectedAbilityId(gameplayAbility.abilityId)}
               className={`group relative flex min-w-0 flex-col items-center gap-2 p-2 text-center transition first:rounded-tl-xl last:rounded-tr-xl focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-200 sm:flex-row sm:text-left sm:p-3 ${isSelected ? 'z-10 bg-[linear-gradient(135deg,rgba(120,53,15,0.58),rgba(69,26,3,0.72))] text-white shadow-[inset_0_0_0_1px_rgba(251,191,36,0.85)] after:absolute after:inset-x-0 after:bottom-0 after:h-1 after:bg-amber-300' : 'bg-slate-950/80 text-slate-300 hover:bg-slate-900'}`}
             >
               <span className="relative inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-md border border-amber-700/80 sm:h-12 sm:w-12">
@@ -192,11 +204,15 @@ function GameplayAbilities({ champion }: { champion: ChampionHubChampion }) {
           );
         })}
       </div>
-      <div id={`${selectedAbility.abilityId}-gameplay-panel`} role="tabpanel" aria-labelledby={`${selectedAbility.abilityId}-gameplay-tab`} className="overflow-hidden rounded-b-2xl bg-slate-950/45">
+      <div id={`${idPrefix}-${selectedAbility.abilityId}-panel`} role="tabpanel" aria-labelledby={`${idPrefix}-${selectedAbility.abilityId}-tab`} className="overflow-hidden rounded-b-2xl bg-slate-950/45">
         <GameplayAbilityPanel champion={champion} ability={selectedAbility} />
       </div>
     </section>
   );
+}
+
+function GameplayAbilities({ champion }: { champion: ChampionHubChampion }) {
+  return <ChampionGameplayAbilityDetails champion={champion} />;
 }
 
 /** Data-driven Champion Hub view for combat statistics and gameplay-relevant ability values. */
@@ -204,7 +220,7 @@ export function ChampionGameplayDetails({ champion }: ChampionGameplayDetailsPro
   return (
     <ChampionDetailShell champion={champion} activeTab="gameplay-details">
       <section aria-label={`${champion.name} combat statistics and playstyle`} className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <ChampionStatistics champion={champion} />
+        <ChampionGameplayStatistics champion={champion} />
         <ChampionCombatProfile champion={champion} />
       </section>
       <GameplayAbilities champion={champion} />

@@ -22,6 +22,47 @@ type CatalogSkin = {
   rarity: string;
   releaseDate: string;
   skinLine: string;
+  type: 'skin';
+};
+
+export type CollectionSpawnType = 'item' | 'rune' | 'skin';
+type CollectionRarity = 'Common' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic';
+
+type CollectionItemCatalogEntry = {
+  catalogId: string;
+  cost: number | null;
+  firstSeenVersion: string;
+  gameModes: string[];
+  id: string;
+  imageUrl: string;
+  lastSeenVersion: string;
+  name: string;
+  rarity: CollectionRarity;
+  tier: number;
+  type: 'item';
+};
+
+type CollectionRuneCatalogEntry = {
+  catalogId: string;
+  id: string;
+  imageUrl: string;
+  name: string;
+  rarity: CollectionRarity;
+  runeKind: 'keystone' | 'style' | 'sub-rune';
+  style: string;
+  tier: number;
+  type: 'rune';
+};
+
+type CollectionCatalogEntry = CatalogSkin | CollectionItemCatalogEntry | CollectionRuneCatalogEntry;
+
+type CollectionMetadata = {
+  cost?: number | null;
+  firstSeenVersion?: string;
+  gameModes?: string[];
+  lastSeenVersion?: string;
+  runeKind?: CollectionRuneCatalogEntry['runeKind'];
+  style?: string;
 };
 
 type SkinClaimSettingsRow = {
@@ -85,6 +126,9 @@ type ReservedSkinDrop = {
 type ClaimedSkinDrop = {
   champion_name: string;
   claimed: boolean;
+  collection_metadata?: CollectionMetadata;
+  collection_tier?: number | null;
+  collection_type?: CollectionSpawnType;
   image_url: string;
   is_favorite?: boolean;
   owner_acquired_at?: string | null;
@@ -242,9 +286,18 @@ const RARITY_COLORS: Record<string, number> = {
   Transcendent: 0xF97316,
   Ultimate: 0x14B8A6,
 };
+const COLLECTION_TIER_RARITIES: Record<number, CollectionRarity> = {
+  1: 'Common',
+  2: 'Rare',
+  3: 'Epic',
+  4: 'Legendary',
+  5: 'Mythic',
+};
 const SUMMON_UPGRADE_RARITIES = ['Common', 'Rare', 'Epic', 'Legendary', 'Mythic'] as const;
 
 let catalogCache: CatalogSkin[] | null = null;
+let collectionItemCatalogCache: CollectionItemCatalogEntry[] | null = null;
+let collectionRuneCatalogCache: CollectionRuneCatalogEntry[] | null = null;
 let cachedSettings: { expiresAt: number; guildId: string; value: SkinClaimRuntimeSettings } | null = null;
 let settingsLoad: Promise<SkinClaimRuntimeSettings | null> | null = null;
 let scheduler: NodeJS.Timeout | null = null;
@@ -279,6 +332,91 @@ function loadSkinCatalog() {
   return catalogCache;
 }
 
+function loadCollectionItemCatalog() {
+  if (collectionItemCatalogCache) return collectionItemCatalogCache;
+  const catalogUrl = new URL('../../data/catalogs/discord-collection-items.json', import.meta.url);
+  const parsed = JSON.parse(readFileSync(catalogUrl, 'utf8')) as { items?: CollectionItemCatalogEntry[] };
+  collectionItemCatalogCache = (parsed.items ?? []).filter((item) => (
+    /^item:[a-z0-9:_-]{1,190}$/.test(item.catalogId)
+    && Boolean(item.name)
+    && /^https:\/\//.test(item.imageUrl)
+    && Number.isInteger(item.tier)
+    && item.tier >= 1
+    && item.tier <= 5
+    && item.rarity === COLLECTION_TIER_RARITIES[item.tier]
+  ));
+  if (!collectionItemCatalogCache.length) {
+    throw new Error('The generated collection item catalogue has no claimable items.');
+  }
+  return collectionItemCatalogCache;
+}
+
+function loadCollectionRuneCatalog() {
+  if (collectionRuneCatalogCache) return collectionRuneCatalogCache;
+  const catalogUrl = new URL('../../data/catalogs/discord-collection-runes.json', import.meta.url);
+  const parsed = JSON.parse(readFileSync(catalogUrl, 'utf8')) as { runes?: CollectionRuneCatalogEntry[] };
+  collectionRuneCatalogCache = (parsed.runes ?? []).filter((rune) => (
+    /^rune-(?:keystone|style|sub-rune):[a-z0-9:_-]{1,180}$/.test(rune.catalogId)
+    && Boolean(rune.name)
+    && /^https:\/\//.test(rune.imageUrl)
+    && Number.isInteger(rune.tier)
+    && rune.tier >= 2
+    && rune.tier <= 4
+    && rune.rarity === COLLECTION_TIER_RARITIES[rune.tier]
+  ));
+  if (!collectionRuneCatalogCache.length) {
+    throw new Error('The generated collection rune catalogue has no claimable runes.');
+  }
+  return collectionRuneCatalogCache;
+}
+
+function collectionCatalogId(entry: CollectionCatalogEntry) {
+  return entry.type === 'skin' ? entry.id : entry.catalogId;
+}
+
+function collectionTypeLabel(type: CollectionSpawnType | undefined) {
+  if (type === 'item') return 'item';
+  if (type === 'rune') return 'rune';
+  return 'skin';
+}
+
+function collectionTypeTitle(type: CollectionSpawnType | undefined) {
+  return collectionTypeLabel(type).replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function collectionEntryImageUrl(entry: CollectionCatalogEntry) {
+  return entry.type === 'skin' ? getSkinDisplayImageUrl(entry) : entry.imageUrl;
+}
+
+function collectionTierRarity(tier: number | null | undefined) {
+  return tier ? COLLECTION_TIER_RARITIES[tier] ?? 'Common' : 'Common';
+}
+
+function collectionEntryRarity(entry: CollectionCatalogEntry) {
+  return entry.type === 'skin' ? normalizeRarity(entry.rarity) : entry.rarity;
+}
+
+function collectionEntryMetadata(entry: CollectionCatalogEntry): CollectionMetadata {
+  if (entry.type === 'item') {
+    return {
+      cost: entry.cost,
+      firstSeenVersion: entry.firstSeenVersion,
+      gameModes: entry.gameModes,
+      lastSeenVersion: entry.lastSeenVersion,
+    };
+  }
+  if (entry.type === 'rune') {
+    return { runeKind: entry.runeKind, style: entry.style };
+  }
+  return {};
+}
+
+function getCollectionEntryCatalog(type: CollectionSpawnType): readonly CollectionCatalogEntry[] {
+  if (type === 'item') return loadCollectionItemCatalog();
+  if (type === 'rune') return loadCollectionRuneCatalog();
+  return loadSkinCatalog();
+}
+
 function chooseWeightedSkin(rarityWeights: ReadonlyMap<string, number>, catalog: readonly CatalogSkin[] = loadSkinCatalog()) {
   const candidates = catalog.map((skin) => ({ skin, weight: rarityWeights.get(normalizeRarity(skin.rarity)) ?? 0 }))
     .filter((candidate) => candidate.weight > 0);
@@ -294,6 +432,24 @@ function chooseWeightedSkin(rarityWeights: ReadonlyMap<string, number>, catalog:
   return candidates[candidates.length - 1]!.skin;
 }
 
+function chooseWeightedCollectionEntry<T extends CollectionItemCatalogEntry | CollectionRuneCatalogEntry>(
+  rarityWeights: ReadonlyMap<string, number>,
+  catalog: readonly T[],
+) {
+  const candidates = catalog.map((entry) => ({ entry, weight: rarityWeights.get(entry.rarity) ?? 0 }))
+    .filter((candidate) => candidate.weight > 0);
+  const totalWeight = candidates.reduce((total, candidate) => total + candidate.weight, 0);
+  if (totalWeight <= 0) {
+    throw new Error('Collection rarity settings do not include a positive eligible weight for this entry type.');
+  }
+  let selection = Math.random() * totalWeight;
+  for (const candidate of candidates) {
+    selection -= candidate.weight;
+    if (selection < 0) return candidate.entry;
+  }
+  return candidates[candidates.length - 1]!.entry;
+}
+
 async function chooseAvailableWeightedSkin(config: DiscordBotConfig, rarityWeights: ReadonlyMap<string, number>) {
   const { data, error } = await createBotServiceClient(config)
     .from('discord_skin_claim_catalog_locks')
@@ -306,6 +462,46 @@ async function chooseAvailableWeightedSkin(config: DiscordBotConfig, rarityWeigh
   const catalog = loadSkinCatalog().filter((skin) => !lockedCatalogIds.has(skin.id));
   if (!catalog.length) throw new Error('Every skin in the local KnowLeague catalogue is already in a collection.');
   return { catalog, skin: chooseWeightedSkin(rarityWeights, catalog) };
+}
+
+async function chooseAvailableCollectionEntry(
+  config: DiscordBotConfig,
+  requestedType: CollectionSpawnType | undefined,
+  rarityWeights: ReadonlyMap<string, number>,
+) {
+  const { data, error } = await createBotServiceClient(config)
+    .from('discord_skin_claim_catalog_locks')
+    .select('skin_catalog_id')
+    .eq('guild_id', config.guildId)
+    .returns<SkinClaimCatalogLockRow[]>();
+  if (error) throw new Error(`Unable to load claimed Discord collection entries: ${error.message}`);
+
+  const lockedCatalogIds = new Set((data ?? []).map((entry) => entry.skin_catalog_id));
+  const types = requestedType
+    ? [requestedType]
+    : (['skin', 'item', 'rune'] as CollectionSpawnType[]).sort(() => Math.random() - 0.5);
+
+  for (const type of types) {
+    const catalog = getCollectionEntryCatalog(type).filter((entry) => !lockedCatalogIds.has(collectionCatalogId(entry)));
+    if (!catalog.length) continue;
+    if (type === 'skin') {
+      return {
+        entry: chooseWeightedSkin(rarityWeights, catalog as CatalogSkin[]),
+        collectionCatalog: null,
+        skinCatalog: catalog as CatalogSkin[],
+      };
+    }
+    const collectionCatalog = catalog as (CollectionItemCatalogEntry | CollectionRuneCatalogEntry)[];
+    return {
+      entry: chooseWeightedCollectionEntry(rarityWeights, collectionCatalog),
+      collectionCatalog,
+      skinCatalog: null,
+    };
+  }
+
+  throw new Error(requestedType
+    ? `Every ${collectionTypeLabel(requestedType)} in the local KnowLeague catalogue is already in a collection.`
+    : 'Every collection entry in the local KnowLeague catalogues is already claimed.');
 }
 
 function maybeUpgradeSummonedSkin(skin: CatalogSkin, catalog: readonly CatalogSkin[], luckyLevel: number) {
@@ -347,6 +543,23 @@ export function calculateSkinRaritySpawnPercent(
     if (skinRarity === targetRarity) rarityWeight += weight;
   }
 
+  return totalWeight > 0 ? (rarityWeight / totalWeight) * 100 : 0;
+}
+
+function calculateCollectionRaritySpawnPercent(
+  rarity: string,
+  rarityWeights: ReadonlyMap<string, number>,
+  catalog: readonly (CollectionItemCatalogEntry | CollectionRuneCatalogEntry)[],
+) {
+  const targetRarity = normalizeRarity(rarity);
+  let totalWeight = 0;
+  let rarityWeight = 0;
+  for (const entry of catalog) {
+    const weight = rarityWeights.get(entry.rarity) ?? 0;
+    if (weight <= 0) continue;
+    totalWeight += weight;
+    if (entry.rarity === targetRarity) rarityWeight += weight;
+  }
   return totalWeight > 0 ? (rarityWeight / totalWeight) * 100 : 0;
 }
 
@@ -402,11 +615,22 @@ function getSkinDisplayImageUrl(skin: Pick<CatalogSkin, 'centeredImageUrl' | 'im
     : skin.imageUrl;
 }
 
-function getClaimedSkinDisplayImageUrl(drop: Pick<ClaimedSkinDrop, 'image_url' | 'skin_catalog_id'>) {
+function getClaimedSkinDisplayImageUrl(drop: Pick<ClaimedSkinDrop, 'collection_type' | 'image_url' | 'skin_catalog_id'>) {
+  if (drop.collection_type && drop.collection_type !== 'skin') return drop.image_url;
   const catalogSkin = drop.skin_catalog_id
     ? loadSkinCatalog().find((skin) => skin.id === drop.skin_catalog_id)
     : null;
   return catalogSkin ? getSkinDisplayImageUrl(catalogSkin) : drop.image_url;
+}
+
+function collectionDropRarity(drop: Pick<ClaimedSkinDrop, 'collection_tier' | 'collection_type' | 'rarity'>) {
+  return drop.collection_type && drop.collection_type !== 'skin' && drop.collection_tier
+    ? collectionTierRarity(drop.collection_tier)
+    : drop.rarity;
+}
+
+function collectionDropColor(drop: Pick<ClaimedSkinDrop, 'collection_tier' | 'collection_type' | 'rarity'>) {
+  return RARITY_COLORS[collectionDropRarity(drop)] ?? 0xF59E0B;
 }
 
 function skinDropEmbed(
@@ -416,24 +640,27 @@ function skinDropEmbed(
   raritySpawnPercent?: number,
 ) {
   const claimed = Boolean(claimedByUserId) || collection;
+  const type = collectionTypeLabel(drop.collection_type);
+  const typeTitle = collectionTypeTitle(drop.collection_type);
   const details = [
     `**${drop.skin_name}**`,
-    `Rarity: **${drop.rarity}**`,
+    `Type: **${typeTitle}**`,
+    `Rarity: **${collectionDropRarity(drop)}**`,
     ...(raritySpawnPercent === undefined ? [] : [`Rarity spawn chance: **${formatRaritySpawnPercent(raritySpawnPercent)}**`]),
   ];
   const embed = new EmbedBuilder()
-    .setColor(RARITY_COLORS[drop.rarity] ?? 0xF59E0B)
-    .setTitle(`${claimed ? 'Claimed skin' : 'Skin drop'} · #${formatSkinCode(drop.skin_code)}`)
+    .setColor(collectionDropColor(drop))
+    .setTitle(`${claimed ? `Claimed ${type}` : `${typeTitle} drop`} · #${formatSkinCode(drop.skin_code)}`)
     .setDescription(details.join('\n'))
     .setImage(drop.image_url);
   if (!collection) {
     embed.setDescription([
-      claimed ? `<@${claimedByUserId}> claimed this skin.` : 'React to this message first to add this skin to your collection.',
+      claimed ? `<@${claimedByUserId}> claimed this ${type}.` : `React to this message first to add this ${type} to your collection.`,
       '',
       ...details,
     ].join('\n'));
   }
-  return embed.setFooter({ text: claimed ? 'Use /collections collection to browse your collection.' : 'The first human reaction wins.' });
+  return embed.setFooter({ text: claimed ? 'Use /collections collection to browse the collection.' : 'The first human reaction wins.' });
 }
 
 export function skinClaimActionButtons(ownerDiscordUserId: string, skinCode: number, disabled = false) {
@@ -541,15 +768,19 @@ async function abandonUnsentDrop(config: DiscordBotConfig, dropId: number) {
   }
 }
 
-function toSkinDrop(skin: CatalogSkin, reserved: ReservedSkinDrop) {
+function toCollectionDrop(entry: CollectionCatalogEntry, reserved: ReservedSkinDrop) {
+  const isSkin = entry.type === 'skin';
   return {
-    champion_name: skin.champion,
-    image_url: getSkinDisplayImageUrl(skin),
-    rarity: normalizeRarity(skin.rarity),
-    release_date: skin.releaseDate,
+    champion_name: isSkin ? entry.champion : collectionTypeTitle(entry.type),
+    collection_metadata: collectionEntryMetadata(entry),
+    collection_tier: isSkin ? null : entry.tier,
+    collection_type: entry.type,
+    image_url: collectionEntryImageUrl(entry),
+    rarity: collectionEntryRarity(entry),
+    release_date: isSkin ? entry.releaseDate : '2009-10-27',
     skin_code: reserved.skin_code,
-    skin_line: skin.skinLine,
-    skin_name: skin.answer,
+    skin_line: isSkin ? entry.skinLine : collectionTypeTitle(entry.type),
+    skin_name: isSkin ? entry.answer : entry.name,
   };
 }
 
@@ -557,9 +788,9 @@ async function sendReservedSkinDrop(
   config: DiscordBotConfig,
   guild: Guild,
   channelId: string,
-  skin: CatalogSkin,
+  entry: CollectionCatalogEntry,
   reserved: ReservedSkinDrop,
-  raritySpawnPercent: number,
+  raritySpawnPercent?: number,
 ) {
   const channel = await guild.channels.fetch(channelId);
   if (!channel?.isSendable()) {
@@ -571,8 +802,8 @@ async function sendReservedSkinDrop(
   try {
     const expiresAtSeconds = Math.floor(new Date(reserved.expires_at).getTime() / 1_000);
     const message = await channel.send({
-      content: `React to claim this skin. Will expire <t:${expiresAtSeconds}:R>.`,
-      embeds: [skinDropEmbed(toSkinDrop(skin, reserved), undefined, false, raritySpawnPercent)],
+      content: `React to claim this ${collectionTypeLabel(entry.type)}. Will expire <t:${expiresAtSeconds}:R>.`,
+      embeds: [skinDropEmbed(toCollectionDrop(entry, reserved), undefined, false, raritySpawnPercent)],
     });
     const { error: attachError } = await createBotServiceClient(config).rpc('attach_discord_skin_claim_message', {
       p_drop_id: reserved.drop_id,
@@ -596,8 +827,9 @@ async function reserveAndSendSkinDrop(
   channelId: string,
   triggerType: 'manual' | 'message' | 'timer',
   settings: SkinClaimRuntimeSettings,
+  selectedSkin?: { catalog: CatalogSkin[]; skin: CatalogSkin },
 ) {
-  const { catalog, skin } = await chooseAvailableWeightedSkin(config, settings.rarityWeights);
+  const { catalog, skin } = selectedSkin ?? await chooseAvailableWeightedSkin(config, settings.rarityWeights);
   const dropArguments = {
     p_channel_id: channelId,
     p_champion_name: skin.champion,
@@ -627,8 +859,32 @@ async function reserveAndSendSkinDrop(
   );
 }
 
+async function reserveAndSendCollectionEntryDrop(
+  config: DiscordBotConfig,
+  guild: Guild,
+  channelId: string,
+  entry: Exclude<CollectionCatalogEntry, CatalogSkin>,
+  raritySpawnPercent: number,
+) {
+  const { data, error } = await createBotServiceClient(config).rpc('force_reserve_discord_collection_drop', {
+    p_catalog_id: collectionCatalogId(entry),
+    p_channel_id: channelId,
+    p_collection_metadata: collectionEntryMetadata(entry),
+    p_collection_tier: entry.tier,
+    p_collection_type: entry.type,
+    p_guild_id: config.guildId,
+    p_image_url: entry.imageUrl,
+    p_name: entry.name,
+  });
+  if (error) throw new Error(`Unable to reserve Discord collection ${collectionTypeLabel(entry.type)} drop: ${error.message}`);
+  const reserved = getFirstResult(data as ReservedSkinDrop | ReservedSkinDrop[] | null);
+  if (!reserved) return false;
+  return sendReservedSkinDrop(config, guild, channelId, entry, reserved, raritySpawnPercent);
+}
+
 export type SkinClaimSpawnResult = {
   channelId?: string;
+  collectionType?: CollectionSpawnType;
   status: 'active-drop' | 'disabled' | 'not-configured' | 'spawned';
 };
 
@@ -641,20 +897,31 @@ export async function forceSkinClaimDrop(
   config: DiscordBotConfig,
   guild: Guild,
   channelId: string,
+  requestedType?: CollectionSpawnType,
 ): Promise<SkinClaimSpawnResult> {
   const settings = await getSkinClaimSettings(config, true);
   if (!settings) return { status: 'not-configured' };
   if (!settings.enabled) return { status: 'disabled' };
 
-  const spawned = await reserveAndSendSkinDrop(
-    config,
-    guild,
-    channelId,
-    'manual',
-    settings,
-  );
+  const selection = await chooseAvailableCollectionEntry(config, requestedType, settings.rarityWeights);
+  const spawned = selection.entry.type === 'skin'
+    ? await reserveAndSendSkinDrop(config, guild, channelId, 'manual', settings, {
+      catalog: selection.skinCatalog!,
+      skin: selection.entry,
+    })
+    : await reserveAndSendCollectionEntryDrop(
+      config,
+      guild,
+      channelId,
+      selection.entry,
+      calculateCollectionRaritySpawnPercent(
+        selection.entry.rarity,
+        settings.rarityWeights,
+        selection.collectionCatalog!,
+      ),
+    );
   return spawned
-    ? { channelId, status: 'spawned' }
+    ? { channelId, collectionType: selection.entry.type, status: 'spawned' }
     : { status: 'active-drop' };
 }
 
@@ -674,14 +941,19 @@ export async function getSkinClaimAdminRoleIds(config: DiscordBotConfig) {
  * the default open-channel behavior for guilds that have not configured drops.
  */
 export async function isSkinCollectionCommandAllowedInChannel(config: DiscordBotConfig, channelId: string) {
+  const allowedChannelIds = await getSkinCollectionCommandChannelIds(config);
+  return allowedChannelIds.length === 0 || allowedChannelIds.includes(channelId);
+}
+
+/** Returns the configured Collections command channels, or an empty array when Collections are open everywhere. */
+export async function getSkinCollectionCommandChannelIds(config: DiscordBotConfig): Promise<readonly string[]> {
   const { data, error } = await createBotServiceClient(config)
     .from('discord_skin_claim_command_channels')
     .select('channel_id')
     .eq('guild_id', config.guildId)
     .returns<SkinClaimCommandChannelRow[]>();
   if (error) throw new Error(`Unable to load Discord collection command channels: ${error.message}`);
-  const allowedChannelIds = new Set((data ?? []).map((entry) => entry.channel_id));
-  return allowedChannelIds.size === 0 || allowedChannelIds.has(channelId);
+  return [...new Set((data ?? []).map((entry) => entry.channel_id))];
 }
 
 function skinDropArguments(config: DiscordBotConfig, channelId: string, skin: CatalogSkin) {
@@ -921,9 +1193,10 @@ export async function handleSkinClaimReaction(
   if (error) throw new Error(`Unable to claim Discord skin drop: ${error.message}`);
   const claim = getFirstResult(data as ClaimedSkinDrop | ClaimedSkinDrop[] | null);
   if (!claim?.claimed) return;
+  const type = collectionTypeLabel(claim.collection_type);
   await message.edit({
     components: skinClaimActionButtons(resolvedUser.id, claim.skin_code),
-    content: 'This skin has been claimed.',
+    content: `This ${type} has been claimed.`,
     embeds: [skinDropEmbed(claim, resolvedUser.id)],
   });
   await message.reply({
@@ -938,7 +1211,7 @@ export async function getSkinCollectionPage(config: DiscordBotConfig, discordUse
   const [collectionResult, settingsResult, capacityResult, sellValuesResult, upkeepResult, skillLevels] = await Promise.all([
     supabase
       .from('discord_skin_claim_drops')
-      .select('skin_code, skin_catalog_id, skin_name, champion_name, rarity, release_date, skin_line, image_url, owner_acquired_at, ownership_method, is_favorite', { count: 'exact' })
+      .select('skin_code, skin_catalog_id, skin_name, champion_name, rarity, release_date, skin_line, image_url, owner_acquired_at, ownership_method, is_favorite, collection_type, collection_tier, collection_metadata', { count: 'exact' })
       .eq('guild_id', config.guildId)
       .eq('owner_discord_user_id', discordUserId)
       .eq('status', 'claimed')
@@ -1238,32 +1511,52 @@ export function buildSkinSearchEmbed(skin: CatalogSkin, owners: readonly SkinSea
 
 export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: string, showDetails = false) {
   const upkeepSummary = page.upkeep.excessSkinCount
-    ? `${formatKnowBucks(page.upkeep.dailyCost)} daily for ${page.upkeep.excessSkinCount} skin${page.upkeep.excessSkinCount === 1 ? '' : 's'} over 10`
-    : 'Free (the first 10 skins are free)';
+    ? `${formatKnowBucks(page.upkeep.dailyCost)} daily for ${page.upkeep.excessSkinCount} collection entr${page.upkeep.excessSkinCount === 1 ? 'y' : 'ies'} over 10`
+    : 'Free (the first 10 collection entries are free)';
   if (!page.item) {
     return new EmbedBuilder()
       .setColor(0x64748B)
-      .setTitle(`${ownerName}'s skin collection (max ${page.capacity})`)
-      .setDescription(`No skins claimed yet. Watch for a skin drop and react first to claim it.\n\n**Daily collection upkeep:** ${upkeepSummary}`);
+      .setTitle(`${ownerName}'s collection (max ${page.capacity})`)
+      .setDescription(`No collection entries claimed yet. Watch for a drop and react first to claim it.\n\n**Daily collection upkeep:** ${upkeepSummary}`);
   }
+  const type = collectionTypeLabel(page.item.collection_type);
+  const typeTitle = collectionTypeTitle(page.item.collection_type);
+  const isSkin = type === 'skin';
+  const metadata = page.item.collection_metadata ?? {};
+  const itemDetails = isSkin
+    ? [
+      `**Champion**\n${page.item.champion_name}`,
+      `**Skin line**\n${page.item.skin_line}`,
+      `**Release date**\n${formatReleaseDate(page.item.release_date)}`,
+    ]
+    : [
+      `**Type**\n${typeTitle}`,
+      `**Rarity**\n${collectionDropRarity(page.item)}`,
+      ...(type === 'item'
+        ? [
+          `**Cost**\n${metadata.cost === null || metadata.cost === undefined ? 'No listed price' : `${new Intl.NumberFormat('en-US').format(metadata.cost)} gold`}`,
+          `**Game modes**\n${metadata.gameModes?.join(', ') || 'Unspecified'}`,
+          `**Available**\n${metadata.firstSeenVersion ?? 'Unknown'} to ${metadata.lastSeenVersion ?? 'Unknown'}`,
+        ]
+        : [
+          `**Rune kind**\n${metadata.runeKind === 'sub-rune' ? 'Sub rune' : metadata.runeKind === 'keystone' ? 'Keystone' : 'Rune style'}`,
+          `**Rune style**\n${metadata.style ?? 'Unknown'}`,
+        ]),
+    ];
   const embed = new EmbedBuilder()
-    .setColor(RARITY_COLORS[page.item.rarity] ?? 0xF59E0B)
-    .setTitle(`${ownerName}'s skin collection · ${page.page + 1} of ${page.total} (max ${page.capacity})`)
-    .setDescription(`**${page.item.skin_name} (#${formatSkinCode(page.item.skin_code)})** · **${page.item.rarity}**`)
+    .setColor(collectionDropColor(page.item))
+    .setTitle(`${ownerName}'s collection · ${page.page + 1} of ${page.total} (max ${page.capacity})`)
+    .setDescription(`**${page.item.skin_name} (#${formatSkinCode(page.item.skin_code)})** · **${typeTitle} · ${collectionDropRarity(page.item)}**`)
     .setImage(getClaimedSkinDisplayImageUrl(page.item))
-    .setFooter({ text: `Skin ${page.page + 1} of ${page.total} · Use /collections give to transfer #${formatSkinCode(page.item.skin_code)}.` });
+    .setFooter({ text: `Entry ${page.page + 1} of ${page.total} · Use /collections give to transfer #${formatSkinCode(page.item.skin_code)}.` });
 
   embed.setDescription(`${embed.data.description ?? ''}\n**Daily collection upkeep:** ${upkeepSummary}`);
   if (!showDetails) return embed;
 
   return embed.addFields(
     {
-      name: 'Skin',
-      value: [
-        `**Champion**\n${page.item.champion_name}`,
-        `**Skin line**\n${page.item.skin_line}`,
-        `**Release date**\n${formatReleaseDate(page.item.release_date)}`,
-      ].join('\n\n'),
+      name: typeTitle,
+      value: itemDetails.join('\n\n'),
       inline: true,
     },
     {
@@ -1274,8 +1567,8 @@ export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: st
         `**Acquired**\n${formatAcquiredDate(page.item.owner_acquired_at)}`,
         `**Method**\n${formatOwnershipMethod(page.item.ownership_method)}`,
         `**Daily upkeep**\n${page.upkeep.excessSkinCount
-          ? `${formatKnowBucks(page.upkeep.dailyCost)} for ${page.upkeep.excessSkinCount} skin${page.upkeep.excessSkinCount === 1 ? '' : 's'} over 10`
-          : 'None — your first 10 skins are free.'}`,
+          ? `${formatKnowBucks(page.upkeep.dailyCost)} for ${page.upkeep.excessSkinCount} collection entr${page.upkeep.excessSkinCount === 1 ? 'y' : 'ies'} over 10`
+          : 'None — your first 10 collection entries are free.'}`,
         ...(page.upkeep.graceExpiresAt
           ? [`**Payment due**\n${formatKnowBucks(page.upkeep.outstandingAmount)} by <t:${Math.floor(new Date(page.upkeep.graceExpiresAt).getTime() / 1_000)}:R>`]
           : []),

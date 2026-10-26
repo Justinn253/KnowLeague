@@ -151,6 +151,8 @@ export type FishingPlayerState = {
   fishingXpIntoLevel: number;
   fishingXpToNextLevel: number;
   inventory: FishingInventoryRow[];
+  /** Shared player-shop items, currently the reusable skill tiers. */
+  playerItemIds: string[];
 };
 
 type FishingSettlementSkillAward = {
@@ -283,7 +285,7 @@ async function ensureFishingPlayer(config: DiscordBotConfig, discordUserId: stri
 export async function getFishingPlayerState(config: DiscordBotConfig, discordUserId: string): Promise<FishingPlayerState> {
   await ensureFishingPlayer(config, discordUserId);
   const supabase = createBotServiceClient(config);
-  const [playerResult, inventoryResult, balanceResult, levelResult, fishingSkillResult] = await Promise.all([
+  const [playerResult, inventoryResult, playerInventoryResult, balanceResult, levelResult, fishingSkillResult] = await Promise.all([
     supabase
       .from('discord_fishing_players')
       .select('crew_one_unlocked,crew_two_unlocked,equipped_bait_id,equipped_rod_id')
@@ -297,6 +299,12 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
       .eq('discord_user_id', discordUserId)
       .order('item_id', { ascending: true })
       .returns<FishingInventoryRow[]>(),
+    supabase
+      .from('discord_player_inventory')
+      .select('item_id')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .returns<Pick<FishingInventoryRow, 'item_id'>[]>(),
     supabase
       .from('discord_knowbucks_balances')
       .select('balance')
@@ -319,12 +327,14 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
   ]);
   if (playerResult.error) throw new Error(`Unable to load Discord fishing profile: ${playerResult.error.message}`);
   if (inventoryResult.error) throw new Error(`Unable to load Discord fishing inventory: ${inventoryResult.error.message}`);
+  if (playerInventoryResult.error) throw new Error(`Unable to load shared player inventory for fishing: ${playerInventoryResult.error.message}`);
   if (balanceResult.error) throw new Error(`Unable to load Discord fishing balance: ${balanceResult.error.message}`);
   if (levelResult.error) throw new Error(`Unable to load Discord chat level for fishing: ${levelResult.error.message}`);
   if (fishingSkillResult.error) throw new Error(`Unable to load Discord fishing level: ${fishingSkillResult.error.message}`);
   if (!playerResult.data) throw new Error('Discord fishing profile was not created.');
 
   const inventory = inventoryResult.data ?? [];
+  const playerItemIds = (playerInventoryResult.data ?? []).map((item) => item.item_id);
   const fishingLevel = fishingSkillResult.data?.level ?? 0;
   const fishingTotalXp = fishingSkillResult.data?.total_xp ?? 0;
   return {
@@ -339,8 +349,9 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
         .map((item) => item.item_id)
         .filter((itemId) => {
           const item = getFishingUpgrade(itemId);
-          return item?.category === 'gear' || item?.category === 'skill';
-        }),
+          return item?.category === 'gear';
+        })
+        .concat(playerItemIds.filter((itemId) => getFishingUpgrade(itemId)?.category === 'skill')),
       titleItemIds: inventory
         .map((item) => item.item_id)
         .filter((itemId) => FISHING_EVENTS.some((event) => event.title.itemId === itemId)),
@@ -350,6 +361,7 @@ export async function getFishingPlayerState(config: DiscordBotConfig, discordUse
     fishingXpIntoLevel: Math.max(0, fishingTotalXp - getFishingTotalXpForLevel(fishingLevel)),
     fishingXpToNextLevel: getFishingXpToNextLevel(fishingLevel),
     inventory,
+    playerItemIds,
   };
 }
 
@@ -522,6 +534,14 @@ export async function isFishingCommandAllowedInChannel(config: DiscordBotConfig,
 
   return cachedFishingCommandSettings.allowedChannelIds === null
     || cachedFishingCommandSettings.allowedChannelIds.has(channelId);
+}
+
+/** Returns the configured Fishing command channels, or an empty array when Fishing is open everywhere. */
+export async function getFishingCommandChannelIds(config: DiscordBotConfig): Promise<readonly string[]> {
+  await isFishingCommandAllowedInChannel(config, '0');
+  return cachedFishingCommandSettings?.allowedChannelIds
+    ? [...cachedFishingCommandSettings.allowedChannelIds]
+    : [];
 }
 
 async function getConfiguredFishingBonusSettings(config: DiscordBotConfig): Promise<FishingBonusSettings> {
@@ -1004,9 +1024,9 @@ export function isFishingFishCaught(progress: FishingCatalogueProgress, fish: Pi
 
 export async function purchaseFishingUpgrade(config: DiscordBotConfig, discordUserId: string, itemId: string): Promise<FishingShopPurchase> {
   const upgrade = getFishingUpgrade(itemId);
-  if (!upgrade || upgrade.cost <= 0) throw new Error('That fishing shop item is unavailable.');
+  if (!upgrade || upgrade.cost <= 0 || upgrade.category === 'skill') throw new Error('That fishing shop item is unavailable.');
   const state = await getFishingPlayerState(config, discordUserId);
-  const ownedItemIds = state.inventory.map((item) => item.item_id);
+  const ownedItemIds = [...state.inventory.map((item) => item.item_id), ...state.playerItemIds];
   if (upgrade.requiredUpgradeId && !ownedItemIds.includes(upgrade.requiredUpgradeId)) {
     const requiredUpgrade = getFishingUpgrade(upgrade.requiredUpgradeId);
     throw new Error(`This upgrade requires ${requiredUpgrade?.name ?? 'the previous level'} first.`);

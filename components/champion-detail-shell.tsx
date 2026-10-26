@@ -137,6 +137,45 @@ function ChampionNavigationLabel({ expanded, children }: { expanded: boolean; ch
   );
 }
 
+/** Shared Champion Catalogue identity header for interactive and static render targets. */
+export function ChampionDetailHeader({ champion }: { champion: ChampionHubChampion }) {
+  return (
+    <header className="relative isolate z-10 rounded-2xl border border-red-300/25 bg-slate-950/90">
+      <div className="absolute inset-0 -z-10 overflow-hidden rounded-2xl">
+        <GameDirectImage
+          src={champion.splashUrl}
+          alt=""
+          fill
+          priority
+          sizes="(min-width: 1024px) 1100px, 100vw"
+          className="object-cover object-[center_18%] opacity-50 animate-[champion-splash-reveal_900ms_ease-out_both]"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,6,23,0.97),rgba(2,6,23,0.8)_46%,rgba(69,10,10,0.4)),linear-gradient(0deg,rgba(2,6,23,0.94),transparent_70%)]" />
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full border border-amber-200/15 animate-[champion-rune-spin_20s_linear_infinite]" />
+      </div>
+      <div className="relative grid gap-5 p-5 sm:p-7 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-end">
+        <div className="flex min-w-0 items-end gap-4 sm:gap-5">
+          <span className="relative inline-flex h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-amber-200/40 bg-slate-950/80 sm:h-24 sm:w-24">
+            <GameIconImage src={champion.portraitUrl} alt={`${champion.name} portrait`} width={96} height={96} priority className="h-full w-full object-cover" />
+          </span>
+          <div className="min-w-0 pb-0.5">
+            <h1 className="truncate text-4xl font-black tracking-tight text-white sm:text-5xl">{champion.name}</h1>
+            <p className="mt-1 text-lg font-semibold text-red-100 sm:text-xl">{champion.title}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 xl:justify-end">
+          <span className="inline-flex min-h-10 items-center rounded-xl border border-red-200/25 bg-red-950/45 px-3 text-red-100">
+            <ChampionClassIcons champion={champion} size={23} />
+          </span>
+          <span className="inline-flex min-h-10 items-center rounded-xl border border-white/15 bg-slate-950/60 px-2">
+            <ChampionLaneIcons champion={champion} />
+          </span>
+        </div>
+      </div>
+    </header>
+  );
+}
+
 export function ChampionDetailShell({ champion, activeTab, children }: ChampionDetailShellProps) {
   const [navigationExpanded, setNavigationExpanded] = useState(true);
 
@@ -195,39 +234,7 @@ export function ChampionDetailShell({ champion, activeTab, children }: ChampionD
         </aside>
 
         <div className="min-w-0 space-y-5">
-          <header className="relative isolate z-10 rounded-2xl border border-red-300/25 bg-slate-950/90">
-            <div className="absolute inset-0 -z-10 overflow-hidden rounded-2xl">
-              <GameDirectImage
-                src={champion.splashUrl}
-                alt=""
-                fill
-                priority
-                sizes="(min-width: 1024px) 1100px, 100vw"
-                className="object-cover object-[center_18%] opacity-50 animate-[champion-splash-reveal_900ms_ease-out_both]"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,6,23,0.97),rgba(2,6,23,0.8)_46%,rgba(69,10,10,0.4)),linear-gradient(0deg,rgba(2,6,23,0.94),transparent_70%)]" />
-              <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full border border-amber-200/15 animate-[champion-rune-spin_20s_linear_infinite]" />
-            </div>
-            <div className="relative grid gap-5 p-5 sm:p-7 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-end">
-              <div className="flex min-w-0 items-end gap-4 sm:gap-5">
-                <span className="relative inline-flex h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-amber-200/40 bg-slate-950/80 sm:h-24 sm:w-24">
-                  <GameIconImage src={champion.portraitUrl} alt={`${champion.name} portrait`} width={96} height={96} priority className="h-full w-full object-cover" />
-                </span>
-                <div className="min-w-0 pb-0.5">
-                  <h1 className="truncate text-4xl font-black tracking-tight text-white sm:text-5xl">{champion.name}</h1>
-                  <p className="mt-1 text-lg font-semibold text-red-100 sm:text-xl">{champion.title}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 xl:justify-end">
-                <span className="inline-flex min-h-10 items-center rounded-xl border border-red-200/25 bg-red-950/45 px-3 text-red-100">
-                  <ChampionClassIcons champion={champion} size={23} />
-                </span>
-                <span className="inline-flex min-h-10 items-center rounded-xl border border-white/15 bg-slate-950/60 px-2">
-                  <ChampionLaneIcons champion={champion} />
-                </span>
-              </div>
-            </div>
-          </header>
+          <ChampionDetailHeader champion={champion} />
 
           {children}
         </div>

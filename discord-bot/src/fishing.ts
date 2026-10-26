@@ -536,6 +536,14 @@ export async function isFishingCommandAllowedInChannel(config: DiscordBotConfig,
     || cachedFishingCommandSettings.allowedChannelIds.has(channelId);
 }
 
+/** Returns the configured Fishing command channels, or an empty array when Fishing is open everywhere. */
+export async function getFishingCommandChannelIds(config: DiscordBotConfig): Promise<readonly string[]> {
+  await isFishingCommandAllowedInChannel(config, '0');
+  return cachedFishingCommandSettings?.allowedChannelIds
+    ? [...cachedFishingCommandSettings.allowedChannelIds]
+    : [];
+}
+
 async function getConfiguredFishingBonusSettings(config: DiscordBotConfig): Promise<FishingBonusSettings> {
   const now = Date.now();
   if (cachedFishingBonusSettings

@@ -23,6 +23,7 @@ import { submitAchievementEvent, submitAchievementEvents } from '@/lib/achieveme
 import type { AchievementEventSubmission } from '@/lib/achievements';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { playUiSound, type SoundName } from '@/lib/ui-sounds';
+import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import {
   compareGuess,
   formatCategoryValue,
@@ -853,6 +854,34 @@ export function Skindle() {
     }
   }, [clientId, target]);
 
+  const submitDiscordSkindleShare = useCallback(async (completedGuesses: readonly GuessResult[]) => {
+    const { data } = await getOptionalSupabaseClient()?.auth.getSession() ?? { data: { session: null } };
+    const token = data.session?.access_token;
+    if (!token) return;
+
+    const progressRows = completedGuesses.map((guess) => categories.map(({ id }) => (
+      guess.matches[id] ? 'g' : guess.partialMatches[id] ? 'y' : 'b'
+    )).join(''));
+    try {
+      const response = await fetch('/api/skindle/discord-share', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          guessCount: completedGuesses.length,
+          progressRows,
+          solvedSkinId: completedGuesses[completedGuesses.length - 1]?.item.id,
+        }),
+      });
+      if (!response.ok) throw new Error('Unable to queue Discord Skindle share.');
+    } catch (error) {
+      // Sharing is optional and must not interrupt the completed game reveal.
+      console.error('Failed to queue Discord Skindle share', error);
+    }
+  }, []);
+
   const submitGuess = (skin: QuizItem | undefined) => {
     if (!skin || !target || solved) {
       return;
@@ -889,6 +918,7 @@ export function Skindle() {
         achievementEvents.push({ event: 'skindle_lucky_guess', metadata: { guessCount: nextGuessCount } });
       }
       void submitAchievementEvents(achievementEvents);
+      void submitDiscordSkindleShare(nextGuesses);
     }
     if (clientId && (isCorrectGuess || nextGuessCount % 5 === 0)) {
       const submittedGuessCount = submittedStatsGuessCountRef.current;

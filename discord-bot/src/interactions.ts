@@ -27,7 +27,8 @@ import {
   type PlayerStats,
   type RobberyResult,
 } from './player.js';
-import { isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
+import { getDefaultCommandChannelIds, isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
+import { getLinkedLeagueAccount, linkLeagueAccount } from './league-accounts.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
   captureChampionCatalogue,
@@ -36,6 +37,7 @@ import {
   getChampionCatalogueSnapshotRequestWeight,
   LEAGUE_ACCOUNT_VIEWER_SNAPSHOT_REQUEST_WEIGHT,
   LeagueAccountViewerSnapshotError,
+  normalizeLeagueRiotId,
 } from './league-account-viewer.js';
 import {
   buildDiscordSkindleGuessEmbed,
@@ -62,6 +64,7 @@ import {
   getVisibleFishingShopItems,
   getFishingUpgrade,
   getFishingUpgradeCost,
+  getFishingCommandChannelIds,
   openAllFishingCrates,
   purchaseFishingUpgrade,
   isFishingCommandAllowedInChannel,
@@ -94,6 +97,7 @@ import {
   getSkinClaimAdminRoleIds,
   getSkinCollectionPage,
   getSkinCollectionUpkeepOverview,
+  getSkinCollectionCommandChannelIds,
   isSkinCollectionCommandAllowedInChannel,
   purchaseSkinCollectionCapacity,
   reorderSkinCollection,
@@ -126,6 +130,27 @@ function skindleButton(config: DiscordBotConfig) {
 
 function skindleComponents(config: DiscordBotConfig) {
   return [{ type: 1 as const, components: [skindleButton(config)] }];
+}
+
+function configuredChannelMentions(channelIds: readonly string[]) {
+  return channelIds.map((channelId) => `<#${channelId}>`).join(', ');
+}
+
+async function replyWithCommandChannelLink(
+  interaction: ChatInputCommandInteraction,
+  scope: 'Collections' | 'Fishing' | 'General',
+  channelIds: readonly string[],
+) {
+  const destination = configuredChannelMentions(channelIds);
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0xF59E0B)
+      .setTitle('Command unavailable in this channel')
+      .setDescription(destination
+        ? `${scope} commands are not enabled here. Use them in:\n${destination}`
+        : `${scope} commands are not enabled in this channel. An administrator can update Discord Configuration.`)],
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 const LEAGUE_SNAPSHOT_CAPTURE_WINDOW_MS = 60_000;
@@ -1331,10 +1356,7 @@ async function handleRobCommand(interaction: ChatInputCommandInteraction, config
 async function handleFishingCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
   if (!(await isFishingCommandAllowedInChannel(config, interaction.channelId))) {
-    await interaction.reply({
-      content: 'Fishing commands are not enabled in this channel. An administrator can change this in Discord Configuration.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyWithCommandChannelLink(interaction, 'Fishing', await getFishingCommandChannelIds(config));
     return;
   }
   const subcommand = interaction.options.getSubcommand();
@@ -1499,42 +1521,85 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
   throw new Error(`Unsupported fishing command: ${subcommand}`);
 }
 
+async function postLeagueAccountViewer(
+  interaction: ChatInputCommandInteraction,
+  config: DiscordBotConfig,
+  submittedRiotId: string,
+  submittedPlatform: string,
+) {
+  const retryAfterSeconds = leagueSnapshotCaptureAvailability(interaction.user.id, LEAGUE_ACCOUNT_VIEWER_SNAPSHOT_REQUEST_WEIGHT);
+  if (retryAfterSeconds !== null) {
+    await interaction.reply({
+      content: `League Account Viewer snapshots are limited while this test is running. Please try again in ${retryAfterSeconds} seconds.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply();
+  try {
+    const snapshot = await captureLeagueAccountViewer(config, submittedRiotId, submittedPlatform);
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      components: [{
+        type: 1,
+        components: [new ButtonBuilder()
+          .setStyle(ButtonStyle.Link)
+          .setLabel('Open interactive viewer')
+          .setURL(snapshot.viewerUrl)],
+      }],
+      content: `League Account Viewer snapshots for **${escapeMarkdown(snapshot.riotId)}** (${submittedPlatform}).`,
+      files: snapshot.files.map((file) => ({ attachment: file.buffer, name: file.fileName })),
+    });
+  } catch (error) {
+    const message = error instanceof LeagueAccountViewerSnapshotError
+      ? error.message
+      : 'KnowLeague could not create the League Account Viewer snapshot. Please try again shortly.';
+    await interaction.editReply({ content: message });
+  }
+}
+
 async function handleLeagueCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   const group = interaction.options.getSubcommandGroup();
   const subcommand = interaction.options.getSubcommand();
   if (group === null && subcommand === 'account') {
-    const retryAfterSeconds = leagueSnapshotCaptureAvailability(interaction.user.id, LEAGUE_ACCOUNT_VIEWER_SNAPSHOT_REQUEST_WEIGHT);
-    if (retryAfterSeconds !== null) {
-      await interaction.reply({
-        content: `League Account Viewer snapshots are limited while this test is running. Please try again in ${retryAfterSeconds} seconds.`,
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
+    await postLeagueAccountViewer(
+      interaction,
+      config,
+      interaction.options.getString('riot-id', true),
+      interaction.options.getString('region', true),
+    );
+    return;
+  }
 
-    const submittedRiotId = interaction.options.getString('riot-id', true);
-    const submittedPlatform = interaction.options.getString('region', true);
-    await interaction.deferReply();
+  if (group === null && subcommand === 'account-link') {
     try {
-      const snapshot = await captureLeagueAccountViewer(config, submittedRiotId, submittedPlatform);
-      await interaction.editReply({
-        allowedMentions: { parse: [] },
-        components: [{
-          type: 1,
-          components: [new ButtonBuilder()
-            .setStyle(ButtonStyle.Link)
-            .setLabel('Open interactive viewer')
-            .setURL(snapshot.viewerUrl)],
-        }],
-        content: `League Account Viewer snapshots for **${escapeMarkdown(snapshot.riotId)}** (${submittedPlatform}).`,
-        files: snapshot.files.map((file) => ({ attachment: file.buffer, name: file.fileName })),
+      const riotId = normalizeLeagueRiotId(interaction.options.getString('riot-id', true));
+      const region = interaction.options.getString('region', true);
+      await linkLeagueAccount(config, interaction.user.id, { region, riotId });
+      await interaction.reply({
+        content: `Linked **${escapeMarkdown(riotId)}** (${region}) to this Discord account. Use \`/league account-mine\` to open it.`,
+        flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
       const message = error instanceof LeagueAccountViewerSnapshotError
         ? error.message
-        : 'KnowLeague could not create the League Account Viewer snapshot. Please try again shortly.';
-      await interaction.editReply({ content: message });
+        : 'KnowLeague could not save that League account. Please try again shortly.';
+      await interaction.reply({ content: message, flags: MessageFlags.Ephemeral });
     }
+    return;
+  }
+
+  if (group === null && subcommand === 'account-mine') {
+    const linkedAccount = await getLinkedLeagueAccount(config, interaction.user.id);
+    if (!linkedAccount) {
+      await interaction.reply({
+        content: 'You have not linked a League account yet. Use `/league account-link` with your Riot ID and region first.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    await postLeagueAccountViewer(interaction, config, linkedAccount.riotId, linkedAccount.region);
     return;
   }
 
@@ -1666,10 +1731,34 @@ async function handleLeagueCommand(interaction: ChatInputCommandInteraction, con
   }
 
   if (result.kind === 'ambiguous') {
-    await interaction.reply({
-      content: `Use an exact skin name. Possible matches: ${result.suggestions.map((suggestion) => `**${suggestion}**`).join(', ')}.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    const suggestions = result.suggestions.map((suggestion) => `**${suggestion}**`).join(', ');
+    if (suggestions.length <= 1_800) {
+      await interaction.reply({
+        content: `Use an exact skin name. Possible matches: ${suggestions}.`,
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      const chunks: string[] = [];
+      let chunk = '';
+      for (const suggestion of result.suggestions) {
+        const rendered = `**${suggestion}**`;
+        if (chunk && chunk.length + rendered.length + 2 > 950) {
+          chunks.push(chunk);
+          chunk = rendered;
+        } else {
+          chunk += `${chunk ? ', ' : ''}${rendered}`;
+        }
+      }
+      if (chunk) chunks.push(chunk);
+      await interaction.reply({
+        embeds: [new EmbedBuilder()
+          .setColor(0x0EA5E9)
+          .setTitle('Choose an exact skin name')
+          .setDescription('That is a champion name. Here is the complete list of their skins:')
+          .addFields(chunks.slice(0, 25).map((value, index) => ({ name: `Skins ${index + 1}`, value })))],
+        flags: MessageFlags.Ephemeral,
+      });
+    }
     return;
   }
 
@@ -1684,10 +1773,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   if (!guild) return;
   const subcommand = interaction.options.getSubcommand();
   if (subcommand !== 'spawn' && !(await isSkinCollectionCommandAllowedInChannel(config, interaction.channelId))) {
-    await interaction.reply({
-      content: 'Collections commands are not enabled in this channel. An administrator can change the Collections commands channel in Discord Configuration. `/collections spawn` remains available to collection administrators in any channel where the bot can post.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyWithCommandChannelLink(interaction, 'Collections', await getSkinCollectionCommandChannelIds(config));
     return;
   }
 
@@ -2502,18 +2588,112 @@ export async function handleButtonInteraction(interaction: ButtonInteraction, co
   });
 }
 
+type StoredSlashCommand = {
+  commandName: string;
+  optionValues: Record<string, boolean | number | string>;
+  subcommand: string | null;
+  subcommandGroup: string | null;
+};
+
+const mostRecentCommands = new Map<string, StoredSlashCommand>();
+
+function collectSlashOptionValues(options: readonly unknown[], values: Record<string, boolean | number | string> = {}) {
+  for (const option of options) {
+    if (!option || typeof option !== 'object') continue;
+    const entry = option as { name?: unknown; options?: unknown; value?: unknown };
+    if (typeof entry.name === 'string' && (
+      typeof entry.value === 'boolean'
+      || typeof entry.value === 'number'
+      || typeof entry.value === 'string'
+    )) {
+      values[entry.name] = entry.value;
+    }
+    if (Array.isArray(entry.options)) collectSlashOptionValues(entry.options, values);
+  }
+  return values;
+}
+
+function storeMostRecentCommand(interaction: ChatInputCommandInteraction) {
+  mostRecentCommands.set(interaction.user.id, {
+    commandName: interaction.commandName,
+    optionValues: collectSlashOptionValues(interaction.options.data),
+    subcommand: interaction.options.getSubcommand(false),
+    subcommandGroup: interaction.options.getSubcommandGroup(false),
+  });
+}
+
+function repeatedInteraction(interaction: ChatInputCommandInteraction, command: StoredSlashCommand) {
+  const replayOptions = new Proxy(interaction.options, {
+    get(target, property, receiver) {
+      if (property === 'getSubcommand') return () => command.subcommand;
+      if (property === 'getSubcommandGroup') return () => command.subcommandGroup;
+      if (property === 'getString') return (name: string, required = false) => {
+        const value = command.optionValues[name];
+        if (typeof value === 'string') return value;
+        if (required) throw new Error(`The repeated command is missing its ${name} option.`);
+        return null;
+      };
+      if (property === 'getInteger') return (name: string, required = false) => {
+        const value = command.optionValues[name];
+        if (typeof value === 'number' && Number.isInteger(value)) return value;
+        if (required) throw new Error(`The repeated command is missing its ${name} option.`);
+        return null;
+      };
+      if (property === 'getBoolean') return (name: string, required = false) => {
+        const value = command.optionValues[name];
+        if (typeof value === 'boolean') return value;
+        if (required) throw new Error(`The repeated command is missing its ${name} option.`);
+        return null;
+      };
+      if (property === 'getUser') return (name: string, required = false) => {
+        const value = command.optionValues[name];
+        if (typeof value === 'string') {
+          return interaction.client.users.cache.get(value) ?? {
+            bot: false,
+            id: value,
+            toString: () => `<@${value}>`,
+          };
+        }
+        if (required) throw new Error(`The repeated command is missing its ${name} option.`);
+        return null;
+      };
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+
+  return new Proxy(interaction, {
+    get(target, property, receiver) {
+      if (property === 'commandName') return command.commandName;
+      if (property === 'options') return replayOptions;
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  }) as ChatInputCommandInteraction;
+}
+
 export async function handleChatInputCommand(
   interaction: ChatInputCommandInteraction,
   config: DiscordBotConfig,
+  storeAsMostRecent = true,
 ) {
   if (usesDefaultCommandChannel(interaction.commandName)
     && !(await isDefaultCommandChannel(config, interaction.channelId))) {
-    await interaction.reply({
-      content: 'This command is only available in the server\'s configured General commands channel.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyWithCommandChannelLink(interaction, 'General', await getDefaultCommandChannelIds(config));
     return;
   }
+
+  if (interaction.commandName === 'rc') {
+    const command = mostRecentCommands.get(interaction.user.id);
+    if (!command) {
+      await interaction.reply({ content: 'There is no command to repeat yet. Run another slash command first.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await handleChatInputCommand(repeatedInteraction(interaction, command), config, false);
+    return;
+  }
+
+  if (storeAsMostRecent) storeMostRecentCommand(interaction);
 
   if (interaction.commandName === 'help') {
     await interaction.reply({
@@ -2523,6 +2703,7 @@ export async function handleChatInputCommand(
           .setTitle('KnowLeague Discord bot help')
           .addFields(
             { name: '/link', value: 'Open the existing KnowLeague profile flow to link this Discord account.' },
+            { name: '/rc', value: 'Repeat your most recent slash command with the same options.' },
             { name: '/profile', value: 'Confirm your linked KnowLeague profile and open it.' },
             { name: '/leaderboard [count]', value: 'Show the top 10 active server members by chat XP, or request from 1 to 25 members.' },
             { name: '/xp add member amount', value: 'Give a member chat XP. Requires a role selected in Discord Configuration.' },
@@ -2551,6 +2732,7 @@ export async function handleChatInputCommand(
             { name: '/collections search [skin-name] [skin-id]', value: 'Preview a catalogue skin by name or four-digit KnowLeague ID, including its current owner when assigned. The preview cannot be claimed.' },
             { name: '/collections spawn', value: 'Immediately post a skin drop in this channel. Requires a role selected in Discord Configuration.' },
             { name: '/league skindle play/guess/status', value: 'Start a public Daily Skindle activity card, keep clue and solution cards private, and share a spoiler-free result in the channel.' },
+            { name: '/league account-link, account-mine', value: 'Save a Riot ID and region privately, then open your linked League Account Viewer snapshots without entering them again.' },
             { name: 'Chat leveling', value: 'Eligible non-bot messages earn XP. Level rewards and messages are configured on the website.' },
           ),
       ],

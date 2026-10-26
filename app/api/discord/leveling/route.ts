@@ -148,6 +148,10 @@ type StoredFishingWeekdayPhenomenonRow = {
   weekday: number;
 };
 
+type StoredSkindleShareSettingsRow = {
+  channel_id: string;
+};
+
 type LevelingSettingsBody = {
   collectionAdminRoleIds?: unknown;
   cooldownSeconds?: unknown;
@@ -174,6 +178,7 @@ type LevelingSettingsBody = {
   skinClaimRarityWeights?: unknown;
   skinClaimSellValues?: unknown;
   skinClaimSummonBaseCost?: unknown;
+  skindleShareChannelId?: unknown;
   fishingCommandAllChannels?: unknown;
   fishingCommandChannelIds?: unknown;
   fishingBonusRoleIds?: unknown;
@@ -326,6 +331,7 @@ async function getLevelingData(guildId: string) {
     fishingRoleRewardsResult,
     fishingBonusRolesResult,
     fishingWeekdayPhenomenaResult,
+    skindleShareSettingsResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
       .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
@@ -425,6 +431,10 @@ async function getLevelingData(guildId: string) {
       .order('phenomenon', { ascending: true })
       .order('weekday', { ascending: true })
       .returns<StoredFishingWeekdayPhenomenonRow[]>(),
+    supabase.from('discord_skindle_share_settings')
+      .select('channel_id')
+      .eq('guild_id', guildId)
+      .maybeSingle<StoredSkindleShareSettingsRow>(),
   ]);
 
   if (settingsResult.error) throw settingsResult.error;
@@ -447,6 +457,7 @@ async function getLevelingData(guildId: string) {
   if (fishingRoleRewardsResult.error) throw fishingRoleRewardsResult.error;
   if (fishingBonusRolesResult.error) throw fishingBonusRolesResult.error;
   if (fishingWeekdayPhenomenaResult.error) throw fishingWeekdayPhenomenaResult.error;
+  if (skindleShareSettingsResult.error) throw skindleShareSettingsResult.error;
 
   return {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
@@ -466,6 +477,7 @@ async function getLevelingData(guildId: string) {
     fishingCommandSettings: toFishingCommandSettings(fishingCommandSettingsResult.data),
     fishingRoleRewards: groupFishingRoleRewards(fishingRoleRewardsResult.data ?? []),
     fishingRoleSettings: toFishingRoleSettings(fishingCommandSettingsResult.data),
+    skindleShareChannelId: skindleShareSettingsResult.data?.channel_id ?? null,
     fishingBonusSettings: toFishingBonusSettings(
       fishingBonusRolesResult.data ?? [],
       fishingWeekdayPhenomenaResult.data ?? [],
@@ -728,6 +740,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const fishingCommandAllChannels = body.fishingCommandAllChannels;
     const fishingCommandChannelIds = parseCommandChannelIds(body.fishingCommandChannelIds, 'Fishing');
     const fishingTopFisherRoleId = parseOptionalSnowflake(body.fishingTopFisherRoleId, 'Top Fisher role');
+    const skindleShareChannelId = parseOptionalSnowflake(body.skindleShareChannelId, 'Skindle results channel');
     const skinClaimRarityWeights = parseSkinClaimRarityWeights(body.skinClaimRarityWeights);
     const skinClaimSellValues = parseSkinClaimSellValues(body.skinClaimSellValues);
     const guildId = getDiscordGuildId();
@@ -804,6 +817,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (fishingCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose fishing command channels that are currently available to the KnowLeague bot.');
     }
+    if (skindleShareChannelId && !sendableChannelIds.has(skindleShareChannelId)) {
+      throw new ApiError(400, 'Choose a Skindle results channel that is currently available to the KnowLeague bot.');
+    }
     if (body.skinClaimEnabled && (!sendableChannelIds.size || (!skinClaimAllChannels && !skinClaimChannelIds.length))) {
       throw new ApiError(400, 'Enable skin claims only after Discord has synced a sendable channel or you select at least one eligible channel.');
     }
@@ -873,6 +889,23 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_weekday_phenomena: fishingWeekdayPhenomena,
     });
     if (fishingBonusConfigurationError) throw fishingBonusConfigurationError;
+    if (skindleShareChannelId) {
+      const { error: skindleShareSettingsError } = await supabase
+        .from('discord_skindle_share_settings')
+        .upsert({
+          channel_id: skindleShareChannelId,
+          guild_id: guildId,
+          updated_at: new Date().toISOString(),
+          updated_by: user.id,
+        }, { onConflict: 'guild_id' });
+      if (skindleShareSettingsError) throw skindleShareSettingsError;
+    } else {
+      const { error: skindleShareSettingsError } = await supabase
+        .from('discord_skindle_share_settings')
+        .delete()
+        .eq('guild_id', guildId);
+      if (skindleShareSettingsError) throw skindleShareSettingsError;
+    }
     return NextResponse.json(await getLevelingData(guildId));
   } catch (error) {
     return getRouteErrorResponse(error);

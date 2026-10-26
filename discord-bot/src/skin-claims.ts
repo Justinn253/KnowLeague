@@ -674,14 +674,19 @@ export async function getSkinClaimAdminRoleIds(config: DiscordBotConfig) {
  * the default open-channel behavior for guilds that have not configured drops.
  */
 export async function isSkinCollectionCommandAllowedInChannel(config: DiscordBotConfig, channelId: string) {
+  const allowedChannelIds = await getSkinCollectionCommandChannelIds(config);
+  return allowedChannelIds.length === 0 || allowedChannelIds.includes(channelId);
+}
+
+/** Returns the configured Collections command channels, or an empty array when Collections are open everywhere. */
+export async function getSkinCollectionCommandChannelIds(config: DiscordBotConfig): Promise<readonly string[]> {
   const { data, error } = await createBotServiceClient(config)
     .from('discord_skin_claim_command_channels')
     .select('channel_id')
     .eq('guild_id', config.guildId)
     .returns<SkinClaimCommandChannelRow[]>();
   if (error) throw new Error(`Unable to load Discord collection command channels: ${error.message}`);
-  const allowedChannelIds = new Set((data ?? []).map((entry) => entry.channel_id));
-  return allowedChannelIds.size === 0 || allowedChannelIds.has(channelId);
+  return [...new Set((data ?? []).map((entry) => entry.channel_id))];
 }
 
 function skinDropArguments(config: DiscordBotConfig, channelId: string, skin: CatalogSkin) {

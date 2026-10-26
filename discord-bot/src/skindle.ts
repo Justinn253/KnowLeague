@@ -235,6 +235,15 @@ function findSkindleSkin(query: string) {
   const normalizedQuery = normalizeAnswer(query.trim());
   if (!normalizedQuery) return { skin: null, suggestions: [] };
 
+  // A champion name is the most useful route to that champion's complete skin
+  // list. Prefer it over generic partial matching and a matching default-skin
+  // answer so a champion with many skins is not arbitrarily truncated.
+  const championSuggestions = getDiscordSkindleCatalog()
+    .filter((skin) => normalizeAnswer(skin.champion) === normalizedQuery)
+    .map((skin) => skin.answer)
+    .sort((left, right) => left.localeCompare(right));
+  if (championSuggestions.length > 0) return { skin: null, suggestions: championSuggestions };
+
   const exactMatches = getDiscordSkindleCatalog().filter((skin) => getAnswerVariants(skin.answer).includes(normalizedQuery));
   if (exactMatches.length === 1) return { skin: exactMatches[0]!, suggestions: [] };
 
@@ -360,6 +369,22 @@ export function buildDiscordSkindleShareEmbed(displayName: string, result: Extra
     .setTitle('Daily Skindle completed')
     .setDescription(`**${displayName}** solved the Daily Skindle in **${result.status.guessCount}** ${result.status.guessCount === 1 ? 'guess' : 'guesses'}!\n\n${progress}`)
     .setFooter({ text: `${formatDiscordSkindleDate(result.status.dateKey)} · KnowLeague.net` });
+}
+
+export function buildWebsiteSkindleShareEmbed(
+  displayName: string,
+  dateKey: string,
+  guessCount: number,
+  progressRows: readonly string[],
+) {
+  const progress = progressRows
+    .map((row) => row.split('').map((marker) => marker === 'g' ? '\u{1F7E9}' : marker === 'y' ? '\u{1F7E8}' : '\u2B1B').join(''))
+    .join('\n');
+  return new EmbedBuilder()
+    .setColor(0x22C55E)
+    .setTitle('Daily Skindle completed')
+    .setDescription(`**${displayName}** solved the Daily Skindle in **${guessCount}** ${guessCount === 1 ? 'guess' : 'guesses'}!\n\n${progress}`)
+    .setFooter({ text: `${formatDiscordSkindleDate(dateKey)} Â· KnowLeague.net` });
 }
 
 export const discordSkindleSessionStore = new DiscordSkindleSessionStore();

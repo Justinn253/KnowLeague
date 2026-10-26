@@ -17,6 +17,44 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-26-discord-command-routing-league-skindle-sharing',
+    patch: 'patch-2026-10-26-discord-command-routing-league-skindle-sharing',
+    timestamp: '2026-10-26T19:24:21.271Z',
+    title: 'Improve Discord command routing, linked League accounts, and website Skindle sharing',
+    summary:
+      'Discord command denials now link members to the configured destination channels, `/rc` can replay a member’s latest command, League accounts can be saved for one-command snapshots, and linked website Skindle completions can publish through a configured Discord channel.',
+    details: [
+      'General, Fishing, and Collections channel denials remain private and now mention the actual configured channels. `/rc` stores a caller’s most recent slash-command shape in bot memory and replays it through the normal interaction handlers, retaining all existing permission, member, cooldown, balance, and channel validation.',
+      'Added private `/league account-link riot-id region` and public `/league account-mine` commands. The saved Riot ID and validated platform are kept per Discord user and guild in service-role-only storage; Account Mine uses the existing bounded Account Viewer capture path and does not store a Riot credential.',
+      'Discord Skindle treats an exact champion-name guess as a request for that champion’s complete sorted skin list instead of truncating it to eight partial matches. Long lists use Discord-safe embed fields.',
+      'Discord Configuration now has an optional website-Skindle results channel. An authenticated linked website player can queue a one-per-day result only after the endpoint verifies the submitted solved skin against the current deterministic daily target; the independent bot reconciler verifies the current Discord link and posts the established spoiler-free grid without exposing a bot token to the browser. The shared AppSelectMenu now focuses its search field when opened and caps lengthy menus with a themed scroll area.',
+      'Migration 182 creates protected linked League account, website Skindle sharing configuration, and outbox storage with server-only grants and one-result-per-player/day idempotency.',
+    ],
+    impact: [
+      'Apply migration 182, deploy the website and Discord bot independently, and run the guild command registration command so `/rc`, `/league account-link`, and `/league account-mine` become available. Select a sendable result channel in Discord Configuration only if website result sharing is desired.',
+      'Website sharing is opt-in at the guild configuration level and requires the player’s existing KnowLeague-to-Discord profile association. Guests, unlinked profiles, stale links, and disabled sharing settings do not post a result.',
+    ],
+    files: [
+      'app/api/discord/leveling/route.ts',
+      'app/api/skindle/discord-share/route.ts',
+      'components/app-select-menu.tsx',
+      'components/discord-leveling-settings.tsx',
+      'components/skindle.tsx',
+      'discord-bot/src/commands.ts',
+      'discord-bot/src/general-settings.ts',
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/league-accounts.ts',
+      'discord-bot/src/skindle-shares.ts',
+      'discord-bot/src/skindle.ts',
+      'supabase/migrations/182_discord_linked_league_accounts_and_skindle_shares.sql',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check passed: lint retained only the repository’s existing next/image warnings; root typecheck, 44 Vitest files / 244 tests, and Discord bot typecheck passed.',
+      'Command registration and final whitespace checks are recorded with this patch. Migration 182 was created but was not pushed because database deployment authority was not requested.',
+    ],
+  },
+  {
     id: 'patch-2026-10-26-discord-player-inventory-equipment',
     patch: 'patch-2026-10-26-discord-player-inventory-equipment',
     timestamp: '2026-10-26T19:07:55.000Z',

@@ -144,6 +144,26 @@ function createLeagueCommand() {
         })))
         .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
+      .setName('account-link')
+      .setDescription('Save your Riot account for /league account-mine.')
+      .addStringOption((option) => option
+        .setName('riot-id')
+        .setDescription('Riot ID in the format GameName#TagLine.')
+        .setMinLength(3)
+        .setMaxLength(64)
+        .setRequired(true))
+      .addStringOption((option) => option
+        .setName('region')
+        .setDescription('League region for this Riot ID.')
+        .addChoices(...LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS.map((platform) => ({
+          name: platform.label,
+          value: platform.value,
+        })))
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('account-mine')
+      .setDescription('Post League Account Viewer images for your linked Riot account.'))
+    .addSubcommand((subcommand) => subcommand
       .setName('champion')
       .setDescription('Post Champion Catalogue images for a champion.')
       .addStringOption((option) => option
@@ -185,6 +205,9 @@ export const commandDefinitions = [
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('See KnowLeague Discord bot commands and usage.'),
+  new SlashCommandBuilder()
+    .setName('rc')
+    .setDescription('Repeat your most recent slash command in this bot session.'),
   new SlashCommandBuilder()
     .setName('link')
     .setDescription('Learn how to link your KnowLeague account.'),

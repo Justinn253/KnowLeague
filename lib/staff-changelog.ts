@@ -17,6 +17,53 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-26-discord-help-category-tabs',
+    patch: 'patch-2026-10-26-discord-help-category-tabs',
+    timestamp: '2026-10-26T19:48:03.034Z',
+    title: 'Organize Discord help into category tabs',
+    summary:
+      'The Discord `/help` panel now uses button tabs to show General, League, Fishing, or Collections commands in one focused embed.',
+    details: [
+      'Added a public four-button tab row to `/help`. Each tab updates the original message with only its category’s command descriptions, retaining the selected tab style and keeping every embed below Discord’s field limit.',
+      'Help tabs are stateless and may be used by any server member viewing the shared help message; malformed or obsolete controls receive a private refresh instruction.',
+    ],
+    impact: [
+      'Members can browse the command guide without a dense multi-embed response. No command registration, migration, website deployment, permission, or privileged-intent change is required; deploy or restart the Discord bot to expose the interaction handler.',
+    ],
+    files: [
+      'discord-bot/src/interactions.ts',
+      'discord-bot/README.md',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check and git diff --check passed after the help-panel tab changes.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-26-discord-skindle-migration-guard-help-pagination',
+    patch: 'patch-2026-10-26-discord-skindle-migration-guard-help-pagination',
+    timestamp: '2026-10-26T19:44:53.035Z',
+    title: 'Keep pre-migration Skindle sharing quiet and paginate Discord help',
+    summary:
+      'The Discord bot now disables website-Skindle share reconciliation for its current process when migration 182 is absent, and `/help` splits its command reference across Discord-safe embeds.',
+    details: [
+      'A missing `discord_skindle_share_outbox` PostgREST table now emits one actionable startup note, marks the optional sharing storage unavailable for the running bot process, and suppresses the prior 15-second error loop. Restarting the bot after migration 182 is applied automatically re-enables reconciliation.',
+      'The command reference grew beyond Discord’s 25-field embed limit after the new player and League commands. `/help` now uses a primary 25-field embed plus a continuation embed, preserving every command description without triggering Discord builder validation.',
+    ],
+    impact: [
+      'Existing bot deployments that have not yet applied migration 182 continue serving every unrelated feature without recurring share-reconciler error logs. Apply the migration and restart/redeploy the bot to activate website Skindle sharing.',
+      'Members can run `/help` successfully and receive the full command reference in two embeds.',
+    ],
+    files: [
+      'discord-bot/src/interactions.ts',
+      'discord-bot/src/skindle-shares.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'npm run check and git diff --check passed after the follow-up handling changes.',
+    ],
+  },
+  {
     id: 'patch-2026-10-26-discord-command-routing-league-skindle-sharing',
     patch: 'patch-2026-10-26-discord-command-routing-league-skindle-sharing',
     timestamp: '2026-10-26T19:24:21.271Z',

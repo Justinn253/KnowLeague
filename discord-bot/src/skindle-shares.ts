@@ -21,6 +21,14 @@ type ProfileDiscordLink = {
 
 let scheduler: NodeJS.Timeout | null = null;
 let sharesInFlight: Promise<void> | null = null;
+let shareStorageUnavailable = false;
+
+function isMissingShareStorage(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return candidate.code === 'PGRST205'
+    || (typeof candidate.message === 'string' && candidate.message.includes('discord_skindle_share_outbox'));
+}
 
 async function markShare(config: DiscordBotConfig, id: string, status: 'discarded' | 'sent') {
   const { error } = await createBotServiceClient(config)
@@ -41,6 +49,7 @@ async function hasCurrentDiscordLink(config: DiscordBotConfig, share: PendingSki
 }
 
 async function publishPendingSkindleShares(config: DiscordBotConfig, guild: Guild) {
+  if (shareStorageUnavailable) return;
   const { data, error } = await createBotServiceClient(config)
     .from('discord_skindle_share_outbox')
     .select('id,user_id,discord_user_id,channel_id,date_key,guess_count,progress_rows')
@@ -49,7 +58,14 @@ async function publishPendingSkindleShares(config: DiscordBotConfig, guild: Guil
     .order('created_at', { ascending: true })
     .limit(25)
     .returns<PendingSkindleShare[]>();
-  if (error) throw new Error(`Unable to load pending website Skindle shares: ${error.message}`);
+  if (error) {
+    if (isMissingShareStorage(error)) {
+      shareStorageUnavailable = true;
+      console.info('Website Skindle sharing is waiting for migration 182; reconciliation will resume after the bot restarts.');
+      return;
+    }
+    throw new Error(`Unable to load pending website Skindle shares: ${error.message}`);
+  }
 
   for (const share of data ?? []) {
     try {

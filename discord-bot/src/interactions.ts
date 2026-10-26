@@ -245,9 +245,92 @@ const SKIN_COLLECTION_BUTTON_PREFIX = 'skin-collection';
 const SKIN_COLLECTION_ACTION_BUTTON_PREFIX = 'skin-collection-action';
 const FISHING_BUTTON_PREFIX = 'fish';
 const PLAYER_BUTTON_PREFIX = 'player';
+const HELP_BUTTON_PREFIX = 'help';
 const FISHING_SHOP_CATEGORIES: readonly FishingUpgradeCategory[] = ['rod', 'bait', 'boat', 'crew'];
 const FISHING_INVENTORY_TABS = ['overview', 'rods', 'baits', 'gear', 'boats', 'titles'] as const;
 type FishingInventoryTab = typeof FISHING_INVENTORY_TABS[number];
+const HELP_TABS = ['general', 'league', 'fishing', 'collections'] as const;
+type HelpTab = typeof HELP_TABS[number];
+
+type HelpField = {
+  name: string;
+  value: string;
+};
+
+function helpTabLabel(tab: HelpTab) {
+  return tab === 'general' ? 'General'
+    : tab === 'league' ? 'League'
+      : tab === 'fishing' ? 'Fishing'
+        : 'Collections';
+}
+
+function helpFields(tab: HelpTab): HelpField[] {
+  if (tab === 'league') {
+    return [
+      { name: '/league account riot-id region', value: 'Post League Account Viewer snapshots for any Riot ID and selected region.' },
+      { name: '/league account-link, account-mine', value: 'Save your Riot ID and region privately, then open the linked account without entering them again.' },
+      { name: '/league champion champion section', value: 'Post the requested Champion Catalogue image section from the local catalogue.' },
+      { name: '/league skindle play', value: 'Post a Daily Skindle activity card with a link to play on KnowLeague.' },
+      { name: '/league skindle guess skin', value: 'Submit an exact skin name. Champion names show that champion’s complete skin list.' },
+      { name: '/league skindle status', value: 'View your private Daily Skindle progress.' },
+    ];
+  }
+  if (tab === 'fishing') {
+    return [
+      { name: '/fish expedition-set biome length [crew]', value: 'Launch a Fishing expedition using an available crew slot.' },
+      { name: '/fish expedition-progress', value: 'View active expeditions and your latest return; completed trips include Fish again.' },
+      { name: '/fish shop', value: 'Browse and buy Fishing rods, bait, boats, and crew contracts.' },
+      { name: '/fish inventory', value: 'Inspect owned Fishing equipment and equip a rod or bait.' },
+      { name: '/fish chests-open', value: 'Redeem all remaining legacy Fishing chests for KnowBucks.' },
+      { name: '/fish catalogue, event-help, event-catalogue', value: 'Browse fish and event discoveries or review active Fishing event rules.' },
+      { name: '/fish help', value: 'Open focused Fishing command and progression guidance.' },
+    ];
+  }
+  if (tab === 'collections') {
+    return [
+      { name: '/collections collection [member]', value: 'Browse a current member’s claimed skins and daily upkeep.' },
+      { name: '/collections upkeep-view, upkeep-pay amount', value: 'Inspect or permanently reserve KnowBucks for collection upkeep.' },
+      { name: '/collections give member skin-id', value: 'Transfer one of your claimed skins to a server member.' },
+      { name: '/collections summon, summon-force', value: 'Spend KnowBucks to create a claimable skin drop in the current channel.' },
+      { name: '/collections capacity-add slots', value: 'Buy collection capacity; authorized staff can use capacity-force-add.' },
+      { name: '/collections steal, favorite, gamble, sell', value: 'Manage an owned skin or risk it for a new drop.' },
+      { name: '/collections collection-reorder', value: 'Set up to ten consecutive skin IDs as the first collection slots.' },
+      { name: '/collections search [skin-name] [skin-id]', value: 'Preview a local catalogue skin and its current owner, if assigned.' },
+      { name: '/collections spawn', value: 'Immediately post a drop. Requires a Collections administrator role.' },
+    ];
+  }
+  return [
+    { name: '/help', value: 'Open this command guide.' },
+    { name: '/rc', value: 'Repeat your most recent slash command with the same options.' },
+    { name: '/link, /profile', value: 'Link your Discord account to KnowLeague or open your linked public profile.' },
+    { name: '/xp view [member]', value: 'View chat level and XP progress for yourself or a member.' },
+    { name: '/xp add, /xp set-level', value: 'Manage chat XP. Requires a role selected in Discord Configuration.' },
+    { name: '/leaderboard [count]', value: 'Show the server’s active chat-XP leaderboard.' },
+    { name: '/knowbucks balance, pay, coinflip, leaderboard', value: 'View, transfer, wager, or rank KnowBucks.' },
+    { name: '/knowbucks add, remove, set', value: 'Manage balances. Requires a role selected in Discord Configuration.' },
+    { name: '/player stats, inventory, shop', value: 'View progression and equipment, or buy shared skills and robbery equipment.' },
+    { name: '/rob user', value: 'Attempt a protected KnowBucks robbery against a current server member.' },
+    { name: '/snipe', value: 'Spend 1,000 KnowBucks to show this channel’s latest cached deleted message.' },
+    { name: '/steal-emoji message-id', value: 'Administrator only: import external custom emoji from a selected message.' },
+  ];
+}
+
+function buildHelpPanel(tab: HelpTab) {
+  return {
+    components: [{
+      type: 1 as const,
+      components: HELP_TABS.map((entry) => new ButtonBuilder()
+        .setCustomId(`${HELP_BUTTON_PREFIX}:${entry}`)
+        .setStyle(entry === tab ? ButtonStyle.Primary : ButtonStyle.Secondary)
+        .setLabel(helpTabLabel(entry))),
+    }],
+    embeds: [new EmbedBuilder()
+      .setColor(0xF59E0B)
+      .setTitle(`KnowLeague Discord bot help · ${helpTabLabel(tab)}`)
+      .setDescription('Choose a category below to browse commands.')
+      .addFields(helpFields(tab))],
+  };
+}
 const FISHING_PANEL_TTL_MS = 60_000;
 const PLAYER_PANEL_TTL_MS = 60_000;
 const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
@@ -2556,8 +2639,21 @@ async function handleSkinCollectionActionButton(interaction: ButtonInteraction, 
   }
 }
 
+async function handleHelpButtonInteraction(interaction: ButtonInteraction) {
+  const [prefix, tab, ...extra] = interaction.customId.split(':');
+  if (prefix !== HELP_BUTTON_PREFIX) return false;
+  if (extra.length > 0 || !HELP_TABS.includes(tab as HelpTab)) {
+    await interaction.reply({ content: 'This help panel is outdated. Run `/help` to open a new one.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  await interaction.deferUpdate();
+  await interaction.editReply(buildHelpPanel(tab as HelpTab));
+  return true;
+}
+
 export async function handleButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   if (interaction.guildId !== config.guildId) return;
+  if (await handleHelpButtonInteraction(interaction)) return;
   if (await handlePlayerButtonInteraction(interaction, config)) return;
   if (await handleFishingButtonInteraction(interaction, config)) return;
   if (await handleClaimedSkinActionButton(interaction, config)) return;
@@ -2696,47 +2792,7 @@ export async function handleChatInputCommand(
   if (storeAsMostRecent) storeMostRecentCommand(interaction);
 
   if (interaction.commandName === 'help') {
-    await interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0xF59E0B)
-          .setTitle('KnowLeague Discord bot help')
-          .addFields(
-            { name: '/link', value: 'Open the existing KnowLeague profile flow to link this Discord account.' },
-            { name: '/rc', value: 'Repeat your most recent slash command with the same options.' },
-            { name: '/profile', value: 'Confirm your linked KnowLeague profile and open it.' },
-            { name: '/leaderboard [count]', value: 'Show the top 10 active server members by chat XP, or request from 1 to 25 members.' },
-            { name: '/xp add member amount', value: 'Give a member chat XP. Requires a role selected in Discord Configuration.' },
-            { name: '/xp set-level member level', value: 'Set a member to a specific chat level. Requires a configured staff role.' },
-            { name: '/xp view [member]', value: 'View your chat level and XP progress, or select another member to view theirs.' },
-            { name: '/knowbucks balance [member]', value: 'View your KnowBucks balance or another member\'s balance.' },
-            { name: '/knowbucks pay member amount', value: 'Pay KnowBucks to another server member.' },
-            { name: '/knowbucks coinflip amount', value: 'Wager KnowBucks on a 50/50 coinflip. A win returns double the wager.' },
-            { name: '/knowbucks leaderboard [count]', value: 'Show the top 10 current server members by KnowBucks, or request from 1 to 25 members.' },
-            { name: '/knowbucks add/remove/set', value: 'Manage a member\'s KnowBucks. Requires a role selected in Discord Configuration.' },
-            { name: '/player stats [user], inventory [user]', value: 'View a current server member\'s character, Fishing, and KnowBucks progress with a skills tab. Inventory browsing is ready for upcoming player systems.' },
-            { name: '/player shop', value: 'Buy shared skill tiers and permanent robbery equipment with KnowBucks. Skills apply automatically wherever supported.' },
-            { name: '/rob user', value: 'Attempt a protected KnowBucks robbery against a current server member. Your success chance, one-hour Haste-reduced cooldown, equipment, and the target\'s defenses apply automatically.' },
-            { name: '/snipe', value: 'Spend 1,000 KnowBucks to show this channel\'s latest cached deleted message.' },
-            { name: '/steal-emoji message-id', value: 'Administrator only: import external custom emoji used in a message. A copied message link can target another channel in this server.' },
-            { name: '/fish expedition-set biome length [crew]', value: 'Launch one of four level-gated expedition lengths to an unlocked biome. Rod rarity, bait, skills, and permanent relics apply to the saved trip; crew runs take three times as long with normal rewards.' },
-            { name: '/fish expedition-progress, shop, inventory', value: 'Check active trips, buy rods, bait, boat upgrades, and crew contracts, or use the inventory tabs to inspect relic descriptions and equip an owned rod or bait.' },
-            { name: '/fish chests-open, catalogue, help', value: 'Redeem all held legacy chests, browse the biome-filtered field guide, or open focused fishing help. Newly caught crates open automatically during expeditions.' },
-            { name: '/collections collection [member]', value: 'Post your own or another current member\'s claimed skin collection for the server to view, one skin at a time. Every panel shows that collection\'s current daily upkeep; use Show details for metadata and the skin\'s sell value.' },
-            { name: '/collections upkeep-view/upkeep-pay amount', value: 'Privately view your daily upkeep, allocation, regular balance, and full-payment coverage, or irrevocably reserve KnowBucks for upkeep. Allocations are capped at 100,000, are used before your regular balance, and cannot be withdrawn.' },
-            { name: '/collections give member skin-id', value: 'Give one of your claimed skins to another current server member by its four-digit ID.' },
-            { name: '/collections summon/summon-force', value: 'Summon a claimable drop for the configured cost (5,000 KnowBucks by default) every four hours, reduced by Haste. While on cooldown, force-summon for 5,000 KnowBucks with a 50% increase per successful force summon until the Monday UTC weekly reset; Cheapskate reduces either cost.' },
-            { name: '/collections capacity-add slots', value: 'Buy one or more collection slots for the configured per-slot rate (500 KnowBucks per slot by default), up to 50 total slots. Staff can use `capacity-force-add` for a free member upgrade within that limit.' },
-            { name: '/collections steal/favorite/gamble/sell', value: 'Attempt a steal for 3x the configured sell value (with a 30-minute cooldown), choose your first collection item, gamble a skin, or sell one by its four-digit ID. Lucky improves steal and gamble odds, while Money Mouser increases only sale payouts.' },
-            { name: '/collections collection-reorder', value: 'Set one to ten consecutive skin IDs as the first collection slots. Favoriting a skin also moves it to slot one.' },
-            { name: '/collections search [skin-name] [skin-id]', value: 'Preview a catalogue skin by name or four-digit KnowLeague ID, including its current owner when assigned. The preview cannot be claimed.' },
-            { name: '/collections spawn', value: 'Immediately post a skin drop in this channel. Requires a role selected in Discord Configuration.' },
-            { name: '/league skindle play/guess/status', value: 'Start a public Daily Skindle activity card, keep clue and solution cards private, and share a spoiler-free result in the channel.' },
-            { name: '/league account-link, account-mine', value: 'Save a Riot ID and region privately, then open your linked League Account Viewer snapshots without entering them again.' },
-            { name: 'Chat leveling', value: 'Eligible non-bot messages earn XP. Level rewards and messages are configured on the website.' },
-          ),
-      ],
-    });
+    await interaction.reply(buildHelpPanel('general'));
     return;
   }
 

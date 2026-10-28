@@ -102,6 +102,56 @@ export const FISHING_CATCH_CONFIG = [
   { biomeId: 'rallypoint-delta', id: 'scavenger', name: 'Scavenger', rarity: 'Legendary', minSaleValue: 3_000, maxSaleValue: 4_250 },
 ] as const satisfies readonly FishingCatchConfig[];
 
+type FishingRelicContentConfig = {
+  description: string;
+  /** Use null when the relic can be found in every standard biome. */
+  foundBiomeIds: readonly FishingBiomeIdConfig[] | null;
+  id: string;
+  name: string;
+};
+
+/**
+ * Editable Fishing relic names, descriptions, and discovery locations.
+ * Mechanical effects remain in the Fishing catalogue beside their resolver.
+ */
+export const FISHING_RELIC_CONTENT_CONFIG = [
+  { id: 'gear-sea-star', name: 'Sea Star', description: 'Permanent relic: increases money gained from everything by 5%.', foundBiomeIds: null },
+  { id: 'gear-alien-engine', name: 'Alien Engine', description: 'Permanent relic: reduces expedition duration by 10%.', foundBiomeIds: null },
+  { id: 'gear-dual-hook', name: 'Dual Hook', description: 'Permanent relic: adds one fish roll to every expedition.', foundBiomeIds: null },
+  { id: 'gear-rod-improvement-kit', name: 'Rod Improvement Kit', description: 'Permanent relic: increases higher-rarity fishing odds by 5%.', foundBiomeIds: null },
+  { id: 'gear-lost-pursasion-device', name: 'Lost Pursasion Device', description: 'Permanent relic: reduces costs by 5%.', foundBiomeIds: null },
+  { id: 'gear-conduit', name: 'Conduit', description: 'Permanent relic: doubles relic-find chance.', foundBiomeIds: ['warm-ocean'] },
+  { id: 'gear-reservoir-growth', name: 'Reservoir Growth', description: 'Permanent relic: raises crate-spawn chance by 10%.', foundBiomeIds: ['hydroplant-reservoir'] },
+  { id: 'gear-giant-pearl', name: 'Giant Pearl', description: 'Permanent relic: increases Fishing XP earned by 25%.', foundBiomeIds: ['sunken-sea'] },
+  { id: 'gear-magic-conch', name: 'Magic Conch', description: 'Permanent relic: each fish has a 10% chance to upgrade one rarity.', foundBiomeIds: ['kelp-forest'] },
+  { id: 'gear-gemcracker', name: 'Gemcracker', description: 'Permanent relic: reserves improved crate loot for a future balance update.', foundBiomeIds: ['crystaline-caverns'] },
+  { id: 'gear-teleporter', name: 'Teleporter', description: 'Permanent relic: 5% chance to instantly complete a non-crew expedition.', foundBiomeIds: ['rallypoint-delta'] },
+  { id: 'gear-lucky-coin', name: 'Lucky Coin', description: 'Permanent relic: each fish or crate catch has a 3% chance to sell for double.', foundBiomeIds: null },
+  { id: 'gear-streak-charm', name: 'Streak Charm', description: 'Permanent relic: consecutive expeditions in the same location gain 0.5% value each, up to 10%; changing location resets the streak.', foundBiomeIds: null },
+  { id: 'gear-early-bird-bell', name: 'Early Bird Bell', description: 'Permanent relic: the first expedition launched each UTC day earns 50% more KnowBucks.', foundBiomeIds: null },
+  { id: 'gear-knowleague-lure', name: 'KnowLeague Lure', description: 'Permanent relic: legendary fish sell for 10% more.', foundBiomeIds: null },
+  { id: 'gear-dockhands-ledger', name: "Harbor Dockhand's Ledger", description: 'Permanent relic: crew expeditions earn 2.5% more KnowBucks.', foundBiomeIds: ['harbor'] },
+  { id: 'gear-sunstone', name: 'Sunstone', description: 'Permanent relic: Warm Ocean fish value rolls skew toward the top of their ranges.', foundBiomeIds: ['warm-ocean'] },
+  { id: 'gear-genesys-loop', name: 'Genesys Loop', description: 'Permanent relic: after an expedition settles, launches the same preset again up to twice in a row.', foundBiomeIds: ['hydroplant-reservoir'] },
+  { id: 'gear-pearl-divers-log', name: "Pearl Diver's Log", description: 'Permanent relic: the first catch of each fish pays five times its normal value.', foundBiomeIds: ['sunken-sea'] },
+  { id: 'gear-tangle-net', name: 'Tangle Net', description: 'Permanent relic: each distinct fish rarity in a haul adds 3% value to its fish sales.', foundBiomeIds: ['kelp-forest'] },
+  { id: 'gear-crystal-resonator', name: 'Crystal Resonator', description: 'Permanent relic: epic and legendary fish sell for 10% more.', foundBiomeIds: ['crystaline-caverns'] },
+  { id: 'gear-autopilot-relay', name: 'Autopilot Relay', description: 'Permanent relic: crew expeditions earn 20% more KnowBucks and finish 10% faster.', foundBiomeIds: ['rallypoint-delta'] },
+] as const satisfies readonly FishingRelicContentConfig[];
+
+type FishingEventBiomeConfig = {
+  catalogueBiomeId: 'hellish-abyss';
+  id: 'halloween';
+  name: string;
+  biomeName: string;
+  replacementChance: number;
+};
+
+/** Event-biome metadata. Add future Fishing event biomes here before their event content is activated. */
+export const FISHING_EVENT_BIOME_CONFIG = [
+  { id: 'halloween', name: 'Halloween Event', biomeName: 'Hellish Abyss', catalogueBiomeId: 'hellish-abyss', replacementChance: 0.25 },
+] as const satisfies readonly FishingEventBiomeConfig[];
+
 /** Shared Fishing odds, sale, XP, and drop-rate balance values. */
 export const FISHING_BALANCE_CONFIG = {
   crateDropRates: { Common: 0.05, Uncommon: 0.025, Rare: 0.0125, Epic: 0.0025, Legendary: 0.00025 },

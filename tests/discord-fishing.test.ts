@@ -41,7 +41,11 @@ import {
   type FishingEventCatalogueProgress,
 } from '../discord-bot/src/fishing';
 import { getDiscordMinigameTierReferences } from '../discord-bot/src/minigame-tier-references';
-import { FISHING_CATCH_CONFIG } from '../discord-bot/src/minigame-content-config';
+import {
+  FISHING_CATCH_CONFIG,
+  FISHING_EVENT_BIOME_CONFIG,
+  FISHING_RELIC_CONTENT_CONFIG,
+} from '../discord-bot/src/minigame-content-config';
 
 type SerializedSubcommand = {
   choices?: readonly unknown[];
@@ -152,6 +156,32 @@ describe('Discord minigame tier references', () => {
     expect(fishingReference?.contents).toContain('## Fishing progression tiers');
     expect(fishingReference?.contents).toContain('minigame-content-config.ts');
     expect(FISHING_FISH).toHaveLength(FISHING_CATCH_CONFIG.length);
+  });
+});
+
+describe('Discord Fishing content configuration', () => {
+  it('supplies every relic name, description, and discovery biome to the live catalogue', () => {
+    const configuredIds = FISHING_RELIC_CONTENT_CONFIG.map((relic) => relic.id).sort();
+    const catalogueIds = FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear').map((relic) => relic.id).sort();
+    const magicConch = FISHING_UPGRADES.find((upgrade) => upgrade.id === 'gear-magic-conch');
+
+    expect(catalogueIds).toEqual(configuredIds);
+    expect(magicConch).toMatchObject({
+      description: 'Permanent relic: each fish has a 10% chance to upgrade one rarity.',
+      foundBiomeIds: ['kelp-forest'],
+      name: 'Magic Conch',
+    });
+  });
+
+  it('supplies the active Fishing event biome from configuration', () => {
+    expect(FISHING_EVENT_BIOME_CONFIG).toEqual([{
+      biomeName: 'Hellish Abyss',
+      catalogueBiomeId: 'hellish-abyss',
+      id: 'halloween',
+      name: 'Halloween Event',
+      replacementChance: 0.25,
+    }]);
+    expect(FISHING_EVENTS[0]).toMatchObject(FISHING_EVENT_BIOME_CONFIG[0]!);
   });
 });
 

@@ -17,6 +17,33 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-28-discord-fishing-relic-event-content-config',
+    patch: 'patch-2026-10-28-discord-fishing-relic-event-content-config',
+    timestamp: '2026-10-28T01:00:00.000Z',
+    title: 'Configure Fishing relic text, locations, and event biomes',
+    summary:
+      'The Discord minigame content configuration now documents and supplies all Fishing relic copy/discovery locations plus active Fishing event-biome metadata.',
+    details: [
+      'Each relic now has one configuration entry containing its stable ID, name, editable description, and discovery biome list. A null discovery list explicitly means that the relic can be found in every standard biome.',
+      'The Fishing catalogue retains each relic\'s existing mechanical effects but reads its name, description, and discovery scope from the content configuration, so copy and location changes appear consistently in live inventory, catalogue, and expedition behavior.',
+      'The Halloween event now reads its event name, Hellish Abyss biome name, catalogue biome ID, and replacement chance from the event-biome configuration. Future event biomes have an explicit configuration section before their fish/crate content is added.',
+      'Focused Fishing coverage verifies complete relic configuration coverage and confirms the active event receives its biome metadata from the configuration.',
+    ],
+    impact: [
+      'Maintainers can review or edit relic descriptions and locations, and inspect current Fishing event biomes, in `discord-bot/src/minigame-content-config.ts` without searching the gameplay resolver.',
+      'Existing relic behavior, event catches, player inventory IDs, and saved expedition snapshots remain unchanged.',
+    ],
+    files: [
+      'discord-bot/src/minigame-content-config.ts',
+      'discord-bot/src/fishing-catalog.ts',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Discord type checks, focused Fishing coverage, the local tier-reference generator, the full project check, and whitespace validation are run after this patch.',
+    ],
+  },
+  {
     id: 'patch-2026-10-28-discord-minigame-content-configuration',
     patch: 'patch-2026-10-28-discord-minigame-content-configuration',
     timestamp: '2026-10-28T00:45:00.000Z',

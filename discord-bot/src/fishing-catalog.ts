@@ -1,4 +1,9 @@
-import { FISHING_BALANCE_CONFIG, FISHING_CATCH_CONFIG } from './minigame-content-config.js';
+import {
+  FISHING_BALANCE_CONFIG,
+  FISHING_CATCH_CONFIG,
+  FISHING_EVENT_BIOME_CONFIG,
+  FISHING_RELIC_CONTENT_CONFIG,
+} from './minigame-content-config.js';
 
 export const FISHING_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic'] as const;
 export const FISHING_CRATE_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] as const;
@@ -269,6 +274,23 @@ const LEGACY_FISHING_EXPEDITION_LENGTHS: readonly FishingExpeditionLength[] = [
   { tier: 4, requiredFishingLevel: 30, durationSeconds: 300, catchCount: [12, 15], higherRarityWeightBonusPercent: 0 },
 ] as const;
 
+type FishingRelicEffects = Omit<FishingUpgrade, 'category' | 'cost' | 'description' | 'foundBiomeIds' | 'id' | 'name'>;
+
+function fishingRelic(id: string, effects: FishingRelicEffects = {}): FishingUpgrade {
+  const content = FISHING_RELIC_CONTENT_CONFIG.find((relic) => relic.id === id);
+  if (!content) throw new Error(`Missing Fishing relic content configuration for ${id}.`);
+
+  return {
+    category: 'gear',
+    cost: 0,
+    description: content.description,
+    foundBiomeIds: content.foundBiomeIds ? [...content.foundBiomeIds] : undefined,
+    id,
+    name: content.name,
+    ...effects,
+  };
+}
+
 export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
   { id: 'plastic-rod', name: 'Plastic Rod', category: 'rod', cost: 0, description: 'Starter rod that catches common fish.', catchableRarities: ['Common'] },
   { id: 'wooden-rod', name: 'Wooden Rod', category: 'rod', cost: 5_000, requiredFishingLevel: 5, description: 'Catches common and uncommon fish.', catchableRarities: ['Common', 'Uncommon'] },
@@ -305,28 +327,28 @@ export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
   { id: 'haste-2', name: 'Haste II', category: 'skill', cost: 25_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-1' },
   { id: 'haste-3', name: 'Haste III', category: 'skill', cost: 100_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-2' },
   { id: 'haste-4', name: 'Haste IV', category: 'skill', cost: 250_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-3' },
-  { id: 'gear-sea-star', name: 'Sea Star', category: 'gear', cost: 0, description: 'Permanent relic: increases money gained from everything by 5%.', saleBonusPercent: 5 },
-  { id: 'gear-alien-engine', name: 'Alien Engine', category: 'gear', cost: 0, description: 'Permanent relic: reduces expedition duration by 10%.', timeReductionPercent: 10 },
-  { id: 'gear-dual-hook', name: 'Dual Hook', category: 'gear', cost: 0, description: 'Permanent relic: adds one fish roll to every expedition.' },
-  { id: 'gear-rod-improvement-kit', name: 'Rod Improvement Kit', category: 'gear', cost: 0, description: 'Permanent relic: increases higher-rarity fishing odds by 5%.', higherRarityBonusPercent: 5 },
-  { id: 'gear-lost-pursasion-device', name: 'Lost Pursasion Device', category: 'gear', cost: 0, description: 'Permanent relic: reduces costs by 5%.', costReductionPercent: 5 },
-  { id: 'gear-conduit', name: 'Conduit', category: 'gear', cost: 0, description: 'Permanent relic: doubles relic-find chance.', foundBiomeIds: ['warm-ocean'] },
-  { id: 'gear-reservoir-growth', name: 'Reservoir Growth', category: 'gear', cost: 0, description: 'Permanent relic: raises crate-spawn chance by 10%.', foundBiomeIds: ['hydroplant-reservoir'] },
-  { id: 'gear-giant-pearl', name: 'Giant Pearl', category: 'gear', cost: 0, description: 'Permanent relic: increases Fishing XP earned by 25%.', foundBiomeIds: ['sunken-sea'] },
-  { id: 'gear-magic-conch', name: 'Magic Conch', category: 'gear', cost: 0, description: 'Permanent relic: each fish has a 10% chance to upgrade one rarity.', foundBiomeIds: ['kelp-forest'] },
-  { id: 'gear-gemcracker', name: 'Gemcracker', category: 'gear', cost: 0, description: 'Permanent relic: reserves improved crate loot for a future balance update.', foundBiomeIds: ['crystaline-caverns'] },
-  { id: 'gear-teleporter', name: 'Teleporter', category: 'gear', cost: 0, description: 'Permanent relic: 5% chance to instantly complete a non-crew expedition.', foundBiomeIds: ['rallypoint-delta'] },
-  { id: 'gear-lucky-coin', name: 'Lucky Coin', category: 'gear', cost: 0, description: 'Permanent relic: each fish or crate catch has a 3% chance to sell for double.', },
-  { id: 'gear-streak-charm', name: 'Streak Charm', category: 'gear', cost: 0, description: 'Permanent relic: consecutive expeditions in the same location gain 0.5% value each, up to 10%; changing location resets the streak.', },
-  { id: 'gear-early-bird-bell', name: 'Early Bird Bell', category: 'gear', cost: 0, description: 'Permanent relic: the first expedition launched each UTC day earns 50% more KnowBucks.', },
-  { id: 'gear-knowleague-lure', name: 'KnowLeague Lure', category: 'gear', cost: 0, description: 'Permanent relic: legendary fish sell for 10% more.', },
-  { id: 'gear-dockhands-ledger', name: "Harbor Dockhand's Ledger", category: 'gear', cost: 0, description: 'Permanent relic: crew expeditions earn 2.5% more KnowBucks.', foundBiomeIds: ['harbor'] },
-  { id: 'gear-sunstone', name: 'Sunstone', category: 'gear', cost: 0, description: 'Permanent relic: Warm Ocean fish value rolls skew toward the top of their ranges.', foundBiomeIds: ['warm-ocean'] },
-  { id: 'gear-genesys-loop', name: 'Genesys Loop', category: 'gear', cost: 0, description: 'Permanent relic: after an expedition settles, launches the same preset again up to twice in a row.', foundBiomeIds: ['hydroplant-reservoir'] },
-  { id: 'gear-pearl-divers-log', name: "Pearl Diver's Log", category: 'gear', cost: 0, description: 'Permanent relic: the first catch of each fish pays five times its normal value.', foundBiomeIds: ['sunken-sea'] },
-  { id: 'gear-tangle-net', name: 'Tangle Net', category: 'gear', cost: 0, description: 'Permanent relic: each distinct fish rarity in a haul adds 3% value to its fish sales.', foundBiomeIds: ['kelp-forest'] },
-  { id: 'gear-crystal-resonator', name: 'Crystal Resonator', category: 'gear', cost: 0, description: 'Permanent relic: epic and legendary fish sell for 10% more.', foundBiomeIds: ['crystaline-caverns'] },
-  { id: 'gear-autopilot-relay', name: 'Autopilot Relay', category: 'gear', cost: 0, description: 'Permanent relic: crew expeditions earn 20% more KnowBucks and finish 10% faster.', foundBiomeIds: ['rallypoint-delta'] },
+  fishingRelic('gear-sea-star', { saleBonusPercent: 5 }),
+  fishingRelic('gear-alien-engine', { timeReductionPercent: 10 }),
+  fishingRelic('gear-dual-hook'),
+  fishingRelic('gear-rod-improvement-kit', { higherRarityBonusPercent: 5 }),
+  fishingRelic('gear-lost-pursasion-device', { costReductionPercent: 5 }),
+  fishingRelic('gear-conduit'),
+  fishingRelic('gear-reservoir-growth'),
+  fishingRelic('gear-giant-pearl'),
+  fishingRelic('gear-magic-conch'),
+  fishingRelic('gear-gemcracker'),
+  fishingRelic('gear-teleporter'),
+  fishingRelic('gear-lucky-coin'),
+  fishingRelic('gear-streak-charm'),
+  fishingRelic('gear-early-bird-bell'),
+  fishingRelic('gear-knowleague-lure'),
+  fishingRelic('gear-dockhands-ledger'),
+  fishingRelic('gear-sunstone'),
+  fishingRelic('gear-genesys-loop'),
+  fishingRelic('gear-pearl-divers-log'),
+  fishingRelic('gear-tangle-net'),
+  fishingRelic('gear-crystal-resonator'),
+  fishingRelic('gear-autopilot-relay'),
   { id: 'crew-1', name: 'Crew 1 Contract', category: 'crew', cost: 100_000, requiredFishingLevel: 40, description: 'Unlocks Crew 1. Crew expeditions take 3x as long.' },
   { id: 'crew-2', name: 'Crew 2 Contract', category: 'crew', cost: 250_000, requiredFishingLevel: 80, description: 'Unlocks Crew 2. Requires Crew 1; crew expeditions take 3x as long.' },
 ] as const;
@@ -353,14 +375,17 @@ const halloweenCrate = (id: string, name: string, rarity: FishingCrateRarity, it
   rarity,
 });
 
+const halloweenEventBiome = FISHING_EVENT_BIOME_CONFIG.find((eventBiome) => eventBiome.id === 'halloween');
+if (!halloweenEventBiome) throw new Error('Missing Halloween Fishing event-biome configuration.');
+
 /**
  * Active event content is kept outside the ordinary biome catalogue: it can
  * temporarily replace any selected expedition while retaining that selected
  * biome's sale-value ranges and expedition length.
  */
 export const FISHING_EVENTS: readonly FishingEvent[] = [{
-  biomeName: 'Hellish Abyss',
-  catalogueBiomeId: HALLOWEEN_EVENT_CATALOGUE_BIOME_ID,
+  biomeName: halloweenEventBiome.biomeName,
+  catalogueBiomeId: halloweenEventBiome.catalogueBiomeId,
   crates: [
     halloweenCrate('halloween-ribcage', 'Ribcage', 'Common', ['Heart', 'Lungs', 'Intenstines', 'Spine']),
     halloweenCrate('halloween-sunken-jack-o-lantern', 'Sunken Jack-o-Lantern', 'Uncommon', ['Ghostly Figurine', 'Spider Eggs']),
@@ -385,9 +410,9 @@ export const FISHING_EVENTS: readonly FishingEvent[] = [{
     halloweenFish('lost-soul', 'Lost Soul', 'Legendary'),
     halloweenFish('cthulhu', 'Cthulhu', 'Mythic', true),
   ],
-  id: 'halloween',
-  name: 'Halloween Event',
-  replacementChance: 0.25,
+  id: halloweenEventBiome.id,
+  name: halloweenEventBiome.name,
+  replacementChance: halloweenEventBiome.replacementChance,
   title: {
     dropRate: 0.001,
     itemId: 'gear-title-ghoulish-seafarer',

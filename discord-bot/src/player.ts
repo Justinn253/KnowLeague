@@ -3,6 +3,7 @@ import { getFishingUpgrade, getFishingUpgradeCost, getVisibleFishingShopItems } 
 import type { FishingUpgrade } from './fishing-catalog.js';
 import { getKnowBucksBalance } from './knowbucks.js';
 import { getDiscordLevelProgress } from './leveling.js';
+import { PLAYER_SKILL_TIER_CONFIG } from './minigame-content-config.js';
 import { createBotServiceClient } from './supabase.js';
 
 export type PlayerShopTab = 'skills' | 'items';
@@ -138,11 +139,11 @@ const PLAYER_EQUIPMENT_ITEMS: readonly PlayerEquipmentItem[] = [
 ];
 
 const PLAYER_SKILL_TRACKS = {
-  cheapskate: ['cheapskate-1', 'cheapskate-2', 'cheapskate-3', 'cheapskate-4'],
-  haste: ['haste-1', 'haste-2', 'haste-3', 'haste-4'],
-  lucky: ['lucky-1', 'lucky-2', 'lucky-3', 'lucky-4', 'lucky-5'],
-  moneyMouser: ['money-mouser-1', 'money-mouser-2'],
-} as const;
+  cheapskate: PLAYER_SKILL_TIER_CONFIG.filter((skill) => skill.track === 'cheapskate').map((skill) => skill.id),
+  haste: PLAYER_SKILL_TIER_CONFIG.filter((skill) => skill.track === 'haste').map((skill) => skill.id),
+  lucky: PLAYER_SKILL_TIER_CONFIG.filter((skill) => skill.track === 'lucky').map((skill) => skill.id),
+  moneyMouser: PLAYER_SKILL_TIER_CONFIG.filter((skill) => skill.track === 'moneyMouser').map((skill) => skill.id),
+};
 
 function firstResult<T>(data: T | T[] | null) {
   return Array.isArray(data) ? data[0] ?? null : data;

@@ -45,6 +45,8 @@ import {
   FISHING_CATCH_CONFIG,
   FISHING_EVENT_BIOME_CONFIG,
   FISHING_RELIC_CONTENT_CONFIG,
+  FISHING_SHOP_UPGRADE_CONFIG,
+  PLAYER_SKILL_TIER_CONFIG,
 } from '../discord-bot/src/minigame-content-config';
 
 type SerializedSubcommand = {
@@ -182,6 +184,37 @@ describe('Discord Fishing content configuration', () => {
       replacementChance: 0.25,
     }]);
     expect(FISHING_EVENTS[0]).toMatchObject(FISHING_EVENT_BIOME_CONFIG[0]!);
+  });
+
+  it('supplies every shared player-skill tier to the Fishing and player-shop catalogue', () => {
+    const configuredIds = PLAYER_SKILL_TIER_CONFIG.map((skill) => skill.id).sort();
+    const catalogueSkills = FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'skill');
+    const luckyFive = catalogueSkills.find((skill) => skill.id === 'lucky-5');
+
+    expect(catalogueSkills.map((skill) => skill.id).sort()).toEqual(configuredIds);
+    expect(luckyFive).toMatchObject({
+      cost: 1_000_000,
+      higherRarityBonusPercent: 5,
+      name: 'Lucky V',
+      requiredUpgradeId: 'lucky-4',
+    });
+    expect(PLAYER_SKILL_TIER_CONFIG.filter((skill) => skill.track === 'lucky').map((skill) => skill.level)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('supplies every non-relic Fishing shop upgrade from configuration', () => {
+    const configuredIds = FISHING_SHOP_UPGRADE_CONFIG.map((upgrade) => upgrade.id).sort();
+    const catalogueIds = FISHING_UPGRADES
+      .filter((upgrade) => ['rod', 'bait', 'boat', 'crew'].includes(upgrade.category))
+      .map((upgrade) => upgrade.id)
+      .sort();
+    const godRod = FISHING_UPGRADES.find((upgrade) => upgrade.id === 'god-rod');
+
+    expect(catalogueIds).toEqual(configuredIds);
+    expect(godRod).toMatchObject({
+      catchableRarities: ['Rare', 'Epic', 'Legendary', 'Mythic'],
+      cost: 1_000_000,
+      requiredFishingLevel: 80,
+    });
   });
 });
 

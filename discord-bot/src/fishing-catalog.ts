@@ -3,6 +3,8 @@ import {
   FISHING_CATCH_CONFIG,
   FISHING_EVENT_BIOME_CONFIG,
   FISHING_RELIC_CONTENT_CONFIG,
+  FISHING_SHOP_UPGRADE_CONFIG,
+  PLAYER_SKILL_TIER_CONFIG,
 } from './minigame-content-config.js';
 
 export const FISHING_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic'] as const;
@@ -291,42 +293,39 @@ function fishingRelic(id: string, effects: FishingRelicEffects = {}): FishingUpg
   };
 }
 
+function playerSkill(skill: (typeof PLAYER_SKILL_TIER_CONFIG)[number]): FishingUpgrade {
+  return {
+    category: 'skill',
+    cost: skill.cost,
+    description: skill.description,
+    id: skill.id,
+    name: skill.name,
+    ...(skill.costReductionPercent === undefined ? {} : { costReductionPercent: skill.costReductionPercent }),
+    ...(skill.higherRarityBonusPercent === undefined ? {} : { higherRarityBonusPercent: skill.higherRarityBonusPercent }),
+    ...(skill.requiredUpgradeId === undefined ? {} : { requiredUpgradeId: skill.requiredUpgradeId }),
+    ...(skill.saleBonusPercent === undefined ? {} : { saleBonusPercent: skill.saleBonusPercent }),
+    ...(skill.timeReductionPercent === undefined ? {} : { timeReductionPercent: skill.timeReductionPercent }),
+  };
+}
+
+function fishingShopUpgrade(upgrade: (typeof FISHING_SHOP_UPGRADE_CONFIG)[number]): FishingUpgrade {
+  return {
+    category: upgrade.category,
+    cost: upgrade.cost,
+    description: upgrade.description,
+    id: upgrade.id,
+    name: upgrade.name,
+    ...(upgrade.catchableRarities === undefined ? {} : { catchableRarities: [...upgrade.catchableRarities] }),
+    ...(upgrade.requiredFishingLevel === undefined ? {} : { requiredFishingLevel: upgrade.requiredFishingLevel }),
+    ...(upgrade.requiredUpgradeId === undefined ? {} : { requiredUpgradeId: upgrade.requiredUpgradeId }),
+  };
+}
+
 export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
-  { id: 'plastic-rod', name: 'Plastic Rod', category: 'rod', cost: 0, description: 'Starter rod that catches common fish.', catchableRarities: ['Common'] },
-  { id: 'wooden-rod', name: 'Wooden Rod', category: 'rod', cost: 5_000, requiredFishingLevel: 5, description: 'Catches common and uncommon fish.', catchableRarities: ['Common', 'Uncommon'] },
-  { id: 'fiberglass-rod', name: 'Fiberglass Rod', category: 'rod', cost: 15_000, requiredFishingLevel: 10, description: 'Catches common, uncommon, and rare fish.', catchableRarities: ['Common', 'Uncommon', 'Rare'] },
-  { id: 'reinforced-rod', name: 'Reinforced Rod', category: 'rod', cost: 30_000, requiredFishingLevel: 15, description: 'Catches common through epic fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic'] },
-  { id: 'master-rod', name: 'Master Rod', category: 'rod', cost: 50_000, requiredFishingLevel: 20, description: 'Catches common through legendary fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] },
-  { id: 'celestial-rod', name: 'Celestial Rod', category: 'rod', cost: 250_000, requiredFishingLevel: 50, description: 'Catches uncommon through legendary fish.', catchableRarities: ['Uncommon', 'Rare', 'Epic', 'Legendary'] },
-  { id: 'god-rod', name: 'God Rod', category: 'rod', cost: 1_000_000, requiredFishingLevel: 80, description: 'Catches rare, epic, legendary, and future Mythic fish.', catchableRarities: ['Rare', 'Epic', 'Legendary', 'Mythic'] },
-  { id: 'basic-bait', name: 'Basic Bait', category: 'bait', cost: 0, description: 'Starter bait with no expedition modifier.' },
-  { id: 'chum', name: 'Chum', category: 'bait', cost: 10_000, requiredFishingLevel: 5, description: 'Each common or uncommon fish has a 10–30% chance to return one additional fish.' },
-  { id: 'magnet', name: 'Magnet', category: 'bait', cost: 30_000, requiredFishingLevel: 15, description: 'Increases each crate-spawn chance by 50% of its original odds.' },
-  { id: 'sonar', name: 'Sonar', category: 'bait', cost: 75_000, requiredFishingLevel: 25, description: 'Halves fish-roll success while doubling relic-find chance.' },
-  { id: 'bloodworms', name: 'Bloodworms', category: 'bait', cost: 150_000, requiredFishingLevel: 40, description: 'Each rare or epic fish has a 10–30% chance to return one additional fish.' },
-  { id: 'mysterious-sea-food', name: 'Mysterious Sea Food', category: 'bait', cost: 250_000, requiredFishingLevel: 55, description: 'Has a 20% chance to add 50% more fish rolls to an expedition.' },
-  { id: 'truffle-worm', name: 'Truffle Worm', category: 'bait', cost: 1_000_000, requiredFishingLevel: 80, description: 'Triples legendary odds, but only legendary fish can return.' },
-  { id: 'sail', name: 'Sail', category: 'boat', cost: 10_000, requiredFishingLevel: 10, description: 'Permanent boat upgrade that unlocks travel to the Warm Ocean.' },
-  { id: 'abiotic-turbine', name: 'Abiotic Turbine', category: 'boat', cost: 25_000, requiredFishingLevel: 20, description: 'Permanent boat upgrade that unlocks travel to the Hydroplant Reservoir.' },
-  { id: 'submersible-pod', name: 'Submersible Pod', category: 'boat', cost: 60_000, requiredFishingLevel: 30, description: 'Permanent boat upgrade that unlocks travel to the Sunken Sea.' },
-  { id: 'magic-conch-navigator', name: 'Magic Conch Navigator', category: 'boat', cost: 100_000, requiredFishingLevel: 40, description: 'Permanent boat upgrade that unlocks travel to the Kelp Forest.' },
-  { id: 'drill-unit', name: 'Drill Unit', category: 'boat', cost: 150_000, requiredFishingLevel: 50, description: 'Permanent boat upgrade that unlocks travel to the Crystaline Caverns.' },
-  { id: 'radar-scanner', name: 'Radar Scanner', category: 'boat', cost: 250_000, requiredFishingLevel: 60, description: 'Permanent boat upgrade that unlocks travel to Rallypoint Delta.' },
-  { id: 'lucky-1', name: 'Lucky I', category: 'skill', cost: 2_500, description: 'Increases higher-rarity fishing odds by 5%. Each Lucky level also adds 2% robbery success and reduces robbery chance against you by 1%.', higherRarityBonusPercent: 5 },
-  { id: 'lucky-2', name: 'Lucky II', category: 'skill', cost: 15_000, description: 'Increases higher-rarity fishing odds by another 5%, plus another +2% robbery success and -1% robbery chance against you.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-1' },
-  { id: 'lucky-3', name: 'Lucky III', category: 'skill', cost: 50_000, description: 'Increases higher-rarity fishing odds by another 5%, plus another +2% robbery success and -1% robbery chance against you.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-2' },
-  { id: 'lucky-4', name: 'Lucky IV', category: 'skill', cost: 250_000, description: 'Increases higher-rarity fishing odds by another 5%, plus another +2% robbery success and -1% robbery chance against you.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-3' },
-  { id: 'lucky-5', name: 'Lucky V', category: 'skill', cost: 1_000_000, description: 'Increases higher-rarity fishing odds by another 5%, plus another +2% robbery success and -1% robbery chance against you.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-4' },
-  { id: 'cheapskate-1', name: 'Cheapskate I', category: 'skill', cost: 10_000, description: 'Reduces fishing-shop costs by 5%.', costReductionPercent: 5 },
-  { id: 'cheapskate-2', name: 'Cheapskate II', category: 'skill', cost: 50_000, description: 'Reduces fishing-shop costs by another 5%.', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-1' },
-  { id: 'cheapskate-3', name: 'Cheapskate III', category: 'skill', cost: 250_000, description: 'Reduces fishing-shop costs by another 5%.', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-2' },
-  { id: 'cheapskate-4', name: 'Cheapskate IV', category: 'skill', cost: 1_000_000, description: 'Reduces fishing-shop costs by another 5%.', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-3' },
-  { id: 'money-mouser-1', name: 'Money Mouser I', category: 'skill', cost: 250_000, description: 'Increases money gained from fishing by 10%.', saleBonusPercent: 10 },
-  { id: 'money-mouser-2', name: 'Money Mouser II', category: 'skill', cost: 1_000_000, description: 'Increases money gained from fishing by another 10%.', saleBonusPercent: 10, requiredUpgradeId: 'money-mouser-1' },
-  { id: 'haste-1', name: 'Haste I', category: 'skill', cost: 10_000, description: 'Reduces expedition duration by 10% and robbery cooldown by 5%.', timeReductionPercent: 10 },
-  { id: 'haste-2', name: 'Haste II', category: 'skill', cost: 25_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-1' },
-  { id: 'haste-3', name: 'Haste III', category: 'skill', cost: 100_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-2' },
-  { id: 'haste-4', name: 'Haste IV', category: 'skill', cost: 250_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-3' },
+  ...FISHING_SHOP_UPGRADE_CONFIG.filter((upgrade) => upgrade.category === 'rod').map(fishingShopUpgrade),
+  ...FISHING_SHOP_UPGRADE_CONFIG.filter((upgrade) => upgrade.category === 'bait').map(fishingShopUpgrade),
+  ...FISHING_SHOP_UPGRADE_CONFIG.filter((upgrade) => upgrade.category === 'boat').map(fishingShopUpgrade),
+  ...PLAYER_SKILL_TIER_CONFIG.map(playerSkill),
   fishingRelic('gear-sea-star', { saleBonusPercent: 5 }),
   fishingRelic('gear-alien-engine', { timeReductionPercent: 10 }),
   fishingRelic('gear-dual-hook'),
@@ -349,8 +348,7 @@ export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
   fishingRelic('gear-tangle-net'),
   fishingRelic('gear-crystal-resonator'),
   fishingRelic('gear-autopilot-relay'),
-  { id: 'crew-1', name: 'Crew 1 Contract', category: 'crew', cost: 100_000, requiredFishingLevel: 40, description: 'Unlocks Crew 1. Crew expeditions take 3x as long.' },
-  { id: 'crew-2', name: 'Crew 2 Contract', category: 'crew', cost: 250_000, requiredFishingLevel: 80, description: 'Unlocks Crew 2. Requires Crew 1; crew expeditions take 3x as long.' },
+  ...FISHING_SHOP_UPGRADE_CONFIG.filter((upgrade) => upgrade.category === 'crew').map(fishingShopUpgrade),
 ] as const;
 
 export const FISHING_FISH: readonly FishingFish[] = FISHING_CATCH_CONFIG.map((catchConfig) => ({

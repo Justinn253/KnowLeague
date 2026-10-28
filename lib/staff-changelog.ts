@@ -17,6 +17,62 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-28-discord-minigame-shop-upgrade-config',
+    patch: 'patch-2026-10-28-discord-minigame-shop-upgrade-config',
+    timestamp: '2026-10-28T01:30:00.000Z',
+    title: 'Configure Fishing and Mining shop upgrade tiers',
+    summary:
+      'All Fishing and Mining shop upgrades now have editable configuration entries, including unlocks, costs, effects, and Mining recipes.',
+    details: [
+      'Fishing rods, bait, boats, and crew contracts now record their category, cost, level requirement, prerequisite, description, and catchable rarities in the minigame content configuration. Relics and shared player skills remain in their dedicated configuration sections.',
+      'Mining tools, storage, processors, elevators, and filters now record their category, tier value, predecessor, exact crafting resource quantities, and description in the same configuration module.',
+      'The live Fishing and Mining catalogues consume these records directly. Existing shop rendering, purchase validation, crafting discounts, and deterministic expedition resolution remain unchanged.',
+      'Focused tests verify complete configuration coverage for both shop catalogues and retain the expected God Rod and High-Tech Drill tiers.',
+    ],
+    impact: [
+      'Maintainers can now edit every Fishing or Mining shop tier in `discord-bot/src/minigame-content-config.ts`, then refresh the ignored tier reports through the normal generator, development, check, or build workflow.',
+      'Existing item IDs, player-owned upgrades, progression requirements, and stored Mining inventory remain compatible.',
+    ],
+    files: [
+      'discord-bot/src/minigame-content-config.ts',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/mining-catalog.ts',
+      'tests/discord-fishing.test.ts',
+      'tests/discord-mining.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Discord type checks, focused Fishing and Mining coverage, the local tier-reference generator, the full project check, and whitespace validation are run after this patch.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-28-discord-player-skill-tier-config',
+    patch: 'patch-2026-10-28-discord-player-skill-tier-config',
+    timestamp: '2026-10-28T01:15:00.000Z',
+    title: 'Configure Discord player skills by tier',
+    summary:
+      'Every shared player-skill tier now has an editable, level-labelled entry in the Discord minigame content configuration.',
+    details: [
+      'Lucky I-V, Cheapskate I-IV, Money Mouser I-II, and Haste I-IV now each record their track, level, stable ID, name, KnowBucks cost, description, prerequisite tier, and applicable gameplay modifier in the configuration.',
+      'The Fishing catalogue constructs its shared skill entries from that configuration, and Player Shop derives its skill-track membership from the same records. This prevents shop progression, Fishing behavior, and the tier reference from diverging.',
+      'Focused coverage verifies that every configured skill is present in the live catalogue with its configured final-tier prerequisite and modifiers.',
+    ],
+    impact: [
+      'Maintainers can review or rebalance every level of every shared player skill in `discord-bot/src/minigame-content-config.ts`.',
+      'Existing skill IDs, current player ownership, purchase prerequisites, and gameplay effects are unchanged.',
+    ],
+    files: [
+      'discord-bot/src/minigame-content-config.ts',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/player.ts',
+      'tests/discord-fishing.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Discord type checks, focused Fishing coverage, the local tier-reference generator, the full project check, and whitespace validation are run after this patch.',
+    ],
+  },
+  {
     id: 'patch-2026-10-28-discord-fishing-relic-event-content-config',
     patch: 'patch-2026-10-28-discord-fishing-relic-event-content-config',
     timestamp: '2026-10-28T01:00:00.000Z',

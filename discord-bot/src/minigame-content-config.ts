@@ -102,6 +102,48 @@ export const FISHING_CATCH_CONFIG = [
   { biomeId: 'rallypoint-delta', id: 'scavenger', name: 'Scavenger', rarity: 'Legendary', minSaleValue: 3_000, maxSaleValue: 4_250 },
 ] as const satisfies readonly FishingCatchConfig[];
 
+type FishingShopUpgradeCategoryConfig = 'rod' | 'bait' | 'boat' | 'crew';
+
+type FishingShopUpgradeConfig = {
+  catchableRarities?: readonly FishingRarityConfig[];
+  category: FishingShopUpgradeCategoryConfig;
+  cost: number;
+  description: string;
+  id: string;
+  name: string;
+  requiredFishingLevel?: number;
+  requiredUpgradeId?: string;
+};
+
+/** Standard Fishing shop upgrades. Relics and shared player skills are configured separately below. */
+export const FISHING_SHOP_UPGRADE_CONFIG: readonly FishingShopUpgradeConfig[] = [
+  { id: 'plastic-rod', name: 'Plastic Rod', category: 'rod', cost: 0, description: 'Starter rod that catches common fish.', catchableRarities: ['Common'] },
+  { id: 'wooden-rod', name: 'Wooden Rod', category: 'rod', cost: 5_000, requiredFishingLevel: 5, description: 'Catches common and uncommon fish.', catchableRarities: ['Common', 'Uncommon'] },
+  { id: 'fiberglass-rod', name: 'Fiberglass Rod', category: 'rod', cost: 15_000, requiredFishingLevel: 10, description: 'Catches common, uncommon, and rare fish.', catchableRarities: ['Common', 'Uncommon', 'Rare'] },
+  { id: 'reinforced-rod', name: 'Reinforced Rod', category: 'rod', cost: 30_000, requiredFishingLevel: 15, description: 'Catches common through epic fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic'] },
+  { id: 'master-rod', name: 'Master Rod', category: 'rod', cost: 50_000, requiredFishingLevel: 20, description: 'Catches common through legendary fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] },
+  { id: 'celestial-rod', name: 'Celestial Rod', category: 'rod', cost: 250_000, requiredFishingLevel: 50, description: 'Catches uncommon through legendary fish.', catchableRarities: ['Uncommon', 'Rare', 'Epic', 'Legendary'] },
+  { id: 'god-rod', name: 'God Rod', category: 'rod', cost: 1_000_000, requiredFishingLevel: 80, description: 'Catches rare, epic, legendary, and future Mythic fish.', catchableRarities: ['Rare', 'Epic', 'Legendary', 'Mythic'] },
+
+  { id: 'basic-bait', name: 'Basic Bait', category: 'bait', cost: 0, description: 'Starter bait with no expedition modifier.' },
+  { id: 'chum', name: 'Chum', category: 'bait', cost: 10_000, requiredFishingLevel: 5, description: 'Each common or uncommon fish has a 10–30% chance to return one additional fish.' },
+  { id: 'magnet', name: 'Magnet', category: 'bait', cost: 30_000, requiredFishingLevel: 15, description: 'Increases each crate-spawn chance by 50% of its original odds.' },
+  { id: 'sonar', name: 'Sonar', category: 'bait', cost: 75_000, requiredFishingLevel: 25, description: 'Halves fish-roll success while doubling relic-find chance.' },
+  { id: 'bloodworms', name: 'Bloodworms', category: 'bait', cost: 150_000, requiredFishingLevel: 40, description: 'Each rare or epic fish has a 10–30% chance to return one additional fish.' },
+  { id: 'mysterious-sea-food', name: 'Mysterious Sea Food', category: 'bait', cost: 250_000, requiredFishingLevel: 55, description: 'Has a 20% chance to add 50% more fish rolls to an expedition.' },
+  { id: 'truffle-worm', name: 'Truffle Worm', category: 'bait', cost: 1_000_000, requiredFishingLevel: 80, description: 'Triples legendary odds, but only legendary fish can return.' },
+
+  { id: 'sail', name: 'Sail', category: 'boat', cost: 10_000, requiredFishingLevel: 10, description: 'Permanent boat upgrade that unlocks travel to the Warm Ocean.' },
+  { id: 'abiotic-turbine', name: 'Abiotic Turbine', category: 'boat', cost: 25_000, requiredFishingLevel: 20, description: 'Permanent boat upgrade that unlocks travel to the Hydroplant Reservoir.' },
+  { id: 'submersible-pod', name: 'Submersible Pod', category: 'boat', cost: 60_000, requiredFishingLevel: 30, description: 'Permanent boat upgrade that unlocks travel to the Sunken Sea.' },
+  { id: 'magic-conch-navigator', name: 'Magic Conch Navigator', category: 'boat', cost: 100_000, requiredFishingLevel: 40, description: 'Permanent boat upgrade that unlocks travel to the Kelp Forest.' },
+  { id: 'drill-unit', name: 'Drill Unit', category: 'boat', cost: 150_000, requiredFishingLevel: 50, description: 'Permanent boat upgrade that unlocks travel to the Crystaline Caverns.' },
+  { id: 'radar-scanner', name: 'Radar Scanner', category: 'boat', cost: 250_000, requiredFishingLevel: 60, description: 'Permanent boat upgrade that unlocks travel to Rallypoint Delta.' },
+
+  { id: 'crew-1', name: 'Crew 1 Contract', category: 'crew', cost: 100_000, requiredFishingLevel: 40, description: 'Unlocks Crew 1. Crew expeditions take 3x as long.' },
+  { id: 'crew-2', name: 'Crew 2 Contract', category: 'crew', cost: 250_000, requiredFishingLevel: 80, description: 'Unlocks Crew 2. Requires Crew 1; crew expeditions take 3x as long.' },
+];
+
 type FishingRelicContentConfig = {
   description: string;
   /** Use null when the relic can be found in every standard biome. */
@@ -138,6 +180,47 @@ export const FISHING_RELIC_CONTENT_CONFIG = [
   { id: 'gear-crystal-resonator', name: 'Crystal Resonator', description: 'Permanent relic: epic and legendary fish sell for 10% more.', foundBiomeIds: ['crystaline-caverns'] },
   { id: 'gear-autopilot-relay', name: 'Autopilot Relay', description: 'Permanent relic: crew expeditions earn 20% more KnowBucks and finish 10% faster.', foundBiomeIds: ['rallypoint-delta'] },
 ] as const satisfies readonly FishingRelicContentConfig[];
+
+type PlayerSkillTrackConfig = 'lucky' | 'cheapskate' | 'moneyMouser' | 'haste';
+
+type PlayerSkillTierConfig = {
+  cost: number;
+  costReductionPercent?: number;
+  description: string;
+  higherRarityBonusPercent?: number;
+  id: string;
+  level: number;
+  name: string;
+  requiredUpgradeId?: string;
+  saleBonusPercent?: number;
+  timeReductionPercent?: number;
+  track: PlayerSkillTrackConfig;
+};
+
+/**
+ * Shared player-skill tiers. Keep each track's levels in order and point every
+ * non-first level at the preceding tier through requiredUpgradeId.
+ */
+export const PLAYER_SKILL_TIER_CONFIG: readonly PlayerSkillTierConfig[] = [
+  { track: 'lucky', level: 1, id: 'lucky-1', name: 'Lucky I', cost: 2_500, description: '+5% increased fishing rarity odds. +2% stone filtered. +2% robbery success chance. +1% robbery defense odds.', higherRarityBonusPercent: 5 },
+  { track: 'lucky', level: 2, id: 'lucky-2', name: 'Lucky II', cost: 15_000, description: '+5% increased fishing rarity odds. +2% stone filtered. +2% robbery success chance. +1% robbery defense odds.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-1' },
+  { track: 'lucky', level: 3, id: 'lucky-3', name: 'Lucky III', cost: 50_000, description: '+5% increased fishing rarity odds. +2% stone filtered. +2% robbery success chance. +1% robbery defense odds.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-2' },
+  { track: 'lucky', level: 4, id: 'lucky-4', name: 'Lucky IV', cost: 250_000, description: '+5% increased fishing rarity odds. +2% stone filtered. +2% robbery success chance. +1% robbery defense odds.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-3' },
+  { track: 'lucky', level: 5, id: 'lucky-5', name: 'Lucky V', cost: 1_000_000, description: '+5% increased fishing rarity odds. +2% stone filtered. +2% robbery success chance. +1% robbery defense odds.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-4' },
+
+  { track: 'cheapskate', level: 1, id: 'cheapskate-1', name: 'Cheapskate I', cost: 10_000, description: '+5% discount on everything!', costReductionPercent: 5 },
+  { track: 'cheapskate', level: 2, id: 'cheapskate-2', name: 'Cheapskate II', cost: 50_000, description: '+5% discount on everything!', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-1' },
+  { track: 'cheapskate', level: 3, id: 'cheapskate-3', name: 'Cheapskate III', cost: 250_000, description: '+5% discount on everything!', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-2' },
+  { track: 'cheapskate', level: 4, id: 'cheapskate-4', name: 'Cheapskate IV', cost: 1_000_000, description: '+5% discount on everything!', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-3' },
+
+  { track: 'moneyMouser', level: 1, id: 'money-mouser-1', name: 'Money Mouser I', cost: 250_000, description: '+10% increased money gain.', saleBonusPercent: 10 },
+  { track: 'moneyMouser', level: 2, id: 'money-mouser-2', name: 'Money Mouser II', cost: 1_000_000, description: '+10% increased money gain.', saleBonusPercent: 10, requiredUpgradeId: 'money-mouser-1' },
+
+  { track: 'haste', level: 1, id: 'haste-1', name: 'Haste I', cost: 10_000, description: '-10% fishing expedition duration. +5% elevator speed. -5% robbery cooldown.', timeReductionPercent: 10 },
+  { track: 'haste', level: 2, id: 'haste-2', name: 'Haste II', cost: 25_000, description: '-10% fishing expedition duration. +5% elevator speed. -5% robbery cooldown.', timeReductionPercent: 10, requiredUpgradeId: 'haste-1' },
+  { track: 'haste', level: 3, id: 'haste-3', name: 'Haste III', cost: 100_000, description: '-10% fishing expedition duration. +5% elevator speed. -5% robbery cooldown.', timeReductionPercent: 10, requiredUpgradeId: 'haste-2' },
+  { track: 'haste', level: 4, id: 'haste-4', name: 'Haste IV', cost: 250_000, description: '-10% fishing expedition duration. +5% elevator speed. -5% robbery cooldown.', timeReductionPercent: 10, requiredUpgradeId: 'haste-3' },
+];
 
 type FishingEventBiomeConfig = {
   catalogueBiomeId: 'hellish-abyss';
@@ -342,3 +425,50 @@ export const MINING_DEPTH_CONFIG = [
 ] as const satisfies readonly MiningDepthConfig[];
 
 export const MINING_REWARD_WEIGHT_CONFIG = { fossil: 1, gem: 10, ore: 100, stone: 500 } as const satisfies Record<'fossil' | 'gem' | 'ore' | 'stone', number>;
+
+type MiningShopUpgradeCategoryConfig = 'tool' | 'storage' | 'processor' | 'elevator' | 'filter';
+
+type MiningShopUpgradeConfig = {
+  category: MiningShopUpgradeCategoryConfig;
+  description: string;
+  id: string;
+  name: string;
+  previousUpgradeId?: string;
+  recipe?: readonly { resourceId: string; quantity: number }[];
+  value: number;
+};
+
+/** Every Mining shop upgrade, including the exact crafting materials for each tier. */
+export const MINING_SHOP_UPGRADE_CONFIG: readonly MiningShopUpgradeConfig[] = [
+  { id: 'wooden-pickaxe', name: 'Wooden Pickaxe', category: 'tool', value: 0.1, description: 'Starter tool that breaks 1 stone every 10 seconds.' },
+  { id: 'stone-pickaxe', name: 'Stone Pickaxe', category: 'tool', value: 0.2, previousUpgradeId: 'wooden-pickaxe', recipe: [{ resourceId: 'coal', quantity: 2 }, { resourceId: 'quartz', quantity: 2 }], description: 'Breaks 1 stone every 5 seconds. Unlocks Copper Veins.' },
+  { id: 'weak-metal-pickaxe', name: 'Weak Metal Pickaxe', category: 'tool', value: 0.5, previousUpgradeId: 'stone-pickaxe', recipe: [{ resourceId: 'copper', quantity: 10 }, { resourceId: 'tin', quantity: 10 }, { resourceId: 'jade', quantity: 1 }], description: 'Breaks 1 stone every 2 seconds. Unlocks Iron Delve.' },
+  { id: 'rudimentary-pickaxe', name: 'Rudimentary Pickaxe', category: 'tool', value: 1, previousUpgradeId: 'weak-metal-pickaxe', recipe: [{ resourceId: 'iron', quantity: 25 }, { resourceId: 'lead', quantity: 25 }, { resourceId: 'ruby', quantity: 3 }], description: 'Breaks 1 stone each second. Unlocks Silverworks.' },
+  { id: 'reinforced-pickaxe', name: 'Reinforced Pickaxe', category: 'tool', value: 2, previousUpgradeId: 'rudimentary-pickaxe', recipe: [{ resourceId: 'silver', quantity: 75 }, { resourceId: 'tungsten', quantity: 75 }, { resourceId: 'topaz', quantity: 10 }], description: 'Breaks 2 stone each second. Unlocks Gilded Depths.' },
+  { id: 'sturdy-drill', name: 'Sturdy Drill', category: 'tool', value: 5, previousUpgradeId: 'reinforced-pickaxe', recipe: [{ resourceId: 'gold', quantity: 200 }, { resourceId: 'platinum', quantity: 200 }, { resourceId: 'amethyst', quantity: 40 }], description: 'Breaks 5 stone each second. Unlocks Cobalt Hollow.' },
+  { id: 'advanced-drill', name: 'Advanced Drill', category: 'tool', value: 10, previousUpgradeId: 'sturdy-drill', recipe: [{ resourceId: 'cobalt', quantity: 750 }, { resourceId: 'palladium', quantity: 750 }, { resourceId: 'citrine', quantity: 150 }], description: 'Breaks 10 stone each second. Unlocks Adamant Abyss.' },
+  { id: 'high-tech-drill', name: 'High-Tech Drill', category: 'tool', value: 25, previousUpgradeId: 'advanced-drill', recipe: [{ resourceId: 'titanium', quantity: 3_000 }, { resourceId: 'adamantite', quantity: 3_000 }, { resourceId: 'diamond', quantity: 750 }], description: 'Endgame drill that breaks 25 stone each second.' },
+
+  { id: 'shabby-bin', name: 'Shabby Bin', category: 'storage', value: 5, description: 'Starter minecart storage with room for 5 items.' },
+  { id: 'wooden-crate', name: 'Wooden Crate', category: 'storage', value: 15, previousUpgradeId: 'shabby-bin', recipe: [{ resourceId: 'jade', quantity: 2 }, { resourceId: 'emerald', quantity: 2 }], description: 'Raises minecart storage to 15 items.' },
+  { id: 'iron-box', name: 'Iron Box', category: 'storage', value: 30, previousUpgradeId: 'wooden-crate', recipe: [{ resourceId: 'ruby', quantity: 4 }, { resourceId: 'garnet', quantity: 4 }], description: 'Raises minecart storage to 30 items.' },
+  { id: 'reinforced-crate', name: 'Reinforced Crate', category: 'storage', value: 75, previousUpgradeId: 'iron-box', recipe: [{ resourceId: 'topaz', quantity: 8 }, { resourceId: 'sapphire', quantity: 8 }], description: 'Raises minecart storage to 75 items.' },
+  { id: 'titanium-lockbox', name: 'Titanium Lockbox', category: 'storage', value: 150, previousUpgradeId: 'reinforced-crate', recipe: [{ resourceId: 'amethyst', quantity: 16 }, { resourceId: 'aquamarine', quantity: 16 }], description: 'Raises minecart storage to 150 items.' },
+  { id: 'gemcrusted-safe', name: 'Gemcrusted Safe', category: 'storage', value: 300, previousUpgradeId: 'titanium-lockbox', recipe: [{ resourceId: 'citrine', quantity: 32 }, { resourceId: 'peridot', quantity: 32 }], description: 'Raises minecart storage to 300 items.' },
+  { id: 'quantum-box', name: 'Quantum Box', category: 'storage', value: 750, previousUpgradeId: 'gemcrusted-safe', recipe: [{ resourceId: 'diamond', quantity: 64 }, { resourceId: 'moissanite', quantity: 64 }], description: 'Raises minecart storage to 750 items.' },
+
+  { id: 'processor-depth-2', name: 'Depth 2 Processor', category: 'processor', value: 1, recipe: [{ resourceId: 'coal', quantity: 10 }, { resourceId: 'quartz', quantity: 10 }], description: 'Automatically processes Copper Veins ores.' },
+  { id: 'processor-depth-3', name: 'Depth 3 Processor', category: 'processor', value: 2, previousUpgradeId: 'processor-depth-2', recipe: [{ resourceId: 'copper', quantity: 25 }, { resourceId: 'tin', quantity: 25 }, { resourceId: 'jade', quantity: 2 }], description: 'Automatically processes Iron Delve ores and lower tiers.' },
+  { id: 'processor-depth-4', name: 'Depth 4 Processor', category: 'processor', value: 3, previousUpgradeId: 'processor-depth-3', recipe: [{ resourceId: 'iron', quantity: 60 }, { resourceId: 'lead', quantity: 60 }, { resourceId: 'ruby', quantity: 6 }], description: 'Automatically processes Silverworks ores and lower tiers.' },
+  { id: 'processor-depth-5', name: 'Depth 5 Processor', category: 'processor', value: 4, previousUpgradeId: 'processor-depth-4', recipe: [{ resourceId: 'silver', quantity: 150 }, { resourceId: 'tungsten', quantity: 150 }, { resourceId: 'topaz', quantity: 15 }], description: 'Automatically processes Gilded Depths ores and lower tiers.' },
+  { id: 'processor-depth-6', name: 'Depth 6 Processor', category: 'processor', value: 5, previousUpgradeId: 'processor-depth-5', recipe: [{ resourceId: 'gold', quantity: 400 }, { resourceId: 'platinum', quantity: 400 }, { resourceId: 'amethyst', quantity: 50 }], description: 'Automatically processes Cobalt Hollow ores and lower tiers.' },
+  { id: 'processor-depth-7', name: 'Depth 7 Processor', category: 'processor', value: 6, previousUpgradeId: 'processor-depth-6', recipe: [{ resourceId: 'cobalt', quantity: 1_500 }, { resourceId: 'palladium', quantity: 1_500 }, { resourceId: 'citrine', quantity: 175 }], description: 'Automatically processes Adamant Abyss ores and lower tiers.' },
+
+  { id: 'sturdy-gears', name: 'Sturdy Gears', category: 'elevator', value: 1, recipe: [{ resourceId: 'iron', quantity: 30 }, { resourceId: 'lead', quantity: 30 }, { resourceId: 'ruby', quantity: 2 }], description: 'Reduces ascent and descent time by 10%.' },
+  { id: 'advanced-pulleys', name: 'Advanced Pulleys', category: 'elevator', value: 2, previousUpgradeId: 'sturdy-gears', recipe: [{ resourceId: 'silver', quantity: 100 }, { resourceId: 'tungsten', quantity: 100 }, { resourceId: 'topaz', quantity: 10 }], description: 'Reduces ascent and descent time by another 10%.' },
+  { id: 'overcharged-motors', name: 'Overcharged Motors', category: 'elevator', value: 3, previousUpgradeId: 'advanced-pulleys', recipe: [{ resourceId: 'gold', quantity: 250 }, { resourceId: 'platinum', quantity: 250 }, { resourceId: 'amethyst', quantity: 25 }], description: 'Reduces ascent and descent time by another 10%.' },
+
+  { id: 'stone-sorter', name: 'Stone Sorter', category: 'filter', value: 1, recipe: [{ resourceId: 'coal', quantity: 25 }, { resourceId: 'quartz', quantity: 25 }, { resourceId: 'opal', quantity: 2 }], description: 'Discards 25% of stone before it reaches storage.' },
+  { id: 'filtering-system', name: 'Filtering System', category: 'filter', value: 2, previousUpgradeId: 'stone-sorter', recipe: [{ resourceId: 'copper', quantity: 50 }, { resourceId: 'tin', quantity: 50 }, { resourceId: 'jade', quantity: 5 }], description: 'Discards 50% of stone before it reaches storage.' },
+  { id: 'advanced-ore-detector', name: 'Advanced Ore Detector', category: 'filter', value: 3, previousUpgradeId: 'filtering-system', recipe: [{ resourceId: 'iron', quantity: 100 }, { resourceId: 'lead', quantity: 100 }, { resourceId: 'ruby', quantity: 10 }], description: 'Discards 75% of stone before it reaches storage.' },
+];

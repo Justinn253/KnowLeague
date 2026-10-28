@@ -1,4 +1,4 @@
-import { MINING_DEPTH_CONFIG, MINING_REWARD_WEIGHT_CONFIG } from './minigame-content-config.js';
+import { MINING_DEPTH_CONFIG, MINING_REWARD_WEIGHT_CONFIG, MINING_SHOP_UPGRADE_CONFIG } from './minigame-content-config.js';
 
 export type MiningDepthId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type MiningResourceKind = 'ore' | 'gem' | 'fossil';
@@ -63,43 +63,7 @@ export type MiningResult = {
  */
 export const MINING_DEPTHS: readonly MiningDepth[] = MINING_DEPTH_CONFIG;
 
-const recipe = (...items: Array<[string, number]>): readonly MiningRecipeItem[] => (
-  items.map(([resourceId, quantity]) => ({ resourceId, quantity }))
-);
-
-export const MINING_UPGRADES: readonly MiningUpgrade[] = [
-  { id: 'wooden-pickaxe', name: 'Wooden Pickaxe', category: 'tool', value: 0.1, description: 'Starter tool that breaks 1 stone every 10 seconds.' },
-  { id: 'stone-pickaxe', name: 'Stone Pickaxe', category: 'tool', value: 0.2, previousUpgradeId: 'wooden-pickaxe', recipe: recipe(['coal', 2], ['quartz', 2]), description: 'Breaks 1 stone every 5 seconds. Unlocks Copper Veins.' },
-  { id: 'weak-metal-pickaxe', name: 'Weak Metal Pickaxe', category: 'tool', value: 0.5, previousUpgradeId: 'stone-pickaxe', recipe: recipe(['copper', 10], ['tin', 10], ['jade', 1]), description: 'Breaks 1 stone every 2 seconds. Unlocks Iron Delve.' },
-  { id: 'rudimentary-pickaxe', name: 'Rudimentary Pickaxe', category: 'tool', value: 1, previousUpgradeId: 'weak-metal-pickaxe', recipe: recipe(['iron', 25], ['lead', 25], ['ruby', 3]), description: 'Breaks 1 stone each second. Unlocks Silverworks.' },
-  { id: 'reinforced-pickaxe', name: 'Reinforced Pickaxe', category: 'tool', value: 2, previousUpgradeId: 'rudimentary-pickaxe', recipe: recipe(['silver', 75], ['tungsten', 75], ['topaz', 10]), description: 'Breaks 2 stone each second. Unlocks Gilded Depths.' },
-  { id: 'sturdy-drill', name: 'Sturdy Drill', category: 'tool', value: 5, previousUpgradeId: 'reinforced-pickaxe', recipe: recipe(['gold', 200], ['platinum', 200], ['amethyst', 40]), description: 'Breaks 5 stone each second. Unlocks Cobalt Hollow.' },
-  { id: 'advanced-drill', name: 'Advanced Drill', category: 'tool', value: 10, previousUpgradeId: 'sturdy-drill', recipe: recipe(['cobalt', 750], ['palladium', 750], ['citrine', 150]), description: 'Breaks 10 stone each second. Unlocks Adamant Abyss.' },
-  { id: 'high-tech-drill', name: 'High-Tech Drill', category: 'tool', value: 25, previousUpgradeId: 'advanced-drill', recipe: recipe(['titanium', 3000], ['adamantite', 3000], ['diamond', 750]), description: 'Endgame drill that breaks 25 stone each second.' },
-
-  { id: 'shabby-bin', name: 'Shabby Bin', category: 'storage', value: 5, description: 'Starter minecart storage with room for 5 items.' },
-  { id: 'wooden-crate', name: 'Wooden Crate', category: 'storage', value: 15, previousUpgradeId: 'shabby-bin', recipe: recipe(['jade', 2], ['emerald', 2]), description: 'Raises minecart storage to 15 items.' },
-  { id: 'iron-box', name: 'Iron Box', category: 'storage', value: 30, previousUpgradeId: 'wooden-crate', recipe: recipe(['ruby', 4], ['garnet', 4]), description: 'Raises minecart storage to 30 items.' },
-  { id: 'reinforced-crate', name: 'Reinforced Crate', category: 'storage', value: 75, previousUpgradeId: 'iron-box', recipe: recipe(['topaz', 8], ['sapphire', 8]), description: 'Raises minecart storage to 75 items.' },
-  { id: 'titanium-lockbox', name: 'Titanium Lockbox', category: 'storage', value: 150, previousUpgradeId: 'reinforced-crate', recipe: recipe(['amethyst', 16], ['aquamarine', 16]), description: 'Raises minecart storage to 150 items.' },
-  { id: 'gemcrusted-safe', name: 'Gemcrusted Safe', category: 'storage', value: 300, previousUpgradeId: 'titanium-lockbox', recipe: recipe(['citrine', 32], ['peridot', 32]), description: 'Raises minecart storage to 300 items.' },
-  { id: 'quantum-box', name: 'Quantum Box', category: 'storage', value: 750, previousUpgradeId: 'gemcrusted-safe', recipe: recipe(['diamond', 64], ['moissanite', 64]), description: 'Raises minecart storage to 750 items.' },
-
-  { id: 'processor-depth-2', name: 'Depth 2 Processor', category: 'processor', value: 1, recipe: recipe(['coal', 10], ['quartz', 10]), description: 'Automatically processes Copper Veins ores.' },
-  { id: 'processor-depth-3', name: 'Depth 3 Processor', category: 'processor', value: 2, previousUpgradeId: 'processor-depth-2', recipe: recipe(['copper', 25], ['tin', 25], ['jade', 2]), description: 'Automatically processes Iron Delve ores and lower tiers.' },
-  { id: 'processor-depth-4', name: 'Depth 4 Processor', category: 'processor', value: 3, previousUpgradeId: 'processor-depth-3', recipe: recipe(['iron', 60], ['lead', 60], ['ruby', 6]), description: 'Automatically processes Silverworks ores and lower tiers.' },
-  { id: 'processor-depth-5', name: 'Depth 5 Processor', category: 'processor', value: 4, previousUpgradeId: 'processor-depth-4', recipe: recipe(['silver', 150], ['tungsten', 150], ['topaz', 15]), description: 'Automatically processes Gilded Depths ores and lower tiers.' },
-  { id: 'processor-depth-6', name: 'Depth 6 Processor', category: 'processor', value: 5, previousUpgradeId: 'processor-depth-5', recipe: recipe(['gold', 400], ['platinum', 400], ['amethyst', 50]), description: 'Automatically processes Cobalt Hollow ores and lower tiers.' },
-  { id: 'processor-depth-7', name: 'Depth 7 Processor', category: 'processor', value: 6, previousUpgradeId: 'processor-depth-6', recipe: recipe(['cobalt', 1500], ['palladium', 1500], ['citrine', 175]), description: 'Automatically processes Adamant Abyss ores and lower tiers.' },
-
-  { id: 'sturdy-gears', name: 'Sturdy Gears', category: 'elevator', value: 1, recipe: recipe(['iron', 30], ['lead', 30], ['ruby', 2]), description: 'Reduces ascent and descent time by 10%.' },
-  { id: 'advanced-pulleys', name: 'Advanced Pulleys', category: 'elevator', value: 2, previousUpgradeId: 'sturdy-gears', recipe: recipe(['silver', 100], ['tungsten', 100], ['topaz', 10]), description: 'Reduces ascent and descent time by another 10%.' },
-  { id: 'overcharged-motors', name: 'Overcharged Motors', category: 'elevator', value: 3, previousUpgradeId: 'advanced-pulleys', recipe: recipe(['gold', 250], ['platinum', 250], ['amethyst', 25]), description: 'Reduces ascent and descent time by another 10%.' },
-
-  { id: 'stone-sorter', name: 'Stone Sorter', category: 'filter', value: 1, recipe: recipe(['coal', 25], ['quartz', 25], ['opal', 2]), description: 'Discards 25% of stone before it reaches storage.' },
-  { id: 'filtering-system', name: 'Filtering System', category: 'filter', value: 2, previousUpgradeId: 'stone-sorter', recipe: recipe(['copper', 50], ['tin', 50], ['jade', 5]), description: 'Discards 50% of stone before it reaches storage.' },
-  { id: 'advanced-ore-detector', name: 'Advanced Ore Detector', category: 'filter', value: 3, previousUpgradeId: 'filtering-system', recipe: recipe(['iron', 100], ['lead', 100], ['ruby', 10]), description: 'Discards 75% of stone before it reaches storage.' },
-] as const;
+export const MINING_UPGRADES: readonly MiningUpgrade[] = MINING_SHOP_UPGRADE_CONFIG;
 
 export const MINING_REWARD_WEIGHTS = MINING_REWARD_WEIGHT_CONFIG;
 

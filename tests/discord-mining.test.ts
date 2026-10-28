@@ -15,7 +15,7 @@ import {
   type MiningEquipmentSnapshot,
 } from '../discord-bot/src/mining-catalog';
 import { getDiscordMinigameTierReferences } from '../discord-bot/src/minigame-tier-references';
-import { MINING_DEPTH_CONFIG } from '../discord-bot/src/minigame-content-config';
+import { MINING_DEPTH_CONFIG, MINING_SHOP_UPGRADE_CONFIG } from '../discord-bot/src/minigame-content-config';
 
 type SerializedCommandOption = {
   name: string;
@@ -147,6 +147,20 @@ describe('Discord Mining tier reference', () => {
     expect(miningReference?.contents).toContain('## Mining progression tiers');
     expect(miningReference?.contents).toContain('minigame-content-config.ts');
     expect(MINING_DEPTHS).toEqual(MINING_DEPTH_CONFIG);
+  });
+});
+
+describe('Discord Mining shop configuration', () => {
+  it('supplies every shop upgrade and recipe to the live catalogue', () => {
+    expect(MINING_UPGRADES).toEqual(MINING_SHOP_UPGRADE_CONFIG);
+    expect(MINING_SHOP_UPGRADE_CONFIG.find((upgrade) => upgrade.id === 'high-tech-drill')).toMatchObject({
+      recipe: [
+        { resourceId: 'titanium', quantity: 3_000 },
+        { resourceId: 'adamantite', quantity: 3_000 },
+        { resourceId: 'diamond', quantity: 750 },
+      ],
+      value: 25,
+    });
   });
 });
 

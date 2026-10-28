@@ -15,7 +15,8 @@ export type GameRouteId =
   | 'skincognito'
   | 'carving-revelation'
   | 'category-clash'
-  | 'mastery-master';
+  | 'mastery-master'
+  | 'mining';
 
 export type GameFamilyDefinition = {
   id: GameFamily;
@@ -68,6 +69,7 @@ export const GAME_FAMILY_BY_ROUTE: Record<GameRouteId, GameFamily> = {
   'carving-revelation': 'multiplayer-session',
   'category-clash': 'multiplayer-session',
   'mastery-master': 'standalone',
+  mining: 'standalone',
 };
 
 export function getGameFamily(gameId: GameRouteId) {

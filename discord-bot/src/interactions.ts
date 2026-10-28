@@ -85,6 +85,33 @@ import {
   type FishingUpgradeCategory,
 } from './fishing.js';
 import {
+  formatMiningDuration,
+  getMiningBestUpgrade,
+  getMiningCraftingRecipe,
+  getMiningDepth,
+  getMiningResource,
+  getMiningUpgrade,
+  getMiningUpgrades,
+  resolveMiningExpedition,
+  type MiningDepthId,
+  type MiningResourceKind,
+  type MiningUpgradeCategory,
+} from './mining-catalog.js';
+import {
+  beginMiningReturn,
+  getActiveMiningExpedition,
+  getMiningCommandChannelIds,
+  getMiningInventoryByKind,
+  getMiningPlayerState,
+  getMiningProcessorTier,
+  isMiningCommandAllowedInChannel,
+  purchaseMiningUpgrade,
+  sellMiningResource,
+  settleDueMiningReturn,
+  startMiningExpedition,
+  type MiningPlayerState,
+} from './mining.js';
+import {
   buildSkinSearchEmbed,
   buildSkinCollectionEmbed,
   COLLECTION_UPKEEP_ALLOCATION_MAXIMUM,
@@ -139,7 +166,7 @@ function configuredChannelMentions(channelIds: readonly string[]) {
 
 async function replyWithCommandChannelLink(
   interaction: ChatInputCommandInteraction,
-  scope: 'Collections' | 'Fishing' | 'General',
+  scope: 'Collections' | 'Fishing' | 'General' | 'Mining',
   channelIds: readonly string[],
 ) {
   const destination = configuredChannelMentions(channelIds);
@@ -245,12 +272,17 @@ const LEADERBOARD_COMMAND_COOLDOWN_MS = 10_000;
 const SKIN_COLLECTION_BUTTON_PREFIX = 'skin-collection';
 const SKIN_COLLECTION_ACTION_BUTTON_PREFIX = 'skin-collection-action';
 const FISHING_BUTTON_PREFIX = 'fish';
+const MINING_BUTTON_PREFIX = 'mining';
+const MINING_EXPEDITION_BUTTON_PREFIX = 'mining-expedition';
 const PLAYER_BUTTON_PREFIX = 'player';
 const HELP_BUTTON_PREFIX = 'help';
 const FISHING_SHOP_CATEGORIES: readonly FishingUpgradeCategory[] = ['rod', 'bait', 'boat', 'crew'];
 const FISHING_INVENTORY_TABS = ['overview', 'rods', 'baits', 'gear', 'boats', 'titles'] as const;
 type FishingInventoryTab = typeof FISHING_INVENTORY_TABS[number];
-const HELP_TABS = ['general', 'league', 'fishing', 'collections'] as const;
+const MINING_SHOP_CATEGORIES: readonly MiningUpgradeCategory[] = ['tool', 'storage', 'processor', 'elevator', 'filter'];
+const MINING_INVENTORY_TABS = ['overview', 'ores', 'gems', 'fossils'] as const;
+type MiningInventoryTab = typeof MINING_INVENTORY_TABS[number];
+const HELP_TABS = ['general', 'league', 'fishing', 'mining', 'collections'] as const;
 type HelpTab = typeof HELP_TABS[number];
 
 type HelpField = {
@@ -262,7 +294,8 @@ function helpTabLabel(tab: HelpTab) {
   return tab === 'general' ? 'General'
     : tab === 'league' ? 'League'
       : tab === 'fishing' ? 'Fishing'
-        : 'Collections';
+        : tab === 'mining' ? 'Mining'
+          : 'Collections';
 }
 
 function helpFields(tab: HelpTab): HelpField[] {
@@ -285,6 +318,16 @@ function helpFields(tab: HelpTab): HelpField[] {
       { name: '/fish chests-open', value: 'Redeem all remaining legacy Fishing chests for KnowBucks.' },
       { name: '/fish catalogue, event-help, event-catalogue', value: 'Browse fish and event discoveries or review active Fishing event rules.' },
       { name: '/fish help', value: 'Open focused Fishing command and progression guidance.' },
+    ];
+  }
+  if (tab === 'mining') {
+    return [
+      { name: '/mining expedition set depth', value: 'Descend to a tool-gated depth. Mine until your cart fills, then recall it when ready.' },
+      { name: '/mining expedition view, return', value: 'Inspect live cart storage or freeze its haul and begin the ascent. Returns settle on your next Mining interaction once the ascent is over.' },
+      { name: '/mining shop', value: 'Craft permanent tools, storage, processors, elevator upgrades, and filters. Shared skills are bought in `/player shop`.' },
+      { name: '/mining inventory', value: 'Browse acquired ores, gems, fossil pieces, equipment, and Mining XP.' },
+      { name: '/mining sell resource amount', value: 'Sell a chosen eligible gem or processor-ready ore by quantity or `all`.' },
+      { name: '/mining help', value: 'Open focused Mining rules and progression guidance.' },
     ];
   }
   if (tab === 'collections') {
@@ -333,10 +376,14 @@ function buildHelpPanel(tab: HelpTab) {
   };
 }
 const FISHING_PANEL_TTL_MS = 60_000;
+const MINING_PANEL_TTL_MS = 60_000;
+const MINING_EXPEDITION_REFRESH_COOLDOWN_MS = 5_000;
 const PLAYER_PANEL_TTL_MS = 60_000;
 const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
 let leaderboardCommandCooldownPruneAfter = 0;
 const fishingPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const miningPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const miningExpeditionRefreshAvailableAtByUserId = new Map<string, number>();
 const playerPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function buildFishingLaunchResponse(expedition: StartedFishingExpedition) {
@@ -553,6 +600,332 @@ function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgr
         }))),
     ],
   };
+}
+
+function miningShopCategoryLabel(category: MiningUpgradeCategory) {
+  const labels: Record<MiningUpgradeCategory, string> = {
+    tool: 'Tools',
+    storage: 'Storage',
+    processor: 'Processing',
+    elevator: 'Elevator',
+    filter: 'Filters',
+  };
+  return labels[category];
+}
+
+function miningInventoryTabLabel(tab: MiningInventoryTab) {
+  const labels: Record<MiningInventoryTab, string> = {
+    overview: 'Overview',
+    ores: 'Ores',
+    gems: 'Gems',
+    fossils: 'Fossils',
+  };
+  return labels[tab];
+}
+
+function miningPanelExpirationMessage() {
+  return 'This mining panel has expired. Run `/mining shop` or `/mining inventory` to open a new one.';
+}
+
+function scheduleMiningPanelExpiry(message: { edit: (options: { components: []; content: string }) => Promise<unknown>; id: string }, expiresAt: number) {
+  const existingTimer = miningPanelExpiryTimers.get(message.id);
+  if (existingTimer) clearTimeout(existingTimer);
+  const timer = setTimeout(() => {
+    void message.edit({ content: miningPanelExpirationMessage(), components: [] })
+      .catch((error: unknown) => console.warn(`Discord mining panel ${message.id} could not be expired.`, error))
+      .finally(() => {
+        if (miningPanelExpiryTimers.get(message.id) === timer) miningPanelExpiryTimers.delete(message.id);
+      });
+  }, Math.max(0, expiresAt - Date.now()));
+  timer.unref();
+  miningPanelExpiryTimers.set(message.id, timer);
+}
+
+function clearMiningPanelExpiry(messageId: string) {
+  const existingTimer = miningPanelExpiryTimers.get(messageId);
+  if (existingTimer) clearTimeout(existingTimer);
+  miningPanelExpiryTimers.delete(messageId);
+}
+
+function expireMiningPanel(interaction: ButtonInteraction) {
+  clearMiningPanelExpiry(interaction.message.id);
+  return interaction.update({ content: miningPanelExpirationMessage(), components: [] });
+}
+
+function miningUpgradeCandidates(state: MiningPlayerState, category: MiningUpgradeCategory) {
+  return getMiningUpgrades(category).filter((upgrade) => (
+    !state.ownedUpgradeIds.includes(upgrade.id)
+    && (!upgrade.previousUpgradeId || state.ownedUpgradeIds.includes(upgrade.previousUpgradeId))
+  ));
+}
+
+function miningCanCraftUpgrade(state: MiningPlayerState, upgrade: NonNullable<ReturnType<typeof getMiningUpgrade>>) {
+  const recipe = getMiningCraftingRecipe(upgrade, state.skills.cheapskate);
+  const processorTier = getMiningProcessorTier(state);
+  const inventory = new Map(state.inventory.map((item) => [item.resource_id, item.quantity]));
+  const resourceReady = recipe.every((item) => {
+    const resource = getMiningResource(item.resourceId);
+    return (inventory.get(item.resourceId) ?? 0) >= item.quantity
+      && (!resource || resource.kind !== 'ore' || (resource.processorTier ?? 0) <= processorTier);
+  });
+  return resourceReady;
+}
+
+function miningRecipeDescription(upgrade: NonNullable<ReturnType<typeof getMiningUpgrade>>, state: MiningPlayerState) {
+  const recipe = getMiningCraftingRecipe(upgrade, state.skills.cheapskate);
+  const ingredients = recipe.length === 0
+    ? 'No materials required.'
+    : recipe.map((item) => `${formatXp(item.quantity)} ${getMiningResource(item.resourceId)?.name ?? item.resourceId}`).join(' · ');
+  return `${upgrade.description}\n**Crafting:** ${ingredients}`;
+}
+
+function miningShopComponents(ownerDiscordUserId: string, category: MiningUpgradeCategory, state: MiningPlayerState, expiresAt: number) {
+  const navigation = MINING_SHOP_CATEGORIES.map((entry) => new ButtonBuilder()
+    .setCustomId(`${MINING_BUTTON_PREFIX}-shop:${ownerDiscordUserId}:${expiresAt}:${entry}`)
+    .setStyle(entry === category ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    .setLabel(miningShopCategoryLabel(entry)));
+  const purchaseButtons = miningUpgradeCandidates(state, category).map((upgrade) => new ButtonBuilder()
+    .setCustomId(`${MINING_BUTTON_PREFIX}-buy:${ownerDiscordUserId}:${expiresAt}:${upgrade.id}`)
+    .setStyle(ButtonStyle.Success)
+    .setLabel(`Craft ${upgrade.name}`)
+    .setDisabled(!miningCanCraftUpgrade(state, upgrade)));
+  return [...toComponentRows(navigation), ...toComponentRows(purchaseButtons)];
+}
+
+function buildMiningShopPanel(ownerDiscordUserId: string, category: MiningUpgradeCategory, state: MiningPlayerState, expiresAt: number, notice?: string) {
+  const candidates = miningUpgradeCandidates(state, category);
+  const fields = candidates.length > 0
+    ? candidates.map((upgrade) => ({ name: upgrade.name, value: miningRecipeDescription(upgrade, state) }))
+    : [{ name: 'No available upgrades', value: 'You own this category’s current upgrade. Continue exploring to unlock the materials for the next one.' }];
+  return {
+    components: miningShopComponents(ownerDiscordUserId, category, state, expiresAt),
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x78716C)
+        .setTitle(`Mining shop · ${miningShopCategoryLabel(category)}`)
+        .setDescription(`${notice ? `${notice}\n\n` : ''}Balance: **${formatXp(state.balance)} KnowBucks** · Mining Level **${state.miningLevel}**\nShared player skills apply automatically: Luck ${Math.min(4, state.skills.lucky)}/4 · Cheapskate ${state.skills.cheapskate}/4 · Money Mouser ${state.skills.moneyMouser}/2 · Haste ${state.skills.haste}/4. Buy them in \`/player shop\`. Ores from Depth 2 onward need their matching processor before they can be crafted or sold.`)
+        .addFields(fields),
+    ],
+  };
+}
+
+function miningInventoryComponents(ownerDiscordUserId: string, tab: MiningInventoryTab, expiresAt: number) {
+  return toComponentRows(MINING_INVENTORY_TABS.map((entry) => new ButtonBuilder()
+    .setCustomId(`${MINING_BUTTON_PREFIX}-inventory:${ownerDiscordUserId}:${expiresAt}:${entry}`)
+    .setStyle(entry === tab ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    .setLabel(miningInventoryTabLabel(entry))));
+}
+
+function splitMiningPanelField(name: string, values: readonly string[], emptyValue: string) {
+  if (values.length === 0) return [{ name, value: emptyValue }];
+  const fields: Array<{ name: string; value: string }> = [];
+  let value = '';
+  for (const line of values) {
+    const next = value ? `${value}\n${line}` : line;
+    if (next.length > 1024 && value) {
+      fields.push({ name: fields.length === 0 ? name : `${name} (continued)`, value });
+      value = line;
+    } else value = next;
+  }
+  if (value) fields.push({ name: fields.length === 0 ? name : `${name} (continued)`, value });
+  return fields;
+}
+
+function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlayerState, expiresAt: number, tab: MiningInventoryTab = 'overview', notice?: string) {
+  const tool = getMiningBestUpgrade(state.ownedUpgradeIds, 'tool');
+  const storage = getMiningBestUpgrade(state.ownedUpgradeIds, 'storage');
+  const processor = getMiningBestUpgrade(state.ownedUpgradeIds, 'processor');
+  const elevator = getMiningBestUpgrade(state.ownedUpgradeIds, 'elevator');
+  const filter = getMiningBestUpgrade(state.ownedUpgradeIds, 'filter');
+  let fields: Array<{ name: string; value: string }>;
+  if (tab === 'overview') {
+    fields = [
+      { name: 'Equipment', value: `Tool: **${tool?.name ?? 'None'}** (${tool?.value ?? 0} stone/s)\nStorage: **${storage?.name ?? 'None'}** (${formatXp(storage?.value ?? 0)} items)\nProcessor: **${processor ? `Depth ${processor.value + 1}` : 'None'}**\nElevator: **${elevator?.name ?? 'None'}**\nFilter: **${filter?.name ?? 'None'}**` },
+      { name: 'Mining progression', value: `Level **${state.miningLevel}** · **${formatXp(state.miningXpIntoLevel)}/${formatXp(state.miningXpToNextLevel)} XP** to next level\nShared skills: Luck ${Math.min(4, state.skills.lucky)}/4 · Cheapskate ${state.skills.cheapskate}/4 · Money Mouser ${state.skills.moneyMouser}/2 · Haste ${state.skills.haste}/4` },
+    ];
+  } else {
+    const kind: MiningResourceKind = tab === 'ores' ? 'ore' : tab === 'gems' ? 'gem' : 'fossil';
+    const processorTier = getMiningProcessorTier(state);
+    const lines = getMiningInventoryByKind(state, kind).map(({ resource, quantity }) => {
+      const processingNote = resource.kind === 'ore' && (resource.processorTier ?? 0) > processorTier
+        ? ` · needs Depth ${resource.processorTier} Processor`
+        : '';
+      return `**${resource.name}** ×${formatXp(quantity)}${processingNote}`;
+    });
+    fields = splitMiningPanelField(tab === 'ores' ? 'Ores' : tab === 'gems' ? 'Gems' : 'Fossil pieces', lines, `No ${tab} collected yet.`);
+  }
+  return {
+    components: miningInventoryComponents(ownerDiscordUserId, tab, expiresAt),
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x78716C)
+        .setTitle(`Mining inventory · ${miningInventoryTabLabel(tab)}`)
+        .setDescription(`${notice ? `${notice}\n\n` : ''}Balance: **${formatXp(state.balance)} KnowBucks** · Fossil sets are collectible only for now.`)
+        .addFields(fields),
+    ],
+  };
+}
+
+function formatMiningCargo(result: { cargo: Array<{ name: string; quantity: number }>; stoneStored?: number }) {
+  const contents = [
+    ...(result.stoneStored ? [`**Stone** ×${formatXp(result.stoneStored)} · discarded on return`] : []),
+    ...result.cargo.map((item) => `**${item.name}** ×${formatXp(item.quantity)}`),
+  ];
+  return contents.length > 0 ? contents.join('\n') : 'No cargo yet.';
+}
+
+function reserveMiningExpeditionRefresh(discordUserId: string) {
+  const now = Date.now();
+  const availableAt = miningExpeditionRefreshAvailableAtByUserId.get(discordUserId) ?? 0;
+  if (availableAt > now) return Math.ceil((availableAt - now) / 1_000);
+  miningExpeditionRefreshAvailableAtByUserId.set(discordUserId, now + MINING_EXPEDITION_REFRESH_COOLDOWN_MS);
+  return null;
+}
+
+function miningExpeditionComponents(ownerDiscordUserId: string, mode: 'launched' | 'view' | 'returning', depthId?: MiningDepthId) {
+  if (mode === 'returning') {
+    if (!depthId) return [];
+    return toComponentRows([
+      new ButtonBuilder()
+        .setCustomId(`${MINING_EXPEDITION_BUTTON_PREFIX}:refresh:${ownerDiscordUserId}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('Refresh'),
+      new ButtonBuilder()
+        .setCustomId(`${MINING_EXPEDITION_BUTTON_PREFIX}:repeat:${ownerDiscordUserId}:${depthId}`)
+        .setStyle(ButtonStyle.Success)
+        .setLabel('Mine again'),
+    ]);
+  }
+  const buttons = [
+    ...(mode === 'launched'
+      ? [new ButtonBuilder()
+        .setCustomId(`${MINING_EXPEDITION_BUTTON_PREFIX}:view:${ownerDiscordUserId}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('View minecart')]
+      : []),
+    new ButtonBuilder()
+      .setCustomId(`${MINING_EXPEDITION_BUTTON_PREFIX}:refresh:${ownerDiscordUserId}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel('Refresh'),
+    new ButtonBuilder()
+      .setCustomId(`${MINING_EXPEDITION_BUTTON_PREFIX}:return:${ownerDiscordUserId}`)
+      .setStyle(ButtonStyle.Danger)
+      .setLabel('Recall minecart'),
+  ];
+  return toComponentRows(buttons);
+}
+
+/** Shared by slash-command replies and website-originated Discord panels. */
+export function buildMiningLaunchPanel(ownerDiscordUserId: string, depthId: MiningDepthId, travelDurationMs: number) {
+  const depth = getMiningDepth(depthId);
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x78716C)
+        .setTitle(`⛏️ ${depth?.name ?? `Depth ${depthId}`} expedition launched`)
+        .setDescription(`Your minecart is descending. Descent duration: **${formatMiningDuration(travelDurationMs)}**. Collection continues until you recall the cart or its storage fills.`),
+    ],
+    components: miningExpeditionComponents(ownerDiscordUserId, 'launched'),
+  };
+}
+
+function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number }, ascentDurationMs: number) {
+  return new EmbedBuilder()
+    .setColor(0x78716C)
+    .setTitle('Minecart recalled')
+    .setDescription(`Your cargo is secured and the minecart is ascending. Ascent duration: **${formatMiningDuration(ascentDurationMs)}**. Rewards are added on your next Mining interaction after it arrives.`)
+    .addFields(
+      { name: `Secured cargo · ${formatXp(result.storageUsed)} stored`, value: formatMiningCargo(result) },
+      { name: 'Expedition work', value: `${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP secured` },
+    );
+}
+
+/** Shared by slash-command replies and website-originated Discord panels. */
+export function buildMiningReturnPanel(
+  ownerDiscordUserId: string,
+  depthId: MiningDepthId,
+  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number },
+  ascentDurationMs: number,
+) {
+  return {
+    embeds: [buildMiningReturnEmbed(result, ascentDurationMs)],
+    components: miningExpeditionComponents(ownerDiscordUserId, 'returning', depthId),
+  };
+}
+
+/** Shared by the completed website-result share flow and Discord presentation. */
+export function buildMiningCompletedPanel(
+  ownerDiscordUserId: string,
+  depthId: MiningDepthId,
+  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number },
+) {
+  const depth = getMiningDepth(depthId);
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x22C55E)
+        .setTitle(`⛏️ ${depth?.name ?? `Depth ${depthId}`} expedition complete`)
+        .setDescription('Your minecart returned safely and its cargo was added to inventory.')
+        .addFields(
+          { name: `Collected · ${formatXp(result.storageUsed)} stored`, value: formatMiningCargo(result) },
+          { name: 'Expedition work', value: `${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP earned` },
+        ),
+    ],
+    components: toComponentRows([
+      new ButtonBuilder()
+        .setCustomId(`${MINING_EXPEDITION_BUTTON_PREFIX}:repeat:${ownerDiscordUserId}:${depthId}`)
+        .setStyle(ButtonStyle.Success)
+        .setLabel('Mine again'),
+    ]),
+  };
+}
+
+function buildMiningSettlementEmbed(settlement: NonNullable<Awaited<ReturnType<typeof settleDueMiningReturn>>>) {
+  return new EmbedBuilder()
+    .setColor(0x22C55E)
+    .setTitle('Mining return complete')
+    .setDescription(`Your minecart cargo was added to inventory. Earned **${formatXp(settlement.xpAwarded)} Mining XP** · Level **${settlement.currentLevel}**${settlement.currentLevel > settlement.previousLevel ? ' (level up!)' : ''}.`)
+    .addFields({ name: 'Collected', value: formatMiningCargo(settlement.result) });
+}
+
+function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awaited<ReturnType<typeof getActiveMiningExpedition>>>) {
+  const depth = getMiningDepth(expedition.depth);
+  const now = Date.now();
+  if (expedition.status === 'descending' && new Date(expedition.mining_started_at).getTime() > now) {
+    return new EmbedBuilder()
+      .setColor(0x78716C)
+      .setTitle(`${username}'s mining expedition`)
+      .setDescription(`Descending toward **${depth?.name ?? `Depth ${expedition.depth}`}**. Descent duration: **${formatMiningDuration(expedition.equipment_snapshot.descendDurationMs)}**.`);
+  }
+  if (expedition.status === 'returning') {
+    const result = expedition.result ?? (expedition.return_started_at
+      ? resolveMiningExpedition(
+        expedition.depth,
+        expedition.equipment_snapshot,
+        expedition.outcome_seed,
+        Math.max(0, new Date(expedition.return_started_at).getTime() - new Date(expedition.mining_started_at).getTime()),
+      )
+      : null);
+    return new EmbedBuilder()
+      .setColor(0x78716C)
+      .setTitle(`${username}'s mining expedition`)
+      .setDescription(`Returning from **${depth?.name ?? `Depth ${expedition.depth}`}**. Ascent duration: **${formatMiningDuration(expedition.equipment_snapshot.descendDurationMs)}**.`)
+      .addFields({ name: `Secured cargo · ${formatXp(result?.storageUsed ?? 0)} stored`, value: result ? formatMiningCargo(result) : 'Cargo is being secured.' });
+  }
+  const result = resolveMiningExpedition(
+    expedition.depth,
+    expedition.equipment_snapshot,
+    expedition.outcome_seed,
+    Math.max(0, now - new Date(expedition.mining_started_at).getTime()),
+  );
+  return new EmbedBuilder()
+    .setColor(0x78716C)
+    .setTitle(`${username}'s mining expedition`)
+    .setDescription(`Mining in **${depth?.name ?? `Depth ${expedition.depth}`}** with **${getMiningUpgrade(expedition.equipment_snapshot.toolId)?.name ?? expedition.equipment_snapshot.toolId}**. Recall with \`/mining expedition return\` when you are ready.`)
+    .addFields(
+      { name: `Minecart storage · ${formatXp(result.storageUsed)}/${formatXp(expedition.equipment_snapshot.storageCapacity)}`, value: formatMiningCargo(result) },
+      { name: 'Expedition work', value: `${formatXp(result.stoneBroken)} stone broken · ${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP on return` },
+    );
 }
 
 function playerPanelExpirationMessage() {
@@ -1605,6 +1978,120 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
   throw new Error(`Unsupported fishing command: ${subcommand}`);
 }
 
+function miningCommandErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return 'KnowLeague could not complete that mining request. Please try again shortly.';
+  const message = error.message
+    .replace(/^Unable to (initialize Discord mining|load Discord mining [a-z ]+|start Discord mining expedition|recall mining expedition|secure mining expedition results|settle mining expedition|craft mining upgrade|sell mining resources): /, '');
+  return message.includes('PostgREST') || message.includes('permission denied') || message.includes('relation')
+    ? 'KnowLeague could not complete that mining request. Please try again shortly.'
+    : message;
+}
+
+async function handleMiningCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+  if (!(await isMiningCommandAllowedInChannel(config, interaction.channelId))) {
+    await replyWithCommandChannelLink(interaction, 'Mining', await getMiningCommandChannelIds(config));
+    return;
+  }
+  const group = interaction.options.getSubcommandGroup(false);
+  const subcommand = interaction.options.getSubcommand();
+  await interaction.deferReply();
+  try {
+    const settlement = await settleDueMiningReturn(config, interaction.user.id);
+
+    if (subcommand === 'help') {
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x78716C)
+            .setTitle('KnowLeague mining help')
+            .setDescription('Mine indefinitely at a chosen depth until you recall the cart.')
+            .addFields(
+              { name: 'Start and recall', value: '`/mining expedition set depth:<1–7>` begins the descent. Tool upgrades gate deeper depths. Once the cart reaches depth, `/mining expedition return` freezes its cargo and begins the ascent.' },
+              { name: 'Track the cart', value: '`/mining expedition view` shows descent, current storage, or secured return cargo with Refresh and Recall minecart buttons. Refresh is limited to once every five seconds. A completed return settles on your next Mining interaction.' },
+              { name: 'Crafting and processing', value: '`/mining shop` has tabs for tools, storage, processors, elevators, and filters. Ores from Depth 2 onward need the matching processor before crafting or sale.' },
+              { name: 'Inventory and sales', value: '`/mining inventory` tabs ores, gems, and five collectible dinosaur fossils per depth. `/mining sell resource:<ore or gem> amount:<number or all>` sells one processor-ready resource at a time.' },
+              { name: 'Skills and levels', value: 'Mining XP is earned from expedition work and is displayed for now without unlock gates. Shared Luck, Cheapskate, Money Mouser, and Haste skills from `/player shop` apply automatically.' },
+            ),
+        ],
+      });
+      return;
+    }
+
+    if (group === 'expedition' && subcommand === 'set') {
+      const depthId = interaction.options.getInteger('depth', true) as MiningDepthId;
+      const started = await startMiningExpedition(config, interaction.user.id, depthId);
+      await interaction.editReply(buildMiningLaunchPanel(interaction.user.id, started.depth.id, started.travelDurationMs));
+      return;
+    }
+
+    if (group === 'expedition' && subcommand === 'view') {
+      const active = await getActiveMiningExpedition(config, interaction.user.id);
+      if (!active) {
+        await interaction.editReply({
+          embeds: settlement
+            ? [buildMiningSettlementEmbed(settlement)]
+            : [new EmbedBuilder().setColor(0x78716C).setTitle(`${interaction.user.username}'s mining expedition`).setDescription('No active minecart expedition. Start one with `/mining expedition set`.')],
+        });
+        return;
+      }
+      await interaction.editReply({
+        embeds: [buildMiningProgressEmbed(interaction.user.username, active)],
+        components: active.status === 'returning'
+          ? miningExpeditionComponents(interaction.user.id, 'returning', active.depth)
+          : miningExpeditionComponents(interaction.user.id, 'view'),
+      });
+      return;
+    }
+
+    if (group === 'expedition' && subcommand === 'return') {
+      const returning = await beginMiningReturn(config, interaction.user.id);
+      await interaction.editReply(buildMiningReturnPanel(
+        interaction.user.id,
+        returning.depth,
+        returning.result,
+        returning.travelDurationMs,
+      ));
+      return;
+    }
+
+    if (subcommand === 'shop') {
+      const state = await getMiningPlayerState(config, interaction.user.id);
+      const expiresAt = Date.now() + MINING_PANEL_TTL_MS;
+      await interaction.editReply(buildMiningShopPanel(interaction.user.id, 'tool', state, expiresAt));
+      scheduleMiningPanelExpiry(await interaction.fetchReply(), expiresAt);
+      return;
+    }
+
+    if (subcommand === 'inventory') {
+      const state = await getMiningPlayerState(config, interaction.user.id);
+      const expiresAt = Date.now() + MINING_PANEL_TTL_MS;
+      await interaction.editReply(buildMiningInventoryPanel(interaction.user.id, state, expiresAt));
+      scheduleMiningPanelExpiry(await interaction.fetchReply(), expiresAt);
+      return;
+    }
+
+    if (subcommand === 'sell') {
+      const resource = interaction.options.getString('resource', true);
+      const amount = interaction.options.getString('amount', true);
+      const sale = await sellMiningResource(config, interaction.user.id, resource, amount);
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x22C55E)
+            .setTitle('Mining resources sold')
+            .setDescription(`Sold **${formatXp(sale.soldCount)}** ${resource} for **${formatXp(sale.totalSaleValue)} KnowBucks**. New balance: **${formatXp(sale.balance)} KnowBucks**.`),
+        ],
+      });
+      return;
+    }
+
+    throw new Error(`Unsupported mining command: ${subcommand}`);
+  } catch (error) {
+    await interaction.editReply({ content: miningCommandErrorMessage(error), embeds: [] });
+  }
+}
+
 async function postLeagueAccountViewer(
   interaction: ChatInputCommandInteraction,
   config: DiscordBotConfig,
@@ -2471,6 +2958,155 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
   return false;
 }
 
+async function handleMiningExpeditionButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  const [prefix, action, ownerDiscordUserId, depthText, ...extra] = interaction.customId.split(':');
+  if (prefix !== MINING_EXPEDITION_BUTTON_PREFIX) return false;
+  const validAction = action === 'view' || action === 'refresh' || action === 'return' || action === 'repeat';
+  if (!validAction || !ownerDiscordUserId || extra.length > 0 || ((action === 'repeat') !== Boolean(depthText))) {
+    await interaction.reply({ content: 'This mining expedition control is outdated. Run `/mining expedition view` to open a current panel.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (interaction.user.id !== ownerDiscordUserId) {
+    await interaction.reply({ content: 'Only the member who started this mining expedition can use its controls.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (!(await isMiningCommandAllowedInChannel(config, interaction.channelId))) {
+    await interaction.reply({ content: 'Mining commands are not enabled in this channel. An administrator can change this in Discord Configuration.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (action === 'refresh') {
+    const cooldownSeconds = reserveMiningExpeditionRefresh(ownerDiscordUserId);
+    if (cooldownSeconds !== null) {
+      await interaction.reply({ content: `You can refresh this minecart again in ${cooldownSeconds} second${cooldownSeconds === 1 ? '' : 's'}.`, flags: MessageFlags.Ephemeral });
+      return true;
+    }
+  }
+
+  await interaction.deferUpdate();
+  try {
+    const settlement = await settleDueMiningReturn(config, ownerDiscordUserId);
+    if (action === 'view' || action === 'refresh') {
+      const active = await getActiveMiningExpedition(config, ownerDiscordUserId);
+      await interaction.editReply(active
+        ? {
+          embeds: [buildMiningProgressEmbed(interaction.user.username, active)],
+          components: active.status === 'returning'
+            ? miningExpeditionComponents(ownerDiscordUserId, 'returning', active.depth)
+            : miningExpeditionComponents(ownerDiscordUserId, 'view'),
+        }
+        : {
+          embeds: settlement
+            ? [buildMiningSettlementEmbed(settlement)]
+            : [new EmbedBuilder().setColor(0x78716C).setTitle(`${interaction.user.username}'s mining expedition`).setDescription('No active minecart expedition. Start one with `/mining expedition set`.')],
+          components: [],
+        });
+      return true;
+    }
+    if (action === 'return') {
+      const returning = await beginMiningReturn(config, ownerDiscordUserId);
+      await interaction.editReply(buildMiningReturnPanel(
+        ownerDiscordUserId,
+        returning.depth,
+        returning.result,
+        returning.travelDurationMs,
+      ));
+      return true;
+    }
+
+    const depth = Number(depthText) as MiningDepthId;
+    if (!getMiningDepth(depth)) {
+      await interaction.followUp({ content: 'This mining expedition control is outdated. Run `/mining expedition set` to choose a depth.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const active = await getActiveMiningExpedition(config, ownerDiscordUserId);
+    if (active) {
+      await interaction.followUp({ content: 'Your minecart is still ascending. Use Mine again once its return has completed.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const started = await startMiningExpedition(config, ownerDiscordUserId, depth);
+    await interaction.editReply(buildMiningLaunchPanel(ownerDiscordUserId, started.depth.id, started.travelDurationMs));
+    return true;
+  } catch (error) {
+    await interaction.followUp({ content: miningCommandErrorMessage(error), flags: MessageFlags.Ephemeral });
+    return true;
+  }
+}
+
+async function handleMiningButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  const [prefix, ownerDiscordUserId, expiresAtRaw, argument] = interaction.customId.split(':');
+  if (!prefix.startsWith(`${MINING_BUTTON_PREFIX}-`) || !ownerDiscordUserId) return false;
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isSafeInteger(expiresAt) || !argument || Date.now() >= expiresAt) {
+    await expireMiningPanel(interaction);
+    return true;
+  }
+  if (interaction.user.id !== ownerDiscordUserId) {
+    await interaction.reply({ content: 'Only the member who opened this mining panel can use its controls.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (!(await isMiningCommandAllowedInChannel(config, interaction.channelId))) {
+    await interaction.reply({ content: 'Mining commands are not enabled in this channel. An administrator can change this in Discord Configuration.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  await interaction.deferUpdate();
+  try {
+    await settleDueMiningReturn(config, ownerDiscordUserId);
+    const nextExpiresAt = Date.now() + MINING_PANEL_TTL_MS;
+    if (prefix === `${MINING_BUTTON_PREFIX}-shop`) {
+      if (!MINING_SHOP_CATEGORIES.includes(argument as MiningUpgradeCategory)) {
+        await interaction.followUp({ content: 'This mining shop panel is outdated. Run `/mining shop` to open a new one.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      const state = await getMiningPlayerState(config, ownerDiscordUserId);
+      await interaction.editReply(buildMiningShopPanel(ownerDiscordUserId, argument as MiningUpgradeCategory, state, nextExpiresAt));
+      scheduleMiningPanelExpiry(interaction.message, nextExpiresAt);
+      return true;
+    }
+    if (prefix === `${MINING_BUTTON_PREFIX}-inventory`) {
+      if (!MINING_INVENTORY_TABS.includes(argument as MiningInventoryTab)) {
+        await interaction.followUp({ content: 'This mining inventory panel is outdated. Run `/mining inventory` to open a new one.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      const state = await getMiningPlayerState(config, ownerDiscordUserId);
+      await interaction.editReply(buildMiningInventoryPanel(ownerDiscordUserId, state, nextExpiresAt, argument as MiningInventoryTab));
+      scheduleMiningPanelExpiry(interaction.message, nextExpiresAt);
+      return true;
+    }
+    if (prefix === `${MINING_BUTTON_PREFIX}-buy`) {
+      const upgrade = getMiningUpgrade(argument);
+      if (!upgrade || upgrade.id === 'wooden-pickaxe' || upgrade.id === 'shabby-bin') {
+        await interaction.followUp({ content: 'This mining crafting control is outdated. Run `/mining shop` to open a new one.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      try {
+        const purchase = await purchaseMiningUpgrade(config, ownerDiscordUserId, upgrade.id);
+        const state = await getMiningPlayerState(config, ownerDiscordUserId);
+        const costText = [
+          purchase.recipe.map((item) => `${formatXp(item.quantity)} ${getMiningResource(item.resourceId)?.name ?? item.resourceId}`).join(', '),
+        ].filter(Boolean).join(' · ');
+        await interaction.editReply(buildMiningShopPanel(
+          ownerDiscordUserId,
+          purchase.upgrade.category,
+          state,
+          nextExpiresAt,
+          `Crafted **${purchase.upgrade.name}**${costText ? ` for ${costText}` : ''}.`,
+        ));
+      } catch (error) {
+        const state = await getMiningPlayerState(config, ownerDiscordUserId);
+        await interaction.editReply(buildMiningShopPanel(ownerDiscordUserId, upgrade.category, state, nextExpiresAt, miningCommandErrorMessage(error)));
+      }
+      scheduleMiningPanelExpiry(interaction.message, nextExpiresAt);
+      return true;
+    }
+    await interaction.followUp({ content: 'This mining panel is outdated. Run `/mining shop` or `/mining inventory` to open a new one.', flags: MessageFlags.Ephemeral });
+    return true;
+  } catch (error) {
+    await interaction.followUp({ content: miningCommandErrorMessage(error), flags: MessageFlags.Ephemeral });
+    return true;
+  }
+}
+
 function buildFishingCrateOpeningResult(opening: Awaited<ReturnType<typeof openAllFishingCrates>>) {
   const foundItems = opening.items
     .map((item) => `**${item.name}** (${item.rarity})${item.quantity > 1 ? ` x${formatXp(item.quantity)}` : ''} — sold for ${formatXp(item.saleValue)} KnowBucks`);
@@ -2658,6 +3294,8 @@ export async function handleButtonInteraction(interaction: ButtonInteraction, co
   if (await handleHelpButtonInteraction(interaction)) return;
   if (await handlePlayerButtonInteraction(interaction, config)) return;
   if (await handleFishingButtonInteraction(interaction, config)) return;
+  if (await handleMiningExpeditionButtonInteraction(interaction, config)) return;
+  if (await handleMiningButtonInteraction(interaction, config)) return;
   if (await handleClaimedSkinActionButton(interaction, config)) return;
   if (await handleSkinCollectionActionButton(interaction, config)) return;
   const parts = interaction.customId.split(':');
@@ -2835,6 +3473,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'fish') {
     await handleFishingCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'mining') {
+    await handleMiningCommand(interaction, config);
     return;
   }
 

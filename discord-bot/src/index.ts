@@ -14,6 +14,7 @@ import {
 } from './leveling.js';
 import { attemptSkinClaimDropFromMessage, clearSkinCollection, handleSkinClaimReaction, startDiscordSkinClaimScheduler, startDiscordSkinCollectionUpkeepScheduler } from './skin-claims.js';
 import { startDiscordFishingScheduler } from './fishing.js';
+import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panels.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
 import { maybeAwardDisboardBump } from './disboard.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
@@ -73,6 +74,7 @@ client.once(Events.ClientReady, (readyClient) => {
   startDiscordSkinClaimScheduler(config, guild);
   startDiscordSkinCollectionUpkeepScheduler(config);
   startDiscordFishingScheduler(config, guild);
+  startMiningWebsitePanelDeliveryScheduler(config, guild);
   startDiscordSkindleShareScheduler(config, guild);
   void syncDiscordGuildRoles(config, guild)
     .then(() => syncDiscordGuildTextChannels(config, guild))

@@ -14,6 +14,7 @@ const profileProtectedGameRoutes = [
   '/carving-revelation',
   '/category-clash',
   '/mastery-master',
+  '/games/mining',
   '/speed-blitz',
 ] as const;
 

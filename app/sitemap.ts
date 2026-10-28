@@ -17,6 +17,7 @@ const publicRoutes = [
   '/carving-revelation',
   '/category-clash',
   '/mastery-master',
+  '/games/mining',
   '/riot-account-viewer',
   '/riot-account-viewer/token-leaderboards',
   '/riftbound/inventory',

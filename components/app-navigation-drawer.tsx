@@ -6,7 +6,16 @@ import { useState } from 'react';
 import { ArrowRight, Dices, Menu, Package, Search, Sparkles, Swords, TrendingUp, Trophy, UserCircle, UserCog, Users, X } from 'lucide-react';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
-import { AUGMENT_BUILDER_GAME, GAME_ACCENT_CLASSES, GAME_MODE_LABELS, GAMES_FOR_DRAWER, MASTERY_MASTER_GAME, RANDODRAFT_GAME } from '@/lib/app-navigation';
+import {
+  AUGMENT_BUILDER_GAME,
+  GAME_ACCENT_CLASSES,
+  GAME_MODE_LABELS,
+  LEAGUE_GAMES_FOR_DRAWER,
+  MASTERY_MASTER_GAME,
+  ORIGINAL_GAMES_FOR_DRAWER,
+  RANDODRAFT_GAME,
+} from '@/lib/app-navigation';
+import type { GameLink } from '@/lib/game-navigation';
 import { shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import type { AppRole } from '@/lib/moderation';
 
@@ -27,6 +36,33 @@ type AppNavigationDrawerProps = {
 
 const menuItemClass = 'group flex min-h-12 w-full items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-left text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200';
 const gameMenuItemClass = 'group flex min-h-11 w-full items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/80 px-2.5 py-1.5 text-left text-slate-100 transition hover:border-amber-200/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200';
+
+function GameDrawerLinks({ games, onSelect }: { games: readonly GameLink[]; onSelect: () => void }) {
+  return (
+    <>
+      {games.map((game) => {
+        const GameIcon = game.gameIcon;
+        return (
+          <Link
+            key={game.href}
+            href={game.href}
+            onClick={onSelect}
+            className={gameMenuItemClass}
+          >
+            <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${GAME_ACCENT_CLASSES[game.accent]}`}>
+              <GameIcon size={16} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-black">{game.title}</span>
+              <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">{GAME_MODE_LABELS[game.mode]}</span>
+            </span>
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
 export function AppNavigationDrawer({
   isLoggedIn,
   profileHref,
@@ -83,28 +119,19 @@ export function AppNavigationDrawer({
             </div>
 
             <nav aria-label="Primary navigation" className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Games</p>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">League Games</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {GAMES_FOR_DRAWER.map((game) => {
-                  const GameIcon = game.gameIcon;
-                  return (
-                    <Link
-                      key={game.href}
-                      href={game.href}
-                      onClick={closeDrawer}
-                      className={gameMenuItemClass}
-                    >
-                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${GAME_ACCENT_CLASSES[game.accent]}`}>
-                        <GameIcon size={16} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-black">{game.title}</span>
-                        <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">{GAME_MODE_LABELS[game.mode]}</span>
-                      </span>
-                    </Link>
-                  );
-                })}
+                <GameDrawerLinks games={LEAGUE_GAMES_FOR_DRAWER} onSelect={closeDrawer} />
               </div>
+
+              {ORIGINAL_GAMES_FOR_DRAWER.length ? (
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Original Games</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <GameDrawerLinks games={ORIGINAL_GAMES_FOR_DRAWER} onSelect={closeDrawer} />
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-4 border-t border-white/10 pt-4">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">League Tools</p>

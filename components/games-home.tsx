@@ -20,7 +20,13 @@ import {
   STREAK_GAME_IDS,
   type PlayerGameStatsByGame,
 } from '@/lib/game-storage';
-import { GAME_NAVIGATION_ITEMS, type Accent, type GameLink, type GameMode } from '@/lib/game-navigation';
+import {
+  LEAGUE_GAME_NAVIGATION_ITEMS,
+  ORIGINAL_GAME_NAVIGATION_ITEMS,
+  type Accent,
+  type GameLink,
+  type GameMode,
+} from '@/lib/game-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const accentStyles: Record<Accent, {
@@ -96,7 +102,8 @@ const modeStyles: Record<GameMode, { label: string; icon: LucideIcon }> = {
   },
 };
 
-const games: GameLink[] = GAME_NAVIGATION_ITEMS;
+const leagueGames: GameLink[] = LEAGUE_GAME_NAVIGATION_ITEMS;
+const originalGames: GameLink[] = ORIGINAL_GAME_NAVIGATION_ITEMS;
 
 function GameModeBadge({ mode, featured = false }: { mode: GameMode; featured?: boolean }) {
   const modeStyle = modeStyles[mode];
@@ -346,12 +353,20 @@ export default function GamesHome() {
         </header>
 
         <GameSection
-          title=""
-          description="Try one of our many games from Solo to Multiplayer!"
-          games={games}
+          title="League Games"
+          description="League of Legends games for solo play, daily puzzles, and multiplayer sessions."
+          games={leagueGames}
           showEyebrow
           stats={playerStats}
         />
+        {originalGames.length ? (
+          <GameSection
+            title="Original Games"
+            description="KnowLeague originals with their own worlds, progression, and shared account features."
+            games={originalGames}
+            stats={playerStats}
+          />
+        ) : null}
       </section>
     </main>
   );

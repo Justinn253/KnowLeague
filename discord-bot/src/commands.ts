@@ -309,6 +309,58 @@ export const commandDefinitions = [
     .addSubcommand((subcommand) => subcommand
       .setName('event-catalogue')
       .setDescription('View your active fishing event fish and title discoveries.')),
+  new SlashCommandBuilder()
+    .setName('mining')
+    .setDescription('Mine resources, craft upgrades, and build your fossil collection.')
+    .addSubcommandGroup((group) => group
+      .setName('expedition')
+      .setDescription('Start, inspect, or recall your minecart expedition.')
+      .addSubcommand((subcommand) => subcommand
+        .setName('set')
+        .setDescription('Start descending to a tool-gated mining depth.')
+        .addIntegerOption((option) => option
+          .setName('depth')
+          .setDescription('Mining depth to explore.')
+          .addChoices(
+            { name: 'Depth 1 — Shallow Quarry', value: 1 },
+            { name: 'Depth 2 — Copper Veins', value: 2 },
+            { name: 'Depth 3 — Iron Delve', value: 3 },
+            { name: 'Depth 4 — Silverworks', value: 4 },
+            { name: 'Depth 5 — Gilded Depths', value: 5 },
+            { name: 'Depth 6 — Cobalt Hollow', value: 6 },
+            { name: 'Depth 7 — Adamant Abyss', value: 7 },
+          )
+          .setRequired(true)))
+      .addSubcommand((subcommand) => subcommand
+        .setName('view')
+        .setDescription('View your current minecart phase and stored cargo.'))
+      .addSubcommand((subcommand) => subcommand
+        .setName('return')
+        .setDescription('Stop mining and start the minecart ascent.')))
+    .addSubcommand((subcommand) => subcommand
+      .setName('shop')
+      .setDescription('Browse and craft permanent mining upgrades.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('inventory')
+      .setDescription('View ores, gems, fossils, and mining equipment.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('sell')
+      .setDescription('Sell a processor-ready ore or gem for KnowBucks.')
+      .addStringOption((option) => option
+        .setName('resource')
+        .setDescription('Ore or gem to sell, such as Copper, Ruby, or Moissanite.')
+        .setMinLength(2)
+        .setMaxLength(50)
+        .setRequired(true))
+      .addStringOption((option) => option
+        .setName('amount')
+        .setDescription('A positive whole number or all.')
+        .setMinLength(1)
+        .setMaxLength(12)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('help')
+      .setDescription('Learn how mining expeditions and progression work.')),
   createCollectionsCommand(),
   new SlashCommandBuilder()
     .setName('leaderboard')

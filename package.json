@@ -12,6 +12,7 @@
     "discord:start": "npm run start --workspace=@knowleague/discord-bot",
     "discord:check": "npm run check --workspace=@knowleague/discord-bot",
     "discord:commands:register": "npm run commands:register --workspace=@knowleague/discord-bot",
+    "discord:minigame-tiers:generate": "npm run minigame-tiers:generate --workspace=@knowleague/discord-bot",
     "data:generate": "node scripts/generate-catalogs.mjs",
     "data:generate:discord-collections": "node scripts/generate-discord-collection-catalog.mjs",
     "data:generate:champion-abilities": "node scripts/generate-champion-ability-details.mjs",

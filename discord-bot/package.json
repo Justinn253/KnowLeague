@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "minigame-tiers:generate": "tsx src/generate-minigame-tier-references.ts",
+    "prebuild": "npm run minigame-tiers:generate",
+    "precheck": "npm run minigame-tiers:generate",
+    "predev": "npm run minigame-tiers:generate",
     "dev": "tsx watch src/index.ts",
     "build": "tsc --project tsconfig.json",
     "start": "node dist/index.js",

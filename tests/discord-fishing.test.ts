@@ -40,6 +40,8 @@ import {
   type FishingCatalogueProgress,
   type FishingEventCatalogueProgress,
 } from '../discord-bot/src/fishing';
+import { getDiscordMinigameTierReferences } from '../discord-bot/src/minigame-tier-references';
+import { FISHING_CATCH_CONFIG } from '../discord-bot/src/minigame-content-config';
 
 type SerializedSubcommand = {
   choices?: readonly unknown[];
@@ -137,6 +139,19 @@ describe('Discord fishing command contract', () => {
     expect(relic).toContain('Sea Star');
     expect(relic).not.toContain('Permanent relic');
     expect(fields.some((field) => field.name.startsWith('Crates') || field.name.startsWith('Crate loot'))).toBe(false);
+  });
+});
+
+describe('Discord minigame tier references', () => {
+  it('renders every Fishing biome catch with its rarity and standard sell value', () => {
+    const fishingReference = getDiscordMinigameTierReferences().find((reference) => reference.fileName === 'fishing-tiers.md');
+
+    expect(fishingReference?.contents).toContain('### Harbor');
+    expect(fishingReference?.contents).toContain('| Carp | Common | 5–8 |');
+    expect(fishingReference?.contents).toContain('| Whale | Legendary | 1,800–2,475 (base 120–165 ×15) |');
+    expect(fishingReference?.contents).toContain('## Fishing progression tiers');
+    expect(fishingReference?.contents).toContain('minigame-content-config.ts');
+    expect(FISHING_FISH).toHaveLength(FISHING_CATCH_CONFIG.length);
   });
 });
 

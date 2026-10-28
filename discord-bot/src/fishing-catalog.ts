@@ -1,3 +1,5 @@
+import { FISHING_BALANCE_CONFIG, FISHING_CATCH_CONFIG } from './minigame-content-config.js';
+
 export const FISHING_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic'] as const;
 export const FISHING_CRATE_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] as const;
 
@@ -329,22 +331,10 @@ export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
   { id: 'crew-2', name: 'Crew 2 Contract', category: 'crew', cost: 250_000, requiredFishingLevel: 80, description: 'Unlocks Crew 2. Requires Crew 1; crew expeditions take 3x as long.' },
 ] as const;
 
-const fish = (biomeId: FishingBiomeId, id: string, name: string, rarity: FishingRarity, minSaleValue: number, maxSaleValue: number, tags: readonly string[] = []): FishingFish => ({ biomeId, id, name, rarity, minSaleValue, maxSaleValue, tags });
-
-export const FISHING_FISH: readonly FishingFish[] = [
-  fish('harbor', 'carp', 'Carp', 'Common', 5, 8, ['silver']), fish('harbor', 'bluegill', 'Bluegill', 'Common', 5, 8, ['silver']), fish('harbor', 'trout', 'Trout', 'Common', 6, 9, ['silver']),
-  fish('harbor', 'salmon', 'Salmon', 'Uncommon', 9, 13, ['silver']), fish('harbor', 'bass', 'Bass', 'Uncommon', 9, 13), fish('harbor', 'pike', 'Pike', 'Uncommon', 10, 14),
-  fish('harbor', 'piranha', 'Piranha', 'Rare', 15, 22), fish('harbor', 'clownfish', 'Clownfish', 'Rare', 15, 22), fish('harbor', 'tuna', 'Tuna', 'Rare', 17, 24, ['deep']),
-  fish('harbor', 'turtle', 'Turtle', 'Epic', 32, 45), fish('harbor', 'swordfish', 'Swordfish', 'Epic', 35, 50, ['deep']), fish('harbor', 'lionfish', 'Lionfish', 'Epic', 34, 48),
-  fish('harbor', 'alligator', 'Alligator', 'Legendary', 100, 140), fish('harbor', 'shark', 'Shark', 'Legendary', 110, 150, ['deep']), fish('harbor', 'whale', 'Whale', 'Legendary', 120, 165, ['deep']), fish('harbor', 'giant-squid', 'Giant Squid', 'Legendary', 115, 160, ['deep']),
-
-  fish('warm-ocean', 'ocean-fish', 'Fish', 'Common', 8, 12), fish('warm-ocean', 'tropical-fish', 'Tropical Fish', 'Uncommon', 14, 20), fish('warm-ocean', 'pufferfish', 'Pufferfish', 'Rare', 26, 36), fish('warm-ocean', 'dolphin', 'Dolphin', 'Epic', 60, 85), fish('warm-ocean', 'guardian', 'Guardian', 'Epic', 65, 90), fish('warm-ocean', 'elder-guardian', 'Elder Guardian', 'Legendary', 180, 250),
-  fish('hydroplant-reservoir', 'antefish', 'Antefish', 'Common', 15, 20), fish('hydroplant-reservoir', 'portal-fish', 'Portal Fish', 'Uncommon', 25, 35), fish('hydroplant-reservoir', 'is-0098', 'IS0098', 'Rare', 45, 65), fish('hydroplant-reservoir', 'darkwater-fish', 'Darkwater Fish', 'Epic', 100, 145, ['deep']), fish('hydroplant-reservoir', 'corruscating-portal-fish', 'Corruscating Portal Fish', 'Legendary', 350, 500), fish('hydroplant-reservoir', 'amaranthic-is-0098', 'Amaranthic IS-0098', 'Legendary', 360, 510), fish('hydroplant-reservoir', 'saxe-darkwater-fish', 'Saxe Darkwater Fish', 'Legendary', 370, 520, ['deep']), fish('hydroplant-reservoir', 'darkwater-beast', 'Darkwater Beast', 'Legendary', 390, 550, ['deep']),
-  fish('sunken-sea', 'greenwave-loach', 'Greenwave Loach', 'Common', 30, 45), fish('sunken-sea', 'prismatic-guppy', 'Prismatic Guppy', 'Uncommon', 55, 75), fish('sunken-sea', 'clam', 'Clam', 'Rare', 90, 130), fish('sunken-sea', 'eutrophic-ray', 'Eutrophic Ray', 'Rare', 100, 140), fish('sunken-sea', 'ghost-bell', 'Ghost Bell', 'Epic', 200, 300), fish('sunken-sea', 'prism-back', 'Prism-Back', 'Epic', 220, 320), fish('sunken-sea', 'giant-clam', 'Giant Clam', 'Legendary', 700, 1_000),
-  fish('kelp-forest', 'jellyfish', 'Jellyfish', 'Common', 50, 70), fish('kelp-forest', 'nematodes', 'Nematodes', 'Common', 50, 70), fish('kelp-forest', 'groovy-jelly', 'Groovy Jelly', 'Uncommon', 80, 115), fish('kelp-forest', 'aggressive-jelly', 'Aggressive Jelly', 'Rare', 140, 200), fish('kelp-forest', 'seahorse', 'Seahorse', 'Epic', 320, 450), fish('kelp-forest', 'king-jelly', 'King Jelly', 'Epic', 340, 470), fish('kelp-forest', 'spongebob', 'Spongebob', 'Legendary', 1_150, 1_600), fish('kelp-forest', 'squidward', 'Squidward', 'Legendary', 1_150, 1_600), fish('kelp-forest', 'patrick', 'Patrick', 'Legendary', 1_200, 1_650), fish('kelp-forest', 'gary', 'Gary', 'Legendary', 1_100, 1_550),
-  fish('crystaline-caverns', 'glyphid-swarmer', 'Glyphid Swarmer', 'Common', 75, 100), fish('crystaline-caverns', 'glyphid-exploder', 'Glyphid Exploder', 'Common', 75, 100), fish('crystaline-caverns', 'glyphid-grunt', 'Glyphid Grunt', 'Common', 80, 105), fish('crystaline-caverns', 'glyphid-web-spitter', 'Glyphid Web Spitter', 'Uncommon', 120, 170), fish('crystaline-caverns', 'glyphid-acid-spitter', 'Glyphid Acid Spitter', 'Uncommon', 125, 175), fish('crystaline-caverns', 'glyphid-slasher', 'Glyphid Slasher', 'Rare', 220, 310), fish('crystaline-caverns', 'glyphid-guard', 'Glyphid Guard', 'Rare', 230, 320), fish('crystaline-caverns', 'lootbug', 'Lootbug', 'Rare', 240, 330), fish('crystaline-caverns', 'glyphid-praetorian', 'Glyphid Praetorian', 'Epic', 500, 700), fish('crystaline-caverns', 'golden-lootbug', 'Golden Lootbug', 'Epic', 550, 750), fish('crystaline-caverns', 'glyphid-warden', 'Glyphid Warden', 'Epic', 520, 720), fish('crystaline-caverns', 'glyphid-dreadnought', 'Glyphid Dreadnought', 'Legendary', 1_800, 2_500), fish('crystaline-caverns', 'glyphid-hiveguard', 'Glyphid Hiveguard', 'Legendary', 1_850, 2_550), fish('crystaline-caverns', 'glyphid-bulk-detonator', 'Glyphid Bulk Detonator', 'Legendary', 1_900, 2_600), fish('crystaline-caverns', 'glyphid-oppressor', 'Glyphid Oppressor', 'Legendary', 1_900, 2_600),
-  fish('rallypoint-delta', 'lemurian', 'Lemurian', 'Common', 120, 160), fish('rallypoint-delta', 'lesser-wisp', 'Lesser Wisp', 'Common', 125, 165), fish('rallypoint-delta', 'stone-golem', 'Stone Golem', 'Uncommon', 200, 275), fish('rallypoint-delta', 'imp', 'Imp', 'Uncommon', 210, 285), fish('rallypoint-delta', 'greater-wisp', 'Greater Wisp', 'Rare', 360, 500), fish('rallypoint-delta', 'bighorn-bison', 'Bighorn Bison', 'Rare', 375, 525), fish('rallypoint-delta', 'void-reaver', 'Void Reaver', 'Epic', 850, 1_200), fish('rallypoint-delta', 'clay-dunestrider', 'Clay Dunestrider', 'Legendary', 3_000, 4_250), fish('rallypoint-delta', 'imp-overlord', 'Imp Overlord', 'Legendary', 3_100, 4_350), fish('rallypoint-delta', 'magma-worm', 'Magma Worm', 'Legendary', 3_200, 4_500), fish('rallypoint-delta', 'scavenger', 'Scavenger', 'Legendary', 3_000, 4_250),
-] as const;
+export const FISHING_FISH: readonly FishingFish[] = FISHING_CATCH_CONFIG.map((catchConfig) => ({
+  ...catchConfig,
+  tags: [...('tags' in catchConfig ? catchConfig.tags : [])],
+}));
 
 /** Reserved for the Mythic fish catalogue. Mythic catches are intentionally not live yet. */
 export const FISHING_MYTHIC_FISH: readonly FishingFish[] = [];
@@ -490,25 +480,16 @@ export const FISHING_CRATE_LOOT: readonly FishingCrateLoot[] = [
 const rarityRank: Record<FishingRarity, number> = { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4, Mythic: 5 };
 /** Base fish selection weights before rod, bait, skill, Relic, and event modifiers. */
 export const FISHING_FISH_RARITY_WEIGHTS: Readonly<Record<FishingRarity, number>> = {
-  Common: 1_000,
-  Uncommon: 200,
-  Rare: 50,
-  Epic: 10,
-  Legendary: 0.1,
-  Mythic: 0,
+  ...FISHING_BALANCE_CONFIG.fishRarityWeights,
 };
 /** Legendary catches receive this multiplier before Relic, role, and event bonuses. */
-export const FISHING_LEGENDARY_FISH_SALE_MULTIPLIER = 15;
+export const FISHING_LEGENDARY_FISH_SALE_MULTIPLIER = FISHING_BALANCE_CONFIG.legendaryFishSaleMultiplier;
 /** 25% lower than the immediately preceding 7.5 XP-per-roll beta balance. */
-export const FISHING_EXPEDITION_XP_PER_BASE_CATCH = 5.625;
+export const FISHING_EXPEDITION_XP_PER_BASE_CATCH = FISHING_BALANCE_CONFIG.expeditionXpPerBaseCatch;
 const PREVIOUS_FISHING_EXPEDITION_XP_PER_BASE_CATCH = 7.5;
 const LEGACY_FISHING_EXPEDITION_XP_PER_BASE_CATCH = 30;
 export const FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, number>> = {
-  Common: 15,
-  Uncommon: 37.5,
-  Rare: 112.5,
-  Epic: 375,
-  Legendary: 1_500,
+  ...FISHING_BALANCE_CONFIG.crateXpByRarity,
 };
 const PREVIOUS_FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, number>> = {
   Common: 20,
@@ -517,10 +498,10 @@ const PREVIOUS_FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, n
   Epic: 500,
   Legendary: 2_000,
 };
-export const FISHING_CRATE_DROP_RATES: Readonly<Record<FishingCrateRarity, number>> = { Common: 0.05, Uncommon: 0.025, Rare: 0.0125, Epic: 0.0025, Legendary: 0.00025 };
+export const FISHING_CRATE_DROP_RATES: Readonly<Record<FishingCrateRarity, number>> = FISHING_BALANCE_CONFIG.crateDropRates;
 const crateLootRarityWeight: Record<FishingCrateRarity, number> = { Common: 1_000, Uncommon: 200, Rare: 50, Epic: 10, Legendary: 1 };
 /** Base chance per expedition catch roll: 0.01%, which is 10% of the prior 0.1% rate. */
-export const FISHING_RELIC_DROP_RATE = 0.0001;
+export const FISHING_RELIC_DROP_RATE = FISHING_BALANCE_CONFIG.relicDropRate;
 
 /** Uses the same cumulative curve as character/chat levels. */
 export function getFishingTotalXpForLevel(level: number) {

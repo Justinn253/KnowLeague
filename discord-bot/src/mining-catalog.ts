@@ -1,3 +1,5 @@
+import { MINING_DEPTH_CONFIG, MINING_REWARD_WEIGHT_CONFIG } from './minigame-content-config.js';
+
 export type MiningDepthId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type MiningResourceKind = 'ore' | 'gem' | 'fossil';
 export type MiningUpgradeCategory = 'tool' | 'storage' | 'processor' | 'elevator' | 'filter';
@@ -54,114 +56,12 @@ export type MiningResult = {
   storageUsed: number;
 };
 
-const resource = (
-  depth: MiningDepthId,
-  kind: MiningResourceKind,
-  id: string,
-  name: string,
-  options: Pick<MiningResource, 'processorTier' | 'saleValue'> = {},
-): MiningResource => ({ depth, kind, id, name, ...options });
-
-const fossil = (depth: MiningDepthId, id: string, name: string) => resource(depth, 'fossil', id, `${name} Fossil`);
-
 /**
- * Each depth follows its matching Fishing region's economy: the first and
- * second ores approximate common and uncommon fish, while gems approximate
- * rare and epic fish. Values are centralized so stored inventory survives
- * future balancing changes.
+ * Each depth follows its matching Fishing region's economy. The editable
+ * resource, depth, processor-tier, and sale-value data lives in the shared
+ * minigame content configuration.
  */
-export const MINING_DEPTHS: readonly MiningDepth[] = [
-  {
-    id: 1,
-    name: 'Shallow Quarry',
-    descendAndAscendMs: 5_000,
-    ores: [resource(1, 'ore', 'coal', 'Coal', { saleValue: 7 }), resource(1, 'ore', 'quartz', 'Quartz', { saleValue: 11 })],
-    gems: [resource(1, 'gem', 'opal', 'Opal', { saleValue: 20 }), resource(1, 'gem', 'pearl', 'Pearl', { saleValue: 40 })],
-    fossils: [
-      fossil(1, 'compsognathus-fossil', 'Compsognathus'), fossil(1, 'microraptor-fossil', 'Microraptor'),
-      fossil(1, 'archaeopteryx-fossil', 'Archaeopteryx'), fossil(1, 'psittacosaurus-fossil', 'Psittacosaurus'),
-      fossil(1, 'protoceratops-fossil', 'Protoceratops'),
-    ],
-  },
-  {
-    id: 2,
-    name: 'Copper Veins',
-    descendAndAscendMs: 30_000,
-    requiredToolId: 'stone-pickaxe',
-    ores: [resource(2, 'ore', 'copper', 'Copper', { processorTier: 1, saleValue: 10 }), resource(2, 'ore', 'tin', 'Tin', { processorTier: 1, saleValue: 17 })],
-    gems: [resource(2, 'gem', 'jade', 'Jade', { saleValue: 31 }), resource(2, 'gem', 'emerald', 'Emerald', { saleValue: 75 })],
-    fossils: [
-      fossil(2, 'stegosaurus-fossil', 'Stegosaurus'), fossil(2, 'iguanodon-fossil', 'Iguanodon'),
-      fossil(2, 'parasaurolophus-fossil', 'Parasaurolophus'), fossil(2, 'dilophosaurus-fossil', 'Dilophosaurus'),
-      fossil(2, 'allosaurus-fossil', 'Allosaurus'),
-    ],
-  },
-  {
-    id: 3,
-    name: 'Iron Delve',
-    descendAndAscendMs: 60_000,
-    requiredToolId: 'weak-metal-pickaxe',
-    ores: [resource(3, 'ore', 'iron', 'Iron', { processorTier: 2, saleValue: 18 }), resource(3, 'ore', 'lead', 'Lead', { processorTier: 2, saleValue: 30 })],
-    gems: [resource(3, 'gem', 'ruby', 'Ruby', { saleValue: 55 }), resource(3, 'gem', 'garnet', 'Garnet', { saleValue: 123 })],
-    fossils: [
-      fossil(3, 'ankylosaurus-fossil', 'Ankylosaurus'), fossil(3, 'pachycephalosaurus-fossil', 'Pachycephalosaurus'),
-      fossil(3, 'baryonyx-fossil', 'Baryonyx'), fossil(3, 'carnotaurus-fossil', 'Carnotaurus'),
-      fossil(3, 'camarasaurus-fossil', 'Camarasaurus'),
-    ],
-  },
-  {
-    id: 4,
-    name: 'Silverworks',
-    descendAndAscendMs: 120_000,
-    requiredToolId: 'rudimentary-pickaxe',
-    ores: [resource(4, 'ore', 'silver', 'Silver', { processorTier: 3, saleValue: 38 }), resource(4, 'ore', 'tungsten', 'Tungsten', { processorTier: 3, saleValue: 65 })],
-    gems: [resource(4, 'gem', 'topaz', 'Topaz', { saleValue: 115 }), resource(4, 'gem', 'sapphire', 'Sapphire', { saleValue: 260 })],
-    fossils: [
-      fossil(4, 'triceratops-fossil', 'Triceratops'), fossil(4, 'spinosaurus-fossil', 'Spinosaurus'),
-      fossil(4, 'velociraptor-fossil', 'Velociraptor'), fossil(4, 'diplodocus-fossil', 'Diplodocus'),
-      fossil(4, 'argentinosaurus-fossil', 'Argentinosaurus'),
-    ],
-  },
-  {
-    id: 5,
-    name: 'Gilded Depths',
-    descendAndAscendMs: 300_000,
-    requiredToolId: 'reinforced-pickaxe',
-    ores: [resource(5, 'ore', 'gold', 'Gold', { processorTier: 4, saleValue: 60 }), resource(5, 'ore', 'platinum', 'Platinum', { processorTier: 4, saleValue: 98 })],
-    gems: [resource(5, 'gem', 'amethyst', 'Amethyst', { saleValue: 170 }), resource(5, 'gem', 'aquamarine', 'Aquamarine', { saleValue: 395 })],
-    fossils: [
-      fossil(5, 'tyrannosaurus-fossil', 'Tyrannosaurus'), fossil(5, 'giganotosaurus-fossil', 'Giganotosaurus'),
-      fossil(5, 'therizinosaurus-fossil', 'Therizinosaurus'), fossil(5, 'deinonychus-fossil', 'Deinonychus'),
-      fossil(5, 'apatosaurus-fossil', 'Apatosaurus'),
-    ],
-  },
-  {
-    id: 6,
-    name: 'Cobalt Hollow',
-    descendAndAscendMs: 600_000,
-    requiredToolId: 'sturdy-drill',
-    ores: [resource(6, 'ore', 'cobalt', 'Cobalt', { processorTier: 5, saleValue: 90 }), resource(6, 'ore', 'palladium', 'Palladium', { processorTier: 5, saleValue: 148 })],
-    gems: [resource(6, 'gem', 'citrine', 'Citrine', { saleValue: 270 }), resource(6, 'gem', 'peridot', 'Peridot', { saleValue: 650 })],
-    fossils: [
-      fossil(6, 'utahraptor-fossil', 'Utahraptor'), fossil(6, 'carcharodontosaurus-fossil', 'Carcharodontosaurus'),
-      fossil(6, 'oviraptor-fossil', 'Oviraptor'), fossil(6, 'mamenchisaurus-fossil', 'Mamenchisaurus'),
-      fossil(6, 'styracosaurus-fossil', 'Styracosaurus'),
-    ],
-  },
-  {
-    id: 7,
-    name: 'Adamant Abyss',
-    descendAndAscendMs: 1_800_000,
-    requiredToolId: 'advanced-drill',
-    ores: [resource(7, 'ore', 'titanium', 'Titanium', { processorTier: 6, saleValue: 142 }), resource(7, 'ore', 'adamantite', 'Adamantite', { processorTier: 6, saleValue: 242 })],
-    gems: [resource(7, 'gem', 'diamond', 'Diamond', { saleValue: 440 }), resource(7, 'gem', 'moissanite', 'Moissanite', { saleValue: 1_025 })],
-    fossils: [
-      fossil(7, 'yutyrannus-fossil', 'Yutyrannus'), fossil(7, 'mapusaurus-fossil', 'Mapusaurus'),
-      fossil(7, 'dreadnoughtus-fossil', 'Dreadnoughtus'), fossil(7, 'deinocheirus-fossil', 'Deinocheirus'),
-      fossil(7, 'acrocanthosaurus-fossil', 'Acrocanthosaurus'),
-    ],
-  },
-] as const;
+export const MINING_DEPTHS: readonly MiningDepth[] = MINING_DEPTH_CONFIG;
 
 const recipe = (...items: Array<[string, number]>): readonly MiningRecipeItem[] => (
   items.map(([resourceId, quantity]) => ({ resourceId, quantity }))
@@ -201,7 +101,7 @@ export const MINING_UPGRADES: readonly MiningUpgrade[] = [
   { id: 'advanced-ore-detector', name: 'Advanced Ore Detector', category: 'filter', value: 3, previousUpgradeId: 'filtering-system', recipe: recipe(['iron', 100], ['lead', 100], ['ruby', 10]), description: 'Discards 75% of stone before it reaches storage.' },
 ] as const;
 
-export const MINING_REWARD_WEIGHTS = { fossil: 1, gem: 10, ore: 100, stone: 500 } as const;
+export const MINING_REWARD_WEIGHTS = MINING_REWARD_WEIGHT_CONFIG;
 
 export function getMiningDepth(depthId: number) {
   return MINING_DEPTHS.find((depth) => depth.id === depthId);

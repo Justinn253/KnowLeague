@@ -17,6 +17,68 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-28-discord-minigame-content-configuration',
+    patch: 'patch-2026-10-28-discord-minigame-content-configuration',
+    timestamp: '2026-10-28T00:45:00.000Z',
+    title: 'Centralize editable Discord minigame content and balance data',
+    summary:
+      'Fishing catches and balance values, plus every Mining depth and resource, now live in one typed configuration module rather than inside gameplay logic.',
+    details: [
+      'The new configuration gives each standard fish an editable name, biome, rarity, tags, and minimum/maximum sale value. It also centralizes Fishing rarity weights, legendary value multiplier, expedition XP, crate XP and drop rates, and relic chance.',
+      'Mining depth names, unlock requirements, travel time, ores, gems, fossils, processor tiers, sale values, and reward weights are editable in the same module.',
+      'Fishing and Mining catalogues now consume the configuration directly, preserving their existing types, deterministic resolution, and validation logic. The generated local tier reports explicitly direct maintainers to the editable source.',
+      'Focused coverage confirms the configuration drives the live catalogues and the generated reports continue to expose the configured entries.',
+    ],
+    impact: [
+      'Maintainers can rebalance a fish or mining resource by editing `discord-bot/src/minigame-content-config.ts`, then use the existing generator or normal Discord development/check/build workflow to refresh their ignored tier reports.',
+      'No player data, database records, command definitions, or browser code changed. Existing stored inventory IDs retain their meanings because all entry IDs are unchanged.',
+    ],
+    files: [
+      'discord-bot/src/minigame-content-config.ts',
+      'discord-bot/src/fishing-catalog.ts',
+      'discord-bot/src/mining-catalog.ts',
+      'discord-bot/src/minigame-tier-references.ts',
+      'tests/discord-fishing.test.ts',
+      'tests/discord-mining.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Discord type checks, the local tier-report generator, focused Fishing/Mining coverage, the full project check, and whitespace validation are run after this patch.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-28-discord-minigame-tier-references',
+    patch: 'patch-2026-10-28-discord-minigame-tier-references',
+    timestamp: '2026-10-28T00:30:00.000Z',
+    title: 'Generate local Discord minigame tier references',
+    summary:
+      'Fishing and Mining now generate gitignored Markdown balance references directly from their authoritative Discord catalogues.',
+    details: [
+      'The Fishing report lists base rarity weights, expedition-length tiers, every biome catch with rarity and sell-value range, auto-opened crate loot, active event catches, and the complete Fishing progression catalogue.',
+      'The Mining report lists base reward weights, every depth and resource with type, processor tier, and sell value, plus all crafting and progression tiers.',
+      'The files are rendered from the live TypeScript catalogues rather than duplicated balance data, so each generator run reflects source changes without manually editing the reports.',
+      'Generation runs before Discord development, type checking, and builds; the development bot also refreshes the reports on every watched restart after catalogue edits. Maintainers can run the root `discord:minigame-tiers:generate` command on demand.',
+    ],
+    impact: [
+      'Maintainers have local, readable balance sheets at `data/runtime/discord-minigame-tiers/fishing-tiers.md` and `data/runtime/discord-minigame-tiers/mining-tiers.md`.',
+      'The generated directory remains under the existing gitignored `data/runtime` path, so local balance inspection never creates version-control noise. Production bot startup does not write these local references.',
+    ],
+    files: [
+      'discord-bot/src/minigame-tier-references.ts',
+      'discord-bot/src/generate-minigame-tier-references.ts',
+      'discord-bot/src/index.ts',
+      'discord-bot/package.json',
+      'package.json',
+      'tests/discord-fishing.test.ts',
+      'tests/discord-mining.test.ts',
+      'lib/staff-changelog.ts',
+    ],
+    verification: [
+      'Focused reference-rendering assertions cover Fishing catch/rarity/value rows and Mining depth/resource/value rows.',
+      'The local generator and standard Discord verification are run after this change.',
+    ],
+  },
+  {
     id: 'patch-2026-10-28-mining-exact-inventory-consumption',
     patch: 'patch-2026-10-28-mining-exact-inventory-consumption',
     timestamp: '2026-10-28T00:24:00.000Z',

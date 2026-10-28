@@ -14,6 +14,8 @@ import {
   resolveMiningExpedition,
   type MiningEquipmentSnapshot,
 } from '../discord-bot/src/mining-catalog';
+import { getDiscordMinigameTierReferences } from '../discord-bot/src/minigame-tier-references';
+import { MINING_DEPTH_CONFIG } from '../discord-bot/src/minigame-content-config';
 
 type SerializedCommandOption = {
   name: string;
@@ -131,6 +133,20 @@ describe('Discord mining catalogue', () => {
         expect(item.quantity).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+describe('Discord Mining tier reference', () => {
+  it('renders every depth resource and its authoritative sell value', () => {
+    const miningReference = getDiscordMinigameTierReferences().find((reference) => reference.fileName === 'mining-tiers.md');
+
+    expect(miningReference?.contents).toContain('### Depth 1: Shallow Quarry');
+    expect(miningReference?.contents).toContain('| Coal | ore | — | 7 |');
+    expect(miningReference?.contents).toContain('| Moissanite | gem | — | 1,025 |');
+    expect(miningReference?.contents).toContain('| Compsognathus Fossil | fossil | — | Not sellable |');
+    expect(miningReference?.contents).toContain('## Mining progression tiers');
+    expect(miningReference?.contents).toContain('minigame-content-config.ts');
+    expect(MINING_DEPTHS).toEqual(MINING_DEPTH_CONFIG);
   });
 });
 

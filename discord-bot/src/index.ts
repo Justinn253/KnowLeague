@@ -18,7 +18,17 @@ import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panel
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
 import { maybeAwardDisboardBump } from './disboard.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
+import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
 import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
+
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    const outputPaths = await writeDiscordMinigameTierReferences();
+    console.info(`Updated local Discord minigame tier references:\n${outputPaths.map((path) => `- ${path}`).join('\n')}`);
+  } catch (error) {
+    console.error('Discord minigame tier reference generation failed.', error);
+  }
+}
 
 const config = loadBotConfig();
 const client = new Client({ intents: [

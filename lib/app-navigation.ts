@@ -1,4 +1,11 @@
-import { GAME_NAVIGATION_ITEMS, type Accent, type GameMode } from '@/lib/game-navigation';
+import {
+  GAME_NAVIGATION_ITEMS,
+  LEAGUE_GAME_NAVIGATION_ITEMS,
+  ORIGINAL_GAME_NAVIGATION_ITEMS,
+  type Accent,
+  type GameLink,
+  type GameMode,
+} from '@/lib/game-navigation';
 
 /** Shared navigation metadata used by responsive headers and the drawer. */
 export const GAME_ACCENT_CLASSES: Record<Accent, string> = {
@@ -20,13 +27,19 @@ const masteryMasterGame = GAME_NAVIGATION_ITEMS.find((game) => game.id === 'mast
 export const AUGMENT_BUILDER_GAME = GAME_NAVIGATION_ITEMS.find((game) => game.id === 'augment-builder');
 export const RANDODRAFT_GAME = GAME_NAVIGATION_ITEMS.find((game) => game.id === 'randodraft');
 
-const gamesWithoutMasteryMaster = GAME_NAVIGATION_ITEMS.filter(
+const leagueGamesWithoutMasteryMaster = LEAGUE_GAME_NAVIGATION_ITEMS.filter(
   (game) => game !== masteryMasterGame && game.id !== 'augment-builder',
 );
+const originalGames = ORIGINAL_GAME_NAVIGATION_ITEMS.filter((game) => game.id !== 'augment-builder');
 
-export const GAMES_FOR_HEADER = masteryMasterGame
-  ? [...gamesWithoutMasteryMaster.slice(0, 3), masteryMasterGame, ...gamesWithoutMasteryMaster.slice(3)]
-  : GAME_NAVIGATION_ITEMS.filter((game) => game.id !== 'augment-builder');
+function placeMasteryMaster(games: GameLink[]) {
+  return masteryMasterGame
+    ? [...games.slice(0, 3), masteryMasterGame, ...games.slice(3)]
+    : games;
+}
 
-export const GAMES_FOR_DRAWER = GAME_NAVIGATION_ITEMS.filter((game) => game.id !== 'augment-builder');
+export const LEAGUE_GAMES_FOR_HEADER = placeMasteryMaster(leagueGamesWithoutMasteryMaster);
+export const ORIGINAL_GAMES_FOR_HEADER = originalGames;
+export const LEAGUE_GAMES_FOR_DRAWER = LEAGUE_GAME_NAVIGATION_ITEMS.filter((game) => game.id !== 'augment-builder');
+export const ORIGINAL_GAMES_FOR_DRAWER = originalGames;
 export const MASTERY_MASTER_GAME = masteryMasterGame;

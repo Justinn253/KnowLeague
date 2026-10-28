@@ -39,6 +39,10 @@ import {
 } from '@/lib/discord-fishing';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
+type DiscordMiningCommandSettings = {
+  allChannels: boolean;
+};
+
 type LevelingSettingsResponse = {
   channels: DiscordGuildChannel[];
   collectionAdminRoleIds: string[];
@@ -58,7 +62,10 @@ type LevelingSettingsResponse = {
   fishingBonusSettings: DiscordFishingBonusSettings;
   fishingRoleRewards: DiscordFishingLevelRoleReward[];
   fishingRoleSettings: DiscordFishingRoleSettings;
-  skindleShareChannelId: string | null;
+  miningCommandChannelIds: string[];
+  miningCommandSettings: DiscordMiningCommandSettings;
+  miningWebsitePanelChannelIds: string[];
+  skindleShareChannelIds: string[];
 };
 
 const EMPTY_RESPONSE: LevelingSettingsResponse = {
@@ -80,13 +87,17 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
   fishingBonusSettings: DEFAULT_DISCORD_FISHING_BONUS_SETTINGS,
   fishingRoleRewards: [],
   fishingRoleSettings: DEFAULT_DISCORD_FISHING_ROLE_SETTINGS,
-  skindleShareChannelId: null,
+  miningCommandChannelIds: [],
+  miningCommandSettings: { allChannels: true },
+  miningWebsitePanelChannelIds: [],
+  skindleShareChannelIds: [],
 };
 
 const ALL_SKIN_CLAIM_CHANNELS_VALUE = '__all__';
 const ALL_GENERAL_COMMAND_CHANNELS_VALUE = '__all_general_commands__';
 const ALL_COLLECTIONS_COMMAND_CHANNELS_VALUE = '__all_collections_commands__';
 const ALL_FISHING_COMMAND_CHANNELS_VALUE = '__all_fishing_commands__';
+const ALL_MINING_COMMAND_CHANNELS_VALUE = '__all_mining_commands__';
 const FISHING_WEEKDAY_OPTIONS = [
   { value: '0', label: 'Sunday' },
   { value: '1', label: 'Monday' },
@@ -181,7 +192,7 @@ export function DiscordLevelingSettings() {
   const [data, setData] = useState<LevelingSettingsResponse>(EMPTY_RESPONSE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'leveling' | 'collections' | 'fishing'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'leveling' | 'collections' | 'fishing' | 'mining'>('general');
   const [message, setMessage] = useState('');
   const [rewardLevel, setRewardLevel] = useState('5');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
@@ -206,8 +217,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !('skindleShareChannelId' in body)) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, skindleShareChannelId: body.skindleShareChannelId ?? null });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, skindleShareChannelIds: body.skindleShareChannelIds });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -336,6 +347,30 @@ export function DiscordLevelingSettings() {
       fishingCommandSettings: { ...current.fishingCommandSettings, allChannels: fishingCommandChannelIds.length === 0 },
     };
   });
+  const toggleMiningCommandChannel = (channelId: string) => setData((current) => {
+    if (channelId === ALL_MINING_COMMAND_CHANNELS_VALUE) {
+      if (current.miningCommandSettings.allChannels) return current;
+      return {
+        ...current,
+        miningCommandChannelIds: [],
+        miningCommandSettings: { allChannels: true },
+      };
+    }
+    const miningCommandChannelIds = toggleId(current.miningCommandChannelIds, channelId);
+    return {
+      ...current,
+      miningCommandChannelIds,
+      miningCommandSettings: { allChannels: miningCommandChannelIds.length === 0 },
+    };
+  });
+  const toggleMiningWebsitePanelChannel = (channelId: string) => setData((current) => ({
+    ...current,
+    miningWebsitePanelChannelIds: toggleId(current.miningWebsitePanelChannelIds, channelId),
+  }));
+  const toggleSkindleShareChannel = (channelId: string) => setData((current) => ({
+    ...current,
+    skindleShareChannelIds: toggleId(current.skindleShareChannelIds, channelId),
+  }));
   const updateSkinClaimRarityWeight = (rarity: DiscordSkinClaimRarityWeight['rarity'], weight: number) => setData((current) => ({
     ...current,
     skinClaimRarityWeights: current.skinClaimRarityWeights.map((entry) => entry.rarity === rarity ? { ...entry, weight } : entry),
@@ -440,12 +475,15 @@ export function DiscordLevelingSettings() {
           fishingRoleRewards: data.fishingRoleRewards,
           fishingTopFisherRoleId: data.fishingRoleSettings.topFisherRoleId,
           fishingWeekdayPhenomena: data.fishingBonusSettings.weekdayPhenomena,
-          skindleShareChannelId: data.skindleShareChannelId,
+          miningCommandAllChannels: data.miningCommandSettings.allChannels,
+          miningCommandChannelIds: data.miningCommandChannelIds,
+          miningWebsitePanelChannelIds: data.miningWebsitePanelChannelIds,
+          skindleShareChannelIds: data.skindleShareChannelIds,
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !('skindleShareChannelId' in body)) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, skindleShareChannelId: body.skindleShareChannelId ?? null });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, skindleShareChannelIds: body.skindleShareChannelIds });
       setMessage('Discord Configuration saved. Fishing reward roles are granted when eligible members next gain Fishing XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
@@ -462,16 +500,17 @@ export function DiscordLevelingSettings() {
       </div>
       <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-5 sm:p-6">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Discord Configuration</p>
-        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">{activeTab === 'general' ? 'General settings' : activeTab === 'leveling' ? 'Chat leveling' : activeTab === 'collections' ? 'Skin collections' : 'Fishing'}</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{activeTab === 'general' ? 'Set server-wide Discord behavior for commands that do not have their own feature configuration.' : activeTab === 'leveling' ? 'Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.' : activeTab === 'collections' ? 'Configure random skin drops, collection capacity, KnowBucks costs, claiming grace periods, and rarity-based sale values.' : 'Choose where members can use the `/fish` command. Additional fishing controls will appear here as the game grows.'}</p>
+        <h1 className="mt-2 text-2xl font-black text-white sm:text-3xl">{activeTab === 'general' ? 'General settings' : activeTab === 'leveling' ? 'Chat leveling' : activeTab === 'collections' ? 'Skin collections' : activeTab === 'fishing' ? 'Fishing' : 'Mining'}</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{activeTab === 'general' ? 'Set server-wide Discord behavior for commands that do not have their own feature configuration.' : activeTab === 'leveling' ? 'Eligible non-bot messages earn XP with a per-member, server-wide cooldown. KnowLeague stores progression data only; it never stores Discord message text.' : activeTab === 'collections' ? 'Configure random skin drops, collection capacity, KnowBucks costs, claiming grace periods, and rarity-based sale values.' : activeTab === 'fishing' ? 'Choose where members can use the `/fish` command. Additional fishing controls will appear here as the game grows.' : 'Choose where members can use Mining commands and where players may post completed website Mining results.'}</p>
       </section>
       {loading ? <div className="mt-5 flex min-h-48 items-center justify-center rounded-3xl border border-white/10 bg-slate-950/80 text-sm font-semibold text-slate-300"><LoaderCircle size={20} className="mr-2 animate-spin text-amber-300" />Loading Discord Configuration…</div> : (
         <form onSubmit={save} className="mt-5 grid gap-5">
-          <div role="tablist" aria-label="Discord Configuration sections" className="inline-flex w-fit rounded-2xl border border-white/10 bg-slate-950/80 p-1">
+          <div role="tablist" aria-label="Discord Configuration sections" className="flex w-fit flex-wrap rounded-2xl border border-white/10 bg-slate-950/80 p-1">
             <button type="button" role="tab" aria-selected={activeTab === 'general'} onClick={() => setActiveTab('general')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'general' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>General</button>
             <button type="button" role="tab" aria-selected={activeTab === 'leveling'} onClick={() => setActiveTab('leveling')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'leveling' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Chat leveling</button>
             <button type="button" role="tab" aria-selected={activeTab === 'collections'} onClick={() => setActiveTab('collections')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'collections' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Collections</button>
             <button type="button" role="tab" aria-selected={activeTab === 'fishing'} onClick={() => setActiveTab('fishing')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'fishing' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Fishing</button>
+            <button type="button" role="tab" aria-selected={activeTab === 'mining'} onClick={() => setActiveTab('mining')} className={'min-h-10 rounded-xl px-4 text-sm font-black transition ' + (activeTab === 'mining' ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white')}>Mining</button>
           </div>
           {activeTab === 'general' ? <>
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
@@ -503,16 +542,18 @@ export function DiscordLevelingSettings() {
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>
               <h2 className="text-lg font-black text-white">Website Skindle results</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Optionally choose one channel for players who have linked their KnowLeague and Discord accounts to share a completed website Skindle. The bot posts the same spoiler-free result grid used by Discord Skindle.</p>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Optionally choose one or more channels for players who have linked their KnowLeague and Discord accounts to share a completed website Skindle. The bot posts the same spoiler-free result grid used by Discord Skindle.</p>
             </div>
             <div className="mt-4 max-w-xl">
               <AppSelectMenu
-                label="Completed website Skindle channel"
-                value={data.skindleShareChannelId ?? ''}
-                onChange={(channelId) => setData((current) => ({ ...current, skindleShareChannelId: channelId || null }))}
+                label="Completed website Skindle channels"
+                value={data.skindleShareChannelIds[0] ?? ''}
+                selectedValues={data.skindleShareChannelIds}
+                multiple
+                onToggle={toggleSkindleShareChannel}
                 disabled={!data.channels.some((channel) => channel.sendable)}
                 disabledDescription="No sendable Discord text channels have been synced yet."
-                headerDescription="No channel keeps website Skindle completions private to the website."
+                headerDescription="No selection keeps website Skindle completions private to the website."
                 searchable
                 searchPlaceholder="Type a channel name or ID"
                 options={[
@@ -580,6 +621,56 @@ export function DiscordLevelingSettings() {
                 />
               </div>
             </div>
+          </section>
+          </> : null}
+          {activeTab === 'mining' ? <>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Mining command channels</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Choose every channel where members may use <code>/mining</code>. All channels is the default; selecting one or more individual channels restricts every Mining command and its panel controls to those channels.</p>
+            </div>
+            <div className="mt-4 max-w-xl">
+              <AppSelectMenu
+                label="Channels where Mining commands are usable"
+                value={data.miningCommandSettings.allChannels ? ALL_MINING_COMMAND_CHANNELS_VALUE : data.miningCommandChannelIds[0] ?? ''}
+                selectedValues={data.miningCommandSettings.allChannels ? [ALL_MINING_COMMAND_CHANNELS_VALUE] : data.miningCommandChannelIds}
+                multiple
+                onToggle={toggleMiningCommandChannel}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="All channels permits Mining everywhere. Otherwise, choose one or more sendable channels."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: ALL_MINING_COMMAND_CHANNELS_VALUE, label: 'All channels', description: 'Allow /mining in every channel where the bot can receive commands.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Website Mining result channels</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Choose one or more channels where a player may explicitly post a completed Mining expedition from the KnowLeague website. Starts and recalls are never posted automatically.</p>
+            </div>
+            <div className="mt-4 max-w-xl">
+              <AppSelectMenu
+                label="Website Mining result channels"
+                value={data.miningWebsitePanelChannelIds[0] ?? ''}
+                selectedValues={data.miningWebsitePanelChannelIds}
+                multiple
+                onToggle={toggleMiningWebsitePanelChannel}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="No selection keeps completed website Mining results private to the website. When Mining commands are restricted, select result channels from that same allow-list so their Mine again control remains usable."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` }))}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">After a player explicitly posts a finished result, the connected bot delivers it within about 30 seconds. Delivery is durable: if the bot is restarting or the channel is temporarily unavailable, it retries later without exposing Discord credentials to the website.</p>
           </section>
           </> : null}
           {activeTab === 'fishing' ? <>

@@ -18,7 +18,7 @@ type DiscordProfileLinkRow = {
   discord_user_id: string | null;
 };
 
-type DiscordSkindleShareSettingsRow = {
+type DiscordSkindleShareChannelRow = {
   channel_id: string;
 };
 
@@ -71,23 +71,23 @@ export const POST = withApiMetrics('/api/skindle/discord-share', async function 
         .eq('user_id', user.id)
         .maybeSingle<DiscordProfileLinkRow>(),
       supabase
-        .from('discord_skindle_share_settings')
+        .from('discord_skindle_share_channels')
         .select('channel_id')
         .eq('guild_id', guildId)
-        .maybeSingle<DiscordSkindleShareSettingsRow>(),
+        .returns<DiscordSkindleShareChannelRow[]>(),
     ]);
     if (profileResult.error) throw profileResult.error;
     if (settingsResult.error) throw settingsResult.error;
 
     const discordUserId = profileResult.data?.discord_user_id;
-    const channelId = settingsResult.data?.channel_id;
-    if (!discordUserId || !channelId) {
+    const channelIds = [...new Set((settingsResult.data ?? []).map((setting) => setting.channel_id))];
+    if (!discordUserId || !channelIds.length) {
       return NextResponse.json({ queued: false });
     }
 
     const { error } = await supabase
       .from('discord_skindle_share_outbox')
-      .upsert({
+      .upsert(channelIds.map((channelId) => ({
         channel_id: channelId,
         date_key: getDailyDateKey(),
         discord_user_id: discordUserId,
@@ -96,7 +96,7 @@ export const POST = withApiMetrics('/api/skindle/discord-share', async function 
         progress_rows: progressRows,
         status: 'pending',
         user_id: user.id,
-      }, { onConflict: 'guild_id,user_id,date_key', ignoreDuplicates: true });
+      })), { onConflict: 'guild_id,user_id,date_key,channel_id', ignoreDuplicates: true });
     if (error) throw error;
 
     return NextResponse.json({ queued: true });

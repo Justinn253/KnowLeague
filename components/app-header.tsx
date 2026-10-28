@@ -31,7 +31,16 @@ import { DiscordMark } from '@/components/discord-mark';
 import { GameIconImage } from '@/components/game-asset-image';
 import { HeaderHoverNote } from '@/components/header-hover-note';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
-import { AUGMENT_BUILDER_GAME, GAME_ACCENT_CLASSES, GAME_MODE_LABELS, GAMES_FOR_HEADER, MASTERY_MASTER_GAME, RANDODRAFT_GAME } from '@/lib/app-navigation';
+import {
+  AUGMENT_BUILDER_GAME,
+  GAME_ACCENT_CLASSES,
+  GAME_MODE_LABELS,
+  LEAGUE_GAMES_FOR_HEADER,
+  MASTERY_MASTER_GAME,
+  ORIGINAL_GAMES_FOR_HEADER,
+  RANDODRAFT_GAME,
+} from '@/lib/app-navigation';
+import type { GameLink } from '@/lib/game-navigation';
 import type { AppRole } from '@/lib/moderation';
 import { getPublicProfileHref, shouldOpenProfileInNewTab } from '@/lib/profile-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
@@ -412,10 +421,10 @@ function HeaderDropdown({
   );
 }
 
-function GameMenuLinks({ onSelect }: { onSelect: () => void }) {
+function GameMenuLinks({ games, onSelect }: { games: readonly GameLink[]; onSelect: () => void }) {
   return (
     <>
-      {GAMES_FOR_HEADER.map((game) => {
+      {games.map((game) => {
         const GameIcon = game.gameIcon;
         return (
           <HeaderMenuLink
@@ -430,6 +439,19 @@ function GameMenuLinks({ onSelect }: { onSelect: () => void }) {
         );
       })}
     </>
+  );
+}
+
+function GameMenuGroup({ games, label, onSelect }: { games: readonly GameLink[]; label: string; onSelect: () => void }) {
+  if (!games.length) return null;
+
+  return (
+    <section aria-label={label}>
+      <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <GameMenuLinks games={games} onSelect={onSelect} />
+      </div>
+    </section>
   );
 }
 
@@ -478,8 +500,9 @@ function GamesMenu() {
       )}
     >
       {(closeMenu) => (
-        <div className="grid grid-cols-2 gap-2">
-          <GameMenuLinks onSelect={closeMenu} />
+        <div className="grid gap-4">
+          <GameMenuGroup label="League Games" games={LEAGUE_GAMES_FOR_HEADER} onSelect={closeMenu} />
+          <GameMenuGroup label="Original Games" games={ORIGINAL_GAMES_FOR_HEADER} onSelect={closeMenu} />
         </div>
       )}
     </HeaderDropdown>
@@ -696,7 +719,8 @@ function MobileHeaderMenu({
                 iconClassName="border-amber-200/25 bg-amber-300 text-slate-950"
                 onSelect={closeMenu}
               />
-              <GameMenuLinks onSelect={closeMenu} />
+              <GameMenuGroup label="League Games" games={LEAGUE_GAMES_FOR_HEADER} onSelect={closeMenu} />
+              <GameMenuGroup label="Original Games" games={ORIGINAL_GAMES_FOR_HEADER} onSelect={closeMenu} />
             </MobileMenuDisclosure>
             <MobileMenuDisclosure
               label="League Tools"

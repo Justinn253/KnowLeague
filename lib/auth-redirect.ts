@@ -5,6 +5,7 @@ const ACTIVE_GAME_PATH_PREFIXES = [
   '/carving-revelation',
   '/category-clash',
   '/mastery-master',
+  '/games/mining',
   '/multiplayer',
   '/skin-champion',
   '/skincognito',

@@ -2,6 +2,7 @@ import {
   Clock3,
   Dices,
   Eye,
+  Hammer,
   Search,
   ShieldQuestion,
   Sparkles,
@@ -15,9 +16,11 @@ import type { GameFamily, GameRouteId } from '@/lib/game-families';
 
 export type Accent = 'gold' | 'cyan' | 'rose' | 'violet' | 'emerald' | 'sky';
 export type GameMode = 'solo' | 'multiplayer' | 'hybrid';
+export type GameCatalogue = 'league' | 'original';
 
 export type GameLink = {
   id: GameRouteId;
+  catalogue: GameCatalogue;
   family: GameFamily;
   title: string;
   href: string;
@@ -37,13 +40,14 @@ export type GameLink = {
 
 export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   {
-    id: 'augment-builder', family: 'standalone', title: 'ARAM Mayhem Augments',
+    id: 'augment-builder', catalogue: 'league', family: 'standalone', title: 'ARAM Mayhem Augments',
     href: '/augment-builder', description: 'Browse, create, share, and rate community ARAM Mayhem augments.',
     imageUrl: '/backgrounds/Howling_Abyss_Landscape.png', gameIcon: Sparkles,
     mode: 'solo', accent: 'violet', kicker: 'Create & Share',
   },
   {
     id: 'skindle',
+    catalogue: 'league',
     family: 'daily-guess',
     title: 'Skindle',
     href: '/skindle',
@@ -60,6 +64,7 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   },
   {
     id: 'splash-scramble',
+    catalogue: 'league',
     family: 'splash-puzzle',
     title: 'Splash Scramble',
     href: '/splash-scramble',
@@ -74,6 +79,7 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   },
   {
     id: 'randodraft',
+    catalogue: 'league',
     family: 'standalone',
     title: 'Randodraft',
     href: '/randodraft',
@@ -86,6 +92,7 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   },
   {
     id: 'ability-blitz',
+    catalogue: 'league',
     family: 'solo-quiz',
     title: 'Ability Blitz',
     href: '/multiplayer/ability-blitz',
@@ -102,6 +109,7 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   },
   {
     id: 'skin-champion',
+    catalogue: 'league',
     family: 'solo-quiz',
     title: 'Skin Champion',
     href: '/multiplayer/skin-champion',
@@ -118,6 +126,7 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   },
   {
     id: 'skincognito',
+    catalogue: 'league',
     family: 'multiplayer-session',
     title: 'Skincognito',
     href: '/skincognito',
@@ -132,6 +141,7 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   },
   {
     id: 'carving-revelation',
+    catalogue: 'league',
     family: 'multiplayer-session',
     title: 'Carving Revelation',
     href: '/carving-revelation',
@@ -145,6 +155,7 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
   },
   {
     id: 'category-clash',
+    catalogue: 'league',
     family: 'multiplayer-session',
     title: 'Category Clash',
     href: '/category-clash',
@@ -157,7 +168,21 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     kicker: 'Last Player Standing',
   },
   {
+    id: 'mining',
+    catalogue: 'original',
+    family: 'standalone',
+    title: 'Mining',
+    href: '/games/mining',
+    description: 'Run persistent mining expeditions and manage shared Discord resources from the web.',
+    imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Malzahar_0.jpg',
+    gameIcon: Hammer,
+    mode: 'solo',
+    accent: 'gold',
+    kicker: 'Discord Companion',
+  },
+  {
     id: 'mastery-master',
+    catalogue: 'league',
     family: 'standalone',
     title: 'Mastery Master',
     href: '/mastery-master',
@@ -169,3 +194,6 @@ export const GAME_NAVIGATION_ITEMS: GameLink[] = [
     kicker: 'Mastery Challenge',
   },
 ];
+
+export const LEAGUE_GAME_NAVIGATION_ITEMS = GAME_NAVIGATION_ITEMS.filter((game) => game.catalogue === 'league');
+export const ORIGINAL_GAME_NAVIGATION_ITEMS = GAME_NAVIGATION_ITEMS.filter((game) => game.catalogue === 'original');

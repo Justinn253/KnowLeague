@@ -148,8 +148,12 @@ type StoredFishingWeekdayPhenomenonRow = {
   weekday: number;
 };
 
-type StoredSkindleShareSettingsRow = {
+type StoredChannelRow = {
   channel_id: string;
+};
+
+type StoredMiningCommandSettingsRow = {
+  command_all_channels: boolean;
 };
 
 type LevelingSettingsBody = {
@@ -163,6 +167,9 @@ type LevelingSettingsBody = {
   levelUpMessageChannelId?: unknown;
   levelUpMessageTemplate?: unknown;
   manualXpRoleIds?: unknown;
+  miningCommandAllChannels?: unknown;
+  miningCommandChannelIds?: unknown;
+  miningWebsitePanelChannelIds?: unknown;
   roleRewards?: unknown;
   skinClaimAllChannels?: unknown;
   skinClaimClaimGracePeriodSeconds?: unknown;
@@ -178,7 +185,7 @@ type LevelingSettingsBody = {
   skinClaimRarityWeights?: unknown;
   skinClaimSellValues?: unknown;
   skinClaimSummonBaseCost?: unknown;
-  skindleShareChannelId?: unknown;
+  skindleShareChannelIds?: unknown;
   fishingCommandAllChannels?: unknown;
   fishingCommandChannelIds?: unknown;
   fishingBonusRoleIds?: unknown;
@@ -331,7 +338,10 @@ async function getLevelingData(guildId: string) {
     fishingRoleRewardsResult,
     fishingBonusRolesResult,
     fishingWeekdayPhenomenaResult,
-    skindleShareSettingsResult,
+    skindleShareChannelsResult,
+    miningCommandSettingsResult,
+    miningCommandChannelsResult,
+    miningWebsitePanelChannelsResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
       .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
@@ -431,10 +441,25 @@ async function getLevelingData(guildId: string) {
       .order('phenomenon', { ascending: true })
       .order('weekday', { ascending: true })
       .returns<StoredFishingWeekdayPhenomenonRow[]>(),
-    supabase.from('discord_skindle_share_settings')
+    supabase.from('discord_skindle_share_channels')
       .select('channel_id')
       .eq('guild_id', guildId)
-      .maybeSingle<StoredSkindleShareSettingsRow>(),
+      .order('channel_id', { ascending: true })
+      .returns<StoredChannelRow[]>(),
+    supabase.from('discord_mining_command_settings')
+      .select('command_all_channels')
+      .eq('guild_id', guildId)
+      .maybeSingle<StoredMiningCommandSettingsRow>(),
+    supabase.from('discord_mining_command_channels')
+      .select('channel_id')
+      .eq('guild_id', guildId)
+      .order('channel_id', { ascending: true })
+      .returns<StoredChannelRow[]>(),
+    supabase.from('discord_mining_website_panel_channels')
+      .select('channel_id')
+      .eq('guild_id', guildId)
+      .order('channel_id', { ascending: true })
+      .returns<StoredChannelRow[]>(),
   ]);
 
   if (settingsResult.error) throw settingsResult.error;
@@ -457,7 +482,10 @@ async function getLevelingData(guildId: string) {
   if (fishingRoleRewardsResult.error) throw fishingRoleRewardsResult.error;
   if (fishingBonusRolesResult.error) throw fishingBonusRolesResult.error;
   if (fishingWeekdayPhenomenaResult.error) throw fishingWeekdayPhenomenaResult.error;
-  if (skindleShareSettingsResult.error) throw skindleShareSettingsResult.error;
+  if (skindleShareChannelsResult.error) throw skindleShareChannelsResult.error;
+  if (miningCommandSettingsResult.error) throw miningCommandSettingsResult.error;
+  if (miningCommandChannelsResult.error) throw miningCommandChannelsResult.error;
+  if (miningWebsitePanelChannelsResult.error) throw miningWebsitePanelChannelsResult.error;
 
   return {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
@@ -477,7 +505,10 @@ async function getLevelingData(guildId: string) {
     fishingCommandSettings: toFishingCommandSettings(fishingCommandSettingsResult.data),
     fishingRoleRewards: groupFishingRoleRewards(fishingRoleRewardsResult.data ?? []),
     fishingRoleSettings: toFishingRoleSettings(fishingCommandSettingsResult.data),
-    skindleShareChannelId: skindleShareSettingsResult.data?.channel_id ?? null,
+    skindleShareChannelIds: (skindleShareChannelsResult.data ?? []).map((channel) => channel.channel_id),
+    miningCommandSettings: { allChannels: miningCommandSettingsResult.data?.command_all_channels ?? true },
+    miningCommandChannelIds: (miningCommandChannelsResult.data ?? []).map((channel) => channel.channel_id),
+    miningWebsitePanelChannelIds: (miningWebsitePanelChannelsResult.data ?? []).map((channel) => channel.channel_id),
     fishingBonusSettings: toFishingBonusSettings(
       fishingBonusRolesResult.data ?? [],
       fishingWeekdayPhenomenaResult.data ?? [],
@@ -624,20 +655,24 @@ function parseSkinClaimChannelIds(value: unknown) {
   return channelIds;
 }
 
-function parseCommandChannelIds(value: unknown, label: string) {
-  if (!Array.isArray(value) || value.length > 100) {
-    throw new ApiError(400, `Provide up to 100 ${label} command channels.`);
+function parseChannelIds(value: unknown, label: string, maximum = 100) {
+  if (!Array.isArray(value) || value.length > maximum) {
+    throw new ApiError(400, `Provide up to ${maximum} ${label} channels.`);
   }
   const channelIds = value.map((channelId) => {
     if (typeof channelId !== 'string' || !/^[0-9]{17,20}$/.test(channelId)) {
-      throw new ApiError(400, `Choose a valid Discord channel for every ${label} command channel.`);
+      throw new ApiError(400, `Choose a valid Discord channel for every ${label} channel.`);
     }
     return channelId;
   });
   if (new Set(channelIds).size !== channelIds.length) {
-    throw new ApiError(400, `Each ${label} command channel can only be selected once.`);
+    throw new ApiError(400, `Each ${label} channel can only be selected once.`);
   }
   return channelIds;
+}
+
+function parseCommandChannelIds(value: unknown, label: string) {
+  return parseChannelIds(value, `${label} command`);
 }
 
 function parseSkinClaimRarityWeights(value: unknown): DiscordSkinClaimRarityWeight[] {
@@ -740,7 +775,13 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const fishingCommandAllChannels = body.fishingCommandAllChannels;
     const fishingCommandChannelIds = parseCommandChannelIds(body.fishingCommandChannelIds, 'Fishing');
     const fishingTopFisherRoleId = parseOptionalSnowflake(body.fishingTopFisherRoleId, 'Top Fisher role');
-    const skindleShareChannelId = parseOptionalSnowflake(body.skindleShareChannelId, 'Skindle results channel');
+    if (typeof body.miningCommandAllChannels !== 'boolean') {
+      throw new ApiError(400, 'Mining command channel scope must be all channels or selected channels.');
+    }
+    const miningCommandAllChannels = body.miningCommandAllChannels;
+    const miningCommandChannelIds = parseCommandChannelIds(body.miningCommandChannelIds, 'Mining');
+    const skindleShareChannelIds = parseChannelIds(body.skindleShareChannelIds, 'Skindle results');
+    const miningWebsitePanelChannelIds = parseChannelIds(body.miningWebsitePanelChannelIds, 'Mining website result');
     const skinClaimRarityWeights = parseSkinClaimRarityWeights(body.skinClaimRarityWeights);
     const skinClaimSellValues = parseSkinClaimSellValues(body.skinClaimSellValues);
     const guildId = getDiscordGuildId();
@@ -817,14 +858,26 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (fishingCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose fishing command channels that are currently available to the KnowLeague bot.');
     }
-    if (skindleShareChannelId && !sendableChannelIds.has(skindleShareChannelId)) {
-      throw new ApiError(400, 'Choose a Skindle results channel that is currently available to the KnowLeague bot.');
+    if (miningCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
+      throw new ApiError(400, 'Choose Mining command channels that are currently available to the KnowLeague bot.');
+    }
+    if (skindleShareChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
+      throw new ApiError(400, 'Choose Skindle results channels that are currently available to the KnowLeague bot.');
+    }
+    if (miningWebsitePanelChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
+      throw new ApiError(400, 'Choose Mining website result channels that are currently available to the KnowLeague bot.');
     }
     if (body.skinClaimEnabled && (!sendableChannelIds.size || (!skinClaimAllChannels && !skinClaimChannelIds.length))) {
       throw new ApiError(400, 'Enable skin claims only after Discord has synced a sendable channel or you select at least one eligible channel.');
     }
     if (!fishingCommandAllChannels && !fishingCommandChannelIds.length) {
       throw new ApiError(400, 'Choose at least one channel when fishing commands are not enabled in all channels.');
+    }
+    if (!miningCommandAllChannels && !miningCommandChannelIds.length) {
+      throw new ApiError(400, 'Choose at least one channel when Mining commands are not enabled in all channels.');
+    }
+    if (!miningCommandAllChannels && miningWebsitePanelChannelIds.some((channelId) => !miningCommandChannelIds.includes(channelId))) {
+      throw new ApiError(400, 'Every Mining website result channel must also allow Mining commands so its Mine again control remains usable.');
     }
 
     const { error } = await supabase.rpc('replace_discord_collection_configuration', {
@@ -875,6 +928,13 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_updated_by: user.id,
     });
     if (fishingConfigurationError) throw fishingConfigurationError;
+    const { error: miningConfigurationError } = await supabase.rpc('replace_discord_mining_command_configuration', {
+      p_command_all_channels: miningCommandAllChannels,
+      p_command_channel_ids: miningCommandChannelIds,
+      p_guild_id: guildId,
+      p_updated_by: user.id,
+    });
+    if (miningConfigurationError) throw miningConfigurationError;
     const { error: fishingRoleConfigurationError } = await supabase.rpc('replace_discord_fishing_role_configuration', {
       p_guild_id: guildId,
       p_role_rewards: fishingRoleRewards,
@@ -889,23 +949,20 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_weekday_phenomena: fishingWeekdayPhenomena,
     });
     if (fishingBonusConfigurationError) throw fishingBonusConfigurationError;
-    if (skindleShareChannelId) {
-      const { error: skindleShareSettingsError } = await supabase
-        .from('discord_skindle_share_settings')
-        .upsert({
-          channel_id: skindleShareChannelId,
-          guild_id: guildId,
-          updated_at: new Date().toISOString(),
-          updated_by: user.id,
-        }, { onConflict: 'guild_id' });
-      if (skindleShareSettingsError) throw skindleShareSettingsError;
-    } else {
-      const { error: skindleShareSettingsError } = await supabase
-        .from('discord_skindle_share_settings')
-        .delete()
-        .eq('guild_id', guildId);
-      if (skindleShareSettingsError) throw skindleShareSettingsError;
-    }
+    const [skindleShareConfiguration, miningWebsitePanelConfiguration] = await Promise.all([
+      supabase.rpc('replace_discord_skindle_share_channels', {
+        p_channel_ids: skindleShareChannelIds,
+        p_guild_id: guildId,
+        p_updated_by: user.id,
+      }),
+      supabase.rpc('replace_discord_mining_website_panel_channels', {
+        p_channel_ids: miningWebsitePanelChannelIds,
+        p_guild_id: guildId,
+        p_updated_by: user.id,
+      }),
+    ]);
+    if (skindleShareConfiguration.error) throw skindleShareConfiguration.error;
+    if (miningWebsitePanelConfiguration.error) throw miningWebsitePanelConfiguration.error;
     return NextResponse.json(await getLevelingData(guildId));
   } catch (error) {
     return getRouteErrorResponse(error);

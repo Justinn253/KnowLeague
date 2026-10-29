@@ -40,7 +40,7 @@ function placeMasteryMaster(games: GameLink[]) {
 
 export const LEAGUE_GAMES_FOR_HEADER = placeMasteryMaster(leagueGamesWithoutMasteryMaster);
 export const ORIGINAL_GAMES_FOR_HEADER = originalGames;
-export const LEAGUE_GAMES_FOR_HUB = LEAGUE_GAME_NAVIGATION_ITEMS.filter((game) => game.id !== 'randodraft');
+export const LEAGUE_GAMES_FOR_HUB = LEAGUE_GAME_NAVIGATION_ITEMS.filter((game) => game.id !== 'augment-builder' && game.id !== 'randodraft');
 export const LEAGUE_GAMES_FOR_DRAWER = LEAGUE_GAME_NAVIGATION_ITEMS.filter((game) => game.id !== 'augment-builder' && game.id !== 'randodraft');
 export const ORIGINAL_GAMES_FOR_DRAWER = originalGames;
 export const MASTERY_MASTER_GAME = masteryMasterGame;

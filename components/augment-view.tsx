@@ -127,16 +127,16 @@ export function AugmentView({ id, forceCommunityBack = false }: { id: string; fo
         </p>
       ) : null}
       {!augment && !error ? (
-        <div role="status" className="grid min-h-[42rem] gap-8 md:grid-cols-[360px_minmax(0,1fr)]">
+        <div role="status" className="grid min-h-[42rem] gap-6 md:grid-cols-[360px_minmax(0,1fr)] md:gap-8">
           <div className="min-h-[34rem] animate-pulse rounded-2xl border border-white/10 bg-slate-900/40" />
           <div className="min-h-[34rem] animate-pulse rounded-2xl border border-white/10 bg-slate-900/40" />
           <span className="sr-only">Loading augment...</span>
         </div>
       ) : null}      {augment ? (
-        <div className="grid gap-8 md:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid gap-6 md:grid-cols-[360px_minmax(0,1fr)] md:gap-8">
           <div className="min-w-0 select-none space-y-3">
           <AugmentCard draft={augment} />
-              <div className="mt-3 flex justify-end gap-3"><AugmentAuthHint authenticated={Boolean(session)}>
+              <div className="mt-3 flex justify-center gap-3 sm:justify-end"><AugmentAuthHint authenticated={Boolean(session)}>
                 <button
                   disabled={!session}
                   aria-pressed={augment.viewerReaction === 1}
@@ -185,20 +185,20 @@ export function AugmentView({ id, forceCommunityBack = false }: { id: string; fo
               </p>
             </div>
             <AugmentExport draft={augment} url={'/augment-builder/augment/' + id} />
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <Link
                 href="/augment-builder/create?fresh=1"
-                className={augmentButton + ' !border-emerald-200/50 !bg-emerald-300 !text-slate-950 hover:!bg-emerald-200'}
+                className={augmentButton + ' w-full !border-emerald-200/50 !bg-emerald-300 !text-slate-950 hover:!bg-emerald-200' + (session?.user.id === augment.author?.id ? ' col-span-2 sm:col-auto' : '')}
               >
                 <Plus size={17} />
                 Create Augment
               </Link>
               {session?.user.id === augment.author?.id ? (
-                <Link href={'/augment-builder/create?edit=' + id} className={augmentButton}>
+                <Link href={'/augment-builder/create?edit=' + id} className={augmentButton + ' w-full'}>
                   Edit Augment
                 </Link>
               ) : null}
-              <Link href={'/augment-builder/create?template=' + id} className={augmentButton}>
+              <Link href={'/augment-builder/create?template=' + id} className={augmentButton + ' w-full'}>
                 Use augment as template
               </Link>
             </div>            <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5">

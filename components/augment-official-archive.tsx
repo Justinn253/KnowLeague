@@ -146,7 +146,7 @@ export function AugmentOfficialArchive() {
           />
       </section>
       {visible.length ? (
-        <div className="grid min-h-[34rem] grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid min-h-[34rem] grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
           {visible.map((record) => {
             const rating = ratings[record.id] ?? emptyRatings();
             return (
@@ -157,13 +157,13 @@ export function AugmentOfficialArchive() {
                 key={record.id}
                 onClick={() => openCard(record)}
                 onKeyDown={(event) => handleCardKeyDown(event, record)}
-                className="group flex min-w-0 select-none cursor-pointer flex-col rounded-2xl border border-white/10 bg-slate-900/40 p-4 transition hover:border-amber-200/60 hover:bg-slate-900/70 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                className="group flex min-w-0 select-none cursor-pointer flex-col rounded-2xl border border-white/10 bg-slate-900/40 p-3 transition hover:border-amber-200/60 hover:bg-slate-900/70 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:p-4"
               >
                 <div className="min-w-0 flex-1">
                   <AugmentCard draft={officialAugmentToDraft(record)} />
                 </div>
-                <div className="mt-3 border-t border-white/10 pt-3 text-xs font-bold text-slate-400">
-                  <div className="flex items-center justify-between gap-3">
+                <div className="mt-2 border-t border-white/10 pt-2 text-[0.7rem] font-bold text-slate-400 sm:mt-3 sm:pt-3 sm:text-xs">
+                  <div className="flex items-center justify-between gap-2 sm:gap-3">
                     <span>Tier {ratingTier(rating)}</span>
                     <div className="flex justify-end gap-2">
                       <AugmentAuthHint authenticated={Boolean(session)}>
@@ -173,7 +173,7 @@ export function AugmentOfficialArchive() {
                           aria-pressed={rating.viewerReaction === 1}
                           aria-label="Like official augment"
                           onClick={(event) => { event.stopPropagation(); updateReaction(record, 1); }}
-                          className={'inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ' + (rating.viewerReaction === 1 ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-emerald-200/40 hover:text-emerald-200')}
+                          className={'inline-flex min-h-8 items-center gap-1 rounded-xl border px-2 py-1 text-[0.7rem] font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ' + (rating.viewerReaction === 1 ? 'border-emerald-300/50 bg-emerald-300/10 text-emerald-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-emerald-200/40 hover:text-emerald-200')}
                         >
                           <ThumbsUp size={14} />
                           {rating.upvotes}
@@ -186,7 +186,7 @@ export function AugmentOfficialArchive() {
                           aria-pressed={rating.viewerReaction === -1}
                           aria-label="Dislike official augment"
                           onClick={(event) => { event.stopPropagation(); updateReaction(record, -1); }}
-                          className={'inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ' + (rating.viewerReaction === -1 ? 'border-rose-300/50 bg-rose-300/10 text-rose-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-rose-200/40 hover:text-rose-200')}
+                          className={'inline-flex min-h-8 items-center gap-1 rounded-xl border px-2 py-1 text-[0.7rem] font-black transition disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ' + (rating.viewerReaction === -1 ? 'border-rose-300/50 bg-rose-300/10 text-rose-200' : 'border-white/10 bg-slate-900 text-slate-400 hover:border-rose-200/40 hover:text-rose-200')}
                         >
                           <ThumbsDown size={14} />
                           {rating.downvotes}

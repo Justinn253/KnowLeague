@@ -137,10 +137,10 @@ export function AugmentOfficialView({ record }: { record: OfficialAugment }) {
           {error}
         </p>
       ) : null}
-      <div className="grid gap-8 md:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid gap-6 md:grid-cols-[360px_minmax(0,1fr)] md:gap-8">
         <div className="min-w-0 select-none space-y-3">
           <AugmentCard draft={draft} />
-          <div className="mt-3 flex justify-end gap-3"><AugmentAuthHint authenticated={Boolean(session)}>
+          <div className="mt-3 flex justify-center gap-3 sm:justify-end"><AugmentAuthHint authenticated={Boolean(session)}>
             <button
               disabled={!session}
               aria-pressed={ratings.viewerReaction === 1}
@@ -171,10 +171,10 @@ export function AugmentOfficialView({ record }: { record: OfficialAugment }) {
             <h2 className="mt-2 break-words text-3xl font-black text-white">{record.name}</h2>
           </div>
           <AugmentExport draft={draft} url={detailPath} />
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
             <a
               href="/augment-builder/create?fresh=1"
-              className={augmentButton + ' !border-emerald-200/50 !bg-emerald-300 !text-slate-950 hover:!bg-emerald-200'}
+              className={augmentButton + ' w-full !border-emerald-200/50 !bg-emerald-300 !text-slate-950 hover:!bg-emerald-200 sm:w-auto'}
             >
               <Plus size={17} />
               Create Augment

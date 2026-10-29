@@ -15,8 +15,9 @@ describe('game navigation catalogue', () => {
     expect(LEAGUE_GAME_NAVIGATION_ITEMS.some((game) => game.id === 'mining')).toBe(false);
   });
 
-  it('keeps Randodraft in League Tools without listing it among games', () => {
+  it('keeps League Tools experiences out of the Games hub', () => {
     expect(RANDODRAFT_GAME).toMatchObject({ id: 'randodraft', href: '/randodraft' });
+    expect(LEAGUE_GAMES_FOR_HUB.some((game) => game.id === 'augment-builder')).toBe(false);
     expect(LEAGUE_GAMES_FOR_HUB.some((game) => game.id === 'randodraft')).toBe(false);
     expect(LEAGUE_GAMES_FOR_HEADER.some((game) => game.id === 'randodraft')).toBe(false);
     expect(LEAGUE_GAMES_FOR_DRAWER.some((game) => game.id === 'randodraft')).toBe(false);

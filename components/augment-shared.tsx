@@ -97,19 +97,19 @@ export function AugmentHeader({
     else router.push(back);
   }
   return (
-    <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
-      <div className="flex items-center gap-4">
-        <button type="button" onClick={goBack} className={augmentButton} aria-label={backLabel ?? 'Go back'}>
+    <header className="mb-6 flex flex-col items-start gap-3 border-b border-white/10 pb-6 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:flex sm:gap-4">
+        <button type="button" onClick={goBack} className={augmentButton + ' shrink-0'} aria-label={backLabel ?? 'Go back'}>
           <ArrowLeft size={18} />
-          {backLabel ? <span>{backLabel}</span> : null}
+          {backLabel ? <><span className="sm:hidden">Back</span><span className="hidden sm:inline">{backLabel}</span></> : null}
         </button>
-        <div>
-          <h1 className="text-2xl font-black text-white sm:text-3xl">{title}</h1>
+        <div className="min-w-0">
+          <h1 className="break-words text-xl font-black text-white sm:text-3xl">{title}</h1>
           {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
         </div>
       </div>
       {binder ? (
-        <Link href={`/augment-builder/binder/${binder}`} className={augmentButton}>
+        <Link href={`/augment-builder/binder/${binder}`} className={augmentButton + ' self-start'}>
           <BookOpen size={17} />
           My Augments
         </Link>
@@ -161,10 +161,10 @@ export function AugmentExport({ draft, url, compact = false }: { draft: AugmentD
       setBusy(false);
     }
   }
-  const buttonClass = compact ? `${augmentButton} !min-h-9 w-full !gap-1 !px-1 text-[0.65rem]` : augmentButton;
+  const buttonClass = compact ? `${augmentButton} !min-h-9 w-full !gap-1 !px-1 text-[0.65rem]` : `${augmentButton} w-full sm:w-auto`;
   return (
     <div className={compact ? 'flex w-full flex-wrap gap-1' : 'space-y-3'}>
-      <div className={compact ? 'grid w-full grid-cols-1 gap-2 sm:grid-cols-2' : 'flex flex-wrap gap-2'}>
+      <div className={compact ? 'grid w-full grid-cols-1 gap-2 sm:grid-cols-2' : 'grid grid-cols-2 gap-2 sm:flex sm:flex-wrap'}>
         <button className={buttonClass} disabled={busy} onClick={() => void exportImage(true)}>
           {completedAction === 'image' ? <Check size={16} aria-hidden="true" /> : <ImageIcon size={16} />}
           <span>Copy image</span>
@@ -175,7 +175,7 @@ export function AugmentExport({ draft, url, compact = false }: { draft: AugmentD
         </button>
         {url ? (
           <button
-            className={buttonClass}
+            className={buttonClass + (compact ? '' : ' col-span-2 sm:col-auto')}
             aria-label="Copy link"
             title="Copy link"
             onClick={() => {

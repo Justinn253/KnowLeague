@@ -17,6 +17,24 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-29-augment-mobile-layout-and-hub-placement',
+    patch: 'patch-2026-10-29-augment-mobile-layout-and-hub-placement',
+    timestamp: '2026-10-29T15:58:02.547Z',
+    title: 'Improve Augment library mobile layouts',
+    summary: 'ARAM Mayhem Augments is no longer listed in the Games hub, and Augment library and detail controls now use denser, deliberate phone layouts.',
+    details: [
+      'Removed ARAM Mayhem Augments from the Games hub while retaining its League Tools route and existing community, builder, binder, and official archive functionality.',
+      'Community, official, and binder augment lists now show two compact cards per phone row and three from the small-tablet breakpoint, with condensed metadata and reaction controls that fit the narrower cards.',
+      'Augment detail pages now use a compact mobile header, centered card reactions, equal-width export/action button grids, and more compact vertical spacing. The shared export controls keep Copy link on a full row instead of leaving an uneven wrapped control.',
+    ],
+    impact: [
+      'Mobile users can scan more augments without losing card or reaction functionality, and can act on a specific augment without controls jumping between uneven rows.',
+      'No data, API, database, authorization, Discord bot, or deployment configuration changes are required.',
+    ],
+    files: ['components/augment-binder.tsx', 'components/augment-community.tsx', 'components/augment-official-archive.tsx', 'components/augment-official-view.tsx', 'components/augment-shared.tsx', 'components/augment-view.tsx', 'lib/app-navigation.ts', 'components/games-home.tsx', 'tests/game-navigation.test.ts', 'docs/augment-builder.md', 'lib/staff-changelog.ts'],
+    verification: ['Focused Games navigation test and TypeScript check passed. npm run check passed: 271 website tests and Discord TypeScript checks passed; lint retained only existing image-element advisories.'],
+  },
+  {
     id: 'patch-2026-10-29-randodraft-pick-name-blur-save',
     patch: 'patch-2026-10-29-randodraft-pick-name-blur-save',
     timestamp: '2026-10-29T15:40:53.769Z',

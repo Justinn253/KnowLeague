@@ -17,6 +17,22 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-28-vercel-mining-catalogue-resolution',
+    patch: 'patch-2026-10-28-vercel-mining-catalogue-resolution',
+    timestamp: '2026-10-28T22:00:00.000Z',
+    title: 'Resolve shared Mining catalogue in Next.js builds',
+    summary: 'Vercel can now bundle the deterministic Mining catalogue that is shared by website APIs and the NodeNext Discord bot source.',
+    details: [
+      'Configured webpack to resolve explicit .js ESM specifiers to local TypeScript source when no JavaScript file exists.',
+      'This preserves NodeNext-compatible .js imports for the independently deployed Discord bot while fixing Next.js resolution of Mining catalogue dependencies.',
+    ],
+    impact: [
+      'Deploy the website to publish the build fix. No database migration, bot deployment, or slash-command registration is required.',
+    ],
+    files: ['next.config.mjs', 'lib/staff-changelog.ts'],
+    verification: ['Production build is run with no local Next.js development server listening.'],
+  },
+  {
     id: 'patch-2026-10-28-discord-player-panel-copy-and-skills-layout',
     patch: 'patch-2026-10-28-discord-player-panel-copy-and-skills-layout',
     timestamp: '2026-10-28T21:40:00.000Z',

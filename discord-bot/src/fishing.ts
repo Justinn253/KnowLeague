@@ -1373,9 +1373,27 @@ export function describeFishingEquipment(equipment: FishingEquipmentSnapshot) {
   const display = (itemId: string) => getFishingUpgrade(itemId)?.name ?? itemId;
   return {
     bait: display(equipment.baitItemId),
-    passives: equipment.passiveItemIds.length > 0 ? equipment.passiveItemIds.map(display).join(', ') : 'None',
+    relics: equipment.passiveItemIds.length > 0 ? equipment.passiveItemIds.map(display).join(', ') : 'None',
     rod: display(equipment.rodItemId),
   };
+}
+
+/** A compact result summary shared by progress panels after automatic settlement. */
+export function summarizeFishingSettlement(result: FishingExpeditionResult) {
+  const count = (kind: FishingExpeditionResult['catches'][number]['kind']) => result.catches
+    .filter((catchItem) => catchItem.kind === kind)
+    .reduce((total, catchItem) => total + catchItem.quantity, 0);
+  const fish = count('fish');
+  const crates = count('crate');
+  const relics = count('gear');
+  const titles = count('title');
+  const parts = [
+    fish ? `${formatNumber(fish)} fish` : null,
+    crates ? `${formatNumber(crates)} automatic crate reward${crates === 1 ? '' : 's'}` : null,
+    relics ? `${formatNumber(relics)} new Relic${relics === 1 ? '' : 's'}` : null,
+    titles ? `${formatNumber(titles)} new title${titles === 1 ? '' : 's'}` : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length ? parts.join(' · ') : 'No catches recorded';
 }
 
 export { FISHING_BIOMES, FISHING_CRATES, FISHING_CRATE_LOOT, FISHING_EVENTS, FISHING_EXPEDITION_LENGTHS, FISHING_FISH, FISHING_UPGRADES, formatFishingDuration, getFishingBiome, getFishingCrate, getFishingEvent, getFishingExpeditionLength, getFishingUpgrade, getFishingUpgradeCost };

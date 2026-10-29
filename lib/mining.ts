@@ -8,6 +8,7 @@ import {
   getMiningBestUpgrade,
   getMiningCraftingRecipe,
   getMiningDepth,
+  getMiningGear,
   getMiningResource,
   getMiningTravelDurationMs,
   getMiningUpgrade,
@@ -18,6 +19,7 @@ import {
   type MiningResult,
   type MiningUpgrade,
 } from '../discord-bot/src/mining-catalog';
+import { getFishingUpgrade } from '../discord-bot/src/fishing-catalog';
 
 type MiningInventoryRow = { resource_id: string; quantity: number };
 type MiningUpgradeRow = { upgrade_id: string };
@@ -84,6 +86,7 @@ export type MiningDashboard = {
     storageName: string | null;
     toolName: string | null;
     toolStonesPerSecond: number;
+    relics: Array<{ description: string; name: string }>;
   };
   inventory: Array<{ resource: MiningResource; quantity: number }>;
   mining: { level: number; totalXp: number };
@@ -192,6 +195,13 @@ async function getActiveExpedition(identity: MiningIdentity) {
 
 function getProcessorTier(state: MiningState) {
   return getMiningBestUpgrade(state.ownedUpgradeIds, 'processor')?.value ?? 0;
+}
+
+function getMiningRelics(itemIds: readonly string[]) {
+  return [...new Set(itemIds)].flatMap((itemId) => {
+    const relic = getMiningGear(itemId) ?? getFishingUpgrade(itemId);
+    return relic ? [{ description: relic.description, name: relic.name }] : [];
+  });
 }
 
 function equipmentFromState(depthId: MiningDepthId, state: MiningState): MiningEquipmentSnapshot {
@@ -321,6 +331,7 @@ async function buildDashboard(identity: MiningIdentity, settlement: MiningDashbo
       storageName: storage?.name ?? null,
       toolName: tool?.name ?? null,
       toolStonesPerSecond: tool?.value ?? 0,
+      relics: getMiningRelics(state.passiveGearItemIds),
     },
     inventory,
     mining: { level: state.miningLevel, totalXp: state.miningTotalXp },

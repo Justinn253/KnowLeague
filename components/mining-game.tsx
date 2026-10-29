@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Gem, Hammer, Package, RefreshCw, Send, Store } from 'lucide-react';
+import { ArrowLeft, Gem, Hammer, Package, RefreshCw, Send, Sparkles, Store } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -21,6 +21,7 @@ type MiningCargo = {
   stoneBroken: number;
   stoneStored: number;
   storageUsed: number;
+  gearItems?: Array<{ itemId: string; quantity: number }>;
 };
 
 type MiningDashboard = {
@@ -42,6 +43,7 @@ type MiningDashboard = {
     storageName: string | null;
     toolName: string | null;
     toolStonesPerSecond: number;
+    relics: Array<{ description: string; name: string }>;
   };
   inventory: Array<{ resource: MiningResource; quantity: number }>;
   mining: { level: number; totalXp: number };
@@ -86,6 +88,19 @@ function formatDuration(milliseconds: number) {
 
 function phaseLabel(phase: NonNullable<MiningDashboard['activeExpedition']>['phase']) {
   return phase === 'descending' ? 'Descending' : phase === 'returning' ? 'Returning' : 'Mining';
+}
+
+function formatRelicItemId(itemId: string) {
+  return itemId
+    .replace(/^mining-gear-/, '')
+    .replace(/^gear-/, '')
+    .split('-')
+    .map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
+    .join(' ');
+}
+
+function formatFoundRelics(gearItems: MiningCargo['gearItems']) {
+  return gearItems?.map((item) => formatRelicItemId(item.itemId)).join(' · ') ?? '';
 }
 
 export function MiningGame() {
@@ -234,6 +249,7 @@ export function MiningGame() {
               <p className="mt-1 text-xs leading-5 text-emerald-100/85">{dashboard.settlement.result.cargo.length
                 ? dashboard.settlement.result.cargo.map((item) => `${item.name} ×${formatNumber(item.quantity)}`).join(' · ')
                 : 'No non-stone cargo collected.'}</p>
+              {dashboard.settlement.result.gearItems?.length ? <p className="mt-1 text-xs leading-5 text-emerald-100/85">New Relic{dashboard.settlement.result.gearItems.length === 1 ? '' : 's'}: {formatFoundRelics(dashboard.settlement.result.gearItems)}.</p> : null}
             </div>
             <button type="button" className={buttonClass} disabled={isBusy} onClick={() => void performAction(
               'share-result',
@@ -268,6 +284,7 @@ export function MiningGame() {
                     <p className="mt-2 text-sm text-slate-200">{dashboard.activeExpedition.cargo.stoneStored ? `Stone ×${formatNumber(dashboard.activeExpedition.cargo.stoneStored)} · discarded on return` : ''}</p>
                     {dashboard.activeExpedition.cargo.cargo.length ? dashboard.activeExpedition.cargo.cargo.map((item) => <p key={item.id} className="mt-1 text-sm text-slate-100">{item.name} ×{formatNumber(item.quantity)}</p>) : <p className="mt-2 text-sm text-slate-400">No non-stone cargo projected yet.</p>}
                   </div>
+                  {dashboard.activeExpedition.cargo.gearItems?.length ? <p className="mt-3 text-sm font-bold text-amber-100">Projected Relic: {formatFoundRelics(dashboard.activeExpedition.cargo.gearItems)}</p> : null}
                   <div className="mt-5 flex flex-wrap gap-2">
                     <button type="button" className={secondaryButtonClass} disabled={isBusy || refreshOnCooldown} onClick={refresh}><RefreshCw size={16} /> {refreshOnCooldown ? 'Refresh shortly' : 'Refresh expedition'}</button>
                     {dashboard.activeExpedition.phase !== 'returning' ? <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-rose-300/40 bg-rose-950/55 px-3 py-2 text-sm font-black text-rose-100 transition hover:bg-rose-900 disabled:cursor-not-allowed disabled:opacity-45" disabled={isBusy} onClick={() => void performAction('return', { action: 'return' })}>Recall minecart</button> : null}
@@ -295,6 +312,7 @@ export function MiningGame() {
                 <Detail label="Filter" value={dashboard.equipment.filterName ?? 'None'} />
               </dl>
               <p className="mt-6 border-t border-white/10 pt-4 text-xs leading-5 text-slate-400">Shared skills: Luck {Math.min(4, dashboard.skills.lucky)}/4 · Cheapskate {dashboard.skills.cheapskate}/4 · Money Mouser {dashboard.skills.moneyMouser}/2 · Haste {dashboard.skills.haste}/4.</p>
+              <p className="mt-3 text-xs leading-5 text-slate-400">Relics: {dashboard.equipment.relics.length ? dashboard.equipment.relics.map((relic) => relic.name).join(' · ') : 'None found yet.'}</p>
             </aside>
           </section>
         ) : null}
@@ -317,10 +335,11 @@ export function MiningGame() {
         ) : null}
 
         {dashboard && tab === 'inventory' ? (
-          <section className="mt-5 grid gap-5 lg:grid-cols-3">
+          <section className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
             <InventoryColumn title="Ores" icon={<Package size={17} />} items={inventoryByKind.ores} processorTier={dashboard.equipment.processorTier} isBusy={isBusy} onSell={(resource) => void performAction(`sell-${resource.id}`, { action: 'sell', resource: resource.name, amount: 'all' })} />
             <InventoryColumn title="Gems" icon={<Gem size={17} />} items={inventoryByKind.gems} processorTier={dashboard.equipment.processorTier} isBusy={isBusy} onSell={(resource) => void performAction(`sell-${resource.id}`, { action: 'sell', resource: resource.name, amount: 'all' })} />
             <InventoryColumn title="Fossils" icon={<Store size={17} />} items={inventoryByKind.fossils} processorTier={dashboard.equipment.processorTier} isBusy={isBusy} />
+            <RelicsColumn relics={dashboard.equipment.relics} />
           </section>
         ) : null}
       </div>
@@ -334,6 +353,17 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function Detail({ label, value }: { label: string; value: string }) {
   return <div className="flex items-start justify-between gap-3"><dt className="text-slate-400">{label}</dt><dd className="text-right font-bold text-slate-100">{value}</dd></div>;
+}
+
+function RelicsColumn({ relics }: { relics: MiningDashboard['equipment']['relics'] }) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
+      <h2 className="flex items-center gap-2 text-lg font-black text-white"><Sparkles size={17} /> Relics</h2>
+      <div className="mt-4 space-y-3">
+        {relics.length ? relics.map((relic) => <div key={relic.name} className="rounded-xl border border-amber-200/20 bg-slate-950/55 p-3"><p className="font-bold text-amber-100">{relic.name}</p><p className="mt-1 text-xs leading-5 text-slate-400">{relic.description}</p></div>) : <p className="text-sm text-slate-400">Discover permanent Relics while mining or fishing.</p>}
+      </div>
+    </section>
+  );
 }
 
 function InventoryColumn({ icon, isBusy, items, onSell, processorTier, title }: {

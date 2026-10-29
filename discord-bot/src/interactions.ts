@@ -72,6 +72,7 @@ import {
   parseFishingRepeatCustomId,
   reconcileDueFishingExpeditions,
   startFishingExpedition,
+  summarizeFishingSettlement,
   syncDiscordFishingTopRole,
   getFishingProgress,
   grantCurrentFishingLevelRoles,
@@ -832,6 +833,13 @@ function formatMiningCargo(result: { cargo: Array<{ name: string; quantity: numb
   return contents.length > 0 ? contents.join('\n') : 'No cargo yet.';
 }
 
+function formatMiningRelics(result: { gearItems?: Array<{ itemId: string; quantity: number }> }) {
+  const relics = result.gearItems ?? [];
+  return relics.length
+    ? relics.map((item) => `**${getMiningGear(item.itemId)?.name ?? item.itemId}**`).join('\n')
+    : null;
+}
+
 function reserveMiningExpeditionRefresh(discordUserId: string) {
   const now = Date.now();
   const availableAt = miningExpeditionRefreshAvailableAtByUserId.get(discordUserId) ?? 0;
@@ -887,7 +895,8 @@ export function buildMiningLaunchPanel(ownerDiscordUserId: string, depthId: Mini
   };
 }
 
-function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number }, ascentDurationMs: number) {
+function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; gearItems?: Array<{ itemId: string; quantity: number }>; miningXpAwarded: number; stoneStored: number; storageUsed: number }, ascentDurationMs: number) {
+  const relics = formatMiningRelics(result);
   return new EmbedBuilder()
     .setColor(0x78716C)
     .setTitle('Minecart recalled')
@@ -895,6 +904,7 @@ function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity:
     .addFields(
       { name: `Secured cargo · ${formatXp(result.storageUsed)} stored`, value: formatMiningCargo(result) },
       { name: 'Expedition work', value: `${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP secured` },
+      ...(relics ? [{ name: 'Relics secured', value: relics }] : []),
     );
 }
 
@@ -902,7 +912,7 @@ function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity:
 export function buildMiningReturnPanel(
   ownerDiscordUserId: string,
   depthId: MiningDepthId,
-  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number },
+  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; gearItems?: Array<{ itemId: string; quantity: number }>; miningXpAwarded: number; stoneStored: number; storageUsed: number },
   ascentDurationMs: number,
 ) {
   return {
@@ -915,9 +925,10 @@ export function buildMiningReturnPanel(
 export function buildMiningCompletedPanel(
   ownerDiscordUserId: string,
   depthId: MiningDepthId,
-  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number },
+  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; gearItems?: Array<{ itemId: string; quantity: number }>; miningXpAwarded: number; stoneStored: number; storageUsed: number },
 ) {
   const depth = getMiningDepth(depthId);
+  const relics = formatMiningRelics(result);
   return {
     embeds: [
       new EmbedBuilder()
@@ -927,6 +938,7 @@ export function buildMiningCompletedPanel(
         .addFields(
           { name: `Collected · ${formatXp(result.storageUsed)} stored`, value: formatMiningCargo(result) },
           { name: 'Expedition work', value: `${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP earned` },
+          ...(relics ? [{ name: 'Relics found', value: relics }] : []),
         ),
     ],
     components: toComponentRows([
@@ -939,11 +951,15 @@ export function buildMiningCompletedPanel(
 }
 
 function buildMiningSettlementEmbed(settlement: NonNullable<Awaited<ReturnType<typeof settleDueMiningReturn>>>) {
+  const relics = formatMiningRelics(settlement.result);
   return new EmbedBuilder()
     .setColor(0x22C55E)
     .setTitle('Mining return complete')
     .setDescription(`Your minecart cargo was added to inventory. Earned **${formatXp(settlement.xpAwarded)} Mining XP** · Level **${settlement.currentLevel}**${settlement.currentLevel > settlement.previousLevel ? ' (level up!)' : ''}.`)
-    .addFields({ name: 'Collected', value: formatMiningCargo(settlement.result) });
+    .addFields(
+      { name: 'Collected', value: formatMiningCargo(settlement.result) },
+      ...(relics ? [{ name: 'Relics found', value: relics }] : []),
+    );
 }
 
 function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awaited<ReturnType<typeof getActiveMiningExpedition>>>) {
@@ -964,11 +980,15 @@ function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awai
         Math.max(0, new Date(expedition.return_started_at).getTime() - new Date(expedition.mining_started_at).getTime()),
       )
       : null);
+    const relics = result ? formatMiningRelics(result) : null;
     return new EmbedBuilder()
       .setColor(0x78716C)
       .setTitle(`${username}'s mining expedition`)
       .setDescription(`Returning from **${depth?.name ?? `Depth ${expedition.depth}`}**. Ascent duration: **${formatMiningDuration(expedition.equipment_snapshot.descendDurationMs)}**.`)
-      .addFields({ name: `Secured cargo · ${formatXp(result?.storageUsed ?? 0)} stored`, value: result ? formatMiningCargo(result) : 'Cargo is being secured.' });
+      .addFields(
+        { name: `Secured cargo · ${formatXp(result?.storageUsed ?? 0)} stored`, value: result ? formatMiningCargo(result) : 'Cargo is being secured.' },
+        ...(relics ? [{ name: 'Relics secured', value: relics }] : []),
+      );
   }
   const result = resolveMiningExpedition(
     expedition.depth,
@@ -1211,7 +1231,7 @@ function buildFishingInventoryTabbedPanel(
       .setDescription(sharedDescription)
       .addFields(
         { name: 'Equipped', value: `Rod: **${equipment.rod}**\nBait: **${equipment.bait}**`, inline: true },
-        { name: 'Progression', value: `Crew slots: **${state.crewSlots}**\nPassives: **${equipment.passives}**`, inline: true },
+        { name: 'Progression', value: `Crew slots: **${state.crewSlots}**\nRelics: **${equipment.relics}**`, inline: true },
       );
   } else if (tab === 'titles') {
     const titles = FISHING_EVENTS.map((event) => event.title);
@@ -2028,7 +2048,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
       }).join('\n')
       : 'No active expeditions.';
     const recent = progress.mostRecent?.result
-      ? `Latest: **${getFishingEvent(progress.mostRecent.equipment_snapshot?.eventId)?.biomeName ?? getFishingBiome(progress.mostRecent.biome_id)?.name ?? progress.mostRecent.biome_id}** · ${formatXp(progress.mostRecent.result.fishSaleValue + (progress.mostRecent.result.crateSaleValue ?? 0) + progress.mostRecent.result.knowBucksFound)} KnowBucks earned`
+      ? `Latest: **${getFishingEvent(progress.mostRecent.equipment_snapshot?.eventId)?.biomeName ?? getFishingBiome(progress.mostRecent.biome_id)?.name ?? progress.mostRecent.biome_id}** · ${formatXp(progress.mostRecent.result.fishSaleValue + (progress.mostRecent.result.crateSaleValue ?? 0) + progress.mostRecent.result.knowBucksFound)} KnowBucks earned · ${summarizeFishingSettlement(progress.mostRecent.result)}`
       : 'No completed expeditions yet.';
     await interaction.editReply({
       embeds: [

@@ -157,7 +157,7 @@ export async function getMiningPlayerState(config: DiscordBotConfig, discordUser
   if (inventoryResult.error) throw new Error(`Unable to load Discord mining inventory: ${inventoryResult.error.message}`);
   if (upgradesResult.error) throw new Error(`Unable to load Discord mining upgrades: ${upgradesResult.error.message}`);
   if (skillResult.error) throw new Error(`Unable to load Discord mining skill: ${skillResult.error.message}`);
-  if (fishingGearResult.error) throw new Error(`Unable to load Mining-compatible Fishing gear: ${fishingGearResult.error.message}`);
+  if (fishingGearResult.error) throw new Error(`Unable to load Mining-compatible Fishing Relics: ${fishingGearResult.error.message}`);
   const miningLevel = skillResult.data?.level ?? 0;
   const miningTotalXp = skillResult.data?.total_xp ?? 0;
   return {

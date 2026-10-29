@@ -231,6 +231,18 @@ describe('Discord mining expedition resolution', () => {
 });
 
 describe('website-originated Mining Discord results', () => {
+  it('shows secured and settled Relic discoveries alongside the minecart cargo', () => {
+    const result = {
+      ...resolveMiningExpedition(1, starterEquipment, 42, 60_000),
+      gearItems: [{ itemId: 'mining-gear-bioluminescence', quantity: 1 }],
+    };
+    const returning = buildMiningReturnPanel('12345678901234567', 1, result, 2_500);
+    const completed = buildMiningCompletedPanel('12345678901234567', 1, result);
+
+    expect(returning.embeds[0]?.data.fields?.find((field) => field.name === 'Relics secured')?.value).toContain('Bioluminescence');
+    expect(completed.embeds[0]?.data.fields?.find((field) => field.name === 'Relics found')?.value).toContain('Bioluminescence');
+  });
+
   it('uses an owner-controlled completed-result panel without automatically posting launch or recall state', () => {
     const launch = buildMiningLaunchPanel('12345678901234567', 1, 2_500);
     const returnPanel = buildMiningReturnPanel('12345678901234567', 1, resolveMiningExpedition(1, starterEquipment, 42, 60_000), 2_500);

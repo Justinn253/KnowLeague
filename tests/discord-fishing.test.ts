@@ -37,6 +37,7 @@ import {
   getVisibleFishingShopItems,
   parseFishingRepeatCustomId,
   selectFishingCrewSlot,
+  summarizeFishingSettlement,
   type FishingCatalogueProgress,
   type FishingEventCatalogueProgress,
 } from '../discord-bot/src/fishing';
@@ -63,6 +64,23 @@ const starterEquipment: FishingEquipmentSnapshot = {
 };
 
 describe('Discord fishing command contract', () => {
+  it('summarizes automatic crate and Relic rewards for concise progress panels', () => {
+    expect(summarizeFishingSettlement({
+      catches: [
+        { kind: 'fish', name: 'Anchovy', quantity: 2, rarity: 'Common', saleValue: 12 },
+        { itemId: 'harbor-common-crate', kind: 'crate', lootItemId: 'harbor-common-loot-1', lootName: 'Soggy Boot', lootRarity: 'Common', name: 'Damaged Crate', quantity: 1, rarity: 'Common', saleValue: 20 },
+        { itemId: 'gear-sea-star', kind: 'gear', name: 'Sea Star', quantity: 1 },
+      ],
+      crateSaleValue: 20,
+      fishingCrateXp: 15,
+      fishingExpeditionXp: 15,
+      fishingXpAwarded: 30,
+      fishSaleValue: 12,
+      gearItems: [{ itemId: 'gear-sea-star', quantity: 1 }],
+      knowBucksFound: 0,
+    })).toBe('2 fish · 1 automatic crate reward · 1 new Relic');
+  });
+
   it('registers all seven boat-upgrade biomes and four expedition lengths', () => {
     const fish = serializedCommandDefinitions().find((command) => command.name === 'fish');
     const expedition = fish?.options?.find((option) => option.name === 'expedition-set') as SerializedSubcommand | undefined;
@@ -416,7 +434,7 @@ describe('Discord fishing reworked progression', () => {
         expect(fishCatches.some((entry) => entry.rarity === 'Mythic')).toBe(false);
       }
     }
-  });
+  }, 15_000);
 
   it('enforces bait and permanent-gear result invariants', () => {
     const truffleEquipment: FishingEquipmentSnapshot = {

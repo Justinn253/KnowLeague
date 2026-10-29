@@ -17,6 +17,30 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-29-fishing-mining-relic-settlement-visibility',
+    patch: 'patch-2026-10-29-fishing-mining-relic-settlement-visibility',
+    timestamp: '2026-10-29T17:53:53.863Z',
+    title: 'Make Fishing and Mining settlement progress easier to follow',
+    summary: 'Mining now presents secured and awarded Relics everywhere an expedition result is shown, while Fishing progress summarizes automatic crate rewards and new Relics from the latest settled trip.',
+    details: [
+      'The website Mining dashboard now projects discovered Relics with active cargo, includes newly awarded Relics in the return notice, and has a dedicated Relics inventory column with the authoritative passive descriptions. Its server projection resolves both Mining Relics and Fishing Relics that apply to Mining from the shared durable inventories.',
+      'Mining Discord return, in-progress return, settlement, and manually shared completion panels add a concise Relics field only when the snapshotted expedition found one. This uses the same settled result that writes the owned item, so the display cannot independently award or duplicate a Relic.',
+      'Fishing inventory now calls automatic permanent bonuses Relics consistently. `/fish expedition-progress` adds a compact latest-trip breakdown for fish, automatic crate rewards, new Relics, and titles after the existing atomic settlement has completed.',
+      'The exhaustive multi-rod Fishing rarity regression now has a 15-second per-test allowance, preventing normal catalogue-resolution load from racing Vitest’s default five-second timeout while preserving every assertion and seed.',
+      'No Supabase migration, RPC change, command-shape change, credential exposure, or automatic Mining scheduler was introduced. Mining remains explicitly on-demand after ascent, and Fishing keeps its existing scheduled, idempotent reconciler.',
+    ],
+    impact: [
+      'Players can see why their Mining or Fishing progression advanced without searching a separate inventory, and Mining Relic discoveries are now visible from both website and Discord entry points.',
+      'Deploy the website and independently deploy the Discord bot together to publish the shared presentation updates. No migration push or slash-command registration is required.',
+    ],
+    files: ['components/mining-game.tsx', 'lib/mining.ts', 'discord-bot/src/fishing.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/mining.ts', 'tests/discord-fishing.test.ts', 'tests/discord-mining.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Fishing and Mining regressions passed (54 tests); root TypeScript and Discord bot TypeScript checks passed.',
+      'The full Vitest suite passed (46 files, 273 tests). `npm run check` also completed its lint and root type-check stages with only the existing image-element advisories before the execution window ended during its full-test stage.',
+      'A subsequent background aggregate-check retry could not open the Next ESLint cache with EPERM; no production build was run and no `.next` or user dev-server state was modified.',
+    ],
+  },
+  {
     id: 'patch-2026-10-29-augment-mobile-layout-and-hub-placement',
     patch: 'patch-2026-10-29-augment-mobile-layout-and-hub-placement',
     timestamp: '2026-10-29T15:58:02.547Z',

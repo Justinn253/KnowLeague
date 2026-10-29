@@ -1,9 +1,11 @@
 import { randomInt } from 'node:crypto';
 import type { DiscordBotConfig } from './config.js';
+import type { GuildMember } from 'discord.js';
 import {
   getMiningBestUpgrade,
   getMiningCraftingRecipe,
   getMiningDepth,
+  getMiningGear,
   findMiningResource,
   getMiningResource,
   getMiningTravelDurationMs,
@@ -71,6 +73,7 @@ export type MiningPlayerState = {
   miningXpIntoLevel: number;
   miningXpToNextLevel: number;
   ownedUpgradeIds: string[];
+  passiveGearItemIds: string[];
   skills: PlayerSkillLevels;
 };
 
@@ -101,6 +104,11 @@ export type MiningSale = {
   totalSaleValue: number;
 };
 
+export type MiningCatalogueProgress = {
+  acquiredGearItemIds: ReadonlySet<string>;
+  acquiredResourceIds: ReadonlySet<string>;
+};
+
 function firstRow<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -116,7 +124,7 @@ async function ensureMiningPlayer(config: DiscordBotConfig, discordUserId: strin
 export async function getMiningPlayerState(config: DiscordBotConfig, discordUserId: string): Promise<MiningPlayerState> {
   await ensureMiningPlayer(config, discordUserId);
   const supabase = createBotServiceClient(config);
-  const [inventoryResult, upgradesResult, skillResult, playerShop] = await Promise.all([
+  const [inventoryResult, upgradesResult, skillResult, playerShop, fishingGearResult] = await Promise.all([
     supabase
       .from('discord_game_resource_inventory')
       .select('resource_id,quantity')
@@ -138,10 +146,18 @@ export async function getMiningPlayerState(config: DiscordBotConfig, discordUser
       .eq('skill_id', 'mining')
       .maybeSingle<MiningSkillRow>(),
     getPlayerShopState(config, discordUserId),
+    supabase
+      .from('discord_fishing_inventory')
+      .select('item_id')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .like('item_id', 'gear-%')
+      .returns<Array<{ item_id: string }>>(),
   ]);
   if (inventoryResult.error) throw new Error(`Unable to load Discord mining inventory: ${inventoryResult.error.message}`);
   if (upgradesResult.error) throw new Error(`Unable to load Discord mining upgrades: ${upgradesResult.error.message}`);
   if (skillResult.error) throw new Error(`Unable to load Discord mining skill: ${skillResult.error.message}`);
+  if (fishingGearResult.error) throw new Error(`Unable to load Mining-compatible Fishing gear: ${fishingGearResult.error.message}`);
   const miningLevel = skillResult.data?.level ?? 0;
   const miningTotalXp = skillResult.data?.total_xp ?? 0;
   return {
@@ -152,7 +168,39 @@ export async function getMiningPlayerState(config: DiscordBotConfig, discordUser
     miningXpIntoLevel: Math.max(0, miningTotalXp - getMiningXpForLevel(miningLevel)),
     miningXpToNextLevel: getMiningXpToNextLevel(miningLevel),
     ownedUpgradeIds: (upgradesResult.data ?? []).map((row) => row.upgrade_id),
+    passiveGearItemIds: [...playerShop.itemIds.filter((itemId) => itemId.startsWith('mining-gear-')), ...(fishingGearResult.data ?? []).map((entry) => entry.item_id)],
     skills: playerShop.skillLevels,
+  };
+}
+
+/** Loads durable discoveries, which remain visible after resources are spent or sold. */
+export async function getMiningCatalogueProgress(
+  config: DiscordBotConfig,
+  discordUserId: string,
+): Promise<MiningCatalogueProgress> {
+  await ensureMiningPlayer(config, discordUserId);
+  const supabase = createBotServiceClient(config);
+  const [resourceResult, gearResult] = await Promise.all([
+    supabase
+      .from('discord_mining_catalogue_discoveries')
+      .select('resource_id')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .returns<Array<{ resource_id: string }>>(),
+    supabase
+      .from('discord_player_inventory')
+      .select('item_id')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .like('item_id', 'mining-gear-%')
+      .returns<Array<{ item_id: string }>>(),
+  ]);
+  if (resourceResult.error) throw new Error(`Unable to load Discord mining catalogue progress: ${resourceResult.error.message}`);
+  if (gearResult.error) throw new Error(`Unable to load Discord mining catalogue gear: ${gearResult.error.message}`);
+
+  return {
+    acquiredResourceIds: new Set((resourceResult.data ?? []).map((entry) => entry.resource_id).filter((resourceId) => Boolean(getMiningResource(resourceId)))),
+    acquiredGearItemIds: new Set((gearResult.data ?? []).map((entry) => entry.item_id).filter((itemId) => Boolean(getMiningGear(itemId)))),
   };
 }
 
@@ -208,6 +256,19 @@ export async function getMiningCommandChannelIds(config: DiscordBotConfig): Prom
     : [];
 }
 
+export async function grantEligibleMiningLevelRoles(config: DiscordBotConfig, member: GuildMember, miningLevel: number) {
+  const { data, error } = await createBotServiceClient(config).from('discord_mining_level_role_rewards').select('discord_role_id,level').eq('guild_id', config.guildId).returns<Array<{ discord_role_id: string; level: number }>>();
+  if (error) throw new Error(`Unable to read Mining level rewards: ${error.message}`);
+  const rewards = data ?? [];
+  const highestTier = rewards.filter((reward) => reward.level <= miningLevel).reduce((highest, reward) => Math.max(highest, reward.level), 0);
+  const targetRoleIds = new Set(rewards.filter((reward) => reward.level === highestTier).map((reward) => reward.discord_role_id));
+  const configuredRoleIds = new Set(rewards.map((reward) => reward.discord_role_id));
+  const removable = [...configuredRoleIds].filter((roleId) => member.roles.cache.has(roleId) && !targetRoleIds.has(roleId) && member.guild.roles.cache.get(roleId)?.editable);
+  const missing = [...targetRoleIds].filter((roleId) => !member.roles.cache.has(roleId) && member.guild.roles.cache.get(roleId)?.editable);
+  if (removable.length) await member.roles.remove(removable, 'KnowLeague Mining level reward tier replaced');
+  if (missing.length) await member.roles.add(missing, 'KnowLeague Mining level reward');
+}
+
 function equipmentFromState(depthId: MiningDepthId, state: MiningPlayerState): MiningEquipmentSnapshot {
   const tool = getMiningBestUpgrade(state.ownedUpgradeIds, 'tool');
   const storage = getMiningBestUpgrade(state.ownedUpgradeIds, 'storage');
@@ -221,12 +282,13 @@ function equipmentFromState(depthId: MiningDepthId, state: MiningPlayerState): M
     hasteLevel,
   );
   return {
-    catalogVersion: 1,
+    catalogVersion: 2,
     descendDurationMs: travelDurationMs,
     elevatorTier: elevator?.value ?? 0,
     filterTier: filter?.value ?? 0,
     hasteLevel,
     luckLevel: Math.min(4, state.skills.lucky),
+    passiveGearItemIds: state.passiveGearItemIds,
     storageCapacity: storage.value,
     toolId: tool.id,
     toolStonesPerSecond: tool.value,

@@ -36,6 +36,7 @@ import {
   type DiscordFishingWeekdayPhenomenon,
   type DiscordFishingWeekdayPhenomenonId,
 } from '@/lib/discord-fishing';
+import type { DiscordMiningLevelRoleReward } from '@/lib/discord-mining';
 import { requireAdminAccess } from '@/lib/moderation';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
@@ -155,6 +156,7 @@ type StoredChannelRow = {
 type StoredMiningCommandSettingsRow = {
   command_all_channels: boolean;
 };
+type StoredMiningRoleRewardRow = { discord_role_id: string; level: number };
 
 type LevelingSettingsBody = {
   collectionAdminRoleIds?: unknown;
@@ -170,6 +172,7 @@ type LevelingSettingsBody = {
   miningCommandAllChannels?: unknown;
   miningCommandChannelIds?: unknown;
   miningWebsitePanelChannelIds?: unknown;
+  miningRoleRewards?: unknown;
   roleRewards?: unknown;
   skinClaimAllChannels?: unknown;
   skinClaimClaimGracePeriodSeconds?: unknown;
@@ -314,6 +317,11 @@ function groupFishingRoleRewards(rows: StoredFishingRoleRewardRow[]): DiscordFis
     .map(([level, roleIds]) => ({ level, roleIds }))
     .sort((left, right) => left.level - right.level);
 }
+function groupMiningRoleRewards(rows: StoredMiningRoleRewardRow[]): DiscordMiningLevelRoleReward[] {
+  const roleIdsByLevel = new Map<number, string[]>();
+  for (const row of rows) roleIdsByLevel.set(row.level, [...(roleIdsByLevel.get(row.level) ?? []), row.discord_role_id]);
+  return [...roleIdsByLevel.entries()].map(([level, roleIds]) => ({ level, roleIds })).sort((left, right) => left.level - right.level);
+}
 
 async function getLevelingData(guildId: string) {
   const supabase = getSupabaseServiceClient();
@@ -342,6 +350,7 @@ async function getLevelingData(guildId: string) {
     miningCommandSettingsResult,
     miningCommandChannelsResult,
     miningWebsitePanelChannelsResult,
+    miningRoleRewardsResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
       .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
@@ -460,6 +469,7 @@ async function getLevelingData(guildId: string) {
       .eq('guild_id', guildId)
       .order('channel_id', { ascending: true })
       .returns<StoredChannelRow[]>(),
+    supabase.from('discord_mining_level_role_rewards').select('discord_role_id,level').eq('guild_id', guildId).order('level', { ascending: true }).returns<StoredMiningRoleRewardRow[]>(),
   ]);
 
   if (settingsResult.error) throw settingsResult.error;
@@ -486,6 +496,7 @@ async function getLevelingData(guildId: string) {
   if (miningCommandSettingsResult.error) throw miningCommandSettingsResult.error;
   if (miningCommandChannelsResult.error) throw miningCommandChannelsResult.error;
   if (miningWebsitePanelChannelsResult.error) throw miningWebsitePanelChannelsResult.error;
+  if (miningRoleRewardsResult.error) throw miningRoleRewardsResult.error;
 
   return {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
@@ -509,6 +520,7 @@ async function getLevelingData(guildId: string) {
     miningCommandSettings: { allChannels: miningCommandSettingsResult.data?.command_all_channels ?? true },
     miningCommandChannelIds: (miningCommandChannelsResult.data ?? []).map((channel) => channel.channel_id),
     miningWebsitePanelChannelIds: (miningWebsitePanelChannelsResult.data ?? []).map((channel) => channel.channel_id),
+    miningRoleRewards: groupMiningRoleRewards(miningRoleRewardsResult.data ?? []),
     fishingBonusSettings: toFishingBonusSettings(
       fishingBonusRolesResult.data ?? [],
       fishingWeekdayPhenomenaResult.data ?? [],
@@ -742,6 +754,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const cooldownSeconds = parsePositiveInteger(body.cooldownSeconds, 'Cooldown', 1, 3600);
     const roleRewards = parseRoleRewards(body.roleRewards);
     const fishingRoleRewards = parseFishingRoleRewards(body.fishingRoleRewards);
+    const miningRoleRewards = parseFishingRoleRewards(body.miningRoleRewards);
     const fishingBonusRoleIds = parseRoleIds(body.fishingBonusRoleIds, 'Fishing bonus roles', 25);
     const fishingWeekdayPhenomena = parseFishingWeekdayPhenomena(body.fishingWeekdayPhenomena);
     const levelUpMessageTemplate = parseOptionalMessageTemplate(body.levelUpMessageTemplate, 'Level-up message');
@@ -804,6 +817,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (fishingRoleRewards.some((reward) => reward.roleIds.some((roleId) => !assignableRoleIds.has(roleId)))) {
       throw new ApiError(400, 'Choose Fishing reward roles that are available below the KnowLeague bot role.');
     }
+    if (miningRoleRewards.some((reward) => reward.roleIds.some((roleId) => !assignableRoleIds.has(roleId)))) throw new ApiError(400, 'Choose Mining reward roles that are available below the KnowLeague bot role.');
     const syncedRoleIds = new Set((roles ?? []).map((role) => role.role_id));
     if (manualXpRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose staff roles that are currently synced from Discord.');
@@ -942,6 +956,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_updated_by: user.id,
     });
     if (fishingRoleConfigurationError) throw fishingRoleConfigurationError;
+    const { error: miningRoleConfigurationError } = await supabase.rpc('replace_discord_mining_role_configuration', { p_guild_id: guildId, p_role_rewards: miningRoleRewards, p_updated_by: user.id });
+    if (miningRoleConfigurationError) throw miningRoleConfigurationError;
     const { error: fishingBonusConfigurationError } = await supabase.rpc('replace_discord_fishing_bonus_configuration', {
       p_bonus_role_ids: fishingBonusRoleIds,
       p_guild_id: guildId,

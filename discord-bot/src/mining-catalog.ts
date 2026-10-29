@@ -1,3 +1,5 @@
+import { MINING_DEPTH_CONFIG, MINING_GEAR_CONTENT_CONFIG, MINING_GEAR_DROP_RATE, MINING_REWARD_WEIGHT_CONFIG, MINING_SHOP_UPGRADE_CONFIG } from './minigame-content-config.js';
+
 export type MiningDepthId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type MiningResourceKind = 'ore' | 'gem' | 'fossil';
 export type MiningUpgradeCategory = 'tool' | 'storage' | 'processor' | 'elevator' | 'filter';
@@ -34,12 +36,13 @@ export type MiningUpgrade = {
 };
 
 export type MiningEquipmentSnapshot = {
-  catalogVersion: 1;
+  catalogVersion: 1 | 2;
   descendDurationMs: number;
   elevatorTier: number;
   filterTier: number;
   hasteLevel: number;
   luckLevel: number;
+  passiveGearItemIds?: readonly string[];
   storageCapacity: number;
   toolId: string;
   toolStonesPerSecond: number;
@@ -48,160 +51,31 @@ export type MiningEquipmentSnapshot = {
 export type MiningResult = {
   cargo: Array<{ id: string; kind: MiningResourceKind; name: string; quantity: number }>;
   discardedStone: number;
+  gearItems?: Array<{ itemId: string; quantity: number }>;
+  gemStorageCapacity?: number;
+  gemStorageUsed?: number;
   miningXpAwarded: number;
   stoneStored: number;
   stoneBroken: number;
   storageUsed: number;
 };
 
-const resource = (
-  depth: MiningDepthId,
-  kind: MiningResourceKind,
-  id: string,
-  name: string,
-  options: Pick<MiningResource, 'processorTier' | 'saleValue'> = {},
-): MiningResource => ({ depth, kind, id, name, ...options });
-
-const fossil = (depth: MiningDepthId, id: string, name: string) => resource(depth, 'fossil', id, `${name} Fossil`);
-
 /**
- * Each depth follows its matching Fishing region's economy: the first and
- * second ores approximate common and uncommon fish, while gems approximate
- * rare and epic fish. Values are centralized so stored inventory survives
- * future balancing changes.
+ * Each depth follows its matching Fishing region's economy. The editable
+ * resource, depth, processor-tier, and sale-value data lives in the shared
+ * minigame content configuration.
  */
-export const MINING_DEPTHS: readonly MiningDepth[] = [
-  {
-    id: 1,
-    name: 'Shallow Quarry',
-    descendAndAscendMs: 5_000,
-    ores: [resource(1, 'ore', 'coal', 'Coal', { saleValue: 7 }), resource(1, 'ore', 'quartz', 'Quartz', { saleValue: 11 })],
-    gems: [resource(1, 'gem', 'opal', 'Opal', { saleValue: 20 }), resource(1, 'gem', 'pearl', 'Pearl', { saleValue: 40 })],
-    fossils: [
-      fossil(1, 'compsognathus-fossil', 'Compsognathus'), fossil(1, 'microraptor-fossil', 'Microraptor'),
-      fossil(1, 'archaeopteryx-fossil', 'Archaeopteryx'), fossil(1, 'psittacosaurus-fossil', 'Psittacosaurus'),
-      fossil(1, 'protoceratops-fossil', 'Protoceratops'),
-    ],
-  },
-  {
-    id: 2,
-    name: 'Copper Veins',
-    descendAndAscendMs: 30_000,
-    requiredToolId: 'stone-pickaxe',
-    ores: [resource(2, 'ore', 'copper', 'Copper', { processorTier: 1, saleValue: 10 }), resource(2, 'ore', 'tin', 'Tin', { processorTier: 1, saleValue: 17 })],
-    gems: [resource(2, 'gem', 'jade', 'Jade', { saleValue: 31 }), resource(2, 'gem', 'emerald', 'Emerald', { saleValue: 75 })],
-    fossils: [
-      fossil(2, 'stegosaurus-fossil', 'Stegosaurus'), fossil(2, 'iguanodon-fossil', 'Iguanodon'),
-      fossil(2, 'parasaurolophus-fossil', 'Parasaurolophus'), fossil(2, 'dilophosaurus-fossil', 'Dilophosaurus'),
-      fossil(2, 'allosaurus-fossil', 'Allosaurus'),
-    ],
-  },
-  {
-    id: 3,
-    name: 'Iron Delve',
-    descendAndAscendMs: 60_000,
-    requiredToolId: 'weak-metal-pickaxe',
-    ores: [resource(3, 'ore', 'iron', 'Iron', { processorTier: 2, saleValue: 18 }), resource(3, 'ore', 'lead', 'Lead', { processorTier: 2, saleValue: 30 })],
-    gems: [resource(3, 'gem', 'ruby', 'Ruby', { saleValue: 55 }), resource(3, 'gem', 'garnet', 'Garnet', { saleValue: 123 })],
-    fossils: [
-      fossil(3, 'ankylosaurus-fossil', 'Ankylosaurus'), fossil(3, 'pachycephalosaurus-fossil', 'Pachycephalosaurus'),
-      fossil(3, 'baryonyx-fossil', 'Baryonyx'), fossil(3, 'carnotaurus-fossil', 'Carnotaurus'),
-      fossil(3, 'camarasaurus-fossil', 'Camarasaurus'),
-    ],
-  },
-  {
-    id: 4,
-    name: 'Silverworks',
-    descendAndAscendMs: 120_000,
-    requiredToolId: 'rudimentary-pickaxe',
-    ores: [resource(4, 'ore', 'silver', 'Silver', { processorTier: 3, saleValue: 38 }), resource(4, 'ore', 'tungsten', 'Tungsten', { processorTier: 3, saleValue: 65 })],
-    gems: [resource(4, 'gem', 'topaz', 'Topaz', { saleValue: 115 }), resource(4, 'gem', 'sapphire', 'Sapphire', { saleValue: 260 })],
-    fossils: [
-      fossil(4, 'triceratops-fossil', 'Triceratops'), fossil(4, 'spinosaurus-fossil', 'Spinosaurus'),
-      fossil(4, 'velociraptor-fossil', 'Velociraptor'), fossil(4, 'diplodocus-fossil', 'Diplodocus'),
-      fossil(4, 'argentinosaurus-fossil', 'Argentinosaurus'),
-    ],
-  },
-  {
-    id: 5,
-    name: 'Gilded Depths',
-    descendAndAscendMs: 300_000,
-    requiredToolId: 'reinforced-pickaxe',
-    ores: [resource(5, 'ore', 'gold', 'Gold', { processorTier: 4, saleValue: 60 }), resource(5, 'ore', 'platinum', 'Platinum', { processorTier: 4, saleValue: 98 })],
-    gems: [resource(5, 'gem', 'amethyst', 'Amethyst', { saleValue: 170 }), resource(5, 'gem', 'aquamarine', 'Aquamarine', { saleValue: 395 })],
-    fossils: [
-      fossil(5, 'tyrannosaurus-fossil', 'Tyrannosaurus'), fossil(5, 'giganotosaurus-fossil', 'Giganotosaurus'),
-      fossil(5, 'therizinosaurus-fossil', 'Therizinosaurus'), fossil(5, 'deinonychus-fossil', 'Deinonychus'),
-      fossil(5, 'apatosaurus-fossil', 'Apatosaurus'),
-    ],
-  },
-  {
-    id: 6,
-    name: 'Cobalt Hollow',
-    descendAndAscendMs: 600_000,
-    requiredToolId: 'sturdy-drill',
-    ores: [resource(6, 'ore', 'cobalt', 'Cobalt', { processorTier: 5, saleValue: 90 }), resource(6, 'ore', 'palladium', 'Palladium', { processorTier: 5, saleValue: 148 })],
-    gems: [resource(6, 'gem', 'citrine', 'Citrine', { saleValue: 270 }), resource(6, 'gem', 'peridot', 'Peridot', { saleValue: 650 })],
-    fossils: [
-      fossil(6, 'utahraptor-fossil', 'Utahraptor'), fossil(6, 'carcharodontosaurus-fossil', 'Carcharodontosaurus'),
-      fossil(6, 'oviraptor-fossil', 'Oviraptor'), fossil(6, 'mamenchisaurus-fossil', 'Mamenchisaurus'),
-      fossil(6, 'styracosaurus-fossil', 'Styracosaurus'),
-    ],
-  },
-  {
-    id: 7,
-    name: 'Adamant Abyss',
-    descendAndAscendMs: 1_800_000,
-    requiredToolId: 'advanced-drill',
-    ores: [resource(7, 'ore', 'titanium', 'Titanium', { processorTier: 6, saleValue: 142 }), resource(7, 'ore', 'adamantite', 'Adamantite', { processorTier: 6, saleValue: 242 })],
-    gems: [resource(7, 'gem', 'diamond', 'Diamond', { saleValue: 440 }), resource(7, 'gem', 'moissanite', 'Moissanite', { saleValue: 1_025 })],
-    fossils: [
-      fossil(7, 'yutyrannus-fossil', 'Yutyrannus'), fossil(7, 'mapusaurus-fossil', 'Mapusaurus'),
-      fossil(7, 'dreadnoughtus-fossil', 'Dreadnoughtus'), fossil(7, 'deinocheirus-fossil', 'Deinocheirus'),
-      fossil(7, 'acrocanthosaurus-fossil', 'Acrocanthosaurus'),
-    ],
-  },
-] as const;
+export const MINING_DEPTHS: readonly MiningDepth[] = MINING_DEPTH_CONFIG;
 
-const recipe = (...items: Array<[string, number]>): readonly MiningRecipeItem[] => (
-  items.map(([resourceId, quantity]) => ({ resourceId, quantity }))
-);
+export const MINING_UPGRADES: readonly MiningUpgrade[] = MINING_SHOP_UPGRADE_CONFIG;
 
-export const MINING_UPGRADES: readonly MiningUpgrade[] = [
-  { id: 'wooden-pickaxe', name: 'Wooden Pickaxe', category: 'tool', value: 0.1, description: 'Starter tool that breaks 1 stone every 10 seconds.' },
-  { id: 'stone-pickaxe', name: 'Stone Pickaxe', category: 'tool', value: 0.2, previousUpgradeId: 'wooden-pickaxe', recipe: recipe(['coal', 2], ['quartz', 2]), description: 'Breaks 1 stone every 5 seconds. Unlocks Copper Veins.' },
-  { id: 'weak-metal-pickaxe', name: 'Weak Metal Pickaxe', category: 'tool', value: 0.5, previousUpgradeId: 'stone-pickaxe', recipe: recipe(['copper', 10], ['tin', 10], ['jade', 1]), description: 'Breaks 1 stone every 2 seconds. Unlocks Iron Delve.' },
-  { id: 'rudimentary-pickaxe', name: 'Rudimentary Pickaxe', category: 'tool', value: 1, previousUpgradeId: 'weak-metal-pickaxe', recipe: recipe(['iron', 25], ['lead', 25], ['ruby', 3]), description: 'Breaks 1 stone each second. Unlocks Silverworks.' },
-  { id: 'reinforced-pickaxe', name: 'Reinforced Pickaxe', category: 'tool', value: 2, previousUpgradeId: 'rudimentary-pickaxe', recipe: recipe(['silver', 75], ['tungsten', 75], ['topaz', 10]), description: 'Breaks 2 stone each second. Unlocks Gilded Depths.' },
-  { id: 'sturdy-drill', name: 'Sturdy Drill', category: 'tool', value: 5, previousUpgradeId: 'reinforced-pickaxe', recipe: recipe(['gold', 200], ['platinum', 200], ['amethyst', 40]), description: 'Breaks 5 stone each second. Unlocks Cobalt Hollow.' },
-  { id: 'advanced-drill', name: 'Advanced Drill', category: 'tool', value: 10, previousUpgradeId: 'sturdy-drill', recipe: recipe(['cobalt', 750], ['palladium', 750], ['citrine', 150]), description: 'Breaks 10 stone each second. Unlocks Adamant Abyss.' },
-  { id: 'high-tech-drill', name: 'High-Tech Drill', category: 'tool', value: 25, previousUpgradeId: 'advanced-drill', recipe: recipe(['titanium', 3000], ['adamantite', 3000], ['diamond', 750]), description: 'Endgame drill that breaks 25 stone each second.' },
+export const MINING_REWARD_WEIGHTS = MINING_REWARD_WEIGHT_CONFIG;
+export const MINING_GEAR = MINING_GEAR_CONTENT_CONFIG;
+export const MINING_GEAR_FIND_RATE = MINING_GEAR_DROP_RATE;
 
-  { id: 'shabby-bin', name: 'Shabby Bin', category: 'storage', value: 5, description: 'Starter minecart storage with room for 5 items.' },
-  { id: 'wooden-crate', name: 'Wooden Crate', category: 'storage', value: 15, previousUpgradeId: 'shabby-bin', recipe: recipe(['jade', 2], ['emerald', 2]), description: 'Raises minecart storage to 15 items.' },
-  { id: 'iron-box', name: 'Iron Box', category: 'storage', value: 30, previousUpgradeId: 'wooden-crate', recipe: recipe(['ruby', 4], ['garnet', 4]), description: 'Raises minecart storage to 30 items.' },
-  { id: 'reinforced-crate', name: 'Reinforced Crate', category: 'storage', value: 75, previousUpgradeId: 'iron-box', recipe: recipe(['topaz', 8], ['sapphire', 8]), description: 'Raises minecart storage to 75 items.' },
-  { id: 'titanium-lockbox', name: 'Titanium Lockbox', category: 'storage', value: 150, previousUpgradeId: 'reinforced-crate', recipe: recipe(['amethyst', 16], ['aquamarine', 16]), description: 'Raises minecart storage to 150 items.' },
-  { id: 'gemcrusted-safe', name: 'Gemcrusted Safe', category: 'storage', value: 300, previousUpgradeId: 'titanium-lockbox', recipe: recipe(['citrine', 32], ['peridot', 32]), description: 'Raises minecart storage to 300 items.' },
-  { id: 'quantum-box', name: 'Quantum Box', category: 'storage', value: 750, previousUpgradeId: 'gemcrusted-safe', recipe: recipe(['diamond', 64], ['moissanite', 64]), description: 'Raises minecart storage to 750 items.' },
-
-  { id: 'processor-depth-2', name: 'Depth 2 Processor', category: 'processor', value: 1, recipe: recipe(['coal', 10], ['quartz', 10]), description: 'Automatically processes Copper Veins ores.' },
-  { id: 'processor-depth-3', name: 'Depth 3 Processor', category: 'processor', value: 2, previousUpgradeId: 'processor-depth-2', recipe: recipe(['copper', 25], ['tin', 25], ['jade', 2]), description: 'Automatically processes Iron Delve ores and lower tiers.' },
-  { id: 'processor-depth-4', name: 'Depth 4 Processor', category: 'processor', value: 3, previousUpgradeId: 'processor-depth-3', recipe: recipe(['iron', 60], ['lead', 60], ['ruby', 6]), description: 'Automatically processes Silverworks ores and lower tiers.' },
-  { id: 'processor-depth-5', name: 'Depth 5 Processor', category: 'processor', value: 4, previousUpgradeId: 'processor-depth-4', recipe: recipe(['silver', 150], ['tungsten', 150], ['topaz', 15]), description: 'Automatically processes Gilded Depths ores and lower tiers.' },
-  { id: 'processor-depth-6', name: 'Depth 6 Processor', category: 'processor', value: 5, previousUpgradeId: 'processor-depth-5', recipe: recipe(['gold', 400], ['platinum', 400], ['amethyst', 50]), description: 'Automatically processes Cobalt Hollow ores and lower tiers.' },
-  { id: 'processor-depth-7', name: 'Depth 7 Processor', category: 'processor', value: 6, previousUpgradeId: 'processor-depth-6', recipe: recipe(['cobalt', 1500], ['palladium', 1500], ['citrine', 175]), description: 'Automatically processes Adamant Abyss ores and lower tiers.' },
-
-  { id: 'sturdy-gears', name: 'Sturdy Gears', category: 'elevator', value: 1, recipe: recipe(['iron', 30], ['lead', 30], ['ruby', 2]), description: 'Reduces ascent and descent time by 10%.' },
-  { id: 'advanced-pulleys', name: 'Advanced Pulleys', category: 'elevator', value: 2, previousUpgradeId: 'sturdy-gears', recipe: recipe(['silver', 100], ['tungsten', 100], ['topaz', 10]), description: 'Reduces ascent and descent time by another 10%.' },
-  { id: 'overcharged-motors', name: 'Overcharged Motors', category: 'elevator', value: 3, previousUpgradeId: 'advanced-pulleys', recipe: recipe(['gold', 250], ['platinum', 250], ['amethyst', 25]), description: 'Reduces ascent and descent time by another 10%.' },
-
-  { id: 'stone-sorter', name: 'Stone Sorter', category: 'filter', value: 1, recipe: recipe(['coal', 25], ['quartz', 25], ['opal', 2]), description: 'Discards 25% of stone before it reaches storage.' },
-  { id: 'filtering-system', name: 'Filtering System', category: 'filter', value: 2, previousUpgradeId: 'stone-sorter', recipe: recipe(['copper', 50], ['tin', 50], ['jade', 5]), description: 'Discards 50% of stone before it reaches storage.' },
-  { id: 'advanced-ore-detector', name: 'Advanced Ore Detector', category: 'filter', value: 3, previousUpgradeId: 'filtering-system', recipe: recipe(['iron', 100], ['lead', 100], ['ruby', 10]), description: 'Discards 75% of stone before it reaches storage.' },
-] as const;
-
-export const MINING_REWARD_WEIGHTS = { fossil: 1, gem: 10, ore: 100, stone: 500 } as const;
+export function getMiningGear(itemId: string) {
+  return MINING_GEAR.find((gear) => gear.id === itemId);
+}
 
 export function getMiningDepth(depthId: number) {
   return MINING_DEPTHS.find((depth) => depth.id === depthId);
@@ -240,10 +114,11 @@ export function getMiningCraftingRecipe(upgrade: MiningUpgrade, cheapskateLevel:
   }));
 }
 
-export function getMiningTravelDurationMs(baseRoundTripMs: number, elevatorTier: number, hasteLevel: number) {
+export function getMiningTravelDurationMs(baseRoundTripMs: number, elevatorTier: number, hasteLevel: number, alienEngine = false) {
   const elevatorMultiplier = Math.max(0.1, 1 - (Math.max(0, Math.min(3, elevatorTier)) * 0.1));
   const hasteMultiplier = Math.max(0.1, 1 - (Math.max(0, Math.min(4, hasteLevel)) * 0.05));
-  return Math.max(1_000, Math.round((baseRoundTripMs / 2) * elevatorMultiplier * hasteMultiplier));
+  const alienEngineMultiplier = alienEngine ? 0.95 : 1;
+  return Math.max(1_000, Math.round((baseRoundTripMs / 2) * elevatorMultiplier * hasteMultiplier * alienEngineMultiplier));
 }
 
 function seededRandom(seed: number) {
@@ -269,25 +144,32 @@ export function resolveMiningExpedition(
   miningElapsedMs: number,
 ): MiningResult {
   const depth = getMiningDepth(depthId);
-  if (!depth || !Number.isFinite(miningElapsedMs) || miningElapsedMs < 0 || equipment.catalogVersion !== 1) {
+  if (!depth || !Number.isFinite(miningElapsedMs) || miningElapsedMs < 0 || (equipment.catalogVersion !== 1 && equipment.catalogVersion !== 2)) {
     throw new Error('Mining expedition data is invalid.');
   }
-  const breakCount = Math.max(0, Math.floor((miningElapsedMs / 1_000) * equipment.toolStonesPerSecond));
+  const gearIds = new Set(equipment.passiveGearItemIds ?? []);
+  const hasGear = (id: string) => gearIds.has(id);
+  const breakCount = Math.max(0, Math.floor((miningElapsedMs / 1_000) * equipment.toolStonesPerSecond * (hasGear('mining-gear-hardened-tip') ? 1.1 : 1)));
   const random = seededRandom(outcomeSeed);
   const cargo = new Map<string, { id: string; kind: MiningResourceKind; name: string; quantity: number }>();
+  const gearItems = new Map<string, number>();
+  const foundGearIds = new Set(gearIds);
   const capacity = Math.max(1, Math.floor(equipment.storageCapacity));
+  const gemStorageCapacity = hasGear('mining-gear-gem-bag') ? Math.max(1, Math.floor(capacity * 0.25)) : 0;
   const luckLevel = Math.max(0, Math.min(4, Math.floor(equipment.luckLevel)));
-  const stoneToOreChance = luckLevel * 0.05;
+  const stoneToOreChance = Math.min(1, (luckLevel * 0.05) + (hasGear('mining-gear-bioluminescence') ? 0.05 : 0));
   const oreToGemChance = luckLevel * 0.01;
-  const stoneDiscardChance = Math.max(0, Math.min(0.75, Math.floor(equipment.filterTier) * 0.25));
-  const totalWeight = MINING_REWARD_WEIGHTS.stone + MINING_REWARD_WEIGHTS.ore + MINING_REWARD_WEIGHTS.gem + MINING_REWARD_WEIGHTS.fossil;
+  const stoneDiscardChance = Math.max(0, Math.min(0.8, (Math.floor(equipment.filterTier) * 0.25) + (hasGear('mining-gear-melter') ? 0.05 : 0)));
+  const fossilWeight = MINING_REWARD_WEIGHTS.fossil * (hasGear('mining-gear-paleontological-certificate') ? 2 : 1);
+  const totalWeight = MINING_REWARD_WEIGHTS.stone + MINING_REWARD_WEIGHTS.ore + MINING_REWARD_WEIGHTS.gem + fossilWeight;
   let storageUsed = 0;
   let discardedStone = 0;
   let miningXpAwarded = 0;
   let stoneStored = 0;
   let stoneBroken = 0;
+  let gemStorageUsed = 0;
 
-  for (let index = 0; index < breakCount && storageUsed < capacity; index += 1) {
+  for (let index = 0; index < breakCount && (storageUsed < capacity || gemStorageUsed < gemStorageCapacity); index += 1) {
     stoneBroken += 1;
     miningXpAwarded += 1;
     let roll = random() * totalWeight;
@@ -304,7 +186,10 @@ export function resolveMiningExpedition(
       continue;
     }
 
-    storageUsed += 1;
+    const usesGemBag = resourceItem !== 'stone' && resourceItem.kind === 'gem' && gemStorageUsed < gemStorageCapacity;
+    if (!usesGemBag && storageUsed >= capacity) continue;
+    if (usesGemBag) gemStorageUsed += 1;
+    else storageUsed += 1;
     if (resourceItem === 'stone') {
       stoneStored += 1;
       continue;
@@ -313,9 +198,20 @@ export function resolveMiningExpedition(
     const existing = cargo.get(resourceItem.id);
     if (existing) existing.quantity += 1;
     else cargo.set(resourceItem.id, { id: resourceItem.id, kind: resourceItem.kind, name: resourceItem.name, quantity: 1 });
+    if (resourceItem.kind === 'gem' && hasGear('gear-gemcracker') && random() < 0.1) {
+      const duplicate = cargo.get(resourceItem.id)!;
+      duplicate.quantity += 1;
+    }
+    const eligibleGear = MINING_GEAR.filter((gear) => gear.depth === depth.id && !foundGearIds.has(gear.id));
+    if (eligibleGear.length > 0 && random() < MINING_GEAR_FIND_RATE) {
+      const gear = pick(eligibleGear, random);
+      foundGearIds.add(gear.id);
+      gearItems.set(gear.id, 1);
+    }
   }
 
-  return { cargo: [...cargo.values()], discardedStone, miningXpAwarded, stoneStored, stoneBroken, storageUsed };
+  const xpMultiplier = hasGear('gear-giant-pearl') ? 1.25 : 1;
+  return { cargo: [...cargo.values()], discardedStone, gearItems: [...gearItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })), gemStorageCapacity, gemStorageUsed, miningXpAwarded: Math.floor(miningXpAwarded * xpMultiplier), stoneStored, stoneBroken, storageUsed };
 }
 
 export function getMiningXpForLevel(level: number) {

@@ -298,9 +298,6 @@ export const commandDefinitions = [
       .setName('inventory')
       .setDescription('View owned upgrades and equip rods or bait.'))
     .addSubcommand((subcommand) => subcommand
-      .setName('chests-open')
-      .setDescription('Open every held legacy fishing chest for KnowBucks.'))
-    .addSubcommand((subcommand) => subcommand
       .setName('catalogue')
       .setDescription('Browse the fishing field guide by biome.'))
     .addSubcommand((subcommand) => subcommand
@@ -343,6 +340,9 @@ export const commandDefinitions = [
     .addSubcommand((subcommand) => subcommand
       .setName('inventory')
       .setDescription('View ores, gems, fossils, and mining equipment.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('catalogue')
+      .setDescription('Browse Mining discoveries by depth.'))
     .addSubcommand((subcommand) => subcommand
       .setName('sell')
       .setDescription('Sell a processor-ready ore or gem for KnowBucks.')

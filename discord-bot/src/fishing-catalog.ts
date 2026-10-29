@@ -1,3 +1,12 @@
+import {
+  FISHING_BALANCE_CONFIG,
+  FISHING_CATCH_CONFIG,
+  FISHING_EVENT_BIOME_CONFIG,
+  FISHING_RELIC_CONTENT_CONFIG,
+  FISHING_SHOP_UPGRADE_CONFIG,
+  PLAYER_SKILL_TIER_CONFIG,
+} from './minigame-content-config.js';
+
 export const FISHING_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic'] as const;
 export const FISHING_CRATE_RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] as const;
 
@@ -267,84 +276,85 @@ const LEGACY_FISHING_EXPEDITION_LENGTHS: readonly FishingExpeditionLength[] = [
   { tier: 4, requiredFishingLevel: 30, durationSeconds: 300, catchCount: [12, 15], higherRarityWeightBonusPercent: 0 },
 ] as const;
 
+type FishingRelicEffects = Omit<FishingUpgrade, 'category' | 'cost' | 'description' | 'foundBiomeIds' | 'id' | 'name'>;
+
+function fishingRelic(id: string, effects: FishingRelicEffects = {}): FishingUpgrade {
+  const content = FISHING_RELIC_CONTENT_CONFIG.find((relic) => relic.id === id);
+  if (!content) throw new Error(`Missing Fishing relic content configuration for ${id}.`);
+
+  return {
+    category: 'gear',
+    cost: 0,
+    description: content.description,
+    foundBiomeIds: content.foundBiomeIds ? [...content.foundBiomeIds] : undefined,
+    id,
+    name: content.name,
+    ...effects,
+  };
+}
+
+function playerSkill(skill: (typeof PLAYER_SKILL_TIER_CONFIG)[number]): FishingUpgrade {
+  return {
+    category: 'skill',
+    cost: skill.cost,
+    description: skill.description,
+    id: skill.id,
+    name: skill.name,
+    ...(skill.costReductionPercent === undefined ? {} : { costReductionPercent: skill.costReductionPercent }),
+    ...(skill.higherRarityBonusPercent === undefined ? {} : { higherRarityBonusPercent: skill.higherRarityBonusPercent }),
+    ...(skill.requiredUpgradeId === undefined ? {} : { requiredUpgradeId: skill.requiredUpgradeId }),
+    ...(skill.saleBonusPercent === undefined ? {} : { saleBonusPercent: skill.saleBonusPercent }),
+    ...(skill.timeReductionPercent === undefined ? {} : { timeReductionPercent: skill.timeReductionPercent }),
+  };
+}
+
+function fishingShopUpgrade(upgrade: (typeof FISHING_SHOP_UPGRADE_CONFIG)[number]): FishingUpgrade {
+  return {
+    category: upgrade.category,
+    cost: upgrade.cost,
+    description: upgrade.description,
+    id: upgrade.id,
+    name: upgrade.name,
+    ...(upgrade.catchableRarities === undefined ? {} : { catchableRarities: [...upgrade.catchableRarities] }),
+    ...(upgrade.requiredFishingLevel === undefined ? {} : { requiredFishingLevel: upgrade.requiredFishingLevel }),
+    ...(upgrade.requiredUpgradeId === undefined ? {} : { requiredUpgradeId: upgrade.requiredUpgradeId }),
+  };
+}
+
 export const FISHING_UPGRADES: readonly FishingUpgrade[] = [
-  { id: 'plastic-rod', name: 'Plastic Rod', category: 'rod', cost: 0, description: 'Starter rod that catches common fish.', catchableRarities: ['Common'] },
-  { id: 'wooden-rod', name: 'Wooden Rod', category: 'rod', cost: 5_000, requiredFishingLevel: 5, description: 'Catches common and uncommon fish.', catchableRarities: ['Common', 'Uncommon'] },
-  { id: 'fiberglass-rod', name: 'Fiberglass Rod', category: 'rod', cost: 15_000, requiredFishingLevel: 10, description: 'Catches common, uncommon, and rare fish.', catchableRarities: ['Common', 'Uncommon', 'Rare'] },
-  { id: 'reinforced-rod', name: 'Reinforced Rod', category: 'rod', cost: 30_000, requiredFishingLevel: 15, description: 'Catches common through epic fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic'] },
-  { id: 'master-rod', name: 'Master Rod', category: 'rod', cost: 50_000, requiredFishingLevel: 20, description: 'Catches common through legendary fish.', catchableRarities: ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'] },
-  { id: 'celestial-rod', name: 'Celestial Rod', category: 'rod', cost: 250_000, requiredFishingLevel: 50, description: 'Catches uncommon through legendary fish.', catchableRarities: ['Uncommon', 'Rare', 'Epic', 'Legendary'] },
-  { id: 'god-rod', name: 'God Rod', category: 'rod', cost: 1_000_000, requiredFishingLevel: 80, description: 'Catches rare, epic, legendary, and future Mythic fish.', catchableRarities: ['Rare', 'Epic', 'Legendary', 'Mythic'] },
-  { id: 'basic-bait', name: 'Basic Bait', category: 'bait', cost: 0, description: 'Starter bait with no expedition modifier.' },
-  { id: 'chum', name: 'Chum', category: 'bait', cost: 10_000, requiredFishingLevel: 5, description: 'Each common or uncommon fish has a 10–30% chance to return one additional fish.' },
-  { id: 'magnet', name: 'Magnet', category: 'bait', cost: 30_000, requiredFishingLevel: 15, description: 'Increases each crate-spawn chance by 50% of its original odds.' },
-  { id: 'sonar', name: 'Sonar', category: 'bait', cost: 75_000, requiredFishingLevel: 25, description: 'Halves fish-roll success while doubling relic-find chance.' },
-  { id: 'bloodworms', name: 'Bloodworms', category: 'bait', cost: 150_000, requiredFishingLevel: 40, description: 'Each rare or epic fish has a 10–30% chance to return one additional fish.' },
-  { id: 'mysterious-sea-food', name: 'Mysterious Sea Food', category: 'bait', cost: 250_000, requiredFishingLevel: 55, description: 'Has a 20% chance to add 50% more fish rolls to an expedition.' },
-  { id: 'truffle-worm', name: 'Truffle Worm', category: 'bait', cost: 1_000_000, requiredFishingLevel: 80, description: 'Triples legendary odds, but only legendary fish can return.' },
-  { id: 'sail', name: 'Sail', category: 'boat', cost: 10_000, requiredFishingLevel: 10, description: 'Permanent boat upgrade that unlocks travel to the Warm Ocean.' },
-  { id: 'abiotic-turbine', name: 'Abiotic Turbine', category: 'boat', cost: 25_000, requiredFishingLevel: 20, description: 'Permanent boat upgrade that unlocks travel to the Hydroplant Reservoir.' },
-  { id: 'submersible-pod', name: 'Submersible Pod', category: 'boat', cost: 60_000, requiredFishingLevel: 30, description: 'Permanent boat upgrade that unlocks travel to the Sunken Sea.' },
-  { id: 'magic-conch-navigator', name: 'Magic Conch Navigator', category: 'boat', cost: 100_000, requiredFishingLevel: 40, description: 'Permanent boat upgrade that unlocks travel to the Kelp Forest.' },
-  { id: 'drill-unit', name: 'Drill Unit', category: 'boat', cost: 150_000, requiredFishingLevel: 50, description: 'Permanent boat upgrade that unlocks travel to the Crystaline Caverns.' },
-  { id: 'radar-scanner', name: 'Radar Scanner', category: 'boat', cost: 250_000, requiredFishingLevel: 60, description: 'Permanent boat upgrade that unlocks travel to Rallypoint Delta.' },
-  { id: 'lucky-1', name: 'Lucky I', category: 'skill', cost: 2_500, description: 'Increases higher-rarity fishing odds by 5%. Each Lucky level also adds 2% robbery success and reduces robbery chance against you by 1%.', higherRarityBonusPercent: 5 },
-  { id: 'lucky-2', name: 'Lucky II', category: 'skill', cost: 15_000, description: 'Increases higher-rarity fishing odds by another 5%, plus another +2% robbery success and -1% robbery chance against you.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-1' },
-  { id: 'lucky-3', name: 'Lucky III', category: 'skill', cost: 50_000, description: 'Increases higher-rarity fishing odds by another 5%, plus another +2% robbery success and -1% robbery chance against you.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-2' },
-  { id: 'lucky-4', name: 'Lucky IV', category: 'skill', cost: 250_000, description: 'Increases higher-rarity fishing odds by another 5%, plus another +2% robbery success and -1% robbery chance against you.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-3' },
-  { id: 'lucky-5', name: 'Lucky V', category: 'skill', cost: 1_000_000, description: 'Increases higher-rarity fishing odds by another 5%, plus another +2% robbery success and -1% robbery chance against you.', higherRarityBonusPercent: 5, requiredUpgradeId: 'lucky-4' },
-  { id: 'cheapskate-1', name: 'Cheapskate I', category: 'skill', cost: 10_000, description: 'Reduces fishing-shop costs by 5%.', costReductionPercent: 5 },
-  { id: 'cheapskate-2', name: 'Cheapskate II', category: 'skill', cost: 50_000, description: 'Reduces fishing-shop costs by another 5%.', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-1' },
-  { id: 'cheapskate-3', name: 'Cheapskate III', category: 'skill', cost: 250_000, description: 'Reduces fishing-shop costs by another 5%.', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-2' },
-  { id: 'cheapskate-4', name: 'Cheapskate IV', category: 'skill', cost: 1_000_000, description: 'Reduces fishing-shop costs by another 5%.', costReductionPercent: 5, requiredUpgradeId: 'cheapskate-3' },
-  { id: 'money-mouser-1', name: 'Money Mouser I', category: 'skill', cost: 250_000, description: 'Increases money gained from fishing by 10%.', saleBonusPercent: 10 },
-  { id: 'money-mouser-2', name: 'Money Mouser II', category: 'skill', cost: 1_000_000, description: 'Increases money gained from fishing by another 10%.', saleBonusPercent: 10, requiredUpgradeId: 'money-mouser-1' },
-  { id: 'haste-1', name: 'Haste I', category: 'skill', cost: 10_000, description: 'Reduces expedition duration by 10% and robbery cooldown by 5%.', timeReductionPercent: 10 },
-  { id: 'haste-2', name: 'Haste II', category: 'skill', cost: 25_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-1' },
-  { id: 'haste-3', name: 'Haste III', category: 'skill', cost: 100_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-2' },
-  { id: 'haste-4', name: 'Haste IV', category: 'skill', cost: 250_000, description: 'Reduces expedition duration by another 10% and robbery cooldown by another 5%.', timeReductionPercent: 10, requiredUpgradeId: 'haste-3' },
-  { id: 'gear-sea-star', name: 'Sea Star', category: 'gear', cost: 0, description: 'Permanent relic: increases money gained from everything by 5%.', saleBonusPercent: 5 },
-  { id: 'gear-alien-engine', name: 'Alien Engine', category: 'gear', cost: 0, description: 'Permanent relic: reduces expedition duration by 10%.', timeReductionPercent: 10 },
-  { id: 'gear-dual-hook', name: 'Dual Hook', category: 'gear', cost: 0, description: 'Permanent relic: adds one fish roll to every expedition.' },
-  { id: 'gear-rod-improvement-kit', name: 'Rod Improvement Kit', category: 'gear', cost: 0, description: 'Permanent relic: increases higher-rarity fishing odds by 5%.', higherRarityBonusPercent: 5 },
-  { id: 'gear-lost-pursasion-device', name: 'Lost Pursasion Device', category: 'gear', cost: 0, description: 'Permanent relic: reduces costs by 5%.', costReductionPercent: 5 },
-  { id: 'gear-conduit', name: 'Conduit', category: 'gear', cost: 0, description: 'Permanent relic: doubles relic-find chance.', foundBiomeIds: ['warm-ocean'] },
-  { id: 'gear-reservoir-growth', name: 'Reservoir Growth', category: 'gear', cost: 0, description: 'Permanent relic: raises crate-spawn chance by 10%.', foundBiomeIds: ['hydroplant-reservoir'] },
-  { id: 'gear-giant-pearl', name: 'Giant Pearl', category: 'gear', cost: 0, description: 'Permanent relic: increases Fishing XP earned by 25%.', foundBiomeIds: ['sunken-sea'] },
-  { id: 'gear-magic-conch', name: 'Magic Conch', category: 'gear', cost: 0, description: 'Permanent relic: each fish has a 10% chance to upgrade one rarity.', foundBiomeIds: ['kelp-forest'] },
-  { id: 'gear-gemcracker', name: 'Gemcracker', category: 'gear', cost: 0, description: 'Permanent relic: reserves improved crate loot for a future balance update.', foundBiomeIds: ['crystaline-caverns'] },
-  { id: 'gear-teleporter', name: 'Teleporter', category: 'gear', cost: 0, description: 'Permanent relic: 5% chance to instantly complete a non-crew expedition.', foundBiomeIds: ['rallypoint-delta'] },
-  { id: 'gear-lucky-coin', name: 'Lucky Coin', category: 'gear', cost: 0, description: 'Permanent relic: each fish or crate catch has a 3% chance to sell for double.', },
-  { id: 'gear-streak-charm', name: 'Streak Charm', category: 'gear', cost: 0, description: 'Permanent relic: consecutive expeditions in the same location gain 0.5% value each, up to 10%; changing location resets the streak.', },
-  { id: 'gear-early-bird-bell', name: 'Early Bird Bell', category: 'gear', cost: 0, description: 'Permanent relic: the first expedition launched each UTC day earns 50% more KnowBucks.', },
-  { id: 'gear-knowleague-lure', name: 'KnowLeague Lure', category: 'gear', cost: 0, description: 'Permanent relic: legendary fish sell for 10% more.', },
-  { id: 'gear-dockhands-ledger', name: "Harbor Dockhand's Ledger", category: 'gear', cost: 0, description: 'Permanent relic: crew expeditions earn 2.5% more KnowBucks.', foundBiomeIds: ['harbor'] },
-  { id: 'gear-sunstone', name: 'Sunstone', category: 'gear', cost: 0, description: 'Permanent relic: Warm Ocean fish value rolls skew toward the top of their ranges.', foundBiomeIds: ['warm-ocean'] },
-  { id: 'gear-genesys-loop', name: 'Genesys Loop', category: 'gear', cost: 0, description: 'Permanent relic: after an expedition settles, launches the same preset again up to twice in a row.', foundBiomeIds: ['hydroplant-reservoir'] },
-  { id: 'gear-pearl-divers-log', name: "Pearl Diver's Log", category: 'gear', cost: 0, description: 'Permanent relic: the first catch of each fish pays five times its normal value.', foundBiomeIds: ['sunken-sea'] },
-  { id: 'gear-tangle-net', name: 'Tangle Net', category: 'gear', cost: 0, description: 'Permanent relic: each distinct fish rarity in a haul adds 3% value to its fish sales.', foundBiomeIds: ['kelp-forest'] },
-  { id: 'gear-crystal-resonator', name: 'Crystal Resonator', category: 'gear', cost: 0, description: 'Permanent relic: epic and legendary fish sell for 10% more.', foundBiomeIds: ['crystaline-caverns'] },
-  { id: 'gear-autopilot-relay', name: 'Autopilot Relay', category: 'gear', cost: 0, description: 'Permanent relic: crew expeditions earn 20% more KnowBucks and finish 10% faster.', foundBiomeIds: ['rallypoint-delta'] },
-  { id: 'crew-1', name: 'Crew 1 Contract', category: 'crew', cost: 100_000, requiredFishingLevel: 40, description: 'Unlocks Crew 1. Crew expeditions take 3x as long.' },
-  { id: 'crew-2', name: 'Crew 2 Contract', category: 'crew', cost: 250_000, requiredFishingLevel: 80, description: 'Unlocks Crew 2. Requires Crew 1; crew expeditions take 3x as long.' },
+  ...FISHING_SHOP_UPGRADE_CONFIG.filter((upgrade) => upgrade.category === 'rod').map(fishingShopUpgrade),
+  ...FISHING_SHOP_UPGRADE_CONFIG.filter((upgrade) => upgrade.category === 'bait').map(fishingShopUpgrade),
+  ...FISHING_SHOP_UPGRADE_CONFIG.filter((upgrade) => upgrade.category === 'boat').map(fishingShopUpgrade),
+  ...PLAYER_SKILL_TIER_CONFIG.map(playerSkill),
+  fishingRelic('gear-sea-star', { saleBonusPercent: 5 }),
+  fishingRelic('gear-alien-engine', { timeReductionPercent: 10 }),
+  fishingRelic('gear-dual-hook'),
+  fishingRelic('gear-rod-improvement-kit', { higherRarityBonusPercent: 5 }),
+  fishingRelic('gear-lost-pursasion-device', { costReductionPercent: 5 }),
+  fishingRelic('gear-conduit'),
+  fishingRelic('gear-reservoir-growth'),
+  fishingRelic('gear-giant-pearl'),
+  fishingRelic('gear-magic-conch'),
+  fishingRelic('gear-gemcracker'),
+  fishingRelic('gear-teleporter'),
+  fishingRelic('gear-lucky-coin'),
+  fishingRelic('gear-streak-charm'),
+  fishingRelic('gear-early-bird-bell'),
+  fishingRelic('gear-knowleague-lure'),
+  fishingRelic('gear-dockhands-ledger'),
+  fishingRelic('gear-sunstone'),
+  fishingRelic('gear-genesys-loop'),
+  fishingRelic('gear-pearl-divers-log'),
+  fishingRelic('gear-tangle-net'),
+  fishingRelic('gear-crystal-resonator'),
+  fishingRelic('gear-autopilot-relay'),
+  ...FISHING_SHOP_UPGRADE_CONFIG.filter((upgrade) => upgrade.category === 'crew').map(fishingShopUpgrade),
 ] as const;
 
-const fish = (biomeId: FishingBiomeId, id: string, name: string, rarity: FishingRarity, minSaleValue: number, maxSaleValue: number, tags: readonly string[] = []): FishingFish => ({ biomeId, id, name, rarity, minSaleValue, maxSaleValue, tags });
-
-export const FISHING_FISH: readonly FishingFish[] = [
-  fish('harbor', 'carp', 'Carp', 'Common', 5, 8, ['silver']), fish('harbor', 'bluegill', 'Bluegill', 'Common', 5, 8, ['silver']), fish('harbor', 'trout', 'Trout', 'Common', 6, 9, ['silver']),
-  fish('harbor', 'salmon', 'Salmon', 'Uncommon', 9, 13, ['silver']), fish('harbor', 'bass', 'Bass', 'Uncommon', 9, 13), fish('harbor', 'pike', 'Pike', 'Uncommon', 10, 14),
-  fish('harbor', 'piranha', 'Piranha', 'Rare', 15, 22), fish('harbor', 'clownfish', 'Clownfish', 'Rare', 15, 22), fish('harbor', 'tuna', 'Tuna', 'Rare', 17, 24, ['deep']),
-  fish('harbor', 'turtle', 'Turtle', 'Epic', 32, 45), fish('harbor', 'swordfish', 'Swordfish', 'Epic', 35, 50, ['deep']), fish('harbor', 'lionfish', 'Lionfish', 'Epic', 34, 48),
-  fish('harbor', 'alligator', 'Alligator', 'Legendary', 100, 140), fish('harbor', 'shark', 'Shark', 'Legendary', 110, 150, ['deep']), fish('harbor', 'whale', 'Whale', 'Legendary', 120, 165, ['deep']), fish('harbor', 'giant-squid', 'Giant Squid', 'Legendary', 115, 160, ['deep']),
-
-  fish('warm-ocean', 'ocean-fish', 'Fish', 'Common', 8, 12), fish('warm-ocean', 'tropical-fish', 'Tropical Fish', 'Uncommon', 14, 20), fish('warm-ocean', 'pufferfish', 'Pufferfish', 'Rare', 26, 36), fish('warm-ocean', 'dolphin', 'Dolphin', 'Epic', 60, 85), fish('warm-ocean', 'guardian', 'Guardian', 'Epic', 65, 90), fish('warm-ocean', 'elder-guardian', 'Elder Guardian', 'Legendary', 180, 250),
-  fish('hydroplant-reservoir', 'antefish', 'Antefish', 'Common', 15, 20), fish('hydroplant-reservoir', 'portal-fish', 'Portal Fish', 'Uncommon', 25, 35), fish('hydroplant-reservoir', 'is-0098', 'IS0098', 'Rare', 45, 65), fish('hydroplant-reservoir', 'darkwater-fish', 'Darkwater Fish', 'Epic', 100, 145, ['deep']), fish('hydroplant-reservoir', 'corruscating-portal-fish', 'Corruscating Portal Fish', 'Legendary', 350, 500), fish('hydroplant-reservoir', 'amaranthic-is-0098', 'Amaranthic IS-0098', 'Legendary', 360, 510), fish('hydroplant-reservoir', 'saxe-darkwater-fish', 'Saxe Darkwater Fish', 'Legendary', 370, 520, ['deep']), fish('hydroplant-reservoir', 'darkwater-beast', 'Darkwater Beast', 'Legendary', 390, 550, ['deep']),
-  fish('sunken-sea', 'greenwave-loach', 'Greenwave Loach', 'Common', 30, 45), fish('sunken-sea', 'prismatic-guppy', 'Prismatic Guppy', 'Uncommon', 55, 75), fish('sunken-sea', 'clam', 'Clam', 'Rare', 90, 130), fish('sunken-sea', 'eutrophic-ray', 'Eutrophic Ray', 'Rare', 100, 140), fish('sunken-sea', 'ghost-bell', 'Ghost Bell', 'Epic', 200, 300), fish('sunken-sea', 'prism-back', 'Prism-Back', 'Epic', 220, 320), fish('sunken-sea', 'giant-clam', 'Giant Clam', 'Legendary', 700, 1_000),
-  fish('kelp-forest', 'jellyfish', 'Jellyfish', 'Common', 50, 70), fish('kelp-forest', 'nematodes', 'Nematodes', 'Common', 50, 70), fish('kelp-forest', 'groovy-jelly', 'Groovy Jelly', 'Uncommon', 80, 115), fish('kelp-forest', 'aggressive-jelly', 'Aggressive Jelly', 'Rare', 140, 200), fish('kelp-forest', 'seahorse', 'Seahorse', 'Epic', 320, 450), fish('kelp-forest', 'king-jelly', 'King Jelly', 'Epic', 340, 470), fish('kelp-forest', 'spongebob', 'Spongebob', 'Legendary', 1_150, 1_600), fish('kelp-forest', 'squidward', 'Squidward', 'Legendary', 1_150, 1_600), fish('kelp-forest', 'patrick', 'Patrick', 'Legendary', 1_200, 1_650), fish('kelp-forest', 'gary', 'Gary', 'Legendary', 1_100, 1_550),
-  fish('crystaline-caverns', 'glyphid-swarmer', 'Glyphid Swarmer', 'Common', 75, 100), fish('crystaline-caverns', 'glyphid-exploder', 'Glyphid Exploder', 'Common', 75, 100), fish('crystaline-caverns', 'glyphid-grunt', 'Glyphid Grunt', 'Common', 80, 105), fish('crystaline-caverns', 'glyphid-web-spitter', 'Glyphid Web Spitter', 'Uncommon', 120, 170), fish('crystaline-caverns', 'glyphid-acid-spitter', 'Glyphid Acid Spitter', 'Uncommon', 125, 175), fish('crystaline-caverns', 'glyphid-slasher', 'Glyphid Slasher', 'Rare', 220, 310), fish('crystaline-caverns', 'glyphid-guard', 'Glyphid Guard', 'Rare', 230, 320), fish('crystaline-caverns', 'lootbug', 'Lootbug', 'Rare', 240, 330), fish('crystaline-caverns', 'glyphid-praetorian', 'Glyphid Praetorian', 'Epic', 500, 700), fish('crystaline-caverns', 'golden-lootbug', 'Golden Lootbug', 'Epic', 550, 750), fish('crystaline-caverns', 'glyphid-warden', 'Glyphid Warden', 'Epic', 520, 720), fish('crystaline-caverns', 'glyphid-dreadnought', 'Glyphid Dreadnought', 'Legendary', 1_800, 2_500), fish('crystaline-caverns', 'glyphid-hiveguard', 'Glyphid Hiveguard', 'Legendary', 1_850, 2_550), fish('crystaline-caverns', 'glyphid-bulk-detonator', 'Glyphid Bulk Detonator', 'Legendary', 1_900, 2_600), fish('crystaline-caverns', 'glyphid-oppressor', 'Glyphid Oppressor', 'Legendary', 1_900, 2_600),
-  fish('rallypoint-delta', 'lemurian', 'Lemurian', 'Common', 120, 160), fish('rallypoint-delta', 'lesser-wisp', 'Lesser Wisp', 'Common', 125, 165), fish('rallypoint-delta', 'stone-golem', 'Stone Golem', 'Uncommon', 200, 275), fish('rallypoint-delta', 'imp', 'Imp', 'Uncommon', 210, 285), fish('rallypoint-delta', 'greater-wisp', 'Greater Wisp', 'Rare', 360, 500), fish('rallypoint-delta', 'bighorn-bison', 'Bighorn Bison', 'Rare', 375, 525), fish('rallypoint-delta', 'void-reaver', 'Void Reaver', 'Epic', 850, 1_200), fish('rallypoint-delta', 'clay-dunestrider', 'Clay Dunestrider', 'Legendary', 3_000, 4_250), fish('rallypoint-delta', 'imp-overlord', 'Imp Overlord', 'Legendary', 3_100, 4_350), fish('rallypoint-delta', 'magma-worm', 'Magma Worm', 'Legendary', 3_200, 4_500), fish('rallypoint-delta', 'scavenger', 'Scavenger', 'Legendary', 3_000, 4_250),
-] as const;
+export const FISHING_FISH: readonly FishingFish[] = FISHING_CATCH_CONFIG.map((catchConfig) => ({
+  ...catchConfig,
+  tags: [...('tags' in catchConfig ? catchConfig.tags : [])],
+}));
 
 /** Reserved for the Mythic fish catalogue. Mythic catches are intentionally not live yet. */
 export const FISHING_MYTHIC_FISH: readonly FishingFish[] = [];
@@ -363,14 +373,17 @@ const halloweenCrate = (id: string, name: string, rarity: FishingCrateRarity, it
   rarity,
 });
 
+const halloweenEventBiome = FISHING_EVENT_BIOME_CONFIG.find((eventBiome) => eventBiome.id === 'halloween');
+if (!halloweenEventBiome) throw new Error('Missing Halloween Fishing event-biome configuration.');
+
 /**
  * Active event content is kept outside the ordinary biome catalogue: it can
  * temporarily replace any selected expedition while retaining that selected
  * biome's sale-value ranges and expedition length.
  */
 export const FISHING_EVENTS: readonly FishingEvent[] = [{
-  biomeName: 'Hellish Abyss',
-  catalogueBiomeId: HALLOWEEN_EVENT_CATALOGUE_BIOME_ID,
+  biomeName: halloweenEventBiome.biomeName,
+  catalogueBiomeId: halloweenEventBiome.catalogueBiomeId,
   crates: [
     halloweenCrate('halloween-ribcage', 'Ribcage', 'Common', ['Heart', 'Lungs', 'Intenstines', 'Spine']),
     halloweenCrate('halloween-sunken-jack-o-lantern', 'Sunken Jack-o-Lantern', 'Uncommon', ['Ghostly Figurine', 'Spider Eggs']),
@@ -395,9 +408,9 @@ export const FISHING_EVENTS: readonly FishingEvent[] = [{
     halloweenFish('lost-soul', 'Lost Soul', 'Legendary'),
     halloweenFish('cthulhu', 'Cthulhu', 'Mythic', true),
   ],
-  id: 'halloween',
-  name: 'Halloween Event',
-  replacementChance: 0.25,
+  id: halloweenEventBiome.id,
+  name: halloweenEventBiome.name,
+  replacementChance: halloweenEventBiome.replacementChance,
   title: {
     dropRate: 0.001,
     itemId: 'gear-title-ghoulish-seafarer',
@@ -490,25 +503,16 @@ export const FISHING_CRATE_LOOT: readonly FishingCrateLoot[] = [
 const rarityRank: Record<FishingRarity, number> = { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4, Mythic: 5 };
 /** Base fish selection weights before rod, bait, skill, Relic, and event modifiers. */
 export const FISHING_FISH_RARITY_WEIGHTS: Readonly<Record<FishingRarity, number>> = {
-  Common: 1_000,
-  Uncommon: 200,
-  Rare: 50,
-  Epic: 10,
-  Legendary: 0.1,
-  Mythic: 0,
+  ...FISHING_BALANCE_CONFIG.fishRarityWeights,
 };
 /** Legendary catches receive this multiplier before Relic, role, and event bonuses. */
-export const FISHING_LEGENDARY_FISH_SALE_MULTIPLIER = 15;
+export const FISHING_LEGENDARY_FISH_SALE_MULTIPLIER = FISHING_BALANCE_CONFIG.legendaryFishSaleMultiplier;
 /** 25% lower than the immediately preceding 7.5 XP-per-roll beta balance. */
-export const FISHING_EXPEDITION_XP_PER_BASE_CATCH = 5.625;
+export const FISHING_EXPEDITION_XP_PER_BASE_CATCH = FISHING_BALANCE_CONFIG.expeditionXpPerBaseCatch;
 const PREVIOUS_FISHING_EXPEDITION_XP_PER_BASE_CATCH = 7.5;
 const LEGACY_FISHING_EXPEDITION_XP_PER_BASE_CATCH = 30;
 export const FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, number>> = {
-  Common: 15,
-  Uncommon: 37.5,
-  Rare: 112.5,
-  Epic: 375,
-  Legendary: 1_500,
+  ...FISHING_BALANCE_CONFIG.crateXpByRarity,
 };
 const PREVIOUS_FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, number>> = {
   Common: 20,
@@ -517,10 +521,10 @@ const PREVIOUS_FISHING_CRATE_XP_BY_RARITY: Readonly<Record<FishingCrateRarity, n
   Epic: 500,
   Legendary: 2_000,
 };
-export const FISHING_CRATE_DROP_RATES: Readonly<Record<FishingCrateRarity, number>> = { Common: 0.05, Uncommon: 0.025, Rare: 0.0125, Epic: 0.0025, Legendary: 0.00025 };
+export const FISHING_CRATE_DROP_RATES: Readonly<Record<FishingCrateRarity, number>> = FISHING_BALANCE_CONFIG.crateDropRates;
 const crateLootRarityWeight: Record<FishingCrateRarity, number> = { Common: 1_000, Uncommon: 200, Rare: 50, Epic: 10, Legendary: 1 };
 /** Base chance per expedition catch roll: 0.01%, which is 10% of the prior 0.1% rate. */
-export const FISHING_RELIC_DROP_RATE = 0.0001;
+export const FISHING_RELIC_DROP_RATE = FISHING_BALANCE_CONFIG.relicDropRate;
 
 /** Uses the same cumulative curve as character/chat levels. */
 export function getFishingTotalXpForLevel(level: number) {

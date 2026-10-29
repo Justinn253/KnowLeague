@@ -16,7 +16,7 @@ import { findLinkedProfile } from './profiles.js';
 import {
   attemptRobbery,
   getPlayerShopDisplayCost,
-  getPlayerEquipmentInventory,
+  getPlayerInventory,
   getPlayerShopItem,
   getPlayerShopItems,
   getPlayerShopState,
@@ -24,6 +24,7 @@ import {
   purchasePlayerShopItem,
   type PlayerShopState,
   type PlayerShopTab,
+  type PlayerInventory,
   type PlayerStats,
   type RobberyResult,
 } from './player.js';
@@ -58,14 +59,12 @@ import {
   getFishingBiome,
   getFishingCatalogueProgress,
   getFishingEventCatalogueProgress,
-  getFishingCrate,
   getFishingEvent,
   getFishingPlayerState,
   getVisibleFishingShopItems,
   getFishingUpgrade,
   getFishingUpgradeCost,
   getFishingCommandChannelIds,
-  openAllFishingCrates,
   purchaseFishingUpgrade,
   isFishingCommandAllowedInChannel,
   isFishingFishCaught,
@@ -86,9 +85,12 @@ import {
 } from './fishing.js';
 import {
   formatMiningDuration,
+  MINING_DEPTHS,
+  MINING_GEAR,
   getMiningBestUpgrade,
   getMiningCraftingRecipe,
   getMiningDepth,
+  getMiningGear,
   getMiningResource,
   getMiningUpgrade,
   getMiningUpgrades,
@@ -100,6 +102,7 @@ import {
 import {
   beginMiningReturn,
   getActiveMiningExpedition,
+  getMiningCatalogueProgress,
   getMiningCommandChannelIds,
   getMiningInventoryByKind,
   getMiningPlayerState,
@@ -108,8 +111,10 @@ import {
   purchaseMiningUpgrade,
   sellMiningResource,
   settleDueMiningReturn,
+  grantEligibleMiningLevelRoles,
   startMiningExpedition,
   type MiningPlayerState,
+  type MiningCatalogueProgress,
 } from './mining.js';
 import {
   buildSkinSearchEmbed,
@@ -315,7 +320,6 @@ function helpFields(tab: HelpTab): HelpField[] {
       { name: '/fish expedition-progress', value: 'View active expeditions and your latest return; completed trips include Fish again.' },
       { name: '/fish shop', value: 'Browse and buy Fishing rods, bait, boats, and crew contracts.' },
       { name: '/fish inventory', value: 'Inspect owned Fishing equipment and equip a rod or bait.' },
-      { name: '/fish chests-open', value: 'Redeem all remaining legacy Fishing chests for KnowBucks.' },
       { name: '/fish catalogue, event-help, event-catalogue', value: 'Browse fish and event discoveries or review active Fishing event rules.' },
       { name: '/fish help', value: 'Open focused Fishing command and progression guidance.' },
     ];
@@ -325,7 +329,7 @@ function helpFields(tab: HelpTab): HelpField[] {
       { name: '/mining expedition set depth', value: 'Descend to a tool-gated depth. Mine until your cart fills, then recall it when ready.' },
       { name: '/mining expedition view, return', value: 'Inspect live cart storage or freeze its haul and begin the ascent. Returns settle on your next Mining interaction once the ascent is over.' },
       { name: '/mining shop', value: 'Craft permanent tools, storage, processors, elevator upgrades, and filters. Shared skills are bought in `/player shop`.' },
-      { name: '/mining inventory', value: 'Browse acquired ores, gems, fossil pieces, equipment, and Mining XP.' },
+      { name: '/mining inventory, catalogue', value: 'Browse held Mining resources and equipment, or permanent discoveries at each depth.' },
       { name: '/mining sell resource amount', value: 'Sell a chosen eligible gem or processor-ready ore by quantity or `all`.' },
       { name: '/mining help', value: 'Open focused Mining rules and progression guidance.' },
     ];
@@ -593,7 +597,7 @@ function buildFishingShopPanel(ownerDiscordUserId: string, category: FishingUpgr
       new EmbedBuilder()
         .setColor(0x0EA5E9)
         .setTitle(`Fishing shop · ${fishingShopCategoryLabel(category)}`)
-        .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**\nUse the category buttons to browse and buy permanent fishing upgrades. Player-wide skills are available from \`/player shop\`. Boat upgrades unlock travel and never need equipping.`)
+        .setDescription(`${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**`)
         .addFields(items.map((item) => ({
           name: `${ownedItemIds.has(item.id) ? 'Owned · ' : ''}${item.category === 'skill' ? `${getFishingShopSkillEmoji(item.id) ?? ''} ` : ''}${item.name} · ${formatXp(getFishingUpgradeCost(item, [...ownedItemIds]))} KnowBucks`,
           value: `${item.description}${item.requiredFishingLevel ? `\nRequires fishing level **${item.requiredFishingLevel}**.` : ''}${item.requiredUpgradeId ? `\nRequires **${getFishingUpgrade(item.requiredUpgradeId)?.name ?? item.requiredUpgradeId}**.` : ''}`,
@@ -624,7 +628,7 @@ function miningInventoryTabLabel(tab: MiningInventoryTab) {
 }
 
 function miningPanelExpirationMessage() {
-  return 'This mining panel has expired. Run `/mining shop` or `/mining inventory` to open a new one.';
+  return 'This mining panel has expired. Run `/mining shop`, `/mining inventory`, or `/mining catalogue` to open a new one.';
 }
 
 function scheduleMiningPanelExpiry(message: { edit: (options: { components: []; content: string }) => Promise<unknown>; id: string }, expiresAt: number) {
@@ -737,11 +741,19 @@ function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlay
   const processor = getMiningBestUpgrade(state.ownedUpgradeIds, 'processor');
   const elevator = getMiningBestUpgrade(state.ownedUpgradeIds, 'elevator');
   const filter = getMiningBestUpgrade(state.ownedUpgradeIds, 'filter');
-  let fields: Array<{ name: string; value: string }>;
+  const relics = state.passiveGearItemIds
+    .map((itemId) => getMiningGear(itemId)?.name ?? getFishingUpgrade(itemId)?.name ?? itemId)
+    .join(', ') || 'None';
+  const inventorySummary = `${notice ? `${notice}\n\n` : ''}Mining level: **${state.miningLevel}** (${formatXp(state.miningXpIntoLevel)}/${formatXp(state.miningXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**`;
+  let fields: Array<{ inline?: boolean; name: string; value: string }>;
   if (tab === 'overview') {
     fields = [
-      { name: 'Equipment', value: `Tool: **${tool?.name ?? 'None'}** (${tool?.value ?? 0} stone/s)\nStorage: **${storage?.name ?? 'None'}** (${formatXp(storage?.value ?? 0)} items)\nProcessor: **${processor ? `Depth ${processor.value + 1}` : 'None'}**\nElevator: **${elevator?.name ?? 'None'}**\nFilter: **${filter?.name ?? 'None'}**` },
-      { name: 'Mining progression', value: `Level **${state.miningLevel}** · **${formatXp(state.miningXpIntoLevel)}/${formatXp(state.miningXpToNextLevel)} XP** to next level\nShared skills: Luck ${Math.min(4, state.skills.lucky)}/4 · Cheapskate ${state.skills.cheapskate}/4 · Money Mouser ${state.skills.moneyMouser}/2 · Haste ${state.skills.haste}/4` },
+      { name: 'Equipment', value: `Tool: **${tool?.name ?? 'None'}** (${tool?.value ?? 0} stone/s)\nStorage: **${storage?.name ?? 'None'}** (${formatXp(storage?.value ?? 0)} items)\nProcessor: **${processor ? `Depth ${processor.value + 1}` : 'None'}**\nElevator: **${elevator?.name ?? 'None'}**\nFilter: **${filter?.name ?? 'None'}**`, inline: true },
+      {
+        name: 'Progression',
+        value: `Relics: **${relics}**\nShared skills: Luck ${Math.min(4, state.skills.lucky)}/4 · Cheapskate ${state.skills.cheapskate}/4 · Money Mouser ${state.skills.moneyMouser}/2 · Haste ${state.skills.haste}/4`,
+        inline: true,
+      },
     ];
   } else {
     const kind: MiningResourceKind = tab === 'ores' ? 'ore' : tab === 'gems' ? 'gem' : 'fossil';
@@ -760,8 +772,54 @@ function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlay
       new EmbedBuilder()
         .setColor(0x78716C)
         .setTitle(`Mining inventory · ${miningInventoryTabLabel(tab)}`)
-        .setDescription(`${notice ? `${notice}\n\n` : ''}Balance: **${formatXp(state.balance)} KnowBucks** · Fossil sets are collectible only for now.`)
-        .addFields(fields),
+        .addFields(fields)
+        .setDescription(inventorySummary),
+    ],
+  };
+}
+
+function miningCatalogueComponents(ownerDiscordUserId: string, depthId: MiningDepthId, expiresAt: number) {
+  return toComponentRows(MINING_DEPTHS.map((depth) => new ButtonBuilder()
+    .setCustomId(`${MINING_BUTTON_PREFIX}-catalogue:${ownerDiscordUserId}:${expiresAt}:${depth.id}`)
+    .setStyle(depth.id === depthId ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    .setLabel(`Depth ${depth.id}`)));
+}
+
+/** Displays durable Mining discoveries, so sold or crafted materials stay catalogued. */
+export function buildMiningCataloguePanel(
+  ownerDiscordUserId: string,
+  depthId: MiningDepthId,
+  expiresAt: number,
+  progress: MiningCatalogueProgress,
+) {
+  const depth = getMiningDepth(depthId);
+  if (!depth) throw new Error('Mining catalogue depth is invalid.');
+  const resourceStatus = (resourceId: string) => progress.acquiredResourceIds.has(resourceId) ? '✅ Acquired' : '⬜ Not acquired';
+  const gearStatus = (itemId: string) => progress.acquiredGearItemIds.has(itemId) ? '✅ Found' : '⬜ Not found';
+  const gear = MINING_GEAR.filter((item) => item.depth === depthId);
+
+  return {
+    components: miningCatalogueComponents(ownerDiscordUserId, depthId, expiresAt),
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x78716C)
+        .setTitle(`Mining catalogue · Depth ${depth.id}: ${depth.name}`)
+        .setDescription('✅ marks resources or relics acquired at least once. Progress remains after resources are crafted or sold.')
+        .addFields(
+          { name: 'Ores', value: depth.ores.map((item) => `${resourceStatus(item.id)} — **${item.name}**`).join('\n'), inline: true },
+          { name: 'Gems', value: depth.gems.map((item) => `${resourceStatus(item.id)} — **${item.name}**`).join('\n'), inline: true },
+          // Discord places up to three inline fields on a row. This full-width spacer
+          // keeps the fossil and relic fields on a second, two-column row.
+          { name: '\u200B', value: '\u200B', inline: false },
+          { name: 'Fossil fragments', value: depth.fossils.map((item) => `${resourceStatus(item.id)} — **${item.name}**`).join('\n'), inline: true },
+          {
+            name: 'Relics',
+            value: gear.length > 0
+              ? gear.map((item) => `${gearStatus(item.id)} — **${item.name}**`).join('\n')
+              : 'No relics can be found at this depth.',
+            inline: true,
+          },
+        ),
     ],
   };
 }
@@ -995,13 +1053,79 @@ function buildPlayerShopPanel(ownerDiscordUserId: string, tab: PlayerShopTab, st
           ? `Current levels: **${skillSummary}**.`
           : ''}`)
         .addFields(items.map((item) => {
-          const requiredItemId = 'category' in item ? item.requiredUpgradeId : undefined;
+          const skillEmoji = tab === 'skills' ? getFishingShopSkillEmoji(item.id) : undefined;
           return {
-            name: `${ownedItemIds.has(item.id) && item.id !== 'bodyguard' ? 'Owned · ' : ''}${item.name} · ${formatXp(getPlayerShopDisplayCost(item, state.pricingItemIds))} KnowBucks`,
-            value: `${item.description}${requiredItemId ? `\nRequires **${getPlayerShopItem(requiredItemId)?.name ?? requiredItemId}**.` : ''}`,
+            name: `${ownedItemIds.has(item.id) && item.id !== 'bodyguard' ? 'Owned · ' : ''}${skillEmoji ? `${skillEmoji} ` : ''}${item.name} · ${formatXp(getPlayerShopDisplayCost(item, state.pricingItemIds))} KnowBucks`,
+            value: item.description,
           };
         })),
     ],
+  };
+}
+
+type PlayerInventoryTab = 'equipment' | 'fishing-gear' | 'mining-gear';
+
+const PLAYER_INVENTORY_TABS: readonly PlayerInventoryTab[] = ['equipment', 'fishing-gear', 'mining-gear'];
+
+function playerInventoryTabLabel(tab: PlayerInventoryTab) {
+  if (tab === 'fishing-gear') return 'Fishing relics';
+  return tab === 'mining-gear' ? 'Mining relics' : 'Equipment';
+}
+
+function playerInventoryComponents(
+  viewerDiscordUserId: string,
+  targetDiscordUserId: string,
+  tab: PlayerInventoryTab,
+  expiresAt: number,
+) {
+  return [{
+    type: 1 as const,
+    components: PLAYER_INVENTORY_TABS.map((entry) => new ButtonBuilder()
+      .setCustomId(`${PLAYER_BUTTON_PREFIX}-inventory:${viewerDiscordUserId}:${expiresAt}:${entry}:${targetDiscordUserId}`)
+      .setStyle(entry === tab ? ButtonStyle.Primary : ButtonStyle.Secondary)
+      .setLabel(playerInventoryTabLabel(entry))),
+  }];
+}
+
+function buildPlayerInventoryPanel(
+  viewerDiscordUserId: string,
+  targetDiscordUserId: string,
+  targetDisplayName: string,
+  inventory: PlayerInventory,
+  tab: PlayerInventoryTab,
+  expiresAt: number,
+) {
+  const embed = new EmbedBuilder()
+    .setColor(0x8B5CF6)
+    .setTitle(`${targetDisplayName}'s inventory · ${playerInventoryTabLabel(tab)}`);
+
+  if (tab === 'equipment') {
+    embed.setDescription(inventory.equipment.length > 0
+      ? 'Purchased player-shop equipment.'
+      : 'No player-shop equipment purchased yet.');
+    if (inventory.equipment.length > 0) {
+      embed.addFields(inventory.equipment.map(({ item, quantity }) => ({
+        name: item.id === 'bodyguard' ? `${item.name} · ${formatXp(quantity)} charges` : item.name,
+        value: item.description,
+      })));
+    }
+  } else {
+    const gear = tab === 'fishing-gear' ? inventory.fishingGear : inventory.miningGear;
+    const gameLabel = tab === 'fishing-gear' ? 'Fishing' : 'Mining';
+    embed.setDescription(gear.length > 0
+      ? `${gameLabel} relics are permanent and activate automatically where their effect applies.`
+      : `No ${gameLabel.toLowerCase()} relics found yet.`);
+    if (gear.length > 0) {
+      embed.addFields(gear.map(({ item, quantity }) => ({
+        name: quantity > 1 ? `${item.name} · x${formatXp(quantity)}` : item.name,
+        value: item.description,
+      })));
+    }
+  }
+
+  return {
+    components: playerInventoryComponents(viewerDiscordUserId, targetDiscordUserId, tab, expiresAt),
+    embeds: [embed],
   };
 }
 
@@ -1031,7 +1155,7 @@ function buildPlayerStatsPanel(
     embed
       .setDescription('More player statistics will be added here as new bot systems are released.')
       .addFields(
-        { name: 'Chat', value: `Level **${stats.chat.level}** · **${formatXp(stats.chat.totalXp)}** total XP\n**${formatXp(stats.chat.xpIntoLevel)}/${formatXp(stats.chat.xpForNextLevel)} XP** through this level`, inline: true },
+        { name: 'Chat', value: `Level **${stats.chat.level}** · **${formatXp(stats.chat.totalXp)}** total XP\n**${formatXp(stats.chat.xpIntoLevel)}/${formatXp(stats.chat.xpForNextLevel)} XP**`, inline: true },
         { name: 'KnowBucks', value: `**${formatXp(stats.balance)} KnowBucks**`, inline: true },
         { name: 'Fishing', value: `Level **${stats.fishing.level}** · **${formatXp(stats.fishing.totalXp)}** Fishing XP`, inline: true },
       );
@@ -1039,10 +1163,10 @@ function buildPlayerStatsPanel(
     embed
       .setDescription('Player skills are permanent upgrades that apply automatically wherever their effect is supported.')
       .addFields(
-        { name: 'Lucky', value: `Level **${stats.skills.lucky}/5**\n+2% robbery chance per level; -1% robbery chance against you per level.`, inline: true },
-        { name: 'Haste', value: `Level **${stats.skills.haste}/4**\n-5% robbery cooldown per level.`, inline: true },
-        { name: 'Cheapskate', value: `Level **${stats.skills.cheapskate}/4**\n-5% Fishing shop cost per level.`, inline: true },
-        { name: 'Money Mouser', value: `Level **${stats.skills.moneyMouser}/2**\n+10% Fishing payout per level.`, inline: true },
+        { name: 'Lucky', value: `Level **${stats.skills.lucky}/5**\n+2% robbery chance per level; -1% robbery chance against you per level.`, inline: false },
+        { name: 'Haste', value: `Level **${stats.skills.haste}/4**\n-5% robbery cooldown per level.`, inline: false },
+        { name: 'Cheapskate', value: `Level **${stats.skills.cheapskate}/4**\n-5% Fishing shop cost per level.`, inline: false },
+        { name: 'Money Mouser', value: `Level **${stats.skills.moneyMouser}/2**\n+10% Fishing payout per level.`, inline: false },
       );
   }
   return {
@@ -1077,9 +1201,6 @@ function buildFishingInventoryTabbedPanel(
   notice?: string,
 ) {
   const equipment = describeFishingEquipment(state.equipment);
-  const legacyCrates = state.inventory
-    .map((entry) => ({ crate: getFishingCrate(entry.item_id), quantity: entry.quantity }))
-    .filter((entry): entry is { crate: NonNullable<ReturnType<typeof getFishingCrate>>; quantity: number } => Boolean(entry.crate));
   const sharedDescription = `${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**`;
   const embed = new EmbedBuilder()
     .setColor(0x0EA5E9)
@@ -1087,15 +1208,10 @@ function buildFishingInventoryTabbedPanel(
 
   if (tab === 'overview') {
     embed
-      .setDescription(`${sharedDescription}\nUse the category buttons to inspect your items. Rod and bait tabs include their own equip controls.`)
+      .setDescription(sharedDescription)
       .addFields(
         { name: 'Equipped', value: `Rod: **${equipment.rod}**\nBait: **${equipment.bait}**`, inline: true },
         { name: 'Progression', value: `Crew slots: **${state.crewSlots}**\nPassives: **${equipment.passives}**`, inline: true },
-        ...splitFishingPanelField(
-          'Legacy crates',
-          legacyCrates.map(({ crate, quantity }) => `${crate.name} (${crate.rarity} · ${getFishingBiome(crate.biomeId)?.name ?? crate.biomeId}) x**${formatXp(quantity)}**`),
-          'No legacy crates. Newly caught crates open automatically during expeditions.',
-        ),
       );
   } else if (tab === 'titles') {
     const titles = FISHING_EVENTS.map((event) => event.title);
@@ -1168,8 +1284,8 @@ export function buildFishingCataloguePanel(
         .setTitle(`Fishing catalogue · ${biome.name}`)
         .setDescription(`${biome.description}\n✅ marks fish you have caught and relics you have found. ⬜ marks entries still to discover.`)
         .addFields(
-          ...splitFishingPanelField('Fish caught', fish.map((entry) => `${isFishingFishCaught(progress, entry) ? '✅ Caught' : '⬜ Not caught'} — **${entry.name}** (${entry.rarity})`), 'No fish recorded.'),
-          ...splitFishingPanelField('Relics found', gear.map((entry) => `${progress.ownedGearItemIds.has(entry.id) ? '✅ Found' : '⬜ Not found'} — **${entry.name}**`), 'No relics recorded.'),
+          ...splitFishingPanelField('Fish caught', fish.map((entry) => `${isFishingFishCaught(progress, entry) ? '✅ Caught' : '⬜ Not caught'} — **${entry.name}** (${entry.rarity})`), 'No fish recorded.').map((field) => ({ ...field, inline: true })),
+          ...splitFishingPanelField('Relics found', gear.map((entry) => `${progress.ownedGearItemIds.has(entry.id) ? '✅ Found' : '⬜ Not found'} — **${entry.name}**`), 'No relics recorded.').map((field) => ({ ...field, inline: true })),
         ),
     ],
   };
@@ -1704,21 +1820,17 @@ async function handlePlayerCommand(interaction: ChatInputCommandInteraction, con
 
   if (subcommand === 'inventory') {
     await interaction.deferReply();
-    const equipment = await getPlayerEquipmentInventory(config, targetUser.id);
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0x8B5CF6)
-          .setTitle(`${targetMember.displayName}'s inventory`)
-          .setDescription(equipment.length > 0
-            ? 'Purchased player-shop equipment.'
-            : 'No player-shop equipment purchased yet. More inventory features are coming soon.')
-          .addFields(equipment.map(({ item, quantity }) => ({
-            name: item.id === 'bodyguard' ? `${item.name} · ${formatXp(quantity)} charges` : item.name,
-            value: item.description,
-          }))),
-      ],
-    });
+    const inventory = await getPlayerInventory(config, targetUser.id);
+    const expiresAt = Date.now() + PLAYER_PANEL_TTL_MS;
+    await interaction.editReply(buildPlayerInventoryPanel(
+      interaction.user.id,
+      targetUser.id,
+      targetMember.displayName,
+      inventory,
+      'equipment',
+      expiresAt,
+    ));
+    schedulePlayerPanelExpiry(await interaction.fetchReply(), expiresAt);
     return;
   }
 
@@ -1840,7 +1952,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
             },
             {
               name: 'Inventory, crates, and catalogue',
-              value: '`/fish inventory` has focused equipment, relic-description, and boat tabs. Newly caught crates open automatically. `/fish chests-open` redeems all held legacy crates, while `/fish catalogue` tracks fish catches and found relics by biome.',
+              value: '`/fish inventory` has focused equipment, relic-description, and boat tabs. Crates open automatically during expeditions, while `/fish catalogue` tracks fish catches and found relics by biome.',
             },
             {
               name: 'Crew expeditions',
@@ -1952,20 +2064,6 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
     return;
   }
 
-  if (subcommand === 'chests-open') {
-    await interaction.deferReply();
-    try {
-      const opening = await openAllFishingCrates(config, interaction.user.id);
-      await interaction.editReply(buildFishingCrateOpeningResult(opening));
-    } catch (error) {
-      const message = error instanceof Error && error.message.includes('do not have any legacy fishing chests')
-        ? 'You do not have any legacy chests to open. Newly caught crates open automatically during expeditions.'
-        : 'Your legacy chests could not be opened. Please try again shortly.';
-      await interaction.editReply({ content: message });
-    }
-    return;
-  }
-
   if (subcommand === 'catalogue') {
     await interaction.deferReply();
     const progress = await getFishingCatalogueProgress(config, interaction.user.id);
@@ -1998,6 +2096,7 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
   await interaction.deferReply();
   try {
     const settlement = await settleDueMiningReturn(config, interaction.user.id);
+    if (settlement) await grantEligibleMiningLevelRoles(config, await interaction.guild.members.fetch(interaction.user.id), settlement.currentLevel);
 
     if (subcommand === 'help') {
       await interaction.editReply({
@@ -2010,7 +2109,7 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
               { name: 'Start and recall', value: '`/mining expedition set depth:<1–7>` begins the descent. Tool upgrades gate deeper depths. Once the cart reaches depth, `/mining expedition return` freezes its cargo and begins the ascent.' },
               { name: 'Track the cart', value: '`/mining expedition view` shows descent, current storage, or secured return cargo with Refresh and Recall minecart buttons. Refresh is limited to once every five seconds. A completed return settles on your next Mining interaction.' },
               { name: 'Crafting and processing', value: '`/mining shop` has tabs for tools, storage, processors, elevators, and filters. Ores from Depth 2 onward need the matching processor before crafting or sale.' },
-              { name: 'Inventory and sales', value: '`/mining inventory` tabs ores, gems, and five collectible dinosaur fossils per depth. `/mining sell resource:<ore or gem> amount:<number or all>` sells one processor-ready resource at a time.' },
+              { name: 'Inventory, catalogue, and sales', value: '`/mining inventory` tabs held ores, gems, and five collectible dinosaur fossils per depth. `/mining catalogue` records every ore, gem, fossil fragment, and relic acquired at each depth. `/mining sell resource:<ore or gem> amount:<number or all>` sells one processor-ready resource at a time.' },
               { name: 'Skills and levels', value: 'Mining XP is earned from expedition work and is displayed for now without unlock gates. Shared Luck, Cheapskate, Money Mouser, and Haste skills from `/player shop` apply automatically.' },
             ),
         ],
@@ -2067,6 +2166,14 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
       const state = await getMiningPlayerState(config, interaction.user.id);
       const expiresAt = Date.now() + MINING_PANEL_TTL_MS;
       await interaction.editReply(buildMiningInventoryPanel(interaction.user.id, state, expiresAt));
+      scheduleMiningPanelExpiry(await interaction.fetchReply(), expiresAt);
+      return;
+    }
+
+    if (subcommand === 'catalogue') {
+      const progress = await getMiningCatalogueProgress(config, interaction.user.id);
+      const expiresAt = Date.now() + MINING_PANEL_TTL_MS;
+      await interaction.editReply(buildMiningCataloguePanel(interaction.user.id, 1, expiresAt, progress));
       scheduleMiningPanelExpiry(await interaction.fetchReply(), expiresAt);
       return;
     }
@@ -2799,6 +2906,32 @@ async function handlePlayerButtonInteraction(interaction: ButtonInteraction, con
     return true;
   }
 
+  if (prefix === `${PLAYER_BUTTON_PREFIX}-inventory`) {
+    if (!PLAYER_INVENTORY_TABS.includes(action as PlayerInventoryTab) || !interaction.guild) {
+      await interaction.reply({ content: 'This player inventory panel is outdated. Run /player inventory to open a new one.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const targetMember = await interaction.guild.members.fetch(argument).catch(() => null);
+    if (!targetMember || targetMember.user.bot) {
+      await interaction.update({ content: 'This member is no longer available, so this player inventory panel has expired.', components: [] });
+      clearPlayerPanelExpiry(interaction.message.id);
+      return true;
+    }
+    await interaction.deferUpdate();
+    const inventory = await getPlayerInventory(config, targetMember.id);
+    const nextExpiresAt = Date.now() + PLAYER_PANEL_TTL_MS;
+    await interaction.editReply(buildPlayerInventoryPanel(
+      ownerDiscordUserId,
+      targetMember.id,
+      targetMember.displayName,
+      inventory,
+      action as PlayerInventoryTab,
+      nextExpiresAt,
+    ));
+    schedulePlayerPanelExpiry(interaction.message, nextExpiresAt);
+    return true;
+  }
+
   return false;
 }
 
@@ -3073,6 +3206,17 @@ async function handleMiningButtonInteraction(interaction: ButtonInteraction, con
       scheduleMiningPanelExpiry(interaction.message, nextExpiresAt);
       return true;
     }
+    if (prefix === `${MINING_BUTTON_PREFIX}-catalogue`) {
+      const depthId = Number(argument) as MiningDepthId;
+      if (!Number.isSafeInteger(depthId) || !getMiningDepth(depthId)) {
+        await interaction.followUp({ content: 'This mining catalogue panel is outdated. Run `/mining catalogue` to open a new one.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      const progress = await getMiningCatalogueProgress(config, ownerDiscordUserId);
+      await interaction.editReply(buildMiningCataloguePanel(ownerDiscordUserId, depthId, nextExpiresAt, progress));
+      scheduleMiningPanelExpiry(interaction.message, nextExpiresAt);
+      return true;
+    }
     if (prefix === `${MINING_BUTTON_PREFIX}-buy`) {
       const upgrade = getMiningUpgrade(argument);
       if (!upgrade || upgrade.id === 'wooden-pickaxe' || upgrade.id === 'shabby-bin') {
@@ -3099,7 +3243,7 @@ async function handleMiningButtonInteraction(interaction: ButtonInteraction, con
       scheduleMiningPanelExpiry(interaction.message, nextExpiresAt);
       return true;
     }
-    await interaction.followUp({ content: 'This mining panel is outdated. Run `/mining shop` or `/mining inventory` to open a new one.', flags: MessageFlags.Ephemeral });
+    await interaction.followUp({ content: 'This mining panel is outdated. Run `/mining shop`, `/mining inventory`, or `/mining catalogue` to open a new one.', flags: MessageFlags.Ephemeral });
     return true;
   } catch (error) {
     await interaction.followUp({ content: miningCommandErrorMessage(error), flags: MessageFlags.Ephemeral });
@@ -3107,20 +3251,6 @@ async function handleMiningButtonInteraction(interaction: ButtonInteraction, con
   }
 }
 
-function buildFishingCrateOpeningResult(opening: Awaited<ReturnType<typeof openAllFishingCrates>>) {
-  const foundItems = opening.items
-    .map((item) => `**${item.name}** (${item.rarity})${item.quantity > 1 ? ` x${formatXp(item.quantity)}` : ''} — sold for ${formatXp(item.saleValue)} KnowBucks`);
-  return {
-    components: [],
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0x0EA5E9)
-        .setTitle('Legacy fishing chests opened')
-        .setDescription(`Opened **${formatXp(opening.openedCount)}** legacy chest${opening.openedCount === 1 ? '' : 's'}. You earned **${formatXp(opening.totalSaleValue)} KnowBucks**. New balance: **${formatXp(opening.currentBalance)} KnowBucks**.`)
-        .addFields(...splitFishingPanelField('Found', foundItems, 'No crate items found.')),
-    ],
-  };
-}
 
 async function handleClaimedSkinActionButton(interaction: ButtonInteraction, config: DiscordBotConfig) {
   const [prefix, ownerDiscordUserId, skinCodeText, action] = interaction.customId.split(':');

@@ -17,17 +17,14 @@ import {
   getFishingEventForOutcomeSeed,
   getFishingExpeditionLength,
   getFishingKnowBucksMultiplier,
-  getFishingSaleBonusPercent,
   getFishingTotalXpForLevel,
   getFishingUpgrade,
   getFishingUpgradeCost,
   getFishingTimeReductionPercent,
   getFishingXpToNextLevel,
   resolveFishingExpedition,
-  resolveFishingCrateOpenings,
   shouldInstantlyCompleteFishingExpedition,
   type FishingBiomeId,
-  type FishingCrateOpeningResult,
   type FishingCrateRarity,
   type FishingDurationTier,
   type FishingEquipmentSnapshot,
@@ -125,7 +122,6 @@ type FishingCatalogueCatchRow = {
 
 type StartedExpeditionRow = { completes_at: string; expedition_id: number };
 type PurchaseUpgradeRow = { crew_slots: number; current_balance: number };
-type OpenAllFishingCratesRow = { current_balance: number; opened_count: number };
 type SettledExpeditionRow = {
   awarded_gear_item_ids: string[];
   current_balance: number | null;
@@ -198,13 +194,6 @@ export type FishingShopPurchase = {
   cost: number;
   crewSlots: number;
   upgrade: FishingUpgrade;
-};
-
-export type OpenedFishingCrates = {
-  currentBalance: number;
-  items: FishingCrateOpeningResult['items'];
-  openedCount: number;
-  totalSaleValue: number;
 };
 
 const FISHING_SCHEDULER_INTERVAL_MS = 5_000;
@@ -667,14 +656,13 @@ export async function grantEligibleFishingLevelRoles(
   fishingLevel: number,
 ) {
   const rewards = await getConfiguredFishingLevelRewards(config);
-  const missingRoleIds = rewards
-    .filter((reward) => reward.level <= fishingLevel)
-    .map((reward) => reward.discord_role_id)
-    .filter((roleId) => !member.roles.cache.has(roleId))
-    .filter((roleId) => member.guild.roles.cache.get(roleId)?.editable);
-  if (missingRoleIds.length > 0) {
-    await member.roles.add(missingRoleIds, 'KnowLeague Fishing level reward');
-  }
+  const highestTier = rewards.filter((reward) => reward.level <= fishingLevel).reduce((highest, reward) => Math.max(highest, reward.level), 0);
+  const targetRoleIds = new Set(rewards.filter((reward) => reward.level === highestTier).map((reward) => reward.discord_role_id));
+  const configuredRoleIds = new Set(rewards.map((reward) => reward.discord_role_id));
+  const removableRoleIds = [...configuredRoleIds].filter((roleId) => member.roles.cache.has(roleId) && !targetRoleIds.has(roleId) && member.guild.roles.cache.get(roleId)?.editable);
+  const missingRoleIds = [...targetRoleIds].filter((roleId) => !member.roles.cache.has(roleId) && member.guild.roles.cache.get(roleId)?.editable);
+  if (removableRoleIds.length) await member.roles.remove(removableRoleIds, 'KnowLeague Fishing level reward tier replaced');
+  if (missingRoleIds.length) await member.roles.add(missingRoleIds, 'KnowLeague Fishing level reward');
 }
 
 export async function grantCurrentFishingLevelRoles(config: DiscordBotConfig, member: GuildMember) {
@@ -1057,47 +1045,6 @@ export async function equipFishingUpgrade(config: DiscordBotConfig, discordUserI
   });
   if (error) throw new Error(`Unable to equip fishing upgrade: ${error.message}`);
   return upgrade;
-}
-
-export async function openAllFishingCrates(
-  config: DiscordBotConfig,
-  discordUserId: string,
-): Promise<OpenedFishingCrates> {
-  const state = await getFishingPlayerState(config, discordUserId);
-  const heldCrates = state.inventory
-    .map((entry) => ({ crate: getFishingCrate(entry.item_id), quantity: entry.quantity }))
-    .filter((entry): entry is { crate: NonNullable<ReturnType<typeof getFishingCrate>>; quantity: number } => Boolean(entry.crate));
-  if (heldCrates.length === 0) throw new Error('You do not have any legacy fishing chests to open.');
-
-  const saleBonusPercent = getFishingSaleBonusPercent(state.equipment);
-  const openedItems = new Map<string, FishingCrateOpeningResult['items'][number]>();
-  let totalSaleValue = 0;
-  let openedCount = 0;
-  for (const { crate, quantity } of heldCrates) {
-    const opening = resolveFishingCrateOpenings(crate.id, quantity, saleBonusPercent, randomInt(1, 2_147_483_648));
-    openedCount += quantity;
-    totalSaleValue += opening.totalSaleValue;
-    for (const item of opening.items) {
-      const existingItem = openedItems.get(item.itemId);
-      if (existingItem) {
-        existingItem.quantity += item.quantity;
-        existingItem.saleValue += item.saleValue;
-      } else {
-        openedItems.set(item.itemId, { ...item });
-      }
-    }
-  }
-
-  const { data, error } = await createBotServiceClient(config).rpc('open_all_discord_fishing_crates', {
-    p_crates: heldCrates.map(({ crate, quantity }) => ({ item_id: crate.id, quantity })),
-    p_discord_user_id: discordUserId,
-    p_guild_id: config.guildId,
-    p_knowbucks_awarded: totalSaleValue,
-  });
-  if (error) throw new Error(`Unable to open legacy fishing chests: ${error.message}`);
-  const opened = getFirstResult(data as OpenAllFishingCratesRow | OpenAllFishingCratesRow[] | null);
-  if (!opened || opened.opened_count !== openedCount) throw new Error('Legacy fishing chest opening did not return a result.');
-  return { currentBalance: opened.current_balance, items: [...openedItems.values()], openedCount: opened.opened_count, totalSaleValue };
 }
 
 const FISHING_CRATE_RARITY_MARKERS: Record<FishingCrateRarity, string> = {

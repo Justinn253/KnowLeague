@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
-import { buildMiningCompletedPanel, buildMiningLaunchPanel, buildMiningReturnPanel } from '../discord-bot/src/interactions';
+import { buildMiningCataloguePanel, buildMiningCompletedPanel, buildMiningLaunchPanel, buildMiningReturnPanel } from '../discord-bot/src/interactions';
 import {
   getMiningCraftingRecipe,
   getMiningDepth,
@@ -14,6 +14,8 @@ import {
   resolveMiningExpedition,
   type MiningEquipmentSnapshot,
 } from '../discord-bot/src/mining-catalog';
+import { getDiscordMinigameTierReferences } from '../discord-bot/src/minigame-tier-references';
+import { MINING_DEPTH_CONFIG, MINING_SHOP_UPGRADE_CONFIG } from '../discord-bot/src/minigame-content-config';
 
 type SerializedCommandOption = {
   name: string;
@@ -46,6 +48,7 @@ describe('Discord mining command contract', () => {
     expect(expedition?.options?.map((option) => option.name)).toEqual(['set', 'view', 'return']);
     expect(mining?.options?.some((option) => option.name === 'shop')).toBe(true);
     expect(mining?.options?.some((option) => option.name === 'inventory')).toBe(true);
+    expect(mining?.options?.some((option) => option.name === 'catalogue')).toBe(true);
     expect(mining?.options?.some((option) => option.name === 'sell')).toBe(true);
     expect(mining?.options?.some((option) => option.name === 'help')).toBe(true);
 
@@ -71,6 +74,18 @@ describe('Discord mining catalogue', () => {
     expect(getMiningDepth(7)?.requiredToolId).toBe('advanced-drill');
   });
 
+  it('uses the requested dinosaur fossil sets for the replaced depths', () => {
+    expect(MINING_DEPTHS.map((depth) => depth.fossils[0]?.name)).toEqual([
+      'Triceratops Fragment 1/5',
+      'Velociraptor Fragment 1/5',
+      'Ankylosaurus Fragment 1/5',
+      'Spinosaurus Fragment 1/5',
+      'Tyrannosaurus Fragment 1/5',
+      'Stegosaurus Fragment 1/5',
+      'Brachiosaurus Fragment 1/5',
+    ]);
+  });
+
   it('keeps the requested starter storage and corrected high-tech drill recipe', () => {
     expect(getMiningUpgrade('shabby-bin')?.value).toBe(5);
     expect(getMiningUpgrade('shabby-bin')?.recipe).toBeUndefined();
@@ -85,7 +100,7 @@ describe('Discord mining catalogue', () => {
     expect(MINING_UPGRADES.map((upgrade) => upgrade.category)).not.toContain('skill');
     expect(findMiningResource('Copper')?.id).toBe('copper');
     expect(findMiningResource('moissanite')?.name).toBe('Moissanite');
-    expect(findMiningResource('Compsognathus Fossil')?.kind).toBe('fossil');
+    expect(findMiningResource('Triceratops Fragment 1/5')?.kind).toBe('fossil');
   });
 
   it('aligns ore and gem values with their matching Fishing region tiers', () => {
@@ -131,6 +146,61 @@ describe('Discord mining catalogue', () => {
         expect(item.quantity).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+describe('Discord Mining tier reference', () => {
+  it('renders every depth resource and its authoritative sell value', () => {
+    const miningReference = getDiscordMinigameTierReferences().find((reference) => reference.fileName === 'mining-tiers.md');
+
+    expect(miningReference?.contents).toContain('### Depth 1: Shallow Quarry');
+    expect(miningReference?.contents).toContain('| Coal | ore | — | 7 |');
+    expect(miningReference?.contents).toContain('| Moissanite | gem | — | 1,025 |');
+    expect(miningReference?.contents).toContain('| Triceratops Fragment 1/5 | fossil | — | Not sellable |');
+    expect(miningReference?.contents).toContain('## Mining progression tiers');
+    expect(miningReference?.contents).toContain('minigame-content-config.ts');
+    expect(MINING_DEPTHS).toEqual(MINING_DEPTH_CONFIG);
+  });
+});
+
+describe('Discord Mining catalogue', () => {
+  it('shows each depth resource and relic discovery as permanent progress', () => {
+    const panel = buildMiningCataloguePanel('12345678901234567', 1, 9_999_999_999_999, {
+      acquiredGearItemIds: new Set(['mining-gear-bioluminescence']),
+      acquiredResourceIds: new Set(['coal', 'triceratops-fragment-1']),
+    });
+    const fields = panel.embeds[0]?.data.fields ?? [];
+
+    expect(panel.embeds[0]?.data.title).toBe('Mining catalogue · Depth 1: Shallow Quarry');
+    expect(fields.find((field) => field.name === 'Ores')?.value).toContain('✅ Acquired — **Coal**');
+    expect(fields.find((field) => field.name === 'Gems')?.value).toContain('⬜ Not acquired — **Opal**');
+    expect(fields.find((field) => field.name === 'Fossil fragments')?.value).toContain('✅ Acquired — **Triceratops Fragment 1/5**');
+    expect(fields.find((field) => field.name === 'Relics')?.value).toContain('✅ Found — **Bioluminescence**');
+    expect(fields.find((field) => field.name === 'Relics')?.value).not.toContain('Ores glow nearby');
+    expect(fields.map((field) => field.name)).toEqual(['Ores', 'Gems', '\u200B', 'Fossil fragments', 'Relics']);
+    expect(fields.find((field) => field.name === 'Ores')?.inline).toBe(true);
+    expect(fields.find((field) => field.name === 'Gems')?.inline).toBe(true);
+    expect(fields[2]).toMatchObject({ name: '\u200B', value: '\u200B', inline: false });
+    expect(fields.find((field) => field.name === 'Fossil fragments')?.inline).toBe(true);
+    expect(fields.find((field) => field.name === 'Relics')?.inline).toBe(true);
+    expect(panel.components.flatMap((row) => row.components).map(componentCustomId)).toEqual(expect.arrayContaining([
+      'mining-catalogue:12345678901234567:9999999999999:1',
+      'mining-catalogue:12345678901234567:9999999999999:7',
+    ]));
+  });
+});
+
+describe('Discord Mining shop configuration', () => {
+  it('supplies every shop upgrade and recipe to the live catalogue', () => {
+    expect(MINING_UPGRADES).toEqual(MINING_SHOP_UPGRADE_CONFIG);
+    expect(MINING_SHOP_UPGRADE_CONFIG.find((upgrade) => upgrade.id === 'high-tech-drill')).toMatchObject({
+      recipe: [
+        { resourceId: 'titanium', quantity: 3_000 },
+        { resourceId: 'adamantite', quantity: 3_000 },
+        { resourceId: 'diamond', quantity: 750 },
+      ],
+      value: 25,
+    });
   });
 });
 

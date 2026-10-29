@@ -99,6 +99,7 @@ type MiningState = {
   miningLevel: number;
   miningTotalXp: number;
   ownedUpgradeIds: string[];
+  passiveGearItemIds: string[];
   skills: MiningSharedSkills;
 };
 
@@ -150,7 +151,7 @@ async function ensureMiningPlayer(identity: MiningIdentity) {
 async function getMiningState(identity: MiningIdentity): Promise<MiningState> {
   await ensureMiningPlayer(identity);
   const supabase = getSupabaseServiceClient();
-  const [inventory, upgrades, mining, playerInventory, balance] = await Promise.all([
+  const [inventory, upgrades, mining, playerInventory, fishingInventory, balance] = await Promise.all([
     supabase.from('discord_game_resource_inventory').select('resource_id,quantity')
       .eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).order('resource_id').returns<MiningInventoryRow[]>(),
     supabase.from('discord_mining_player_upgrades').select('upgrade_id')
@@ -159,11 +160,13 @@ async function getMiningState(identity: MiningIdentity): Promise<MiningState> {
       .eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).eq('skill_id', 'mining').maybeSingle<MiningSkillRow>(),
     supabase.from('discord_player_inventory').select('item_id')
       .eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).returns<PlayerInventoryRow[]>(),
+    supabase.from('discord_fishing_inventory').select('item_id')
+      .eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).like('item_id', 'gear-%').returns<PlayerInventoryRow[]>(),
     supabase.from('discord_knowbucks_balances').select('balance')
       .eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).maybeSingle<KnowBucksRow>(),
   ]);
-  if (inventory.error || upgrades.error || mining.error || playerInventory.error || balance.error) {
-    throw inventory.error ?? upgrades.error ?? mining.error ?? playerInventory.error ?? balance.error;
+  if (inventory.error || upgrades.error || mining.error || playerInventory.error || fishingInventory.error || balance.error) {
+    throw inventory.error ?? upgrades.error ?? mining.error ?? playerInventory.error ?? fishingInventory.error ?? balance.error;
   }
   return {
     balance: balance.data?.balance ?? 0,
@@ -171,6 +174,7 @@ async function getMiningState(identity: MiningIdentity): Promise<MiningState> {
     miningLevel: mining.data?.level ?? 0,
     miningTotalXp: mining.data?.total_xp ?? 0,
     ownedUpgradeIds: (upgrades.data ?? []).map((row) => row.upgrade_id),
+    passiveGearItemIds: [...(playerInventory.data ?? []).map((row) => row.item_id).filter((id) => id.startsWith('mining-gear-')), ...(fishingInventory.data ?? []).map((row) => row.item_id)],
     skills: getSkillLevels((playerInventory.data ?? []).map((row) => row.item_id)),
   };
 }
@@ -202,12 +206,13 @@ function equipmentFromState(depthId: MiningDepthId, state: MiningState): MiningE
     state.skills.haste,
   );
   return {
-    catalogVersion: 1,
+    catalogVersion: 2,
     descendDurationMs: travelDurationMs,
     elevatorTier: elevator?.value ?? 0,
     filterTier: filter?.value ?? 0,
     hasteLevel: state.skills.haste,
     luckLevel: Math.min(4, state.skills.lucky),
+    passiveGearItemIds: state.passiveGearItemIds,
     storageCapacity: storage.value,
     toolId: tool.id,
     toolStonesPerSecond: tool.value,

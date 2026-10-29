@@ -40,6 +40,14 @@ import {
   type FishingCatalogueProgress,
   type FishingEventCatalogueProgress,
 } from '../discord-bot/src/fishing';
+import { getDiscordMinigameTierReferences } from '../discord-bot/src/minigame-tier-references';
+import {
+  FISHING_CATCH_CONFIG,
+  FISHING_EVENT_BIOME_CONFIG,
+  FISHING_RELIC_CONTENT_CONFIG,
+  FISHING_SHOP_UPGRADE_CONFIG,
+  PLAYER_SKILL_TIER_CONFIG,
+} from '../discord-bot/src/minigame-content-config';
 
 type SerializedSubcommand = {
   choices?: readonly unknown[];
@@ -65,8 +73,7 @@ describe('Discord fishing command contract', () => {
     expect(fish?.options?.some((option) => option.name === 'event-catalogue')).toBe(true);
     expect(biomeOption?.choices).toHaveLength(7);
     expect(lengthOption?.choices).toHaveLength(4);
-    const chestsOpen = fish?.options?.find((option) => option.name === 'chests-open');
-    expect(chestsOpen && 'options' in chestsOpen ? chestsOpen.options : []).toHaveLength(0);
+    expect(fish?.options?.some((option) => option.name === 'chests-open')).toBe(false);
   });
 
   it('encodes the completed expedition preset in an owner-specific repeat control', () => {
@@ -137,6 +144,78 @@ describe('Discord fishing command contract', () => {
     expect(relic).toContain('Sea Star');
     expect(relic).not.toContain('Permanent relic');
     expect(fields.some((field) => field.name.startsWith('Crates') || field.name.startsWith('Crate loot'))).toBe(false);
+    expect(fields.find((field) => field.name === 'Fish caught')?.inline).toBe(true);
+    expect(fields.find((field) => field.name === 'Relics found')?.inline).toBe(true);
+  });
+});
+
+describe('Discord minigame tier references', () => {
+  it('renders every Fishing biome catch with its rarity and standard sell value', () => {
+    const fishingReference = getDiscordMinigameTierReferences().find((reference) => reference.fileName === 'fishing-tiers.md');
+
+    expect(fishingReference?.contents).toContain('### Harbor');
+    expect(fishingReference?.contents).toContain('| Carp | Common | 5–8 |');
+    expect(fishingReference?.contents).toContain('| Whale | Legendary | 1,800–2,475 (base 120–165 ×15) |');
+    expect(fishingReference?.contents).toContain('## Fishing progression tiers');
+    expect(fishingReference?.contents).toContain('minigame-content-config.ts');
+    expect(FISHING_FISH).toHaveLength(FISHING_CATCH_CONFIG.length);
+  });
+});
+
+describe('Discord Fishing content configuration', () => {
+  it('supplies every relic name, description, and discovery biome to the live catalogue', () => {
+    const configuredIds = FISHING_RELIC_CONTENT_CONFIG.map((relic) => relic.id).sort();
+    const catalogueIds = FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear').map((relic) => relic.id).sort();
+    const magicConch = FISHING_UPGRADES.find((upgrade) => upgrade.id === 'gear-magic-conch');
+
+    expect(catalogueIds).toEqual(configuredIds);
+    expect(magicConch).toMatchObject({
+      description: 'Permanent relic: each fish has a 10% chance to upgrade one rarity.',
+      foundBiomeIds: ['kelp-forest'],
+      name: 'Magic Conch',
+    });
+  });
+
+  it('supplies the active Fishing event biome from configuration', () => {
+    expect(FISHING_EVENT_BIOME_CONFIG).toEqual([{
+      biomeName: 'Hellish Abyss',
+      catalogueBiomeId: 'hellish-abyss',
+      id: 'halloween',
+      name: 'Halloween Event',
+      replacementChance: 0.25,
+    }]);
+    expect(FISHING_EVENTS[0]).toMatchObject(FISHING_EVENT_BIOME_CONFIG[0]!);
+  });
+
+  it('supplies every shared player-skill tier to the Fishing and player-shop catalogue', () => {
+    const configuredIds = PLAYER_SKILL_TIER_CONFIG.map((skill) => skill.id).sort();
+    const catalogueSkills = FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'skill');
+    const luckyFive = catalogueSkills.find((skill) => skill.id === 'lucky-5');
+
+    expect(catalogueSkills.map((skill) => skill.id).sort()).toEqual(configuredIds);
+    expect(luckyFive).toMatchObject({
+      cost: 1_000_000,
+      higherRarityBonusPercent: 5,
+      name: 'Lucky V',
+      requiredUpgradeId: 'lucky-4',
+    });
+    expect(PLAYER_SKILL_TIER_CONFIG.filter((skill) => skill.track === 'lucky').map((skill) => skill.level)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('supplies every non-relic Fishing shop upgrade from configuration', () => {
+    const configuredIds = FISHING_SHOP_UPGRADE_CONFIG.map((upgrade) => upgrade.id).sort();
+    const catalogueIds = FISHING_UPGRADES
+      .filter((upgrade) => ['rod', 'bait', 'boat', 'crew'].includes(upgrade.category))
+      .map((upgrade) => upgrade.id)
+      .sort();
+    const godRod = FISHING_UPGRADES.find((upgrade) => upgrade.id === 'god-rod');
+
+    expect(catalogueIds).toEqual(configuredIds);
+    expect(godRod).toMatchObject({
+      catchableRarities: ['Rare', 'Epic', 'Legendary', 'Mythic'],
+      cost: 1_000_000,
+      requiredFishingLevel: 80,
+    });
   });
 });
 

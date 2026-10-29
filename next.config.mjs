@@ -1,5 +1,16 @@
 const nextConfig = {
   reactStrictMode: true,
+  webpack(config) {
+    // The Discord bot is compiled with NodeNext, which correctly requires
+    // explicit .js specifiers for its emitted ESM. Website-only Mining code
+    // shares its deterministic catalogue, so let webpack resolve that source
+    // specifier to its TypeScript implementation during a Next.js build.
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias ?? {}),
+      '.js': ['.js', '.ts', '.tsx'],
+    };
+    return config;
+  },
   async headers() {
     const headers = [
       { key: 'X-Content-Type-Options', value: 'nosniff' },

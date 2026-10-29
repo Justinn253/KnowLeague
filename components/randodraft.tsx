@@ -10,7 +10,7 @@ import { RandodraftSpinner, type DraftSpinnerOption } from '@/components/randodr
 import { RandodraftResults } from '@/components/randodraft-results';
 import {
   availableDraftValues, createDraftState, DEFAULT_DRAFT_SETTINGS, draftCategories, draftReducer, draftTotalPicks,
-  DRAFT_CHAMPION_BY_ID, DRAFT_ITEM_BY_ID, generateDraftBuild, isCompletePick, normalizeDraftSettings, randomDraftValue,
+  draftPickDisplayName, DRAFT_CHAMPION_BY_ID, DRAFT_ITEM_BY_ID, generateDraftBuild, isCompletePick, normalizeDraftSettings, randomDraftValue,
   RANDODRAFT_PLAYER_COUNTS, RANDODRAFT_TEAM_SIZE, RANDODRAFT_VERSION,
   type CompleteDraftPick, type DraftCategory, type DraftGameMode, type DraftSettings, type RandomBuildTypeMode,
 } from '@/lib/randodraft';
@@ -91,6 +91,26 @@ async function drawCanvasImage(context: CanvasRenderingContext2D, src: string, x
   }
 }
 
+async function drawSharePickMeta(context: CanvasRenderingContext2D, pick: CompleteDraftPick, gameMode: DraftGameMode, x: number, y: number) {
+  const laneIcon = gameMode === 'aram' || !pick.lane ? null : '/role-icons/roleicon_' + ({ Top: 'top', Jungle: 'jungle', Mid: 'middle', Support: 'utility', Bot: 'bottom' } as Record<string, string>)[pick.lane] + '.png';
+  const classIcon = pick.type !== 'Random' ? '/class-icons/' + pick.type.toLowerCase() + '.png' : null;
+  let cursor = x;
+
+  if (laneIcon && pick.lane) {
+    await drawCanvasImage(context, laneIcon, cursor, y - 18, 22);
+    cursor += 28;
+    context.fillText(pick.lane, cursor, y);
+    cursor += context.measureText(pick.lane).width + 12;
+    context.fillText('·', cursor, y);
+    cursor += context.measureText('·').width + 12;
+  }
+  if (classIcon) {
+    await drawCanvasImage(context, classIcon, cursor, y - 18, 22);
+    cursor += 28;
+  }
+  context.fillText(pick.type, cursor, y);
+}
+
 async function createShareImage(entry: DraftHistoryEntry): Promise<Blob> {
   const teamSize = entry.settings.playersPerTeam ?? RANDODRAFT_TEAM_SIZE;
   const splitTeams = entry.settings.secondTeam === true;
@@ -123,7 +143,7 @@ async function createShareImage(entry: DraftHistoryEntry): Promise<Blob> {
       context.fillText(teamIndex === 0 ? 'TEAM 1 · RED SIDE' : 'TEAM 2 · BLUE SIDE', columnX, y);
       y += 32;
     }
-    for (const pick of team) {
+    for (const [teamPickIndex, pick] of team.entries()) {
       const champion = DRAFT_CHAMPION_BY_ID.get(pick.champion);
       if (!champion) continue;
       context.fillStyle = '#0f1a35';
@@ -131,14 +151,10 @@ async function createShareImage(entry: DraftHistoryEntry): Promise<Blob> {
       await drawCanvasImage(context, champion.imageUrl, columnX + 18, y + 18, 76);
       context.fillStyle = '#ffffff';
       context.font = '800 27px system-ui';
-      context.fillText(champion.name, columnX + 114, y + 49);
+      context.fillText(draftPickDisplayName(pick, teamIndex * teamSize + teamPickIndex, champion.name), columnX + 114, y + 49, 230);
       context.fillStyle = '#a5b4fc';
       context.font = '500 20px system-ui';
-      context.fillText(entry.settings.gameMode === 'aram' ? pick.type : pick.lane + ' · ' + pick.type, columnX + 114, y + 82);
-      const laneIcon = entry.settings.gameMode === 'aram' ? null : pick.lane ? '/role-icons/roleicon_' + ({ Top: 'top', Jungle: 'jungle', Mid: 'middle', Support: 'utility', Bot: 'bottom' } as Record<string, string>)[pick.lane] + '.png' : null;
-      const classIcon = pick.type !== 'Random' ? '/class-icons/' + pick.type.toLowerCase() + '.png' : null;
-      if (laneIcon) await drawCanvasImage(context, laneIcon, columnX + 114, y + 94, 22);
-      if (classIcon) await drawCanvasImage(context, classIcon, columnX + 142, y + 94, 22);
+      await drawSharePickMeta(context, pick, entry.settings.gameMode, columnX + 114, y + 82);
       let itemX = columnX + 360;
       for (const id of pick.build ?? []) {
         const item = DRAFT_ITEM_BY_ID.get(id);

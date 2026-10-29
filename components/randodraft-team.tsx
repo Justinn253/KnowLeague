@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Pencil, X } from 'lucide-react';
 import { GameIconImage } from '@/components/game-asset-image';
 import { RandodraftPointerNote } from '@/components/randodraft-pointer-note';
@@ -18,10 +18,20 @@ function categoryIcon(kind: 'lane' | 'type', value?: string | null) {
 function PickName({ name, index, onRename }: { name: string; index: number; onRename?: (index: number, name: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
+  const inputRef = useRef<HTMLInputElement>(null);
   const save = () => { onRename?.(index, value); setEditing(false); };
+
+  useEffect(() => {
+    if (!editing) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editing]);
+
   return editing ? (
-    <form className="mb-2 flex min-w-0 items-center gap-1" onSubmit={(event) => { event.preventDefault(); save(); }}>
-      <input autoFocus aria-label={`Pick ${index + 1} name`} value={value} maxLength={DRAFT_PICK_NAME_MAX_LENGTH}
+    <form className="mb-2 flex min-w-0 items-center gap-1" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) save();
+    }} onSubmit={(event) => { event.preventDefault(); save(); }}>
+      <input ref={inputRef} aria-label={`Pick ${index + 1} name`} value={value} maxLength={DRAFT_PICK_NAME_MAX_LENGTH}
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); setEditing(false); } }}
         className="min-h-9 w-full min-w-0 rounded-lg border border-amber-300/50 bg-slate-950 px-2 text-xs text-white outline-none focus:ring-2 focus:ring-amber-300" />

@@ -68,7 +68,7 @@ export const DEFAULT_DRAFT_SETTINGS: DraftSettings = {
   gameMode: 'summoners-rift',
   manualSelections: 0,
   randomBuildType: 'none',
-  quickRoll: false,
+  quickRoll: true,
   secondTeam: false,
   playersPerTeam: RANDODRAFT_TEAM_SIZE,
 };
@@ -92,7 +92,7 @@ export function normalizeDraftSettings(input?: Partial<DraftSettings> | null): D
   const manualSelections: 0 | 1 | 2 = input?.manualSelections === 1 || input?.manualSelections === 2 ? input.manualSelections : 0;
   const randomBuildType: RandomBuildTypeMode = input?.randomBuildType === 'allow' || input?.randomBuildType === 'all' ? input.randomBuildType : 'none';
   const playersPerTeam = RANDODRAFT_PLAYER_COUNTS.includes(input?.playersPerTeam as DraftPlayersPerTeam) ? input!.playersPerTeam as DraftPlayersPerTeam : RANDODRAFT_TEAM_SIZE;
-  return { gameMode, manualSelections, randomBuildType, quickRoll: input?.quickRoll === true, secondTeam: input?.secondTeam === true, playersPerTeam };
+  return { gameMode, manualSelections, randomBuildType, quickRoll: input?.quickRoll !== false, secondTeam: input?.secondTeam === true, playersPerTeam };
 }
 
 export function draftPlayersPerTeam(settings?: Partial<DraftSettings> | null): DraftPlayersPerTeam {
@@ -120,8 +120,18 @@ function emptyPick(randomBuildType: RandomBuildTypeMode = 'none'): DraftPick {
   return { champion: null, lane: null, type: randomBuildType === 'all' ? 'Random' : null, manualCategories: [], build: null };
 }
 
+export function defaultDraftPickName(index: number): string {
+  return `Pick ${index + 1}`;
+}
+
 export function normalizeDraftPickName(name: string, index: number): string {
-  return name.trim().replace(/\s+/g, ' ').slice(0, 32) || `Pick ${index + 1}`;
+  return name.trim().replace(/\s+/g, ' ').slice(0, 32) || defaultDraftPickName(index);
+}
+
+/** Uses the champion as the completed-draft label until a player assigns a custom pick name. */
+export function draftPickDisplayName(pick: Pick<DraftPick, 'name'>, index: number, championName: string): string {
+  const name = pick.name?.trim();
+  return name && name !== defaultDraftPickName(index) ? name : championName;
 }
 
 export function createDraftState(settings: DraftSettings = DEFAULT_DRAFT_SETTINGS): DraftState {
@@ -131,7 +141,7 @@ export function createDraftState(settings: DraftSettings = DEFAULT_DRAFT_SETTING
     settings: normalized,
     picks: [],
     current: emptyPick(normalized.randomBuildType),
-    pickNames: Array.from({ length: draftTotalPicks(normalized) }, (_, index) => `Pick ${index + 1}`),
+    pickNames: Array.from({ length: draftTotalPicks(normalized) }, (_, index) => defaultDraftPickName(index)),
   };
 }
 
@@ -209,7 +219,7 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
     return {
       ...action.state,
       settings,
-      pickNames: Array.from({ length: total }, (_, index) => normalizeDraftPickName(action.state.pickNames?.[index] ?? `Pick ${index + 1}`, index)),
+      pickNames: Array.from({ length: total }, (_, index) => normalizeDraftPickName(action.state.pickNames?.[index] ?? defaultDraftPickName(index), index)),
     };
   }
   if (action.type === 'lobby') return { ...state, phase: 'lobby' };

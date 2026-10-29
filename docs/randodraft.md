@@ -1,6 +1,6 @@
 # Randodraft
 
-Solo drafting at `/randodraft`; navigation follows Splash Scramble in the hub and header.
+Solo drafting at `/randodraft`; navigation is available from League Tools rather than the Games hub and Games menus.
 
 ## First-draft rules
 
@@ -20,8 +20,8 @@ Solo drafting at `/randodraft`; navigation follows Splash Scramble in the hub an
 
 ## Gameplay controls
 
-- Team slots have editable labels during drafting (32 characters maximum), retained in completed drafts and account history.
-- Summoner's Rift can spin Champion, Lane, and Class simultaneously. ARAM hides Lane and spins Champion and Class. Next/Finish waits for every active spin and a locked build. New picks remount the working controls; completed picks stay in the team panel. Quick Roll replaces the controls with Spin All and completes picks in order one second apart.
+- Team slots have editable labels during drafting (32 characters maximum), retained in completed drafts and account history. Completed views and copied images use a custom label when one is set, otherwise the champion name.
+- Summoner's Rift can spin Champion, Lane, and Class simultaneously. ARAM hides Lane and spins Champion and Class. Next/Finish waits for every active spin and a locked build. New picks remount the working controls; completed picks stay in the team panel. Quick Roll is enabled by default, replaces the controls with Spin All, and completes picks in order one second apart.
 - Manual choices replace the reel/control area. The same button restores it. Locked cards turn green, and reels preserve their landed neighbors.
 - Rolled items appear below the lane/class in Your team, with shared custom name notes on hover or keyboard focus.
 - Build previews are decorative. The winning build is generated when Spin is clicked or by Quick Roll: eligible boots and five randomly sampled eligible items, recalculating restrictions after each choice and then shuffling all six positions. There are no authored build sets or synergy rules, and full six-item combinations are not sampled uniformly.

@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Randodraft } from '@/components/randodraft';
+import { RandodraftResults } from '@/components/randodraft-results';
+import type { CompleteDraftPick } from '@/lib/randodraft';
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
@@ -11,7 +13,9 @@ function spin(label: string) {
   fireEvent.click(screen.getByRole('button', { name: `Spin ${label}` }));
   act(() => { vi.advanceTimersByTime(2475); });
 }
-function start() {
+function start({ preserveQuickRoll = false }: { preserveQuickRoll?: boolean } = {}) {
+  const quickRoll = screen.getByRole('switch', { name: /Quick Roll/ });
+  if (!preserveQuickRoll && quickRoll.getAttribute('aria-checked') === 'true') fireEvent.click(quickRoll);
   fireEvent.click(screen.getByRole('button', { name: 'Play', exact: true }));
 }
 
@@ -31,6 +35,13 @@ describe('Randodraft game flow', () => {
     fireEvent.click(screen.getByRole('option', { name: /All build types are random/ }));
     start();
     expect(screen.getByRole('button', { name: /Class locked: Random/ })).toBeDisabled();
+  });
+
+  it('enables Quick Roll by default', () => {
+    render(<Randodraft />);
+    expect(screen.getByRole('switch', { name: /Quick Roll/ })).toHaveAttribute('aria-checked', 'true');
+    start({ preserveQuickRoll: true });
+    expect(screen.getByRole('button', { name: 'Spin All' })).toBeEnabled();
   });
 
   it('plays all five picks in any order, requires every build, then shows the map', () => {
@@ -149,8 +160,13 @@ describe('Randodraft game flow', () => {
       expect(screen.queryByText(text)).not.toBeInTheDocument();
     }
     fireEvent.click(screen.getByRole('button', { name: 'Edit pick 1 name' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Pick 1 name' }), { target: { value: 'Carry' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save pick 1 name' }));
+    const nameInput = screen.getByRole('textbox', { name: 'Pick 1 name' });
+    expect(nameInput).toHaveFocus();
+    expect((nameInput as HTMLInputElement).selectionStart).toBe(0);
+    expect((nameInput as HTMLInputElement).selectionEnd).toBe('Pick 1'.length);
+    fireEvent.change(nameInput, { target: { value: 'Carry' } });
+    fireEvent.blur(nameInput, { relatedTarget: document.body });
+    expect(screen.queryByRole('textbox', { name: 'Pick 1 name' })).not.toBeInTheDocument();
     spin('Champion'); spin('Lane'); spin('Class');
     spin('Build path');
     const team = screen.getByRole('region', { name: 'Current team' });
@@ -224,5 +240,17 @@ describe('Randodraft game flow', () => {
     expect(sources.some((src) => src?.startsWith('/class-icons/'))).toBe(true);
     expect(sources.every((src) => !src?.includes('/_next/image'))).toBe(true);
     expect(container.querySelector('img[srcset]')).toBeNull();
+  });
+
+  it('uses custom names in results and falls back to champion names for unedited slots', () => {
+    const picks: CompleteDraftPick[] = [
+      { name: 'Captain Carry', champion: 'Ahri', lane: 'Top', type: 'Mage', manualCategories: [], build: [] },
+      { name: 'Pick 2', champion: 'Akali', lane: 'Mid', type: 'Assassin', manualCategories: [], build: [] },
+    ];
+    render(<RandodraftResults picks={picks} playersPerTeam={2} />);
+    expect(screen.getByRole('heading', { name: 'Captain Carry' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Captain Carry' })).toBeInTheDocument();
+    const otherPickLabel = screen.getAllByText('Akali').find((element) => element.classList.contains('flex-1'));
+    expect(otherPickLabel).toHaveClass('flex-1');
   });
 });

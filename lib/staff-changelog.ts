@@ -17,6 +17,46 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-29-randodraft-pick-name-blur-save',
+    patch: 'patch-2026-10-29-randodraft-pick-name-blur-save',
+    timestamp: '2026-10-29T15:40:53.769Z',
+    title: 'Save Randodraft pick names on focus exit',
+    summary: 'Randodraft now commits an edited pick name when focus moves outside its edit controls.',
+    details: [
+      'The edit form detects focus leaving the input, save, and cancel controls, then saves the current label without requiring the check-mark button.',
+      'Moving focus to the save or cancel controls remains inside the form, so existing explicit save, cancel, and Escape interactions keep their intended behavior.',
+    ],
+    impact: [
+      'Players can click or tab out of a pick-name edit and continue drafting without an extra save action.',
+      'No data model, database, API, Discord bot, or deployment configuration changes are required.',
+    ],
+    files: ['components/randodraft-team.tsx', 'tests/randodraft.test.tsx', 'lib/staff-changelog.ts'],
+    verification: ['Focused Randodraft UI tests passed (39 assertions). npm run check passed: 271 website tests and Discord TypeScript checks passed; lint retained only existing image-element advisories.'],
+  },
+  {
+    id: 'patch-2026-10-29-randodraft-navigation-results-defaults',
+    patch: 'patch-2026-10-29-randodraft-navigation-results-defaults',
+    timestamp: '2026-10-29T15:15:40.538Z',
+    title: 'Refine Randodraft discovery, defaults, and draft presentation',
+    summary: 'Randodraft now appears only in League Tools, starts with Quick Roll enabled, and consistently presents player-defined pick labels in completed drafts and image exports.',
+    details: [
+      'Filtered Randodraft out of the Games hub, desktop Games menu, mobile Games menu, and navigation drawer game list while preserving its /randodraft route and League Tools entry.',
+      'Quick Roll now defaults to enabled for new and legacy-unspecified settings; explicitly saved disabled settings remain disabled.',
+      'Pick-name editing selects the entire existing label on entry. Completed results and exported PNGs use a custom pick label when present and otherwise fall back to the champion name.',
+      'PNG exports now render lane and class icons inline with their corresponding metadata labels rather than on a separate row.',
+    ],
+    impact: [
+      'Players can still open Randodraft from League Tools and existing links, history, and saves remain valid.',
+      'No database migration, Supabase operation, Discord bot change, or command registration is required.',
+    ],
+    files: ['components/games-home.tsx', 'components/randodraft.tsx', 'components/randodraft-results.tsx', 'components/randodraft-team.tsx', 'lib/app-navigation.ts', 'lib/randodraft.ts', 'tests/game-navigation.test.ts', 'tests/randodraft.test.ts', 'tests/randodraft.test.tsx', 'docs/randodraft.md', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Randodraft and navigation tests passed (41 assertions).',
+      'An initial npm run check passed: 271 website tests and Discord TypeScript checks passed; lint retained only existing image-element advisories.',
+      'Two follow-up npm run check retries reached the full test suite but timed out after five seconds in the unrelated Discord Fishing rod-rarity test; Randodraft and navigation coverage remained passing.',
+    ],
+  },
+  {
     id: 'patch-2026-10-28-vercel-mining-catalogue-resolution',
     patch: 'patch-2026-10-28-vercel-mining-catalogue-resolution',
     timestamp: '2026-10-28T22:00:00.000Z',

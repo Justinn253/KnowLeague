@@ -4,7 +4,7 @@ import { Check, Copy, Image as ImageIcon } from 'lucide-react';
 import { useState } from 'react';
 import { GameIconImage } from '@/components/game-asset-image';
 import { RandodraftPointerNote } from '@/components/randodraft-pointer-note';
-import { DRAFT_CHAMPION_BY_ID, DRAFT_ITEM_BY_ID, RANDODRAFT_LANES, type CompleteDraftPick, type DraftGameMode } from '@/lib/randodraft';
+import { draftPickDisplayName, DRAFT_CHAMPION_BY_ID, DRAFT_ITEM_BY_ID, RANDODRAFT_LANES, type CompleteDraftPick, type DraftGameMode } from '@/lib/randodraft';
 
 const ROLE_ICON_BY_LANE: Record<string, string> = { Top: 'top', Jungle: 'jungle', Mid: 'middle', Support: 'utility', Bot: 'bottom' };
 const CLASS_TYPES = new Set(['Fighter', 'Marksman', 'Assassin', 'Tank', 'Mage', 'Support']);
@@ -106,6 +106,7 @@ export function RandodraftResults({
   if (!activePick) return null;
   const activeResolvedIndex = Math.max(0, picks.indexOf(activePick));
   const champion = DRAFT_CHAMPION_BY_ID.get(activePick.champion);
+  const activeDisplayName = draftPickDisplayName(activePick, activeResolvedIndex, champion?.name ?? 'Champion');
   const isAram = gameMode === 'aram';
   const orderedPicks = !isAram
     ? Array.from({ length: secondTeam ? 2 : 1 }, (_, team) => {
@@ -134,15 +135,16 @@ export function RandodraftResults({
             const teamIndex = secondTeam ? Math.floor(pickIndex / playersPerTeam) : 0;
             const slotIndex = pickIndex % playersPerTeam;
             const aramTeamPositions = ARAM_TEAM_POSITIONS[Math.min(teamIndex, 1)];
+            const displayName = draftPickDisplayName(pick, pickIndex, selectedChampion?.name ?? 'Champion');
             const position = isAram
               ? (secondTeam ? aramTeamPositions[slotIndex % aramTeamPositions.length] : ARAM_POSITIONS[slotIndex % ARAM_POSITIONS.length])
               : MAP_POSITIONS_BY_TEAM[secondTeam ? Math.min(teamIndex, 1) as 0 | 1 : 1][pick.lane ?? 'Mid'];
             if (!selectedChampion) return null;
             return (
               <button key={'map-' + pickIndex} type="button" onMouseEnter={() => setActiveIndex(pickIndex)} onFocus={() => setActiveIndex(pickIndex)} onClick={() => setActiveIndex(pickIndex)}
-                aria-label={selectedChampion.name} aria-pressed={activeResolvedIndex === pickIndex} style={position}
+                aria-label={displayName} aria-pressed={activeResolvedIndex === pickIndex} style={position}
                 className={'absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl border bg-slate-950/95 text-white transition focus:outline-none focus:ring-2 focus:ring-amber-300 ' + (secondTeam ? 'p-1' : 'p-1.5') + ' ' + (activeResolvedIndex === pickIndex ? 'z-10 border-amber-300' : 'border-white/30 hover:border-amber-300')}>
-                <RandodraftPointerNote note={selectedChampion.name}>
+                <RandodraftPointerNote note={displayName}>
                   <GameIconImage src={selectedChampion.imageUrl} alt={selectedChampion.name} loading="eager" width={secondTeam ? 51 : 63} height={secondTeam ? 51 : 63} className={secondTeam ? 'h-11 w-11 rounded-md sm:h-14 sm:w-14' : 'h-14 w-14 rounded-lg sm:h-16 sm:w-16'} />
                 </RandodraftPointerNote>
               </button>
@@ -152,8 +154,8 @@ export function RandodraftResults({
         <div aria-live="polite" className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
           <div className="flex items-center gap-2"><PickMeta pick={activePick} gameMode={gameMode} /><span className="text-xs text-slate-500">Featured pick</span></div>
           <div className="mt-2 flex items-center gap-3">
-            {champion ? <RandodraftPointerNote note={champion.name}><GameIconImage src={champion.imageUrl} alt="" width={48} height={48} className="rounded-xl" /></RandodraftPointerNote> : null}
-            <h3 className="text-2xl font-bold text-white">{champion?.name}</h3>
+            {champion ? <RandodraftPointerNote note={activeDisplayName}><GameIconImage src={champion.imageUrl} alt="" width={48} height={48} className="rounded-xl" /></RandodraftPointerNote> : null}
+            <h3 className="text-2xl font-bold text-white">{activeDisplayName}</h3>
           </div>
           {activePick.build ? <div className="mt-3"><p className="mb-2 text-xs text-slate-400">Build path &middot; item slots</p><DraftBuildItems ids={activePick.build} /></div> : null}
           {otherPicks.length ? <div className="mt-5 border-t border-white/10 pt-4">
@@ -164,12 +166,13 @@ export function RandodraftResults({
                 const pickIndex = picks.indexOf(pick);
                 const teamIndex = secondTeam ? Math.floor(pickIndex / playersPerTeam) : 0;
                 const teamTone = secondTeam ? (teamIndex === 0 ? 'border-rose-300/40 bg-rose-300/5' : 'border-sky-300/40 bg-sky-300/5') : 'border-white/10 bg-slate-900/70';
+                const displayName = draftPickDisplayName(pick, pickIndex, itemChampion?.name ?? 'Champion');
                 return (
                   <li key={'other-' + pickIndex}>
                     <button type="button" onClick={() => setActiveIndex(pickIndex)} className={'flex w-full min-w-0 items-center gap-2 rounded-xl border p-2 text-left transition hover:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-300 ' + teamTone}>
-                      {itemChampion ? <RandodraftPointerNote note={itemChampion.name}><GameIconImage src={itemChampion.imageUrl} alt={itemChampion.name} width={28} height={28} className="rounded-lg" /></RandodraftPointerNote> : null}
+                      {itemChampion ? <RandodraftPointerNote note={displayName}><GameIconImage src={itemChampion.imageUrl} alt={itemChampion.name} width={28} height={28} className="rounded-lg" /></RandodraftPointerNote> : null}
                       {secondTeam ? <span className="rounded-full border border-white/10 px-1.5 py-0.5 text-[0.55rem] font-semibold text-slate-300">Team {teamIndex + 1}</span> : null}
-                      <span className="min-w-0 flex-1 truncate text-xs font-bold text-white">{itemChampion?.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs font-bold text-white">{displayName}</span>
                       <PickMeta pick={pick} gameMode={gameMode} compact />
                       {pick.build ? <DraftBuildItems ids={pick.build} compact /> : null}
                     </button>

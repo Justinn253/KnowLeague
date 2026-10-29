@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   availableDraftValues, canAddDraftItem, createDraftState, DRAFT_CHAMPIONS, DRAFT_ITEMS,
-  draftReducer, generateDraftBuild, isCompletePick, isValidDraftBuild, RANDODRAFT_LANES, RANDODRAFT_TYPES,
+  draftPickDisplayName, draftReducer, generateDraftBuild, isCompletePick, isValidDraftBuild, RANDODRAFT_LANES, RANDODRAFT_TYPES,
   type DraftCategory, type DraftSettings, type DraftState,
 } from '@/lib/randodraft';
 
@@ -25,7 +25,7 @@ function seededRandom(seed: number) {
 
 describe('Randodraft draft rules', () => {
   it('starts with every category spun and standard build types', () => {
-    expect(createDraftState().settings).toEqual({ gameMode: 'summoners-rift', manualSelections: 0, randomBuildType: 'none', quickRoll: false, secondTeam: false, playersPerTeam: 5 });
+    expect(createDraftState().settings).toEqual({ gameMode: 'summoners-rift', manualSelections: 0, randomBuildType: 'none', quickRoll: true, secondTeam: false, playersPerTeam: 5 });
     const state = start();
     expect(select(state, 'champion', 'Ahri', true)).toBe(state);
     expect(draftReducer(state, { type: 'next' })).toBe(state);
@@ -87,6 +87,12 @@ describe('Randodraft draft rules', () => {
     state = draftReducer(state, { type: 'rename', index: 2, name: ' ' });
     expect(state.pickNames[2]).toBe('Pick 3');
     expect(draftReducer(state, { type: 'start', settings: state.settings }).pickNames).toEqual(['Pick 1', 'Pick 2', 'Pick 3', 'Pick 4', 'Pick 5']);
+  });
+
+  it('uses custom pick names for completed results and champion names for default slots', () => {
+    expect(draftPickDisplayName({ name: 'Blue-side carry' }, 0, 'Ahri')).toBe('Blue-side carry');
+    expect(draftPickDisplayName({ name: 'Pick 1' }, 0, 'Ahri')).toBe('Ahri');
+    expect(draftPickDisplayName({}, 0, 'Ahri')).toBe('Ahri');
   });
 
   it('rejects unknown values, duplicate lanes, and duplicate champions', () => {

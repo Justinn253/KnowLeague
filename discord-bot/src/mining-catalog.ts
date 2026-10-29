@@ -1,4 +1,4 @@
-import { MINING_DEPTH_CONFIG, MINING_REWARD_WEIGHT_CONFIG, MINING_SHOP_UPGRADE_CONFIG } from './minigame-content-config.js';
+import { MINING_DEPTH_CONFIG, MINING_GEAR_CONTENT_CONFIG, MINING_GEAR_DROP_RATE, MINING_REWARD_WEIGHT_CONFIG, MINING_SHOP_UPGRADE_CONFIG } from './minigame-content-config.js';
 
 export type MiningDepthId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type MiningResourceKind = 'ore' | 'gem' | 'fossil';
@@ -36,12 +36,13 @@ export type MiningUpgrade = {
 };
 
 export type MiningEquipmentSnapshot = {
-  catalogVersion: 1;
+  catalogVersion: 1 | 2;
   descendDurationMs: number;
   elevatorTier: number;
   filterTier: number;
   hasteLevel: number;
   luckLevel: number;
+  passiveGearItemIds?: readonly string[];
   storageCapacity: number;
   toolId: string;
   toolStonesPerSecond: number;
@@ -50,6 +51,9 @@ export type MiningEquipmentSnapshot = {
 export type MiningResult = {
   cargo: Array<{ id: string; kind: MiningResourceKind; name: string; quantity: number }>;
   discardedStone: number;
+  gearItems?: Array<{ itemId: string; quantity: number }>;
+  gemStorageCapacity?: number;
+  gemStorageUsed?: number;
   miningXpAwarded: number;
   stoneStored: number;
   stoneBroken: number;
@@ -66,6 +70,12 @@ export const MINING_DEPTHS: readonly MiningDepth[] = MINING_DEPTH_CONFIG;
 export const MINING_UPGRADES: readonly MiningUpgrade[] = MINING_SHOP_UPGRADE_CONFIG;
 
 export const MINING_REWARD_WEIGHTS = MINING_REWARD_WEIGHT_CONFIG;
+export const MINING_GEAR = MINING_GEAR_CONTENT_CONFIG;
+export const MINING_GEAR_FIND_RATE = MINING_GEAR_DROP_RATE;
+
+export function getMiningGear(itemId: string) {
+  return MINING_GEAR.find((gear) => gear.id === itemId);
+}
 
 export function getMiningDepth(depthId: number) {
   return MINING_DEPTHS.find((depth) => depth.id === depthId);
@@ -104,10 +114,11 @@ export function getMiningCraftingRecipe(upgrade: MiningUpgrade, cheapskateLevel:
   }));
 }
 
-export function getMiningTravelDurationMs(baseRoundTripMs: number, elevatorTier: number, hasteLevel: number) {
+export function getMiningTravelDurationMs(baseRoundTripMs: number, elevatorTier: number, hasteLevel: number, alienEngine = false) {
   const elevatorMultiplier = Math.max(0.1, 1 - (Math.max(0, Math.min(3, elevatorTier)) * 0.1));
   const hasteMultiplier = Math.max(0.1, 1 - (Math.max(0, Math.min(4, hasteLevel)) * 0.05));
-  return Math.max(1_000, Math.round((baseRoundTripMs / 2) * elevatorMultiplier * hasteMultiplier));
+  const alienEngineMultiplier = alienEngine ? 0.95 : 1;
+  return Math.max(1_000, Math.round((baseRoundTripMs / 2) * elevatorMultiplier * hasteMultiplier * alienEngineMultiplier));
 }
 
 function seededRandom(seed: number) {
@@ -133,25 +144,32 @@ export function resolveMiningExpedition(
   miningElapsedMs: number,
 ): MiningResult {
   const depth = getMiningDepth(depthId);
-  if (!depth || !Number.isFinite(miningElapsedMs) || miningElapsedMs < 0 || equipment.catalogVersion !== 1) {
+  if (!depth || !Number.isFinite(miningElapsedMs) || miningElapsedMs < 0 || (equipment.catalogVersion !== 1 && equipment.catalogVersion !== 2)) {
     throw new Error('Mining expedition data is invalid.');
   }
-  const breakCount = Math.max(0, Math.floor((miningElapsedMs / 1_000) * equipment.toolStonesPerSecond));
+  const gearIds = new Set(equipment.passiveGearItemIds ?? []);
+  const hasGear = (id: string) => gearIds.has(id);
+  const breakCount = Math.max(0, Math.floor((miningElapsedMs / 1_000) * equipment.toolStonesPerSecond * (hasGear('mining-gear-hardened-tip') ? 1.1 : 1)));
   const random = seededRandom(outcomeSeed);
   const cargo = new Map<string, { id: string; kind: MiningResourceKind; name: string; quantity: number }>();
+  const gearItems = new Map<string, number>();
+  const foundGearIds = new Set(gearIds);
   const capacity = Math.max(1, Math.floor(equipment.storageCapacity));
+  const gemStorageCapacity = hasGear('mining-gear-gem-bag') ? Math.max(1, Math.floor(capacity * 0.25)) : 0;
   const luckLevel = Math.max(0, Math.min(4, Math.floor(equipment.luckLevel)));
-  const stoneToOreChance = luckLevel * 0.05;
+  const stoneToOreChance = Math.min(1, (luckLevel * 0.05) + (hasGear('mining-gear-bioluminescence') ? 0.05 : 0));
   const oreToGemChance = luckLevel * 0.01;
-  const stoneDiscardChance = Math.max(0, Math.min(0.75, Math.floor(equipment.filterTier) * 0.25));
-  const totalWeight = MINING_REWARD_WEIGHTS.stone + MINING_REWARD_WEIGHTS.ore + MINING_REWARD_WEIGHTS.gem + MINING_REWARD_WEIGHTS.fossil;
+  const stoneDiscardChance = Math.max(0, Math.min(0.8, (Math.floor(equipment.filterTier) * 0.25) + (hasGear('mining-gear-melter') ? 0.05 : 0)));
+  const fossilWeight = MINING_REWARD_WEIGHTS.fossil * (hasGear('mining-gear-paleontological-certificate') ? 2 : 1);
+  const totalWeight = MINING_REWARD_WEIGHTS.stone + MINING_REWARD_WEIGHTS.ore + MINING_REWARD_WEIGHTS.gem + fossilWeight;
   let storageUsed = 0;
   let discardedStone = 0;
   let miningXpAwarded = 0;
   let stoneStored = 0;
   let stoneBroken = 0;
+  let gemStorageUsed = 0;
 
-  for (let index = 0; index < breakCount && storageUsed < capacity; index += 1) {
+  for (let index = 0; index < breakCount && (storageUsed < capacity || gemStorageUsed < gemStorageCapacity); index += 1) {
     stoneBroken += 1;
     miningXpAwarded += 1;
     let roll = random() * totalWeight;
@@ -168,7 +186,10 @@ export function resolveMiningExpedition(
       continue;
     }
 
-    storageUsed += 1;
+    const usesGemBag = resourceItem !== 'stone' && resourceItem.kind === 'gem' && gemStorageUsed < gemStorageCapacity;
+    if (!usesGemBag && storageUsed >= capacity) continue;
+    if (usesGemBag) gemStorageUsed += 1;
+    else storageUsed += 1;
     if (resourceItem === 'stone') {
       stoneStored += 1;
       continue;
@@ -177,9 +198,20 @@ export function resolveMiningExpedition(
     const existing = cargo.get(resourceItem.id);
     if (existing) existing.quantity += 1;
     else cargo.set(resourceItem.id, { id: resourceItem.id, kind: resourceItem.kind, name: resourceItem.name, quantity: 1 });
+    if (resourceItem.kind === 'gem' && hasGear('gear-gemcracker') && random() < 0.1) {
+      const duplicate = cargo.get(resourceItem.id)!;
+      duplicate.quantity += 1;
+    }
+    const eligibleGear = MINING_GEAR.filter((gear) => gear.depth === depth.id && !foundGearIds.has(gear.id));
+    if (eligibleGear.length > 0 && random() < MINING_GEAR_FIND_RATE) {
+      const gear = pick(eligibleGear, random);
+      foundGearIds.add(gear.id);
+      gearItems.set(gear.id, 1);
+    }
   }
 
-  return { cargo: [...cargo.values()], discardedStone, miningXpAwarded, stoneStored, stoneBroken, storageUsed };
+  const xpMultiplier = hasGear('gear-giant-pearl') ? 1.25 : 1;
+  return { cargo: [...cargo.values()], discardedStone, gearItems: [...gearItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })), gemStorageCapacity, gemStorageUsed, miningXpAwarded: Math.floor(miningXpAwarded * xpMultiplier), stoneStored, stoneBroken, storageUsed };
 }
 
 export function getMiningXpForLevel(level: number) {

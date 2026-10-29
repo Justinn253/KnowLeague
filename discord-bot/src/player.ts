@@ -4,6 +4,7 @@ import type { FishingUpgrade } from './fishing-catalog.js';
 import { getKnowBucksBalance } from './knowbucks.js';
 import { getDiscordLevelProgress } from './leveling.js';
 import { PLAYER_SKILL_TIER_CONFIG } from './minigame-content-config.js';
+import { getMiningGear } from './mining-catalog.js';
 import { createBotServiceClient } from './supabase.js';
 
 export type PlayerShopTab = 'skills' | 'items';
@@ -57,6 +58,21 @@ export type PlayerShopPurchase = {
 export type PlayerInventoryEquipment = {
   item: PlayerEquipmentItem;
   quantity: number;
+};
+
+export type PlayerInventoryGear = {
+  item: {
+    description: string;
+    id: string;
+    name: string;
+  };
+  quantity: number;
+};
+
+export type PlayerInventory = {
+  equipment: readonly PlayerInventoryEquipment[];
+  fishingGear: readonly PlayerInventoryGear[];
+  miningGear: readonly PlayerInventoryGear[];
 };
 
 export type RobberyResult = {
@@ -198,6 +214,40 @@ export async function getPlayerEquipmentInventory(
     const quantity = quantities.get(item.id);
     return quantity ? [{ item, quantity }] : [];
   });
+}
+
+export async function getPlayerInventory(
+  config: DiscordBotConfig,
+  discordUserId: string,
+): Promise<PlayerInventory> {
+  const supabase = createBotServiceClient(config);
+  const [inventoryRows, fishingInventoryResult] = await Promise.all([
+    getPlayerInventoryRows(config, discordUserId),
+    supabase
+      .from('discord_fishing_inventory')
+      .select('item_id,quantity')
+      .eq('guild_id', config.guildId)
+      .eq('discord_user_id', discordUserId)
+      .like('item_id', 'gear-%')
+      .returns<PlayerInventoryRow[]>(),
+  ]);
+  if (fishingInventoryResult.error) throw new Error(`Unable to load Fishing gear inventory: ${fishingInventoryResult.error.message}`);
+
+  const quantities = new Map(inventoryRows.map((entry) => [entry.item_id, entry.quantity]));
+  return {
+    equipment: PLAYER_EQUIPMENT_ITEMS.flatMap((item) => {
+      const quantity = quantities.get(item.id);
+      return quantity ? [{ item, quantity }] : [];
+    }),
+    fishingGear: (fishingInventoryResult.data ?? []).flatMap((entry) => {
+      const item = getFishingUpgrade(entry.item_id);
+      return item?.category === 'gear' && entry.quantity > 0 ? [{ item, quantity: entry.quantity }] : [];
+    }),
+    miningGear: inventoryRows.flatMap((entry) => {
+      const item = getMiningGear(entry.item_id);
+      return item && entry.quantity > 0 ? [{ item, quantity: entry.quantity }] : [];
+    }),
+  };
 }
 
 export async function getPlayerShopState(config: DiscordBotConfig, discordUserId: string): Promise<PlayerShopState> {

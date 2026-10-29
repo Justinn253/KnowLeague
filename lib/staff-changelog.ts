@@ -17,6 +17,112 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-28-discord-player-panel-copy-and-skills-layout',
+    patch: 'patch-2026-10-28-discord-player-panel-copy-and-skills-layout',
+    timestamp: '2026-10-28T21:40:00.000Z',
+    title: 'Simplify Discord player and Fishing shop panels',
+    summary: 'Player stats and shop panels now use more compact skill presentation, and Fishing shop copy no longer repeats navigation guidance.',
+    details: [
+      'Removed the Chat-stat phrase “through this level” and renders Player skill fields in one column.',
+      'Player shop skill entries use the established ⏩, 🍀, 📉, and 💰 track emojis and no longer display prerequisite-item prose; eligibility enforcement remains unchanged.',
+      'Removed the Fishing shop category-navigation, player-shop, and boat-equipping instructional sentence.',
+    ],
+    impact: [
+      'Deploy the Discord bot to publish these presentation-only changes. No database migration or slash-command registration is required.',
+    ],
+    files: ['discord-bot/src/interactions.ts', 'lib/staff-changelog.ts'],
+    verification: ['Discord TypeScript checks are run after this patch.'],
+  },
+  {
+    id: 'patch-2026-10-28-mining-catalogue-two-columns',
+    patch: 'patch-2026-10-28-mining-catalogue-two-columns',
+    timestamp: '2026-10-28T21:25:00.000Z',
+    title: 'Render Mining catalogue in two columns',
+    summary: 'Mining catalogue resource and relic groups now render in two Discord embed columns per row.',
+    details: [
+      'Added a zero-width full-width separator after Ores and Gems so Discord starts Fossil fragments and Relics on a second two-column row.',
+      'The change only affects presentation; discovery markers, resource lists, and relic data are unchanged.',
+    ],
+    impact: [
+      'Deploy the Discord bot to publish the catalogue layout change. No database migration or slash-command registration is required.',
+    ],
+    files: ['discord-bot/src/interactions.ts', 'tests/discord-mining.test.ts', 'lib/staff-changelog.ts'],
+    verification: ['Focused Mining Discord tests verify the exact field order and two-column separator.'],
+  },
+  {
+    id: 'patch-2026-10-28-mining-relic-catalogue-and-fishing-crate-retirement',
+    patch: 'patch-2026-10-28-mining-relic-catalogue-and-fishing-crate-retirement',
+    timestamp: '2026-10-28T21:05:00.000Z',
+    title: 'Align Mining relic UI and retire stored Fishing crates',
+    summary: 'Mining discovery UI now calls permanent items relics, Fishing and Mining catalogues use inline Discord columns, and the obsolete stored Fishing crate redemption path is removed.',
+    details: [
+      'Mining catalogue relic entries now omit effect descriptions, while the shared player inventory labels Fishing and Mining permanent items as relics.',
+      'Fishing and Mining catalogue resource groups render as inline embed fields. Mining inventory now presents Mining level, XP, and KnowBucks first, followed by side-by-side Equipment and Progression fields.',
+      'Removed `/fish chests-open`, its bot-side redemption code, the Fishing inventory Legacy crates field, and its help copy. Automatic crate rewards during expeditions remain unchanged.',
+      'Migration 195 deletes only legacy stored crate IDs from Fishing inventory and drops the retired manual-redemption RPC.',
+    ],
+    impact: [
+      'Apply migration 195 after migrations 192–194, deploy the Discord bot, and register the updated guild command definition so `/fish chests-open` is removed from Discord.',
+      'Any remaining legacy stored crate rows are permanently removed by migration 195; current expedition crates still resolve automatically and are not stored as inventory.',
+    ],
+    files: ['discord-bot/src/commands.ts', 'discord-bot/src/fishing.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/minigame-content-config.ts', 'supabase/migrations/195_remove_legacy_discord_fishing_crates.sql', 'tests/discord-fishing.test.ts', 'tests/discord-mining.test.ts', 'lib/staff-changelog.ts'],
+    verification: ['Full repository check (267 tests), focused Fishing and Mining coverage, Discord type checks, and whitespace validation are run after this patch. Migration 195 was created locally and was not pushed to Supabase.'],
+  },
+  {
+    id: 'patch-2026-10-28-discord-mining-catalogue',
+    patch: 'patch-2026-10-28-discord-mining-catalogue',
+    timestamp: '2026-10-28T20:45:00.000Z',
+    title: 'Add depth-based Mining discovery catalogue',
+    summary: 'The new `/mining catalogue` command displays every ore, gem, fossil fragment, and gear item by depth, with permanent acquisition markers.',
+    details: [
+      'Added a seven-depth button panel matching the Fishing catalogue interaction pattern. Each depth lists its ores, gems, five fossil fragments, and eligible gear with acquired or undiscovered markers.',
+      'Migration 194 creates durable Mining resource-discovery state, backfills held inventory and completed expedition cargo, and records later discoveries through a resource-inventory trigger shared by website and Discord settlement paths.',
+      'Mining gear remains a permanent player-inventory item; the catalogue reads that owned gear directly so it remains marked after discovery.',
+    ],
+    impact: [
+      'Apply migration 194 after migrations 192 and 193, deploy the Discord bot, and register the updated guild command definition before using `/mining catalogue`.',
+      'Selling or crafting a Mining resource no longer affects whether it appears as acquired in the catalogue.',
+    ],
+    files: ['discord-bot/src/commands.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/mining.ts', 'supabase/migrations/194_add_discord_mining_catalogue_progress.sql', 'tests/discord-mining.test.ts', 'lib/staff-changelog.ts'],
+    verification: ['Focused Mining coverage, Discord type checks, and the repository check are run after this patch. Migration 194 was created locally and was not pushed to Supabase.'],
+  },
+  {
+    id: 'patch-2026-10-28-mining-fossil-set-replacements-and-player-gear-inventory',
+    patch: 'patch-2026-10-28-mining-fossil-set-replacements-and-player-gear-inventory',
+    timestamp: '2026-10-28T20:25:00.000Z',
+    title: 'Replace Mining fossil sets and add player gear inventory tabs',
+    summary: 'Mining now uses Triceratops, Velociraptor, Stegosaurus, and Brachiosaurus fragment sets at the requested depths, while `/player inventory` separates equipment, Fishing gear, and Mining gear.',
+    details: [
+      'Migration 193 moves every owned and unclaimed return-result fragment from the replaced fossil set IDs into the corresponding new five-piece set without losing quantities.',
+      'Mining expedition settlement now validates and stores awarded Mining gear in the shared player inventory, so it can be displayed and used by later Mining expeditions.',
+      'The Discord player inventory has owner-controlled Equipment, Fishing Gear, and Mining Gear tabs, each with the permanent item descriptions and owned quantities.',
+    ],
+    impact: [
+      'Apply migration 193 after migration 192, then deploy the Discord bot. Existing fossil findings remain collectible under the renamed sets.',
+      'No slash-command registration is required because `/player inventory` keeps its existing command shape.',
+    ],
+    files: ['discord-bot/src/minigame-content-config.ts', 'discord-bot/src/player.ts', 'discord-bot/src/interactions.ts', 'supabase/migrations/193_rename_mining_fossil_sets_and_store_gear.sql', 'tests/discord-mining.test.ts', 'lib/staff-changelog.ts'],
+    verification: ['Focused Mining coverage and Discord type checks are run after this patch. Migration 193 was created locally and was not pushed to Supabase.'],
+  },
+  {
+    id: 'patch-2026-10-28-mining-fossil-fragments-and-gear-catalogue',
+    patch: 'patch-2026-10-28-mining-fossil-fragments-and-gear-catalogue',
+    timestamp: '2026-10-28T20:10:00.000Z',
+    title: 'Add Mining fossil fragments, gear catalogue, and role configuration',
+    summary: 'Mining now defines one five-fragment dinosaur fossil set per depth, a depth-based gear catalogue, and configurable Mining level roles.',
+    details: [
+      'Mining fossil content now awards five distinct fragments for one dinosaur at each depth. Migration 192 converts previously discovered fossils into the matching fragment slots.',
+      'Added all requested Mining gear and the Fishing-compatible relic discovery rate to the editable minigame content configuration, including deterministic Mining resolver effects and compatible Fishing gear snapshots.',
+      'Discord Configuration now saves Mining level-role milestones, and Fishing role rewards now replace older configured Fishing tiers instead of accumulating them.',
+    ],
+    impact: [
+      'Apply migration 192 after migrations 185–191, then deploy the website and restart/redeploy the Discord bot. No slash-command registration is required.',
+      'Mining role selections require roles that are assignable below the bot role.',
+    ],
+    files: ['discord-bot/src/minigame-content-config.ts', 'discord-bot/src/mining-catalog.ts', 'components/discord-leveling-settings.tsx', 'app/api/discord/leveling/route.ts', 'supabase/migrations/192_discord_mining_fossil_fragments_and_level_roles.sql', 'lib/staff-changelog.ts'],
+    verification: ['Focused Mining coverage, type checks, and migration review are recorded with this patch. Migration 192 was not pushed to Supabase.'],
+  },
+  {
     id: 'patch-2026-10-28-discord-minigame-shop-upgrade-config',
     patch: 'patch-2026-10-28-discord-minigame-shop-upgrade-config',
     timestamp: '2026-10-28T01:30:00.000Z',

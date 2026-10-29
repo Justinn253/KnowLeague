@@ -289,11 +289,11 @@ export const MINING_DEPTH_CONFIG = [
       { depth: 1, kind: 'gem', id: 'pearl', name: 'Pearl', saleValue: 40 },
     ],
     fossils: [
-      { depth: 1, kind: 'fossil', id: 'compsognathus-fossil', name: 'Compsognathus Fossil' },
-      { depth: 1, kind: 'fossil', id: 'microraptor-fossil', name: 'Microraptor Fossil' },
-      { depth: 1, kind: 'fossil', id: 'archaeopteryx-fossil', name: 'Archaeopteryx Fossil' },
-      { depth: 1, kind: 'fossil', id: 'psittacosaurus-fossil', name: 'Psittacosaurus Fossil' },
-      { depth: 1, kind: 'fossil', id: 'protoceratops-fossil', name: 'Protoceratops Fossil' },
+      { depth: 1, kind: 'fossil', id: 'triceratops-fragment-1', name: 'Triceratops Fragment 1/5' },
+      { depth: 1, kind: 'fossil', id: 'triceratops-fragment-2', name: 'Triceratops Fragment 2/5' },
+      { depth: 1, kind: 'fossil', id: 'triceratops-fragment-3', name: 'Triceratops Fragment 3/5' },
+      { depth: 1, kind: 'fossil', id: 'triceratops-fragment-4', name: 'Triceratops Fragment 4/5' },
+      { depth: 1, kind: 'fossil', id: 'triceratops-fragment-5', name: 'Triceratops Fragment 5/5' },
     ],
   },
   {
@@ -310,11 +310,11 @@ export const MINING_DEPTH_CONFIG = [
       { depth: 2, kind: 'gem', id: 'emerald', name: 'Emerald', saleValue: 75 },
     ],
     fossils: [
-      { depth: 2, kind: 'fossil', id: 'stegosaurus-fossil', name: 'Stegosaurus Fossil' },
-      { depth: 2, kind: 'fossil', id: 'iguanodon-fossil', name: 'Iguanodon Fossil' },
-      { depth: 2, kind: 'fossil', id: 'parasaurolophus-fossil', name: 'Parasaurolophus Fossil' },
-      { depth: 2, kind: 'fossil', id: 'dilophosaurus-fossil', name: 'Dilophosaurus Fossil' },
-      { depth: 2, kind: 'fossil', id: 'allosaurus-fossil', name: 'Allosaurus Fossil' },
+      { depth: 2, kind: 'fossil', id: 'velociraptor-fragment-1', name: 'Velociraptor Fragment 1/5' },
+      { depth: 2, kind: 'fossil', id: 'velociraptor-fragment-2', name: 'Velociraptor Fragment 2/5' },
+      { depth: 2, kind: 'fossil', id: 'velociraptor-fragment-3', name: 'Velociraptor Fragment 3/5' },
+      { depth: 2, kind: 'fossil', id: 'velociraptor-fragment-4', name: 'Velociraptor Fragment 4/5' },
+      { depth: 2, kind: 'fossil', id: 'velociraptor-fragment-5', name: 'Velociraptor Fragment 5/5' },
     ],
   },
   {
@@ -331,11 +331,11 @@ export const MINING_DEPTH_CONFIG = [
       { depth: 3, kind: 'gem', id: 'garnet', name: 'Garnet', saleValue: 123 },
     ],
     fossils: [
-      { depth: 3, kind: 'fossil', id: 'ankylosaurus-fossil', name: 'Ankylosaurus Fossil' },
-      { depth: 3, kind: 'fossil', id: 'pachycephalosaurus-fossil', name: 'Pachycephalosaurus Fossil' },
-      { depth: 3, kind: 'fossil', id: 'baryonyx-fossil', name: 'Baryonyx Fossil' },
-      { depth: 3, kind: 'fossil', id: 'carnotaurus-fossil', name: 'Carnotaurus Fossil' },
-      { depth: 3, kind: 'fossil', id: 'camarasaurus-fossil', name: 'Camarasaurus Fossil' },
+      { depth: 3, kind: 'fossil', id: 'ankylosaurus-fragment-1', name: 'Ankylosaurus Fragment 1/5' },
+      { depth: 3, kind: 'fossil', id: 'ankylosaurus-fragment-2', name: 'Ankylosaurus Fragment 2/5' },
+      { depth: 3, kind: 'fossil', id: 'ankylosaurus-fragment-3', name: 'Ankylosaurus Fragment 3/5' },
+      { depth: 3, kind: 'fossil', id: 'ankylosaurus-fragment-4', name: 'Ankylosaurus Fragment 4/5' },
+      { depth: 3, kind: 'fossil', id: 'ankylosaurus-fragment-5', name: 'Ankylosaurus Fragment 5/5' },
     ],
   },
   {
@@ -352,11 +352,11 @@ export const MINING_DEPTH_CONFIG = [
       { depth: 4, kind: 'gem', id: 'sapphire', name: 'Sapphire', saleValue: 260 },
     ],
     fossils: [
-      { depth: 4, kind: 'fossil', id: 'triceratops-fossil', name: 'Triceratops Fossil' },
-      { depth: 4, kind: 'fossil', id: 'spinosaurus-fossil', name: 'Spinosaurus Fossil' },
-      { depth: 4, kind: 'fossil', id: 'velociraptor-fossil', name: 'Velociraptor Fossil' },
-      { depth: 4, kind: 'fossil', id: 'diplodocus-fossil', name: 'Diplodocus Fossil' },
-      { depth: 4, kind: 'fossil', id: 'argentinosaurus-fossil', name: 'Argentinosaurus Fossil' },
+      { depth: 4, kind: 'fossil', id: 'spinosaurus-fragment-1', name: 'Spinosaurus Fragment 1/5' },
+      { depth: 4, kind: 'fossil', id: 'spinosaurus-fragment-2', name: 'Spinosaurus Fragment 2/5' },
+      { depth: 4, kind: 'fossil', id: 'spinosaurus-fragment-3', name: 'Spinosaurus Fragment 3/5' },
+      { depth: 4, kind: 'fossil', id: 'spinosaurus-fragment-4', name: 'Spinosaurus Fragment 4/5' },
+      { depth: 4, kind: 'fossil', id: 'spinosaurus-fragment-5', name: 'Spinosaurus Fragment 5/5' },
     ],
   },
   {
@@ -373,11 +373,11 @@ export const MINING_DEPTH_CONFIG = [
       { depth: 5, kind: 'gem', id: 'aquamarine', name: 'Aquamarine', saleValue: 395 },
     ],
     fossils: [
-      { depth: 5, kind: 'fossil', id: 'tyrannosaurus-fossil', name: 'Tyrannosaurus Fossil' },
-      { depth: 5, kind: 'fossil', id: 'giganotosaurus-fossil', name: 'Giganotosaurus Fossil' },
-      { depth: 5, kind: 'fossil', id: 'therizinosaurus-fossil', name: 'Therizinosaurus Fossil' },
-      { depth: 5, kind: 'fossil', id: 'deinonychus-fossil', name: 'Deinonychus Fossil' },
-      { depth: 5, kind: 'fossil', id: 'apatosaurus-fossil', name: 'Apatosaurus Fossil' },
+      { depth: 5, kind: 'fossil', id: 'tyrannosaurus-fragment-1', name: 'Tyrannosaurus Fragment 1/5' },
+      { depth: 5, kind: 'fossil', id: 'tyrannosaurus-fragment-2', name: 'Tyrannosaurus Fragment 2/5' },
+      { depth: 5, kind: 'fossil', id: 'tyrannosaurus-fragment-3', name: 'Tyrannosaurus Fragment 3/5' },
+      { depth: 5, kind: 'fossil', id: 'tyrannosaurus-fragment-4', name: 'Tyrannosaurus Fragment 4/5' },
+      { depth: 5, kind: 'fossil', id: 'tyrannosaurus-fragment-5', name: 'Tyrannosaurus Fragment 5/5' },
     ],
   },
   {
@@ -394,11 +394,11 @@ export const MINING_DEPTH_CONFIG = [
       { depth: 6, kind: 'gem', id: 'peridot', name: 'Peridot', saleValue: 650 },
     ],
     fossils: [
-      { depth: 6, kind: 'fossil', id: 'utahraptor-fossil', name: 'Utahraptor Fossil' },
-      { depth: 6, kind: 'fossil', id: 'carcharodontosaurus-fossil', name: 'Carcharodontosaurus Fossil' },
-      { depth: 6, kind: 'fossil', id: 'oviraptor-fossil', name: 'Oviraptor Fossil' },
-      { depth: 6, kind: 'fossil', id: 'mamenchisaurus-fossil', name: 'Mamenchisaurus Fossil' },
-      { depth: 6, kind: 'fossil', id: 'styracosaurus-fossil', name: 'Styracosaurus Fossil' },
+      { depth: 6, kind: 'fossil', id: 'stegosaurus-fragment-1', name: 'Stegosaurus Fragment 1/5' },
+      { depth: 6, kind: 'fossil', id: 'stegosaurus-fragment-2', name: 'Stegosaurus Fragment 2/5' },
+      { depth: 6, kind: 'fossil', id: 'stegosaurus-fragment-3', name: 'Stegosaurus Fragment 3/5' },
+      { depth: 6, kind: 'fossil', id: 'stegosaurus-fragment-4', name: 'Stegosaurus Fragment 4/5' },
+      { depth: 6, kind: 'fossil', id: 'stegosaurus-fragment-5', name: 'Stegosaurus Fragment 5/5' },
     ],
   },
   {
@@ -415,14 +415,38 @@ export const MINING_DEPTH_CONFIG = [
       { depth: 7, kind: 'gem', id: 'moissanite', name: 'Moissanite', saleValue: 1_025 },
     ],
     fossils: [
-      { depth: 7, kind: 'fossil', id: 'yutyrannus-fossil', name: 'Yutyrannus Fossil' },
-      { depth: 7, kind: 'fossil', id: 'mapusaurus-fossil', name: 'Mapusaurus Fossil' },
-      { depth: 7, kind: 'fossil', id: 'dreadnoughtus-fossil', name: 'Dreadnoughtus Fossil' },
-      { depth: 7, kind: 'fossil', id: 'deinocheirus-fossil', name: 'Deinocheirus Fossil' },
-      { depth: 7, kind: 'fossil', id: 'acrocanthosaurus-fossil', name: 'Acrocanthosaurus Fossil' },
+      { depth: 7, kind: 'fossil', id: 'brachiosaurus-fragment-1', name: 'Brachiosaurus Fragment 1/5' },
+      { depth: 7, kind: 'fossil', id: 'brachiosaurus-fragment-2', name: 'Brachiosaurus Fragment 2/5' },
+      { depth: 7, kind: 'fossil', id: 'brachiosaurus-fragment-3', name: 'Brachiosaurus Fragment 3/5' },
+      { depth: 7, kind: 'fossil', id: 'brachiosaurus-fragment-4', name: 'Brachiosaurus Fragment 4/5' },
+      { depth: 7, kind: 'fossil', id: 'brachiosaurus-fragment-5', name: 'Brachiosaurus Fragment 5/5' },
     ],
   },
 ] as const satisfies readonly MiningDepthConfig[];
+
+type MiningGearContentConfig = {
+  depth: MiningDepthIdConfig;
+  description: string;
+  id: string;
+  name: string;
+};
+
+/** Permanent Mining relics. Each eligible stone break uses Fishing's 0.01% relic-find rate. */
+export const MINING_GEAR_CONTENT_CONFIG = [
+  { depth: 1, id: 'mining-gear-bioluminescence', name: 'Bioluminescence', description: 'Ores glow nearby, adding a 5% stone-to-ore conversion chance.' },
+  { depth: 1, id: 'mining-gear-loaned-coin', name: 'Loaned Coin', description: 'An all-balance coinflip pays four times the balance on a win or leaves that amount owed on a loss.' },
+  { depth: 2, id: 'mining-gear-melter', name: 'Melter', description: 'Filters an additional 5% of stone before it reaches your cart.' },
+  { depth: 3, id: 'mining-gear-hardened-tip', name: 'Hardened Tip', description: 'Increases Mining speed by 10%.' },
+  { depth: 3, id: 'mining-gear-inspiring-photo', name: 'Inspiring Photo', description: 'Collection rerolls have an additional 5% chance to upgrade rarity, up to Mythic.' },
+  { depth: 4, id: 'mining-gear-conveyor-belt', name: 'Conveyor Belt', description: 'Lets you claim a filled minecart without recalling the expedition.' },
+  { depth: 5, id: 'mining-gear-gem-bag', name: 'Gem Bag', description: 'Stores gems separately up to 25% of minecart capacity before they use cart storage.' },
+  { depth: 5, id: 'mining-gear-translocator', name: 'Translocator', description: 'Receives 25% of every KnowBucks Surprise.' },
+  { depth: 6, id: 'mining-gear-paleontological-certificate', name: 'Paleontological Certificate', description: 'Doubles fossil discovery odds.' },
+  { depth: 6, id: 'mining-gear-obsidian-dagger', name: 'Obsidian Dagger', description: 'Increases robbery success and defense chances by 1%.' },
+  { depth: 7, id: 'mining-gear-ancient-refinery', name: 'Ancient Refinery', description: 'Ores sell for 50% more KnowBucks.' },
+] as const satisfies readonly MiningGearContentConfig[];
+
+export const MINING_GEAR_DROP_RATE = 0.0001;
 
 export const MINING_REWARD_WEIGHT_CONFIG = { fossil: 1, gem: 10, ore: 100, stone: 500 } as const satisfies Record<'fossil' | 'gem' | 'ore' | 'stone', number>;
 

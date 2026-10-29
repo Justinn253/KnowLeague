@@ -73,8 +73,7 @@ describe('Discord fishing command contract', () => {
     expect(fish?.options?.some((option) => option.name === 'event-catalogue')).toBe(true);
     expect(biomeOption?.choices).toHaveLength(7);
     expect(lengthOption?.choices).toHaveLength(4);
-    const chestsOpen = fish?.options?.find((option) => option.name === 'chests-open');
-    expect(chestsOpen && 'options' in chestsOpen ? chestsOpen.options : []).toHaveLength(0);
+    expect(fish?.options?.some((option) => option.name === 'chests-open')).toBe(false);
   });
 
   it('encodes the completed expedition preset in an owner-specific repeat control', () => {
@@ -145,6 +144,8 @@ describe('Discord fishing command contract', () => {
     expect(relic).toContain('Sea Star');
     expect(relic).not.toContain('Permanent relic');
     expect(fields.some((field) => field.name.startsWith('Crates') || field.name.startsWith('Crate loot'))).toBe(false);
+    expect(fields.find((field) => field.name === 'Fish caught')?.inline).toBe(true);
+    expect(fields.find((field) => field.name === 'Relics found')?.inline).toBe(true);
   });
 });
 

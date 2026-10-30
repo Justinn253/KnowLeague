@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-26T20:43:45.369Z",
+  "generatedAt": "2026-10-30T22:14:32.262Z",
   "sources": {
     "dataDragonVersions": [
       "16.21.1",
@@ -620,7 +620,7 @@
         "Twisted Treeline"
       ],
       "id": "1004",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/1004.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1004.png",
       "lastSeenVersion": "16.21.1",
       "name": "Faerie Charm",
       "rarity": "Common",
@@ -777,7 +777,7 @@
         "Twisted Treeline"
       ],
       "id": "1001",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.7.9/img/item/1001.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/1001.png",
       "lastSeenVersion": "10.22.1",
       "name": "Boots of Speed",
       "rarity": "Common",
@@ -1284,7 +1284,7 @@
         "Summoner’s Rift"
       ],
       "id": "1082",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.1.1/img/item/1082.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.18.1/img/item/1082.png",
       "lastSeenVersion": "9.18.1",
       "name": "The Dark Seal",
       "rarity": "Common",
@@ -1391,7 +1391,7 @@
         "Twisted Treeline"
       ],
       "id": "1036",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/1036.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1036.png",
       "lastSeenVersion": "16.21.1",
       "name": "Long Sword",
       "rarity": "Common",
@@ -1501,7 +1501,7 @@
         "Twisted Treeline"
       ],
       "id": "1042",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/1042.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1042.png",
       "lastSeenVersion": "16.21.1",
       "name": "Dagger",
       "rarity": "Common",
@@ -1673,7 +1673,7 @@
         "Twisted Treeline"
       ],
       "id": "1056",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.7.9/img/item/1056.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1056.png",
       "lastSeenVersion": "16.21.1",
       "name": "Doran's Ring",
       "rarity": "Common",
@@ -1697,7 +1697,7 @@
         "Twisted Treeline"
       ],
       "id": "1054",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.7.9/img/item/1054.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1054.png",
       "lastSeenVersion": "16.21.1",
       "name": "Doran's Shield",
       "rarity": "Common",
@@ -1714,7 +1714,7 @@
         "Summoner’s Rift"
       ],
       "id": "3363",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.21.5/img/item/3363.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/3363.png",
       "lastSeenVersion": "5.21.1",
       "name": "Farsight Orb (Trinket)",
       "rarity": "Common",
@@ -1730,7 +1730,7 @@
         "Summoner’s Rift"
       ],
       "id": "3361",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.21.5/img/item/3361.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/3361.png",
       "lastSeenVersion": "5.21.1",
       "name": "Greater Stealth Totem (Trinket)",
       "rarity": "Common",
@@ -1746,7 +1746,7 @@
         "Summoner’s Rift"
       ],
       "id": "3362",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.21.5/img/item/3362.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/3362.png",
       "lastSeenVersion": "5.21.1",
       "name": "Greater Vision Totem (Trinket)",
       "rarity": "Common",
@@ -1760,7 +1760,7 @@
       "firstSeenVersion": "0.151.2",
       "gameModes": [],
       "id": "3037",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3037.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.13.24/img/item/3037.png",
       "lastSeenVersion": "3.13.24",
       "name": "Mana Manipulator",
       "rarity": "Common",
@@ -1777,7 +1777,7 @@
         "Summoner’s Rift"
       ],
       "id": "3364",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.2.2/img/item/3364.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/3364.png",
       "lastSeenVersion": "5.21.1",
       "name": "Oracle's Lens (Trinket)",
       "rarity": "Common",
@@ -1934,7 +1934,7 @@
         "Twisted Treeline"
       ],
       "id": "1033",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.15.1/img/item/1033.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1033.png",
       "lastSeenVersion": "16.21.1",
       "name": "Null-Magic Mantle",
       "rarity": "Common",
@@ -1957,7 +1957,7 @@
         "Twisted Treeline"
       ],
       "id": "1051",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.13.1/img/item/1051.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/1051.png",
       "lastSeenVersion": "9.22.1",
       "name": "Brawler's Gloves",
       "rarity": "Common",
@@ -1976,7 +1976,7 @@
         "Summoner’s Rift"
       ],
       "id": "2141",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.5.1/img/item/2141.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2141.png",
       "lastSeenVersion": "16.21.1",
       "name": "Cappa Juice",
       "rarity": "Common",
@@ -1992,7 +1992,7 @@
         "Arena"
       ],
       "id": "2144",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/2144.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2144.png",
       "lastSeenVersion": "16.21.1",
       "name": "Juice of Haste",
       "rarity": "Common",
@@ -2008,7 +2008,7 @@
         "Arena"
       ],
       "id": "2142",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/2142.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2142.png",
       "lastSeenVersion": "16.21.1",
       "name": "Juice of Power",
       "rarity": "Common",
@@ -2024,7 +2024,7 @@
         "Arena"
       ],
       "id": "2143",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/2143.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2143.png",
       "lastSeenVersion": "16.21.1",
       "name": "Juice of Vitality",
       "rarity": "Common",
@@ -2063,7 +2063,7 @@
         "Twisted Treeline"
       ],
       "id": "3252",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/7.8.1/img/item/3252.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.23.1/img/item/3252.png",
       "lastSeenVersion": "8.23.1",
       "name": "Poacher's Dirk",
       "rarity": "Common",
@@ -2255,7 +2255,7 @@
         "Twisted Treeline"
       ],
       "id": "2015",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.2.1/img/item/2015.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.9.1/img/item/2015.png",
       "lastSeenVersion": "14.9.1",
       "name": "Kircheis Shard",
       "rarity": "Common",
@@ -2269,7 +2269,7 @@
       "firstSeenVersion": "0.152.55",
       "gameModes": [],
       "id": "1080",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/1080.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.20.2/img/item/1080.png",
       "lastSeenVersion": "4.20.2",
       "name": "Spirit Stone",
       "rarity": "Common",
@@ -2330,7 +2330,7 @@
         "Twisted Treeline"
       ],
       "id": "1018",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/1018.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1018.png",
       "lastSeenVersion": "16.21.1",
       "name": "Cloak of Agility",
       "rarity": "Common",
@@ -2355,7 +2355,7 @@
         "Twisted Treeline"
       ],
       "id": "3114",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.21.1/img/item/3114.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3114.png",
       "lastSeenVersion": "16.21.1",
       "name": "Forbidden Idol",
       "rarity": "Common",
@@ -2526,7 +2526,7 @@
         "Twisted Treeline"
       ],
       "id": "3098",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/3098.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/3098.png",
       "lastSeenVersion": "9.22.1",
       "name": "Frostfang",
       "rarity": "Common",
@@ -2561,7 +2561,7 @@
         "Twisted Treeline"
       ],
       "id": "3097",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/3097.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/3097.png",
       "lastSeenVersion": "9.22.1",
       "name": "Targon's Brace",
       "rarity": "Common",
@@ -2582,7 +2582,7 @@
         "Twisted Treeline"
       ],
       "id": "3096",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/7.10.1/img/item/3096.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/3096.png",
       "lastSeenVersion": "9.22.1",
       "name": "Nomad's Medallion",
       "rarity": "Common",
@@ -2596,7 +2596,7 @@
       "firstSeenVersion": "0.151.2",
       "gameModes": [],
       "id": "3097",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3097.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.15.2/img/item/3097.png",
       "lastSeenVersion": "3.15.2",
       "name": "Emblem of Valor",
       "rarity": "Common",
@@ -2641,7 +2641,7 @@
         "Twisted Treeline"
       ],
       "id": "1057",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/1057.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1057.png",
       "lastSeenVersion": "16.21.1",
       "name": "Negatron Cloak",
       "rarity": "Common",
@@ -2661,7 +2661,7 @@
         "Summoner’s Rift"
       ],
       "id": "6690",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/6690.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6690.png",
       "lastSeenVersion": "16.21.1",
       "name": "Rectrix",
       "rarity": "Common",
@@ -2681,7 +2681,7 @@
         "Summoner’s Rift"
       ],
       "id": "3144",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.11.1/img/item/3144.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3144.png",
       "lastSeenVersion": "16.21.1",
       "name": "Scout's Slingshot",
       "rarity": "Common",
@@ -2795,7 +2795,7 @@
         "Twisted Treeline"
       ],
       "id": "3113",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.1.2/img/item/3113.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3113.png",
       "lastSeenVersion": "16.21.1",
       "name": "Aether Wisp",
       "rarity": "Common",
@@ -2833,7 +2833,7 @@
         "Summoner’s Rift"
       ],
       "id": "3024",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/3024.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3024.png",
       "lastSeenVersion": "16.21.1",
       "name": "Glacial Buckler",
       "rarity": "Common",
@@ -2858,7 +2858,7 @@
         "Twisted Treeline"
       ],
       "id": "3067",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.13.24/img/item/3067.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3067.png",
       "lastSeenVersion": "16.21.1",
       "name": "Kindlegem",
       "rarity": "Common",
@@ -2909,7 +2909,7 @@
         "Summoner’s Rift"
       ],
       "id": "2049",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.2.6/img/item/2049.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.1.1/img/item/2049.png",
       "lastSeenVersion": "8.1.1",
       "name": "Sightstone",
       "rarity": "Common",
@@ -2934,7 +2934,7 @@
         "Twisted Treeline"
       ],
       "id": "1037",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/1037.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1037.png",
       "lastSeenVersion": "16.21.1",
       "name": "Pickaxe",
       "rarity": "Common",
@@ -2956,7 +2956,7 @@
         "Twisted Treeline"
       ],
       "id": "3070",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3070.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3070.png",
       "lastSeenVersion": "16.21.1",
       "name": "Tear of the Goddess",
       "rarity": "Common",
@@ -3105,7 +3105,7 @@
         "Twisted Treeline"
       ],
       "id": "3076",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3076.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3076.png",
       "lastSeenVersion": "16.21.1",
       "name": "Bramble Vest",
       "rarity": "Rare",
@@ -3128,7 +3128,7 @@
         "Twisted Treeline"
       ],
       "id": "3028",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/item/3028.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3028.png",
       "lastSeenVersion": "10.22.1",
       "name": "Chalice of Harmony",
       "rarity": "Rare",
@@ -3144,7 +3144,7 @@
         "Arena"
       ],
       "id": "223005",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223005.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223005.png",
       "lastSeenVersion": "16.21.1",
       "name": "Ghostcrawlers",
       "rarity": "Rare",
@@ -3199,7 +3199,7 @@
         "Arena"
       ],
       "id": "2049",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/2049.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2049.png",
       "lastSeenVersion": "16.21.1",
       "name": "Guardian's Amulet",
       "rarity": "Rare",
@@ -3215,7 +3215,7 @@
         "Arena"
       ],
       "id": "223177",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223177.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223177.png",
       "lastSeenVersion": "16.21.1",
       "name": "Guardian's Blade",
       "rarity": "Rare",
@@ -3231,7 +3231,7 @@
         "Arena"
       ],
       "id": "223185",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223185.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223185.png",
       "lastSeenVersion": "16.21.1",
       "name": "Guardian's Dirk",
       "rarity": "Rare",
@@ -3247,7 +3247,7 @@
         "Arena"
       ],
       "id": "223184",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223184.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223184.png",
       "lastSeenVersion": "16.21.1",
       "name": "Guardian's Hammer",
       "rarity": "Rare",
@@ -3263,7 +3263,7 @@
         "Arena"
       ],
       "id": "223112",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223112.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223112.png",
       "lastSeenVersion": "16.21.1",
       "name": "Guardian's Orb",
       "rarity": "Rare",
@@ -3279,7 +3279,7 @@
         "Arena"
       ],
       "id": "2050",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/2050.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2050.png",
       "lastSeenVersion": "16.21.1",
       "name": "Guardian's Shroud",
       "rarity": "Rare",
@@ -3293,7 +3293,7 @@
       "firstSeenVersion": "0.151.2",
       "gameModes": [],
       "id": "3106",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3106.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.24.2/img/item/3106.png",
       "lastSeenVersion": "5.24.2",
       "name": "Madred's Razors",
       "rarity": "Rare",
@@ -3346,7 +3346,7 @@
         "Summoner’s Rift"
       ],
       "id": "2051",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.21.5/img/item/2051.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2051.png",
       "lastSeenVersion": "16.21.1",
       "name": "Guardian's Horn",
       "rarity": "Rare",
@@ -3366,7 +3366,7 @@
         "Summoner’s Rift"
       ],
       "id": "4642",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.24.1/img/item/4642.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4642.png",
       "lastSeenVersion": "16.21.1",
       "name": "Bandleglass Mirror",
       "rarity": "Rare",
@@ -3390,7 +3390,7 @@
         "Twisted Treeline"
       ],
       "id": "3158",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3158.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3158.png",
       "lastSeenVersion": "16.21.1",
       "name": "Ionian Boots of Lucidity",
       "rarity": "Rare",
@@ -3426,7 +3426,7 @@
         "Twisted Treeline"
       ],
       "id": "3715",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.24.2/img/item/3715.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3715.png",
       "lastSeenVersion": "10.22.1",
       "name": "Skirmisher's Sabre",
       "rarity": "Rare",
@@ -3444,7 +3444,7 @@
         "Twisted Treeline"
       ],
       "id": "3706",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.24.2/img/item/3706.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3706.png",
       "lastSeenVersion": "10.22.1",
       "name": "Stalker's Blade",
       "rarity": "Rare",
@@ -3461,7 +3461,7 @@
         "Summoner’s Rift"
       ],
       "id": "3711",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.24.2/img/item/3711.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.3.1/img/item/3711.png",
       "lastSeenVersion": "8.3.1",
       "name": "Tracker's Knife",
       "rarity": "Rare",
@@ -3481,7 +3481,7 @@
         "Summoner’s Rift"
       ],
       "id": "6660",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/12.10.1/img/item/6660.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6660.png",
       "lastSeenVersion": "16.21.1",
       "name": "Bami's Cinder",
       "rarity": "Rare",
@@ -3531,7 +3531,7 @@
         "Twisted Treeline"
       ],
       "id": "3133",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/3133.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3133.png",
       "lastSeenVersion": "16.21.1",
       "name": "Caulfield's Warhammer",
       "rarity": "Rare",
@@ -3634,7 +3634,7 @@
         "Twisted Treeline"
       ],
       "id": "1043",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/1043.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1043.png",
       "lastSeenVersion": "16.21.1",
       "name": "Recurve Bow",
       "rarity": "Rare",
@@ -3659,7 +3659,7 @@
         "Twisted Treeline"
       ],
       "id": "3134",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/3134.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3134.png",
       "lastSeenVersion": "16.21.1",
       "name": "Serrated Dirk",
       "rarity": "Rare",
@@ -3733,7 +3733,7 @@
         "Twisted Treeline"
       ],
       "id": "1011",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/1011.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1011.png",
       "lastSeenVersion": "16.21.1",
       "name": "Giant's Belt",
       "rarity": "Rare",
@@ -3758,7 +3758,7 @@
         "Twisted Treeline"
       ],
       "id": "3108",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3108.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3108.png",
       "lastSeenVersion": "16.21.1",
       "name": "Fiendish Codex",
       "rarity": "Rare",
@@ -3813,7 +3813,7 @@
         "Summoner’s Rift"
       ],
       "id": "6029",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.5.1/img/item/6029.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6029.png",
       "lastSeenVersion": "13.24.1",
       "name": "Ironspike Whip",
       "rarity": "Rare",
@@ -3896,7 +3896,7 @@
         "Twisted Treeline"
       ],
       "id": "2053",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/7.11.1/img/item/2053.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.23.1/img/item/2053.png",
       "lastSeenVersion": "9.23.1",
       "name": "Raptor Cloak",
       "rarity": "Rare",
@@ -3916,7 +3916,7 @@
         "Summoner’s Rift"
       ],
       "id": "2019",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/2019.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2019.png",
       "lastSeenVersion": "16.21.1",
       "name": "Steel Sigil",
       "rarity": "Rare",
@@ -3950,7 +3950,7 @@
         "Summoner’s Rift"
       ],
       "id": "4630",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.19.1/img/item/4630.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4630.png",
       "lastSeenVersion": "16.21.1",
       "name": "Blighting Jewel",
       "rarity": "Rare",
@@ -3990,7 +3990,7 @@
         "Twisted Treeline"
       ],
       "id": "3196",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.17.1/img/item/3196.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.18.1/img/item/3196.png",
       "lastSeenVersion": "9.18.1",
       "name": "The Hex Core mk-1",
       "rarity": "Rare",
@@ -4015,7 +4015,7 @@
         "Twisted Treeline"
       ],
       "id": "3057",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3057.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3057.png",
       "lastSeenVersion": "16.21.1",
       "name": "Sheen",
       "rarity": "Rare",
@@ -4055,7 +4055,7 @@
         "Summoner’s Rift"
       ],
       "id": "3051",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/3051.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3051.png",
       "lastSeenVersion": "16.21.1",
       "name": "Hearthbound Axe",
       "rarity": "Rare",
@@ -4098,7 +4098,7 @@
         "Twisted Treeline"
       ],
       "id": "3111",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.3.1/img/item/3111.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3111.png",
       "lastSeenVersion": "16.21.1",
       "name": "Mercury's Treads",
       "rarity": "Rare",
@@ -4117,7 +4117,7 @@
         "Twisted Treeline"
       ],
       "id": "3010",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3010.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/item/3010.png",
       "lastSeenVersion": "6.8.1",
       "name": "Catalyst the Protector",
       "rarity": "Rare",
@@ -4159,7 +4159,7 @@
         "Twisted Treeline"
       ],
       "id": "3082",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3082.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3082.png",
       "lastSeenVersion": "16.21.1",
       "name": "Warden's Mail",
       "rarity": "Rare",
@@ -4179,7 +4179,7 @@
         "Summoner’s Rift"
       ],
       "id": "6670",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/6670.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6670.png",
       "lastSeenVersion": "16.21.1",
       "name": "Noonquiver",
       "rarity": "Rare",
@@ -4237,7 +4237,7 @@
         "Twisted Treeline"
       ],
       "id": "3086",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3086.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3086.png",
       "lastSeenVersion": "16.21.1",
       "name": "Zeal",
       "rarity": "Rare",
@@ -4276,7 +4276,7 @@
         "Twisted Treeline"
       ],
       "id": "3155",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.21.1/img/item/3155.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3155.png",
       "lastSeenVersion": "16.21.1",
       "name": "Hexdrinker",
       "rarity": "Rare",
@@ -4315,7 +4315,7 @@
         "Twisted Treeline"
       ],
       "id": "3044",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.10.3/img/item/3044.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3044.png",
       "lastSeenVersion": "16.21.1",
       "name": "Phage",
       "rarity": "Rare",
@@ -4373,7 +4373,7 @@
         "Twisted Treeline"
       ],
       "id": "3024",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3024.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3024.png",
       "lastSeenVersion": "10.22.1",
       "name": "Glacial Shroud",
       "rarity": "Rare",
@@ -4396,7 +4396,7 @@
         "Twisted Treeline"
       ],
       "id": "3136",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.23.1/img/item/3136.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3136.png",
       "lastSeenVersion": "10.22.1",
       "name": "Haunting Guise",
       "rarity": "Rare",
@@ -4416,7 +4416,7 @@
         "Summoner’s Rift"
       ],
       "id": "3041",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/3041.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3041.png",
       "lastSeenVersion": "16.21.1",
       "name": "Mejai's Soulstealer",
       "rarity": "Rare",
@@ -4458,7 +4458,7 @@
         "Twisted Treeline"
       ],
       "id": "3916",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3916.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3916.png",
       "lastSeenVersion": "16.21.1",
       "name": "Oblivion Orb",
       "rarity": "Rare",
@@ -4539,7 +4539,7 @@
         "Twisted Treeline"
       ],
       "id": "1038",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/1038.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/1038.png",
       "lastSeenVersion": "16.21.1",
       "name": "B. F. Sword",
       "rarity": "Rare",
@@ -4556,7 +4556,7 @@
         "Summoner’s Rift"
       ],
       "id": "3171",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.8.1/img/item/3171.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3171.png",
       "lastSeenVersion": "16.21.1",
       "name": "Crimson Lucidity",
       "rarity": "Rare",
@@ -4572,7 +4572,7 @@
         "Summoner’s Rift"
       ],
       "id": "3176",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.8.1/img/item/3176.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.24.1/img/item/3176.png",
       "lastSeenVersion": "15.24.1",
       "name": "Forever Forward",
       "rarity": "Rare",
@@ -4597,7 +4597,7 @@
         "Twisted Treeline"
       ],
       "id": "3140",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3140.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3140.png",
       "lastSeenVersion": "16.21.1",
       "name": "Quicksilver Sash",
       "rarity": "Rare",
@@ -4614,7 +4614,7 @@
         "Summoner’s Rift"
       ],
       "id": "3170",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.8.1/img/item/3170.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3170.png",
       "lastSeenVersion": "16.21.1",
       "name": "Swiftmarch",
       "rarity": "Rare",
@@ -4628,7 +4628,7 @@
       "firstSeenVersion": "0.151.2",
       "gameModes": [],
       "id": "3159",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.19.3/img/item/3159.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.24.2/img/item/3159.png",
       "lastSeenVersion": "5.24.2",
       "name": "Grez's Spectral Lantern",
       "rarity": "Rare",
@@ -4680,7 +4680,7 @@
         "Summoner’s Rift"
       ],
       "id": "2045",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.12.1/img/item/2045.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.1.1/img/item/2045.png",
       "lastSeenVersion": "8.1.1",
       "name": "Ruby Sightstone",
       "rarity": "Rare",
@@ -4700,7 +4700,7 @@
         "Summoner’s Rift"
       ],
       "id": "4632",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.5.1/img/item/4632.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4632.png",
       "lastSeenVersion": "16.21.1",
       "name": "Verdant Barrier",
       "rarity": "Rare",
@@ -4720,7 +4720,7 @@
         "Summoner’s Rift"
       ],
       "id": "3172",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.8.1/img/item/3172.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3172.png",
       "lastSeenVersion": "16.21.1",
       "name": "Gunmetal Greaves",
       "rarity": "Rare",
@@ -4751,7 +4751,7 @@
         "Summoner’s Rift"
       ],
       "id": "3175",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.8.1/img/item/3175.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3175.png",
       "lastSeenVersion": "16.21.1",
       "name": "Spellslinger's Shoes",
       "rarity": "Rare",
@@ -4787,7 +4787,7 @@
         "Summoner’s Rift"
       ],
       "id": "3401",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.3.1/img/item/3401.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/3401.png",
       "lastSeenVersion": "9.22.1",
       "name": "Remnant of the Aspect",
       "rarity": "Rare",
@@ -4809,7 +4809,7 @@
         "Twisted Treeline"
       ],
       "id": "3144",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3144.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3144.png",
       "lastSeenVersion": "10.22.1",
       "name": "Bilgewater Cutlass",
       "rarity": "Rare",
@@ -4826,7 +4826,7 @@
         "Summoner’s Rift"
       ],
       "id": "3174",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.8.1/img/item/3174.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3174.png",
       "lastSeenVersion": "16.21.1",
       "name": "Armored Advance",
       "rarity": "Rare",
@@ -4844,7 +4844,7 @@
         "Twisted Treeline"
       ],
       "id": "3122",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3122.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/3122.png",
       "lastSeenVersion": "9.22.1",
       "name": "Wicked Hatchet",
       "rarity": "Rare",
@@ -4951,7 +4951,7 @@
         "Summoner’s Rift"
       ],
       "id": "3173",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.3.1/img/item/3173.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3173.png",
       "lastSeenVersion": "16.21.1",
       "name": "Chainlaced Crushers",
       "rarity": "Epic",
@@ -4976,7 +4976,7 @@
         "Twisted Treeline"
       ],
       "id": "3077",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3077.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3077.png",
       "lastSeenVersion": "16.21.1",
       "name": "Tiamat",
       "rarity": "Epic",
@@ -5052,7 +5052,7 @@
         "Howling Abyss"
       ],
       "id": "3187",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/7.11.1/img/item/3187.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/3187.png",
       "lastSeenVersion": "9.22.1",
       "name": "Arcane Sweeper",
       "rarity": "Epic",
@@ -5090,7 +5090,7 @@
         "Summoner’s Rift"
       ],
       "id": "2302",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.21.1/img/item/2302.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.1.1/img/item/2302.png",
       "lastSeenVersion": "8.1.1",
       "name": "Eye of the Oasis",
       "rarity": "Epic",
@@ -5183,7 +5183,7 @@
         "Twisted Treeline"
       ],
       "id": "3309",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.5.2/img/item/3309.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.23.1/img/item/3309.png",
       "lastSeenVersion": "9.23.1",
       "name": "Timeworn Face of the Mountain",
       "rarity": "Epic",
@@ -5231,7 +5231,7 @@
         "Howling Abyss"
       ],
       "id": "3112",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.5.3/img/item/3112.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.11.1/img/item/3112.png",
       "lastSeenVersion": "6.11.1",
       "name": "Orb of Winter",
       "rarity": "Epic",
@@ -5365,7 +5365,7 @@
         "Summoner’s Rift"
       ],
       "id": "2065",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/2065.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/2065.png",
       "lastSeenVersion": "10.22.1",
       "name": "Shurelya's Reverie",
       "rarity": "Epic",
@@ -5388,7 +5388,7 @@
         "Twisted Treeline"
       ],
       "id": "3197",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.17.1/img/item/3197.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.18.1/img/item/3197.png",
       "lastSeenVersion": "9.18.1",
       "name": "The Hex Core mk-2",
       "rarity": "Epic",
@@ -5441,7 +5441,7 @@
         "Howling Abyss"
       ],
       "id": "3187",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.13.24/img/item/3187.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/item/3187.png",
       "lastSeenVersion": "6.8.1",
       "name": "Hextech Sweeper",
       "rarity": "Epic",
@@ -5491,7 +5491,7 @@
         "Twisted Treeline"
       ],
       "id": "3077",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3077.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.22.1/img/item/3077.png",
       "lastSeenVersion": "5.22.1",
       "name": "Tiamat (Melee Only)",
       "rarity": "Epic",
@@ -5554,7 +5554,7 @@
         "Twisted Treeline"
       ],
       "id": "3050",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.21.1/img/item/3050.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/7.11.1/img/item/3050.png",
       "lastSeenVersion": "7.11.1",
       "name": "Zeke's Harbinger",
       "rarity": "Epic",
@@ -5568,7 +5568,7 @@
       "firstSeenVersion": "0.151.2",
       "gameModes": [],
       "id": "3005",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3005.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.20.2/img/item/3005.png",
       "lastSeenVersion": "4.20.2",
       "name": "Atma's Impaler",
       "rarity": "Epic",
@@ -5621,7 +5621,7 @@
       "firstSeenVersion": "0.152.55",
       "gameModes": [],
       "id": "3207",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3207.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.20.2/img/item/3207.png",
       "lastSeenVersion": "4.20.2",
       "name": "Spirit of the Ancient Golem",
       "rarity": "Epic",
@@ -5635,7 +5635,7 @@
       "firstSeenVersion": "0.152.55",
       "gameModes": [],
       "id": "3209",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3209.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.20.2/img/item/3209.png",
       "lastSeenVersion": "4.20.2",
       "name": "Spirit of the Elder Lizard",
       "rarity": "Epic",
@@ -5649,7 +5649,7 @@
       "firstSeenVersion": "0.152.55",
       "gameModes": [],
       "id": "3206",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3206.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.20.2/img/item/3206.png",
       "lastSeenVersion": "4.20.2",
       "name": "Spirit of the Spectral Wraith",
       "rarity": "Epic",
@@ -5744,7 +5744,7 @@
         "Nexus Blitz"
       ],
       "id": "4003",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.12.1/img/item/4003.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4003.png",
       "lastSeenVersion": "16.21.1",
       "name": "Lifeline",
       "rarity": "Epic",
@@ -5812,7 +5812,7 @@
         "Summoner’s Rift"
       ],
       "id": "7019",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.15.1/img/item/7019.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7019.png",
       "lastSeenVersion": "14.10.1",
       "name": "Reliquary of the Golden Dawn",
       "rarity": "Epic",
@@ -5849,7 +5849,7 @@
         "Summoner’s Rift"
       ],
       "id": "7020",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.15.1/img/item/7020.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7020.png",
       "lastSeenVersion": "14.10.1",
       "name": "Shurelya's Requiem",
       "rarity": "Epic",
@@ -5868,7 +5868,7 @@
         "Summoner’s Rift"
       ],
       "id": "7021",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.15.1/img/item/7021.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7021.png",
       "lastSeenVersion": "14.10.1",
       "name": "Starcaster",
       "rarity": "Epic",
@@ -5885,7 +5885,7 @@
         "Howling Abyss"
       ],
       "id": "3185",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.15.5/img/item/3185.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.18.1/img/item/3185.png",
       "lastSeenVersion": "9.18.1",
       "name": "The Lightbringer",
       "rarity": "Epic",
@@ -5997,7 +5997,7 @@
         "Twisted Treeline"
       ],
       "id": "3382",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.24.1/img/item/3382.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3382.png",
       "lastSeenVersion": "10.22.1",
       "name": "Salvation",
       "rarity": "Epic",
@@ -6091,7 +6091,7 @@
       "firstSeenVersion": "0.151.2",
       "gameModes": [],
       "id": "3050",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.13.24/img/item/3050.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.13.1/img/item/3050.png",
       "lastSeenVersion": "5.13.1",
       "name": "Zeke's Herald",
       "rarity": "Epic",
@@ -6133,7 +6133,7 @@
         "Twisted Treeline"
       ],
       "id": "3383",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.24.1/img/item/3383.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3383.png",
       "lastSeenVersion": "10.22.1",
       "name": "Circlet of the Iron Solari",
       "rarity": "Epic",
@@ -6212,7 +6212,7 @@
         "Twisted Treeline"
       ],
       "id": "3029",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.12.1/img/item/3029.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3029.png",
       "lastSeenVersion": "10.22.1",
       "name": "Rod of Ages (Quick Charge)",
       "rarity": "Epic",
@@ -6247,7 +6247,7 @@
         "Crystal Scar"
       ],
       "id": "3180",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3180.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.4.2/img/item/3180.png",
       "lastSeenVersion": "6.4.2",
       "name": "Odyn's Veil",
       "rarity": "Epic",
@@ -6261,7 +6261,7 @@
       "firstSeenVersion": "0.151.2",
       "gameModes": [],
       "id": "3186",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3186.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.15.5/img/item/3186.png",
       "lastSeenVersion": "3.15.5",
       "name": "Kitae's Bloodrazor",
       "rarity": "Epic",
@@ -6715,7 +6715,7 @@
         "Twisted Treeline"
       ],
       "id": "3085",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3085.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.22.1/img/item/3085.png",
       "lastSeenVersion": "5.22.1",
       "name": "Runaan's Hurricane (Ranged Only)",
       "rarity": "Epic",
@@ -6872,7 +6872,7 @@
         "Summoner’s Rift"
       ],
       "id": "7004",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.2.1/img/item/7004.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7004.png",
       "lastSeenVersion": "14.10.1",
       "name": "Enmity of the Masses",
       "rarity": "Epic",
@@ -6951,7 +6951,7 @@
         "Summoner’s Rift"
       ],
       "id": "3118",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.2.1/img/item/3118.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3118.png",
       "lastSeenVersion": "16.21.1",
       "name": "Malignance",
       "rarity": "Epic",
@@ -7078,7 +7078,7 @@
         "Summoner’s Rift"
       ],
       "id": "3512",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.15.1/img/item/3512.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.23.1/img/item/3512.png",
       "lastSeenVersion": "9.23.1",
       "name": "Zz'Rot Portal",
       "rarity": "Epic",
@@ -7098,7 +7098,7 @@
         "Summoner’s Rift"
       ],
       "id": "3056",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3056.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.23.1/img/item/3056.png",
       "lastSeenVersion": "9.23.1",
       "name": "Ohmwrecker",
       "rarity": "Epic",
@@ -7177,7 +7177,7 @@
         "Summoner’s Rift"
       ],
       "id": "4646",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.9.1/img/item/4646.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4646.png",
       "lastSeenVersion": "16.21.1",
       "name": "Stormsurge",
       "rarity": "Epic",
@@ -7200,7 +7200,7 @@
         "Twisted Treeline"
       ],
       "id": "3068",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.1.1/img/item/3068.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3068.png",
       "lastSeenVersion": "10.22.1",
       "name": "Sunfire Cape",
       "rarity": "Epic",
@@ -7261,7 +7261,7 @@
         "Twisted Treeline"
       ],
       "id": "3174",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3174.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3174.png",
       "lastSeenVersion": "10.22.1",
       "name": "Athene's Unholy Grail",
       "rarity": "Epic",
@@ -7277,7 +7277,7 @@
         "Arena"
       ],
       "id": "228020",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/228020.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/228020.png",
       "lastSeenVersion": "16.21.1",
       "name": "Abyssal Mask",
       "rarity": "Legendary",
@@ -7293,7 +7293,7 @@
         "Arena"
       ],
       "id": "228001",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/228001.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/228001.png",
       "lastSeenVersion": "16.21.1",
       "name": "Anathema's Chains",
       "rarity": "Legendary",
@@ -7309,7 +7309,7 @@
         "Arena"
       ],
       "id": "223504",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223504.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223504.png",
       "lastSeenVersion": "16.21.1",
       "name": "Ardent Censer",
       "rarity": "Legendary",
@@ -7341,7 +7341,7 @@
         "Arena"
       ],
       "id": "223039",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223039.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223039.png",
       "lastSeenVersion": "16.21.1",
       "name": "Atma's Reckoning",
       "rarity": "Legendary",
@@ -7357,7 +7357,7 @@
         "Arena"
       ],
       "id": "226696",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/226696.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/226696.png",
       "lastSeenVersion": "16.21.1",
       "name": "Axiom Arc",
       "rarity": "Legendary",
@@ -7379,7 +7379,7 @@
         "Twisted Treeline"
       ],
       "id": "3060",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.21.1/img/item/3060.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.11.1/img/item/3060.png",
       "lastSeenVersion": "8.11.1",
       "name": "Banner of Command",
       "rarity": "Legendary",
@@ -7395,7 +7395,7 @@
         "Arena"
       ],
       "id": "4010",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/4010.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4010.png",
       "lastSeenVersion": "16.21.1",
       "name": "Bloodletter's Curse",
       "rarity": "Legendary",
@@ -7428,7 +7428,7 @@
         "Arena"
       ],
       "id": "223011",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223011.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.21.1/img/item/223011.png",
       "lastSeenVersion": "14.21.1",
       "name": "Chemtech Putrifier",
       "rarity": "Legendary",
@@ -7444,7 +7444,7 @@
         "Arena"
       ],
       "id": "224629",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/224629.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/224629.png",
       "lastSeenVersion": "16.21.1",
       "name": "Cosmic Drive",
       "rarity": "Legendary",
@@ -7496,7 +7496,7 @@
         "Arena"
       ],
       "id": "223742",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223742.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223742.png",
       "lastSeenVersion": "16.21.1",
       "name": "Dead Man's Plate",
       "rarity": "Legendary",
@@ -7543,7 +7543,7 @@
         "Twisted Treeline"
       ],
       "id": "3137",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/4.19.3/img/item/3137.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3137.png",
       "lastSeenVersion": "10.22.1",
       "name": "Dervish Blade",
       "rarity": "Legendary",
@@ -7559,7 +7559,7 @@
         "Arena"
       ],
       "id": "226620",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/226620.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/226620.png",
       "lastSeenVersion": "16.21.1",
       "name": "Echoes of Helia",
       "rarity": "Legendary",
@@ -7614,7 +7614,7 @@
         "Summoner’s Rift"
       ],
       "id": "7013",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.2.1/img/item/7013.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7013.png",
       "lastSeenVersion": "14.10.1",
       "name": "Force of Arms",
       "rarity": "Legendary",
@@ -7630,7 +7630,7 @@
         "Arena"
       ],
       "id": "224401",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/224401.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/224401.png",
       "lastSeenVersion": "16.21.1",
       "name": "Force of Nature",
       "rarity": "Legendary",
@@ -7646,7 +7646,7 @@
         "Arena"
       ],
       "id": "4017",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/4017.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4017.png",
       "lastSeenVersion": "16.21.1",
       "name": "Hellfire Hatchet",
       "rarity": "Legendary",
@@ -7669,7 +7669,7 @@
         "Twisted Treeline"
       ],
       "id": "3030",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.5.2/img/item/3030.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3030.png",
       "lastSeenVersion": "10.22.1",
       "name": "Hextech GLP-800",
       "rarity": "Legendary",
@@ -7685,7 +7685,7 @@
         "Arena"
       ],
       "id": "224628",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/224628.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/224628.png",
       "lastSeenVersion": "16.21.1",
       "name": "Horizon Focus",
       "rarity": "Legendary",
@@ -7702,7 +7702,7 @@
         "Map 35"
       ],
       "id": "126697",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/126697.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/126697.png",
       "lastSeenVersion": "16.21.1",
       "name": "Hubris",
       "rarity": "Legendary",
@@ -7718,7 +7718,7 @@
         "Arena"
       ],
       "id": "223181",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223181.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223181.png",
       "lastSeenVersion": "16.21.1",
       "name": "Hullbreaker",
       "rarity": "Legendary",
@@ -7734,7 +7734,7 @@
         "Arena"
       ],
       "id": "224005",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/224005.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/224005.png",
       "lastSeenVersion": "16.21.1",
       "name": "Imperial Mandate",
       "rarity": "Legendary",
@@ -7750,7 +7750,7 @@
         "Nexus Blitz"
       ],
       "id": "4402",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/4402.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4402.png",
       "lastSeenVersion": "16.21.1",
       "name": "Innervating Locket",
       "rarity": "Legendary",
@@ -7766,7 +7766,7 @@
         "Arena"
       ],
       "id": "223109",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223109.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223109.png",
       "lastSeenVersion": "16.21.1",
       "name": "Knight's Vow",
       "rarity": "Legendary",
@@ -7815,7 +7815,7 @@
         "Arena"
       ],
       "id": "223190",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223190.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223190.png",
       "lastSeenVersion": "16.21.1",
       "name": "Locket of the Iron Solari",
       "rarity": "Legendary",
@@ -7834,7 +7834,7 @@
         "Summoner’s Rift"
       ],
       "id": "6655",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.2.1/img/item/6655.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.24.1/img/item/6655.png",
       "lastSeenVersion": "15.24.1",
       "name": "Luden's Companion",
       "rarity": "Legendary",
@@ -7850,7 +7850,7 @@
         "Arena"
       ],
       "id": "223004",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223004.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223004.png",
       "lastSeenVersion": "16.21.1",
       "name": "Manamune",
       "rarity": "Legendary",
@@ -7866,7 +7866,7 @@
         "Arena"
       ],
       "id": "223222",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223222.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223222.png",
       "lastSeenVersion": "16.21.1",
       "name": "Mikael's Blessing",
       "rarity": "Legendary",
@@ -7882,7 +7882,7 @@
         "Arena"
       ],
       "id": "226617",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/226617.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/226617.png",
       "lastSeenVersion": "16.21.1",
       "name": "Moonstone Renewer",
       "rarity": "Legendary",
@@ -7898,7 +7898,7 @@
         "Arena"
       ],
       "id": "223165",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223165.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223165.png",
       "lastSeenVersion": "16.21.1",
       "name": "Morellonomicon",
       "rarity": "Legendary",
@@ -7963,7 +7963,7 @@
         "Arena"
       ],
       "id": "4015",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/4015.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4015.png",
       "lastSeenVersion": "16.21.1",
       "name": "Perplexity",
       "rarity": "Legendary",
@@ -7979,7 +7979,7 @@
         "Arena"
       ],
       "id": "223046",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223046.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223046.png",
       "lastSeenVersion": "16.21.1",
       "name": "Phantom Dancer",
       "rarity": "Legendary",
@@ -8009,7 +8009,7 @@
         "Arena"
       ],
       "id": "223094",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223094.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223094.png",
       "lastSeenVersion": "16.21.1",
       "name": "Rapid Firecannon",
       "rarity": "Legendary",
@@ -8025,7 +8025,7 @@
         "Arena"
       ],
       "id": "223107",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223107.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223107.png",
       "lastSeenVersion": "16.21.1",
       "name": "Redemption",
       "rarity": "Legendary",
@@ -8057,7 +8057,7 @@
         "Crystal Scar"
       ],
       "id": "3029",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/item/3029.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.13.1/img/item/3029.png",
       "lastSeenVersion": "6.13.1",
       "name": "Rod of Ages (Crystal Scar)",
       "rarity": "Legendary",
@@ -8092,7 +8092,7 @@
         "Arena"
       ],
       "id": "226695",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/226695.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/226695.png",
       "lastSeenVersion": "16.21.1",
       "name": "Serpent's Fang",
       "rarity": "Legendary",
@@ -8108,7 +8108,7 @@
         "Arena"
       ],
       "id": "222065",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/222065.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/222065.png",
       "lastSeenVersion": "16.21.1",
       "name": "Shurelya's Battlesong",
       "rarity": "Legendary",
@@ -8170,7 +8170,7 @@
         "Arena"
       ],
       "id": "223065",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223065.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223065.png",
       "lastSeenVersion": "16.21.1",
       "name": "Spirit Visage",
       "rarity": "Legendary",
@@ -8202,7 +8202,7 @@
         "Arena"
       ],
       "id": "226616",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/226616.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/226616.png",
       "lastSeenVersion": "16.21.1",
       "name": "Staff of Flowing Water",
       "rarity": "Legendary",
@@ -8218,7 +8218,7 @@
         "Arena"
       ],
       "id": "223087",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223087.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223087.png",
       "lastSeenVersion": "16.21.1",
       "name": "Statikk Shiv",
       "rarity": "Legendary",
@@ -8234,7 +8234,7 @@
         "Arena"
       ],
       "id": "4011",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/4011.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4011.png",
       "lastSeenVersion": "16.21.1",
       "name": "Sword of Blossoming Dawn",
       "rarity": "Legendary",
@@ -8308,7 +8308,7 @@
         "Arena"
       ],
       "id": "223075",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223075.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223075.png",
       "lastSeenVersion": "16.21.1",
       "name": "Thornmail",
       "rarity": "Legendary",
@@ -8322,7 +8322,7 @@
       "firstSeenVersion": "14.9.1",
       "gameModes": [],
       "id": "223002",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.21.1/img/item/223002.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223002.png",
       "lastSeenVersion": "16.21.1",
       "name": "Trailblazer",
       "rarity": "Legendary",
@@ -8338,7 +8338,7 @@
         "Arena"
       ],
       "id": "223135",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223135.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223135.png",
       "lastSeenVersion": "16.21.1",
       "name": "Void Staff",
       "rarity": "Legendary",
@@ -8374,7 +8374,7 @@
         "Arena"
       ],
       "id": "223119",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223119.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223119.png",
       "lastSeenVersion": "16.21.1",
       "name": "Winter's Approach",
       "rarity": "Legendary",
@@ -8390,7 +8390,7 @@
         "Arena"
       ],
       "id": "4016",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/4016.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4016.png",
       "lastSeenVersion": "16.21.1",
       "name": "Wordless Promise",
       "rarity": "Legendary",
@@ -8406,7 +8406,7 @@
         "Arena"
       ],
       "id": "223050",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.8.1/img/item/223050.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/223050.png",
       "lastSeenVersion": "16.21.1",
       "name": "Zeke's Convergence",
       "rarity": "Legendary",
@@ -8426,7 +8426,7 @@
         "Summoner’s Rift"
       ],
       "id": "2522",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.2.1/img/item/2522.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2522.png",
       "lastSeenVersion": "16.21.1",
       "name": "Actualizer",
       "rarity": "Legendary",
@@ -8467,7 +8467,7 @@
         "Twisted Treeline"
       ],
       "id": "3102",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.18.1/img/item/3102.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3102.png",
       "lastSeenVersion": "16.21.1",
       "name": "Banshee's Veil",
       "rarity": "Legendary",
@@ -8487,7 +8487,7 @@
         "Summoner’s Rift"
       ],
       "id": "6609",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.5.1/img/item/6609.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6609.png",
       "lastSeenVersion": "16.21.1",
       "name": "Chempunk Chainsword",
       "rarity": "Legendary",
@@ -8549,7 +8549,7 @@
         "Twisted Treeline"
       ],
       "id": "3814",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.20.1/img/item/3814.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3814.png",
       "lastSeenVersion": "16.21.1",
       "name": "Edge of Night",
       "rarity": "Legendary",
@@ -8613,7 +8613,7 @@
         "Twisted Treeline"
       ],
       "id": "3110",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3110.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3110.png",
       "lastSeenVersion": "16.21.1",
       "name": "Frozen Heart",
       "rarity": "Legendary",
@@ -8729,7 +8729,7 @@
         "Twisted Treeline"
       ],
       "id": "3181",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.152.115/img/item/3181.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.12.1/img/item/3181.png",
       "lastSeenVersion": "11.12.1",
       "name": "Sanguine Blade",
       "rarity": "Legendary",
@@ -8751,7 +8751,7 @@
         "Twisted Treeline"
       ],
       "id": "3003",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3003.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3003.png",
       "lastSeenVersion": "16.21.1",
       "name": "Archangel's Staff",
       "rarity": "Legendary",
@@ -8793,7 +8793,7 @@
         "Summoner’s Rift"
       ],
       "id": "2520",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.14.1/img/item/2520.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/2520.png",
       "lastSeenVersion": "16.21.1",
       "name": "Bastionbreaker",
       "rarity": "Legendary",
@@ -8831,7 +8831,7 @@
         "Summoner’s Rift"
       ],
       "id": "6692",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.22.1/img/item/6692.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6692.png",
       "lastSeenVersion": "16.21.1",
       "name": "Eclipse",
       "rarity": "Legendary",
@@ -8867,7 +8867,7 @@
         "Summoner’s Rift"
       ],
       "id": "6662",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.1.1/img/item/6662.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/12.21.1/img/item/6662.png",
       "lastSeenVersion": "12.21.1",
       "name": "Frostfire Gauntlet",
       "rarity": "Legendary",
@@ -8910,7 +8910,7 @@
         "Summoner’s Rift"
       ],
       "id": "3084",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/3084.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3084.png",
       "lastSeenVersion": "16.21.1",
       "name": "Heartsteel",
       "rarity": "Legendary",
@@ -8930,7 +8930,7 @@
         "Summoner’s Rift"
       ],
       "id": "3152",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/3152.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3152.png",
       "lastSeenVersion": "16.21.1",
       "name": "Hextech Rocketbelt",
       "rarity": "Legendary",
@@ -8949,7 +8949,7 @@
         "Summoner’s Rift"
       ],
       "id": "7009",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.15.1/img/item/7009.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7009.png",
       "lastSeenVersion": "14.10.1",
       "name": "Icathia's Curse",
       "rarity": "Legendary",
@@ -8992,7 +8992,7 @@
         "Twisted Treeline"
       ],
       "id": "3151",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.23.1/img/item/3151.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3151.png",
       "lastSeenVersion": "10.22.1",
       "name": "Liandry's Torment",
       "rarity": "Legendary",
@@ -9050,7 +9050,7 @@
         "Twisted Treeline"
       ],
       "id": "3115",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/3115.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3115.png",
       "lastSeenVersion": "16.21.1",
       "name": "Nashor's Tooth",
       "rarity": "Legendary",
@@ -9086,7 +9086,7 @@
         "Summoner’s Rift"
       ],
       "id": "6693",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.22.1/img/item/6693.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6693.png",
       "lastSeenVersion": "13.24.1",
       "name": "Prowler's Claw",
       "rarity": "Legendary",
@@ -9104,7 +9104,7 @@
         "Summoner’s Rift"
       ],
       "id": "6667",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.9.1/img/item/6667.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6667.png",
       "lastSeenVersion": "13.24.1",
       "name": "Radiant Virtue",
       "rarity": "Legendary",
@@ -9124,7 +9124,7 @@
         "Summoner’s Rift"
       ],
       "id": "4633",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/4633.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4633.png",
       "lastSeenVersion": "16.21.1",
       "name": "Riftmaker",
       "rarity": "Legendary",
@@ -9144,7 +9144,7 @@
         "Summoner’s Rift"
       ],
       "id": "6657",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/12.22.1/img/item/6657.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6657.png",
       "lastSeenVersion": "16.21.1",
       "name": "Rod of Ages",
       "rarity": "Legendary",
@@ -9158,7 +9158,7 @@
       "firstSeenVersion": "0.152.55",
       "gameModes": [],
       "id": "3107",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3107.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.9.7/img/item/3107.png",
       "lastSeenVersion": "3.9.7",
       "name": "Runic Bulwark",
       "rarity": "Legendary",
@@ -9183,7 +9183,7 @@
         "Twisted Treeline"
       ],
       "id": "3116",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.23.1/img/item/3116.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3116.png",
       "lastSeenVersion": "16.21.1",
       "name": "Rylai's Crystal Scepter",
       "rarity": "Legendary",
@@ -9287,7 +9287,7 @@
         "Summoner’s Rift"
       ],
       "id": "3068",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/12.21.1/img/item/3068.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3068.png",
       "lastSeenVersion": "16.21.1",
       "name": "Sunfire Aegis",
       "rarity": "Legendary",
@@ -9306,7 +9306,7 @@
         "Summoner’s Rift"
       ],
       "id": "7001",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.15.1/img/item/7001.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7001.png",
       "lastSeenVersion": "14.10.1",
       "name": "Syzygy",
       "rarity": "Legendary",
@@ -9343,7 +9343,7 @@
         "Summoner’s Rift"
       ],
       "id": "6664",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.1.1/img/item/6664.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6664.png",
       "lastSeenVersion": "13.24.1",
       "name": "Turbo Chemtank",
       "rarity": "Legendary",
@@ -9362,7 +9362,7 @@
         "Summoner’s Rift"
       ],
       "id": "7011",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.15.1/img/item/7011.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7011.png",
       "lastSeenVersion": "14.10.1",
       "name": "Upgraded Aeropack",
       "rarity": "Legendary",
@@ -9405,7 +9405,7 @@
         "Twisted Treeline"
       ],
       "id": "3091",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/3091.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3091.png",
       "lastSeenVersion": "16.21.1",
       "name": "Wit's End",
       "rarity": "Legendary",
@@ -9430,7 +9430,7 @@
         "Twisted Treeline"
       ],
       "id": "3142",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.21.1/img/item/3142.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3142.png",
       "lastSeenVersion": "16.21.1",
       "name": "Youmuu's Ghostblade",
       "rarity": "Legendary",
@@ -9450,7 +9450,7 @@
         "Summoner’s Rift"
       ],
       "id": "3032",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.19.1/img/item/3032.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3032.png",
       "lastSeenVersion": "16.21.1",
       "name": "Yun Tal Wildarrows",
       "rarity": "Legendary",
@@ -9473,7 +9473,7 @@
         "Twisted Treeline"
       ],
       "id": "3147",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/7.13.1/img/item/3147.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3147.png",
       "lastSeenVersion": "10.22.1",
       "name": "Duskblade of Draktharr",
       "rarity": "Legendary",
@@ -9510,7 +9510,7 @@
         "Twisted Treeline"
       ],
       "id": "3071",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.4.1/img/item/3071.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3071.png",
       "lastSeenVersion": "16.21.1",
       "name": "Black Cleaver",
       "rarity": "Legendary",
@@ -9622,7 +9622,7 @@
         "Twisted Treeline"
       ],
       "id": "3193",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.22.1/img/item/3193.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/3193.png",
       "lastSeenVersion": "13.24.1",
       "name": "Gargoyle Stoneplate",
       "rarity": "Legendary",
@@ -9640,7 +9640,7 @@
         "Summoner’s Rift"
       ],
       "id": "6630",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.9.1/img/item/6630.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6630.png",
       "lastSeenVersion": "13.24.1",
       "name": "Goredrinker",
       "rarity": "Legendary",
@@ -9688,7 +9688,7 @@
         "Twisted Treeline"
       ],
       "id": "3285",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.8.2/img/item/3285.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3285.png",
       "lastSeenVersion": "10.22.1",
       "name": "Luden's Echo",
       "rarity": "Legendary",
@@ -9712,7 +9712,7 @@
         "Twisted Treeline"
       ],
       "id": "3156",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3156.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3156.png",
       "lastSeenVersion": "16.21.1",
       "name": "Maw of Malmortius",
       "rarity": "Legendary",
@@ -9755,7 +9755,7 @@
         "Twisted Treeline"
       ],
       "id": "3033",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.24.1/img/item/3033.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3033.png",
       "lastSeenVersion": "16.21.1",
       "name": "Mortal Reminder",
       "rarity": "Legendary",
@@ -9851,7 +9851,7 @@
         "Twisted Treeline"
       ],
       "id": "3083",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.5.1/img/item/3083.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3083.png",
       "lastSeenVersion": "16.21.1",
       "name": "Warmog's Armor",
       "rarity": "Legendary",
@@ -9892,7 +9892,7 @@
         "Twisted Treeline"
       ],
       "id": "3153",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.10.1/img/item/3153.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3153.png",
       "lastSeenVersion": "10.22.1",
       "name": "Blade of the Ruined King",
       "rarity": "Legendary",
@@ -9947,7 +9947,7 @@
         "Summoner’s Rift"
       ],
       "id": "7014",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.12.1/img/item/7014.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.15.1/img/item/7014.png",
       "lastSeenVersion": "11.15.1",
       "name": "Eternal Winter",
       "rarity": "Legendary",
@@ -9965,7 +9965,7 @@
         "Summoner’s Rift"
       ],
       "id": "6656",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.12.1/img/item/6656.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6656.png",
       "lastSeenVersion": "13.24.1",
       "name": "Everfrost",
       "rarity": "Legendary",
@@ -9983,7 +9983,7 @@
         "Summoner’s Rift"
       ],
       "id": "7013",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.12.1/img/item/7013.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.15.1/img/item/7013.png",
       "lastSeenVersion": "11.15.1",
       "name": "Eye of Luden",
       "rarity": "Legendary",
@@ -10024,7 +10024,7 @@
         "Twisted Treeline"
       ],
       "id": "3025",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3025.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3025.png",
       "lastSeenVersion": "10.22.1",
       "name": "Iceborn Gauntlet",
       "rarity": "Legendary",
@@ -10044,7 +10044,7 @@
         "Summoner’s Rift"
       ],
       "id": "6673",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.9.1/img/item/6673.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6673.png",
       "lastSeenVersion": "16.21.1",
       "name": "Immortal Shieldbow",
       "rarity": "Legendary",
@@ -10064,7 +10064,7 @@
         "Summoner’s Rift"
       ],
       "id": "6672",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.9.1/img/item/6672.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6672.png",
       "lastSeenVersion": "16.21.1",
       "name": "Kraken Slayer",
       "rarity": "Legendary",
@@ -10082,7 +10082,7 @@
         "Summoner’s Rift"
       ],
       "id": "6653",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.12.1/img/item/6653.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6653.png",
       "lastSeenVersion": "13.24.1",
       "name": "Liandry's Anguish",
       "rarity": "Legendary",
@@ -10101,7 +10101,7 @@
         "Summoner’s Rift"
       ],
       "id": "7012",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.12.1/img/item/7012.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.10.1/img/item/7012.png",
       "lastSeenVersion": "14.10.1",
       "name": "Liandry's Lament",
       "rarity": "Legendary",
@@ -10119,7 +10119,7 @@
         "Summoner’s Rift"
       ],
       "id": "6655",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.12.1/img/item/6655.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6655.png",
       "lastSeenVersion": "13.24.1",
       "name": "Luden's Tempest",
       "rarity": "Legendary",
@@ -10137,7 +10137,7 @@
         "Summoner’s Rift"
       ],
       "id": "6675",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/13.24.1/img/item/6675.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.9.1/img/item/6675.png",
       "lastSeenVersion": "14.9.1",
       "name": "Navori Quickblades",
       "rarity": "Legendary",
@@ -10157,7 +10157,7 @@
         "Summoner’s Rift"
       ],
       "id": "6698",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/6698.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6698.png",
       "lastSeenVersion": "16.21.1",
       "name": "Profane Hydra",
       "rarity": "Legendary",
@@ -10181,7 +10181,7 @@
         "Twisted Treeline"
       ],
       "id": "3085",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.25.1/img/item/3085.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3085.png",
       "lastSeenVersion": "16.21.1",
       "name": "Runaan's Hurricane",
       "rarity": "Legendary",
@@ -10201,7 +10201,7 @@
         "Summoner’s Rift"
       ],
       "id": "6694",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.6.1/img/item/6694.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6694.png",
       "lastSeenVersion": "16.21.1",
       "name": "Serylda's Grudge",
       "rarity": "Legendary",
@@ -10255,7 +10255,7 @@
         "Twisted Treeline"
       ],
       "id": "3161",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.14.1/img/item/3161.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3161.png",
       "lastSeenVersion": "16.21.1",
       "name": "Spear of Shojin",
       "rarity": "Legendary",
@@ -10275,7 +10275,7 @@
         "Summoner’s Rift"
       ],
       "id": "6676",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/14.19.1/img/item/6676.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6676.png",
       "lastSeenVersion": "16.21.1",
       "name": "The Collector",
       "rarity": "Legendary",
@@ -10355,7 +10355,7 @@
         "Twisted Treeline"
       ],
       "id": "3100",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3100.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3100.png",
       "lastSeenVersion": "16.21.1",
       "name": "Lich Bane",
       "rarity": "Legendary",
@@ -10376,7 +10376,7 @@
         "Twisted Treeline"
       ],
       "id": "3072",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3072.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3072.png",
       "lastSeenVersion": "16.21.1",
       "name": "Bloodthirster",
       "rarity": "Legendary",
@@ -10431,7 +10431,7 @@
         "Twisted Treeline"
       ],
       "id": "3071",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/item/3071.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.18.1/img/item/3071.png",
       "lastSeenVersion": "9.18.1",
       "name": "The Black Cleaver",
       "rarity": "Legendary",
@@ -10455,7 +10455,7 @@
         "Summoner’s Rift"
       ],
       "id": "3157",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.8.1/img/item/3157.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3157.png",
       "lastSeenVersion": "16.21.1",
       "name": "Zhonya's Hourglass",
       "rarity": "Legendary",
@@ -10502,7 +10502,7 @@
         "Twisted Treeline"
       ],
       "id": "3508",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/7.8.1/img/item/3508.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3508.png",
       "lastSeenVersion": "16.21.1",
       "name": "Essence Reaver",
       "rarity": "Legendary",
@@ -10527,7 +10527,7 @@
         "Twisted Treeline"
       ],
       "id": "3124",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.5.2/img/item/3124.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3124.png",
       "lastSeenVersion": "16.21.1",
       "name": "Guinsoo's Rageblade",
       "rarity": "Legendary",
@@ -10551,7 +10551,7 @@
         "Twisted Treeline"
       ],
       "id": "3074",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.24.2/img/item/3074.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3074.png",
       "lastSeenVersion": "16.21.1",
       "name": "Ravenous Hydra",
       "rarity": "Legendary",
@@ -10595,7 +10595,7 @@
         "Twisted Treeline"
       ],
       "id": "3748",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.24.2/img/item/3748.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3748.png",
       "lastSeenVersion": "16.21.1",
       "name": "Titanic Hydra",
       "rarity": "Legendary",
@@ -10612,7 +10612,7 @@
         "Howling Abyss"
       ],
       "id": "3184",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/3.10.3/img/item/3184.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/6.11.1/img/item/3184.png",
       "lastSeenVersion": "6.11.1",
       "name": "Entropy",
       "rarity": "Legendary",
@@ -10650,7 +10650,7 @@
         "Twisted Treeline"
       ],
       "id": "3146",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3146.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3146.png",
       "lastSeenVersion": "16.21.1",
       "name": "Hextech Gunblade",
       "rarity": "Legendary",
@@ -10672,7 +10672,7 @@
         "Twisted Treeline"
       ],
       "id": "3072",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.10.1/img/item/3072.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.18.1/img/item/3072.png",
       "lastSeenVersion": "9.18.1",
       "name": "The Bloodthirster",
       "rarity": "Legendary",
@@ -10713,7 +10713,7 @@
         "Summoner’s Rift"
       ],
       "id": "3089",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/11.5.1/img/item/3089.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3089.png",
       "lastSeenVersion": "16.21.1",
       "name": "Rabadon's Deathcap",
       "rarity": "Legendary",
@@ -10737,7 +10737,7 @@
         "Twisted Treeline"
       ],
       "id": "3139",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3139.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3139.png",
       "lastSeenVersion": "16.21.1",
       "name": "Mercurial Scimitar",
       "rarity": "Legendary",
@@ -10762,7 +10762,7 @@
         "Twisted Treeline"
       ],
       "id": "3031",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.151.101/img/item/3031.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3031.png",
       "lastSeenVersion": "16.21.1",
       "name": "Infinity Edge",
       "rarity": "Legendary",
@@ -10779,7 +10779,7 @@
         "Twisted Treeline"
       ],
       "id": "3104",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.22.1/img/item/3104.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.23.1/img/item/3104.png",
       "lastSeenVersion": "9.23.1",
       "name": "Lord Van Damm's Pillager",
       "rarity": "Legendary",
@@ -10802,7 +10802,7 @@
         "Twisted Treeline"
       ],
       "id": "3373",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.24.1/img/item/3373.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3373.png",
       "lastSeenVersion": "10.22.1",
       "name": "Forgefire Cape",
       "rarity": "Legendary",
@@ -10821,7 +10821,7 @@
         "Nexus Blitz"
       ],
       "id": "4004",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/15.12.1/img/item/4004.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4004.png",
       "lastSeenVersion": "16.21.1",
       "name": "Spectral Cutlass",
       "rarity": "Legendary",
@@ -10843,7 +10843,7 @@
         "Summoner’s Rift"
       ],
       "id": "3386",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.24.1/img/item/3386.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3386.png",
       "lastSeenVersion": "10.22.1",
       "name": "Zhonya's Paradox",
       "rarity": "Legendary",
@@ -10857,7 +10857,7 @@
       "firstSeenVersion": "0.151.2",
       "gameModes": [],
       "id": "3188",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3188.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/5.3.1/img/item/3188.png",
       "lastSeenVersion": "5.3.1",
       "name": "Blackfire Torch",
       "rarity": "Legendary",
@@ -10880,7 +10880,7 @@
         "Twisted Treeline"
       ],
       "id": "3379",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.24.1/img/item/3379.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3379.png",
       "lastSeenVersion": "10.22.1",
       "name": "Infernal Mask",
       "rarity": "Mythic",
@@ -10919,7 +10919,7 @@
         "Twisted Treeline"
       ],
       "id": "3380",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.24.1/img/item/3380.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.18.1/img/item/3380.png",
       "lastSeenVersion": "9.18.1",
       "name": "The Obsidian Cleaver",
       "rarity": "Mythic",
@@ -10944,7 +10944,7 @@
         "Twisted Treeline"
       ],
       "id": "3078",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/0.154.3/img/item/3078.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3078.png",
       "lastSeenVersion": "16.21.1",
       "name": "Trinity Force",
       "rarity": "Mythic",
@@ -10961,7 +10961,7 @@
         "Twisted Treeline"
       ],
       "id": "3385",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.8.2/img/item/3385.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.23.1/img/item/3385.png",
       "lastSeenVersion": "9.23.1",
       "name": "Wooglet's Witchcrown",
       "rarity": "Mythic",
@@ -10984,7 +10984,7 @@
         "Twisted Treeline"
       ],
       "id": "3371",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.12.1/img/item/3371.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3371.png",
       "lastSeenVersion": "10.22.1",
       "name": "Molten Edge",
       "rarity": "Mythic",
@@ -11007,7 +11007,7 @@
         "Twisted Treeline"
       ],
       "id": "3384",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.24.1/img/item/3384.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3384.png",
       "lastSeenVersion": "10.22.1",
       "name": "Trinity Fusion",
       "rarity": "Mythic",
@@ -11029,7 +11029,7 @@
         "Summoner’s Rift"
       ],
       "id": "3374",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.3.1/img/item/3374.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.22.1/img/item/3374.png",
       "lastSeenVersion": "10.22.1",
       "name": "Rabadon's Deathcrown",
       "rarity": "Mythic",
@@ -11095,7 +11095,7 @@
         "Nexus Blitz"
       ],
       "id": "4403",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/10.24.1/img/item/4403.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/4403.png",
       "lastSeenVersion": "16.21.1",
       "name": "The Golden Spatula",
       "rarity": "Mythic",
@@ -11111,7 +11111,7 @@
         "Nexus Blitz"
       ],
       "id": "4403",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.23.1/img/item/4403.png",
+      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/9.22.1/img/item/4403.png",
       "lastSeenVersion": "9.22.1",
       "name": "Stat-Stick of Stoicism",
       "rarity": "Mythic",

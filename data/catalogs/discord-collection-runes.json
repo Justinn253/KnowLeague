@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-26T20:43:45.369Z",
+  "generatedAt": "2026-10-30T22:14:32.262Z",
   "sources": {
     "dataDragonRuneVersions": [
       "16.21.1",
@@ -318,17 +318,6 @@
       "type": "rune"
     },
     {
-      "catalogId": "rune-sub-rune:8339:celestial-body",
-      "id": "8339",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.3.1/img/ASSETS/Perks/Styles/Inspiration/TheThirdPath/TheThirdPath.dds",
-      "name": "Celestial Body",
-      "rarity": "Rare",
-      "runeKind": "sub-rune",
-      "style": "Inspiration",
-      "tier": 2,
-      "type": "rune"
-    },
-    {
       "catalogId": "rune-sub-rune:8126:cheap-shot",
       "id": "8126",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/perk-images/Styles/Domination/CheapShot/CheapShot.png",
@@ -494,17 +483,6 @@
       "type": "rune"
     },
     {
-      "catalogId": "rune-sub-rune:8430:iron-skin",
-      "id": "8430",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.5.2/img/ASSETS/Perks/Styles/Resolve/IronSkin/IronSkin.dds",
-      "name": "Iron Skin",
-      "rarity": "Rare",
-      "runeKind": "sub-rune",
-      "style": "Resolve",
-      "tier": 2,
-      "type": "rune"
-    },
-    {
       "catalogId": "rune-sub-rune:8316:jack-of-all-trades",
       "id": "8316",
       "imageUrl": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/perk-images/Styles/Inspiration/JackOfAllTrades/JackofAllTrades2.png",
@@ -578,17 +556,6 @@
       "rarity": "Rare",
       "runeKind": "sub-rune",
       "style": "Sorcery",
-      "tier": 2,
-      "type": "rune"
-    },
-    {
-      "catalogId": "rune-sub-rune:8435:mirror-shell",
-      "id": "8435",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.5.2/img/ASSETS/Perks/Styles/Resolve/MirrorShell/MirrorShell.dds",
-      "name": "Mirror Shell",
-      "rarity": "Rare",
-      "runeKind": "sub-rune",
-      "style": "Resolve",
       "tier": 2,
       "type": "rune"
     },
@@ -1029,17 +996,6 @@
       "rarity": "Epic",
       "runeKind": "keystone",
       "style": "Sorcery",
-      "tier": 3,
-      "type": "rune"
-    },
-    {
-      "catalogId": "rune-keystone:8326:unsealed-spellbook",
-      "id": "8326",
-      "imageUrl": "https://ddragon.leagueoflegends.com/cdn/8.8.2/img/perk-images/Styles/Inspiration/UnsealedSpellbook/UnsealedSpellbook.png",
-      "name": "Unsealed Spellbook",
-      "rarity": "Epic",
-      "runeKind": "keystone",
-      "style": "Inspiration",
       "tier": 3,
       "type": "rune"
     },

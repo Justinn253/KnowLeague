@@ -127,6 +127,15 @@ function toRuneImageUrl(version, imagePath) {
   return `${DATA_DRAGON_CDN_URL}/${version}/img/${imagePath.replace(/^\/+/, '')}`;
 }
 
+function isDiscordDisplayableImageUrl(imageUrl) {
+  return /^https:\/\/.+\.(?:png|jpe?g|webp)(?:[?#].*)?$/i.test(imageUrl);
+}
+
+function imageVersion(imageUrl) {
+  const matched = imageUrl.match(/\/cdn\/(\d+\.\d+\.\d+)\//);
+  return matched?.[1] ?? '0.0.0';
+}
+
 function mapModes(maps) {
   return Object.entries(maps ?? {})
     .filter(([, enabled]) => enabled)
@@ -173,7 +182,6 @@ function mergeItemSnapshot(itemsByKey, version, itemData) {
       if ((cost ?? -1) > (existing.cost ?? -1)) {
         existing.cost = cost;
         existing.costVersion = version;
-        existing.imageUrl = toItemImageUrl(version, imageName);
         existing.rarity = rarityForTier(tier);
         existing.tier = tier;
       }
@@ -201,11 +209,12 @@ function mergeRuneSnapshot(runesByKey, version, styles) {
   for (const style of styles) {
     if (!style?.id || !style?.name || !style?.icon) continue;
     const styleKey = `style:${style.id}`;
-    if (!runesByKey.has(styleKey)) {
+    const styleImageUrl = toRuneImageUrl(version, style.icon);
+    if (isDiscordDisplayableImageUrl(styleImageUrl) && !runesByKey.has(styleKey)) {
       runesByKey.set(styleKey, {
         catalogId: `rune-style:${style.id}:${createSlug(style.name)}`,
         id: String(style.id),
-        imageUrl: toRuneImageUrl(version, style.icon),
+        imageUrl: styleImageUrl,
         name: style.name,
         rarity: rarityForTier(4),
         runeKind: 'style',
@@ -220,12 +229,14 @@ function mergeRuneSnapshot(runesByKey, version, styles) {
       const tier = runeKind === 'keystone' ? 3 : 2;
       for (const rune of slot.runes ?? []) {
         if (!rune?.id || !rune?.name || !rune?.icon) continue;
+        const imageUrl = toRuneImageUrl(version, rune.icon);
+        if (!isDiscordDisplayableImageUrl(imageUrl)) continue;
         const runeKey = `${runeKind}:${rune.id}`;
         if (runesByKey.has(runeKey)) continue;
         runesByKey.set(runeKey, {
           catalogId: `rune-${runeKind}:${rune.id}:${createSlug(rune.name)}`,
           id: String(rune.id),
-          imageUrl: toRuneImageUrl(version, rune.icon),
+          imageUrl,
           name: rune.name,
           rarity: rarityForTier(tier),
           runeKind,
@@ -236,6 +247,18 @@ function mergeRuneSnapshot(runesByKey, version, styles) {
       }
     }
   }
+}
+
+function deduplicateRunesByName(runes) {
+  const runesByName = new Map();
+  for (const rune of runes) {
+    const key = `${rune.runeKind}:${normalizeItemName(rune.name)}`;
+    const existing = runesByName.get(key);
+    if (!existing || compareVersions(imageVersion(rune.imageUrl), imageVersion(existing.imageUrl)) > 0) {
+      runesByName.set(key, rune);
+    }
+  }
+  return [...runesByName.values()].sort(sortByTierAndName);
 }
 
 function sortByTierAndName(left, right) {
@@ -337,7 +360,7 @@ for (const snapshot of runeSnapshots) {
 }
 
 const items = deduplicateItemsByName([...itemsByKey.values()]);
-const runes = [...runesByKey.values()].sort(sortByTierAndName);
+const runes = deduplicateRunesByName([...runesByKey.values()]);
 if (!items.length || !runes.length) throw new Error('The collection item or rune catalogue is empty.');
 
 await mkdir(OUTPUT_DIRECTORY, { recursive: true });

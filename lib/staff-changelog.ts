@@ -17,6 +17,29 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-30-discord-collections-drop-media-and-random-types',
+    patch: 'patch-2026-10-30-discord-collections-drop-media-and-random-types',
+    timestamp: '2026-10-30T22:15:23.435Z',
+    title: 'Make Collection drops media-reliable, complete, and type-diverse',
+    summary: 'Collections now send validated drop images as Discord-hosted attachments, rotate items and runes into automatic drops, and keep the original panel complete when a member claims it.',
+    details: [
+      'New drops fetch only non-redirected HTTPS PNG, JPEG, or WebP media from the known Riot image origins within an eight-second and eight-megabyte limit, upload it to Discord, retain a bounded 32 MiB in-process cache, and save the resulting Discord CDN URL for later collection views. A failed fetch safely falls back to the existing external image URL.',
+      'The generated rune catalogue excludes unsupported DDS assets, deduplicates replaced runes by name and kind using the newest Data Dragon source, and now retains the current Unsealed Spellbook entry (8360) only. Item images retain the newest available artwork URL instead of an older high-cost snapshot URL.',
+      'Migration 200 adds a service-role-only automatic item/rune reservation RPC with the existing channel, cadence, pending-drop, four-digit-ID, capacity, and catalogue-lock safeguards. Normal message and timer drops randomly select a skin, item, or rune; manual spawn, summon, and gamble still do not reset the normal automatic-drop timer.',
+      'Claiming edits the original panel only. It now shows the authoritative claim timestamp, has two side-by-side Skin/Type and Rarity/Spawn Chance columns before and after claiming, preserves any Discord-hosted image attachment, and no longer posts a separate claim reply.',
+      'Collection summaries now put `Daily collection upkeep cost` above the displayed entry. Detailed collection panels place the raw daily amount and method together in the first column.',
+    ],
+    impact: [
+      'Members should see initial drop artwork promptly from Discord CDN instead of waiting on Discord to proxy Riot media, while invalid retired rune artwork can no longer spawn.',
+      'Apply migration 200, then deploy the Discord bot. Collection gameplay has no website-facing change and no slash-command definition changed, so it does not need a website deploy or slash-command registration; deploy the website separately only if this staff-changelog entry should be visible in production. The migration was created locally only and was not pushed.',
+    ],
+    files: ['discord-bot/src/skin-claims.ts', 'scripts/generate-discord-collection-catalog.mjs', 'data/catalogs/discord-collection-items.json', 'data/catalogs/discord-collection-runes.json', 'data/catalogs/discord-collection-item-tiers.md', 'data/catalogs/discord-collection-rune-tiers.md', 'supabase/migrations/200_discord_collection_automatic_drops_and_claim_presentation.sql', 'tests/discord-skin-claims.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Regenerated the collection item and rune catalogues from Data Dragon: 587 items and 76 displayable, deduplicated runes. The focused Collections test file passed all 18 tests, and the full Vitest suite passed all 47 files / 287 tests, including the current Unsealed Spellbook URL and two-column claim panel contract.',
+      '`npm run check` completed lint (with existing image-element advisories) but stopped at two unrelated pre-existing type errors: the Fishing `"hellish-abyss"` / narrowed `" -abyss"` mismatch in discord-bot/src/minigame-content-config.ts and API button `custom_id` narrowing in tests/discord-woodcutting.test.ts. A separate `npm run discord:check` reaches the first of those existing Discord type errors. No Supabase migration push, production build, or command registration was run.',
+    ],
+  },
+  {
     id: 'patch-2026-10-30-woodcutting-sapling-selection-guidance',
     patch: 'patch-2026-10-30-woodcutting-sapling-selection-guidance',
     timestamp: '2026-10-30T22:00:00.000Z',

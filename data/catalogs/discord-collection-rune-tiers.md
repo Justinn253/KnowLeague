@@ -1,6 +1,6 @@
 # Discord Collection Rune Rarities
 
-Generated at: 2026-10-26T20:43:45.369Z
+Generated at: 2026-10-30T22:14:32.262Z
 Data Dragon Reforged-rune snapshots: 224 (7.22.1 through 16.21.1)
 
 | Rarity | Rune | Kind | Style |
@@ -13,7 +13,6 @@ Data Dragon Reforged-rune snapshots: 224 (7.22.1 through 16.21.1)
 | Rare | Bone Plating | sub-rune | Resolve |
 | Rare | Cash Back | sub-rune | Inspiration |
 | Rare | Celerity | sub-rune | Sorcery |
-| Rare | Celestial Body | sub-rune | Inspiration |
 | Rare | Cheap Shot | sub-rune | Domination |
 | Rare | Chrysalis | sub-rune | Resolve |
 | Rare | Conditioning | sub-rune | Resolve |
@@ -29,7 +28,6 @@ Data Dragon Reforged-rune snapshots: 224 (7.22.1 through 16.21.1)
 | Rare | Grisly Mementos | sub-rune | Domination |
 | Rare | Hextech Flashtraption | sub-rune | Inspiration |
 | Rare | Ingenious Hunter | sub-rune | Domination |
-| Rare | Iron Skin | sub-rune | Resolve |
 | Rare | Jack Of All Trades | sub-rune | Inspiration |
 | Rare | Last Stand | sub-rune | Precision |
 | Rare | Legend: Alacrity | sub-rune | Precision |
@@ -37,7 +35,6 @@ Data Dragon Reforged-rune snapshots: 224 (7.22.1 through 16.21.1)
 | Rare | Legend: Haste | sub-rune | Precision |
 | Rare | Magical Footwear | sub-rune | Inspiration |
 | Rare | Manaflow Band | sub-rune | Sorcery |
-| Rare | Mirror Shell | sub-rune | Resolve |
 | Rare | Nimbus Cloak | sub-rune | Sorcery |
 | Rare | Overgrowth | sub-rune | Resolve |
 | Rare | Presence of Mind | sub-rune | Precision |
@@ -78,7 +75,6 @@ Data Dragon Reforged-rune snapshots: 224 (7.22.1 through 16.21.1)
 | Epic | Prototype: Omnistone | keystone | Inspiration |
 | Epic | Stormraider's Surge | keystone | Sorcery |
 | Epic | Summon Aery | keystone | Sorcery |
-| Epic | Unsealed Spellbook | keystone | Inspiration |
 | Epic | Unsealed Spellbook | keystone | Inspiration |
 | Legendary | Domination | style | Domination |
 | Legendary | Inspiration | style | Inspiration |

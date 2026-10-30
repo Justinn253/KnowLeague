@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
-import { buildSkinCollectionEmbed, buildSkinSearchEmbed, calculateCollectionDailyUpkeep, calculateSkinRaritySpawnPercent } from '../discord-bot/src/skin-claims';
+import { buildSkinCollectionEmbed, buildSkinSearchEmbed, calculateCollectionDailyUpkeep, calculateSkinRaritySpawnPercent, skinDropEmbed } from '../discord-bot/src/skin-claims';
 import { DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES, DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS } from '../lib/discord-skin-claims';
 
 type SerializedSubcommand = {
@@ -23,6 +25,20 @@ describe('Discord skin-claim command contract', () => {
 
     expect(calculateSkinRaritySpawnPercent('Common', weights, catalog)).toBe(60);
     expect(calculateSkinRaritySpawnPercent('Rare', weights, catalog)).toBe(40);
+  });
+
+  it('keeps collection rune images displayable and retains only the current Unsealed Spellbook entry', () => {
+    const catalogPath = path.join(process.cwd(), 'data', 'catalogs', 'discord-collection-runes.json');
+    const catalog = JSON.parse(readFileSync(catalogPath, 'utf8')) as { runes: Array<{ id: string; imageUrl: string; name: string }> };
+    const unsealedSpellbooks = catalog.runes.filter((rune) => rune.name === 'Unsealed Spellbook');
+
+    expect(catalog.runes.every((rune) => /^https:\/\/.+\.(?:png|jpe?g|webp)(?:[?#].*)?$/i.test(rune.imageUrl))).toBe(true);
+    expect(unsealedSpellbooks).toEqual([
+      expect.objectContaining({
+        id: '8360',
+        imageUrl: 'https://ddragon.leagueoflegends.com/cdn/16.21.1/img/perk-images/Styles/Inspiration/UnsealedSpellbook/UnsealedSpellbook.png',
+      }),
+    ]);
   });
 
   it('registers the full Collections command set without a /cl alias', () => {
@@ -141,7 +157,7 @@ describe('Discord skin-claim command contract', () => {
 
     expect(serialized.title).toContain('Summoner\'s collection');
     expect(serialized.description).toContain('**Elderwood Ahri (#1234)**');
-    expect(serialized.description).toContain('**Daily collection upkeep:** Free (the first 10 collection entries are free)');
+    expect(serialized.description).toContain('**Daily collection upkeep cost:** 0 KnowBucks');
   });
 
   it('keeps the collection card compact while adding the daily upkeep summary', () => {
@@ -166,7 +182,7 @@ describe('Discord skin-claim command contract', () => {
     }, 'Summoner').toJSON();
 
     expect(embed.description).toContain('**Elderwood Ahri (#1234)**');
-    expect(embed.description).toContain('**Daily collection upkeep:** Free (the first 10 collection entries are free)');
+    expect(embed.description).toContain('**Daily collection upkeep cost:** 0 KnowBucks');
     expect(embed.fields).toBeUndefined();
     expect(embed.image?.url).toBe('https://example.com/ahri.jpg');
   });
@@ -192,7 +208,7 @@ describe('Discord skin-claim command contract', () => {
       upkeep: { dailyCost: 1500, excessSkinCount: 11, graceExpiresAt: null, outstandingAmount: 0 },
     }, 'Summoner').toJSON();
 
-    expect(embed.description).toContain('**Daily collection upkeep:** 1,500 KnowBucks daily for 11 collection entries over 10');
+    expect(embed.description).toMatch(/^\*\*Daily collection upkeep cost:\*\* 1,500 KnowBucks/);
   });
 
   it('shows collection metadata and the configured sale value only when details are requested', () => {
@@ -217,9 +233,36 @@ describe('Discord skin-claim command contract', () => {
     }, 'Summoner', true).toJSON().fields ?? [];
 
     expect(fields).toEqual([
-      expect.objectContaining({ inline: true, name: 'Skin', value: expect.stringContaining('**Skin line**') }),
+      expect.objectContaining({ inline: true, name: 'Skin', value: expect.stringContaining('**Daily collection upkeep**\n0') }),
       expect.objectContaining({ inline: true, name: 'Collection details', value: expect.stringContaining('**Sells for**\n1,000 KnowBucks') }),
     ]);
+    expect(fields[0]?.value).toContain('**Method**\nClaimed');
+    expect(fields[1]?.value).not.toContain('**Daily upkeep**');
+    expect(fields[1]?.value).not.toContain('**Method**');
+  });
+
+  it('keeps the claim panel to two detail columns and records the winning claim time in-place', () => {
+    const embed = skinDropEmbed({
+      champion_name: 'Ahri',
+      claimed_at: '2026-10-30T22:30:00.000Z',
+      collection_type: 'skin',
+      image_url: 'https://example.com/ahri.jpg',
+      rarity: 'Epic',
+      release_date: '2020-01-01',
+      skin_code: 1234,
+      skin_line: 'Elderwood',
+      skin_name: 'Elderwood Ahri',
+    }, '123456789012345678', false, 12.5, {
+      claimedAt: '2026-10-30T22:30:00.000Z',
+      imageUrl: 'attachment://collection-drop-1234.jpg',
+    }).toJSON();
+
+    expect(embed.description).toBe('<@123456789012345678> claimed this skin at <t:1793399400:F>.');
+    expect(embed.fields).toEqual([
+      expect.objectContaining({ name: 'Skin', inline: true, value: expect.stringContaining('**Type**\nSkin') }),
+      expect.objectContaining({ name: 'Rarity', inline: true, value: expect.stringContaining('**Spawn Chance**\n12.5%') }),
+    ]);
+    expect(embed.image?.url).toBe('attachment://collection-drop-1234.jpg');
   });
 
   it('includes the assigned KnowLeague ID and owner in a non-claimable search preview', () => {

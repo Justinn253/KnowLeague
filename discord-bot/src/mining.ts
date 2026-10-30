@@ -5,6 +5,7 @@ import {
   getMiningBestUpgrade,
   getMiningCraftingRecipe,
   getMiningDepth,
+  MINING_GEAR,
   getMiningGear,
   findMiningResource,
   getMiningResource,
@@ -12,12 +13,19 @@ import {
   getMiningUpgrade,
   getMiningXpForLevel,
   getMiningXpToNextLevel,
+  createMiningExpeditionEvent,
+  getMiningEventActivationElapsedMs,
+  getMiningEventTimeLimitMs,
+  resolveMiningEventAction,
   resolveMiningExpedition,
+  type MiningEventAction,
   type MiningDepthId,
   type MiningEquipmentSnapshot,
+  type MiningExpeditionEventState,
   type MiningResourceKind,
   type MiningResult,
 } from './mining-catalog.js';
+import { FISHING_UPGRADES } from './fishing-catalog.js';
 import { getPlayerShopState, type PlayerSkillLevels } from './player.js';
 import { createBotServiceClient } from './supabase.js';
 
@@ -41,6 +49,7 @@ export type MiningExpeditionStatus = 'descending' | 'returning' | 'completed';
 export type MiningExpeditionRow = {
   depth: MiningDepthId;
   equipment_snapshot: MiningEquipmentSnapshot;
+  event_state: MiningExpeditionEventState | null;
   id: number;
   mining_started_at: string;
   outcome_seed: number;
@@ -111,6 +120,7 @@ export type MiningSale = {
 };
 
 export type MiningSimulation = { results: MiningResult[] };
+export type MiningEventResponse = { event: MiningExpeditionEventState; instantReturn: boolean; shouldReturn: boolean };
 
 export type MiningCatalogueProgress = {
   acquiredGearItemIds: ReadonlySet<string>;
@@ -215,7 +225,7 @@ export async function getMiningCatalogueProgress(
 export async function getActiveMiningExpedition(config: DiscordBotConfig, discordUserId: string) {
   const { data, error } = await createBotServiceClient(config)
     .from('discord_mining_expeditions')
-    .select('id,depth,equipment_snapshot,mining_started_at,outcome_seed,result,return_started_at,returns_at,started_at,status')
+    .select('id,depth,equipment_snapshot,event_state,mining_started_at,outcome_seed,result,return_started_at,returns_at,started_at,status')
     .eq('guild_id', config.guildId)
     .eq('discord_user_id', discordUserId)
     .in('status', ['descending', 'returning'])
@@ -412,6 +422,15 @@ function equipmentFromState(depthId: MiningDepthId, state: MiningPlayerState): M
   };
 }
 
+/** Woodcutting relics are deliberately not included until that game has a durable catalogue and inventory contract. */
+function getUnacquiredMiningTempleRelics(state: MiningPlayerState) {
+  const owned = new Set(state.passiveGearItemIds);
+  return [
+    ...MINING_GEAR.map((relic) => relic.id),
+    ...FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear').map((relic) => relic.id),
+  ].filter((itemId) => !owned.has(itemId));
+}
+
 /** Resolves full-cart sample trips without creating expeditions or rewards. */
 export async function simulateMiningExpeditions(
   config: DiscordBotConfig,
@@ -450,13 +469,16 @@ export async function startMiningExpedition(
     throw new Error(`${depth.name} requires the ${tool?.name ?? 'required tool'}.`);
   }
   const equipment = equipmentFromState(depthId, state);
-  const { data, error } = await createBotServiceClient(config).rpc('start_discord_mining_expedition', {
+  const outcomeSeed = randomInt(1, 2_147_483_648);
+  const eventState = createMiningExpeditionEvent(depthId, equipment, outcomeSeed ^ 0x2A81D4C3, getUnacquiredMiningTempleRelics(state));
+  const { data, error } = await createBotServiceClient(config).rpc('start_discord_mining_expedition_with_event', {
     p_depth: depthId,
     p_descend_duration_ms: equipment.descendDurationMs,
     p_discord_user_id: discordUserId,
     p_equipment_snapshot: equipment,
+    p_event_state: eventState,
     p_guild_id: config.guildId,
-    p_outcome_seed: randomInt(1, 2_147_483_648),
+    p_outcome_seed: outcomeSeed,
   });
   if (error) throw new Error(`Unable to start Discord mining expedition: ${error.message}`);
   const started = firstRow(data as StartedMiningExpeditionRow | StartedMiningExpeditionRow[] | null);
@@ -464,17 +486,105 @@ export async function startMiningExpedition(
   return { depth, expeditionId: started.expedition_id, miningStartsAt: started.mining_started_at, travelDurationMs: equipment.descendDurationMs };
 }
 
-function miningResultAtReturn(expedition: Pick<MiningExpeditionRow, 'depth' | 'equipment_snapshot' | 'mining_started_at' | 'outcome_seed'>, returnStartedAt: string) {
+function miningResultAtReturn(expedition: Pick<MiningExpeditionRow, 'depth' | 'equipment_snapshot' | 'event_state' | 'mining_started_at' | 'outcome_seed'>, returnStartedAt: string) {
   const elapsedMs = Math.max(0, new Date(returnStartedAt).getTime() - new Date(expedition.mining_started_at).getTime());
-  return resolveMiningExpedition(expedition.depth, expedition.equipment_snapshot, expedition.outcome_seed, elapsedMs);
+  return resolveMiningExpedition(
+    expedition.depth,
+    expedition.equipment_snapshot,
+    expedition.outcome_seed,
+    elapsedMs,
+    expedition.event_state ?? undefined,
+    new Date(expedition.mining_started_at).getTime(),
+  );
 }
 
-export async function beginMiningReturn(config: DiscordBotConfig, discordUserId: string): Promise<BegunMiningReturn> {
-  const active = await getActiveMiningExpedition(config, discordUserId);
+async function saveMiningExpeditionEvent(
+  config: DiscordBotConfig,
+  discordUserId: string,
+  expedition: MiningExpeditionRow,
+  expectedStatus: MiningExpeditionEventState['status'],
+  event: MiningExpeditionEventState,
+) {
+  const { data, error } = await createBotServiceClient(config).rpc('update_discord_mining_expedition_event', {
+    p_discord_user_id: discordUserId,
+    p_event_state: event,
+    p_expected_status: expectedStatus,
+    p_expedition_id: expedition.id,
+    p_guild_id: config.guildId,
+  });
+  if (error) throw new Error(`Unable to update the Mining event: ${error.message}`);
+  return data === true;
+}
+
+/** Activates or expires a due event on demand; no event outcome is client-authored. */
+export async function reconcileMiningExpeditionEvent(
+  config: DiscordBotConfig,
+  discordUserId: string,
+  expedition?: MiningExpeditionRow | null,
+): Promise<MiningExpeditionRow | null> {
+  const active = expedition ?? await getActiveMiningExpedition(config, discordUserId);
+  if (!active || active.status !== 'descending' || !active.event_state) return active;
+  const event = active.event_state;
+  const now = Date.now();
+  const miningStartedAt = new Date(active.mining_started_at).getTime();
+  if (!Number.isFinite(miningStartedAt) || miningStartedAt > now) return active;
+  if (event.status === 'scheduled') {
+    const activatedElapsedMs = getMiningEventActivationElapsedMs(
+      event,
+      active.depth,
+      active.equipment_snapshot,
+      active.outcome_seed,
+      Math.max(0, now - miningStartedAt),
+    );
+    if (activatedElapsedMs === null) return active;
+    const activatedAtMs = miningStartedAt + activatedElapsedMs;
+    const expiresAtMs = activatedAtMs + getMiningEventTimeLimitMs(active.depth);
+    const next: MiningExpeditionEventState = {
+      ...event,
+      activatedAt: new Date(activatedAtMs).toISOString(),
+      expiresAt: new Date(expiresAtMs).toISOString(),
+      status: expiresAtMs <= now ? 'expired' : 'active',
+    };
+    if (await saveMiningExpeditionEvent(config, discordUserId, active, 'scheduled', next)) return { ...active, event_state: next };
+    return getActiveMiningExpedition(config, discordUserId);
+  }
+  if (event.status === 'active' && event.expiresAt && new Date(event.expiresAt).getTime() <= now) {
+    const next = { ...event, status: 'expired' as const };
+    if (await saveMiningExpeditionEvent(config, discordUserId, active, 'active', next)) return { ...active, event_state: next };
+    return getActiveMiningExpedition(config, discordUserId);
+  }
+  return active;
+}
+
+export async function respondToMiningExpeditionEvent(
+  config: DiscordBotConfig,
+  discordUserId: string,
+  action: MiningEventAction,
+): Promise<MiningEventResponse> {
+  const active = await reconcileMiningExpeditionEvent(config, discordUserId);
+  const event = active?.event_state;
+  if (!active || active.status !== 'descending' || !event || event.status !== 'active') {
+    throw new Error('There is no Mining event awaiting your action.');
+  }
+  const next = resolveMiningEventAction(event, action, active.outcome_seed ^ 0x2A81D4C3, new Date().toISOString());
+  if (!(await saveMiningExpeditionEvent(config, discordUserId, active, 'active', next))) {
+    throw new Error('That Mining event changed before your action could be saved. Refresh the minecart and try again.');
+  }
+  return {
+    event: next,
+    instantReturn: next.id === 'arcane-rift' && next.action === 'enter-rift',
+    shouldReturn: (next.id === 'arcane-rift' && next.action === 'enter-rift')
+      || (next.id === 'lost-temple' && next.action === 'attempt-relic' && next.success === false),
+  };
+}
+
+export async function beginMiningReturn(config: DiscordBotConfig, discordUserId: string, instant = false): Promise<BegunMiningReturn> {
+  const active = await reconcileMiningExpeditionEvent(config, discordUserId);
   if (!active) throw new Error('You do not have an active mining expedition to recall.');
   if (active.status === 'returning') throw new Error('Your minecart is already returning to the surface.');
-  const { data, error } = await createBotServiceClient(config).rpc('begin_discord_mining_return', {
-    p_ascent_duration_ms: active.equipment_snapshot.descendDurationMs,
+  if (active.event_state?.status === 'active') throw new Error('Resolve the active Mining event before recalling your minecart.');
+  const { data, error } = await createBotServiceClient(config).rpc(instant ? 'begin_discord_mining_return_instantly' : 'begin_discord_mining_return', {
+    ...(instant ? {} : { p_ascent_duration_ms: active.equipment_snapshot.descendDurationMs }),
     p_discord_user_id: discordUserId,
     p_expedition_id: active.id,
     p_guild_id: config.guildId,
@@ -482,7 +592,7 @@ export async function beginMiningReturn(config: DiscordBotConfig, discordUserId:
   if (error) throw new Error(`Unable to recall mining expedition: ${error.message}`);
   const begun = firstRow(data as BegunMiningReturnRow | BegunMiningReturnRow[] | null);
   if (!begun) throw new Error('Mining expedition could not begin its return.');
-  const result = miningResultAtReturn(begun, begun.return_started_at);
+  const result = miningResultAtReturn({ ...begun, event_state: active.event_state }, begun.return_started_at);
   const { error: recordError } = await createBotServiceClient(config).rpc('record_discord_mining_return_result', {
     p_discord_user_id: discordUserId,
     p_expedition_id: begun.expedition_id,
@@ -490,7 +600,7 @@ export async function beginMiningReturn(config: DiscordBotConfig, discordUserId:
     p_result: result,
   });
   if (recordError) throw new Error(`Unable to secure mining expedition results: ${recordError.message}`);
-  return { depth: active.depth, result, travelDurationMs: active.equipment_snapshot.descendDurationMs };
+  return { depth: active.depth, result, travelDurationMs: instant ? 0 : active.equipment_snapshot.descendDurationMs };
 }
 
 async function ensureMiningReturnResult(config: DiscordBotConfig, discordUserId: string, expedition: MiningExpeditionRow) {

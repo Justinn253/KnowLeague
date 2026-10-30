@@ -5,6 +5,7 @@ import { getAuthenticatedUserId } from '@/lib/auth-server';
 import {
   getMiningDashboard,
   purchaseMiningWebsiteUpgrade,
+  respondToMiningWebsiteEvent,
   returnMiningWebsiteExpedition,
   sellMiningWebsiteResource,
   shareMiningWebsiteResult,
@@ -20,6 +21,7 @@ type MiningActionBody = {
   depth?: unknown;
   expeditionId?: unknown;
   resource?: unknown;
+  eventAction?: unknown;
   upgradeId?: unknown;
 };
 
@@ -43,6 +45,12 @@ export const POST = withApiMetrics('/api/mining', async function POST(request: R
       dashboard = await startMiningWebsiteExpedition(userId, Number(body.depth));
     } else if (body.action === 'return') {
       dashboard = await returnMiningWebsiteExpedition(userId);
+    } else if (
+      body.action === 'event'
+      && typeof body.eventAction === 'string'
+      && ['attempt-relic', 'continue', 'claim-ores', 'claim-gems', 'repair', 'enter-rift', 'claim-crystals', 'trigger-dynamite', 'embrace-fluctuations'].includes(body.eventAction)
+    ) {
+      dashboard = await respondToMiningWebsiteEvent(userId, body.eventAction as Parameters<typeof respondToMiningWebsiteEvent>[1]);
     } else if (body.action === 'share-result' && Number.isSafeInteger(body.expeditionId)) {
       dashboard = await shareMiningWebsiteResult(userId, Number(body.expeditionId));
     } else if (body.action === 'purchase' && typeof body.upgradeId === 'string' && body.upgradeId.length <= 64) {

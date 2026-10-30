@@ -8,11 +8,15 @@ import {
   getMiningTravelDurationMs,
   getMiningUpgrade,
   findMiningResource,
+  createMiningExpeditionEvent,
+  getMiningEventActivationElapsedMs,
+  getMiningEventTimeLimitMs,
   MINING_DEPTHS,
   MINING_REWARD_WEIGHTS,
   MINING_UPGRADES,
   getMiningRelicFindChance,
   resolveMiningExpedition,
+  type MiningExpeditionEventState,
   type MiningEquipmentSnapshot,
 } from '../discord-bot/src/mining-catalog';
 import { getDiscordMinigameTierReferences } from '../discord-bot/src/minigame-tier-references';
@@ -246,6 +250,65 @@ describe('Discord mining expedition resolution', () => {
     // Tier 7's configured travel time exceeds the 1/250 scaling ceiling, so
     // a guaranteed full-cart Relic is the closest possible expected wait.
     expect(tierSevenExpectedTravelMs / tierOneExpectedTravelMs).toBeLessThan(1.5);
+  });
+
+  it('plans one deterministic, depth-timed event while reducing Damaged Gear weight with Luck', () => {
+    const first = createMiningExpeditionEvent(3, starterEquipment, 17, ['gear-sea-star']);
+    const second = createMiningExpeditionEvent(3, starterEquipment, 17, ['gear-sea-star']);
+    expect(second).toEqual(first);
+    expect(getMiningEventTimeLimitMs(1)).toBe(30_000);
+    expect(getMiningEventTimeLimitMs(7)).toBe(210_000);
+
+    const eventCounts = (luckLevel: number) => Array.from({ length: 2_000 }, (_, seed) => createMiningExpeditionEvent(1, { ...starterEquipment, luckLevel }, seed + 1, ['gear-sea-star']))
+      .filter((event) => event?.id === 'damaged-gear').length;
+    expect(eventCounts(4)).toBeLessThan(eventCounts(0));
+
+    const oreVeinPlan: MiningExpeditionEventState = { id: 'ore-vein', status: 'scheduled', trigger: 'half-cart', triggerDelayMs: 0, version: 1 };
+    const activationAt = getMiningEventActivationElapsedMs(oreVeinPlan, 1, starterEquipment, 42_424, 60_000);
+    expect(activationAt).not.toBeNull();
+    expect(resolveMiningExpedition(1, starterEquipment, 42_424, activationAt ?? 0).storageUsed).toBeGreaterThanOrEqual(3);
+  });
+
+  it('applies event outcomes in the shared resolver without changing normal expeditions', () => {
+    const failedTemple: MiningExpeditionEventState = {
+      action: 'attempt-relic',
+      id: 'lost-temple',
+      relicItemId: 'gear-sea-star',
+      resolvedAt: new Date(1_000).toISOString(),
+      status: 'resolved',
+      success: false,
+      trigger: 'full-cart',
+      triggerDelayMs: 0,
+      version: 1,
+    };
+    const destroyed = resolveMiningExpedition(1, starterEquipment, 55, 60_000, failedTemple, 0);
+    expect(destroyed).toMatchObject({ cargo: [], miningXpAwarded: 0, storageUsed: 0 });
+
+    const oreVein: MiningExpeditionEventState = {
+      action: 'claim-ores',
+      id: 'ore-vein',
+      resolvedAt: new Date(1_000).toISOString(),
+      status: 'resolved',
+      trigger: 'half-cart',
+      triggerDelayMs: 0,
+      version: 1,
+    };
+    const filled = resolveMiningExpedition(1, starterEquipment, 55, 60_000, oreVein, 0);
+    expect(filled.storageUsed).toBe(starterEquipment.storageCapacity);
+    expect(filled.cargo.every((item) => item.kind === 'ore')).toBe(true);
+
+    const gemCluster: MiningExpeditionEventState = {
+      action: 'claim-gems',
+      id: 'gem-cluster',
+      resolvedAt: new Date(1_000).toISOString(),
+      status: 'resolved',
+      trigger: 'full-cart',
+      triggerDelayMs: 0,
+      version: 1,
+    };
+    const gems = resolveMiningExpedition(1, { ...starterEquipment, passiveGearItemIds: ['mining-gear-gem-bag'] }, 55, 60_000, gemCluster, 0);
+    expect(gems.gemStorageUsed).toBe(gems.gemStorageCapacity);
+    expect(gems.cargo.some((item) => item.kind === 'gem')).toBe(true);
   });
 });
 

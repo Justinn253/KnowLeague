@@ -17,6 +17,29 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-29-mining-active-expedition-events',
+    patch: 'patch-2026-10-29-mining-active-expedition-events',
+    timestamp: '2026-10-29T20:05:00.000Z',
+    title: 'Add durable Mining expedition events across Discord and web',
+    summary: 'Mining expeditions can now plan one 10% post-descent event, present it consistently in Discord and the website, and resolve its consequences from the same snapshotted seed and persisted state.',
+    details: [
+      'The shared Mining catalogue now deterministically plans, activates, expires, and resolves Lost Temple, Ore Vein, Gem Cluster, Damaged Gear, Arcane Rift, Energy Crystals, Old Dynamite, and Quantum Fluctuations events. Response windows scale at 30 seconds per depth, and each shared Luck level halves only Damaged Gear’s selection weight.',
+      'Event actions alter the shared expedition resolver: ore and dynamite fill the normal cart with depth-appropriate ores, Gem Cluster fills a Gem Bag, Energy Crystals doubles later mining speed, un-repaired gear halves later speed, Quantum Fluctuations recursively upgrades eligible ore/gem rolls, Arcane Rift settles an immediate return, and a failed Lost Temple grab destroys the cargo before the normal ascent.',
+      'Lost Temple selects an unacquired Relic from the durable Fishing and Mining inventories and settles it into its authoritative game-specific table. Woodcutting currently has no Relic catalogue or inventory implementation in this product, so it is intentionally excluded rather than inventing incompatible storage.',
+      'Migration 197 adds compact validated event state to active Mining expeditions, service-role RPCs for atomic event start/state transitions, and safely extends Mining settlement to award Fishing Relics selected by a Lost Temple. Existing migrations 192–196 were not edited.',
+      'The Mining web dashboard exposes an active event card and event action API; Discord uses concise event embed fields and owner-only minecart buttons. Both surfaces derive active state, expiry, success, cargo, and return behavior from the shared resolver and Supabase expedition row.',
+    ],
+    impact: [
+      'Players gain time-limited decisions during active Mining without changing their shared identity, inventory, or ordinary no-event expedition results. Temple expiration or a failed temple grab returns no cargo when recalled.',
+      'Apply migration 197 after migration 196, deploy the website and Discord bot independently, and allow PostgREST schema reload from the migration. No slash-command shape changed, so command registration is not required. The migration was created locally only and was not pushed.',
+    ],
+    files: ['app/api/mining/route.ts', 'components/mining-game.tsx', 'discord-bot/src/interactions.ts', 'discord-bot/src/mining-catalog.ts', 'discord-bot/src/mining.ts', 'lib/mining.ts', 'supabase/migrations/197_discord_mining_expedition_events.sql', 'tests/discord-mining.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Mining coverage passed (20 tests). `npm run check` passed: root lint (with only the existing image-element advisories), root TypeScript, the full 46-file/278-test Vitest suite, regenerated minigame tier references, and Discord bot TypeScript.',
+      'No production build, Supabase migration push, or Discord command registration was run.',
+    ],
+  },
+  {
     id: 'patch-2026-10-29-fishing-mining-relic-loops-simulations',
     patch: 'patch-2026-10-29-fishing-mining-relic-loops-simulations',
     timestamp: '2026-10-29T18:45:00.000Z',

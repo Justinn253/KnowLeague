@@ -98,6 +98,8 @@ import {
   getMiningUpgrade,
   getMiningUpgrades,
   resolveMiningExpedition,
+  type MiningEventAction,
+  type MiningExpeditionEventState,
   type MiningDepthId,
   type MiningResourceKind,
   type MiningUpgradeCategory,
@@ -113,6 +115,8 @@ import {
   getMiningProcessorTier,
   isMiningCommandAllowedInChannel,
   purchaseMiningUpgrade,
+  reconcileMiningExpeditionEvent,
+  respondToMiningExpeditionEvent,
   sellMiningResource,
   settleDueMiningReturn,
   grantEligibleMiningLevelRoles,
@@ -841,8 +845,27 @@ function formatMiningCargo(result: { cargo: Array<{ name: string; quantity: numb
 function formatMiningRelics(result: { gearItems?: Array<{ itemId: string; quantity: number }> }) {
   const relics = result.gearItems ?? [];
   return relics.length
-    ? relics.map((item) => `**${getMiningGear(item.itemId)?.name ?? item.itemId}**`).join('\n')
+    ? relics.map((item) => `**${getMiningGear(item.itemId)?.name ?? getFishingUpgrade(item.itemId)?.name ?? item.itemId}**`).join('\n')
     : null;
+}
+
+function miningEventPanel(event: MiningExpeditionEventState) {
+  const secondsLeft = event.expiresAt ? Math.max(0, new Date(event.expiresAt).getTime() - Date.now()) : 0;
+  const responseWindow = `**${formatMiningDuration(secondsLeft)}** remaining`;
+  switch (event.id) {
+    case 'lost-temple': return {
+      actions: [['attempt-relic', 'Attempt relic'] as const, ['continue', 'Leave it'] as const],
+      text: `You found a Lost Temple with a sacred relic inside. Failing the 10% grab destroys this expedition. ${responseWindow}`,
+      title: 'Lost Temple',
+    };
+    case 'ore-vein': return { actions: [['claim-ores', 'Secure ores'] as const], text: `You found a fragile ore cluster. Secure it to fill the rest of your cart with ores from this depth or below. ${responseWindow}`, title: 'Ore Vein' };
+    case 'gem-cluster': return { actions: [['claim-gems', 'Secure gems'] as const], text: `You found an unstable cavern full of gems. Secure it to fill the rest of your Gem Bag. ${responseWindow}`, title: 'Gem Cluster' };
+    case 'damaged-gear': return { actions: [['repair', 'Make repairs'] as const], text: `Your gear is damaged. Repair it now or mining speed is halved for the rest of this expedition. ${responseWindow}`, title: 'Damaged Gear' };
+    case 'arcane-rift': return { actions: [['enter-rift', 'Enter rift'] as const], text: `A strange, fading rift leads to the top of the mine. Enter now to return instantly. ${responseWindow}`, title: 'Arcane Rift' };
+    case 'energy-crystals': return { actions: [['claim-crystals', 'Claim crystals'] as const], text: `You found energized crystals. Claim them to mine 100% faster for the rest of this expedition. ${responseWindow}`, title: 'Energy Crystals' };
+    case 'old-dynamite': return { actions: [['trigger-dynamite', 'Trigger dynamite'] as const], text: `You found old dynamite. Trigger it to fill the minecart with ores; you can still fill your Gem Bag. ${responseWindow}`, title: 'Old Dynamite' };
+    case 'quantum-fluctuations': return { actions: [['embrace-fluctuations', 'Embrace rift'] as const], text: `The caves look different. Embrace the fluctuations for recursively upgradeable 5% ore and gem rolls. ${responseWindow}`, title: 'Quantum Fluctuations' };
+  }
 }
 
 function reserveMiningExpeditionRefresh(discordUserId: string) {
@@ -853,7 +876,7 @@ function reserveMiningExpeditionRefresh(discordUserId: string) {
   return null;
 }
 
-function miningExpeditionComponents(ownerDiscordUserId: string, mode: 'launched' | 'view' | 'returning', depthId?: MiningDepthId) {
+function miningExpeditionComponents(ownerDiscordUserId: string, mode: 'launched' | 'view' | 'returning', depthId?: MiningDepthId, event?: MiningExpeditionEventState | null) {
   if (mode === 'returning') {
     if (!depthId) return [];
     return toComponentRows([
@@ -883,7 +906,14 @@ function miningExpeditionComponents(ownerDiscordUserId: string, mode: 'launched'
       .setStyle(ButtonStyle.Danger)
       .setLabel('Recall minecart'),
   ];
-  return toComponentRows(buttons);
+  const activeEvent = event?.status === 'active' ? miningEventPanel(event) : null;
+  return toComponentRows([
+    ...(activeEvent ? activeEvent.actions.map(([action, label]) => new ButtonBuilder()
+      .setCustomId(`${MINING_EXPEDITION_BUTTON_PREFIX}:event:${ownerDiscordUserId}:${action}`)
+      .setStyle(action === 'continue' ? ButtonStyle.Secondary : ButtonStyle.Primary)
+      .setLabel(label)) : []),
+    ...buttons,
+  ]);
 }
 
 /** Shared by slash-command replies and website-originated Discord panels. */
@@ -983,6 +1013,8 @@ function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awai
         expedition.equipment_snapshot,
         expedition.outcome_seed,
         Math.max(0, new Date(expedition.return_started_at).getTime() - new Date(expedition.mining_started_at).getTime()),
+        expedition.event_state ?? undefined,
+        new Date(expedition.mining_started_at).getTime(),
       )
       : null);
     const relics = result ? formatMiningRelics(result) : null;
@@ -1000,7 +1032,10 @@ function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awai
     expedition.equipment_snapshot,
     expedition.outcome_seed,
     Math.max(0, now - new Date(expedition.mining_started_at).getTime()),
+    expedition.event_state ?? undefined,
+    new Date(expedition.mining_started_at).getTime(),
   );
+  const activeEvent = expedition.event_state?.status === 'active' ? miningEventPanel(expedition.event_state) : null;
   return new EmbedBuilder()
     .setColor(0x78716C)
     .setTitle(`${username}'s mining expedition`)
@@ -1008,6 +1043,10 @@ function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awai
     .addFields(
       { name: `Minecart storage · ${formatXp(result.storageUsed)}/${formatXp(expedition.equipment_snapshot.storageCapacity)}`, value: formatMiningCargo(result) },
       { name: 'Expedition work', value: `${formatXp(result.stoneBroken)} stone broken · ${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP on return` },
+      ...(activeEvent ? [{ name: `Event · ${activeEvent.title}`, value: activeEvent.text }] : []),
+      ...(expedition.event_state?.status === 'expired' && expedition.event_state.id === 'lost-temple'
+        ? [{ name: 'Lost Temple', value: 'The traps destroyed this expedition. Recall the minecart to return with no cargo.' }]
+        : []),
     );
 }
 
@@ -2259,7 +2298,7 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
     }
 
     if (group === 'expedition' && subcommand === 'view') {
-      const active = await getActiveMiningExpedition(config, interaction.user.id);
+      const active = await reconcileMiningExpeditionEvent(config, interaction.user.id);
       if (!active) {
         await interaction.editReply({
           embeds: settlement
@@ -2272,7 +2311,7 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
         embeds: [buildMiningProgressEmbed(interaction.user.username, active)],
         components: active.status === 'returning'
           ? miningExpeditionComponents(interaction.user.id, 'returning', active.depth)
-          : miningExpeditionComponents(interaction.user.id, 'view'),
+          : miningExpeditionComponents(interaction.user.id, 'view', undefined, active.event_state),
       });
       return;
     }
@@ -3230,8 +3269,10 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
 async function handleMiningExpeditionButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   const [prefix, action, ownerDiscordUserId, depthText, ...extra] = interaction.customId.split(':');
   if (prefix !== MINING_EXPEDITION_BUTTON_PREFIX) return false;
-  const validAction = action === 'view' || action === 'refresh' || action === 'return' || action === 'repeat';
-  if (!validAction || !ownerDiscordUserId || extra.length > 0 || ((action === 'repeat') !== Boolean(depthText))) {
+  const eventAction = depthText as MiningEventAction;
+  const validAction = action === 'view' || action === 'refresh' || action === 'return' || action === 'repeat' || action === 'event';
+  const validEventAction = ['attempt-relic', 'continue', 'claim-ores', 'claim-gems', 'repair', 'enter-rift', 'claim-crystals', 'trigger-dynamite', 'embrace-fluctuations'].includes(eventAction);
+  if (!validAction || !ownerDiscordUserId || extra.length > 0 || ((action === 'repeat' || action === 'event') !== Boolean(depthText)) || (action === 'event' && !validEventAction)) {
     await interaction.reply({ content: 'This mining expedition control is outdated. Run `/mining expedition view` to open a current panel.', flags: MessageFlags.Ephemeral });
     return true;
   }
@@ -3254,14 +3295,35 @@ async function handleMiningExpeditionButtonInteraction(interaction: ButtonIntera
   await interaction.deferUpdate();
   try {
     const settlement = await settleDueMiningReturn(config, ownerDiscordUserId);
+    if (action === 'event') {
+      const response = await respondToMiningExpeditionEvent(config, ownerDiscordUserId, eventAction);
+      if (response.shouldReturn) {
+        const returning = await beginMiningReturn(config, ownerDiscordUserId, response.instantReturn);
+        if (response.instantReturn) {
+          const settled = await settleDueMiningReturn(config, ownerDiscordUserId);
+          if (settled) {
+            await interaction.editReply({ embeds: [buildMiningSettlementEmbed(settled)], components: [] });
+            return true;
+          }
+        }
+        await interaction.editReply(buildMiningReturnPanel(ownerDiscordUserId, returning.depth, returning.result, returning.travelDurationMs));
+        return true;
+      }
+      const active = await reconcileMiningExpeditionEvent(config, ownerDiscordUserId);
+      await interaction.editReply(active ? {
+        embeds: [buildMiningProgressEmbed(interaction.user.username, active)],
+        components: miningExpeditionComponents(ownerDiscordUserId, 'view', undefined, active.event_state),
+      } : { content: response.event.id === 'lost-temple' ? 'You left the Lost Temple behind and continued mining.' : 'Mining event resolved.', embeds: [], components: [] });
+      return true;
+    }
     if (action === 'view' || action === 'refresh') {
-      const active = await getActiveMiningExpedition(config, ownerDiscordUserId);
+      const active = await reconcileMiningExpeditionEvent(config, ownerDiscordUserId);
       await interaction.editReply(active
         ? {
           embeds: [buildMiningProgressEmbed(interaction.user.username, active)],
           components: active.status === 'returning'
             ? miningExpeditionComponents(ownerDiscordUserId, 'returning', active.depth)
-            : miningExpeditionComponents(ownerDiscordUserId, 'view'),
+            : miningExpeditionComponents(ownerDiscordUserId, 'view', undefined, active.event_state),
         }
         : {
           embeds: settlement

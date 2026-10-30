@@ -21,12 +21,12 @@ import {
   type PlayerGameStatsByGame,
 } from '@/lib/game-storage';
 import {
-  LEAGUE_GAME_NAVIGATION_ITEMS,
   ORIGINAL_GAME_NAVIGATION_ITEMS,
   type Accent,
   type GameLink,
   type GameMode,
 } from '@/lib/game-navigation';
+import { LEAGUE_GAMES_FOR_HUB } from '@/lib/app-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
 
 const accentStyles: Record<Accent, {
@@ -102,7 +102,7 @@ const modeStyles: Record<GameMode, { label: string; icon: LucideIcon }> = {
   },
 };
 
-const leagueGames: GameLink[] = LEAGUE_GAME_NAVIGATION_ITEMS;
+const leagueGames: GameLink[] = LEAGUE_GAMES_FOR_HUB;
 const originalGames: GameLink[] = ORIGINAL_GAME_NAVIGATION_ITEMS;
 
 function GameModeBadge({ mode, featured = false }: { mode: GameMode; featured?: boolean }) {

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Gem, Hammer, Package, RefreshCw, Send, Store } from 'lucide-react';
+import { ArrowLeft, Gem, Hammer, Package, RefreshCw, Send, Sparkles, Store } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
@@ -21,12 +21,23 @@ type MiningCargo = {
   stoneBroken: number;
   stoneStored: number;
   storageUsed: number;
+  gearItems?: Array<{ itemId: string; quantity: number }>;
+};
+
+type MiningEvent = {
+  action?: string;
+  expiresAt?: string;
+  id: 'lost-temple' | 'ore-vein' | 'gem-cluster' | 'damaged-gear' | 'arcane-rift' | 'energy-crystals' | 'old-dynamite' | 'quantum-fluctuations';
+  relicItemId?: string;
+  status: 'scheduled' | 'active' | 'resolved' | 'expired';
+  success?: boolean;
 };
 
 type MiningDashboard = {
   activeExpedition: null | {
     cargo: MiningCargo;
     depth: number;
+    event: MiningEvent | null;
     miningStartedAt: string;
     phase: 'descending' | 'mining' | 'returning';
     returnsAt: string | null;
@@ -42,6 +53,7 @@ type MiningDashboard = {
     storageName: string | null;
     toolName: string | null;
     toolStonesPerSecond: number;
+    relics: Array<{ description: string; name: string }>;
   };
   inventory: Array<{ resource: MiningResource; quantity: number }>;
   mining: { level: number; totalXp: number };
@@ -86,6 +98,37 @@ function formatDuration(milliseconds: number) {
 
 function phaseLabel(phase: NonNullable<MiningDashboard['activeExpedition']>['phase']) {
   return phase === 'descending' ? 'Descending' : phase === 'returning' ? 'Returning' : 'Mining';
+}
+
+function formatRelicItemId(itemId: string) {
+  return itemId
+    .replace(/^mining-gear-/, '')
+    .replace(/^gear-/, '')
+    .split('-')
+    .map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
+    .join(' ');
+}
+
+function formatFoundRelics(gearItems: MiningCargo['gearItems']) {
+  return gearItems?.map((item) => formatRelicItemId(item.itemId)).join(' · ') ?? '';
+}
+
+function miningEventCopy(event: MiningEvent) {
+  switch (event.id) {
+    case 'lost-temple': return {
+      title: 'Lost Temple',
+      description: 'You found a Lost Temple with a sacred Relic inside. Failing the grab destroys this expedition.',
+      primary: ['attempt-relic', 'Attempt relic'] as const,
+      secondary: ['continue', 'Leave it'] as const,
+    };
+    case 'ore-vein': return { title: 'Fragile ore cluster', description: 'Fill the rest of your minecart with random ores from this depth or below before it crumbles.', primary: ['claim-ores', 'Secure ores'] as const };
+    case 'gem-cluster': return { title: 'Unstable gem cavern', description: 'Fill the rest of your Gem Bag with random gems from this depth or below before the cave collapses.', primary: ['claim-gems', 'Secure gems'] as const };
+    case 'damaged-gear': return { title: 'Damaged gear', description: 'Repair now or lose half your mining speed for the rest of this expedition.', primary: ['repair', 'Make repairs'] as const };
+    case 'arcane-rift': return { title: 'Arcane Rift', description: 'A fading rift leads to the top of the mine. Enter it to return instantly.', primary: ['enter-rift', 'Enter rift'] as const };
+    case 'energy-crystals': return { title: 'Energy Crystals', description: 'Claim the energized crystals to mine 100% faster for the rest of this expedition.', primary: ['claim-crystals', 'Claim crystals'] as const };
+    case 'old-dynamite': return { title: 'Old Dynamite', description: 'Trigger it to fill the minecart with ores. You can still continue to fill your Gem Bag.', primary: ['trigger-dynamite', 'Trigger dynamite'] as const };
+    case 'quantum-fluctuations': return { title: 'Quantum Fluctuations', description: 'Embrace the rift: ores and gems then have a recursive 5% chance to upgrade one depth tier.', primary: ['embrace-fluctuations', 'Embrace rift'] as const };
+  }
 }
 
 export function MiningGame() {
@@ -234,6 +277,7 @@ export function MiningGame() {
               <p className="mt-1 text-xs leading-5 text-emerald-100/85">{dashboard.settlement.result.cargo.length
                 ? dashboard.settlement.result.cargo.map((item) => `${item.name} ×${formatNumber(item.quantity)}`).join(' · ')
                 : 'No non-stone cargo collected.'}</p>
+              {dashboard.settlement.result.gearItems?.length ? <p className="mt-1 text-xs leading-5 text-emerald-100/85">New Relic{dashboard.settlement.result.gearItems.length === 1 ? '' : 's'}: {formatFoundRelics(dashboard.settlement.result.gearItems)}.</p> : null}
             </div>
             <button type="button" className={buttonClass} disabled={isBusy} onClick={() => void performAction(
               'share-result',
@@ -268,6 +312,20 @@ export function MiningGame() {
                     <p className="mt-2 text-sm text-slate-200">{dashboard.activeExpedition.cargo.stoneStored ? `Stone ×${formatNumber(dashboard.activeExpedition.cargo.stoneStored)} · discarded on return` : ''}</p>
                     {dashboard.activeExpedition.cargo.cargo.length ? dashboard.activeExpedition.cargo.cargo.map((item) => <p key={item.id} className="mt-1 text-sm text-slate-100">{item.name} ×{formatNumber(item.quantity)}</p>) : <p className="mt-2 text-sm text-slate-400">No non-stone cargo projected yet.</p>}
                   </div>
+                  {dashboard.activeExpedition.cargo.gearItems?.length ? <p className="mt-3 text-sm font-bold text-amber-100">Projected Relic: {formatFoundRelics(dashboard.activeExpedition.cargo.gearItems)}</p> : null}
+                  {dashboard.activeExpedition.event?.status === 'active' ? (() => {
+                    const event = dashboard.activeExpedition.event;
+                    const copy = miningEventCopy(event);
+                    const secondsLeft = event.expiresAt ? Math.max(0, Math.ceil((new Date(event.expiresAt).getTime() - Date.now()) / 1_000)) : 0;
+                    return (
+                      <section className="mt-5 rounded-xl border border-amber-300/45 bg-amber-950/25 p-4" aria-live="assertive">
+                        <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-black uppercase tracking-[0.16em] text-amber-200">Expedition event</p><h3 className="mt-1 font-black text-amber-50">{copy.title}</h3></div><span className="rounded-full border border-amber-200/30 px-2 py-1 text-xs font-black text-amber-100">{formatDuration(secondsLeft * 1_000)} left</span></div>
+                        <p className="mt-2 text-sm leading-6 text-amber-50/90">{copy.description}</p>
+                        <div className="mt-3 flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={isBusy} onClick={() => void performAction(`event-${copy.primary[0]}`, { action: 'event', eventAction: copy.primary[0] })}>{copy.primary[1]}</button>{copy.secondary ? <button type="button" className={secondaryButtonClass} disabled={isBusy} onClick={() => void performAction(`event-${copy.secondary![0]}`, { action: 'event', eventAction: copy.secondary![0] })}>{copy.secondary[1]}</button> : null}</div>
+                      </section>
+                    );
+                  })() : null}
+                  {dashboard.activeExpedition.event?.status === 'expired' && dashboard.activeExpedition.event.id === 'lost-temple' ? <p className="mt-4 rounded-xl border border-rose-300/35 bg-rose-950/35 px-3 py-2 text-sm font-bold text-rose-100">The Lost Temple traps destroyed this expedition. Recall the minecart to return with no cargo.</p> : null}
                   <div className="mt-5 flex flex-wrap gap-2">
                     <button type="button" className={secondaryButtonClass} disabled={isBusy || refreshOnCooldown} onClick={refresh}><RefreshCw size={16} /> {refreshOnCooldown ? 'Refresh shortly' : 'Refresh expedition'}</button>
                     {dashboard.activeExpedition.phase !== 'returning' ? <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-rose-300/40 bg-rose-950/55 px-3 py-2 text-sm font-black text-rose-100 transition hover:bg-rose-900 disabled:cursor-not-allowed disabled:opacity-45" disabled={isBusy} onClick={() => void performAction('return', { action: 'return' })}>Recall minecart</button> : null}
@@ -295,6 +353,7 @@ export function MiningGame() {
                 <Detail label="Filter" value={dashboard.equipment.filterName ?? 'None'} />
               </dl>
               <p className="mt-6 border-t border-white/10 pt-4 text-xs leading-5 text-slate-400">Shared skills: Luck {Math.min(4, dashboard.skills.lucky)}/4 · Cheapskate {dashboard.skills.cheapskate}/4 · Money Mouser {dashboard.skills.moneyMouser}/2 · Haste {dashboard.skills.haste}/4.</p>
+              <p className="mt-3 text-xs leading-5 text-slate-400">Relics: {dashboard.equipment.relics.length ? dashboard.equipment.relics.map((relic) => relic.name).join(' · ') : 'None found yet.'}</p>
             </aside>
           </section>
         ) : null}
@@ -317,10 +376,11 @@ export function MiningGame() {
         ) : null}
 
         {dashboard && tab === 'inventory' ? (
-          <section className="mt-5 grid gap-5 lg:grid-cols-3">
+          <section className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
             <InventoryColumn title="Ores" icon={<Package size={17} />} items={inventoryByKind.ores} processorTier={dashboard.equipment.processorTier} isBusy={isBusy} onSell={(resource) => void performAction(`sell-${resource.id}`, { action: 'sell', resource: resource.name, amount: 'all' })} />
             <InventoryColumn title="Gems" icon={<Gem size={17} />} items={inventoryByKind.gems} processorTier={dashboard.equipment.processorTier} isBusy={isBusy} onSell={(resource) => void performAction(`sell-${resource.id}`, { action: 'sell', resource: resource.name, amount: 'all' })} />
             <InventoryColumn title="Fossils" icon={<Store size={17} />} items={inventoryByKind.fossils} processorTier={dashboard.equipment.processorTier} isBusy={isBusy} />
+            <RelicsColumn relics={dashboard.equipment.relics} />
           </section>
         ) : null}
       </div>
@@ -334,6 +394,17 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function Detail({ label, value }: { label: string; value: string }) {
   return <div className="flex items-start justify-between gap-3"><dt className="text-slate-400">{label}</dt><dd className="text-right font-bold text-slate-100">{value}</dd></div>;
+}
+
+function RelicsColumn({ relics }: { relics: MiningDashboard['equipment']['relics'] }) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
+      <h2 className="flex items-center gap-2 text-lg font-black text-white"><Sparkles size={17} /> Relics</h2>
+      <div className="mt-4 space-y-3">
+        {relics.length ? relics.map((relic) => <div key={relic.name} className="rounded-xl border border-amber-200/20 bg-slate-950/55 p-3"><p className="font-bold text-amber-100">{relic.name}</p><p className="mt-1 text-xs leading-5 text-slate-400">{relic.description}</p></div>) : <p className="text-sm text-slate-400">Discover permanent Relics while mining or fishing.</p>}
+      </div>
+    </section>
+  );
 }
 
 function InventoryColumn({ icon, isBusy, items, onSell, processorTier, title }: {

@@ -36,7 +36,11 @@ import {
   type DiscordFishingWeekdayPhenomenon,
   type DiscordFishingWeekdayPhenomenonId,
 } from '@/lib/discord-fishing';
-import type { DiscordMiningLevelRoleReward } from '@/lib/discord-mining';
+import {
+  DEFAULT_DISCORD_MINING_ROLE_SETTINGS,
+  type DiscordMiningLevelRoleReward,
+  type DiscordMiningRoleSettings,
+} from '@/lib/discord-mining';
 import { requireAdminAccess } from '@/lib/moderation';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
@@ -155,7 +159,9 @@ type StoredChannelRow = {
 
 type StoredMiningCommandSettingsRow = {
   command_all_channels: boolean;
+  top_miner_role_id: string | null;
 };
+type StoredMinigameSimulationRoleRow = { discord_role_id: string; game_id: 'fishing' | 'mining' };
 type StoredMiningRoleRewardRow = { discord_role_id: string; level: number };
 
 type LevelingSettingsBody = {
@@ -173,6 +179,9 @@ type LevelingSettingsBody = {
   miningCommandChannelIds?: unknown;
   miningWebsitePanelChannelIds?: unknown;
   miningRoleRewards?: unknown;
+  miningTopMinerRoleId?: unknown;
+  fishingSimulationRoleIds?: unknown;
+  miningSimulationRoleIds?: unknown;
   roleRewards?: unknown;
   skinClaimAllChannels?: unknown;
   skinClaimClaimGracePeriodSeconds?: unknown;
@@ -254,6 +263,10 @@ function toFishingCommandSettings(row: StoredFishingCommandSettingsRow | null): 
 
 function toFishingRoleSettings(row: StoredFishingCommandSettingsRow | null): DiscordFishingRoleSettings {
   return row ? { topFisherRoleId: row.top_fisher_role_id } : DEFAULT_DISCORD_FISHING_ROLE_SETTINGS;
+}
+
+function toMiningRoleSettings(row: StoredMiningCommandSettingsRow | null): DiscordMiningRoleSettings {
+  return row ? { topMinerRoleId: row.top_miner_role_id } : DEFAULT_DISCORD_MINING_ROLE_SETTINGS;
 }
 
 function toFishingBonusSettings(
@@ -351,6 +364,7 @@ async function getLevelingData(guildId: string) {
     miningCommandChannelsResult,
     miningWebsitePanelChannelsResult,
     miningRoleRewardsResult,
+    minigameSimulationRolesResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
       .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
@@ -456,7 +470,7 @@ async function getLevelingData(guildId: string) {
       .order('channel_id', { ascending: true })
       .returns<StoredChannelRow[]>(),
     supabase.from('discord_mining_command_settings')
-      .select('command_all_channels')
+      .select('command_all_channels,top_miner_role_id')
       .eq('guild_id', guildId)
       .maybeSingle<StoredMiningCommandSettingsRow>(),
     supabase.from('discord_mining_command_channels')
@@ -470,6 +484,7 @@ async function getLevelingData(guildId: string) {
       .order('channel_id', { ascending: true })
       .returns<StoredChannelRow[]>(),
     supabase.from('discord_mining_level_role_rewards').select('discord_role_id,level').eq('guild_id', guildId).order('level', { ascending: true }).returns<StoredMiningRoleRewardRow[]>(),
+    supabase.from('discord_minigame_simulation_roles').select('game_id,discord_role_id').eq('guild_id', guildId).returns<StoredMinigameSimulationRoleRow[]>(),
   ]);
 
   if (settingsResult.error) throw settingsResult.error;
@@ -497,6 +512,7 @@ async function getLevelingData(guildId: string) {
   if (miningCommandChannelsResult.error) throw miningCommandChannelsResult.error;
   if (miningWebsitePanelChannelsResult.error) throw miningWebsitePanelChannelsResult.error;
   if (miningRoleRewardsResult.error) throw miningRoleRewardsResult.error;
+  if (minigameSimulationRolesResult.error) throw minigameSimulationRolesResult.error;
 
   return {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
@@ -521,6 +537,9 @@ async function getLevelingData(guildId: string) {
     miningCommandChannelIds: (miningCommandChannelsResult.data ?? []).map((channel) => channel.channel_id),
     miningWebsitePanelChannelIds: (miningWebsitePanelChannelsResult.data ?? []).map((channel) => channel.channel_id),
     miningRoleRewards: groupMiningRoleRewards(miningRoleRewardsResult.data ?? []),
+    miningRoleSettings: toMiningRoleSettings(miningCommandSettingsResult.data),
+    fishingSimulationRoleIds: (minigameSimulationRolesResult.data ?? []).filter((row) => row.game_id === 'fishing').map((row) => row.discord_role_id),
+    miningSimulationRoleIds: (minigameSimulationRolesResult.data ?? []).filter((row) => row.game_id === 'mining').map((row) => row.discord_role_id),
     fishingBonusSettings: toFishingBonusSettings(
       fishingBonusRolesResult.data ?? [],
       fishingWeekdayPhenomenaResult.data ?? [],
@@ -788,6 +807,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const fishingCommandAllChannels = body.fishingCommandAllChannels;
     const fishingCommandChannelIds = parseCommandChannelIds(body.fishingCommandChannelIds, 'Fishing');
     const fishingTopFisherRoleId = parseOptionalSnowflake(body.fishingTopFisherRoleId, 'Top Fisher role');
+    const miningTopMinerRoleId = parseOptionalSnowflake(body.miningTopMinerRoleId, 'Top Miner role');
+    const fishingSimulationRoleIds = parseRoleIds(body.fishingSimulationRoleIds, 'Fishing simulation roles', 25);
+    const miningSimulationRoleIds = parseRoleIds(body.miningSimulationRoleIds, 'Mining simulation roles', 25);
     if (typeof body.miningCommandAllChannels !== 'boolean') {
       throw new ApiError(400, 'Mining command channel scope must be all channels or selected channels.');
     }
@@ -831,6 +853,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (fishingBonusRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose Fishing bonus roles that are currently synced from Discord.');
     }
+    if (fishingSimulationRoleIds.some((roleId) => !syncedRoleIds.has(roleId)) || miningSimulationRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
+      throw new ApiError(400, 'Choose simulation roles that are currently synced from Discord.');
+    }
     if (leaderboardTopRoleId && !assignableRoleIds.has(leaderboardTopRoleId)) {
       throw new ApiError(400, 'Choose a leaderboard top role that is available below the KnowLeague bot role.');
     }
@@ -846,8 +871,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (fishingTopFisherRoleId && !assignableRoleIds.has(fishingTopFisherRoleId)) {
       throw new ApiError(400, 'Choose a top Fisher role that is available below the KnowLeague bot role.');
     }
-    if (fishingTopFisherRoleId && fishingRoleRewards.some((reward) => reward.roleIds.includes(fishingTopFisherRoleId))) {
-      throw new ApiError(400, 'The top Fisher role cannot also be a Fishing level reward.');
+    if (fishingTopFisherRoleId && (fishingRoleRewards.some((reward) => reward.roleIds.includes(fishingTopFisherRoleId)) || miningRoleRewards.some((reward) => reward.roleIds.includes(fishingTopFisherRoleId)))) {
+      throw new ApiError(400, 'The top Fisher role cannot also be a Fishing or Mining level reward.');
     }
     if (fishingTopFisherRoleId && roleRewards.some((reward) => reward.roleIds.includes(fishingTopFisherRoleId))) {
       throw new ApiError(400, 'The top Fisher role cannot also be a chat level reward.');
@@ -856,8 +881,15 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       fishingTopFisherRoleId === leaderboardTopRoleId
       || manualXpRoleIds.includes(fishingTopFisherRoleId)
       || collectionAdminRoleIds.includes(fishingTopFisherRoleId)
+      || fishingTopFisherRoleId === miningTopMinerRoleId
     )) {
       throw new ApiError(400, 'Keep the top Fisher role dedicated to the Fishing leaderboard.');
+    }
+    if (miningTopMinerRoleId && !assignableRoleIds.has(miningTopMinerRoleId)) {
+      throw new ApiError(400, 'Choose a top Miner role that is available below the KnowLeague bot role.');
+    }
+    if (miningTopMinerRoleId && (miningRoleRewards.some((reward) => reward.roleIds.includes(miningTopMinerRoleId)) || fishingRoleRewards.some((reward) => reward.roleIds.includes(miningTopMinerRoleId)) || roleRewards.some((reward) => reward.roleIds.includes(miningTopMinerRoleId)) || miningTopMinerRoleId === fishingTopFisherRoleId || miningTopMinerRoleId === leaderboardTopRoleId || manualXpRoleIds.includes(miningTopMinerRoleId) || collectionAdminRoleIds.includes(miningTopMinerRoleId))) {
+      throw new ApiError(400, 'Keep the top Miner role dedicated to the Mining leaderboard.');
     }
     const sendableChannelIds = new Set((channels ?? []).filter((channel) => channel.sendable).map((channel) => channel.channel_id));
     if (generalCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
@@ -956,7 +988,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_updated_by: user.id,
     });
     if (fishingRoleConfigurationError) throw fishingRoleConfigurationError;
-    const { error: miningRoleConfigurationError } = await supabase.rpc('replace_discord_mining_role_configuration', { p_guild_id: guildId, p_role_rewards: miningRoleRewards, p_updated_by: user.id });
+    const { error: miningRoleConfigurationError } = await supabase.rpc('replace_discord_mining_role_configuration', { p_guild_id: guildId, p_role_rewards: miningRoleRewards, p_top_miner_role_id: miningTopMinerRoleId, p_updated_by: user.id });
     if (miningRoleConfigurationError) throw miningRoleConfigurationError;
     const { error: fishingBonusConfigurationError } = await supabase.rpc('replace_discord_fishing_bonus_configuration', {
       p_bonus_role_ids: fishingBonusRoleIds,
@@ -965,6 +997,12 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_weekday_phenomena: fishingWeekdayPhenomena,
     });
     if (fishingBonusConfigurationError) throw fishingBonusConfigurationError;
+    const [fishingSimulationConfiguration, miningSimulationConfiguration] = await Promise.all([
+      supabase.rpc('replace_discord_minigame_simulation_roles', { p_game_id: 'fishing', p_guild_id: guildId, p_role_ids: fishingSimulationRoleIds, p_updated_by: user.id }),
+      supabase.rpc('replace_discord_minigame_simulation_roles', { p_game_id: 'mining', p_guild_id: guildId, p_role_ids: miningSimulationRoleIds, p_updated_by: user.id }),
+    ]);
+    if (fishingSimulationConfiguration.error) throw fishingSimulationConfiguration.error;
+    if (miningSimulationConfiguration.error) throw miningSimulationConfiguration.error;
     const [skindleShareConfiguration, miningWebsitePanelConfiguration] = await Promise.all([
       supabase.rpc('replace_discord_skindle_share_channels', {
         p_channel_ids: skindleShareChannelIds,

@@ -136,12 +136,12 @@ export function AugmentBinder({ owner }: { owner: string }) {
           {page === 0 ? 'No augments yet. Finished augments will appear here.' : 'No more augments on this page.'}
         </div>
       ) : null}
-      <div className="grid min-h-[34rem] grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid min-h-[34rem] grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 xl:grid-cols-4">
         {binder?.augments.map((augment) => (
           <Link
             key={augment.id}
             href={'/augment-builder/augment/' + augment.id}
-            className="group flex min-w-0 select-none flex-col rounded-2xl border border-white/10 bg-slate-900/40 p-4 transition hover:border-amber-200/60 hover:bg-slate-900/70 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            className="group flex min-w-0 select-none flex-col rounded-2xl border border-white/10 bg-slate-900/40 p-3 transition hover:border-amber-200/60 hover:bg-slate-900/70 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:p-4"
           >
             <AugmentCard draft={augment} />
             <div className="mt-auto pt-3 text-center">

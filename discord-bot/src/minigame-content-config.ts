@@ -174,7 +174,7 @@ export const FISHING_RELIC_CONTENT_CONFIG = [
   { id: 'gear-knowleague-lure', name: 'KnowLeague Lure', description: 'Permanent relic: legendary fish sell for 10% more.', foundBiomeIds: null },
   { id: 'gear-dockhands-ledger', name: "Harbor Dockhand's Ledger", description: 'Permanent relic: crew expeditions earn 2.5% more KnowBucks.', foundBiomeIds: ['harbor'] },
   { id: 'gear-sunstone', name: 'Sunstone', description: 'Permanent relic: Warm Ocean fish value rolls skew toward the top of their ranges.', foundBiomeIds: ['warm-ocean'] },
-  { id: 'gear-genesys-loop', name: 'Genesys Loop', description: 'Permanent relic: after an expedition settles, launches the same preset again up to twice in a row.', foundBiomeIds: ['hydroplant-reservoir'] },
+  { id: 'gear-genesys-loop', name: 'Genesys Loop', description: 'Permanent relic: after an expedition settles, has a 20% chance to launch the same preset again.', foundBiomeIds: ['hydroplant-reservoir'] },
   { id: 'gear-pearl-divers-log', name: "Pearl Diver's Log", description: 'Permanent relic: the first catch of each fish pays five times its normal value.', foundBiomeIds: ['sunken-sea'] },
   { id: 'gear-tangle-net', name: 'Tangle Net', description: 'Permanent relic: each distinct fish rarity in a haul adds 3% value to its fish sales.', foundBiomeIds: ['kelp-forest'] },
   { id: 'gear-crystal-resonator', name: 'Crystal Resonator', description: 'Permanent relic: epic and legendary fish sell for 10% more.', foundBiomeIds: ['crystaline-caverns'] },
@@ -446,7 +446,8 @@ export const MINING_GEAR_CONTENT_CONFIG = [
   { depth: 7, id: 'mining-gear-ancient-refinery', name: 'Ancient Refinery', description: 'Ores sell for 50% more KnowBucks.' },
 ] as const satisfies readonly MiningGearContentConfig[];
 
-export const MINING_GEAR_DROP_RATE = 0.0001;
+/** A full Tier 1 cart has a one-in-250 chance to return a Relic. */
+export const MINING_GEAR_DROP_RATE = 1 / 250;
 
 export const MINING_REWARD_WEIGHT_CONFIG = { fossil: 1, gem: 10, ore: 100, stone: 500 } as const satisfies Record<'fossil' | 'gem' | 'ore' | 'stone', number>;
 

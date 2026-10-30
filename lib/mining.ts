@@ -3,21 +3,30 @@ import { ApiError } from '@/lib/api-utils';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import {
   MINING_DEPTHS,
+  MINING_GEAR,
   MINING_UPGRADES,
   findMiningResource,
   getMiningBestUpgrade,
   getMiningCraftingRecipe,
   getMiningDepth,
+  getMiningGear,
   getMiningResource,
   getMiningTravelDurationMs,
   getMiningUpgrade,
+  createMiningExpeditionEvent,
+  getMiningEventActivationElapsedMs,
+  getMiningEventTimeLimitMs,
+  resolveMiningEventAction,
   resolveMiningExpedition,
+  type MiningEventAction,
   type MiningDepthId,
   type MiningEquipmentSnapshot,
+  type MiningExpeditionEventState,
   type MiningResource,
   type MiningResult,
   type MiningUpgrade,
 } from '../discord-bot/src/mining-catalog';
+import { FISHING_UPGRADES, getFishingUpgrade } from '../discord-bot/src/fishing-catalog';
 
 type MiningInventoryRow = { resource_id: string; quantity: number };
 type MiningUpgradeRow = { upgrade_id: string };
@@ -29,6 +38,7 @@ type MiningExpeditionStatus = 'descending' | 'returning' | 'completed';
 type MiningExpeditionRow = {
   depth: MiningDepthId;
   equipment_snapshot: MiningEquipmentSnapshot;
+  event_state: MiningExpeditionEventState | null;
   id: number;
   mining_started_at: string;
   outcome_seed: number;
@@ -69,6 +79,7 @@ export type MiningDashboard = {
   activeExpedition: null | {
     cargo: MiningResult;
     depth: MiningDepthId;
+    event: MiningExpeditionEventState | null;
     miningStartedAt: string;
     phase: 'descending' | 'mining' | 'returning';
     returnsAt: string | null;
@@ -84,6 +95,7 @@ export type MiningDashboard = {
     storageName: string | null;
     toolName: string | null;
     toolStonesPerSecond: number;
+    relics: Array<{ description: string; name: string }>;
   };
   inventory: Array<{ resource: MiningResource; quantity: number }>;
   mining: { level: number; totalXp: number };
@@ -181,7 +193,7 @@ async function getMiningState(identity: MiningIdentity): Promise<MiningState> {
 
 async function getActiveExpedition(identity: MiningIdentity) {
   const { data, error } = await getSupabaseServiceClient().from('discord_mining_expeditions')
-    .select('id,depth,equipment_snapshot,mining_started_at,outcome_seed,result,return_started_at,returns_at,status')
+    .select('id,depth,equipment_snapshot,event_state,mining_started_at,outcome_seed,result,return_started_at,returns_at,status')
     .eq('guild_id', identity.guildId)
     .eq('discord_user_id', identity.discordUserId)
     .in('status', ['descending', 'returning'])
@@ -192,6 +204,13 @@ async function getActiveExpedition(identity: MiningIdentity) {
 
 function getProcessorTier(state: MiningState) {
   return getMiningBestUpgrade(state.ownedUpgradeIds, 'processor')?.value ?? 0;
+}
+
+function getMiningRelics(itemIds: readonly string[]) {
+  return [...new Set(itemIds)].flatMap((itemId) => {
+    const relic = getMiningGear(itemId) ?? getFishingUpgrade(itemId);
+    return relic ? [{ description: relic.description, name: relic.name }] : [];
+  });
 }
 
 function equipmentFromState(depthId: MiningDepthId, state: MiningState): MiningEquipmentSnapshot {
@@ -219,13 +238,77 @@ function equipmentFromState(depthId: MiningDepthId, state: MiningState): MiningE
   };
 }
 
-function resultAtReturn(expedition: Pick<MiningExpeditionRow, 'depth' | 'equipment_snapshot' | 'mining_started_at' | 'outcome_seed'>, returnStartedAt: string) {
+/** Woodcutting has no durable Relic catalogue yet, so Temple selection currently spans the two implemented games only. */
+function getUnacquiredMiningTempleRelics(state: MiningState) {
+  const owned = new Set(state.passiveGearItemIds);
+  return [
+    ...MINING_GEAR.map((relic) => relic.id),
+    ...FISHING_UPGRADES.filter((upgrade) => upgrade.category === 'gear').map((relic) => relic.id),
+  ].filter((itemId) => !owned.has(itemId));
+}
+
+function resultAtReturn(expedition: Pick<MiningExpeditionRow, 'depth' | 'equipment_snapshot' | 'event_state' | 'mining_started_at' | 'outcome_seed'>, returnStartedAt: string) {
   return resolveMiningExpedition(
     expedition.depth,
     expedition.equipment_snapshot,
     expedition.outcome_seed,
     Math.max(0, new Date(returnStartedAt).getTime() - new Date(expedition.mining_started_at).getTime()),
+    expedition.event_state ?? undefined,
+    new Date(expedition.mining_started_at).getTime(),
   );
+}
+
+async function saveMiningExpeditionEvent(
+  identity: MiningIdentity,
+  expedition: MiningExpeditionRow,
+  expectedStatus: MiningExpeditionEventState['status'],
+  event: MiningExpeditionEventState,
+) {
+  const { data, error } = await getSupabaseServiceClient().rpc('update_discord_mining_expedition_event', {
+    p_discord_user_id: identity.discordUserId,
+    p_event_state: event,
+    p_expected_status: expectedStatus,
+    p_expedition_id: expedition.id,
+    p_guild_id: identity.guildId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+/** Keeps the persisted event visible and deadline-safe for website reads/actions. */
+async function reconcileMiningExpeditionEvent(identity: MiningIdentity, expedition?: MiningExpeditionRow | null) {
+  const active = expedition ?? await getActiveExpedition(identity);
+  if (!active || active.status !== 'descending' || !active.event_state) return active;
+  const event = active.event_state;
+  const now = Date.now();
+  const miningStartedAt = new Date(active.mining_started_at).getTime();
+  if (!Number.isFinite(miningStartedAt) || miningStartedAt > now) return active;
+  if (event.status === 'scheduled') {
+    const activatedElapsedMs = getMiningEventActivationElapsedMs(
+      event,
+      active.depth,
+      active.equipment_snapshot,
+      active.outcome_seed,
+      Math.max(0, now - miningStartedAt),
+    );
+    if (activatedElapsedMs === null) return active;
+    const activatedAtMs = miningStartedAt + activatedElapsedMs;
+    const expiresAtMs = activatedAtMs + getMiningEventTimeLimitMs(active.depth);
+    const next: MiningExpeditionEventState = {
+      ...event,
+      activatedAt: new Date(activatedAtMs).toISOString(),
+      expiresAt: new Date(expiresAtMs).toISOString(),
+      status: expiresAtMs <= now ? 'expired' : 'active',
+    };
+    if (await saveMiningExpeditionEvent(identity, active, 'scheduled', next)) return { ...active, event_state: next };
+    return getActiveExpedition(identity);
+  }
+  if (event.status === 'active' && event.expiresAt && new Date(event.expiresAt).getTime() <= now) {
+    const next = { ...event, status: 'expired' as const };
+    if (await saveMiningExpeditionEvent(identity, active, 'active', next)) return { ...active, event_state: next };
+    return getActiveExpedition(identity);
+  }
+  return active;
 }
 
 async function settleDueMiningReturn(identity: MiningIdentity) {
@@ -266,10 +349,18 @@ function projectActiveExpedition(expedition: MiningExpeditionRow): MiningDashboa
     : startsAt > now ? 'descending' : 'mining';
   const cargo = expedition.status === 'returning'
     ? expedition.result ?? resultAtReturn(expedition, expedition.return_started_at ?? expedition.mining_started_at)
-    : resolveMiningExpedition(expedition.depth, expedition.equipment_snapshot, expedition.outcome_seed, Math.max(0, now - startsAt));
+    : resolveMiningExpedition(
+      expedition.depth,
+      expedition.equipment_snapshot,
+      expedition.outcome_seed,
+      Math.max(0, now - startsAt),
+      expedition.event_state ?? undefined,
+      startsAt,
+    );
   return {
     cargo,
     depth: expedition.depth,
+    event: expedition.status === 'descending' ? expedition.event_state : null,
     miningStartedAt: expedition.mining_started_at,
     phase,
     returnsAt: expedition.returns_at,
@@ -288,7 +379,8 @@ function canCraftUpgrade(state: MiningState, recipe: ReturnType<typeof getMining
 }
 
 async function buildDashboard(identity: MiningIdentity, settlement: MiningDashboard['settlement']): Promise<MiningDashboard> {
-  const [state, active] = await Promise.all([getMiningState(identity), getActiveExpedition(identity)]);
+  const [state, rawActive] = await Promise.all([getMiningState(identity), getActiveExpedition(identity)]);
+  const active = await reconcileMiningExpeditionEvent(identity, rawActive);
   const processorTier = getProcessorTier(state);
   const inventory = state.inventory.flatMap((entry) => {
     const resource = getMiningResource(entry.resource_id);
@@ -321,6 +413,7 @@ async function buildDashboard(identity: MiningIdentity, settlement: MiningDashbo
       storageName: storage?.name ?? null,
       toolName: tool?.name ?? null,
       toolStonesPerSecond: tool?.value ?? 0,
+      relics: getMiningRelics(state.passiveGearItemIds),
     },
     inventory,
     mining: { level: state.miningLevel, totalXp: state.miningTotalXp },
@@ -346,27 +439,31 @@ export async function startMiningWebsiteExpedition(userId: string, depthId: numb
     throw new ApiError(409, `${depth.name} requires the ${getMiningUpgrade(depth.requiredToolId)?.name ?? 'required tool'}.`);
   }
   const equipment = equipmentFromState(depth.id, state);
-  const { data, error } = await getSupabaseServiceClient().rpc('start_discord_mining_expedition', {
+  const outcomeSeed = randomInt(1, 2_147_483_648);
+  const eventState = createMiningExpeditionEvent(depth.id, equipment, outcomeSeed ^ 0x2A81D4C3, getUnacquiredMiningTempleRelics(state));
+  const { data, error } = await getSupabaseServiceClient().rpc('start_discord_mining_expedition_with_event', {
     p_depth: depth.id,
     p_descend_duration_ms: equipment.descendDurationMs,
     p_discord_user_id: identity.discordUserId,
     p_equipment_snapshot: equipment,
+    p_event_state: eventState,
     p_guild_id: identity.guildId,
-    p_outcome_seed: randomInt(1, 2_147_483_648),
+    p_outcome_seed: outcomeSeed,
   });
   if (error) throw error;
   if (!firstRow(data as StartedMiningRow | StartedMiningRow[] | null)) throw new Error('Mining expedition did not return a result.');
   return buildDashboard(identity, null);
 }
 
-export async function returnMiningWebsiteExpedition(userId: string) {
+export async function returnMiningWebsiteExpedition(userId: string, instant = false) {
   const identity = await getMiningIdentity(userId);
   await settleDueMiningReturn(identity);
-  const active = await getActiveExpedition(identity);
+  const active = await reconcileMiningExpeditionEvent(identity);
   if (!active) throw new ApiError(409, 'You do not have an active mining expedition to recall.');
   if (active.status === 'returning') throw new ApiError(409, 'Your minecart is already returning to the surface.');
-  const { data, error } = await getSupabaseServiceClient().rpc('begin_discord_mining_return', {
-    p_ascent_duration_ms: active.equipment_snapshot.descendDurationMs,
+  if (active.event_state?.status === 'active') throw new ApiError(409, 'Resolve the active Mining event before recalling your minecart.');
+  const { data, error } = await getSupabaseServiceClient().rpc(instant ? 'begin_discord_mining_return_instantly' : 'begin_discord_mining_return', {
+    ...(instant ? {} : { p_ascent_duration_ms: active.equipment_snapshot.descendDurationMs }),
     p_discord_user_id: identity.discordUserId,
     p_expedition_id: active.id,
     p_guild_id: identity.guildId,
@@ -374,7 +471,7 @@ export async function returnMiningWebsiteExpedition(userId: string) {
   if (error) throw error;
   const returning = firstRow(data as MiningReturnRow | MiningReturnRow[] | null);
   if (!returning) throw new Error('Mining expedition could not begin its return.');
-  const result = resultAtReturn(returning, returning.return_started_at);
+  const result = resultAtReturn({ ...returning, event_state: active.event_state }, returning.return_started_at);
   const { error: recordError } = await getSupabaseServiceClient().rpc('record_discord_mining_return_result', {
     p_discord_user_id: identity.discordUserId,
     p_expedition_id: returning.expedition_id,
@@ -382,6 +479,28 @@ export async function returnMiningWebsiteExpedition(userId: string) {
     p_result: result,
   });
   if (recordError) throw recordError;
+  const settlement = instant ? await settleDueMiningReturn(identity) : null;
+  return buildDashboard(identity, settlement);
+}
+
+export async function respondToMiningWebsiteEvent(userId: string, action: MiningEventAction) {
+  const identity = await getMiningIdentity(userId);
+  await settleDueMiningReturn(identity);
+  const active = await reconcileMiningExpeditionEvent(identity);
+  const event = active?.event_state;
+  if (!active || active.status !== 'descending' || !event || event.status !== 'active') {
+    throw new ApiError(409, 'There is no Mining event awaiting your action.');
+  }
+  const next = resolveMiningEventAction(event, action, active.outcome_seed ^ 0x2A81D4C3, new Date().toISOString());
+  if (!(await saveMiningExpeditionEvent(identity, active, 'active', next))) {
+    throw new ApiError(409, 'That Mining event changed before your action could be saved. Refresh the minecart and try again.');
+  }
+  if (next.id === 'arcane-rift' && next.action === 'enter-rift') {
+    return returnMiningWebsiteExpedition(userId, true);
+  }
+  if (next.id === 'lost-temple' && next.action === 'attempt-relic' && next.success === false) {
+    return returnMiningWebsiteExpedition(userId);
+  }
   return buildDashboard(identity, null);
 }
 

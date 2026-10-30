@@ -296,7 +296,16 @@ export const commandDefinitions = [
       .setDescription('Browse fishing upgrades and spend KnowBucks.'))
     .addSubcommand((subcommand) => subcommand
       .setName('inventory')
-      .setDescription('View owned upgrades and equip rods or bait.'))
+      .setDescription('View owned upgrades and equip rods or bait.')
+      .addUserOption((option) => option.setName('user').setDescription('Member whose inventory to view. Defaults to you.').setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('simulate')
+      .setDescription('Role-gated read-only Fishing expedition samples.')
+      .addStringOption((option) => option.setName('biome').setDescription('Fishing biome to sample.').addChoices(
+        { name: 'Harbor', value: 'harbor' }, { name: 'Warm Ocean', value: 'warm-ocean' }, { name: 'Hydroplant Reservoir', value: 'hydroplant-reservoir' }, { name: 'Sunken Sea', value: 'sunken-sea' }, { name: 'Kelp Forest', value: 'kelp-forest' }, { name: 'Crystaline Caverns', value: 'crystaline-caverns' }, { name: 'Rallypoint Delta', value: 'rallypoint-delta' },
+      ).setRequired(true))
+      .addIntegerOption((option) => option.setName('length').setDescription('Expedition length tier.').addChoices({ name: '1', value: 1 }, { name: '2', value: 2 }, { name: '3', value: 3 }, { name: '4', value: 4 }).setRequired(true))
+      .addIntegerOption((option) => option.setName('x').setDescription('Number of samples, 1–500.').setMinValue(1).setMaxValue(500).setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('catalogue')
       .setDescription('Browse the fishing field guide by biome.'))
@@ -339,7 +348,13 @@ export const commandDefinitions = [
       .setDescription('Browse and craft permanent mining upgrades.'))
     .addSubcommand((subcommand) => subcommand
       .setName('inventory')
-      .setDescription('View ores, gems, fossils, and mining equipment.'))
+      .setDescription('View ores, gems, fossils, and mining equipment.')
+      .addUserOption((option) => option.setName('user').setDescription('Member whose inventory to view. Defaults to you.').setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('simulate')
+      .setDescription('Role-gated read-only full-cart Mining samples.')
+      .addIntegerOption((option) => option.setName('depth').setDescription('Mining depth to sample.').setMinValue(1).setMaxValue(7).setRequired(true))
+      .addIntegerOption((option) => option.setName('x').setDescription('Number of samples, 1–500.').setMinValue(1).setMaxValue(500).setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('catalogue')
       .setDescription('Browse Mining discoveries by depth.'))

@@ -37,7 +37,11 @@ import {
   type DiscordFishingRoleSettings,
   type DiscordFishingWeekdayPhenomenonId,
 } from '@/lib/discord-fishing';
-import type { DiscordMiningLevelRoleReward } from '@/lib/discord-mining';
+import {
+  DEFAULT_DISCORD_MINING_ROLE_SETTINGS,
+  type DiscordMiningLevelRoleReward,
+  type DiscordMiningRoleSettings,
+} from '@/lib/discord-mining';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 
 type DiscordMiningCommandSettings = {
@@ -67,6 +71,9 @@ type LevelingSettingsResponse = {
   miningCommandSettings: DiscordMiningCommandSettings;
   miningWebsitePanelChannelIds: string[];
   miningRoleRewards: DiscordMiningLevelRoleReward[];
+  miningRoleSettings: DiscordMiningRoleSettings;
+  fishingSimulationRoleIds: string[];
+  miningSimulationRoleIds: string[];
   skindleShareChannelIds: string[];
 };
 
@@ -93,6 +100,9 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
   miningCommandSettings: { allChannels: true },
   miningWebsitePanelChannelIds: [],
   miningRoleRewards: [],
+  miningRoleSettings: DEFAULT_DISCORD_MINING_ROLE_SETTINGS,
+  fishingSimulationRoleIds: [],
+  miningSimulationRoleIds: [],
   skindleShareChannelIds: [],
 };
 
@@ -222,8 +232,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.miningRoleRewards || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, miningRoleRewards: sortFishingRewards(body.miningRoleRewards), skindleShareChannelIds: body.skindleShareChannelIds });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.miningRoleRewards || !body.miningRoleSettings || !body.fishingSimulationRoleIds || !body.miningSimulationRoleIds || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, miningRoleRewards: sortFishingRewards(body.miningRoleRewards), miningRoleSettings: body.miningRoleSettings, fishingSimulationRoleIds: body.fishingSimulationRoleIds, miningSimulationRoleIds: body.miningSimulationRoleIds, skindleShareChannelIds: body.skindleShareChannelIds });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -256,12 +266,26 @@ export function DiscordLevelingSettings() {
     const protectedRoleIds = new Set([
       ...data.roleRewards.flatMap((reward) => reward.roleIds),
       ...data.fishingRoleRewards.flatMap((reward) => reward.roleIds),
+      ...data.miningRoleRewards.flatMap((reward) => reward.roleIds),
       ...data.manualXpRoleIds,
       ...data.collectionAdminRoleIds,
       data.settings.leaderboardTopRoleId,
+      data.miningRoleSettings.topMinerRoleId,
     ]);
     return data.roles.filter((role) => role.assignable && (!protectedRoleIds.has(role.id) || role.id === data.fishingRoleSettings.topFisherRoleId));
-  }, [data.collectionAdminRoleIds, data.fishingRoleRewards, data.fishingRoleSettings.topFisherRoleId, data.manualXpRoleIds, data.roleRewards, data.roles, data.settings.leaderboardTopRoleId]);
+  }, [data.collectionAdminRoleIds, data.fishingRoleRewards, data.fishingRoleSettings.topFisherRoleId, data.manualXpRoleIds, data.miningRoleRewards, data.miningRoleSettings.topMinerRoleId, data.roleRewards, data.roles, data.settings.leaderboardTopRoleId]);
+  const availableTopMinerRoles = useMemo(() => {
+    const protectedRoleIds = new Set([
+      ...data.roleRewards.flatMap((reward) => reward.roleIds),
+      ...data.fishingRoleRewards.flatMap((reward) => reward.roleIds),
+      ...data.miningRoleRewards.flatMap((reward) => reward.roleIds),
+      ...data.manualXpRoleIds,
+      ...data.collectionAdminRoleIds,
+      data.settings.leaderboardTopRoleId,
+      data.fishingRoleSettings.topFisherRoleId,
+    ]);
+    return data.roles.filter((role) => role.assignable && (!protectedRoleIds.has(role.id) || role.id === data.miningRoleSettings.topMinerRoleId));
+  }, [data.collectionAdminRoleIds, data.fishingRoleRewards, data.fishingRoleSettings.topFisherRoleId, data.manualXpRoleIds, data.miningRoleRewards, data.miningRoleSettings.topMinerRoleId, data.roleRewards, data.roles, data.settings.leaderboardTopRoleId]);
   const fishingBonusRoleOptions = useMemo(() => data.roles.map((role) => ({
     value: role.id,
     label: role.name,
@@ -275,6 +299,9 @@ export function DiscordLevelingSettings() {
   };
   const updateFishingRoleSettings = <TKey extends keyof DiscordFishingRoleSettings>(key: TKey, value: DiscordFishingRoleSettings[TKey]) => {
     setData((current) => ({ ...current, fishingRoleSettings: { ...current.fishingRoleSettings, [key]: value } }));
+  };
+  const updateMiningRoleSettings = <TKey extends keyof DiscordMiningRoleSettings>(key: TKey, value: DiscordMiningRoleSettings[TKey]) => {
+    setData((current) => ({ ...current, miningRoleSettings: { ...current.miningRoleSettings, [key]: value } }));
   };
   const toggleId = (values: string[], value: string) => values.includes(value) ? values.filter((item) => item !== value) : [...values, value].sort();
   const toggleRewardRole = (roleId: string) => setSelectedRoleIds((current) => toggleId(current, roleId));
@@ -484,12 +511,15 @@ export function DiscordLevelingSettings() {
           miningCommandChannelIds: data.miningCommandChannelIds,
           miningWebsitePanelChannelIds: data.miningWebsitePanelChannelIds,
           miningRoleRewards: data.miningRoleRewards,
+          miningTopMinerRoleId: data.miningRoleSettings.topMinerRoleId,
+          fishingSimulationRoleIds: data.fishingSimulationRoleIds,
+          miningSimulationRoleIds: data.miningSimulationRoleIds,
           skindleShareChannelIds: data.skindleShareChannelIds,
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.miningRoleRewards || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, miningRoleRewards: sortFishingRewards(body.miningRoleRewards), skindleShareChannelIds: body.skindleShareChannelIds });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.miningRoleRewards || !body.miningRoleSettings || !body.fishingSimulationRoleIds || !body.miningSimulationRoleIds || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, miningRoleRewards: sortFishingRewards(body.miningRoleRewards), miningRoleSettings: body.miningRoleSettings, fishingSimulationRoleIds: body.fishingSimulationRoleIds, miningSimulationRoleIds: body.miningSimulationRoleIds, skindleShareChannelIds: body.skindleShareChannelIds });
       setMessage('Discord Configuration saved. Fishing reward roles are granted when eligible members next gain Fishing XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
@@ -683,6 +713,15 @@ export function DiscordLevelingSettings() {
             <div className="mt-4 flex flex-wrap gap-2">{data.miningRoleRewards.map((reward) => <span key={reward.level} className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs font-bold text-amber-100">Level {reward.level}: {reward.roleIds.map((id) => roleById.get(id)?.name ?? 'Unavailable role').join(', ')} <button type="button" onClick={() => setData((current) => ({ ...current, miningRoleRewards: current.miningRoleRewards.filter((entry) => entry.level !== reward.level) }))} className="ml-2 text-amber-100 hover:text-white">Remove</button></span>)}</div>
             <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_10rem_auto]"><AppSelectMenu label="Roles for this Mining level" value={selectedMiningRoleIds[0] ?? ''} selectedValues={selectedMiningRoleIds} multiple onToggle={(roleId) => setSelectedMiningRoleIds((current) => toggleId(current, roleId))} options={data.roles.filter((role) => role.assignable && !data.miningRoleRewards.flatMap((reward) => reward.roleIds).includes(role.id)).map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))} /><label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Mining level</span><input type="number" min={1} max={10000} value={miningRewardLevel} onChange={(event) => setMiningRewardLevel(event.target.value)} className="h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm text-white" /></label><button type="button" onClick={() => { const level = Number(miningRewardLevel); if (Number.isInteger(level) && level >= 1 && level <= 10000 && selectedMiningRoleIds.length && !data.miningRoleRewards.some((reward) => reward.level === level)) { setData((current) => ({ ...current, miningRoleRewards: sortFishingRewards([...current.miningRoleRewards, { level, roleIds: selectedMiningRoleIds }]) })); setSelectedMiningRoleIds([]); } }} className="min-h-12 rounded-2xl border border-amber-300/50 bg-amber-300 px-4 text-sm font-black text-slate-950">Add reward level</button></div>
           </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <h2 className="text-lg font-black text-white">Top Miner role</h2><p className="mt-1 text-sm leading-6 text-slate-400">Assign one bot-managed role to the highest Mining-level member. Ties use Mining XP, then Discord ID.</p>
+            <div className="mt-4 max-w-xl"><AppSelectMenu label="Role for the top Miner" value={data.miningRoleSettings.topMinerRoleId ?? ''} onChange={(roleId) => updateMiningRoleSettings('topMinerRoleId', roleId || null)} disabled={!data.roles.length} disabledDescription="No Discord roles have been synced yet." headerDescription="Choose a dedicated, bot-assignable role. It cannot also be a permanent reward, champion, or staff role." searchable searchPlaceholder="Type a role name or ID" options={[{ value: '', label: 'No top Miner role', description: 'Mining rankings remain available without a managed role.' }, ...availableTopMinerRoles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))]} /></div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">The bot reconciles the assignment after Mining settlements and about once a minute.</p>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <h2 className="text-lg font-black text-white">Mining simulation access</h2><p className="mt-1 text-sm leading-6 text-slate-400">Only selected roles may run <code>/mining simulate</code>. Simulations do not write rewards, XP, inventory, or expedition state.</p>
+            <div className="mt-4 max-w-xl"><AppSelectMenu label="Roles allowed to simulate Mining" value={data.miningSimulationRoleIds[0] ?? ''} selectedValues={data.miningSimulationRoleIds} multiple onToggle={(roleId) => setData((current) => ({ ...current, miningSimulationRoleIds: toggleId(current.miningSimulationRoleIds, roleId) }))} disabled={!data.roles.length} disabledDescription="No Discord roles have been synced yet." headerDescription="No selected role means this testing command is disabled for everyone." searchable searchPlaceholder="Type a role name or ID" options={data.roles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))} /></div>
+          </section>
           </> : null}
           {activeTab === 'fishing' ? <>
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
@@ -762,6 +801,10 @@ export function DiscordLevelingSettings() {
               <label className="grid gap-2"><span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Fishing level</span><input type="number" min={1} max={10000} value={fishingRewardLevel} onChange={(event) => setFishingRewardLevel(event.target.value)} className="h-12 rounded-2xl border border-white/10 bg-slate-950 px-4 text-sm font-semibold text-white outline-none transition focus:border-amber-300 focus:ring-1 focus:ring-amber-300" /></label>
               <button type="button" onClick={addFishingRewardLevel} disabled={!selectedFishingRoleIds.length} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-300 px-4 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"><Plus size={16} />Add reward level</button>
             </div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <h2 className="text-lg font-black text-white">Fishing simulation access</h2><p className="mt-1 text-sm leading-6 text-slate-400">Only selected roles may run <code>/fish simulate</code>. Simulations are read-only and never create expedition, inventory, XP, or KnowBucks changes.</p>
+            <div className="mt-4 max-w-xl"><AppSelectMenu label="Roles allowed to simulate Fishing" value={data.fishingSimulationRoleIds[0] ?? ''} selectedValues={data.fishingSimulationRoleIds} multiple onToggle={(roleId) => setData((current) => ({ ...current, fishingSimulationRoleIds: toggleId(current.fishingSimulationRoleIds, roleId) }))} disabled={!data.roles.length} disabledDescription="No Discord roles have been synced yet." headerDescription="No selected role means this testing command is disabled for everyone." searchable searchPlaceholder="Type a role name or ID" options={data.roles.map((role) => ({ value: role.id, label: role.name, description: 'Discord role ID: ' + role.id }))} /></div>
           </section>
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>

@@ -49,6 +49,7 @@ import {
 } from './skindle.js';
 import {
   attachFishingExpeditionMessage,
+  canUseFishingSimulation,
   describeFishingEquipment,
   FISHING_REPEAT_BUTTON_PREFIX,
   FISHING_BIOMES,
@@ -72,6 +73,8 @@ import {
   parseFishingRepeatCustomId,
   reconcileDueFishingExpeditions,
   startFishingExpedition,
+  simulateFishingExpeditions,
+  summarizeFishingSettlement,
   syncDiscordFishingTopRole,
   getFishingProgress,
   grantCurrentFishingLevelRoles,
@@ -95,12 +98,15 @@ import {
   getMiningUpgrade,
   getMiningUpgrades,
   resolveMiningExpedition,
+  type MiningEventAction,
+  type MiningExpeditionEventState,
   type MiningDepthId,
   type MiningResourceKind,
   type MiningUpgradeCategory,
 } from './mining-catalog.js';
 import {
   beginMiningReturn,
+  canUseMiningSimulation,
   getActiveMiningExpedition,
   getMiningCatalogueProgress,
   getMiningCommandChannelIds,
@@ -109,10 +115,14 @@ import {
   getMiningProcessorTier,
   isMiningCommandAllowedInChannel,
   purchaseMiningUpgrade,
+  reconcileMiningExpeditionEvent,
+  respondToMiningExpeditionEvent,
   sellMiningResource,
   settleDueMiningReturn,
   grantEligibleMiningLevelRoles,
   startMiningExpedition,
+  simulateMiningExpeditions,
+  syncDiscordMiningTopRole,
   type MiningPlayerState,
   type MiningCatalogueProgress,
 } from './mining.js';
@@ -735,7 +745,7 @@ function splitMiningPanelField(name: string, values: readonly string[], emptyVal
   return fields;
 }
 
-function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlayerState, expiresAt: number, tab: MiningInventoryTab = 'overview', notice?: string) {
+function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlayerState, expiresAt: number, tab: MiningInventoryTab = 'overview', notice?: string, readOnly = false) {
   const tool = getMiningBestUpgrade(state.ownedUpgradeIds, 'tool');
   const storage = getMiningBestUpgrade(state.ownedUpgradeIds, 'storage');
   const processor = getMiningBestUpgrade(state.ownedUpgradeIds, 'processor');
@@ -767,7 +777,7 @@ function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlay
     fields = splitMiningPanelField(tab === 'ores' ? 'Ores' : tab === 'gems' ? 'Gems' : 'Fossil pieces', lines, `No ${tab} collected yet.`);
   }
   return {
-    components: miningInventoryComponents(ownerDiscordUserId, tab, expiresAt),
+    components: readOnly ? [] : miningInventoryComponents(ownerDiscordUserId, tab, expiresAt),
     embeds: [
       new EmbedBuilder()
         .setColor(0x78716C)
@@ -832,6 +842,32 @@ function formatMiningCargo(result: { cargo: Array<{ name: string; quantity: numb
   return contents.length > 0 ? contents.join('\n') : 'No cargo yet.';
 }
 
+function formatMiningRelics(result: { gearItems?: Array<{ itemId: string; quantity: number }> }) {
+  const relics = result.gearItems ?? [];
+  return relics.length
+    ? relics.map((item) => `**${getMiningGear(item.itemId)?.name ?? getFishingUpgrade(item.itemId)?.name ?? item.itemId}**`).join('\n')
+    : null;
+}
+
+function miningEventPanel(event: MiningExpeditionEventState) {
+  const secondsLeft = event.expiresAt ? Math.max(0, new Date(event.expiresAt).getTime() - Date.now()) : 0;
+  const responseWindow = `**${formatMiningDuration(secondsLeft)}** remaining`;
+  switch (event.id) {
+    case 'lost-temple': return {
+      actions: [['attempt-relic', 'Attempt relic'] as const, ['continue', 'Leave it'] as const],
+      text: `You found a Lost Temple with a sacred relic inside. Failing the 10% grab destroys this expedition. ${responseWindow}`,
+      title: 'Lost Temple',
+    };
+    case 'ore-vein': return { actions: [['claim-ores', 'Secure ores'] as const], text: `You found a fragile ore cluster. Secure it to fill the rest of your cart with ores from this depth or below. ${responseWindow}`, title: 'Ore Vein' };
+    case 'gem-cluster': return { actions: [['claim-gems', 'Secure gems'] as const], text: `You found an unstable cavern full of gems. Secure it to fill the rest of your Gem Bag. ${responseWindow}`, title: 'Gem Cluster' };
+    case 'damaged-gear': return { actions: [['repair', 'Make repairs'] as const], text: `Your gear is damaged. Repair it now or mining speed is halved for the rest of this expedition. ${responseWindow}`, title: 'Damaged Gear' };
+    case 'arcane-rift': return { actions: [['enter-rift', 'Enter rift'] as const], text: `A strange, fading rift leads to the top of the mine. Enter now to return instantly. ${responseWindow}`, title: 'Arcane Rift' };
+    case 'energy-crystals': return { actions: [['claim-crystals', 'Claim crystals'] as const], text: `You found energized crystals. Claim them to mine 100% faster for the rest of this expedition. ${responseWindow}`, title: 'Energy Crystals' };
+    case 'old-dynamite': return { actions: [['trigger-dynamite', 'Trigger dynamite'] as const], text: `You found old dynamite. Trigger it to fill the minecart with ores; you can still fill your Gem Bag. ${responseWindow}`, title: 'Old Dynamite' };
+    case 'quantum-fluctuations': return { actions: [['embrace-fluctuations', 'Embrace rift'] as const], text: `The caves look different. Embrace the fluctuations for recursively upgradeable 5% ore and gem rolls. ${responseWindow}`, title: 'Quantum Fluctuations' };
+  }
+}
+
 function reserveMiningExpeditionRefresh(discordUserId: string) {
   const now = Date.now();
   const availableAt = miningExpeditionRefreshAvailableAtByUserId.get(discordUserId) ?? 0;
@@ -840,7 +876,7 @@ function reserveMiningExpeditionRefresh(discordUserId: string) {
   return null;
 }
 
-function miningExpeditionComponents(ownerDiscordUserId: string, mode: 'launched' | 'view' | 'returning', depthId?: MiningDepthId) {
+function miningExpeditionComponents(ownerDiscordUserId: string, mode: 'launched' | 'view' | 'returning', depthId?: MiningDepthId, event?: MiningExpeditionEventState | null) {
   if (mode === 'returning') {
     if (!depthId) return [];
     return toComponentRows([
@@ -870,7 +906,14 @@ function miningExpeditionComponents(ownerDiscordUserId: string, mode: 'launched'
       .setStyle(ButtonStyle.Danger)
       .setLabel('Recall minecart'),
   ];
-  return toComponentRows(buttons);
+  const activeEvent = event?.status === 'active' ? miningEventPanel(event) : null;
+  return toComponentRows([
+    ...(activeEvent ? activeEvent.actions.map(([action, label]) => new ButtonBuilder()
+      .setCustomId(`${MINING_EXPEDITION_BUTTON_PREFIX}:event:${ownerDiscordUserId}:${action}`)
+      .setStyle(action === 'continue' ? ButtonStyle.Secondary : ButtonStyle.Primary)
+      .setLabel(label)) : []),
+    ...buttons,
+  ]);
 }
 
 /** Shared by slash-command replies and website-originated Discord panels. */
@@ -887,7 +930,8 @@ export function buildMiningLaunchPanel(ownerDiscordUserId: string, depthId: Mini
   };
 }
 
-function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number }, ascentDurationMs: number) {
+function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; gearItems?: Array<{ itemId: string; quantity: number }>; miningXpAwarded: number; stoneStored: number; storageUsed: number }, ascentDurationMs: number) {
+  const relics = formatMiningRelics(result);
   return new EmbedBuilder()
     .setColor(0x78716C)
     .setTitle('Minecart recalled')
@@ -895,6 +939,7 @@ function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity:
     .addFields(
       { name: `Secured cargo · ${formatXp(result.storageUsed)} stored`, value: formatMiningCargo(result) },
       { name: 'Expedition work', value: `${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP secured` },
+      ...(relics ? [{ name: 'Relics secured', value: relics }] : []),
     );
 }
 
@@ -902,7 +947,7 @@ function buildMiningReturnEmbed(result: { cargo: Array<{ name: string; quantity:
 export function buildMiningReturnPanel(
   ownerDiscordUserId: string,
   depthId: MiningDepthId,
-  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number },
+  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; gearItems?: Array<{ itemId: string; quantity: number }>; miningXpAwarded: number; stoneStored: number; storageUsed: number },
   ascentDurationMs: number,
 ) {
   return {
@@ -915,9 +960,10 @@ export function buildMiningReturnPanel(
 export function buildMiningCompletedPanel(
   ownerDiscordUserId: string,
   depthId: MiningDepthId,
-  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; miningXpAwarded: number; stoneStored: number; storageUsed: number },
+  result: { cargo: Array<{ name: string; quantity: number }>; discardedStone: number; gearItems?: Array<{ itemId: string; quantity: number }>; miningXpAwarded: number; stoneStored: number; storageUsed: number },
 ) {
   const depth = getMiningDepth(depthId);
+  const relics = formatMiningRelics(result);
   return {
     embeds: [
       new EmbedBuilder()
@@ -927,6 +973,7 @@ export function buildMiningCompletedPanel(
         .addFields(
           { name: `Collected · ${formatXp(result.storageUsed)} stored`, value: formatMiningCargo(result) },
           { name: 'Expedition work', value: `${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP earned` },
+          ...(relics ? [{ name: 'Relics found', value: relics }] : []),
         ),
     ],
     components: toComponentRows([
@@ -939,11 +986,15 @@ export function buildMiningCompletedPanel(
 }
 
 function buildMiningSettlementEmbed(settlement: NonNullable<Awaited<ReturnType<typeof settleDueMiningReturn>>>) {
+  const relics = formatMiningRelics(settlement.result);
   return new EmbedBuilder()
     .setColor(0x22C55E)
     .setTitle('Mining return complete')
     .setDescription(`Your minecart cargo was added to inventory. Earned **${formatXp(settlement.xpAwarded)} Mining XP** · Level **${settlement.currentLevel}**${settlement.currentLevel > settlement.previousLevel ? ' (level up!)' : ''}.`)
-    .addFields({ name: 'Collected', value: formatMiningCargo(settlement.result) });
+    .addFields(
+      { name: 'Collected', value: formatMiningCargo(settlement.result) },
+      ...(relics ? [{ name: 'Relics found', value: relics }] : []),
+    );
 }
 
 function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awaited<ReturnType<typeof getActiveMiningExpedition>>>) {
@@ -962,20 +1013,29 @@ function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awai
         expedition.equipment_snapshot,
         expedition.outcome_seed,
         Math.max(0, new Date(expedition.return_started_at).getTime() - new Date(expedition.mining_started_at).getTime()),
+        expedition.event_state ?? undefined,
+        new Date(expedition.mining_started_at).getTime(),
       )
       : null);
+    const relics = result ? formatMiningRelics(result) : null;
     return new EmbedBuilder()
       .setColor(0x78716C)
       .setTitle(`${username}'s mining expedition`)
       .setDescription(`Returning from **${depth?.name ?? `Depth ${expedition.depth}`}**. Ascent duration: **${formatMiningDuration(expedition.equipment_snapshot.descendDurationMs)}**.`)
-      .addFields({ name: `Secured cargo · ${formatXp(result?.storageUsed ?? 0)} stored`, value: result ? formatMiningCargo(result) : 'Cargo is being secured.' });
+      .addFields(
+        { name: `Secured cargo · ${formatXp(result?.storageUsed ?? 0)} stored`, value: result ? formatMiningCargo(result) : 'Cargo is being secured.' },
+        ...(relics ? [{ name: 'Relics secured', value: relics }] : []),
+      );
   }
   const result = resolveMiningExpedition(
     expedition.depth,
     expedition.equipment_snapshot,
     expedition.outcome_seed,
     Math.max(0, now - new Date(expedition.mining_started_at).getTime()),
+    expedition.event_state ?? undefined,
+    new Date(expedition.mining_started_at).getTime(),
   );
+  const activeEvent = expedition.event_state?.status === 'active' ? miningEventPanel(expedition.event_state) : null;
   return new EmbedBuilder()
     .setColor(0x78716C)
     .setTitle(`${username}'s mining expedition`)
@@ -983,6 +1043,10 @@ function buildMiningProgressEmbed(username: string, expedition: NonNullable<Awai
     .addFields(
       { name: `Minecart storage · ${formatXp(result.storageUsed)}/${formatXp(expedition.equipment_snapshot.storageCapacity)}`, value: formatMiningCargo(result) },
       { name: 'Expedition work', value: `${formatXp(result.stoneBroken)} stone broken · ${formatXp(result.discardedStone)} stone filtered out · ${formatXp(result.miningXpAwarded)} Mining XP on return` },
+      ...(activeEvent ? [{ name: `Event · ${activeEvent.title}`, value: activeEvent.text }] : []),
+      ...(expedition.event_state?.status === 'expired' && expedition.event_state.id === 'lost-temple'
+        ? [{ name: 'Lost Temple', value: 'The traps destroyed this expedition. Recall the minecart to return with no cargo.' }]
+        : []),
     );
 }
 
@@ -1199,6 +1263,7 @@ function buildFishingInventoryTabbedPanel(
   expiresAt: number,
   tab: FishingInventoryTab = 'overview',
   notice?: string,
+  readOnly = false,
 ) {
   const equipment = describeFishingEquipment(state.equipment);
   const sharedDescription = `${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**`;
@@ -1211,7 +1276,7 @@ function buildFishingInventoryTabbedPanel(
       .setDescription(sharedDescription)
       .addFields(
         { name: 'Equipped', value: `Rod: **${equipment.rod}**\nBait: **${equipment.bait}**`, inline: true },
-        { name: 'Progression', value: `Crew slots: **${state.crewSlots}**\nPassives: **${equipment.passives}**`, inline: true },
+        { name: 'Progression', value: `Crew slots: **${state.crewSlots}**\nRelics: **${equipment.relics}**`, inline: true },
       );
   } else if (tab === 'titles') {
     const titles = FISHING_EVENTS.map((event) => event.title);
@@ -1253,7 +1318,7 @@ function buildFishingInventoryTabbedPanel(
   }
 
   return {
-    components: fishingInventoryComponents(ownerDiscordUserId, state, expiresAt, tab),
+    components: readOnly ? [] : fishingInventoryComponents(ownerDiscordUserId, state, expiresAt, tab),
     embeds: [embed],
   };
 }
@@ -1275,7 +1340,8 @@ export function buildFishingCataloguePanel(
   if (!biome) throw new Error('Fishing catalogue biome is invalid.');
   const fish = FISHING_FISH.filter((entry) => entry.biomeId === biomeId);
   const gear = FISHING_UPGRADES.filter((entry) => entry.category === 'gear'
-    && (!entry.foundBiomeIds || entry.foundBiomeIds.includes(biomeId)));
+    && (!entry.foundBiomeIds || entry.foundBiomeIds.includes(biomeId)))
+    .sort((left, right) => Number(Boolean(left.foundBiomeIds)) - Number(Boolean(right.foundBiomeIds)) || left.name.localeCompare(right.name));
   return {
     components: fishingCatalogueComponents(ownerDiscordUserId, biomeId, expiresAt),
     embeds: [
@@ -1288,6 +1354,69 @@ export function buildFishingCataloguePanel(
           ...splitFishingPanelField('Relics found', gear.map((entry) => `${progress.ownedGearItemIds.has(entry.id) ? '✅ Found' : '⬜ Not found'} — **${entry.name}**`), 'No relics recorded.').map((field) => ({ ...field, inline: true })),
         ),
     ],
+  };
+}
+
+function buildFishingSimulationPanel(biomeId: FishingBiomeId, durationTier: FishingDurationTier, results: Awaited<ReturnType<typeof simulateFishingExpeditions>>['results']) {
+  const catches = new Map<string, number>();
+  const relics = new Map<string, number>();
+  let knowBucks = 0;
+  let xp = 0;
+  let crateCount = 0;
+  for (const result of results) {
+    knowBucks += result.fishSaleValue + result.crateSaleValue + result.knowBucksFound;
+    xp += result.fishingXpAwarded;
+    for (const catchItem of result.catches) {
+      if (catchItem.kind === 'gear') relics.set(catchItem.name, (relics.get(catchItem.name) ?? 0) + catchItem.quantity);
+      else {
+        catches.set(catchItem.name, (catches.get(catchItem.name) ?? 0) + catchItem.quantity);
+        if (catchItem.kind === 'crate') crateCount += catchItem.quantity;
+      }
+    }
+  }
+  const biome = getFishingBiome(biomeId);
+  const topCatches = [...catches.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, 8).map(([name, quantity]) => `**${name}** ×${formatXp(quantity)}`);
+  const relicSummary = [...relics.entries()].map(([name, quantity]) => `**${name}** ×${formatXp(quantity)}`);
+  return {
+    embeds: [new EmbedBuilder()
+      .setColor(0x0EA5E9)
+      .setTitle(`Fishing simulation · ${biome?.name ?? biomeId}`)
+      .setDescription(`**${formatXp(results.length)}** length-${durationTier} expeditions resolved instantly. This testing panel is read-only: no rewards, XP, inventory, expedition, or Genesys Loop relaunches were created.`)
+      .addFields(
+        { name: 'Total simulated return', value: `**${formatXp(knowBucks)} KnowBucks** · **${formatXp(xp)} Fishing XP** · **${formatXp(crateCount)}** automatic crate opening${crateCount === 1 ? '' : 's'}`, inline: true },
+        { name: 'Relics found', value: relicSummary.join('\n') || 'None', inline: true },
+        { name: 'Most common returns', value: topCatches.join('\n') || 'No catches.', inline: false },
+      )],
+  };
+}
+
+function buildMiningSimulationPanel(depthId: MiningDepthId, results: Awaited<ReturnType<typeof simulateMiningExpeditions>>['results']) {
+  const cargo = new Map<string, number>();
+  const relics = new Map<string, number>();
+  let xp = 0;
+  let stone = 0;
+  for (const result of results) {
+    xp += result.miningXpAwarded;
+    stone += result.stoneStored;
+    for (const item of result.cargo) cargo.set(item.name, (cargo.get(item.name) ?? 0) + item.quantity);
+    for (const item of result.gearItems ?? []) {
+      const name = getMiningGear(item.itemId)?.name ?? item.itemId;
+      relics.set(name, (relics.get(name) ?? 0) + item.quantity);
+    }
+  }
+  const depth = getMiningDepth(depthId);
+  const topCargo = [...cargo.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, 10).map(([name, quantity]) => `**${name}** ×${formatXp(quantity)}`);
+  const relicSummary = [...relics.entries()].map(([name, quantity]) => `**${name}** ×${formatXp(quantity)}`);
+  return {
+    embeds: [new EmbedBuilder()
+      .setColor(0x78716C)
+      .setTitle(`Mining simulation · Depth ${depthId}: ${depth?.name ?? 'Unknown'}`)
+      .setDescription(`**${formatXp(results.length)}** full-cart expeditions resolved instantly. This testing panel is read-only: no rewards, XP, inventory, or expedition state was created.`)
+      .addFields(
+        { name: 'Total simulated return', value: `**${formatXp(xp)} Mining XP** · **${formatXp(stone)} Stone**`, inline: true },
+        { name: 'Relics found', value: relicSummary.join('\n') || 'None', inline: true },
+        { name: 'Cargo', value: topCargo.join('\n') || 'No cargo.', inline: false },
+      )],
   };
 }
 
@@ -1394,6 +1523,7 @@ async function handleXpCommand(interaction: ChatInputCommandInteraction, config:
   }
 
   const subcommand = interaction.options.getSubcommand();
+
   if (subcommand === 'view') {
     const targetUser = interaction.options.getUser('member') ?? interaction.user;
     const progress = await getDiscordLevelProgress(config, targetUser.id);
@@ -1930,6 +2060,25 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
   }
   const subcommand = interaction.options.getSubcommand();
 
+  if (subcommand === 'simulate') {
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!(await canUseFishingSimulation(config, [...member.roles.cache.keys()]))) {
+      await interaction.reply({ content: 'Fishing simulation is limited to roles selected in Discord Configuration.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const biomeId = interaction.options.getString('biome', true) as FishingBiomeId;
+      const durationTier = interaction.options.getInteger('length', true) as FishingDurationTier;
+      const runs = interaction.options.getInteger('x', true);
+      const simulation = await simulateFishingExpeditions(config, interaction.user.id, biomeId, durationTier, runs, [...member.roles.cache.keys()]);
+      await interaction.editReply(buildFishingSimulationPanel(biomeId, durationTier, simulation.results));
+    } catch (error) {
+      await interaction.editReply({ content: error instanceof Error ? error.message : 'Fishing simulation could not be completed.', embeds: [] });
+    }
+    return;
+  }
+
   if (subcommand === 'help') {
     await interaction.reply({
       embeds: [
@@ -2028,7 +2177,7 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
       }).join('\n')
       : 'No active expeditions.';
     const recent = progress.mostRecent?.result
-      ? `Latest: **${getFishingEvent(progress.mostRecent.equipment_snapshot?.eventId)?.biomeName ?? getFishingBiome(progress.mostRecent.biome_id)?.name ?? progress.mostRecent.biome_id}** · ${formatXp(progress.mostRecent.result.fishSaleValue + (progress.mostRecent.result.crateSaleValue ?? 0) + progress.mostRecent.result.knowBucksFound)} KnowBucks earned`
+      ? `Latest: **${getFishingEvent(progress.mostRecent.equipment_snapshot?.eventId)?.biomeName ?? getFishingBiome(progress.mostRecent.biome_id)?.name ?? progress.mostRecent.biome_id}** · ${formatXp(progress.mostRecent.result.fishSaleValue + (progress.mostRecent.result.crateSaleValue ?? 0) + progress.mostRecent.result.knowBucksFound)} KnowBucks earned · ${summarizeFishingSettlement(progress.mostRecent.result)}`
       : 'No completed expeditions yet.';
     await interaction.editReply({
       embeds: [
@@ -2057,10 +2206,12 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
 
   if (subcommand === 'inventory') {
     await interaction.deferReply();
-    const state = await getFishingPlayerState(config, interaction.user.id);
+    const targetUser = interaction.options.getUser('user') ?? interaction.user;
+    const viewingAnotherPlayer = targetUser.id !== interaction.user.id;
+    const state = await getFishingPlayerState(config, targetUser.id);
     const expiresAt = Date.now() + FISHING_PANEL_TTL_MS;
-    await interaction.editReply(buildFishingInventoryTabbedPanel(interaction.user.id, state, expiresAt));
-    scheduleFishingPanelExpiry(await interaction.fetchReply(), expiresAt);
+    await interaction.editReply(buildFishingInventoryTabbedPanel(interaction.user.id, state, expiresAt, 'overview', viewingAnotherPlayer ? `Viewing **${escapeMarkdown(targetUser.username)}**'s inventory. Equipment controls are available only in your own inventory.` : undefined, viewingAnotherPlayer));
+    if (!viewingAnotherPlayer) scheduleFishingPanelExpiry(await interaction.fetchReply(), expiresAt);
     return;
   }
 
@@ -2093,10 +2244,32 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
   }
   const group = interaction.options.getSubcommandGroup(false);
   const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === 'simulate') {
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!(await canUseMiningSimulation(config, [...member.roles.cache.keys()]))) {
+      await interaction.reply({ content: 'Mining simulation is limited to roles selected in Discord Configuration.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const depthId = interaction.options.getInteger('depth', true) as MiningDepthId;
+      const runs = interaction.options.getInteger('x', true);
+      const simulation = await simulateMiningExpeditions(config, interaction.user.id, depthId, runs);
+      await interaction.editReply(buildMiningSimulationPanel(depthId, simulation.results));
+    } catch (error) {
+      await interaction.editReply({ content: miningCommandErrorMessage(error), embeds: [] });
+    }
+    return;
+  }
   await interaction.deferReply();
   try {
     const settlement = await settleDueMiningReturn(config, interaction.user.id);
-    if (settlement) await grantEligibleMiningLevelRoles(config, await interaction.guild.members.fetch(interaction.user.id), settlement.currentLevel);
+    if (settlement) {
+      await grantEligibleMiningLevelRoles(config, await interaction.guild.members.fetch(interaction.user.id), settlement.currentLevel);
+      void syncDiscordMiningTopRole(config, interaction.guild)
+        .catch((error: unknown) => console.error('Discord Mining top-role synchronization failed after settlement.', error));
+    }
 
     if (subcommand === 'help') {
       await interaction.editReply({
@@ -2125,7 +2298,7 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
     }
 
     if (group === 'expedition' && subcommand === 'view') {
-      const active = await getActiveMiningExpedition(config, interaction.user.id);
+      const active = await reconcileMiningExpeditionEvent(config, interaction.user.id);
       if (!active) {
         await interaction.editReply({
           embeds: settlement
@@ -2138,7 +2311,7 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
         embeds: [buildMiningProgressEmbed(interaction.user.username, active)],
         components: active.status === 'returning'
           ? miningExpeditionComponents(interaction.user.id, 'returning', active.depth)
-          : miningExpeditionComponents(interaction.user.id, 'view'),
+          : miningExpeditionComponents(interaction.user.id, 'view', undefined, active.event_state),
       });
       return;
     }
@@ -2163,10 +2336,12 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
     }
 
     if (subcommand === 'inventory') {
-      const state = await getMiningPlayerState(config, interaction.user.id);
+      const targetUser = interaction.options.getUser('user') ?? interaction.user;
+      const viewingAnotherPlayer = targetUser.id !== interaction.user.id;
+      const state = await getMiningPlayerState(config, targetUser.id);
       const expiresAt = Date.now() + MINING_PANEL_TTL_MS;
-      await interaction.editReply(buildMiningInventoryPanel(interaction.user.id, state, expiresAt));
-      scheduleMiningPanelExpiry(await interaction.fetchReply(), expiresAt);
+      await interaction.editReply(buildMiningInventoryPanel(interaction.user.id, state, expiresAt, 'overview', viewingAnotherPlayer ? `Viewing **${escapeMarkdown(targetUser.username)}**'s inventory. Inventory controls are available only in your own inventory.` : undefined, viewingAnotherPlayer));
+      if (!viewingAnotherPlayer) scheduleMiningPanelExpiry(await interaction.fetchReply(), expiresAt);
       return;
     }
 
@@ -3094,8 +3269,10 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
 async function handleMiningExpeditionButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   const [prefix, action, ownerDiscordUserId, depthText, ...extra] = interaction.customId.split(':');
   if (prefix !== MINING_EXPEDITION_BUTTON_PREFIX) return false;
-  const validAction = action === 'view' || action === 'refresh' || action === 'return' || action === 'repeat';
-  if (!validAction || !ownerDiscordUserId || extra.length > 0 || ((action === 'repeat') !== Boolean(depthText))) {
+  const eventAction = depthText as MiningEventAction;
+  const validAction = action === 'view' || action === 'refresh' || action === 'return' || action === 'repeat' || action === 'event';
+  const validEventAction = ['attempt-relic', 'continue', 'claim-ores', 'claim-gems', 'repair', 'enter-rift', 'claim-crystals', 'trigger-dynamite', 'embrace-fluctuations'].includes(eventAction);
+  if (!validAction || !ownerDiscordUserId || extra.length > 0 || ((action === 'repeat' || action === 'event') !== Boolean(depthText)) || (action === 'event' && !validEventAction)) {
     await interaction.reply({ content: 'This mining expedition control is outdated. Run `/mining expedition view` to open a current panel.', flags: MessageFlags.Ephemeral });
     return true;
   }
@@ -3118,14 +3295,35 @@ async function handleMiningExpeditionButtonInteraction(interaction: ButtonIntera
   await interaction.deferUpdate();
   try {
     const settlement = await settleDueMiningReturn(config, ownerDiscordUserId);
+    if (action === 'event') {
+      const response = await respondToMiningExpeditionEvent(config, ownerDiscordUserId, eventAction);
+      if (response.shouldReturn) {
+        const returning = await beginMiningReturn(config, ownerDiscordUserId, response.instantReturn);
+        if (response.instantReturn) {
+          const settled = await settleDueMiningReturn(config, ownerDiscordUserId);
+          if (settled) {
+            await interaction.editReply({ embeds: [buildMiningSettlementEmbed(settled)], components: [] });
+            return true;
+          }
+        }
+        await interaction.editReply(buildMiningReturnPanel(ownerDiscordUserId, returning.depth, returning.result, returning.travelDurationMs));
+        return true;
+      }
+      const active = await reconcileMiningExpeditionEvent(config, ownerDiscordUserId);
+      await interaction.editReply(active ? {
+        embeds: [buildMiningProgressEmbed(interaction.user.username, active)],
+        components: miningExpeditionComponents(ownerDiscordUserId, 'view', undefined, active.event_state),
+      } : { content: response.event.id === 'lost-temple' ? 'You left the Lost Temple behind and continued mining.' : 'Mining event resolved.', embeds: [], components: [] });
+      return true;
+    }
     if (action === 'view' || action === 'refresh') {
-      const active = await getActiveMiningExpedition(config, ownerDiscordUserId);
+      const active = await reconcileMiningExpeditionEvent(config, ownerDiscordUserId);
       await interaction.editReply(active
         ? {
           embeds: [buildMiningProgressEmbed(interaction.user.username, active)],
           components: active.status === 'returning'
             ? miningExpeditionComponents(ownerDiscordUserId, 'returning', active.depth)
-            : miningExpeditionComponents(ownerDiscordUserId, 'view'),
+            : miningExpeditionComponents(ownerDiscordUserId, 'view', undefined, active.event_state),
         }
         : {
           embeds: settlement

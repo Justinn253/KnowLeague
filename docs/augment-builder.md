@@ -1,6 +1,6 @@
 ﻿# ARAM Mayhem Augment Community and Builder
 
-The game registry exposes `/augment-builder` in both the games hub and navigation drawer; that route opens the account-only community hub, while `/augment-builder/create` opens the editor. Drafts use a versioned browser localStorage key. The editor starts as a blank silver card with a silver icon; changing rarity clears incompatible artwork. Routine save messages are hidden, while storage failures remain visible. Authenticated publications appear in the community hub and the creator's public binder; guest publications remain viewable by direct link but are not listed in the account community feed. Owners can edit their published cards without changing the card ID, so existing votes remain attached to the design.
+League Tools exposes `/augment-builder`; that route opens the account-only community hub, while `/augment-builder/create` opens the editor. Drafts use a versioned browser localStorage key. The editor starts as a blank silver card with a silver icon; changing rarity clears incompatible artwork. Routine save messages are hidden, while storage failures remain visible. Authenticated publications appear in the community hub and the creator's public binder; guest publications remain viewable by direct link but are not listed in the account community feed. Owners can edit their published cards without changing the card ID, so existing votes remain attached to the design.
 
 ## Assets
 

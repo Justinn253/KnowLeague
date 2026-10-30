@@ -49,6 +49,8 @@ export type MiningEquipmentSnapshot = {
 };
 
 export type MiningResult = {
+  /** True only when every available cart compartment was filled before return. */
+  cartFull: boolean;
   cargo: Array<{ id: string; kind: MiningResourceKind; name: string; quantity: number }>;
   discardedStone: number;
   gearItems?: Array<{ itemId: string; quantity: number }>;
@@ -72,6 +74,17 @@ export const MINING_UPGRADES: readonly MiningUpgrade[] = MINING_SHOP_UPGRADE_CON
 export const MINING_REWARD_WEIGHTS = MINING_REWARD_WEIGHT_CONFIG;
 export const MINING_GEAR = MINING_GEAR_CONTENT_CONFIG;
 export const MINING_GEAR_FIND_RATE = MINING_GEAR_DROP_RATE;
+
+/**
+ * Makes deeper carts proportionally more likely to find a Relic, preserving
+ * approximately the same real-time expected wait despite their travel time.
+ */
+export function getMiningRelicFindChance(depthId: MiningDepthId) {
+  const depth = getMiningDepth(depthId);
+  const shallow = getMiningDepth(1);
+  if (!depth || !shallow) return 0;
+  return Math.min(1, MINING_GEAR_FIND_RATE * (depth.descendAndAscendMs / shallow.descendAndAscendMs));
+}
 
 export function getMiningGear(itemId: string) {
   return MINING_GEAR.find((gear) => gear.id === itemId);
@@ -153,7 +166,6 @@ export function resolveMiningExpedition(
   const random = seededRandom(outcomeSeed);
   const cargo = new Map<string, { id: string; kind: MiningResourceKind; name: string; quantity: number }>();
   const gearItems = new Map<string, number>();
-  const foundGearIds = new Set(gearIds);
   const capacity = Math.max(1, Math.floor(equipment.storageCapacity));
   const gemStorageCapacity = hasGear('mining-gear-gem-bag') ? Math.max(1, Math.floor(capacity * 0.25)) : 0;
   const luckLevel = Math.max(0, Math.min(4, Math.floor(equipment.luckLevel)));
@@ -202,16 +214,17 @@ export function resolveMiningExpedition(
       const duplicate = cargo.get(resourceItem.id)!;
       duplicate.quantity += 1;
     }
-    const eligibleGear = MINING_GEAR.filter((gear) => gear.depth === depth.id && !foundGearIds.has(gear.id));
-    if (eligibleGear.length > 0 && random() < MINING_GEAR_FIND_RATE) {
-      const gear = pick(eligibleGear, random);
-      foundGearIds.add(gear.id);
-      gearItems.set(gear.id, 1);
-    }
+  }
+
+  const cartFull = storageUsed >= capacity && gemStorageUsed >= gemStorageCapacity;
+  const eligibleGear = MINING_GEAR.filter((gear) => gear.depth === depth.id && !gearIds.has(gear.id));
+  if (cartFull && eligibleGear.length > 0 && random() < getMiningRelicFindChance(depth.id)) {
+    const gear = pick(eligibleGear, random);
+    gearItems.set(gear.id, 1);
   }
 
   const xpMultiplier = hasGear('gear-giant-pearl') ? 1.25 : 1;
-  return { cargo: [...cargo.values()], discardedStone, gearItems: [...gearItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })), gemStorageCapacity, gemStorageUsed, miningXpAwarded: Math.floor(miningXpAwarded * xpMultiplier), stoneStored, stoneBroken, storageUsed };
+  return { cargo: [...cargo.values()], cartFull, discardedStone, gearItems: [...gearItems.entries()].map(([itemId, quantity]) => ({ itemId, quantity })), gemStorageCapacity, gemStorageUsed, miningXpAwarded: Math.floor(miningXpAwarded * xpMultiplier), stoneStored, stoneBroken, storageUsed };
 }
 
 export function getMiningXpForLevel(level: number) {

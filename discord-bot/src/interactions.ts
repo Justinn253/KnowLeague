@@ -49,6 +49,7 @@ import {
 } from './skindle.js';
 import {
   attachFishingExpeditionMessage,
+  canUseFishingSimulation,
   describeFishingEquipment,
   FISHING_REPEAT_BUTTON_PREFIX,
   FISHING_BIOMES,
@@ -72,6 +73,7 @@ import {
   parseFishingRepeatCustomId,
   reconcileDueFishingExpeditions,
   startFishingExpedition,
+  simulateFishingExpeditions,
   summarizeFishingSettlement,
   syncDiscordFishingTopRole,
   getFishingProgress,
@@ -102,6 +104,7 @@ import {
 } from './mining-catalog.js';
 import {
   beginMiningReturn,
+  canUseMiningSimulation,
   getActiveMiningExpedition,
   getMiningCatalogueProgress,
   getMiningCommandChannelIds,
@@ -114,6 +117,8 @@ import {
   settleDueMiningReturn,
   grantEligibleMiningLevelRoles,
   startMiningExpedition,
+  simulateMiningExpeditions,
+  syncDiscordMiningTopRole,
   type MiningPlayerState,
   type MiningCatalogueProgress,
 } from './mining.js';
@@ -736,7 +741,7 @@ function splitMiningPanelField(name: string, values: readonly string[], emptyVal
   return fields;
 }
 
-function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlayerState, expiresAt: number, tab: MiningInventoryTab = 'overview', notice?: string) {
+function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlayerState, expiresAt: number, tab: MiningInventoryTab = 'overview', notice?: string, readOnly = false) {
   const tool = getMiningBestUpgrade(state.ownedUpgradeIds, 'tool');
   const storage = getMiningBestUpgrade(state.ownedUpgradeIds, 'storage');
   const processor = getMiningBestUpgrade(state.ownedUpgradeIds, 'processor');
@@ -768,7 +773,7 @@ function buildMiningInventoryPanel(ownerDiscordUserId: string, state: MiningPlay
     fields = splitMiningPanelField(tab === 'ores' ? 'Ores' : tab === 'gems' ? 'Gems' : 'Fossil pieces', lines, `No ${tab} collected yet.`);
   }
   return {
-    components: miningInventoryComponents(ownerDiscordUserId, tab, expiresAt),
+    components: readOnly ? [] : miningInventoryComponents(ownerDiscordUserId, tab, expiresAt),
     embeds: [
       new EmbedBuilder()
         .setColor(0x78716C)
@@ -1219,6 +1224,7 @@ function buildFishingInventoryTabbedPanel(
   expiresAt: number,
   tab: FishingInventoryTab = 'overview',
   notice?: string,
+  readOnly = false,
 ) {
   const equipment = describeFishingEquipment(state.equipment);
   const sharedDescription = `${notice ? `${notice}\n\n` : ''}Character level: **${state.chatLevel}** · Fishing level: **${state.fishingLevel}** (${formatXp(state.fishingXpIntoLevel)}/${formatXp(state.fishingXpToNextLevel)} XP) · Balance: **${formatXp(state.balance)} KnowBucks**`;
@@ -1273,7 +1279,7 @@ function buildFishingInventoryTabbedPanel(
   }
 
   return {
-    components: fishingInventoryComponents(ownerDiscordUserId, state, expiresAt, tab),
+    components: readOnly ? [] : fishingInventoryComponents(ownerDiscordUserId, state, expiresAt, tab),
     embeds: [embed],
   };
 }
@@ -1295,7 +1301,8 @@ export function buildFishingCataloguePanel(
   if (!biome) throw new Error('Fishing catalogue biome is invalid.');
   const fish = FISHING_FISH.filter((entry) => entry.biomeId === biomeId);
   const gear = FISHING_UPGRADES.filter((entry) => entry.category === 'gear'
-    && (!entry.foundBiomeIds || entry.foundBiomeIds.includes(biomeId)));
+    && (!entry.foundBiomeIds || entry.foundBiomeIds.includes(biomeId)))
+    .sort((left, right) => Number(Boolean(left.foundBiomeIds)) - Number(Boolean(right.foundBiomeIds)) || left.name.localeCompare(right.name));
   return {
     components: fishingCatalogueComponents(ownerDiscordUserId, biomeId, expiresAt),
     embeds: [
@@ -1308,6 +1315,69 @@ export function buildFishingCataloguePanel(
           ...splitFishingPanelField('Relics found', gear.map((entry) => `${progress.ownedGearItemIds.has(entry.id) ? '✅ Found' : '⬜ Not found'} — **${entry.name}**`), 'No relics recorded.').map((field) => ({ ...field, inline: true })),
         ),
     ],
+  };
+}
+
+function buildFishingSimulationPanel(biomeId: FishingBiomeId, durationTier: FishingDurationTier, results: Awaited<ReturnType<typeof simulateFishingExpeditions>>['results']) {
+  const catches = new Map<string, number>();
+  const relics = new Map<string, number>();
+  let knowBucks = 0;
+  let xp = 0;
+  let crateCount = 0;
+  for (const result of results) {
+    knowBucks += result.fishSaleValue + result.crateSaleValue + result.knowBucksFound;
+    xp += result.fishingXpAwarded;
+    for (const catchItem of result.catches) {
+      if (catchItem.kind === 'gear') relics.set(catchItem.name, (relics.get(catchItem.name) ?? 0) + catchItem.quantity);
+      else {
+        catches.set(catchItem.name, (catches.get(catchItem.name) ?? 0) + catchItem.quantity);
+        if (catchItem.kind === 'crate') crateCount += catchItem.quantity;
+      }
+    }
+  }
+  const biome = getFishingBiome(biomeId);
+  const topCatches = [...catches.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, 8).map(([name, quantity]) => `**${name}** ×${formatXp(quantity)}`);
+  const relicSummary = [...relics.entries()].map(([name, quantity]) => `**${name}** ×${formatXp(quantity)}`);
+  return {
+    embeds: [new EmbedBuilder()
+      .setColor(0x0EA5E9)
+      .setTitle(`Fishing simulation · ${biome?.name ?? biomeId}`)
+      .setDescription(`**${formatXp(results.length)}** length-${durationTier} expeditions resolved instantly. This testing panel is read-only: no rewards, XP, inventory, expedition, or Genesys Loop relaunches were created.`)
+      .addFields(
+        { name: 'Total simulated return', value: `**${formatXp(knowBucks)} KnowBucks** · **${formatXp(xp)} Fishing XP** · **${formatXp(crateCount)}** automatic crate opening${crateCount === 1 ? '' : 's'}`, inline: true },
+        { name: 'Relics found', value: relicSummary.join('\n') || 'None', inline: true },
+        { name: 'Most common returns', value: topCatches.join('\n') || 'No catches.', inline: false },
+      )],
+  };
+}
+
+function buildMiningSimulationPanel(depthId: MiningDepthId, results: Awaited<ReturnType<typeof simulateMiningExpeditions>>['results']) {
+  const cargo = new Map<string, number>();
+  const relics = new Map<string, number>();
+  let xp = 0;
+  let stone = 0;
+  for (const result of results) {
+    xp += result.miningXpAwarded;
+    stone += result.stoneStored;
+    for (const item of result.cargo) cargo.set(item.name, (cargo.get(item.name) ?? 0) + item.quantity);
+    for (const item of result.gearItems ?? []) {
+      const name = getMiningGear(item.itemId)?.name ?? item.itemId;
+      relics.set(name, (relics.get(name) ?? 0) + item.quantity);
+    }
+  }
+  const depth = getMiningDepth(depthId);
+  const topCargo = [...cargo.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, 10).map(([name, quantity]) => `**${name}** ×${formatXp(quantity)}`);
+  const relicSummary = [...relics.entries()].map(([name, quantity]) => `**${name}** ×${formatXp(quantity)}`);
+  return {
+    embeds: [new EmbedBuilder()
+      .setColor(0x78716C)
+      .setTitle(`Mining simulation · Depth ${depthId}: ${depth?.name ?? 'Unknown'}`)
+      .setDescription(`**${formatXp(results.length)}** full-cart expeditions resolved instantly. This testing panel is read-only: no rewards, XP, inventory, or expedition state was created.`)
+      .addFields(
+        { name: 'Total simulated return', value: `**${formatXp(xp)} Mining XP** · **${formatXp(stone)} Stone**`, inline: true },
+        { name: 'Relics found', value: relicSummary.join('\n') || 'None', inline: true },
+        { name: 'Cargo', value: topCargo.join('\n') || 'No cargo.', inline: false },
+      )],
   };
 }
 
@@ -1414,6 +1484,7 @@ async function handleXpCommand(interaction: ChatInputCommandInteraction, config:
   }
 
   const subcommand = interaction.options.getSubcommand();
+
   if (subcommand === 'view') {
     const targetUser = interaction.options.getUser('member') ?? interaction.user;
     const progress = await getDiscordLevelProgress(config, targetUser.id);
@@ -1950,6 +2021,25 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
   }
   const subcommand = interaction.options.getSubcommand();
 
+  if (subcommand === 'simulate') {
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!(await canUseFishingSimulation(config, [...member.roles.cache.keys()]))) {
+      await interaction.reply({ content: 'Fishing simulation is limited to roles selected in Discord Configuration.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const biomeId = interaction.options.getString('biome', true) as FishingBiomeId;
+      const durationTier = interaction.options.getInteger('length', true) as FishingDurationTier;
+      const runs = interaction.options.getInteger('x', true);
+      const simulation = await simulateFishingExpeditions(config, interaction.user.id, biomeId, durationTier, runs, [...member.roles.cache.keys()]);
+      await interaction.editReply(buildFishingSimulationPanel(biomeId, durationTier, simulation.results));
+    } catch (error) {
+      await interaction.editReply({ content: error instanceof Error ? error.message : 'Fishing simulation could not be completed.', embeds: [] });
+    }
+    return;
+  }
+
   if (subcommand === 'help') {
     await interaction.reply({
       embeds: [
@@ -2077,10 +2167,12 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
 
   if (subcommand === 'inventory') {
     await interaction.deferReply();
-    const state = await getFishingPlayerState(config, interaction.user.id);
+    const targetUser = interaction.options.getUser('user') ?? interaction.user;
+    const viewingAnotherPlayer = targetUser.id !== interaction.user.id;
+    const state = await getFishingPlayerState(config, targetUser.id);
     const expiresAt = Date.now() + FISHING_PANEL_TTL_MS;
-    await interaction.editReply(buildFishingInventoryTabbedPanel(interaction.user.id, state, expiresAt));
-    scheduleFishingPanelExpiry(await interaction.fetchReply(), expiresAt);
+    await interaction.editReply(buildFishingInventoryTabbedPanel(interaction.user.id, state, expiresAt, 'overview', viewingAnotherPlayer ? `Viewing **${escapeMarkdown(targetUser.username)}**'s inventory. Equipment controls are available only in your own inventory.` : undefined, viewingAnotherPlayer));
+    if (!viewingAnotherPlayer) scheduleFishingPanelExpiry(await interaction.fetchReply(), expiresAt);
     return;
   }
 
@@ -2113,10 +2205,32 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
   }
   const group = interaction.options.getSubcommandGroup(false);
   const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === 'simulate') {
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!(await canUseMiningSimulation(config, [...member.roles.cache.keys()]))) {
+      await interaction.reply({ content: 'Mining simulation is limited to roles selected in Discord Configuration.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const depthId = interaction.options.getInteger('depth', true) as MiningDepthId;
+      const runs = interaction.options.getInteger('x', true);
+      const simulation = await simulateMiningExpeditions(config, interaction.user.id, depthId, runs);
+      await interaction.editReply(buildMiningSimulationPanel(depthId, simulation.results));
+    } catch (error) {
+      await interaction.editReply({ content: miningCommandErrorMessage(error), embeds: [] });
+    }
+    return;
+  }
   await interaction.deferReply();
   try {
     const settlement = await settleDueMiningReturn(config, interaction.user.id);
-    if (settlement) await grantEligibleMiningLevelRoles(config, await interaction.guild.members.fetch(interaction.user.id), settlement.currentLevel);
+    if (settlement) {
+      await grantEligibleMiningLevelRoles(config, await interaction.guild.members.fetch(interaction.user.id), settlement.currentLevel);
+      void syncDiscordMiningTopRole(config, interaction.guild)
+        .catch((error: unknown) => console.error('Discord Mining top-role synchronization failed after settlement.', error));
+    }
 
     if (subcommand === 'help') {
       await interaction.editReply({
@@ -2183,10 +2297,12 @@ async function handleMiningCommand(interaction: ChatInputCommandInteraction, con
     }
 
     if (subcommand === 'inventory') {
-      const state = await getMiningPlayerState(config, interaction.user.id);
+      const targetUser = interaction.options.getUser('user') ?? interaction.user;
+      const viewingAnotherPlayer = targetUser.id !== interaction.user.id;
+      const state = await getMiningPlayerState(config, targetUser.id);
       const expiresAt = Date.now() + MINING_PANEL_TTL_MS;
-      await interaction.editReply(buildMiningInventoryPanel(interaction.user.id, state, expiresAt));
-      scheduleMiningPanelExpiry(await interaction.fetchReply(), expiresAt);
+      await interaction.editReply(buildMiningInventoryPanel(interaction.user.id, state, expiresAt, 'overview', viewingAnotherPlayer ? `Viewing **${escapeMarkdown(targetUser.username)}**'s inventory. Inventory controls are available only in your own inventory.` : undefined, viewingAnotherPlayer));
+      if (!viewingAnotherPlayer) scheduleMiningPanelExpiry(await interaction.fetchReply(), expiresAt);
       return;
     }
 

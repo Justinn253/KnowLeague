@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import type { DiscordBotConfig } from './config.js';
-import type { GuildMember } from 'discord.js';
+import type { Guild, GuildMember } from 'discord.js';
 import {
   getMiningBestUpgrade,
   getMiningCraftingRecipe,
@@ -24,11 +24,17 @@ import { createBotServiceClient } from './supabase.js';
 type MiningInventoryRow = { resource_id: string; quantity: number };
 type MiningUpgradeRow = { upgrade_id: string };
 type MiningSkillRow = { level: number; total_xp: number };
-type MiningCommandSettingsRow = { command_all_channels: boolean };
+type MiningCommandSettingsRow = { command_all_channels: boolean; top_miner_role_id?: string | null };
 type MiningCommandChannelRow = { channel_id: string };
+type MiningTopRoleAssignmentRow = { discord_role_id: string; discord_user_id: string };
+type MiningLeaderboardMemberRow = { discord_user_id: string; level: number; total_xp: number };
 
 const MINING_COMMAND_SETTINGS_CACHE_MS = 30_000;
+const MINING_TOP_ROLE_RECONCILIATION_INTERVAL_MS = 60_000;
+const MINING_TOP_ROLE_MAX_MEMBER_SCAN = 500;
 let cachedMiningCommandSettings: { allowedChannelIds: Set<string> | null; expiresAt: number } | null = null;
+let miningTopRoleScheduler: ReturnType<typeof setInterval> | null = null;
+let miningTopRoleSyncInFlight: Promise<void> | null = null;
 
 export type MiningExpeditionStatus = 'descending' | 'returning' | 'completed';
 
@@ -103,6 +109,8 @@ export type MiningSale = {
   soldCount: number;
   totalSaleValue: number;
 };
+
+export type MiningSimulation = { results: MiningResult[] };
 
 export type MiningCatalogueProgress = {
   acquiredGearItemIds: ReadonlySet<string>;
@@ -269,6 +277,115 @@ export async function grantEligibleMiningLevelRoles(config: DiscordBotConfig, me
   if (missing.length) await member.roles.add(missing, 'KnowLeague Mining level reward');
 }
 
+export async function canUseMiningSimulation(config: DiscordBotConfig, memberRoleIds: readonly string[]) {
+  const { data, error } = await createBotServiceClient(config)
+    .from('discord_minigame_simulation_roles')
+    .select('discord_role_id')
+    .eq('guild_id', config.guildId)
+    .eq('game_id', 'mining')
+    .returns<Array<{ discord_role_id: string }>>();
+  if (error) throw new Error(`Unable to load Mining simulation roles: ${error.message}`);
+  const allowed = new Set((data ?? []).map((row) => row.discord_role_id));
+  return memberRoleIds.some((roleId) => allowed.has(roleId));
+}
+
+async function removeTrackedMiningTopRole(guild: Guild, assignment: MiningTopRoleAssignmentRow) {
+  const role = await guild.roles.fetch(assignment.discord_role_id);
+  if (!role) return true;
+  if (!role.editable) {
+    console.error('Mining top-role synchronization could not remove a role above the bot.');
+    return false;
+  }
+  try {
+    const member = await guild.members.fetch(assignment.discord_user_id);
+    if (member.roles.cache.has(role.id)) await member.roles.remove(role, 'KnowLeague top Miner changed');
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+async function getCurrentTopMiningMember(config: DiscordBotConfig, guild: Guild) {
+  const supabase = createBotServiceClient(config);
+  for (let start = 0; start < MINING_TOP_ROLE_MAX_MEMBER_SCAN; start += 25) {
+    const { data, error } = await supabase
+      .from('discord_game_skill_progress')
+      .select('discord_user_id,level,total_xp')
+      .eq('guild_id', config.guildId)
+      .eq('skill_id', 'mining')
+      .gt('total_xp', 0)
+      .order('level', { ascending: false })
+      .order('total_xp', { ascending: false })
+      .order('discord_user_id', { ascending: true })
+      .range(start, Math.min(start + 24, MINING_TOP_ROLE_MAX_MEMBER_SCAN - 1))
+      .returns<MiningLeaderboardMemberRow[]>();
+    if (error) throw new Error(`Unable to load the Mining leaderboard: ${error.message}`);
+    if (!data?.length) return null;
+    for (const entry of data) {
+      const member = await guild.members.fetch(entry.discord_user_id).catch(() => null);
+      if (member && !member.user.bot) return { ...entry, member };
+    }
+    if (data.length < 25) return null;
+  }
+  return null;
+}
+
+async function performDiscordMiningTopRoleSync(config: DiscordBotConfig, guild: Guild) {
+  const supabase = createBotServiceClient(config);
+  const [settingsResult, assignmentResult] = await Promise.all([
+    supabase.from('discord_mining_command_settings').select('top_miner_role_id').eq('guild_id', config.guildId).maybeSingle<MiningCommandSettingsRow>(),
+    supabase.from('discord_mining_top_role_assignments').select('discord_role_id,discord_user_id').eq('guild_id', config.guildId).maybeSingle<MiningTopRoleAssignmentRow>(),
+  ]);
+  if (settingsResult.error) throw new Error(`Unable to load top Miner role settings: ${settingsResult.error.message}`);
+  if (assignmentResult.error) throw new Error(`Unable to load top Miner role assignment: ${assignmentResult.error.message}`);
+  const assigned = assignmentResult.data;
+  const configuredRoleId = settingsResult.data?.top_miner_role_id ?? null;
+  if (!configuredRoleId) {
+    if (!assigned || !(await removeTrackedMiningTopRole(guild, assigned))) return;
+    const { error } = await supabase.from('discord_mining_top_role_assignments').delete().eq('guild_id', config.guildId);
+    if (error) throw new Error(`Unable to clear the top Miner role assignment: ${error.message}`);
+    return;
+  }
+  const role = await guild.roles.fetch(configuredRoleId);
+  if (!role || !role.editable) {
+    console.error('Mining top-role synchronization requires a role below the bot role.');
+    return;
+  }
+  const leader = await getCurrentTopMiningMember(config, guild);
+  if (assigned && (!leader || assigned.discord_role_id !== role.id || assigned.discord_user_id !== leader.discord_user_id)) {
+    if (!(await removeTrackedMiningTopRole(guild, assigned))) return;
+    const { error } = await supabase.from('discord_mining_top_role_assignments').delete().eq('guild_id', config.guildId);
+    if (error) throw new Error(`Unable to clear the previous top Miner role assignment: ${error.message}`);
+  }
+  if (!leader) return;
+  if (!leader.member.roles.cache.has(role.id)) await leader.member.roles.add(role, 'KnowLeague top Miner');
+  const { error } = await supabase.from('discord_mining_top_role_assignments').upsert({
+    discord_role_id: role.id,
+    discord_user_id: leader.discord_user_id,
+    guild_id: config.guildId,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'guild_id' });
+  if (error) throw new Error(`Unable to save the top Miner role assignment: ${error.message}`);
+}
+
+export function syncDiscordMiningTopRole(config: DiscordBotConfig, guild: Guild): Promise<void> {
+  if (guild.id !== config.guildId) return Promise.resolve();
+  if (miningTopRoleSyncInFlight) return miningTopRoleSyncInFlight;
+  const work = performDiscordMiningTopRoleSync(config, guild);
+  miningTopRoleSyncInFlight = work;
+  void work.then(() => { if (miningTopRoleSyncInFlight === work) miningTopRoleSyncInFlight = null; }, () => { if (miningTopRoleSyncInFlight === work) miningTopRoleSyncInFlight = null; });
+  return work;
+}
+
+/** Mining remains on-demand; this only reconciles the managed leaderboard role. */
+export function startDiscordMiningTopRoleScheduler(config: DiscordBotConfig, guild: Guild) {
+  if (guild.id !== config.guildId || miningTopRoleScheduler) return;
+  const tick = () => void syncDiscordMiningTopRole(config, guild).catch((error: unknown) => console.error('Discord Mining top-role synchronization failed.', error));
+  tick();
+  miningTopRoleScheduler = setInterval(tick, MINING_TOP_ROLE_RECONCILIATION_INTERVAL_MS);
+  miningTopRoleScheduler.unref();
+}
+
 function equipmentFromState(depthId: MiningDepthId, state: MiningPlayerState): MiningEquipmentSnapshot {
   const tool = getMiningBestUpgrade(state.ownedUpgradeIds, 'tool');
   const storage = getMiningBestUpgrade(state.ownedUpgradeIds, 'storage');
@@ -292,6 +409,27 @@ function equipmentFromState(depthId: MiningDepthId, state: MiningPlayerState): M
     storageCapacity: storage.value,
     toolId: tool.id,
     toolStonesPerSecond: tool.value,
+  };
+}
+
+/** Resolves full-cart sample trips without creating expeditions or rewards. */
+export async function simulateMiningExpeditions(
+  config: DiscordBotConfig,
+  discordUserId: string,
+  depthId: MiningDepthId,
+  runs: number,
+): Promise<MiningSimulation> {
+  if (!Number.isInteger(runs) || runs < 1 || runs > 500) throw new Error('Choose between 1 and 500 simulation runs.');
+  const depth = getMiningDepth(depthId);
+  if (!depth) throw new Error('That mining depth is invalid.');
+  const state = await getMiningPlayerState(config, discordUserId);
+  // Simulations are role-gated and read-only, so depth tool gates do not
+  // prevent staff from sampling any configured depth.
+  const equipment = equipmentFromState(depthId, state);
+  return {
+    // The resolver stops as soon as all cart compartments are full. The long
+    // elapsed period avoids a simulation result that was merely still mining.
+    results: Array.from({ length: runs }, () => resolveMiningExpedition(depthId, equipment, randomInt(1, 2_147_483_648), 86_400_000)),
   };
 }
 

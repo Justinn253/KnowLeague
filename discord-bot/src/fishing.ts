@@ -23,6 +23,7 @@ import {
   getFishingTimeReductionPercent,
   getFishingXpToNextLevel,
   resolveFishingExpedition,
+  shouldRelaunchFishingExpeditionFromGenesysLoop,
   shouldInstantlyCompleteFishingExpedition,
   type FishingBiomeId,
   type FishingCrateRarity,
@@ -196,6 +197,11 @@ export type FishingShopPurchase = {
   upgrade: FishingUpgrade;
 };
 
+export type FishingSimulation = {
+  equipment: FishingEquipmentSnapshot;
+  results: FishingExpeditionResult[];
+};
+
 const FISHING_SCHEDULER_INTERVAL_MS = 5_000;
 const FISHING_COMMAND_SETTINGS_CACHE_MS = 30_000;
 const FISHING_BONUS_SETTINGS_CACHE_MS = 30_000;
@@ -244,9 +250,6 @@ function normalizeEquipmentSnapshot(snapshot: FishingEquipmentSnapshot): Fishing
     doubleXp: snapshot.modifiers?.doubleXp === true,
     earlyBirdBonus: snapshot.modifiers?.earlyBirdBonus === true,
     extraCrateLoot: snapshot.modifiers?.extraCrateLoot === true,
-    genesysLoopCount: Number.isInteger(snapshot.modifiers?.genesysLoopCount)
-      ? Math.max(0, Math.min(2, snapshot.modifiers?.genesysLoopCount ?? 0))
-      : 0,
     higherFishRarity: snapshot.modifiers?.higherFishRarity === true,
     roleBonus: snapshot.modifiers?.roleBonus === true,
     streakSaleBonusPercent: Number.isFinite(snapshot.modifiers?.streakSaleBonusPercent)
@@ -580,6 +583,18 @@ async function getConfiguredFishingBonusSettings(config: DiscordBotConfig): Prom
   }
 }
 
+export async function canUseFishingSimulation(config: DiscordBotConfig, memberRoleIds: readonly string[]) {
+  const { data, error } = await createBotServiceClient(config)
+    .from('discord_minigame_simulation_roles')
+    .select('discord_role_id')
+    .eq('guild_id', config.guildId)
+    .eq('game_id', 'fishing')
+    .returns<Array<{ discord_role_id: string }>>();
+  if (error) throw new Error(`Unable to load Fishing simulation roles: ${error.message}`);
+  const allowed = new Set((data ?? []).map((row) => row.discord_role_id));
+  return memberRoleIds.some((roleId) => allowed.has(roleId));
+}
+
 function getFishingExpeditionModifiers(
   settings: FishingBonusSettings,
   memberRoleIds: readonly string[],
@@ -834,7 +849,6 @@ export async function startFishingExpedition(
   notificationChannelId: string,
   requestedCrewSlot?: number,
   memberRoleIds: readonly string[] = [],
-  options?: { genesysLoopCount?: number },
 ): Promise<StartedFishingExpedition> {
   const biome = getFishingBiome(biomeId);
   const expeditionLength = getFishingExpeditionLength(durationTier);
@@ -860,7 +874,6 @@ export async function startFishingExpedition(
   const modifiers: FishingExpeditionModifiers = {
     ...getFishingExpeditionModifiers(bonusSettings, memberRoleIds, new Date()),
     earlyBirdBonus: launchRelicState.earlyBirdBonus,
-    genesysLoopCount: Math.max(0, Math.min(2, Math.floor(options?.genesysLoopCount ?? 0))),
     streakSaleBonusPercent: launchRelicState.streakSaleBonusPercent,
   };
   const outcomeSeed = randomInt(1, 2_147_483_648);
@@ -907,6 +920,48 @@ export async function startFishingExpedition(
     eventName: event?.name,
     instantCompletion,
     selectedBiomeName: event ? biome.name : undefined,
+  };
+}
+
+/** Resolves read-only sample trips for configured staff. It never writes game state. */
+export async function simulateFishingExpeditions(
+  config: DiscordBotConfig,
+  discordUserId: string,
+  biomeId: FishingBiomeId,
+  durationTier: FishingDurationTier,
+  runs: number,
+  memberRoleIds: readonly string[],
+): Promise<FishingSimulation> {
+  if (!Number.isInteger(runs) || runs < 1 || runs > 500) throw new Error('Choose between 1 and 500 simulation runs.');
+  const biome = getFishingBiome(biomeId);
+  const expeditionLength = getFishingExpeditionLength(durationTier);
+  if (!biome || !expeditionLength) throw new Error('Choose a valid fishing biome and expedition length.');
+  const [state, bonusSettings] = await Promise.all([
+    getFishingPlayerState(config, discordUserId),
+    getConfiguredFishingBonusSettings(config),
+  ]);
+  // Simulations are role-gated, read-only balance checks. They intentionally
+  // bypass normal level and boat gates while retaining the player's equipment.
+  const launchRelicState = await getFishingLaunchRelicState(config, discordUserId, biomeId, state.equipment);
+  const modifiers: FishingExpeditionModifiers = {
+    ...getFishingExpeditionModifiers(bonusSettings, memberRoleIds, new Date()),
+    earlyBirdBonus: launchRelicState.earlyBirdBonus,
+    streakSaleBonusPercent: launchRelicState.streakSaleBonusPercent,
+  };
+  const results = Array.from({ length: runs }, () => {
+    const seed = randomInt(1, 2_147_483_648);
+    const equipment: FishingEquipmentSnapshot = {
+      ...state.equipment,
+      catalogueFishKeys: launchRelicState.catalogueFishKeys,
+      catalogueVersion: 7,
+      eventId: getFishingEventForOutcomeSeed(seed)?.id,
+      modifiers,
+    };
+    return resolveFishingExpedition(biomeId, durationTier, equipment, seed);
+  });
+  return {
+    equipment: { ...state.equipment, catalogueFishKeys: launchRelicState.catalogueFishKeys, catalogueVersion: 7, modifiers },
+    results,
   };
 }
 
@@ -1155,8 +1210,7 @@ async function launchGenesysLoopFollowUp(
   equipment: FishingEquipmentSnapshot,
   notificationChannel: SendableChannels,
 ) {
-  const previousAutoLaunches = equipment.modifiers?.genesysLoopCount ?? 0;
-  if (!equipment.passiveItemIds.includes('gear-genesys-loop') || previousAutoLaunches >= 2) return;
+  if (!shouldRelaunchFishingExpeditionFromGenesysLoop(equipment, randomInt(0, 1_000_000) / 1_000_000)) return;
 
   try {
     const member = await guild.members.fetch(expedition.discord_user_id);
@@ -1169,7 +1223,6 @@ async function launchGenesysLoopFollowUp(
       expedition.notification_channel_id,
       expedition.crew_slot,
       [...member.roles.cache.keys()],
-      { genesysLoopCount: previousAutoLaunches + 1 },
     );
     const launchMessage = await notificationChannel.send({
       allowedMentions: { users: [expedition.discord_user_id] },

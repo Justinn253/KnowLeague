@@ -130,8 +130,6 @@ export interface FishingEquipmentSnapshot {
 }
 
 export interface FishingExpeditionModifiers {
-  /** Number of consecutive Genesys Loop relaunches before this trip. */
-  genesysLoopCount?: number;
   /** The Early Bird Bell's first-launch-of-the-day bonus was eligible at launch. */
   earlyBirdBonus?: boolean;
   doubleKnowBucks?: boolean;
@@ -526,11 +524,40 @@ const crateLootRarityWeight: Record<FishingCrateRarity, number> = { Common: 1_00
 /** Base chance per expedition catch roll: 0.01%, which is 10% of the prior 0.1% rate. */
 export const FISHING_RELIC_DROP_RATE = FISHING_BALANCE_CONFIG.relicDropRate;
 
-/** Uses the same cumulative curve as character/chat levels. */
+/** Genesys Loop is evaluated once after every settled expedition. */
+export const FISHING_GENESYS_LOOP_RELAUNCH_CHANCE = 0.2;
+
+export function shouldRelaunchFishingExpeditionFromGenesysLoop(
+  equipment: Pick<FishingEquipmentSnapshot, 'passiveItemIds'>,
+  roll: number,
+) {
+  return equipment.passiveItemIds.includes('gear-genesys-loop')
+    && Number.isFinite(roll)
+    && roll >= 0
+    && roll < FISHING_GENESYS_LOOP_RELAUNCH_CHANCE;
+}
+
+/** Relics remain tied to the selected biome, including during event expeditions. */
+export function getFishingRelicsForBiome(biomeId: FishingBiomeId, ownedRelicIds: readonly string[] = []) {
+  const owned = new Set(ownedRelicIds);
+  return FISHING_UPGRADES.filter((item) => item.category === 'gear'
+    && !owned.has(item.id)
+    && (!item.foundBiomeIds || item.foundBiomeIds.includes(biomeId)));
+}
+
+const FISHING_XP_ACCELERATION_LEVEL = 100;
+const FISHING_XP_ACCELERATION_CUBIC_COEFFICIENT = 5;
+
+/**
+ * Fishing follows the familiar shared quadratic curve through level 100, then
+ * adds a cubic tail so high Fishing levels require materially more work.
+ */
 export function getFishingTotalXpForLevel(level: number) {
   const targetLevel = Math.max(0, Math.min(10_000, Math.floor(level)));
   if (targetLevel === 0) return 0;
-  return (50 * targetLevel * targetLevel) - (100 * targetLevel) + 150;
+  const baseXp = (50 * targetLevel * targetLevel) - (100 * targetLevel) + 150;
+  const postHundredLevels = Math.max(0, targetLevel - FISHING_XP_ACCELERATION_LEVEL);
+  return baseXp + (FISHING_XP_ACCELERATION_CUBIC_COEFFICIENT * (postHundredLevels ** 3));
 }
 
 export function getFishingLevelForTotalXp(totalXp: number) {
@@ -823,9 +850,7 @@ export function resolveFishingExpedition(biomeId: FishingBiomeId, durationTier: 
   const gearItems = new Map<string, number>();
   const specialItems = new Map<string, number>();
   const foundGearItemIds = new Set(equipment.passiveItemIds);
-  const availableGear = () => FISHING_UPGRADES.filter((item) => item.category === 'gear'
-    && !foundGearItemIds.has(item.id)
-    && (!item.foundBiomeIds || item.foundBiomeIds.includes(biomeId)));
+  const availableGear = () => getFishingRelicsForBiome(biomeId, [...foundGearItemIds]);
   const crateDropRateMultiplier = (bait.id === 'magnet' ? 1.5 : 1)
     * (hasRelic('gear-reservoir-growth') ? 1.1 : 1);
   const gearDropRateMultiplier = (bait.id === 'sonar' ? 2 : 1)

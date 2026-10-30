@@ -17,6 +17,7 @@ import {
   FISHING_LEGENDARY_FISH_SALE_MULTIPLIER,
   FISHING_MYTHIC_FISH,
   FISHING_RELIC_DROP_RATE,
+  FISHING_GENESYS_LOOP_RELAUNCH_CHANCE,
   FISHING_UPGRADES,
   getFishingUpgrade,
   getFishingUpgradeCost,
@@ -25,9 +26,11 @@ import {
   getFishingTotalXpForLevel,
   getFishingExpeditionLength,
   getFishingEventForOutcomeSeed,
+  getFishingRelicsForBiome,
   getFishingCrate,
   resolveFishingCrateOpenings,
   resolveFishingExpedition,
+  shouldRelaunchFishingExpeditionFromGenesysLoop,
   type FishingExpeditionResult,
   type FishingEquipmentSnapshot,
 } from '../discord-bot/src/fishing-catalog';
@@ -92,6 +95,10 @@ describe('Discord fishing command contract', () => {
     expect(biomeOption?.choices).toHaveLength(7);
     expect(lengthOption?.choices).toHaveLength(4);
     expect(fish?.options?.some((option) => option.name === 'chests-open')).toBe(false);
+    const inventory = fish?.options?.find((option) => option.name === 'inventory') as SerializedSubcommand | undefined;
+    const simulate = fish?.options?.find((option) => option.name === 'simulate') as SerializedSubcommand | undefined;
+    expect(inventory?.options?.map((option) => option.name)).toEqual(['user']);
+    expect(simulate?.options?.map((option) => option.name)).toEqual(['biome', 'length', 'x']);
   });
 
   it('encodes the completed expedition preset in an owner-specific repeat control', () => {
@@ -334,6 +341,9 @@ describe('Discord fishing reworked progression', () => {
   it('uses the shared XP curve and clean non-linear KnowBucks level rewards', () => {
     expect(getFishingTotalXpForLevel(0)).toBe(0);
     expect(getFishingTotalXpForLevel(20)).toBe(18_150);
+    expect(getFishingTotalXpForLevel(100)).toBe(490_150);
+    expect(getFishingTotalXpForLevel(101)).toBe(500_105);
+    expect(getFishingTotalXpForLevel(200)).toBe(6_980_150);
     expect(getFishingLevelForTotalXp(18_150)).toBe(20);
     expect(getFishingLevelUpKnowBucks(1)).toBe(500);
     expect(getFishingLevelUpKnowBucks(2)).toBe(500);
@@ -341,6 +351,20 @@ describe('Discord fishing reworked progression', () => {
     expect(getFishingLevelUpKnowBucks(4)).toBe(500);
     expect(getFishingLevelUpKnowBucks(5)).toBe(525);
     expect(getFishingLevelUpKnowBucks(20)).toBe(2_775);
+  });
+
+  it('relaunches Genesys Loop only on its independent 20% post-settlement roll', () => {
+    const equipment = { passiveItemIds: ['gear-genesys-loop'] };
+    expect(FISHING_GENESYS_LOOP_RELAUNCH_CHANCE).toBe(0.2);
+    expect(shouldRelaunchFishingExpeditionFromGenesysLoop(equipment, 0.199_999)).toBe(true);
+    expect(shouldRelaunchFishingExpeditionFromGenesysLoop(equipment, 0.2)).toBe(false);
+    expect(shouldRelaunchFishingExpeditionFromGenesysLoop({ passiveItemIds: [] }, 0)).toBe(false);
+  });
+
+  it('keeps selected-biome Relics eligible when an event replaces its catches', () => {
+    const relics = getFishingRelicsForBiome('hydroplant-reservoir');
+    expect(relics.some((relic) => relic.id === 'gear-genesys-loop')).toBe(true);
+    expect(relics.some((relic) => relic.id === 'gear-sunstone')).toBe(false);
   });
 
   it('condenses repeated catches into counted result rows for long expeditions', () => {

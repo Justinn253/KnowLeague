@@ -11,6 +11,7 @@ import {
   MINING_DEPTHS,
   MINING_REWARD_WEIGHTS,
   MINING_UPGRADES,
+  getMiningRelicFindChance,
   resolveMiningExpedition,
   type MiningEquipmentSnapshot,
 } from '../discord-bot/src/mining-catalog';
@@ -51,6 +52,10 @@ describe('Discord mining command contract', () => {
     expect(mining?.options?.some((option) => option.name === 'catalogue')).toBe(true);
     expect(mining?.options?.some((option) => option.name === 'sell')).toBe(true);
     expect(mining?.options?.some((option) => option.name === 'help')).toBe(true);
+    const inventory = mining?.options?.find((option) => option.name === 'inventory') as SerializedCommandOption | undefined;
+    const simulate = mining?.options?.find((option) => option.name === 'simulate') as SerializedCommandOption | undefined;
+    expect(inventory?.options?.map((option) => option.name)).toEqual(['user']);
+    expect(simulate?.options?.map((option) => option.name)).toEqual(['depth', 'x']);
 
     const sell = mining?.options?.find((option) => option.name === 'sell') as SerializedCommandOption | undefined;
     expect(sell?.options?.map((option) => option.name)).toEqual(['resource', 'amount']);
@@ -227,6 +232,20 @@ describe('Discord mining expedition resolution', () => {
     }, 9001, 86_400_000);
     expect(full.storageUsed).toBe(5);
     expect(full.stoneBroken).toBeLessThan(100);
+    expect(full.cartFull).toBe(true);
+  });
+
+  it('rolls a Relic once on a full returning cart and scales odds with depth travel', () => {
+    const unfinished = resolveMiningExpedition(1, starterEquipment, 42, 0);
+    expect(unfinished.cartFull).toBe(false);
+    expect(unfinished.gearItems).toEqual([]);
+    expect(getMiningRelicFindChance(1)).toBe(1 / 250);
+    expect(getMiningRelicFindChance(7)).toBe(1);
+    const tierOneExpectedTravelMs = getMiningDepth(1)!.descendAndAscendMs / getMiningRelicFindChance(1);
+    const tierSevenExpectedTravelMs = getMiningDepth(7)!.descendAndAscendMs / getMiningRelicFindChance(7);
+    // Tier 7's configured travel time exceeds the 1/250 scaling ceiling, so
+    // a guaranteed full-cart Relic is the closest possible expected wait.
+    expect(tierSevenExpectedTravelMs / tierOneExpectedTravelMs).toBeLessThan(1.5);
   });
 });
 

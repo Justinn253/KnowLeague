@@ -17,6 +17,30 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-29-fishing-mining-relic-loops-simulations',
+    patch: 'patch-2026-10-29-fishing-mining-relic-loops-simulations',
+    timestamp: '2026-10-29T18:45:00.000Z',
+    title: 'Align Fishing and Mining Relic progression with read-only test simulations',
+    summary: 'Genesys Loop now independently relaunches a settled Fishing preset 20% of the time, Fishing XP accelerates after level 100, Mining Relics roll only when a full cart returns with depth-normalized odds, and staff can configure constrained Discord simulations and a top-Miner role.',
+    details: [
+      'Genesys Loop no longer stores or caps relaunch chains. Each completed Fishing expedition with the Relic makes an independent 20% post-settlement roll, preserving normal launch validation and preventing simulated trips from launching follow-ups.',
+      'Fishing keeps its existing cumulative curve through level 100, then adds a cubic five-XP-per-level-cubed tail. Level 200 now requires 6,980,150 total Fishing XP instead of 1,980,150; level-up KnowBucks continue to follow the existing requirement-based reward calculation.',
+      'Fishing event catch replacement continues to use the originally selected biome for Relic eligibility. The shared eligibility helper documents and tests that selected-biome behavior explicitly.',
+      'Mining no longer rolls Relics per broken stone. A single Relic roll is made only after all normal and Gem Bag cart compartments are full; Tier 1 is exactly 1/250 and deeper depth chances scale with their configured descent/ascent time so expected real-time acquisition stays comparable.',
+      'Discord `/fish inventory` and `/mining inventory` now accept an optional member and show a read-only view for other players. New `/fish simulate biome length x` and `/mining simulate depth x` commands are restricted to configured server roles, use the player’s current equipment without Fishing level/boat or Mining tool-depth gates, aggregate samples into one concise ephemeral panel, and never persist rewards, XP, inventory, or expedition state.',
+      'Discord Configuration adds role selectors for Fishing and Mining simulation access and a dedicated top-Miner role. Migration 196 stores those settings, tracks bot-owned Miner assignments, and provides service-role-only RPCs while leaving migrations 192–195 untouched.',
+    ],
+    impact: [
+      'Players have clearer, time-fair Mining Relic progression and may inspect another member’s equipment without gaining controls over it. Staff can sample ordinary completion results safely before changing game balance.',
+      'Apply migration 196, deploy the website and Discord bot independently, then register the changed guild slash commands. The migration was created locally only; it was not pushed to Supabase and commands were not registered.',
+    ],
+    files: ['app/api/discord/leveling/route.ts', 'components/discord-leveling-settings.tsx', 'discord-bot/src/commands.ts', 'discord-bot/src/fishing-catalog.ts', 'discord-bot/src/fishing.ts', 'discord-bot/src/index.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/minigame-content-config.ts', 'discord-bot/src/mining-catalog.ts', 'discord-bot/src/mining.ts', 'lib/discord-mining.ts', 'supabase/migrations/196_discord_mining_top_role_and_minigame_simulations.sql', 'tests/discord-fishing.test.ts', 'tests/discord-mining.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Fishing and Mining Discord regressions passed (57 tests). `npm run check` passed: root lint (with the pre-existing image-element advisories), root TypeScript, the full 46-file/276-test Vitest suite, generated minigame references, and Discord bot TypeScript all completed successfully.',
+      'No production build, Supabase migration push, or Discord command registration was run.',
+    ],
+  },
+  {
     id: 'patch-2026-10-29-fishing-mining-relic-settlement-visibility',
     patch: 'patch-2026-10-29-fishing-mining-relic-settlement-visibility',
     timestamp: '2026-10-29T17:53:53.863Z',

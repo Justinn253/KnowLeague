@@ -15,6 +15,14 @@ import {
   type FishingFish,
 } from './fishing-catalog.js';
 import { MINING_DEPTHS, MINING_REWARD_WEIGHTS, MINING_UPGRADES } from './mining-catalog.js';
+import {
+  getWoodcuttingCritters,
+  getWoodcuttingItemName,
+  WOODCUTTING_AXES,
+  WOODCUTTING_SAPLINGS,
+  WOODCUTTING_UPGRADES,
+  WOODCUTTING_WORKER_COSTS,
+} from './woodcutting-catalog.js';
 
 const NUMBER_FORMATTER = new Intl.NumberFormat('en-US');
 
@@ -223,10 +231,69 @@ function renderMiningTierReference() {
   return `${sections.join('\n')}\n`;
 }
 
+function woodcuttingRecipe(recipe: readonly { itemId: string; quantity: number; source: 'mining' | 'woodcutting' }[]) {
+  return recipe.map((item) => `${formatNumber(item.quantity)} ${item.source === 'mining' ? item.itemId : getWoodcuttingItemName(item.itemId)}`).join(', ');
+}
+
+function renderWoodcuttingTierReference() {
+  const sections = [
+    '# Discord Woodcutting tier reference',
+    '',
+    '> Generated from the Woodcutting catalogue. Edit balance values in `discord-bot/src/minigame-content-config.ts`, not this local file; then run `npm run discord:minigame-tiers:generate`.',
+    '',
+    'Woodcutting is continuous. Every equipped lumberjack attempts one chop per minute at a 20% base success rate; each completed chop consumes one sapling unless Sap-Saver\'s Stew preserves it.',
+    '',
+    '## Lumberjack hires',
+    '',
+    table(['Hire', 'KnowBucks Cost'], WOODCUTTING_WORKER_COSTS.map((cost, index) => [`Lumberjack ${index + 1}`, formatNumber(cost)])),
+    '',
+    'The first hired lumberjack includes a Quartz Axe. Each later lumberjack needs a separately crafted axe and an assigned sapling tier before working.',
+    '',
+    '## Axe tiers',
+    '',
+    table(['Tier', 'Tool', 'Crafting Recipe'], WOODCUTTING_AXES.map((axe) => [axe.tier, axe.name, woodcuttingRecipe(axe.recipe)])),
+    '',
+    '## Saplings, wood, and discoveries',
+  ];
+
+  for (const sapling of WOODCUTTING_SAPLINGS) {
+    sections.push(
+      '',
+      `### Tier ${sapling.tier}: ${sapling.name}`,
+      '',
+      `- Buy cost: ${formatNumber(sapling.saplingCost)} KnowBucks per sapling; storage cap: 1,000,000.`,
+      `- Output: ${sapling.woodName}.`,
+      `- Processor requirement: ${sapling.processorUpgradeId ? sapling.processorUpgradeId.replace('processor-depth-', 'Resource ') + ' Processor' : 'None (Tier 1 resources process automatically)'}.`,
+      `- Amber discovery: ${getWoodcuttingItemName(sapling.amberItemId)} at 0.01% per completed chop.`,
+      '- Critter discovery: 10% per completed chop (15% with Tracker\'s Stew).',
+      '',
+      table(['Critter', 'Weight'], getWoodcuttingCritters(sapling.tier).map((critter) => [critter.name, critter.weight])),
+    );
+  }
+
+  sections.push(
+    '',
+    '## Permanent upgrades',
+    '',
+    table(
+      ['Category', 'Upgrade', 'Prerequisite', 'Crafting Recipe', 'Effect'],
+      WOODCUTTING_UPGRADES.map((upgrade) => [
+        upgrade.category,
+        upgrade.name,
+        upgrade.previousUpgradeId ? WOODCUTTING_UPGRADES.find((candidate) => candidate.id === upgrade.previousUpgradeId)?.name ?? upgrade.previousUpgradeId : 'â€”',
+        woodcuttingRecipe(upgrade.recipe),
+        upgrade.description,
+      ]),
+    ),
+  );
+  return `${sections.join('\n')}\n`;
+}
+
 export function getDiscordMinigameTierReferences(): readonly TierReference[] {
   return [
     { fileName: 'fishing-tiers.md', contents: renderFishingTierReference() },
     { fileName: 'mining-tiers.md', contents: renderMiningTierReference() },
+    { fileName: 'woodcutting-tiers.md', contents: renderWoodcuttingTierReference() },
   ];
 }
 

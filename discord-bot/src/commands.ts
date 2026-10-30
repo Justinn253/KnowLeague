@@ -376,6 +376,81 @@ export const commandDefinitions = [
     .addSubcommand((subcommand) => subcommand
       .setName('help')
       .setDescription('Learn how mining expeditions and progression work.')),
+  new SlashCommandBuilder()
+    .setName('woodcutting')
+    .setDescription('Hire lumberjacks, assign axes, and claim continuous Woodcutting rewards.')
+    .addSubcommand((subcommand) => subcommand
+      .setName('claim')
+      .setDescription('Claim all Woodcutting rewards earned since your last claim.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('hire')
+      .setDescription('Hire your next lumberjack. The first hire includes a Quartz Axe.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('craft-axe')
+      .setDescription('Craft one axe or saw for a lumberjack.')
+      .addIntegerOption((option) => option
+        .setName('tier')
+        .setDescription('Axe tier to craft.')
+        .addChoices(
+          { name: 'Tier 1 — Quartz Axe', value: 1 }, { name: 'Tier 2 — Copper Axe', value: 2 }, { name: 'Tier 3 — Iron Axe', value: 3 },
+          { name: 'Tier 4 — Silver Axe', value: 4 }, { name: 'Tier 5 — Platinum Saw', value: 5 }, { name: 'Tier 6 — Cobalt Saw', value: 6 }, { name: 'Tier 7 — Titanium Chainsaw', value: 7 },
+        )
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('buy-saplings')
+      .setDescription('Buy an unlocked Woodcutting sapling type.')
+      .addIntegerOption((option) => option
+        .setName('type')
+        .setDescription('Type of sapling to buy.')
+        .addChoices(
+          { name: 'Oak Sapling — Tier 1', value: 1 },
+          { name: 'Willow Sapling — Tier 2', value: 2 },
+          { name: 'Cherry Blossom Sapling — Tier 3', value: 3 },
+          { name: 'Baobob Sapling — Tier 4', value: 4 },
+          { name: 'Redwood Sapling — Tier 5', value: 5 },
+          { name: 'Rainbow Eucalyptus Sapling — Tier 6', value: 6 },
+          { name: 'Dragons Blood Sapling — Tier 7', value: 7 },
+        )
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('quantity')
+        .setDescription('How many to buy, up to 1,000,000 for this sapling type.')
+        .setMinValue(1)
+        .setMaxValue(1_000_000)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('assign')
+      .setDescription('Assign an available axe and sapling tier to a lumberjack.')
+      .addIntegerOption((option) => option.setName('worker').setDescription('Purchased lumberjack number.').setMinValue(1).setMaxValue(10).setRequired(true))
+      .addIntegerOption((option) => option.setName('axe-tier').setDescription('Tier of an available axe.').setMinValue(1).setMaxValue(7).setRequired(true))
+      .addIntegerOption((option) => option.setName('sapling-tier').setDescription('Tier of saplings to chop.').setMinValue(1).setMaxValue(7).setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('assign-auto')
+      .setDescription('Assign the highest owned axes to the highest stocked eligible saplings.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('craft-upgrade')
+      .setDescription('Craft one lodging, sharpening-station, or meal upgrade.')
+      .addStringOption((option) => option
+        .setName('upgrade')
+        .setDescription('Woodcutting upgrade to craft.')
+        .addChoices(
+          { name: 'Lodging: Windows', value: 'lodging-windows' }, { name: 'Lodging: Beds', value: 'lodging-beds' }, { name: 'Lodging: Appliances', value: 'lodging-appliances' }, { name: 'Lodging: Internet', value: 'lodging-internet' }, { name: 'Lodging: Decorations', value: 'lodging-decorations' },
+          { name: 'Sharpening Station I', value: 'sharpening-1' }, { name: 'Sharpening Station II', value: 'sharpening-2' }, { name: 'Sharpening Station III', value: 'sharpening-3' }, { name: 'Sharpening Station IV', value: 'sharpening-4' }, { name: 'Sharpening Station V', value: 'sharpening-5' }, { name: 'Sharpening Station VI', value: 'sharpening-6' }, { name: 'Sharpening Station VII', value: 'sharpening-7' },
+          { name: 'Woodland Chowder', value: 'meal-woodland-chowder' }, { name: "Lumberjack's Stew", value: 'meal-lumberjacks-stew' }, { name: "Sap-Saver's Stew", value: 'meal-sap-savers-stew' }, { name: "Tracker's Stew", value: 'meal-trackers-stew' }, { name: 'Bountiful Stew', value: 'meal-bountiful-stew' },
+        )
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('shop')
+      .setDescription('Browse Woodcutting workers, axes, saplings, and upgrades.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('inventory')
+      .setDescription('View your Woodcutting equipment, supplies, and assigned workers.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('catalogue')
+      .setDescription('Browse discovered Woodcutting wood, critters, and amber.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('help')
+      .setDescription('Learn how continuous Woodcutting progression works.')),
   createCollectionsCommand(),
   new SlashCommandBuilder()
     .setName('leaderboard')

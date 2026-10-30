@@ -127,6 +127,35 @@ import {
   type MiningCatalogueProgress,
 } from './mining.js';
 import {
+  assignWoodcuttingWorker,
+  assignWoodcuttingWorkersAutomatically,
+  claimWoodcuttingRewards,
+  craftWoodcuttingAxe,
+  craftWoodcuttingUpgrade,
+  formatWoodcuttingClaim,
+  formatWoodcuttingRecipe,
+  getWoodcuttingAssignmentIssue,
+  getWoodcuttingCatalogueProgress,
+  getWoodcuttingPlayerState,
+  hireWoodcuttingWorker,
+  purchaseWoodcuttingSaplings,
+  WoodcuttingAssignmentIssueError,
+  type WoodcuttingAssignmentIssue,
+  type WoodcuttingPlayerState,
+} from './woodcutting.js';
+import {
+  getWoodcuttingAxe,
+  getWoodcuttingCritters,
+  getWoodcuttingItemName,
+  getWoodcuttingSapling,
+  getWoodcuttingUpgrade,
+  getWoodcuttingUpgrades,
+  WOODCUTTING_AXES,
+  WOODCUTTING_SAPLINGS,
+  WOODCUTTING_WORKER_COSTS,
+  type WoodcuttingTier,
+} from './woodcutting-catalog.js';
+import {
   buildSkinSearchEmbed,
   buildSkinCollectionEmbed,
   COLLECTION_UPKEEP_ALLOCATION_MAXIMUM,
@@ -289,6 +318,7 @@ const SKIN_COLLECTION_ACTION_BUTTON_PREFIX = 'skin-collection-action';
 const FISHING_BUTTON_PREFIX = 'fish';
 const MINING_BUTTON_PREFIX = 'mining';
 const MINING_EXPEDITION_BUTTON_PREFIX = 'mining-expedition';
+const WOODCUTTING_BUTTON_PREFIX = 'woodcutting';
 const PLAYER_BUTTON_PREFIX = 'player';
 const HELP_BUTTON_PREFIX = 'help';
 const FISHING_SHOP_CATEGORIES: readonly FishingUpgradeCategory[] = ['rod', 'bait', 'boat', 'crew'];
@@ -297,7 +327,11 @@ type FishingInventoryTab = typeof FISHING_INVENTORY_TABS[number];
 const MINING_SHOP_CATEGORIES: readonly MiningUpgradeCategory[] = ['tool', 'storage', 'processor', 'elevator', 'filter'];
 const MINING_INVENTORY_TABS = ['overview', 'ores', 'gems', 'fossils'] as const;
 type MiningInventoryTab = typeof MINING_INVENTORY_TABS[number];
-const HELP_TABS = ['general', 'league', 'fishing', 'mining', 'collections'] as const;
+const WOODCUTTING_SHOP_TABS = ['workers', 'axes', 'saplings', 'lodging', 'sharpening', 'meals'] as const;
+type WoodcuttingShopTab = typeof WOODCUTTING_SHOP_TABS[number];
+const WOODCUTTING_INVENTORY_TABS = ['workforce', 'resources', 'finds'] as const;
+type WoodcuttingInventoryTab = typeof WOODCUTTING_INVENTORY_TABS[number];
+const HELP_TABS = ['general', 'league', 'fishing', 'mining', 'woodcutting', 'collections'] as const;
 type HelpTab = typeof HELP_TABS[number];
 
 type HelpField = {
@@ -310,7 +344,8 @@ function helpTabLabel(tab: HelpTab) {
     : tab === 'league' ? 'League'
       : tab === 'fishing' ? 'Fishing'
         : tab === 'mining' ? 'Mining'
-          : 'Collections';
+          : tab === 'woodcutting' ? 'Woodcutting'
+            : 'Collections';
 }
 
 function helpFields(tab: HelpTab): HelpField[] {
@@ -342,6 +377,14 @@ function helpFields(tab: HelpTab): HelpField[] {
       { name: '/mining inventory, catalogue', value: 'Browse held Mining resources and equipment, or permanent discoveries at each depth.' },
       { name: '/mining sell resource amount', value: 'Sell a chosen eligible gem or processor-ready ore by quantity or `all`.' },
       { name: '/mining help', value: 'Open focused Mining rules and progression guidance.' },
+    ];
+  }
+  if (tab === 'woodcutting') {
+    return [
+      { name: '/woodcutting claim', value: 'Claim all work completed since your last claim; Woodcutting never needs an expedition.' },
+      { name: '/woodcutting hire, craft-axe, buy-saplings', value: 'Build the worker, axe, and sapling supply needed for continuous chopping.' },
+      { name: '/woodcutting assign, assign-auto', value: 'Equip each purchased lumberjack with an available axe and an eligible stocked sapling tier.' },
+      { name: '/woodcutting shop, inventory, catalogue', value: 'Review recipes, assignments, owned materials, permanent upgrades, and collected wood, critters, and amber.' },
     ];
   }
   if (tab === 'collections') {
@@ -391,12 +434,14 @@ function buildHelpPanel(tab: HelpTab) {
 }
 const FISHING_PANEL_TTL_MS = 60_000;
 const MINING_PANEL_TTL_MS = 60_000;
+const WOODCUTTING_PANEL_TTL_MS = 60_000;
 const MINING_EXPEDITION_REFRESH_COOLDOWN_MS = 5_000;
 const PLAYER_PANEL_TTL_MS = 60_000;
 const leaderboardCommandAvailableAtByUserId = new Map<string, number>();
 let leaderboardCommandCooldownPruneAfter = 0;
 const fishingPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const miningPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const woodcuttingPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const miningExpeditionRefreshAvailableAtByUserId = new Map<string, number>();
 const playerPanelExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -2227,6 +2272,312 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
   throw new Error(`Unsupported fishing command: ${subcommand}`);
 }
 
+function woodcuttingCommandErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return 'KnowLeague could not complete that Woodcutting request. Please try again shortly.';
+  const message = error.message.replace(/^Unable to (initialize Discord Woodcutting|load Woodcutting [a-z ]+|claim Woodcutting rewards|hire a lumberjack|buy Woodcutting saplings|craft a Woodcutting (axe|upgrade)|assign the lumberjack|auto-assign lumberjacks): /, '');
+  return message.includes('PostgREST') || message.includes('permission denied') || message.includes('relation')
+    ? 'KnowLeague could not complete that Woodcutting request. Please try again shortly.'
+    : message;
+}
+
+function woodcuttingAxeSummary(axes: readonly { id: number; tier: WoodcuttingTier }[]) {
+  if (!axes.length) return 'No crafted axes yet.';
+  return [1, 2, 3, 4, 5, 6, 7].flatMap((tier) => {
+    const matching = axes.filter((axe) => axe.tier === tier);
+    return matching.length ? [`**${getWoodcuttingAxe(tier)?.name ?? `Tier ${tier}`}** ×${formatXp(matching.length)} (${matching.map((axe) => `#${axe.id}`).join(', ')})`] : [];
+  }).join('\n');
+}
+
+function woodcuttingAssignmentIssuePanel(issue: WoodcuttingAssignmentIssue) {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xDC2626)
+        .setTitle('Woodcutting assignment unavailable')
+        .setDescription(issue.message)
+        .addFields([
+          { name: 'Available axes', value: woodcuttingAxeSummary(issue.availableAxes) },
+          ...(issue.command ? [{ name: 'Next command', value: `\`${issue.command}\`` }] : []),
+        ]),
+    ],
+  };
+}
+
+function buildWoodcuttingClaimPanel(username: string, result: Awaited<ReturnType<typeof claimWoodcuttingRewards>>['result']) {
+  const consumed = result.saplingsConsumed.length
+    ? result.saplingsConsumed.map((entry) => `${getWoodcuttingItemName(entry.itemId)} ×${formatXp(entry.quantity)}`).join(' · ')
+    : 'No saplings consumed.';
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x166534)
+        .setTitle(`🌲 ${username}'s Woodcutting claim`)
+        .setDescription(formatWoodcuttingClaim(result))
+        .addFields(
+          { name: 'Trees chopped', value: `${formatXp(result.finishedChops)} finished · ${formatXp(result.successfulChops)} successful`, inline: true },
+          { name: 'Saplings used', value: consumed, inline: true },
+        ),
+    ],
+  };
+}
+
+function woodcuttingPanelExpirationMessage() {
+  return 'This Woodcutting panel has expired. Run `/woodcutting shop` or `/woodcutting inventory` to open a new one.';
+}
+
+function scheduleWoodcuttingPanelExpiry(message: { edit: (options: { components: []; content: string }) => Promise<unknown>; id: string }, expiresAt: number) {
+  const existingTimer = woodcuttingPanelExpiryTimers.get(message.id);
+  if (existingTimer) clearTimeout(existingTimer);
+  const timer = setTimeout(() => {
+    void message.edit({ content: woodcuttingPanelExpirationMessage(), components: [] })
+      .catch((error: unknown) => console.warn(`Discord Woodcutting panel ${message.id} could not be expired.`, error))
+      .finally(() => {
+        if (woodcuttingPanelExpiryTimers.get(message.id) === timer) woodcuttingPanelExpiryTimers.delete(message.id);
+      });
+  }, Math.max(0, expiresAt - Date.now()));
+  timer.unref();
+  woodcuttingPanelExpiryTimers.set(message.id, timer);
+}
+
+function clearWoodcuttingPanelExpiry(messageId: string) {
+  const existingTimer = woodcuttingPanelExpiryTimers.get(messageId);
+  if (existingTimer) clearTimeout(existingTimer);
+  woodcuttingPanelExpiryTimers.delete(messageId);
+}
+
+function expireWoodcuttingPanel(interaction: ButtonInteraction) {
+  clearWoodcuttingPanelExpiry(interaction.message.id);
+  return interaction.update({ content: woodcuttingPanelExpirationMessage(), components: [] });
+}
+
+function woodcuttingShopTabLabel(tab: WoodcuttingShopTab) {
+  const labels: Record<WoodcuttingShopTab, string> = {
+    workers: 'Workers',
+    axes: 'Axes',
+    saplings: 'Saplings',
+    lodging: 'Lodging',
+    sharpening: 'Sharpening',
+    meals: 'Meals',
+  };
+  return labels[tab];
+}
+
+function woodcuttingInventoryTabLabel(tab: WoodcuttingInventoryTab) {
+  const labels: Record<WoodcuttingInventoryTab, string> = {
+    workforce: 'Workforce',
+    resources: 'Saplings & Wood',
+    finds: 'Critters & Amber',
+  };
+  return labels[tab];
+}
+
+function woodcuttingShopComponents(ownerDiscordUserId: string, tab: WoodcuttingShopTab, expiresAt: number) {
+  return toComponentRows(WOODCUTTING_SHOP_TABS.map((entry) => new ButtonBuilder()
+    .setCustomId(`${WOODCUTTING_BUTTON_PREFIX}-shop:${ownerDiscordUserId}:${expiresAt}:${entry}`)
+    .setStyle(entry === tab ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    .setLabel(woodcuttingShopTabLabel(entry))));
+}
+
+function woodcuttingInventoryComponents(ownerDiscordUserId: string, tab: WoodcuttingInventoryTab, expiresAt: number) {
+  return toComponentRows(WOODCUTTING_INVENTORY_TABS.map((entry) => new ButtonBuilder()
+    .setCustomId(`${WOODCUTTING_BUTTON_PREFIX}-inventory:${ownerDiscordUserId}:${expiresAt}:${entry}`)
+    .setStyle(entry === tab ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    .setLabel(woodcuttingInventoryTabLabel(entry))));
+}
+
+function woodcuttingUpgradeLines(state: WoodcuttingPlayerState, category: 'lodging' | 'meal' | 'sharpening') {
+  return getWoodcuttingUpgrades(category).map((upgrade) => `${state.ownedUpgradeIds.includes(upgrade.id) ? '✅ ' : ''}**${upgrade.name}** — ${formatWoodcuttingRecipe(upgrade.recipe)}\n${upgrade.description}`).join('\n\n');
+}
+
+export function buildWoodcuttingShopPanel(ownerDiscordUserId: string, state: WoodcuttingPlayerState, expiresAt: number, tab: WoodcuttingShopTab) {
+  const nextWorkerCost = WOODCUTTING_WORKER_COSTS[state.workers.length];
+  const axes = WOODCUTTING_AXES.map((axe) => `**T${axe.tier} · ${axe.name}** — ${formatWoodcuttingRecipe(axe.recipe)}`).join('\n');
+  const saplings = WOODCUTTING_SAPLINGS.map((sapling) => `**T${sapling.tier} · ${sapling.name}** — ${formatXp(sapling.saplingCost)} KnowBucks · ${sapling.woodName}${sapling.processorUpgradeId ? ` · ${sapling.processorUpgradeId.replace('processor-depth-', 'Resource ')} Processor` : ''}`).join('\n');
+  const fields = tab === 'workers'
+    ? [
+      { name: 'Lumberjack roster', value: `You have **${state.workers.length}/10** lumberjacks. ${nextWorkerCost ? `Your next lumberjack costs **${formatXp(nextWorkerCost)} KnowBucks**${state.workers.length === 0 ? ' and includes a Quartz Axe' : ''}.` : 'All ten lumberjacks are hired.'}` },
+      { name: 'Purchase command', value: '`/woodcutting hire`' },
+    ]
+    : tab === 'axes'
+      ? [{ name: 'Individual worker axes', value: axes }, { name: 'Craft command', value: '`/woodcutting craft-axe tier:<1–7>`' }]
+      : tab === 'saplings'
+        ? [{ name: 'Sapling stock', value: saplings }, { name: 'Purchase command', value: '`/woodcutting buy-saplings type:<sapling type> quantity:<amount>` · Each type stores up to 1,000,000.' }]
+        : tab === 'lodging'
+          ? [{ name: 'Lodging upgrades', value: woodcuttingUpgradeLines(state, 'lodging') }, { name: 'Craft command', value: '`/woodcutting craft-upgrade upgrade:<lodging upgrade>`' }]
+          : tab === 'sharpening'
+            ? [{ name: 'Sharpening Station', value: woodcuttingUpgradeLines(state, 'sharpening') }, { name: 'Craft command', value: '`/woodcutting craft-upgrade upgrade:<Sharpening Station tier>`' }]
+            : [{ name: 'Permanent meals', value: woodcuttingUpgradeLines(state, 'meal') }, { name: 'Craft command', value: '`/woodcutting craft-upgrade upgrade:<meal>`' }];
+  return {
+    components: woodcuttingShopComponents(ownerDiscordUserId, tab, expiresAt),
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x166534)
+        .setTitle(`Woodcutting shop · ${woodcuttingShopTabLabel(tab)}`)
+        .setDescription(`Balance: **${formatXp(state.balance)} KnowBucks** · Lumberjacks: **${state.workers.length}/10**`)
+        .addFields(fields),
+    ],
+  };
+}
+
+export function buildWoodcuttingInventoryPanel(ownerDiscordUserId: string, username: string, state: WoodcuttingPlayerState, expiresAt: number, tab: WoodcuttingInventoryTab) {
+  const inventory = new Map(state.inventory.map((entry) => [entry.item_id, entry.quantity]));
+  const workers = state.workers.length
+    ? state.workers.map((worker) => `**#${worker.workerNumber}** — ${worker.axeTier ? getWoodcuttingAxe(worker.axeTier)?.name : 'Unassigned axe'}${worker.saplingTier ? ` → ${getWoodcuttingSapling(worker.saplingTier)?.name}` : ''}`).join('\n')
+    : 'No lumberjacks hired. Your first hire includes a Quartz Axe.';
+  const saplings = WOODCUTTING_SAPLINGS.map((sapling) => `**${sapling.name}** ×${formatXp(inventory.get(sapling.id) ?? 0)}`).join('\n');
+  const woods = WOODCUTTING_SAPLINGS.map((sapling) => `**${sapling.woodName}** ×${formatXp(inventory.get(sapling.woodItemId) ?? 0)}`).join('\n');
+  const critters = [1, 2, 3, 4, 5, 6, 7].flatMap((tier) => getWoodcuttingCritters(tier as WoodcuttingTier).map((critter) => ({ ...critter, tier }))).filter((critter) => (inventory.get(critter.id) ?? 0) > 0);
+  const critterFields = critters.length
+    ? Array.from({ length: Math.ceil(critters.length / 14) }, (_, index) => ({
+      name: index === 0 ? 'Critters' : 'Critters (continued)',
+      value: critters.slice(index * 14, (index + 1) * 14).map((critter) => `**${critter.name}** ×${formatXp(inventory.get(critter.id) ?? 0)}`).join('\n'),
+      inline: false,
+    }))
+    : [{ name: 'Critters', value: 'No critters collected yet.', inline: false }];
+  const amber = WOODCUTTING_SAPLINGS.map((sapling) => `${getWoodcuttingItemName(sapling.amberItemId)} ×${formatXp(inventory.get(sapling.amberItemId) ?? 0)}`).join('\n');
+  const fields = tab === 'workforce'
+    ? [
+      { name: 'Lumberjacks', value: workers, inline: true },
+      { name: 'Axes', value: woodcuttingAxeSummary(state.axes), inline: true },
+      { name: 'Permanent upgrades', value: state.ownedUpgradeIds.length ? state.ownedUpgradeIds.map((id) => getWoodcuttingUpgrade(id)?.name ?? id).join('\n') : 'No upgrades crafted yet.', inline: true },
+    ]
+    : tab === 'resources'
+      ? [{ name: 'Saplings', value: saplings, inline: true }, { name: 'Wood', value: woods, inline: true }]
+      : [...critterFields, { name: 'Amber finds', value: amber, inline: true }];
+  return {
+    components: woodcuttingInventoryComponents(ownerDiscordUserId, tab, expiresAt),
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x166534)
+        .setTitle(`${username}'s Woodcutting inventory · ${woodcuttingInventoryTabLabel(tab)}`)
+        .setDescription(`Last claim started from **${new Date(state.lastClaimedAt).toLocaleString()}**. Claim again whenever you want with \`/woodcutting claim\`.`)
+        .addFields(fields),
+    ],
+  };
+}
+
+function buildWoodcuttingCataloguePanel(progress: Awaited<ReturnType<typeof getWoodcuttingCatalogueProgress>>) {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x166534)
+        .setTitle('Woodcutting catalogue')
+        .setDescription('✅ marks wood, critters, and amber found at least once.')
+        .addFields(([1, 2, 3, 4, 5, 6, 7] as const).map((tier) => {
+          const sapling = getWoodcuttingSapling(tier)!;
+          const status = (itemId: string) => progress.discoveredItemIds.has(itemId) ? '✅' : '⬜';
+          return {
+            name: `Tier ${tier} · ${sapling.woodName}`,
+            value: `${status(sapling.woodItemId)} **${sapling.woodName}**\n${getWoodcuttingCritters(tier).map((critter) => `${status(critter.id)} ${critter.name}`).join(' · ')}\n${status(sapling.amberItemId)} **${getWoodcuttingItemName(sapling.amberItemId)}**`,
+          };
+        })),
+    ],
+  };
+}
+
+async function handleWoodcuttingCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+  const subcommand = interaction.options.getSubcommand();
+  if (subcommand === 'assign') {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const workerNumber = interaction.options.getInteger('worker', true);
+      const axeTier = interaction.options.getInteger('axe-tier', true) as WoodcuttingTier;
+      const saplingTier = interaction.options.getInteger('sapling-tier', true) as WoodcuttingTier;
+      const currentState = await getWoodcuttingPlayerState(config, interaction.user.id);
+      const issue = getWoodcuttingAssignmentIssue(currentState, workerNumber, axeTier, saplingTier);
+      if (issue) {
+        await interaction.editReply(woodcuttingAssignmentIssuePanel(issue));
+        return;
+      }
+      await assignWoodcuttingWorker(config, interaction.user.id, workerNumber, axeTier, saplingTier);
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x166534).setTitle('Lumberjack assigned').setDescription(`Lumberjack **#${workerNumber}** now uses **${getWoodcuttingAxe(axeTier)?.name}** on **${getWoodcuttingSapling(saplingTier)?.name}**.\nClaim any time with \`/woodcutting claim\`.`)] });
+    } catch (error) {
+      await interaction.editReply(error instanceof WoodcuttingAssignmentIssueError
+        ? woodcuttingAssignmentIssuePanel(error.issue)
+        : { content: woodcuttingCommandErrorMessage(error), embeds: [] });
+    }
+    return;
+  }
+
+  await interaction.deferReply();
+  try {
+    if (subcommand === 'help') {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder()
+          .setColor(0x166534)
+          .setTitle('KnowLeague Woodcutting help')
+          .setDescription('Woodcutting is continuous: assigned lumberjacks work while you are away, and rewards are calculated only when you claim or make a production change.')
+          .addFields(
+            { name: 'Build a crew', value: '`/woodcutting hire` buys a lumberjack. The first costs 500 KnowBucks and includes a Quartz Axe; later workers require separately crafted axes before they can work.' },
+            { name: 'Equip workers', value: '`/woodcutting assign worker axe-tier sapling-tier` equips one lumberjack. Axe and Resource Processor gates apply. `/woodcutting assign-auto` uses the highest owned axes on the highest stocked eligible saplings.' },
+            { name: 'Supply and claim', value: '`/woodcutting buy-saplings type quantity` lists each sapling type (up to 1,000,000 per type). Every finished chop uses a sapling unless Sap-Saver’s Stew preserves it; use `/woodcutting claim` for wood, critters, and amber.' },
+            { name: 'Progression', value: '`/woodcutting craft-axe` creates individual worker tools. `/woodcutting craft-upgrade` creates lodging, Sharpening Station, and permanent meal upgrades. `/woodcutting shop`, `inventory`, and `catalogue` show the full state.' },
+          )],
+      });
+      return;
+    }
+    if (subcommand === 'claim') {
+      const settlement = await claimWoodcuttingRewards(config, interaction.user.id);
+      await interaction.editReply(buildWoodcuttingClaimPanel(interaction.user.username, settlement.result));
+      return;
+    }
+    if (subcommand === 'hire') {
+      const hired = await hireWoodcuttingWorker(config, interaction.user.id);
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x166534).setTitle('Lumberjack hired').setDescription(`Hired lumberjack **#${hired.worker_number}** for **${formatXp(hired.cost)} KnowBucks**.${hired.starter_axe_id ? ` They received your starter **Quartz Axe #${hired.starter_axe_id}**; assign it with \`/woodcutting assign\`.` : ' Craft an axe and assign it before they can work.'}`)] });
+      return;
+    }
+    if (subcommand === 'craft-axe') {
+      const crafted = await craftWoodcuttingAxe(config, interaction.user.id, interaction.options.getInteger('tier', true) as WoodcuttingTier);
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x166534).setTitle('Axe crafted').setDescription(`Crafted **${crafted.axe.name} #${crafted.axeId}**. Assign it to a lumberjack with \`/woodcutting assign\`.`)] });
+      return;
+    }
+    if (subcommand === 'buy-saplings') {
+      const bought = await purchaseWoodcuttingSaplings(config, interaction.user.id, interaction.options.getInteger('type', true) as WoodcuttingTier, interaction.options.getInteger('quantity', true));
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x166534).setTitle('Saplings purchased').setDescription(`Bought **${formatXp(interaction.options.getInteger('quantity', true))} ${bought.sapling.name}** for **${formatXp(bought.cost)} KnowBucks**. New balance: **${formatXp(bought.balance)} KnowBucks**.`)] });
+      return;
+    }
+    if (subcommand === 'assign-auto') {
+      const assigned = await assignWoodcuttingWorkersAutomatically(config, interaction.user.id);
+      const state = await getWoodcuttingPlayerState(config, interaction.user.id);
+      const axesById = new Map(state.axes.map((axe) => [axe.id, axe]));
+      const saplingQuantities = new Map(state.inventory.map((item) => [item.item_id, item.quantity]));
+      const assignmentText = assigned.assignments.length ? assigned.assignments.map((entry) => {
+        const sapling = getWoodcuttingSapling(entry.sapling_tier);
+        return `Lumberjack #${entry.worker_number}: **${getWoodcuttingAxe(axesById.get(entry.axe_id)?.tier ?? 1)?.name ?? `Axe #${entry.axe_id}`}** → **${sapling?.name}** (${formatXp(saplingQuantities.get(sapling?.id ?? '') ?? 0)} left)`;
+      }).join('\n') : 'No assignment was possible. Buy saplings and make sure you have axes.';
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x166534).setTitle('Lumberjacks auto-assigned').setDescription(assignmentText)] });
+      return;
+    }
+    if (subcommand === 'craft-upgrade') {
+      const crafted = await craftWoodcuttingUpgrade(config, interaction.user.id, interaction.options.getString('upgrade', true));
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x166534).setTitle('Woodcutting upgrade crafted').setDescription(`Crafted **${crafted.upgrade.name}**. ${crafted.upgrade.description}`)] });
+      return;
+    }
+    if (subcommand === 'shop') {
+      const state = await getWoodcuttingPlayerState(config, interaction.user.id);
+      const expiresAt = Date.now() + WOODCUTTING_PANEL_TTL_MS;
+      await interaction.editReply(buildWoodcuttingShopPanel(interaction.user.id, state, expiresAt, 'workers'));
+      scheduleWoodcuttingPanelExpiry(await interaction.fetchReply(), expiresAt);
+      return;
+    }
+    if (subcommand === 'inventory') {
+      const state = await getWoodcuttingPlayerState(config, interaction.user.id);
+      const expiresAt = Date.now() + WOODCUTTING_PANEL_TTL_MS;
+      await interaction.editReply(buildWoodcuttingInventoryPanel(interaction.user.id, interaction.user.username, state, expiresAt, 'workforce'));
+      scheduleWoodcuttingPanelExpiry(await interaction.fetchReply(), expiresAt);
+      return;
+    }
+    if (subcommand === 'catalogue') {
+      await interaction.editReply(buildWoodcuttingCataloguePanel(await getWoodcuttingCatalogueProgress(config, interaction.user.id)));
+      return;
+    }
+    throw new Error(`Unsupported Woodcutting command: ${subcommand}`);
+  } catch (error) {
+    await interaction.editReply({ content: woodcuttingCommandErrorMessage(error), embeds: [] });
+  }
+}
+
 function miningCommandErrorMessage(error: unknown) {
   if (!(error instanceof Error)) return 'KnowLeague could not complete that mining request. Please try again shortly.';
   const message = error.message
@@ -3266,6 +3617,49 @@ async function handleFishingButtonInteraction(interaction: ButtonInteraction, co
   return false;
 }
 
+async function handleWoodcuttingButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  const [prefix, ownerDiscordUserId, expiresAtRaw, tab] = interaction.customId.split(':');
+  if (!prefix.startsWith(`${WOODCUTTING_BUTTON_PREFIX}-`) || !ownerDiscordUserId) return false;
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isSafeInteger(expiresAt) || !tab || Date.now() >= expiresAt) {
+    await expireWoodcuttingPanel(interaction);
+    return true;
+  }
+  if (interaction.user.id !== ownerDiscordUserId) {
+    await interaction.reply({ content: 'Only the member who opened this Woodcutting panel can use its tabs.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  await interaction.deferUpdate();
+  try {
+    const nextExpiresAt = Date.now() + WOODCUTTING_PANEL_TTL_MS;
+    if (prefix === `${WOODCUTTING_BUTTON_PREFIX}-shop`) {
+      if (!WOODCUTTING_SHOP_TABS.includes(tab as WoodcuttingShopTab)) {
+        await interaction.followUp({ content: 'This Woodcutting shop panel is outdated. Run `/woodcutting shop` to open a new one.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      const state = await getWoodcuttingPlayerState(config, ownerDiscordUserId);
+      await interaction.editReply(buildWoodcuttingShopPanel(ownerDiscordUserId, state, nextExpiresAt, tab as WoodcuttingShopTab));
+      scheduleWoodcuttingPanelExpiry(interaction.message, nextExpiresAt);
+      return true;
+    }
+    if (prefix === `${WOODCUTTING_BUTTON_PREFIX}-inventory`) {
+      if (!WOODCUTTING_INVENTORY_TABS.includes(tab as WoodcuttingInventoryTab)) {
+        await interaction.followUp({ content: 'This Woodcutting inventory panel is outdated. Run `/woodcutting inventory` to open a new one.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      const state = await getWoodcuttingPlayerState(config, ownerDiscordUserId);
+      await interaction.editReply(buildWoodcuttingInventoryPanel(ownerDiscordUserId, interaction.user.username, state, nextExpiresAt, tab as WoodcuttingInventoryTab));
+      scheduleWoodcuttingPanelExpiry(interaction.message, nextExpiresAt);
+      return true;
+    }
+    await interaction.followUp({ content: 'This Woodcutting panel is outdated. Run `/woodcutting shop` or `/woodcutting inventory` to open a new one.', flags: MessageFlags.Ephemeral });
+    return true;
+  } catch (error) {
+    await interaction.followUp({ content: woodcuttingCommandErrorMessage(error), flags: MessageFlags.Ephemeral });
+    return true;
+  }
+}
+
 async function handleMiningExpeditionButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   const [prefix, action, ownerDiscordUserId, depthText, ...extra] = interaction.customId.split(':');
   if (prefix !== MINING_EXPEDITION_BUTTON_PREFIX) return false;
@@ -3622,6 +4016,7 @@ export async function handleButtonInteraction(interaction: ButtonInteraction, co
   if (await handleHelpButtonInteraction(interaction)) return;
   if (await handlePlayerButtonInteraction(interaction, config)) return;
   if (await handleFishingButtonInteraction(interaction, config)) return;
+  if (await handleWoodcuttingButtonInteraction(interaction, config)) return;
   if (await handleMiningExpeditionButtonInteraction(interaction, config)) return;
   if (await handleMiningButtonInteraction(interaction, config)) return;
   if (await handleClaimedSkinActionButton(interaction, config)) return;
@@ -3806,6 +4201,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'mining') {
     await handleMiningCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'woodcutting') {
+    await handleWoodcuttingCommand(interaction, config);
     return;
   }
 

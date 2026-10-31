@@ -3232,9 +3232,9 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
         interaction.user.id,
         skinCode,
         async (gamble) => {
-          await interaction.editReply({
-            content: `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance. A new skin drop is appearing now.`,
-          });
+          const content = `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance and won.`;
+          const message = await interaction.editReply({ content });
+          return { content, message };
         },
       );
       if (result.status === 'spawned') {
@@ -3856,6 +3856,13 @@ async function handleClaimedSkinActionButton(interaction: ButtonInteraction, con
     await interaction.reply({ content: 'Only the member who claimed this skin can use its collection actions.', flags: MessageFlags.Ephemeral });
     return true;
   }
+  if (action === 'gamble' && !interaction.appPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+    await interaction.reply({
+      content: 'The KnowLeague bot needs the **Manage Messages** permission in this channel to clear the old claim reaction before opening the gamble drop.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return true;
+  }
 
   const skinCode = Number(skinCodeText);
   await interaction.deferUpdate();
@@ -3875,6 +3882,20 @@ async function handleClaimedSkinActionButton(interaction: ButtonInteraction, con
       return true;
     }
 
+    try {
+      // The old reaction is still present when this claimed-drop panel becomes
+      // a new drop. Clear it before the gamble can consume the skin so a fresh
+      // human reaction triggers the normal claim path without manual cleanup.
+      await interaction.message.reactions.removeAll();
+    } catch (error) {
+      console.error('Could not clear reactions before converting a claimed Collection drop into a gamble drop.', error);
+      await interaction.followUp({
+        content: 'The existing claim reaction could not be cleared, so your skin was not gambled. Please ask a server admin to grant KnowLeague **Manage Messages** in this channel and try again.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return true;
+    }
+
     const result = await gambleSkinClaim(
       config,
       interaction.guild!,
@@ -3882,11 +3903,13 @@ async function handleClaimedSkinActionButton(interaction: ButtonInteraction, con
       ownerDiscordUserId,
       skinCode,
       async (gamble) => {
-        await interaction.editReply({
+        const content = `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance and won.`;
+        const message = await interaction.editReply({
           components: [],
-          content: `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance. A new skin drop is appearing now.`,
+          content,
           embeds: [],
         });
+        return { content, message };
       },
     );
     if (result.status === 'spawned') {
@@ -3969,9 +3992,9 @@ async function handleSkinCollectionActionButton(interaction: ButtonInteraction, 
         ownerDiscordUserId,
         skinCode,
         async (gamble) => {
-          await interaction.followUp({
-            content: `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance. A new skin drop is appearing now.`,
-          });
+          const content = `**${interaction.user.username}** gambled **${gamble.skinName}** - #${skinCollectionCode(skinCode)} at a ${gamble.successChancePercent ?? 25}% chance and won.`;
+          const message = await interaction.followUp({ content });
+          return { content, message };
         },
       );
       if (result.status === 'spawned') {

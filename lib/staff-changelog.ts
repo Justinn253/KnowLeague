@@ -17,6 +17,155 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-31-discord-bot-eight-permission-checklist',
+    patch: 'patch-2026-10-31-discord-bot-eight-permission-checklist',
+    timestamp: '2026-10-31T20:29:41.733Z',
+    title: 'Make the eight standard Discord bot permissions explicit',
+    summary: 'The Discord operations guide and setup instructions now present one unambiguous eight-permission production checklist instead of separating baseline and feature grants.',
+    details: [
+      'The reference now lists View Channels, Send Messages, Embed Links, Attach Files, Read Message History, Manage Messages, Manage Roles, and Create Expressions as numbered standard production selections.',
+      'Manage Expressions remains a documented substitute for Create Expressions, rather than an additional ninth permission. Thread messaging remains conditional and separately called out.',
+      'The local setup README repeats the exact eight names so server administrators can select them directly in Discord’s OAuth URL Generator without interpreting separate sections.',
+    ],
+    impact: [
+      'Administrators receive a clear least-privilege invite configuration that matches all currently enabled KnowLeague product features.',
+      'No code-path, database, slash-command, or bot deployment change is required for this documentation clarification. Deploy the website only to publish this staff-changelog entry.',
+    ],
+    files: ['docs/discord-bot-permissions.md', 'discord-bot/README.md', 'lib/staff-changelog.ts'],
+    verification: [
+      'The permission guide and README checklist were cross-checked against all active bot permission and intent call sites.',
+      'No migration push, production build, bot deployment, or Discord slash-command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-31-discord-bot-permission-contract',
+    patch: 'patch-2026-10-31-discord-bot-permission-contract',
+    timestamp: '2026-10-31T20:27:08.322Z',
+    title: 'Document the complete KnowLeague Discord permission contract',
+    summary: 'A maintained Discord permission and gateway-intent reference now documents the minimum baseline, feature-specific grants, role hierarchy, user command permission, and explicitly unnecessary privileges.',
+    details: [
+      'Added a dedicated operations document covering OAuth scopes; View Channels, Send Messages, Embed Links, Attach Files, Read Message History, and Collections-specific Manage Messages; role and emoji import permissions; thread handling; and permissions that must not be granted.',
+      'Documented the bot’s actual gateway contract: Server Members and Message Content are the two required privileged intents, while Presence stays disabled. This corrects the prior README statement that Server Members should remain disabled, which no longer matched collection cleanup on member removal.',
+      'Updated bot local setup instructions to point administrators to the reference and call out the current Manage Messages, Attach Files, and role hierarchy requirements.',
+    ],
+    impact: [
+      'Server administrators can re-authorize the bot with least privilege while retaining every enabled KnowLeague feature, including claimed-drop gambling and member-departure collection cleanup.',
+      'No code-path, database, slash-command, or bot deployment change is required for this documentation patch. Discord role/intent changes take effect after re-authorizing or updating the bot configuration in Discord; deploy the website only to publish this staff-changelog entry.',
+    ],
+    files: ['docs/discord-bot-permissions.md', 'discord-bot/README.md', 'lib/staff-changelog.ts'],
+    verification: [
+      'Repository search cross-checked every Discord permission, role, message, reaction, emoji, attachment, and gateway-intent use against the reference.',
+      'No migration push, production build, bot deployment, or Discord slash-command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-31-discord-collections-gamble-reaction-reset',
+    patch: 'patch-2026-10-31-discord-collections-gamble-reaction-reset',
+    timestamp: '2026-10-31T20:24:25.671Z',
+    title: 'Reset claimed-drop reactions before a successful Collection gamble',
+    summary: 'Gambling from a claimed Collection-drop panel now clears its old reactions before the skin can be consumed and the same message becomes the new drop.',
+    details: [
+      'The claimed-drop Gamble action verifies the bot has Manage Messages in the current channel, then removes all existing reactions before beginning the gamble transaction.',
+      'This prevents the original claimant reaction from remaining on the message after it becomes a new drop. Members can add one fresh reaction to use the normal, first-valid-reaction claim flow without manually removing stale reactions.',
+      'If reaction removal cannot complete, the gamble stops before the economy RPC runs. The claimed skin and its panel remain intact, and the member receives private permission guidance.',
+    ],
+    impact: [
+      'Members have a cleaner gamble-to-drop transition without stale claim reactions blocking the newly spawned item.',
+      'The KnowLeague bot needs Manage Messages in Collection channels for claimed-panel gambling. Deploy the Discord bot; no migration, website gameplay deployment, or slash-command registration is required. Deploy the website only to publish this staff-changelog entry.',
+    ],
+    files: ['discord-bot/src/interactions.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Discord bot TypeScript and the full repository check passed after the edit.',
+      'No migration push, production build, or Discord slash-command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-31-discord-collections-retain-claim-attachment-id',
+    patch: 'patch-2026-10-31-discord-collections-retain-claim-attachment-id',
+    timestamp: '2026-10-31T20:19:33.688Z',
+    title: 'Retain Collection claim artwork by Discord attachment ID',
+    summary: 'Collection claim edits now explicitly retain the existing Discord attachment by ID, preserving the embed-only image without a re-upload or standalone duplicate.',
+    details: [
+      'Discord API v10 requires retained attachments to be represented in an edit request. The claim update now sends only the existing attachment ID, rather than a complete Attachment object or an omitted attachment collection.',
+      'This keeps the original media object and its `attachment://` filename in place while the bot replaces the claim panel’s text, fields, footer, color, and controls.',
+      'It avoids both observed regressions: resubmitting the attachment as a new upload caused artwork flicker, while omitting the retained attachment could leave Discord rendering a standalone image in addition to the embed image.',
+    ],
+    impact: [
+      'Members should see a single continuous image inside the claimed Collection panel as its claim details update.',
+      'Deploy the Discord bot. No migration, website gameplay deployment, slash-command registration, or permission change is required; deploy the website only to publish this staff-changelog entry.',
+    ],
+    files: ['discord-bot/src/skin-claims.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Discord bot TypeScript and the full repository check passed after the edit.',
+      'No migration push, production build, or Discord slash-command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-31-discord-collections-stable-claim-media',
+    patch: 'patch-2026-10-31-discord-collections-stable-claim-media',
+    timestamp: '2026-10-31T20:15:23.005Z',
+    title: 'Keep claimed Collection artwork visible during panel edits',
+    summary: 'Claiming a Collection drop now retains Discord’s existing attachment instead of replacing it, so the image stays visible while the panel changes to its claimed state.',
+    details: [
+      'The claim-message edit continues to reference the original `attachment://` filename from the embed, but no longer resubmits the attachment collection to Discord.',
+      'Discord preserves attachments when an edit omits that field. This avoids removing and re-uploading the image, which was causing the brief disappearing/reappearing artwork after a valid claim.',
+      'The prior embed-only image behavior remains intact: claimed messages do not add a separate standalone image above the Collection panel.',
+    ],
+    impact: [
+      'Members receive a visually stable claim transition while retaining the same artwork and claim controls.',
+      'Deploy the Discord bot. No migration, website gameplay deployment, slash-command registration, or permission change is required; deploy the website only to publish this staff-changelog entry.',
+    ],
+    files: ['discord-bot/src/skin-claims.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Discord bot TypeScript and the full repository check passed after the edit.',
+      'No migration push, production build, or Discord slash-command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-31-discord-collections-embed-only-claims-and-inline-gambles',
+    patch: 'patch-2026-10-31-discord-collections-embed-only-claims-and-inline-gambles',
+    timestamp: '2026-10-31T20:10:17.895Z',
+    title: 'Keep Collection media and successful gambles in one Discord panel',
+    summary: 'Claimed drops now retain their artwork as an embed-only attachment, and every successful Collection gamble converts its existing success message into the new claimable drop rather than posting a second message.',
+    details: [
+      'Claim edits explicitly retain the attachment referenced by `attachment://`, preventing Discord from rendering the same artwork once above the embed and once inside it.',
+      'The reserved-drop publisher can now update an existing Discord message. It replaces obsolete components and attachments, adds the claimable skin panel and its attachment, then attaches the database drop to that same message ID.',
+      'The `/collections gamble` command, post-claim Gamble button, and Collection-panel Gamble button now each provide their public successful-gamble message as the reserved-drop target. Failed gambles and non-success outcomes retain their existing messages and economy behavior.',
+      'If Discord cannot attach a targeted new drop, the pending reservation is abandoned instead of leaving an unclaimable drop. The existing database economy continues to be authoritative for successful gambles.',
+    ],
+    impact: [
+      'Members see one clear claimed-drop image and one public successful-gamble panel that immediately becomes the new reaction-claimable drop.',
+      'Deploy the Discord bot. No migration, website gameplay deployment, or slash-command registration is required; deploy the website only to publish this staff-changelog entry.',
+    ],
+    files: ['discord-bot/src/skin-claims.ts', 'discord-bot/src/interactions.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Collections coverage passed all 19 tests, the full Vitest suite passed all 47 files / 288 tests, and Discord bot TypeScript passed.',
+      'No migration push, production build, or Discord slash-command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-31-discord-collections-rune-assets-and-claim-recovery',
+    patch: 'patch-2026-10-31-discord-collections-rune-assets-and-claim-recovery',
+    timestamp: '2026-10-31T19:58:06.764Z',
+    title: 'Repair Collection rune images and claim completion',
+    summary: 'Collections now generate rune artwork from Riot’s working rune-image CDN path, and a follow-up claim RPC migration removes the timestamp-name ambiguity that was preventing claims from completing.',
+    details: [
+      'The Collection catalogue generator now uses Data Dragon’s versionless `/cdn/img/perk-images/...` route for rune assets. The versioned item-image route returned 403 for every rune image, which caused Discord embeds and attachment uploads to have no artwork.',
+      'The regenerated catalogue retains 76 validated displayable runes, including the canonical Unsealed Spellbook (8360). A direct validation confirmed every generated rune URL returns a supported image response.',
+      'Migration 201 replaces only the deployed claim RPC body, qualifying `claimed_drop.claimed_at` in the UPDATE RETURNING clause. This fixes PostgreSQL’s ambiguous reference error while retaining capacity, grace, ownership, ordering, and catalogue-lock safeguards.',
+      'Failed pre-fix claim attempts are transactionally rolled back, so they did not award or duplicate entries. They may leave a still-pending drop until a member removes and re-adds their reaction, successfully retries a reaction, or the normal claim window expires.',
+    ],
+    impact: [
+      'Apply migration 201 before deploying the Discord bot with the corrected generated catalogue. Once the pending-drop claim can complete, it no longer blocks `/collections spawn` or a successful gamble from reserving its new drop.',
+      'No slash-command shape or website gameplay surface changed. Discord bot deployment is required; slash-command registration is not. Deploy the website only to surface this staff-changelog entry. The migration was created locally only and was not pushed.',
+    ],
+    files: ['scripts/generate-discord-collection-catalog.mjs', 'data/catalogs/discord-collection-runes.json', 'data/catalogs/discord-collection-rune-tiers.md', 'supabase/migrations/201_fix_discord_collection_claim_timestamp_ambiguity.sql', 'tests/discord-skin-claims.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Directly validated all 76 generated official rune image URLs after regeneration; all returned a supported image response. Focused Collections coverage passed all 19 tests, and the full suite passed all 47 files / 288 tests.',
+      '`npm run check` completed successfully with only the existing `next/image` advisories for unrelated profile and Riftbound components; Discord bot type-checking also passed. No Supabase migration push, production build, or Discord slash-command registration was run.',
+    ],
+  },
+  {
     id: 'patch-2026-10-30-discord-companion-game-web-experience',
     patch: 'patch-2026-10-30-discord-companion-game-web-experience',
     timestamp: '2026-10-30T23:00:00.000Z',

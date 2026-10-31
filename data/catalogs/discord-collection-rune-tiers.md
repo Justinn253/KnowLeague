@@ -1,6 +1,6 @@
 # Discord Collection Rune Rarities
 
-Generated at: 2026-10-30T22:14:32.262Z
+Generated at: 2026-10-31T19:58:27.792Z
 Data Dragon Reforged-rune snapshots: 224 (7.22.1 through 16.21.1)
 
 | Rarity | Rune | Kind | Style |

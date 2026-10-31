@@ -904,6 +904,11 @@ function toCollectionDrop(entry: CollectionCatalogEntry, reserved: ReservedSkinD
   };
 }
 
+type ReservedDropMessageTarget = {
+  content: string;
+  message: Message;
+};
+
 async function sendReservedSkinDrop(
   config: DiscordBotConfig,
   guild: Guild,
@@ -911,23 +916,35 @@ async function sendReservedSkinDrop(
   entry: CollectionCatalogEntry,
   reserved: ReservedSkinDrop,
   raritySpawnPercent?: number,
+  target?: ReservedDropMessageTarget,
 ) {
-  const channel = await guild.channels.fetch(channelId);
-  if (!channel?.isSendable()) {
-    await abandonUnsentDrop(config, reserved.drop_id);
-    console.error('Discord skin-claim drop could not use its configured channel.');
-    return false;
-  }
-
   try {
+    const channel = target ? null : await guild.channels.fetch(channelId);
     const expiresAtSeconds = Math.floor(new Date(reserved.expires_at).getTime() / 1_000);
     const drop = toCollectionDrop(entry, reserved);
     const image = await getDiscordDropImageAttachment(drop.image_url, drop.skin_code);
-    const message = await channel.send({
-      content: `React to claim this ${collectionTypeLabel(entry.type)}. Will expire <t:${expiresAtSeconds}:R>.`,
-      embeds: [skinDropEmbed(drop, undefined, false, raritySpawnPercent, { imageUrl: image?.imageUrl })],
-      ...(image ? { files: [image.attachment] } : {}),
-    });
+    const content = `${target ? `${target.content}\n` : ''}React to claim this ${collectionTypeLabel(entry.type)}. Will expire <t:${expiresAtSeconds}:R>.`;
+    let message: Message;
+    if (target) {
+      message = await target.message.edit({
+        attachments: [],
+        components: [],
+        content,
+        embeds: [skinDropEmbed(drop, undefined, false, raritySpawnPercent, { imageUrl: image?.imageUrl })],
+        ...(image ? { files: [image.attachment] } : {}),
+      });
+    } else {
+      if (!channel?.isSendable()) {
+        await abandonUnsentDrop(config, reserved.drop_id);
+        console.error('Discord skin-claim drop could not use its configured channel.');
+        return false;
+      }
+      message = await channel.send({
+        content,
+        embeds: [skinDropEmbed(drop, undefined, false, raritySpawnPercent, { imageUrl: image?.imageUrl })],
+        ...(image ? { files: [image.attachment] } : {}),
+      });
+    }
     const supabase = createBotServiceClient(config);
     const { error: attachError } = await supabase.rpc('attach_discord_skin_claim_message', {
       p_drop_id: reserved.drop_id,
@@ -935,7 +952,11 @@ async function sendReservedSkinDrop(
       p_message_id: message.id,
     });
     if (attachError) {
-      await message.delete().catch(() => undefined);
+      if (target) {
+        await message.edit({ attachments: [], components: [], content: `${target.content}\nThe new drop could not be opened. Your collection entry was not restored; contact a Collection admin.`, embeds: [] }).catch(() => undefined);
+      } else {
+        await message.delete().catch(() => undefined);
+      }
       throw new Error(`Unable to attach Discord skin-claim message: ${attachError.message}`);
     }
     const hostedImageUrl = image
@@ -1214,7 +1235,7 @@ export async function gambleSkinClaim(
   channelId: string,
   discordUserId: string,
   skinCode: number,
-  beforeSpawn?: (result: Pick<GambleSkinClaimResult, 'skinName' | 'successChancePercent'>) => Promise<void>,
+  beforeSpawn?: (result: Pick<GambleSkinClaimResult, 'skinName' | 'successChancePercent'>) => Promise<ReservedDropMessageTarget | void>,
 ): Promise<GambleSkinClaimResult> {
   const settings = await getSkinClaimSettings(config, true);
   if (!settings?.enabled || !settings.eligibleChannelIds.has(channelId)) return { status: 'not-configured' };
@@ -1233,8 +1254,9 @@ export async function gambleSkinClaim(
   if (!result.drop_id || !result.new_skin_code || !result.expires_at) {
     throw new Error('Skin gamble did not return its reserved drop.');
   }
+  let target: ReservedDropMessageTarget | void;
   try {
-    await beforeSpawn?.({
+    target = await beforeSpawn?.({
       skinName: result.skin_name,
       successChancePercent: result.success_chance_percent ?? undefined,
     });
@@ -1246,7 +1268,7 @@ export async function gambleSkinClaim(
     drop_id: result.drop_id,
     expires_at: result.expires_at,
     skin_code: result.new_skin_code,
-  }, calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights, catalog));
+  }, calculateSkinRaritySpawnPercent(skin.rarity, settings.rarityWeights, catalog), target ?? undefined);
   return spawned
     ? { status: 'spawned', skinName: result.skin_name, successChancePercent: result.success_chance_percent ?? undefined }
     : { status: 'active-drop', skinName: result.skin_name };
@@ -1375,6 +1397,10 @@ export async function handleSkinClaimReaction(
   const claimedAt = claim.claimed_at ?? new Date().toISOString();
   await message.edit({
     allowedMentions: { parse: [], users: [resolvedUser.id] },
+    // API v10 retains an attachment when its existing ID is supplied. Sending
+    // the full Attachment makes Discord process it like a fresh upload, while
+    // omitting it can disconnect the `attachment://` image reference.
+    attachments: attachedImage ? [{ id: attachedImage.id }] : [],
     components: skinClaimActionButtons(resolvedUser.id, claim.skin_code),
     content: '',
     embeds: [skinDropEmbed(

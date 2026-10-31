@@ -36,9 +36,17 @@ describe('Discord skin-claim command contract', () => {
     expect(unsealedSpellbooks).toEqual([
       expect.objectContaining({
         id: '8360',
-        imageUrl: 'https://ddragon.leagueoflegends.com/cdn/16.21.1/img/perk-images/Styles/Inspiration/UnsealedSpellbook/UnsealedSpellbook.png',
+        imageUrl: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/UnsealedSpellbook/UnsealedSpellbook.png',
       }),
     ]);
+  });
+
+  it('qualifies the claimed timestamp in the Collection claim-recovery migration', () => {
+    const migrationPath = path.join(process.cwd(), 'supabase', 'migrations', '201_fix_discord_collection_claim_timestamp_ambiguity.sql');
+    const migration = readFileSync(migrationPath, 'utf8');
+
+    expect(migration).toContain('returning claimed_drop.claimed_at into v_claimed_at;');
+    expect(migration).not.toContain('returning claimed_at into v_claimed_at;');
   });
 
   it('registers the full Collections command set without a /cl alias', () => {

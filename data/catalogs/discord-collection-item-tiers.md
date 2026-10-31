@@ -1,6 +1,6 @@
 # Discord Collection Item Rarities
 
-Generated at: 2026-10-30T22:14:32.262Z
+Generated at: 2026-10-31T19:58:27.792Z
 Data Dragon snapshots: 404 (0.151.2 through 16.21.1)
 Sorted by cost (ascending). Each item name appears once, using its highest-cost available version.
 

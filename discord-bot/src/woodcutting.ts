@@ -44,8 +44,10 @@ export type WoodcuttingPlayerState = {
   workers: WoodcuttingWorkerState[];
 };
 
+type WoodcuttingClaimState = Pick<WoodcuttingPlayerState, 'axes' | 'inventory' | 'lastClaimedAt' | 'ownedUpgradeIds' | 'workers'>;
+
 export type WoodcuttingCatalogueProgress = { discoveredItemIds: ReadonlySet<string> };
-export type WoodcuttingSettlement = { result: WoodcuttingClaimResult; state: WoodcuttingPlayerState };
+export type WoodcuttingSettlement = { result: WoodcuttingClaimResult; state: WoodcuttingClaimState };
 export type WoodcuttingAssignmentIssue = { availableAxes: WoodcuttingAxeState[]; command?: string; message: string };
 
 export class WoodcuttingAssignmentIssueError extends Error {
@@ -67,6 +69,8 @@ function inventoryMap(inventory: readonly { item_id: string; quantity: number }[
   return new Map(inventory.map((entry) => [entry.item_id, entry.quantity]));
 }
 
+const WOODCUTTING_CLAIM_ATTEMPTS = 2;
+
 async function ensureWoodcuttingPlayer(config: DiscordBotConfig, discordUserId: string) {
   const { error } = await createBotServiceClient(config).rpc('ensure_discord_woodcutting_player', {
     p_discord_user_id: discordUserId,
@@ -75,17 +79,15 @@ async function ensureWoodcuttingPlayer(config: DiscordBotConfig, discordUserId: 
   if (error) throw new Error(`Unable to initialize Discord Woodcutting: ${error.message}`);
 }
 
-export async function getWoodcuttingPlayerState(config: DiscordBotConfig, discordUserId: string): Promise<WoodcuttingPlayerState> {
+async function getWoodcuttingClaimState(config: DiscordBotConfig, discordUserId: string): Promise<WoodcuttingClaimState> {
   await ensureWoodcuttingPlayer(config, discordUserId);
   const supabase = createBotServiceClient(config);
-  const [playerResult, inventoryResult, axeResult, workerResult, upgradeResult, miningState, playerShop] = await Promise.all([
+  const [playerResult, inventoryResult, axeResult, workerResult, upgradeResult] = await Promise.all([
     supabase.from('discord_woodcutting_players').select('last_claimed_at').eq('guild_id', config.guildId).eq('discord_user_id', discordUserId).maybeSingle<WoodcuttingPlayerRow>(),
     supabase.from('discord_woodcutting_inventory').select('item_id,quantity').eq('guild_id', config.guildId).eq('discord_user_id', discordUserId).order('item_id', { ascending: true }).returns<WoodcuttingInventoryRow[]>(),
     supabase.from('discord_woodcutting_axes').select('id,axe_tier').eq('guild_id', config.guildId).eq('discord_user_id', discordUserId).order('id', { ascending: true }).returns<WoodcuttingAxeRow[]>(),
     supabase.from('discord_woodcutting_workers').select('worker_number,axe_id,sapling_tier,chop_remainder_ms').eq('guild_id', config.guildId).eq('discord_user_id', discordUserId).order('worker_number', { ascending: true }).returns<WoodcuttingWorkerRow[]>(),
     supabase.from('discord_woodcutting_upgrades').select('upgrade_id').eq('guild_id', config.guildId).eq('discord_user_id', discordUserId).returns<WoodcuttingUpgradeRow[]>(),
-    getMiningPlayerState(config, discordUserId),
-    getPlayerShopState(config, discordUserId),
   ]);
   if (playerResult.error) throw new Error(`Unable to load Woodcutting progress: ${playerResult.error.message}`);
   if (inventoryResult.error) throw new Error(`Unable to load Woodcutting inventory: ${inventoryResult.error.message}`);
@@ -96,13 +98,9 @@ export async function getWoodcuttingPlayerState(config: DiscordBotConfig, discor
   const axeTierById = new Map(axes.map((axe) => [axe.id, axe.tier]));
   return {
     axes,
-    balance: playerShop.balance,
     inventory: inventoryResult.data ?? [],
     lastClaimedAt: playerResult.data?.last_claimed_at ?? new Date().toISOString(),
-    miningInventory: miningState.inventory,
-    miningOwnedUpgradeIds: miningState.ownedUpgradeIds,
     ownedUpgradeIds: (upgradeResult.data ?? []).map((upgrade) => upgrade.upgrade_id),
-    processorTier: getMiningProcessorTier(miningState),
     workers: (workerResult.data ?? []).map((worker) => ({
       axeId: worker.axe_id,
       axeTier: worker.axe_id ? axeTierById.get(worker.axe_id) ?? null : null,
@@ -110,6 +108,21 @@ export async function getWoodcuttingPlayerState(config: DiscordBotConfig, discor
       saplingTier: worker.sapling_tier,
       workerNumber: worker.worker_number,
     })),
+  };
+}
+
+export async function getWoodcuttingPlayerState(config: DiscordBotConfig, discordUserId: string): Promise<WoodcuttingPlayerState> {
+  const [woodcutting, miningState, playerShop] = await Promise.all([
+    getWoodcuttingClaimState(config, discordUserId),
+    getMiningPlayerState(config, discordUserId),
+    getPlayerShopState(config, discordUserId),
+  ]);
+  return {
+    ...woodcutting,
+    balance: playerShop.balance,
+    miningInventory: miningState.inventory,
+    miningOwnedUpgradeIds: miningState.ownedUpgradeIds,
+    processorTier: getMiningProcessorTier(miningState),
   };
 }
 
@@ -125,8 +138,9 @@ export async function getWoodcuttingCatalogueProgress(config: DiscordBotConfig, 
   return { discoveredItemIds: new Set((data ?? []).map((entry) => entry.item_id)) };
 }
 
-function resolveClaim(state: WoodcuttingPlayerState) {
-  const elapsedMs = Math.max(0, Date.now() - new Date(state.lastClaimedAt).getTime());
+function resolveClaim(state: WoodcuttingClaimState) {
+  const lastClaimedAtMs = Date.parse(state.lastClaimedAt);
+  const elapsedMs = Number.isFinite(lastClaimedAtMs) ? Math.max(0, Date.now() - lastClaimedAtMs) : 0;
   const saplingsByTier = new Map<WoodcuttingTier, number>(WOODCUTTING_SAPLINGS.map((sapling) => [
     sapling.tier,
     state.inventory.find((item) => item.item_id === sapling.id)?.quantity ?? 0,
@@ -145,20 +159,36 @@ function resolveClaim(state: WoodcuttingPlayerState) {
   );
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+      ? error.message
+      : '';
+}
+
+function isWoodcuttingClaimConflict(error: unknown) {
+  return errorMessage(error).includes('Woodcutting progress changed before this claim could be saved');
+}
+
 /** Calculates all elapsed work only when the player claims or changes production. */
 export async function claimWoodcuttingRewards(config: DiscordBotConfig, discordUserId: string): Promise<WoodcuttingSettlement> {
-  const state = await getWoodcuttingPlayerState(config, discordUserId);
-  const result = resolveClaim(state);
-  const { error } = await createBotServiceClient(config).rpc('claim_discord_woodcutting_rewards', {
-    p_discord_user_id: discordUserId,
-    p_expected_last_claimed_at: state.lastClaimedAt,
-    p_guild_id: config.guildId,
-    p_item_rewards: result.itemRewards.map((entry) => ({ item_id: entry.itemId, quantity: entry.quantity })),
-    p_sapling_consumption: result.saplingsConsumed.map((entry) => ({ item_id: entry.itemId, quantity: entry.quantity })),
-    p_worker_remainders: result.workerRemainders.map((entry) => ({ chop_remainder_ms: entry.chopRemainderMs, worker_number: entry.workerNumber })),
-  });
-  if (error) throw new Error(`Unable to claim Woodcutting rewards: ${error.message}`);
-  return { result, state };
+  for (let attempt = 0; attempt < WOODCUTTING_CLAIM_ATTEMPTS; attempt += 1) {
+    const state = await getWoodcuttingClaimState(config, discordUserId);
+    const result = resolveClaim(state);
+    const { error } = await createBotServiceClient(config).rpc('claim_discord_woodcutting_rewards', {
+      p_discord_user_id: discordUserId,
+      p_expected_last_claimed_at: state.lastClaimedAt,
+      p_guild_id: config.guildId,
+      p_item_rewards: result.itemRewards.map((entry) => ({ item_id: entry.itemId, quantity: entry.quantity })),
+      p_sapling_consumption: result.saplingsConsumed.map((entry) => ({ item_id: entry.itemId, quantity: entry.quantity })),
+      p_worker_remainders: result.workerRemainders.map((entry) => ({ chop_remainder_ms: entry.chopRemainderMs, worker_number: entry.workerNumber })),
+    });
+    if (!error) return { result, state };
+    if (attempt + 1 < WOODCUTTING_CLAIM_ATTEMPTS && isWoodcuttingClaimConflict(error)) continue;
+    throw new Error(`Unable to claim Woodcutting rewards: ${error.message}`);
+  }
+  throw new Error('Unable to claim Woodcutting rewards. Please try again.');
 }
 
 /** Settles work before production-affecting changes so nothing is retroactive. */
@@ -182,7 +212,11 @@ function assertRecipeAffordable(state: WoodcuttingPlayerState, recipe: readonly 
 }
 
 export async function hireWoodcuttingWorker(config: DiscordBotConfig, discordUserId: string) {
-  const { settlement, state } = await settleBeforeMutation(config, discordUserId);
+  // Hiring needs only the worker roster. Keeping it independent of unrelated
+  // Mining/Fishing reads means an available lumberjack cannot be blocked by a
+  // separate companion surface while its Woodcutting claim is valid.
+  const settlement = await claimWoodcuttingRewards(config, discordUserId);
+  const state = await getWoodcuttingClaimState(config, discordUserId);
   const cost = WOODCUTTING_WORKER_COSTS[state.workers.length];
   if (!cost) throw new Error('You already have the maximum of 10 lumberjacks.');
   const { data, error } = await createBotServiceClient(config).rpc('hire_discord_woodcutting_worker', {

@@ -37,6 +37,8 @@ type WoodcuttingState = {
   workers: Array<{ axeId: number | null; axeTier: WoodcuttingTier | null; chopRemainderMs: number; saplingTier: WoodcuttingTier | null; workerNumber: number }>;
 };
 
+type WoodcuttingClaimState = Pick<WoodcuttingState, 'axes' | 'inventory' | 'lastClaimedAt' | 'ownedUpgradeIds' | 'workers'>;
+
 export type WoodcuttingDashboard = {
   axes: Array<{ assignedTo: number | null; id: number; name: string; tier: WoodcuttingTier }>;
   balance: number;
@@ -66,6 +68,36 @@ async function ensureWoodcuttingPlayer(identity: WoodcuttingIdentity) {
     p_guild_id: identity.guildId,
   });
   if (error) throw error;
+}
+
+async function getWoodcuttingClaimState(identity: WoodcuttingIdentity): Promise<WoodcuttingClaimState> {
+  await ensureWoodcuttingPlayer(identity);
+  const supabase = getSupabaseServiceClient();
+  const [player, inventory, axes, workers, upgrades] = await Promise.all([
+    supabase.from('discord_woodcutting_players').select('last_claimed_at').eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).maybeSingle<{ last_claimed_at: string }>(),
+    supabase.from('discord_woodcutting_inventory').select('item_id,quantity').eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).order('item_id').returns<InventoryRow[]>(),
+    supabase.from('discord_woodcutting_axes').select('id,axe_tier').eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).order('id').returns<AxeRow[]>(),
+    supabase.from('discord_woodcutting_workers').select('worker_number,axe_id,sapling_tier,chop_remainder_ms').eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).order('worker_number').returns<WorkerRow[]>(),
+    supabase.from('discord_woodcutting_upgrades').select('upgrade_id').eq('guild_id', identity.guildId).eq('discord_user_id', identity.discordUserId).returns<Array<{ upgrade_id: string }>>(),
+  ]);
+  if (player.error || inventory.error || axes.error || workers.error || upgrades.error) {
+    throw player.error ?? inventory.error ?? axes.error ?? workers.error ?? upgrades.error;
+  }
+  const axesData = (axes.data ?? []).map((axe) => ({ id: axe.id, tier: axe.axe_tier }));
+  const axeTierById = new Map(axesData.map((axe) => [axe.id, axe.tier]));
+  return {
+    axes: axesData,
+    inventory: inventory.data ?? [],
+    lastClaimedAt: player.data?.last_claimed_at ?? new Date().toISOString(),
+    ownedUpgradeIds: (upgrades.data ?? []).map((upgrade) => upgrade.upgrade_id),
+    workers: (workers.data ?? []).map((worker) => ({
+      axeId: worker.axe_id,
+      axeTier: worker.axe_id ? axeTierById.get(worker.axe_id) ?? null : null,
+      chopRemainderMs: worker.chop_remainder_ms,
+      saplingTier: worker.sapling_tier,
+      workerNumber: worker.worker_number,
+    })),
+  };
 }
 
 async function getWoodcuttingState(identity: WoodcuttingIdentity): Promise<WoodcuttingState> {
@@ -131,7 +163,7 @@ function describeRecipe(recipe: readonly WoodcuttingRecipeItem[]) {
   }));
 }
 
-function getClaimResult(state: WoodcuttingState) {
+function getClaimResult(state: WoodcuttingClaimState) {
   const saplingsByTier = new Map<WoodcuttingTier, number>(WOODCUTTING_SAPLINGS.map((sapling) => [sapling.tier, inventoryQuantity(state.inventory, sapling.id)]));
   return resolveWoodcuttingClaim(
     state.workers.map((worker) => ({ axeTier: worker.axeTier, chopRemainderMs: worker.chopRemainderMs, saplingTier: worker.saplingTier, workerNumber: worker.workerNumber })),
@@ -142,19 +174,35 @@ function getClaimResult(state: WoodcuttingState) {
   );
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+      ? error.message
+      : '';
+}
+
+function isWoodcuttingClaimConflict(error: unknown) {
+  return errorMessage(error).includes('Woodcutting progress changed before this claim could be saved');
+}
+
 async function settleWoodcuttingBeforeMutation(identity: WoodcuttingIdentity) {
-  const state = await getWoodcuttingState(identity);
-  const result = getClaimResult(state);
-  const { error } = await getSupabaseServiceClient().rpc('claim_discord_woodcutting_rewards', {
-    p_discord_user_id: identity.discordUserId,
-    p_expected_last_claimed_at: state.lastClaimedAt,
-    p_guild_id: identity.guildId,
-    p_item_rewards: result.itemRewards.map((entry) => ({ item_id: entry.itemId, quantity: entry.quantity })),
-    p_sapling_consumption: result.saplingsConsumed.map((entry) => ({ item_id: entry.itemId, quantity: entry.quantity })),
-    p_worker_remainders: result.workerRemainders.map((entry) => ({ chop_remainder_ms: entry.chopRemainderMs, worker_number: entry.workerNumber })),
-  });
-  if (error) throw error;
-  return getWoodcuttingState(identity);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const state = await getWoodcuttingClaimState(identity);
+    const result = getClaimResult(state);
+    const { error } = await getSupabaseServiceClient().rpc('claim_discord_woodcutting_rewards', {
+      p_discord_user_id: identity.discordUserId,
+      p_expected_last_claimed_at: state.lastClaimedAt,
+      p_guild_id: identity.guildId,
+      p_item_rewards: result.itemRewards.map((entry) => ({ item_id: entry.itemId, quantity: entry.quantity })),
+      p_sapling_consumption: result.saplingsConsumed.map((entry) => ({ item_id: entry.itemId, quantity: entry.quantity })),
+      p_worker_remainders: result.workerRemainders.map((entry) => ({ chop_remainder_ms: entry.chopRemainderMs, worker_number: entry.workerNumber })),
+    });
+    if (!error) return getWoodcuttingState(identity);
+    if (attempt === 0 && isWoodcuttingClaimConflict(error)) continue;
+    throw error;
+  }
+  throw new Error('Unable to claim Woodcutting rewards. Please try again.');
 }
 
 async function buildWoodcuttingDashboard(identity: WoodcuttingIdentity): Promise<WoodcuttingDashboard> {

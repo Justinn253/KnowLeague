@@ -123,17 +123,15 @@ function toItemImageUrl(version, imageName) {
   return `${DATA_DRAGON_CDN_URL}/${version}/img/item/${imageName}`;
 }
 
-function toRuneImageUrl(version, imagePath) {
-  return `${DATA_DRAGON_CDN_URL}/${version}/img/${imagePath.replace(/^\/+/, '')}`;
+function toRuneImageUrl(imagePath) {
+  // Reforged rune assets live under Data Dragon's versionless image CDN.
+  // The versioned /cdn/<patch>/img path works for item icons but returns 403
+  // for rune assets, leaving Discord with no renderable image.
+  return `${DATA_DRAGON_CDN_URL}/img/${imagePath.replace(/^\/+/, '')}`;
 }
 
 function isDiscordDisplayableImageUrl(imageUrl) {
   return /^https:\/\/.+\.(?:png|jpe?g|webp)(?:[?#].*)?$/i.test(imageUrl);
-}
-
-function imageVersion(imageUrl) {
-  const matched = imageUrl.match(/\/cdn\/(\d+\.\d+\.\d+)\//);
-  return matched?.[1] ?? '0.0.0';
 }
 
 function mapModes(maps) {
@@ -209,7 +207,7 @@ function mergeRuneSnapshot(runesByKey, version, styles) {
   for (const style of styles) {
     if (!style?.id || !style?.name || !style?.icon) continue;
     const styleKey = `style:${style.id}`;
-    const styleImageUrl = toRuneImageUrl(version, style.icon);
+    const styleImageUrl = toRuneImageUrl(style.icon);
     if (isDiscordDisplayableImageUrl(styleImageUrl) && !runesByKey.has(styleKey)) {
       runesByKey.set(styleKey, {
         catalogId: `rune-style:${style.id}:${createSlug(style.name)}`,
@@ -218,6 +216,7 @@ function mergeRuneSnapshot(runesByKey, version, styles) {
         name: style.name,
         rarity: rarityForTier(4),
         runeKind: 'style',
+        sourceVersion: version,
         style: style.name,
         tier: 4,
         type: 'rune',
@@ -229,7 +228,7 @@ function mergeRuneSnapshot(runesByKey, version, styles) {
       const tier = runeKind === 'keystone' ? 3 : 2;
       for (const rune of slot.runes ?? []) {
         if (!rune?.id || !rune?.name || !rune?.icon) continue;
-        const imageUrl = toRuneImageUrl(version, rune.icon);
+        const imageUrl = toRuneImageUrl(rune.icon);
         if (!isDiscordDisplayableImageUrl(imageUrl)) continue;
         const runeKey = `${runeKind}:${rune.id}`;
         if (runesByKey.has(runeKey)) continue;
@@ -240,6 +239,7 @@ function mergeRuneSnapshot(runesByKey, version, styles) {
           name: rune.name,
           rarity: rarityForTier(tier),
           runeKind,
+          sourceVersion: version,
           style: style.name,
           tier,
           type: 'rune',
@@ -254,7 +254,7 @@ function deduplicateRunesByName(runes) {
   for (const rune of runes) {
     const key = `${rune.runeKind}:${normalizeItemName(rune.name)}`;
     const existing = runesByName.get(key);
-    if (!existing || compareVersions(imageVersion(rune.imageUrl), imageVersion(existing.imageUrl)) > 0) {
+    if (!existing || compareVersions(rune.sourceVersion, existing.sourceVersion) > 0) {
       runesByName.set(key, rune);
     }
   }
@@ -366,7 +366,11 @@ if (!items.length || !runes.length) throw new Error('The collection item or rune
 await mkdir(OUTPUT_DIRECTORY, { recursive: true });
 await Promise.all([
   writeFile(ITEM_CATALOGUE_PATH, `${JSON.stringify({ generatedAt, sources: { dataDragonVersions: versions }, items }, null, 2)}\n`),
-  writeFile(RUNE_CATALOGUE_PATH, `${JSON.stringify({ generatedAt, sources: { dataDragonRuneVersions: reforgedRuneVersions }, runes }, null, 2)}\n`),
+  writeFile(RUNE_CATALOGUE_PATH, `${JSON.stringify({
+    generatedAt,
+    sources: { dataDragonRuneVersions: reforgedRuneVersions },
+    runes: runes.map(({ sourceVersion, ...rune }) => rune),
+  }, null, 2)}\n`),
   writeFile(ITEM_REPORT_PATH, createItemReport(items, generatedAt, versions)),
   writeFile(RUNE_REPORT_PATH, createRuneReport(runes, generatedAt, reforgedRuneVersions)),
 ]);

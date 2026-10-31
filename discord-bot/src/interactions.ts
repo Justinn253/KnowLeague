@@ -2280,6 +2280,20 @@ function woodcuttingCommandErrorMessage(error: unknown) {
     : message;
 }
 
+function woodcuttingCommandErrorReply(error: unknown, action: string) {
+  const reply = woodcuttingCommandErrorMessage(error);
+  if (reply === 'KnowLeague could not complete that Woodcutting request. Please try again shortly.') {
+    const details = typeof error === 'object' && error !== null ? error as { code?: unknown; message?: unknown; name?: unknown } : {};
+    console.error('Woodcutting request failed.', {
+      action,
+      code: typeof details.code === 'string' ? details.code : undefined,
+      errorName: typeof details.name === 'string' ? details.name : typeof error,
+      message: typeof details.message === 'string' ? details.message : undefined,
+    });
+  }
+  return reply;
+}
+
 function woodcuttingAxeSummary(axes: readonly { id: number; tier: WoodcuttingTier }[]) {
   if (!axes.length) return 'No crafted axes yet.';
   return [1, 2, 3, 4, 5, 6, 7].flatMap((tier) => {
@@ -2495,7 +2509,7 @@ async function handleWoodcuttingCommand(interaction: ChatInputCommandInteraction
     } catch (error) {
       await interaction.editReply(error instanceof WoodcuttingAssignmentIssueError
         ? woodcuttingAssignmentIssuePanel(error.issue)
-        : { content: woodcuttingCommandErrorMessage(error), embeds: [] });
+        : { content: woodcuttingCommandErrorReply(error, 'assign'), embeds: [] });
     }
     return;
   }
@@ -2574,7 +2588,7 @@ async function handleWoodcuttingCommand(interaction: ChatInputCommandInteraction
     }
     throw new Error(`Unsupported Woodcutting command: ${subcommand}`);
   } catch (error) {
-    await interaction.editReply({ content: woodcuttingCommandErrorMessage(error), embeds: [] });
+    await interaction.editReply({ content: woodcuttingCommandErrorReply(error, subcommand), embeds: [] });
   }
 }
 
@@ -3655,7 +3669,7 @@ async function handleWoodcuttingButtonInteraction(interaction: ButtonInteraction
     await interaction.followUp({ content: 'This Woodcutting panel is outdated. Run `/woodcutting shop` or `/woodcutting inventory` to open a new one.', flags: MessageFlags.Ephemeral });
     return true;
   } catch (error) {
-    await interaction.followUp({ content: woodcuttingCommandErrorMessage(error), flags: MessageFlags.Ephemeral });
+    await interaction.followUp({ content: woodcuttingCommandErrorReply(error, prefix), flags: MessageFlags.Ephemeral });
     return true;
   }
 }

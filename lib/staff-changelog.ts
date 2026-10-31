@@ -17,6 +17,29 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-31-harden-woodcutting-settlement',
+    patch: 'patch-2026-10-31-harden-woodcutting-settlement',
+    timestamp: '2026-10-31T20:57:39.781Z',
+    title: 'Repair Woodcutting claims and harden continuous production',
+    summary: 'Woodcutting now removes exact material stacks without violating positive-quantity constraints, retries a single cross-surface claim conflict, and records actionable diagnostics for otherwise private Discord persistence failures.',
+    details: [
+      'Migration 202 replaces Woodcutting claim, axe-crafting, and upgrade-crafting mutations so exact stacks are deleted before any decrement. This fixes failed claims when the final selected sapling is consumed and fixes the same zero-quantity failure for exact crafting costs in both Woodcutting and shared Mining materials.',
+      'The authoritative hire RPC now validates the configured price for the next lumberjack while holding the player row lock, preventing concurrent Discord/web requests from purchasing a later worker at an earlier price.',
+      'Claim payloads now reject duplicate inventory or worker entries, reject invalid timestamp/remainder data, verify each returned worker still exists, and use null-safe optimistic concurrency comparison.',
+      'Discord and the authenticated web companion calculate claims from the minimum Woodcutting state, retry one normal optimistic conflict, and no longer make a valid claim depend on unrelated companion data. Discord logs a bounded operation/code/message diagnostic when it must send its generic persistence-failure reply.',
+    ],
+    impact: [
+      'Members can claim after exhausting their sapling stack and can again hire, buy, craft, or assign after that settlement succeeds.',
+      'Discord and the linked website remain synchronized under overlapping requests without duplicate settlement or discounted hires. Deploy the Discord bot and website alongside migration 202; slash-command registration is unchanged.',
+    ],
+    files: ['supabase/migrations/202_harden_discord_woodcutting_settlement.sql', 'discord-bot/src/woodcutting.ts', 'discord-bot/src/interactions.ts', 'lib/woodcutting.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Woodcutting Vitest coverage passed (7 tests), including command/panel contracts and deterministic claim resolution.',
+      'Discord bot TypeScript passed after regenerating the minigame tier references; root lint and root TypeScript also passed with only the seven pre-existing Next.js image-element advisories.',
+      'The linked Supabase migration history was read before deployment and confirmed migrations 001 through 201 were already applied. Migration 202 was then pushed successfully to the linked project. The broad Vitest process did not return cleanly from this active workspace and was stopped rather than running a second concurrent suite.',
+    ],
+  },
+  {
     id: 'patch-2026-10-31-discord-bot-eight-permission-checklist',
     patch: 'patch-2026-10-31-discord-bot-eight-permission-checklist',
     timestamp: '2026-10-31T20:29:41.733Z',

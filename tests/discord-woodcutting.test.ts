@@ -54,7 +54,7 @@ describe('Discord Woodcutting command contract', () => {
     expect(finds.embeds[0]?.data.fields?.map((field) => field.name)).toEqual(['Critters', 'Amber finds']);
     expect(workersShop.embeds[0]?.data.fields?.at(-1)?.value).toBe('`/woodcutting hire`');
     expect(saplingShop.embeds[0]?.data.fields?.at(-1)?.value).toContain('/woodcutting buy-saplings');
-    expect(workersShop.components.flatMap((row) => row.components).map((component) => component.data.custom_id)).toEqual(expect.arrayContaining([
+    expect(workersShop.components.flatMap((row) => row.components).map((component) => ('custom_id' in component.data ? component.data.custom_id : undefined))).toEqual(expect.arrayContaining([
       `woodcutting-shop:${owner}:${expiresAt}:workers`,
       `woodcutting-shop:${owner}:${expiresAt}:meals`,
     ]));

@@ -223,7 +223,7 @@ export const PLAYER_SKILL_TIER_CONFIG: readonly PlayerSkillTierConfig[] = [
 ];
 
 type FishingEventBiomeConfig = {
-  catalogueBiomeId: ' -abyss';
+  catalogueBiomeId: 'hellish-abyss';
   id: 'halloween';
   name: string;
   biomeName: string;

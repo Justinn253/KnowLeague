@@ -17,6 +17,31 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-30-discord-companion-game-web-experience',
+    patch: 'patch-2026-10-30-discord-companion-game-web-experience',
+    timestamp: '2026-10-30T23:00:00.000Z',
+    title: 'Add unified web companions for Fishing, Mining, and Woodcutting',
+    summary: 'Fishing, Mining, and Woodcutting now have responsive, interactive web companions with shared Discord-linked identity, live progress displays, UI sounds, accessible controls, and authoritative server-side game actions.',
+    details: [
+      'Replaced the legacy Mining page with a fresh expedition-first interface covering depth dispatch, projected minecart capacity, active event decisions, return settlement, Discord result sharing, workshop upgrades, resource sales, and relic storage.',
+      'Added Fishing Fleet routes and an authenticated dashboard/action API for selecting a destination, duration, and crew slot; equipping owned rods and bait; purchasing permitted upgrades; following live voyages; and reviewing bot-settled catches. Web launches use the existing linked Discord identity, authoritative Fishing RPCs, existing expedition scheduler, and a configured or previously used Fishing notification channel. The optional DISCORD_FISHING_WEB_NOTIFICATION_CHANNEL_ID deployment setting makes a first web-only launch explicit.',
+      'Added Woodcutting Camp routes and an authenticated dashboard/action API for reward claims, hires, sapling purchases, axe and camp-upgrade crafting, automatic assignment, and validated manual worker assignment. Production settlement remains atomic and occurs before every production-changing action, matching the Discord command contract.',
+      'Introduced a shared companion UI shell for consistent headers, shared KnowBucks balance, tabs, progress meters, status treatment, reduced-motion-safe CSS transitions, accessible controls, and existing user-controlled UI sound effects.',
+      'Extracted the linked Discord identity lookup so companion APIs consistently reuse profile_private_details.discord_user_id instead of accepting browser-provided Discord IDs or creating a second link flow.',
+      'Corrected the Fishing event catalogue biome literal from the invalid narrowed value to hellish-abyss, allowing the active event configuration to match its actual configured value.',
+    ],
+    impact: [
+      'Linked players can now manage all three Discord minigames from the Games hub while keeping their inventory, KnowBucks, unlocks, and Discord notifications in sync with the bot.',
+      'Website deployment is required for the new routes. The bot remains an independent deployment; no slash-command shape, bot token exposure, migration, or command registration is required by this web experience patch.',
+      'For first-time web Fishing launches, configure DISCORD_FISHING_WEB_NOTIFICATION_CHANNEL_ID in the website environment or have the player complete a Fishing launch in Discord so the companion can reuse a known notification channel.',
+    ],
+    files: ['.env.example', 'app/api/fishing/route.ts', 'app/api/woodcutting/route.ts', 'app/fishing/page.tsx', 'app/woodcutting/page.tsx', 'app/games/fishing/page.tsx', 'app/games/woodcutting/page.tsx', 'components/discord-companion-ui.tsx', 'components/fishing-game.tsx', 'components/mining-game.tsx', 'components/woodcutting-game.tsx', 'lib/discord-game-identity.ts', 'lib/fishing.ts', 'lib/game-families.ts', 'lib/game-navigation.ts', 'lib/mining.ts', 'lib/woodcutting.ts', 'discord-bot/src/minigame-content-config.ts', 'tests/discord-woodcutting.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      '`npm run check` passed: root lint (with only seven existing image-element advisories), root TypeScript, all 47 Vitest files / 287 tests, regenerated Discord minigame tier references, and Discord bot TypeScript. The Woodcutting test now narrows Discord button variants before reading custom_id, fixing the existing test-only type failure.',
+      'No Supabase migration push, production build, Discord bot deployment, or slash-command registration was run. Existing Node processes were left untouched, so no concurrent Next build/dev work was started.',
+    ],
+  },
+  {
     id: 'patch-2026-10-30-discord-collections-drop-media-and-random-types',
     patch: 'patch-2026-10-30-discord-collections-drop-media-and-random-types',
     timestamp: '2026-10-30T22:15:23.435Z',

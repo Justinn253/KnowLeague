@@ -16,7 +16,9 @@ export type GameRouteId =
   | 'carving-revelation'
   | 'category-clash'
   | 'mastery-master'
-  | 'mining';
+  | 'mining'
+  | 'fishing'
+  | 'woodcutting';
 
 export type GameFamilyDefinition = {
   id: GameFamily;
@@ -70,6 +72,8 @@ export const GAME_FAMILY_BY_ROUTE: Record<GameRouteId, GameFamily> = {
   'category-clash': 'multiplayer-session',
   'mastery-master': 'standalone',
   mining: 'standalone',
+  fishing: 'standalone',
+  woodcutting: 'standalone',
 };
 
 export function getGameFamily(gameId: GameRouteId) {

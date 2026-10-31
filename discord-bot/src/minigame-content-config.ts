@@ -482,12 +482,12 @@ export const MINING_SHOP_UPGRADE_CONFIG: readonly MiningShopUpgradeConfig[] = [
   { id: 'gemcrusted-safe', name: 'Gemcrusted Safe', category: 'storage', value: 300, previousUpgradeId: 'titanium-lockbox', recipe: [{ resourceId: 'citrine', quantity: 32 }, { resourceId: 'peridot', quantity: 32 }], description: 'Raises minecart storage to 300 items.' },
   { id: 'quantum-box', name: 'Quantum Box', category: 'storage', value: 750, previousUpgradeId: 'gemcrusted-safe', recipe: [{ resourceId: 'diamond', quantity: 64 }, { resourceId: 'moissanite', quantity: 64 }], description: 'Raises minecart storage to 750 items.' },
 
-  { id: 'processor-depth-2', name: 'Depth 2 Processor', category: 'processor', value: 1, recipe: [{ resourceId: 'coal', quantity: 10 }, { resourceId: 'quartz', quantity: 10 }], description: 'Automatically processes Copper Veins ores.' },
-  { id: 'processor-depth-3', name: 'Depth 3 Processor', category: 'processor', value: 2, previousUpgradeId: 'processor-depth-2', recipe: [{ resourceId: 'copper', quantity: 25 }, { resourceId: 'tin', quantity: 25 }, { resourceId: 'jade', quantity: 2 }], description: 'Automatically processes Iron Delve ores and lower tiers.' },
-  { id: 'processor-depth-4', name: 'Depth 4 Processor', category: 'processor', value: 3, previousUpgradeId: 'processor-depth-3', recipe: [{ resourceId: 'iron', quantity: 60 }, { resourceId: 'lead', quantity: 60 }, { resourceId: 'ruby', quantity: 6 }], description: 'Automatically processes Silverworks ores and lower tiers.' },
-  { id: 'processor-depth-5', name: 'Depth 5 Processor', category: 'processor', value: 4, previousUpgradeId: 'processor-depth-4', recipe: [{ resourceId: 'silver', quantity: 150 }, { resourceId: 'tungsten', quantity: 150 }, { resourceId: 'topaz', quantity: 15 }], description: 'Automatically processes Gilded Depths ores and lower tiers.' },
-  { id: 'processor-depth-6', name: 'Depth 6 Processor', category: 'processor', value: 5, previousUpgradeId: 'processor-depth-5', recipe: [{ resourceId: 'gold', quantity: 400 }, { resourceId: 'platinum', quantity: 400 }, { resourceId: 'amethyst', quantity: 50 }], description: 'Automatically processes Cobalt Hollow ores and lower tiers.' },
-  { id: 'processor-depth-7', name: 'Depth 7 Processor', category: 'processor', value: 6, previousUpgradeId: 'processor-depth-6', recipe: [{ resourceId: 'cobalt', quantity: 1_500 }, { resourceId: 'palladium', quantity: 1_500 }, { resourceId: 'citrine', quantity: 175 }], description: 'Automatically processes Adamant Abyss ores and lower tiers.' },
+  { id: 'processor-depth-2', name: 'Resource 2 Processor', category: 'processor', value: 1, recipe: [{ resourceId: 'coal', quantity: 10 }, { resourceId: 'quartz', quantity: 10 }], description: 'Automatically processes Copper Veins ores.' },
+  { id: 'processor-depth-3', name: 'Resource 3 Processor', category: 'processor', value: 2, previousUpgradeId: 'processor-depth-2', recipe: [{ resourceId: 'copper', quantity: 25 }, { resourceId: 'tin', quantity: 25 }, { resourceId: 'jade', quantity: 2 }], description: 'Automatically processes Iron Delve ores and lower tiers.' },
+  { id: 'processor-depth-4', name: 'Resource 4 Processor', category: 'processor', value: 3, previousUpgradeId: 'processor-depth-3', recipe: [{ resourceId: 'iron', quantity: 60 }, { resourceId: 'lead', quantity: 60 }, { resourceId: 'ruby', quantity: 6 }], description: 'Automatically processes Silverworks ores and lower tiers.' },
+  { id: 'processor-depth-5', name: 'Resource 5 Processor', category: 'processor', value: 4, previousUpgradeId: 'processor-depth-4', recipe: [{ resourceId: 'silver', quantity: 150 }, { resourceId: 'tungsten', quantity: 150 }, { resourceId: 'topaz', quantity: 15 }], description: 'Automatically processes Gilded Depths ores and lower tiers.' },
+  { id: 'processor-depth-6', name: 'Resource 6 Processor', category: 'processor', value: 5, previousUpgradeId: 'processor-depth-5', recipe: [{ resourceId: 'gold', quantity: 400 }, { resourceId: 'platinum', quantity: 400 }, { resourceId: 'amethyst', quantity: 50 }], description: 'Automatically processes Cobalt Hollow ores and lower tiers.' },
+  { id: 'processor-depth-7', name: 'Resource 7 Processor', category: 'processor', value: 6, previousUpgradeId: 'processor-depth-6', recipe: [{ resourceId: 'cobalt', quantity: 1_500 }, { resourceId: 'palladium', quantity: 1_500 }, { resourceId: 'citrine', quantity: 175 }], description: 'Automatically processes Adamant Abyss ores and lower tiers.' },
 
   { id: 'sturdy-gears', name: 'Sturdy Gears', category: 'elevator', value: 1, recipe: [{ resourceId: 'iron', quantity: 30 }, { resourceId: 'lead', quantity: 30 }, { resourceId: 'ruby', quantity: 2 }], description: 'Reduces ascent and descent time by 10%.' },
   { id: 'advanced-pulleys', name: 'Advanced Pulleys', category: 'elevator', value: 2, previousUpgradeId: 'sturdy-gears', recipe: [{ resourceId: 'silver', quantity: 100 }, { resourceId: 'tungsten', quantity: 100 }, { resourceId: 'topaz', quantity: 10 }], description: 'Reduces ascent and descent time by another 10%.' },
@@ -497,3 +497,99 @@ export const MINING_SHOP_UPGRADE_CONFIG: readonly MiningShopUpgradeConfig[] = [
   { id: 'filtering-system', name: 'Filtering System', category: 'filter', value: 2, previousUpgradeId: 'stone-sorter', recipe: [{ resourceId: 'copper', quantity: 50 }, { resourceId: 'tin', quantity: 50 }, { resourceId: 'jade', quantity: 5 }], description: 'Discards 50% of stone before it reaches storage.' },
   { id: 'advanced-ore-detector', name: 'Advanced Ore Detector', category: 'filter', value: 3, previousUpgradeId: 'filtering-system', recipe: [{ resourceId: 'iron', quantity: 100 }, { resourceId: 'lead', quantity: 100 }, { resourceId: 'ruby', quantity: 10 }], description: 'Discards 75% of stone before it reaches storage.' },
 ];
+
+type WoodcuttingTierConfig = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type WoodcuttingRecipeItemConfig = { itemId: string; quantity: number; source: 'mining' | 'woodcutting' };
+
+type WoodcuttingAxeConfig = {
+  id: string;
+  name: string;
+  recipe: readonly WoodcuttingRecipeItemConfig[];
+  tier: WoodcuttingTierConfig;
+};
+
+type WoodcuttingSaplingConfig = {
+  amberItemId: string;
+  id: string;
+  name: string;
+  processorUpgradeId?: string;
+  saplingCost: number;
+  tier: WoodcuttingTierConfig;
+  woodItemId: string;
+  woodName: string;
+};
+
+type WoodcuttingCritterConfig = {
+  id: string;
+  name: string;
+  weight: number;
+};
+
+type WoodcuttingUpgradeConfig = {
+  category: 'lodging' | 'meal' | 'sharpening';
+  description: string;
+  id: string;
+  name: string;
+  previousUpgradeId?: string;
+  recipe: readonly WoodcuttingRecipeItemConfig[];
+  value: number;
+};
+
+/**
+ * Canonical Woodcutting progression data. These records drive the Discord
+ * catalogue, shop, crafting validation, and batched claim resolver.
+ */
+export const WOODCUTTING_AXE_CONFIG = [
+  { id: 'quartz-axe', name: 'Quartz Axe', tier: 1, recipe: [{ source: 'mining', itemId: 'quartz', quantity: 5 }, { source: 'mining', itemId: 'pearl', quantity: 1 }] },
+  { id: 'copper-axe', name: 'Copper Axe', tier: 2, recipe: [{ source: 'mining', itemId: 'copper', quantity: 10 }, { source: 'mining', itemId: 'emerald', quantity: 2 }, { source: 'woodcutting', itemId: 'oak-wood', quantity: 10 }] },
+  { id: 'iron-axe', name: 'Iron Axe', tier: 3, recipe: [{ source: 'mining', itemId: 'iron', quantity: 30 }, { source: 'mining', itemId: 'garnet', quantity: 6 }, { source: 'woodcutting', itemId: 'willow-wood', quantity: 30 }] },
+  { id: 'silver-axe', name: 'Silver Axe', tier: 4, recipe: [{ source: 'mining', itemId: 'silver', quantity: 120 }, { source: 'mining', itemId: 'sapphire', quantity: 24 }, { source: 'woodcutting', itemId: 'cherry-blossom-wood', quantity: 120 }] },
+  { id: 'platinum-saw', name: 'Platinum Saw', tier: 5, recipe: [{ source: 'mining', itemId: 'platinum', quantity: 600 }, { source: 'mining', itemId: 'aquamarine', quantity: 125 }, { source: 'woodcutting', itemId: 'baobob-wood', quantity: 600 }] },
+  { id: 'cobalt-saw', name: 'Cobalt Saw', tier: 6, recipe: [{ source: 'mining', itemId: 'cobalt', quantity: 3_600 }, { source: 'mining', itemId: 'peridot', quantity: 750 }, { source: 'woodcutting', itemId: 'redwood-wood', quantity: 2_600 }] },
+  { id: 'titanium-chainsaw', name: 'Titanium Chainsaw', tier: 7, recipe: [{ source: 'mining', itemId: 'titanium', quantity: 25_000 }, { source: 'mining', itemId: 'moissanite', quantity: 5_250 }, { source: 'woodcutting', itemId: 'rainbow-eucalyptus-wood', quantity: 25_000 }] },
+] as const satisfies readonly WoodcuttingAxeConfig[];
+
+export const WOODCUTTING_SAPLING_CONFIG = [
+  { id: 'oak-sapling', name: 'Oak Sapling', tier: 1, saplingCost: 20, woodItemId: 'oak-wood', woodName: 'Oak Wood', amberItemId: 'ambered-fly' },
+  { id: 'willow-sapling', name: 'Willow Sapling', tier: 2, saplingCost: 100, woodItemId: 'willow-wood', woodName: 'Willow Wood', amberItemId: 'ambered-spider', processorUpgradeId: 'processor-depth-2' },
+  { id: 'cherry-blossom-sapling', name: 'Cherry Blossom Sapling', tier: 3, saplingCost: 500, woodItemId: 'cherry-blossom-wood', woodName: 'Cherry Blossom Wood', amberItemId: 'ambered-termite', processorUpgradeId: 'processor-depth-3' },
+  { id: 'baobob-sapling', name: 'Baobob Sapling', tier: 4, saplingCost: 1_000, woodItemId: 'baobob-wood', woodName: 'Baobob Wood', amberItemId: 'ambered-frog', processorUpgradeId: 'processor-depth-4' },
+  { id: 'redwood-sapling', name: 'Redwood Sapling', tier: 5, saplingCost: 2_500, woodItemId: 'redwood-wood', woodName: 'Redwood Wood', amberItemId: 'ambered-lizard', processorUpgradeId: 'processor-depth-5' },
+  { id: 'rainbow-eucalyptus-sapling', name: 'Rainbow Eucalyptus Sapling', tier: 6, saplingCost: 5_000, woodItemId: 'rainbow-eucalyptus-wood', woodName: 'Rainbow Eucalyptus Wood', amberItemId: 'ambered-feather', processorUpgradeId: 'processor-depth-6' },
+  { id: 'dragons-blood-sapling', name: 'Dragons Blood Sapling', tier: 7, saplingCost: 10_000, woodItemId: 'dragons-blood-wood', woodName: 'Dragons Blood Wood', amberItemId: 'ambered-eye', processorUpgradeId: 'processor-depth-7' },
+] as const satisfies readonly WoodcuttingSaplingConfig[];
+
+/** 10% base chance per completed chop; rare Goldens remain a future-buff collection. */
+export const WOODCUTTING_CRITTER_CONFIG: Readonly<Record<WoodcuttingTierConfig, readonly WoodcuttingCritterConfig[]>> = {
+  1: [{ id: 'ant', name: 'Ant', weight: 1_000 }, { id: 'fire-ant', name: 'Fire Ant', weight: 10 }, { id: 'bullet-ant', name: 'Bullet Ant', weight: 10 }, { id: 'golden-ant', name: 'Golden Ant', weight: 1 }],
+  2: [{ id: 'caterpillar', name: 'Caterpillar', weight: 1_000 }, { id: 'vibrant-caterpillar', name: 'Vibrant Caterpillar', weight: 10 }, { id: 'hawk-moth', name: 'Hawk Moth', weight: 10 }, { id: 'golden-caterpillar', name: 'Golden Caterpillar', weight: 1 }],
+  3: [{ id: 'spider', name: 'Spider', weight: 1_000 }, { id: 'orb-weaver', name: 'Orb Weaver', weight: 10 }, { id: 'tarantula', name: 'Tarantula', weight: 10 }, { id: 'golden-spider', name: 'Golden Spider', weight: 1 }],
+  4: [{ id: 'grasshopper', name: 'Grasshopper', weight: 1_000 }, { id: 'locust', name: 'Locust', weight: 10 }, { id: 'cricket', name: 'Cricket', weight: 10 }, { id: 'golden-grasshopper', name: 'Golden Grasshopper', weight: 1 }],
+  5: [{ id: 'butterfly', name: 'Butterfly', weight: 1_000 }, { id: 'monarch-butterfly', name: 'Monarch Butterfly', weight: 10 }, { id: 'moth', name: 'Moth', weight: 10 }, { id: 'golden-butterfly', name: 'Golden Butterfly', weight: 1 }],
+  6: [{ id: 'beetle', name: 'Beetle', weight: 1_000 }, { id: 'dung-beetle', name: 'Dung Beetle', weight: 10 }, { id: 'rhino-beetle', name: 'Rhino Beetle', weight: 10 }, { id: 'golden-beetle', name: 'Golden Beetle', weight: 1 }],
+  7: [{ id: 'roach', name: 'Roach', weight: 1_000 }, { id: 'hissing-roach', name: 'Hissing Roach', weight: 10 }, { id: 'irradiated-roach', name: 'Irradiated Roach', weight: 10 }, { id: 'golden-roach', name: 'Golden Roach', weight: 1 }],
+};
+
+export const WOODCUTTING_WORKER_COST_CONFIG = [500, 2_500, 10_000, 100_000, 500_000, 2_500_000, 15_000_000, 100_000_000, 1_000_000_000, 10_000_000_000] as const;
+
+export const WOODCUTTING_UPGRADE_CONFIG = [
+  { id: 'lodging-windows', name: 'Lodging: Windows', category: 'lodging', value: 1, description: '+10 percentage points Woodcutting success rate.', recipe: [{ source: 'mining', itemId: 'quartz', quantity: 50 }] },
+  { id: 'lodging-beds', name: 'Lodging: Beds', category: 'lodging', value: 1, description: '+10 percentage points Woodcutting success rate.', recipe: [{ source: 'woodcutting', itemId: 'oak-wood', quantity: 100 }, { source: 'woodcutting', itemId: 'willow-wood', quantity: 25 }, { source: 'mining', itemId: 'iron', quantity: 10 }] },
+  { id: 'lodging-appliances', name: 'Lodging: Appliances', category: 'lodging', value: 1, description: '+10 percentage points Woodcutting success rate.', recipe: [{ source: 'mining', itemId: 'copper', quantity: 100 }, { source: 'mining', itemId: 'tin', quantity: 100 }, { source: 'mining', itemId: 'iron', quantity: 100 }, { source: 'mining', itemId: 'gold', quantity: 100 }] },
+  { id: 'lodging-internet', name: 'Lodging: Internet', category: 'lodging', value: 1, description: '+10 percentage points Woodcutting success rate.', recipe: [{ source: 'mining', itemId: 'palladium', quantity: 500 }, { source: 'woodcutting', itemId: 'rainbow-eucalyptus-wood', quantity: 250 }] },
+  { id: 'lodging-decorations', name: 'Lodging: Decorations', category: 'lodging', value: 1, description: '+10 percentage points Woodcutting success rate.', recipe: [{ source: 'mining', itemId: 'opal', quantity: 1 }, { source: 'mining', itemId: 'pearl', quantity: 1 }, { source: 'mining', itemId: 'jade', quantity: 1 }, { source: 'mining', itemId: 'emerald', quantity: 1 }, { source: 'mining', itemId: 'ruby', quantity: 1 }, { source: 'mining', itemId: 'garnet', quantity: 1 }, { source: 'mining', itemId: 'topaz', quantity: 1 }, { source: 'mining', itemId: 'sapphire', quantity: 1 }, { source: 'mining', itemId: 'amethyst', quantity: 1 }, { source: 'mining', itemId: 'aquamarine', quantity: 1 }, { source: 'mining', itemId: 'citrine', quantity: 1 }, { source: 'mining', itemId: 'peridot', quantity: 1 }, { source: 'mining', itemId: 'diamond', quantity: 1 }, { source: 'mining', itemId: 'moissanite', quantity: 1 }, { source: 'woodcutting', itemId: 'dragons-blood-wood', quantity: 1_000 }] },
+
+  { id: 'sharpening-1', name: 'Sharpening Station I', category: 'sharpening', value: 50, description: 'Improves every lumberjack from one chop per 60 seconds to one per 50 seconds.', recipe: [{ source: 'mining', itemId: 'quartz', quantity: 5 }, { source: 'woodcutting', itemId: 'oak-wood', quantity: 5 }] },
+  { id: 'sharpening-2', name: 'Sharpening Station II', category: 'sharpening', value: 40, previousUpgradeId: 'sharpening-1', description: 'Improves every lumberjack from one chop per 50 seconds to one per 40 seconds.', recipe: [{ source: 'mining', itemId: 'tin', quantity: 10 }, { source: 'woodcutting', itemId: 'willow-wood', quantity: 10 }] },
+  { id: 'sharpening-3', name: 'Sharpening Station III', category: 'sharpening', value: 35, previousUpgradeId: 'sharpening-2', description: 'Improves every lumberjack from one chop per 40 seconds to one per 35 seconds.', recipe: [{ source: 'mining', itemId: 'iron', quantity: 20 }, { source: 'woodcutting', itemId: 'cherry-blossom-wood', quantity: 20 }] },
+  { id: 'sharpening-4', name: 'Sharpening Station IV', category: 'sharpening', value: 30, previousUpgradeId: 'sharpening-3', description: 'Improves every lumberjack from one chop per 35 seconds to one per 30 seconds.', recipe: [{ source: 'mining', itemId: 'tungsten', quantity: 50 }, { source: 'woodcutting', itemId: 'baobob-wood', quantity: 50 }] },
+  { id: 'sharpening-5', name: 'Sharpening Station V', category: 'sharpening', value: 25, previousUpgradeId: 'sharpening-4', description: 'Improves every lumberjack from one chop per 30 seconds to one per 25 seconds.', recipe: [{ source: 'mining', itemId: 'platinum', quantity: 100 }, { source: 'woodcutting', itemId: 'redwood-wood', quantity: 100 }] },
+  { id: 'sharpening-6', name: 'Sharpening Station VI', category: 'sharpening', value: 20, previousUpgradeId: 'sharpening-5', description: 'Improves every lumberjack from one chop per 25 seconds to one per 20 seconds.', recipe: [{ source: 'mining', itemId: 'palladium', quantity: 200 }, { source: 'woodcutting', itemId: 'rainbow-eucalyptus-wood', quantity: 200 }] },
+  { id: 'sharpening-7', name: 'Sharpening Station VII', category: 'sharpening', value: 15, previousUpgradeId: 'sharpening-6', description: 'Improves every lumberjack from one chop per 20 seconds to one per 15 seconds.', recipe: [{ source: 'mining', itemId: 'adamantite', quantity: 500 }, { source: 'woodcutting', itemId: 'dragons-blood-wood', quantity: 500 }] },
+
+  { id: 'meal-woodland-chowder', name: 'Woodland Chowder', category: 'meal', value: 1, description: '+5 percentage points Woodcutting success rate.', recipe: [{ source: 'woodcutting', itemId: 'ant', quantity: 200 }, { source: 'woodcutting', itemId: 'fire-ant', quantity: 25 }, { source: 'woodcutting', itemId: 'caterpillar', quantity: 25 }] },
+  { id: 'meal-lumberjacks-stew', name: "Lumberjack's Stew", category: 'meal', value: 1, description: '+1% chopping speed for every worker.', recipe: [{ source: 'woodcutting', itemId: 'caterpillar', quantity: 150 }, { source: 'woodcutting', itemId: 'vibrant-caterpillar', quantity: 20 }, { source: 'woodcutting', itemId: 'hawk-moth', quantity: 8 }, { source: 'woodcutting', itemId: 'spider', quantity: 30 }] },
+  { id: 'meal-sap-savers-stew', name: "Sap-Saver's Stew", category: 'meal', value: 1, description: 'Each finished chop has a 20% chance not to consume its sapling.', recipe: [{ source: 'woodcutting', itemId: 'spider', quantity: 150 }, { source: 'woodcutting', itemId: 'orb-weaver', quantity: 18 }, { source: 'woodcutting', itemId: 'tarantula', quantity: 6 }, { source: 'woodcutting', itemId: 'grasshopper', quantity: 40 }] },
+  { id: 'meal-trackers-stew', name: "Tracker's Stew", category: 'meal', value: 1, description: '+5 percentage points critter-find chance.', recipe: [{ source: 'woodcutting', itemId: 'grasshopper', quantity: 150 }, { source: 'woodcutting', itemId: 'locust', quantity: 15 }, { source: 'woodcutting', itemId: 'cricket', quantity: 5 }, { source: 'woodcutting', itemId: 'butterfly', quantity: 30 }] },
+  { id: 'meal-bountiful-stew', name: 'Bountiful Stew', category: 'meal', value: 1, description: 'Successful chops have a 10% chance to yield one additional wood.', recipe: [{ source: 'woodcutting', itemId: 'butterfly', quantity: 125 }, { source: 'woodcutting', itemId: 'monarch-butterfly', quantity: 15 }, { source: 'woodcutting', itemId: 'moth', quantity: 5 }, { source: 'woodcutting', itemId: 'beetle', quantity: 25 }] },
+] as const satisfies readonly WoodcuttingUpgradeConfig[];

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import {
+  AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
@@ -126,6 +127,7 @@ type ReservedSkinDrop = {
 type ClaimedSkinDrop = {
   champion_name: string;
   claimed: boolean;
+  claimed_at?: string | null;
   collection_metadata?: CollectionMetadata;
   collection_tier?: number | null;
   collection_type?: CollectionSpawnType;
@@ -263,6 +265,10 @@ type SoldSkinClaim = {
 
 const SKIN_CLAIM_SETTINGS_CACHE_DURATION_MS = 15_000;
 const SKIN_CLAIM_TIMER_INTERVAL_MS = 30_000;
+const DISCORD_DROP_IMAGE_CACHE_MAXIMUM_BYTES = 32 * 1024 * 1024;
+const DISCORD_DROP_IMAGE_FETCH_TIMEOUT_MS = 8_000;
+const DISCORD_DROP_IMAGE_MAXIMUM_BYTES = 8 * 1024 * 1024;
+const COLLECTION_IMAGE_SOURCE_HOSTS = new Set(['ddragon.leagueoflegends.com', 'raw.communitydragon.org']);
 const COLLECTION_UPKEEP_FREE_SKIN_COUNT = 10;
 export const COLLECTION_UPKEEP_ALLOCATION_MAXIMUM = 100_000;
 export const SKIN_CLAIM_ACTION_BUTTON_PREFIX = 'skin-claim-action';
@@ -304,6 +310,8 @@ let scheduler: NodeJS.Timeout | null = null;
 let timedDropInFlight: Promise<void> | null = null;
 let collectionUpkeepScheduler: NodeJS.Timeout | null = null;
 let collectionUpkeepInFlight: Promise<CollectionUpkeepSettlement[]> | null = null;
+const cachedDiscordDropImages = new Map<string, Buffer>();
+let cachedDiscordDropImageBytes = 0;
 
 function getFirstResult<T>(data: T | T[] | null) {
   return Array.isArray(data) ? data[0] ?? null : data;
@@ -339,7 +347,7 @@ function loadCollectionItemCatalog() {
   collectionItemCatalogCache = (parsed.items ?? []).filter((item) => (
     /^item:[a-z0-9:_-]{1,190}$/.test(item.catalogId)
     && Boolean(item.name)
-    && /^https:\/\//.test(item.imageUrl)
+    && isDiscordDisplayableImageUrl(item.imageUrl)
     && Number.isInteger(item.tier)
     && item.tier >= 1
     && item.tier <= 5
@@ -355,19 +363,58 @@ function loadCollectionRuneCatalog() {
   if (collectionRuneCatalogCache) return collectionRuneCatalogCache;
   const catalogUrl = new URL('../../data/catalogs/discord-collection-runes.json', import.meta.url);
   const parsed = JSON.parse(readFileSync(catalogUrl, 'utf8')) as { runes?: CollectionRuneCatalogEntry[] };
-  collectionRuneCatalogCache = (parsed.runes ?? []).filter((rune) => (
+  const validRunes = (parsed.runes ?? []).filter((rune) => (
     /^rune-(?:keystone|style|sub-rune):[a-z0-9:_-]{1,180}$/.test(rune.catalogId)
     && Boolean(rune.name)
-    && /^https:\/\//.test(rune.imageUrl)
+    && isDiscordDisplayableImageUrl(rune.imageUrl)
     && Number.isInteger(rune.tier)
     && rune.tier >= 2
     && rune.tier <= 4
     && rune.rarity === COLLECTION_TIER_RARITIES[rune.tier]
   ));
+  const mostRecentRuneByName = new Map<string, CollectionRuneCatalogEntry>();
+  for (const rune of validRunes) {
+    const key = `${rune.runeKind}:${normalizeCollectionEntryName(rune.name)}`;
+    const existing = mostRecentRuneByName.get(key);
+    if (!existing || compareDataDragonImageVersions(rune.imageUrl, existing.imageUrl) > 0) {
+      mostRecentRuneByName.set(key, rune);
+    }
+  }
+  collectionRuneCatalogCache = [...mostRecentRuneByName.values()];
   if (!collectionRuneCatalogCache.length) {
     throw new Error('The generated collection rune catalogue has no claimable runes.');
   }
   return collectionRuneCatalogCache;
+}
+
+function isDiscordDisplayableImageUrl(imageUrl: string) {
+  return /^https:\/\/.+\.(?:png|jpe?g|webp)(?:[?#].*)?$/i.test(imageUrl);
+}
+
+function isTrustedCollectionImageSource(imageUrl: string) {
+  try {
+    return COLLECTION_IMAGE_SOURCE_HOSTS.has(new URL(imageUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function normalizeCollectionEntryName(name: string) {
+  return name.normalize('NFKD').toLocaleLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function dataDragonImageVersion(imageUrl: string) {
+  return imageUrl.match(/\/cdn\/(\d+)\.(\d+)\.(\d+)\//)?.slice(1).map(Number) ?? [0, 0, 0];
+}
+
+function compareDataDragonImageVersions(leftUrl: string, rightUrl: string) {
+  const left = dataDragonImageVersion(leftUrl);
+  const right = dataDragonImageVersion(rightUrl);
+  for (let index = 0; index < left.length; index += 1) {
+    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
 }
 
 function collectionCatalogId(entry: CollectionCatalogEntry) {
@@ -485,6 +532,7 @@ async function chooseAvailableCollectionEntry(
     const catalog = getCollectionEntryCatalog(type).filter((entry) => !lockedCatalogIds.has(collectionCatalogId(entry)));
     if (!catalog.length) continue;
     if (type === 'skin') {
+      if (!catalog.some((skin) => (rarityWeights.get(normalizeRarity(skin.rarity)) ?? 0) > 0)) continue;
       return {
         entry: chooseWeightedSkin(rarityWeights, catalog as CatalogSkin[]),
         collectionCatalog: null,
@@ -492,6 +540,7 @@ async function chooseAvailableCollectionEntry(
       };
     }
     const collectionCatalog = catalog as (CollectionItemCatalogEntry | CollectionRuneCatalogEntry)[];
+    if (!collectionCatalog.some((entry) => (rarityWeights.get(entry.rarity) ?? 0) > 0)) continue;
     return {
       entry: chooseWeightedCollectionEntry(rarityWeights, collectionCatalog),
       collectionCatalog,
@@ -563,6 +612,20 @@ function calculateCollectionRaritySpawnPercent(
   return totalWeight > 0 ? (rarityWeight / totalWeight) * 100 : 0;
 }
 
+function calculateClaimedDropRaritySpawnPercent(
+  drop: Pick<ClaimedSkinDrop, 'collection_type' | 'collection_tier' | 'rarity'>,
+  rarityWeights: ReadonlyMap<string, number>,
+) {
+  if (drop.collection_type === 'item' || drop.collection_type === 'rune') {
+    return calculateCollectionRaritySpawnPercent(
+      collectionDropRarity(drop),
+      rarityWeights,
+      getCollectionEntryCatalog(drop.collection_type) as (CollectionItemCatalogEntry | CollectionRuneCatalogEntry)[],
+    );
+  }
+  return calculateSkinRaritySpawnPercent(drop.rarity, rarityWeights);
+}
+
 function formatRaritySpawnPercent(percent: number) {
   if (percent > 0 && percent < 0.01) return '<0.01%';
   return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(percent)}%`;
@@ -616,6 +679,7 @@ function getSkinDisplayImageUrl(skin: Pick<CatalogSkin, 'centeredImageUrl' | 'im
 }
 
 function getClaimedSkinDisplayImageUrl(drop: Pick<ClaimedSkinDrop, 'collection_type' | 'image_url' | 'skin_catalog_id'>) {
+  if (/^https:\/\/(?:cdn|media)\.discordapp\.com\/attachments\//.test(drop.image_url)) return drop.image_url;
   if (drop.collection_type && drop.collection_type !== 'skin') return drop.image_url;
   const catalogSkin = drop.skin_catalog_id
     ? loadSkinCatalog().find((skin) => skin.id === drop.skin_catalog_id)
@@ -633,32 +697,88 @@ function collectionDropColor(drop: Pick<ClaimedSkinDrop, 'collection_tier' | 'co
   return RARITY_COLORS[collectionDropRarity(drop)] ?? 0xF59E0B;
 }
 
-function skinDropEmbed(
+function collectionDropImageFileName(skinCode: number, imageUrl: string) {
+  const extension = imageUrl.match(/\.([a-z0-9]+)(?:[?#].*)?$/i)?.[1]?.toLowerCase();
+  return `collection-drop-${formatSkinCode(skinCode)}.${extension === 'jpeg' ? 'jpg' : extension ?? 'png'}`;
+}
+
+function rememberDiscordDropImage(imageUrl: string, image: Buffer) {
+  const existing = cachedDiscordDropImages.get(imageUrl);
+  if (existing) cachedDiscordDropImageBytes -= existing.byteLength;
+  cachedDiscordDropImages.delete(imageUrl);
+  cachedDiscordDropImages.set(imageUrl, image);
+  cachedDiscordDropImageBytes += image.byteLength;
+  while (cachedDiscordDropImageBytes > DISCORD_DROP_IMAGE_CACHE_MAXIMUM_BYTES && cachedDiscordDropImages.size > 1) {
+    const oldest = cachedDiscordDropImages.entries().next().value as [string, Buffer] | undefined;
+    if (!oldest) break;
+    cachedDiscordDropImages.delete(oldest[0]);
+    cachedDiscordDropImageBytes -= oldest[1].byteLength;
+  }
+}
+
+async function getDiscordDropImageAttachment(imageUrl: string, skinCode: number) {
+  if (!isDiscordDisplayableImageUrl(imageUrl) || !isTrustedCollectionImageSource(imageUrl)) return null;
+  let image = cachedDiscordDropImages.get(imageUrl);
+  if (image) {
+    cachedDiscordDropImages.delete(imageUrl);
+    cachedDiscordDropImages.set(imageUrl, image);
+  } else {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DISCORD_DROP_IMAGE_FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(imageUrl, { redirect: 'error', signal: controller.signal });
+      const contentLength = Number(response.headers.get('content-length') ?? 0);
+      if (!response.ok || !/^image\/(?:png|jpeg|webp)$/i.test(response.headers.get('content-type') ?? '')
+        || contentLength > DISCORD_DROP_IMAGE_MAXIMUM_BYTES) {
+        return null;
+      }
+      image = Buffer.from(await response.arrayBuffer());
+      if (!image.byteLength || image.byteLength > DISCORD_DROP_IMAGE_MAXIMUM_BYTES) return null;
+      rememberDiscordDropImage(imageUrl, image);
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  const name = collectionDropImageFileName(skinCode, imageUrl);
+  return {
+    attachment: new AttachmentBuilder(image, { name }),
+    imageUrl: `attachment://${name}`,
+  };
+}
+
+export function skinDropEmbed(
   drop: Omit<ClaimedSkinDrop, 'claimed'>,
   claimedByUserId?: string,
   collection = false,
   raritySpawnPercent?: number,
+  presentation: { claimedAt?: string | null; imageUrl?: string } = {},
 ) {
   const claimed = Boolean(claimedByUserId) || collection;
   const type = collectionTypeLabel(drop.collection_type);
   const typeTitle = collectionTypeTitle(drop.collection_type);
-  const details = [
-    `**${drop.skin_name}**`,
-    `Type: **${typeTitle}**`,
-    `Rarity: **${collectionDropRarity(drop)}**`,
-    ...(raritySpawnPercent === undefined ? [] : [`Rarity spawn chance: **${formatRaritySpawnPercent(raritySpawnPercent)}**`]),
-  ];
+  const claimTime = presentation.claimedAt ? Math.floor(new Date(presentation.claimedAt).getTime() / 1_000) : null;
   const embed = new EmbedBuilder()
     .setColor(collectionDropColor(drop))
     .setTitle(`${claimed ? `Claimed ${type}` : `${typeTitle} drop`} · #${formatSkinCode(drop.skin_code)}`)
-    .setDescription(details.join('\n'))
-    .setImage(drop.image_url);
+    .setImage(presentation.imageUrl ?? drop.image_url)
+    .addFields(
+      {
+        name: 'Skin',
+        value: `**${drop.skin_name}**\n\n**Type**\n${typeTitle}`,
+        inline: true,
+      },
+      {
+        name: 'Rarity',
+        value: `**${collectionDropRarity(drop)}**\n\n**Spawn Chance**\n${raritySpawnPercent === undefined ? 'Unavailable' : formatRaritySpawnPercent(raritySpawnPercent)}`,
+        inline: true,
+      },
+    );
   if (!collection) {
-    embed.setDescription([
-      claimed ? `<@${claimedByUserId}> claimed this ${type}.` : `React to this message first to add this ${type} to your collection.`,
-      '',
-      ...details,
-    ].join('\n'));
+    embed.setDescription(claimed
+      ? `<@${claimedByUserId}> claimed this ${type}${claimTime ? ` at <t:${claimTime}:F>` : ''}.`
+      : `React to this message first to add this ${type} to your collection.`);
   }
   return embed.setFooter({ text: claimed ? 'Use /collections collection to browse the collection.' : 'The first human reaction wins.' });
 }
@@ -801,11 +921,15 @@ async function sendReservedSkinDrop(
 
   try {
     const expiresAtSeconds = Math.floor(new Date(reserved.expires_at).getTime() / 1_000);
+    const drop = toCollectionDrop(entry, reserved);
+    const image = await getDiscordDropImageAttachment(drop.image_url, drop.skin_code);
     const message = await channel.send({
       content: `React to claim this ${collectionTypeLabel(entry.type)}. Will expire <t:${expiresAtSeconds}:R>.`,
-      embeds: [skinDropEmbed(toCollectionDrop(entry, reserved), undefined, false, raritySpawnPercent)],
+      embeds: [skinDropEmbed(drop, undefined, false, raritySpawnPercent, { imageUrl: image?.imageUrl })],
+      ...(image ? { files: [image.attachment] } : {}),
     });
-    const { error: attachError } = await createBotServiceClient(config).rpc('attach_discord_skin_claim_message', {
+    const supabase = createBotServiceClient(config);
+    const { error: attachError } = await supabase.rpc('attach_discord_skin_claim_message', {
       p_drop_id: reserved.drop_id,
       p_guild_id: config.guildId,
       p_message_id: message.id,
@@ -813,6 +937,20 @@ async function sendReservedSkinDrop(
     if (attachError) {
       await message.delete().catch(() => undefined);
       throw new Error(`Unable to attach Discord skin-claim message: ${attachError.message}`);
+    }
+    const hostedImageUrl = image
+      ? message.attachments.find((attachment) => attachment.name === image.attachment.name)?.url
+      : null;
+    if (hostedImageUrl) {
+      const { error: imageUpdateError } = await supabase
+        .from('discord_skin_claim_drops')
+        .update({ image_url: hostedImageUrl })
+        .eq('guild_id', config.guildId)
+        .eq('id', reserved.drop_id)
+        .eq('status', 'pending');
+      if (imageUpdateError) {
+        console.warn('Discord skin-claim drop image could not be saved to the Discord CDN URL.', imageUpdateError);
+      }
     }
     return true;
   } catch (error) {
@@ -848,7 +986,7 @@ async function reserveAndSendSkinDrop(
   if (error) throw new Error(`Unable to reserve Discord skin-claim drop: ${error.message}`);
   const reserved = getFirstResult(data as ReservedSkinDrop | ReservedSkinDrop[] | null);
   if (!reserved) return false;
-  recordDropReservation(config);
+  if (triggerType !== 'manual') recordDropReservation(config);
   return sendReservedSkinDrop(
     config,
     guild,
@@ -880,6 +1018,47 @@ async function reserveAndSendCollectionEntryDrop(
   const reserved = getFirstResult(data as ReservedSkinDrop | ReservedSkinDrop[] | null);
   if (!reserved) return false;
   return sendReservedSkinDrop(config, guild, channelId, entry, reserved, raritySpawnPercent);
+}
+
+async function reserveAndSendAutomaticCollectionDrop(
+  config: DiscordBotConfig,
+  guild: Guild,
+  channelId: string,
+  triggerType: 'message' | 'timer',
+  settings: SkinClaimRuntimeSettings,
+) {
+  const selection = await chooseAvailableCollectionEntry(config, undefined, settings.rarityWeights);
+  if (selection.entry.type === 'skin') {
+    return reserveAndSendSkinDrop(config, guild, channelId, triggerType, settings, {
+      catalog: selection.skinCatalog!,
+      skin: selection.entry,
+    });
+  }
+
+  const entry = selection.entry;
+  const { data, error } = await createBotServiceClient(config).rpc('reserve_discord_collection_drop', {
+    p_catalog_id: collectionCatalogId(entry),
+    p_channel_id: channelId,
+    p_collection_metadata: collectionEntryMetadata(entry),
+    p_collection_tier: entry.tier,
+    p_collection_type: entry.type,
+    p_guild_id: config.guildId,
+    p_image_url: entry.imageUrl,
+    p_name: entry.name,
+    p_trigger_type: triggerType,
+  });
+  if (error) throw new Error(`Unable to reserve automatic Discord collection ${collectionTypeLabel(entry.type)} drop: ${error.message}`);
+  const reserved = getFirstResult(data as ReservedSkinDrop | ReservedSkinDrop[] | null);
+  if (!reserved) return false;
+  recordDropReservation(config);
+  return sendReservedSkinDrop(
+    config,
+    guild,
+    channelId,
+    entry,
+    reserved,
+    calculateCollectionRaritySpawnPercent(entry.rarity, settings.rarityWeights, selection.collectionCatalog!),
+  );
 }
 
 export type SkinClaimSpawnResult = {
@@ -1010,7 +1189,6 @@ export async function summonSkinClaimDrop(
       status: reserved.outcome,
     };
   }
-  recordDropReservation(config);
   const spawned = await sendReservedSkinDrop(
     config,
     guild,
@@ -1064,7 +1242,6 @@ export async function gambleSkinClaim(
     await abandonUnsentDrop(config, result.drop_id);
     throw error;
   }
-  recordDropReservation(config);
   const spawned = await sendReservedSkinDrop(config, guild, channelId, skin, {
     drop_id: result.drop_id,
     expires_at: result.expires_at,
@@ -1081,7 +1258,7 @@ export async function attemptSkinClaimDropFromMessage(config: DiscordBotConfig, 
   if (!settings?.enabled || !settings.eligibleChannelIds.has(message.channelId)) return;
   const baseTime = settings.lastDropAt ?? settings.scheduleStartedAt;
   if (Date.now() < baseTime.getTime() + settings.minimumIntervalMinutes * 60_000) return;
-  await reserveAndSendSkinDrop(config, message.guild, message.channelId, 'message', settings);
+  await reserveAndSendAutomaticCollectionDrop(config, message.guild, message.channelId, 'message', settings);
 }
 
 async function attemptTimedSkinClaimDrop(config: DiscordBotConfig, guild: Guild) {
@@ -1091,7 +1268,7 @@ async function attemptTimedSkinClaimDrop(config: DiscordBotConfig, guild: Guild)
   if (Date.now() < baseTime.getTime() + settings.maximumIntervalMinutes * 60_000) return;
   const channelId = chooseEligibleChannelId(settings);
   if (!channelId) return;
-  await reserveAndSendSkinDrop(config, guild, channelId, 'timer', settings);
+  await reserveAndSendAutomaticCollectionDrop(config, guild, channelId, 'timer', settings);
 }
 
 export function startDiscordSkinClaimScheduler(config: DiscordBotConfig, guild: Guild) {
@@ -1193,15 +1370,20 @@ export async function handleSkinClaimReaction(
   if (error) throw new Error(`Unable to claim Discord skin drop: ${error.message}`);
   const claim = getFirstResult(data as ClaimedSkinDrop | ClaimedSkinDrop[] | null);
   if (!claim?.claimed) return;
-  const type = collectionTypeLabel(claim.collection_type);
+  const settings = await getSkinClaimSettings(config);
+  const attachedImage = message.attachments.find((attachment) => attachment.name?.startsWith('collection-drop-'));
+  const claimedAt = claim.claimed_at ?? new Date().toISOString();
   await message.edit({
-    components: skinClaimActionButtons(resolvedUser.id, claim.skin_code),
-    content: `This ${type} has been claimed.`,
-    embeds: [skinDropEmbed(claim, resolvedUser.id)],
-  });
-  await message.reply({
     allowedMentions: { parse: [], users: [resolvedUser.id] },
-    content: `<@${resolvedUser.id}> claimed **${claim.skin_name}** · #${formatSkinCode(claim.skin_code)}.`,
+    components: skinClaimActionButtons(resolvedUser.id, claim.skin_code),
+    content: '',
+    embeds: [skinDropEmbed(
+      claim,
+      resolvedUser.id,
+      false,
+      settings ? calculateClaimedDropRaritySpawnPercent(claim, settings.rarityWeights) : undefined,
+      { claimedAt, imageUrl: attachedImage?.name ? `attachment://${attachedImage.name}` : undefined },
+    )],
   });
 }
 
@@ -1510,14 +1692,12 @@ export function buildSkinSearchEmbed(skin: CatalogSkin, owners: readonly SkinSea
 }
 
 export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: string, showDetails = false) {
-  const upkeepSummary = page.upkeep.excessSkinCount
-    ? `${formatKnowBucks(page.upkeep.dailyCost)} daily for ${page.upkeep.excessSkinCount} collection entr${page.upkeep.excessSkinCount === 1 ? 'y' : 'ies'} over 10`
-    : 'Free (the first 10 collection entries are free)';
+  const upkeepCost = formatKnowBucks(page.upkeep.dailyCost);
   if (!page.item) {
     return new EmbedBuilder()
       .setColor(0x64748B)
       .setTitle(`${ownerName}'s collection (max ${page.capacity})`)
-      .setDescription(`No collection entries claimed yet. Watch for a drop and react first to claim it.\n\n**Daily collection upkeep:** ${upkeepSummary}`);
+      .setDescription(`**Daily collection upkeep cost:** ${upkeepCost}\n\nNo collection entries claimed yet. Watch for a drop and react first to claim it.`);
   }
   const type = collectionTypeLabel(page.item.collection_type);
   const typeTitle = collectionTypeTitle(page.item.collection_type);
@@ -1543,20 +1723,24 @@ export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: st
           `**Rune style**\n${metadata.style ?? 'Unknown'}`,
         ]),
     ];
+  const detailedItemColumn = [
+    ...itemDetails,
+    `**Daily collection upkeep**\n${new Intl.NumberFormat('en-US').format(page.upkeep.dailyCost)}`,
+    `**Method**\n${formatOwnershipMethod(page.item.ownership_method)}`,
+  ];
   const embed = new EmbedBuilder()
     .setColor(collectionDropColor(page.item))
     .setTitle(`${ownerName}'s collection · ${page.page + 1} of ${page.total} (max ${page.capacity})`)
-    .setDescription(`**${page.item.skin_name} (#${formatSkinCode(page.item.skin_code)})** · **${typeTitle} · ${collectionDropRarity(page.item)}**`)
+    .setDescription(`**Daily collection upkeep cost:** ${upkeepCost}\n**${page.item.skin_name} (#${formatSkinCode(page.item.skin_code)})** · **${typeTitle} · ${collectionDropRarity(page.item)}**`)
     .setImage(getClaimedSkinDisplayImageUrl(page.item))
     .setFooter({ text: `Entry ${page.page + 1} of ${page.total} · Use /collections give to transfer #${formatSkinCode(page.item.skin_code)}.` });
 
-  embed.setDescription(`${embed.data.description ?? ''}\n**Daily collection upkeep:** ${upkeepSummary}`);
   if (!showDetails) return embed;
 
   return embed.addFields(
     {
       name: typeTitle,
-      value: itemDetails.join('\n\n'),
+      value: detailedItemColumn.join('\n\n'),
       inline: true,
     },
     {
@@ -1565,10 +1749,6 @@ export function buildSkinCollectionEmbed(page: SkinCollectionPage, ownerName: st
         `**KnowLeague ID**\n#${formatSkinCode(page.item.skin_code)}`,
         `**Sells for**\n${formatKnowBucks(page.sellValue)}`,
         `**Acquired**\n${formatAcquiredDate(page.item.owner_acquired_at)}`,
-        `**Method**\n${formatOwnershipMethod(page.item.ownership_method)}`,
-        `**Daily upkeep**\n${page.upkeep.excessSkinCount
-          ? `${formatKnowBucks(page.upkeep.dailyCost)} for ${page.upkeep.excessSkinCount} collection entr${page.upkeep.excessSkinCount === 1 ? 'y' : 'ies'} over 10`
-          : 'None — your first 10 collection entries are free.'}`,
         ...(page.upkeep.graceExpiresAt
           ? [`**Payment due**\n${formatKnowBucks(page.upkeep.outstandingAmount)} by <t:${Math.floor(new Date(page.upkeep.graceExpiresAt).getTime() / 1_000)}:R>`]
           : []),

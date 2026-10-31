@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { ApiError } from '@/lib/api-utils';
+import { getDiscordGameIdentity, type DiscordGameIdentity } from '@/lib/discord-game-identity';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import {
   MINING_DEPTHS,
@@ -104,7 +105,7 @@ export type MiningDashboard = {
   skills: MiningSharedSkills;
 };
 
-type MiningIdentity = { discordUserId: string; guildId: string };
+type MiningIdentity = DiscordGameIdentity;
 type MiningState = {
   balance: number;
   inventory: MiningInventoryRow[];
@@ -119,26 +120,8 @@ function firstRow<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
-function getDiscordGuildId() {
-  const guildId = process.env.DISCORD_GUILD_ID?.trim() ?? '';
-  if (!/^[0-9]{17,20}$/.test(guildId)) {
-    throw new ApiError(503, 'Discord server configuration is unavailable.');
-  }
-  return guildId;
-}
-
 async function getMiningIdentity(userId: string): Promise<MiningIdentity> {
-  const { data, error } = await getSupabaseServiceClient()
-    .from('profile_private_details')
-    .select('discord_user_id')
-    .eq('user_id', userId)
-    .maybeSingle<{ discord_user_id: string | null }>();
-  if (error) throw error;
-  const discordUserId = data?.discord_user_id?.trim() ?? '';
-  if (!/^[0-9]{17,20}$/.test(discordUserId)) {
-    throw new ApiError(409, 'Link your Discord account in Profile before managing Mining on the website.');
-  }
-  return { discordUserId, guildId: getDiscordGuildId() };
+  return getDiscordGameIdentity(userId, 'Mining');
 }
 
 function getSkillLevels(itemIds: readonly string[]): MiningSharedSkills {

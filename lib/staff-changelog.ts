@@ -17,6 +17,121 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-10-30-discord-companion-game-web-experience',
+    patch: 'patch-2026-10-30-discord-companion-game-web-experience',
+    timestamp: '2026-10-30T23:00:00.000Z',
+    title: 'Add unified web companions for Fishing, Mining, and Woodcutting',
+    summary: 'Fishing, Mining, and Woodcutting now have responsive, interactive web companions with shared Discord-linked identity, live progress displays, UI sounds, accessible controls, and authoritative server-side game actions.',
+    details: [
+      'Replaced the legacy Mining page with a fresh expedition-first interface covering depth dispatch, projected minecart capacity, active event decisions, return settlement, Discord result sharing, workshop upgrades, resource sales, and relic storage.',
+      'Added Fishing Fleet routes and an authenticated dashboard/action API for selecting a destination, duration, and crew slot; equipping owned rods and bait; purchasing permitted upgrades; following live voyages; and reviewing bot-settled catches. Web launches use the existing linked Discord identity, authoritative Fishing RPCs, existing expedition scheduler, and a configured or previously used Fishing notification channel. The optional DISCORD_FISHING_WEB_NOTIFICATION_CHANNEL_ID deployment setting makes a first web-only launch explicit.',
+      'Added Woodcutting Camp routes and an authenticated dashboard/action API for reward claims, hires, sapling purchases, axe and camp-upgrade crafting, automatic assignment, and validated manual worker assignment. Production settlement remains atomic and occurs before every production-changing action, matching the Discord command contract.',
+      'Introduced a shared companion UI shell for consistent headers, shared KnowBucks balance, tabs, progress meters, status treatment, reduced-motion-safe CSS transitions, accessible controls, and existing user-controlled UI sound effects.',
+      'Extracted the linked Discord identity lookup so companion APIs consistently reuse profile_private_details.discord_user_id instead of accepting browser-provided Discord IDs or creating a second link flow.',
+      'Corrected the Fishing event catalogue biome literal from the invalid narrowed value to hellish-abyss, allowing the active event configuration to match its actual configured value.',
+    ],
+    impact: [
+      'Linked players can now manage all three Discord minigames from the Games hub while keeping their inventory, KnowBucks, unlocks, and Discord notifications in sync with the bot.',
+      'Website deployment is required for the new routes. The bot remains an independent deployment; no slash-command shape, bot token exposure, migration, or command registration is required by this web experience patch.',
+      'For first-time web Fishing launches, configure DISCORD_FISHING_WEB_NOTIFICATION_CHANNEL_ID in the website environment or have the player complete a Fishing launch in Discord so the companion can reuse a known notification channel.',
+    ],
+    files: ['.env.example', 'app/api/fishing/route.ts', 'app/api/woodcutting/route.ts', 'app/fishing/page.tsx', 'app/woodcutting/page.tsx', 'app/games/fishing/page.tsx', 'app/games/woodcutting/page.tsx', 'components/discord-companion-ui.tsx', 'components/fishing-game.tsx', 'components/mining-game.tsx', 'components/woodcutting-game.tsx', 'lib/discord-game-identity.ts', 'lib/fishing.ts', 'lib/game-families.ts', 'lib/game-navigation.ts', 'lib/mining.ts', 'lib/woodcutting.ts', 'discord-bot/src/minigame-content-config.ts', 'tests/discord-woodcutting.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      '`npm run check` passed: root lint (with only seven existing image-element advisories), root TypeScript, all 47 Vitest files / 287 tests, regenerated Discord minigame tier references, and Discord bot TypeScript. The Woodcutting test now narrows Discord button variants before reading custom_id, fixing the existing test-only type failure.',
+      'No Supabase migration push, production build, Discord bot deployment, or slash-command registration was run. Existing Node processes were left untouched, so no concurrent Next build/dev work was started.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-30-discord-collections-drop-media-and-random-types',
+    patch: 'patch-2026-10-30-discord-collections-drop-media-and-random-types',
+    timestamp: '2026-10-30T22:15:23.435Z',
+    title: 'Make Collection drops media-reliable, complete, and type-diverse',
+    summary: 'Collections now send validated drop images as Discord-hosted attachments, rotate items and runes into automatic drops, and keep the original panel complete when a member claims it.',
+    details: [
+      'New drops fetch only non-redirected HTTPS PNG, JPEG, or WebP media from the known Riot image origins within an eight-second and eight-megabyte limit, upload it to Discord, retain a bounded 32 MiB in-process cache, and save the resulting Discord CDN URL for later collection views. A failed fetch safely falls back to the existing external image URL.',
+      'The generated rune catalogue excludes unsupported DDS assets, deduplicates replaced runes by name and kind using the newest Data Dragon source, and now retains the current Unsealed Spellbook entry (8360) only. Item images retain the newest available artwork URL instead of an older high-cost snapshot URL.',
+      'Migration 200 adds a service-role-only automatic item/rune reservation RPC with the existing channel, cadence, pending-drop, four-digit-ID, capacity, and catalogue-lock safeguards. Normal message and timer drops randomly select a skin, item, or rune; manual spawn, summon, and gamble still do not reset the normal automatic-drop timer.',
+      'Claiming edits the original panel only. It now shows the authoritative claim timestamp, has two side-by-side Skin/Type and Rarity/Spawn Chance columns before and after claiming, preserves any Discord-hosted image attachment, and no longer posts a separate claim reply.',
+      'Collection summaries now put `Daily collection upkeep cost` above the displayed entry. Detailed collection panels place the raw daily amount and method together in the first column.',
+    ],
+    impact: [
+      'Members should see initial drop artwork promptly from Discord CDN instead of waiting on Discord to proxy Riot media, while invalid retired rune artwork can no longer spawn.',
+      'Apply migration 200, then deploy the Discord bot. Collection gameplay has no website-facing change and no slash-command definition changed, so it does not need a website deploy or slash-command registration; deploy the website separately only if this staff-changelog entry should be visible in production. The migration was created locally only and was not pushed.',
+    ],
+    files: ['discord-bot/src/skin-claims.ts', 'scripts/generate-discord-collection-catalog.mjs', 'data/catalogs/discord-collection-items.json', 'data/catalogs/discord-collection-runes.json', 'data/catalogs/discord-collection-item-tiers.md', 'data/catalogs/discord-collection-rune-tiers.md', 'supabase/migrations/200_discord_collection_automatic_drops_and_claim_presentation.sql', 'tests/discord-skin-claims.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Regenerated the collection item and rune catalogues from Data Dragon: 587 items and 76 displayable, deduplicated runes. The focused Collections test file passed all 18 tests, and the full Vitest suite passed all 47 files / 287 tests, including the current Unsealed Spellbook URL and two-column claim panel contract.',
+      '`npm run check` completed lint (with existing image-element advisories) but stopped at two unrelated pre-existing type errors: the Fishing `"hellish-abyss"` / narrowed `" -abyss"` mismatch in discord-bot/src/minigame-content-config.ts and API button `custom_id` narrowing in tests/discord-woodcutting.test.ts. A separate `npm run discord:check` reaches the first of those existing Discord type errors. No Supabase migration push, production build, or command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-30-woodcutting-sapling-selection-guidance',
+    patch: 'patch-2026-10-30-woodcutting-sapling-selection-guidance',
+    timestamp: '2026-10-30T22:00:00.000Z',
+    title: 'Clarify Woodcutting sapling selection and assignment output',
+    summary: 'Woodcutting now presents named sapling types when buying stock, gives private copy-ready purchase guidance when manual assignment has no stock, and makes auto-assigned lumberjack reports more actionable.',
+    details: [
+      'The `/woodcutting buy-saplings` selector is now named `type` and presents every named sapling option rather than an opaque numeric tier.',
+      'Manual assignment now requires at least one selected sapling in inventory. If an otherwise valid assignment has none, its private failure panel includes the exact `/woodcutting buy-saplings type:<sapling> quantity:1` command as a copy-ready next step alongside available axes.',
+      'Auto-assignment results now use `Lumberjack #<number>` labels and display the current quantity remaining beside every assigned sapling.',
+    ],
+    impact: [
+      'Players can select stock by name, avoid silently assigning idle workers, and immediately see what to buy or how much stock remains after automatic setup.',
+      'Deploy the Discord bot and re-register guild slash commands because the `buy-saplings` option name changed. No database migration is required for this patch.',
+    ],
+    files: ['discord-bot/src/commands.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/woodcutting.ts', 'tests/discord-woodcutting.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Woodcutting tests passed (7 tests), covering the named sapling option, copy-ready missing-stock guidance, tabs, tier configuration, and claim resolution.',
+      '`npm run discord:check` remains blocked only by the pre-existing unrelated dirty Fishing event configuration type mismatch in minigame-content-config.ts. No migration push, production build, or command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-30-woodcutting-tabs-and-worker-hire-fix',
+    patch: 'patch-2026-10-30-woodcutting-tabs-and-worker-hire-fix',
+    timestamp: '2026-10-30T21:00:00.000Z',
+    title: 'Organize Woodcutting panels and repair worker hiring',
+    summary: 'Woodcutting inventory and shop now use focused tabbed Discord panels, claim wording refers to Trees chopped, and a follow-up RPC migration fixes lumberjack hiring for deployed Woodcutting foundations.',
+    details: [
+      'Inventory tabs now separate Workforce (lumberjacks, axes, permanent upgrades), Saplings & Wood, and Critters & Amber. Owner-only tab controls expire after one minute using the established Fishing and Mining panel behavior.',
+      'Shop tabs now separate Workers, Axes, Saplings, Lodging, Sharpening, and Meals. Every tab ends with its exact purchase or crafting slash command because Woodcutting intentionally retains direct commands for non-linear purchases.',
+      'Migration 199 replaces only the worker-hire RPC, qualifying the workers table aggregate that conflicted with the RPC return-column name `worker_number`. It leaves migration 198 append-only and supports both fresh and already-applied Woodcutting foundations.',
+      'Claim summaries now label completed work as Trees chopped.',
+    ],
+    impact: [
+      'Players can inspect large Woodcutting inventories and recipes without mixed categories, then use the appropriate slash command directly from each tab.',
+      'Apply migration 199 after migration 198 before using `/woodcutting hire` on a deployed database. The migration was created locally only and was not pushed.',
+    ],
+    files: ['discord-bot/src/interactions.ts', 'supabase/migrations/199_fix_discord_woodcutting_worker_hire.sql', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Woodcutting tests and panel command-shape coverage passed (6 tests). A post-change root lint retry could not open `.next/cache/eslint` with EPERM, so it was not retried while the workspace may be in use; full repository type verification remains blocked by the unrelated pre-existing dirty Fishing event configuration type mismatch documented in the preceding Woodcutting patch.',
+      'No Supabase migration push, production build, or Discord slash-command registration was run.',
+    ],
+  },
+  {
+    id: 'patch-2026-10-30-discord-woodcutting-minigame',
+    patch: 'patch-2026-10-30-discord-woodcutting-minigame',
+    timestamp: '2026-10-30T20:00:00.000Z',
+    title: 'Add continuous Discord Woodcutting progression',
+    summary: 'Discord members can now hire and equip lumberjacks, stock tiered saplings, claim continuous Woodcutting rewards, craft permanent upgrades, and record wood, critter, Golden critter, and amber discoveries.',
+    details: [
+      'The canonical minigame configuration now defines all seven axe and sapling tiers, the specified per-worker hire curve, named Golden critters, amber finds, lodging and Sharpening Station recipes, and five permanent mid-progression meal recipes: Woodland Chowder, Lumberjack\'s Stew, Sap-Saver\'s Stew, Tracker\'s Stew, and Bountiful Stew.',
+      'Woodcutting resolves only during a claim or production-changing action. It snapshots each worker\'s cycle remainder, caps sapling storage at one million per type, stops work when a selected sapling stock runs out, consumes saplings for every completed chop unless Sap-Saver\'s Stew prevents it, and then independently awards success wood, optional double wood, critters, and amber from the configured odds.',
+      'Workers own individual crafted axes. The first paid lumberjack includes an unassigned Quartz Axe; `/woodcutting assign` validates the worker, an available exact-tier axe, processor gate, and sapling tier before equipping them, while `/woodcutting assign-auto` uses the strongest owned axes with the strongest stocked eligible saplings.',
+      'Migration 198 creates service-role-only Woodcutting player, axe, worker, inventory, upgrade, and durable-catalogue tables with atomic RPCs for claims, hires, sapling purchases, crafting, and assignments. It also writes KnowBucks ledger entries for hires and sapling purchases without exposing bot or database credentials.',
+      'Mining processor display names now use Resource 2 through Resource 7 Processor. Woodcutting treats Tier 1 Oak as automatically processed and maps later sapling gates to the existing Mining processor upgrade IDs.',
+    ],
+    impact: [
+      'Players have a third Discord minigame with `/woodcutting claim`, `hire`, `craft-axe`, `buy-saplings`, `assign`, `assign-auto`, `craft-upgrade`, `shop`, `inventory`, `catalogue`, and `help`. Assignment failures are private and list currently available axes.',
+      'Apply migration 198 after migration 197, deploy the Discord bot, and explicitly run `npm run discord:commands:register` with the deployment environment configured. The migration was created locally only and was not pushed.',
+    ],
+    files: ['discord-bot/src/commands.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/minigame-content-config.ts', 'discord-bot/src/minigame-tier-references.ts', 'discord-bot/src/woodcutting-catalog.ts', 'discord-bot/src/woodcutting.ts', 'supabase/migrations/198_discord_woodcutting_foundation.sql', 'tests/discord-woodcutting.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      'Focused Woodcutting Vitest coverage passed (5 tests), including slash-command shape, configured tier values, generated tier reference, sapling-limited claims, and speed modifiers. The minigame tier generator also emitted woodcutting-tiers.md.',
+      '`npm run check` and `npm run discord:check` are blocked by the pre-existing unrelated dirty edit in minigame-content-config.ts that narrows `catalogueBiomeId` to `" -abyss"` while the configured value is `"hellish-abyss"`; the direct Discord check reported no Woodcutting errors beyond that blocker.',
+      'No production build, Supabase migration push, or Discord command registration was run.',
+    ],
+  },
+  {
     id: 'patch-2026-10-29-mining-active-expedition-events',
     patch: 'patch-2026-10-29-mining-active-expedition-events',
     timestamp: '2026-10-29T20:05:00.000Z',

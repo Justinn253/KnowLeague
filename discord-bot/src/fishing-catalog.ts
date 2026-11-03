@@ -416,6 +416,12 @@ export const FISHING_EVENTS: readonly FishingEvent[] = [{
   },
 }] as const;
 
+/**
+ * Event definitions are retained for historical expedition settlement and
+ * collection records. Only this list may route newly launched expeditions.
+ */
+export const ACTIVE_FISHING_EVENTS: readonly FishingEvent[] = [];
+
 export const FISHING_HALLOWEEN_FISH_RARITY_WEIGHTS: Readonly<Record<FishingRarity, number>> = {
   Common: 1_000,
   Uncommon: 200,
@@ -429,13 +435,19 @@ export function getFishingEvent(eventId: string | undefined | null) {
   return FISHING_EVENTS.find((event) => event.id === eventId);
 }
 
+export function getActiveFishingEvent() {
+  return ACTIVE_FISHING_EVENTS[0];
+}
+
 /**
- * A 1-in-4 seed partition makes the event roll deterministic and exactly 25%
- * for newly launched expeditions without advancing their reward RNG stream.
+ * A deterministic seed partition chooses active-event expeditions without
+ * advancing their reward RNG stream.
  */
 export function getFishingEventForOutcomeSeed(outcomeSeed: number) {
-  const activeEvent = FISHING_EVENTS[0];
-  return activeEvent && Math.abs(Math.trunc(outcomeSeed)) % 4 === 0 ? activeEvent : undefined;
+  const activeEvent = getActiveFishingEvent();
+  if (!activeEvent) return undefined;
+  const partitionCount = Math.round(1 / activeEvent.replacementChance);
+  return partitionCount > 0 && Math.abs(Math.trunc(outcomeSeed)) % partitionCount === 0 ? activeEvent : undefined;
 }
 
 function crateLoot(biomeId: FishingBiomeId, rarity: FishingCrateRarity, names: readonly string[]): FishingCrateLoot[] {

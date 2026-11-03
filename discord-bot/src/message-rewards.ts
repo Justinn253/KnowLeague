@@ -9,26 +9,31 @@ export type MessageLotteryReward = {
 };
 
 const MESSAGE_LOTTERY_REWARDS: readonly MessageLotteryReward[] = [
-  { amount: 1_000, type: 'message_lottery_1000' },
-  { amount: 2_500, type: 'message_lottery_2500' },
-  { amount: 5_000, type: 'message_lottery_5000' },
   { amount: 10_000, type: 'message_lottery_10000' },
   { amount: 25_000, type: 'message_lottery_25000' },
+  { amount: 50_000, type: 'message_lottery_50000' },
+  { amount: 250_000, type: 'message_lottery_250000' },
+  { amount: 1_000_000, type: 'message_lottery_1000000' },
 ];
+
+const MESSAGE_LOTTERY_REWARD_WEIGHTS = [100, 50, 20, 5, 1] as const;
+const MESSAGE_LOTTERY_TOTAL_WEIGHT = MESSAGE_LOTTERY_REWARD_WEIGHTS.reduce((total, weight) => total + weight, 0);
 
 export function isMessageLotteryWinner(roll: number) {
   return roll === 0;
 }
 
 export function messageLotteryRewardForRoll(roll: number): MessageLotteryReward {
-  if (!Number.isInteger(roll) || roll < 0 || roll >= 100) {
-    throw new Error('Message reward roll must be an integer from 0 through 99.');
+  if (!Number.isInteger(roll) || roll < 0 || roll >= MESSAGE_LOTTERY_TOTAL_WEIGHT) {
+    throw new Error(`Message reward roll must be an integer from 0 through ${MESSAGE_LOTTERY_TOTAL_WEIGHT - 1}.`);
   }
-  if (roll < 75) return MESSAGE_LOTTERY_REWARDS[0];
-  if (roll < 90) return MESSAGE_LOTTERY_REWARDS[1];
-  if (roll < 95) return MESSAGE_LOTTERY_REWARDS[2];
-  if (roll < 99) return MESSAGE_LOTTERY_REWARDS[3];
-  return MESSAGE_LOTTERY_REWARDS[4];
+  let remaining = roll;
+  for (let index = 0; index < MESSAGE_LOTTERY_REWARDS.length; index += 1) {
+    const weight = MESSAGE_LOTTERY_REWARD_WEIGHTS[index]!;
+    if (remaining < weight) return MESSAGE_LOTTERY_REWARDS[index]!;
+    remaining -= weight;
+  }
+  return MESSAGE_LOTTERY_REWARDS[MESSAGE_LOTTERY_REWARDS.length - 1]!;
 }
 
 function formatKnowBucks(value: number) {
@@ -39,11 +44,11 @@ export async function maybeAwardMessageKnowBucks(config: DiscordBotConfig, messa
   if (!message.inGuild() || message.guildId !== config.guildId || message.author.bot || message.system) {
     return;
   }
-  if (!isMessageLotteryWinner(randomInt(100))) {
+  if (!isMessageLotteryWinner(randomInt(1_000))) {
     return;
   }
 
-  const reward = messageLotteryRewardForRoll(randomInt(100));
+  const reward = messageLotteryRewardForRoll(randomInt(MESSAGE_LOTTERY_TOTAL_WEIGHT));
   const award = await awardKnowBucksMessageReward(config, message.author.id, message.id, reward.type);
   if (!award.awarded) {
     return;

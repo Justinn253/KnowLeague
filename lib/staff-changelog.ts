@@ -17,6 +17,103 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-11-03-riftbound-command-errors-and-channels',
+    patch: 'patch-2026-11-03-riftbound-command-errors-and-channels',
+    timestamp: '2026-11-03T22:55:34.0467901Z',
+    title: 'Handle Riftbound command failures and configure command channels',
+    summary: 'Mock Riftbound commands now present member-facing error notes for expected and deferred failures, while administrators can restrict every Riftbound command and opening-gallery control to selected Discord channels.',
+    details: [
+      'Wrapped Riftbound command processing in a feature-specific error boundary. Insufficient KnowBucks, missing current box prices, unavailable unopened products, box-opening limits, and unexpected opening failures now produce a Discord response instead of reaching the global command-failure handler.',
+      'Created a dedicated service-role-only Riftbound command-channel table and replacement RPC. An empty selection leaves Riftbound open across the guild; any selected sendable channel becomes an allowlist for `/riftbound shop`, `/riftbound buy`, `/riftbound open`, `/riftbound inventory`, and stored opening-gallery controls.',
+      'Added a Riftbound tab to the authenticated website Discord Configuration page. It reads, validates, saves, and describes the multi-select channel allowlist using the shared application select menu.',
+    ],
+    impact: [
+      'Members receive a clear private error note when they attempt to open more packs or boxes than they own, rather than a silent failure or a generic command error. Riftbound is unrestricted by default and becomes restricted only after staff select one or more channels.',
+      'Staff must apply migration 205 before deploying the website or Discord bot version that reads Riftbound channel settings. Deploy both surfaces together; no slash-command registration is required because the command shape is unchanged.',
+    ],
+    files: ['app/api/discord/leveling/route.ts', 'components/discord-leveling-settings.tsx', 'discord-bot/src/general-settings.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/riftbound-settings.ts', 'supabase/migrations/205_add_discord_riftbound_command_channels.sql', 'tests/discord-command-visibility.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      '`npm run check` passed: root lint, TypeScript, 48 Vitest files / 303 tests, and Discord bot TypeScript all completed successfully. Lint reported only the seven pre-existing Next.js image-element advisories.',
+      '`npm run typecheck`, `npm run discord:check`, and the focused Discord command-visibility/Riftbound-mock suites passed: 2 test files / 16 tests.',
+      'Migration 205 was created locally and has not been pushed.',
+    ],
+  },
+  {
+    id: 'patch-2026-11-03-discord-admin-command-channel-bypass',
+    patch: 'patch-2026-11-03-discord-admin-command-channel-bypass',
+    timestamp: '2026-11-03T22:46:35.962Z',
+    title: 'Let Discord staff commands bypass website-configured channel scopes',
+    summary: 'Commands restricted to configured Discord staff or Administrator permissions now work in any channel, while all member-facing command-channel restrictions remain unchanged.',
+    details: [
+      'The General command gate now recognizes administrative subcommands before enforcing the website-configured General channel selection. This allows staff-authorized `/xp add`, `/xp set-level`, `/knowbucks add`, `/knowbucks remove`, `/knowbucks set`, and Administrator-only `/steal-emoji` in any channel.',
+      'The Collections command gate now applies the same administrative classification, so both role-authorized `/collections spawn` and `/collections capacity-force-add` bypass the configured Collections command channels.',
+      'Discord Configuration descriptions now distinguish member-facing command scopes from the staff-only exceptions, so administrators can configure channels without assuming those controls are blocked elsewhere.',
+    ],
+    impact: [
+      'Authorized staff can run operational commands where the relevant bot permissions are available, including `/steal-emoji` from any readable source channel. Member-facing General and Collections commands remain restricted to the configured channels.',
+      'No migration, slash-command registration, or website configuration rewrite is required. Deploy the Discord bot and website together to publish the clarified configuration behavior.',
+    ],
+    files: ['discord-bot/src/interactions.ts', 'discord-bot/src/skin-claims.ts', 'components/discord-leveling-settings.tsx', 'tests/discord-command-visibility.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      '`npm run check` passed: root lint and TypeScript, 48 Vitest files / 302 tests, and Discord bot TypeScript all completed successfully. Lint reported only the seven pre-existing Next.js image-element advisories.',
+      'Regression coverage verifies that staff XP and KnowBucks mutations plus `/steal-emoji` no longer require a configured General command channel, while member-facing command shapes still do.',
+    ],
+  },
+  {
+    id: 'patch-2026-11-03-discord-riftbound-mock-unboxing',
+    patch: 'patch-2026-11-03-discord-riftbound-mock-unboxing',
+    timestamp: '2026-11-03T21:29:18.2286167Z',
+    title: 'Add linked-account Discord Riftbound mock unboxing',
+    summary: 'Linked Discord members can now spend KnowBucks on mock Riftbound packs and 24-pack boxes, open them individually or in bulk, browse foil/Rare+ pull images, and review their isolated mock collection on the website.',
+    details: [
+      'Added the guild-scoped `/riftbound shop`, `/riftbound buy`, `/riftbound open`, and `/riftbound inventory` commands. Buy and open choices are presented in Set, Product, Amount order. Every command requires the existing `profile_private_details.discord_user_id` account link; no Discord token or second identity-link implementation was introduced.',
+      'The new service-role-only database model snapshots TCGplayer-derived Booster Display market prices each Monday at the same 11:00 UTC schedule used by the daily card-price refresh. A box costs its captured market cents × 10 KnowBucks; a pack uses the required 10% per-pack premium and rounds up to a whole KnowBuck.',
+      'Purchases, KnowBucks debits, sealed-product balances, openings, and mock-card inventory updates are database transactions. Pack openings contain seven Commons, three Uncommons, a foil slot, and two rare-or-better slots; opening data is retained for restart-safe owner-only gallery pagination. The pull engine enforces at most one Epic-or-higher result per pack, models Alt Art and Special Alt pools at roughly 1/12 when supported by a set, Overnumbers at 1/72 including signatures at 1/720, and Ultimate cards at 1/4,000 where the catalogue provides them.',
+      'Updated the generated shared catalogue from the live source, adding Radiance (`RAD`) and its 219 available prints to the website, market snapshot input, and Discord mock pack pool. The Riftbound Inventory workspace now includes a separate Mock tab for cards and unopened products; it never mixes mock quantities into real collection, sales, valuation, deck, binder, or edit flows.',
+      'A missing initial mock-price snapshot now returns a clear private Discord instruction for staff to run the initial capture instead of telling members to wait for the next Monday refresh.',
+      'Successful mock purchases and sealed-inventory panels are now public; box-opening galleries are public while their navigation remains owner-only. Insufficient KnowBucks is handled as a displayed Discord response rather than an unhandled command failure.',
+      'Foil slots now select only foil-eligible, non-token-like catalogue prints, including excluding collector-numbered token prints that source data labels as Units. Every mock box guarantees at least two Alt Art treatments while retaining the one Epic-or-higher result limit per pack. Opening cards now show the generated current TCGplayer market value, and galleries include a Skip to Rare control with foil finish shown under Treatment and special pull treatment shown under Pull.',
+    ],
+    impact: [
+      'Members must link their KnowLeague account before any mock Riftbound command. Opening galleries only show foil/Rare+ cards in rarity order, and their navigation is restricted to the purchaser while every collectible card is saved automatically.',
+      'Purchase, sealed-inventory, and box-opening announcements are visible to the guild. Only the purchaser can paginate a public opening gallery; the inventory link label is now View Inventory.',
+      'Staff must apply migration 204 before deploying the bot or website code, deploy the independent Discord bot with the expanded catalogue file, and preserve the Monday `/api/cron/riftbound-mock-box-price-snapshot` Vercel cron plus `CRON_SECRET`. A manual authenticated cron invocation can seed prices immediately after deployment instead of waiting for Monday.',
+    ],
+    files: ['app/api/cron/riftbound-mock-box-price-snapshot/route.ts', 'app/api/riftbound/mock-inventory/route.ts', 'app/riftbound/inventory/page.tsx', 'components/riftbound-card-grid.tsx', 'components/riftbound-mock-inventory.tsx', 'data/catalogs/riftbound-cards.json', 'discord-bot/Dockerfile', 'discord-bot/src/commands.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/profiles.ts', 'discord-bot/src/riftbound-mock.ts', 'discord-bot/src/riftbound-mock-storage.ts', 'lib/riftbound-mock-inventory.ts', 'lib/riftbound-mock-price-source.ts', 'supabase/migrations/204_discord_riftbound_mock_unboxing.sql', 'tests/discord-riftbound-mock.test.ts', 'tests/riftbound-decks.test.ts', 'tests/riftbound.test.ts', 'vercel.json', 'lib/staff-changelog.ts'],
+    verification: [
+      '`npm run check` passed: root lint, TypeScript, 48 Vitest files / 301 tests, and Discord bot TypeScript all completed successfully. Lint reported only the seven pre-existing Next.js image-element advisories; Discord check regenerated only ignored runtime tier references.',
+      '`npx vitest run tests/discord-riftbound-mock.test.ts` passed 7 tests and `npm run typecheck` passed after adding the Set, Product, Amount command-order regression assertions.',
+      '`npm run discord:check` and the 7-test focused mock-unboxing suite passed after adding the missing-snapshot purchase response.',
+      'Captured the initial development snapshot through the authenticated local cron route: five box-price rows for the current weekly period were stored successfully.',
+      '`npx vitest run tests/discord-riftbound-mock.test.ts` passed 13 tests and `npm run discord:check` passed after the public-panel, foil-pool, box-guarantee, gallery, and market-value updates.',
+      'A live read-only TCGCSV verification resolved a Booster Display and market price for Origins, Spiritforged, Unleashed, Vendetta, and Radiance. The revised guild slash-command definition was registered successfully with the configured KnowLeague Discord application.',
+      'Migration 204 was created locally and has not been pushed.',
+    ],
+  },
+  {
+    id: 'patch-2026-11-03-discord-fishing-pings-and-reward-balancing',
+    patch: 'patch-2026-11-03-discord-fishing-pings-and-reward-balancing',
+    timestamp: '2026-11-03T20:25:25.796Z',
+    title: 'Rebalance Discord surprises and retire the Halloween Fishing route',
+    summary: 'KnowBucks surprises are now rarer with a revised reward ladder, automatic Collection drops use explicit category and rarity selection, and Fishing members can opt out of all Fishing pings while the Halloween event is archived.',
+    details: [
+      'KnowBucks surprises now trigger on one out of every 1,000 eligible messages. Their 176-point reward table is 10,000 (100), 25,000 (50), 50,000 (20), 250,000 (5), and 1,000,000 (1); migration 203 preserves historical receipt values while authorizing the new amounts and idempotent source types.',
+      'Automatic Collection drops now select an eligible category first (Skins 50%, Items 25%, Runes 25%), then select an eligible rarity from the unchanged configured rarity weights, and finally select one available entry within that rarity. Catalogue counts no longer skew rarity odds.',
+      'Added the guild-scoped `/fish toggle-pings enabled:<true|false>` preference. It persists per Fishing player, defaults existing members to enabled, and suppresses direct mentions in completion, event-milestone, and Genesys Loop Fishing notices when disabled.',
+      'Halloween Fishing definitions and accumulated data remain available to settle already-started event expeditions and render historical inventory/title information, while the active-event set is empty so all newly started expeditions remain in their selected biome.',
+    ],
+    impact: [
+      'Members receive substantially rarer but larger surprise awards, predictable category and rarity odds for Collection drops, and direct control over Fishing pings without losing public Fishing results.',
+      'Staff must deploy migration 203 before the bot version that writes Fishing notification preferences or new surprise reward types. Deploy the Discord bot and explicitly register its revised slash-command definition; no website gameplay deployment is required beyond publishing this changelog.',
+    ],
+    files: ['discord-bot/src/message-rewards.ts', 'discord-bot/src/knowbucks.ts', 'discord-bot/src/skin-claims.ts', 'discord-bot/src/fishing-catalog.ts', 'discord-bot/src/fishing.ts', 'discord-bot/src/interactions.ts', 'discord-bot/src/commands.ts', 'discord-bot/README.md', 'supabase/migrations/203_adjust_discord_fishing_pings_and_knowbucks_surprises.sql', 'lib/staff-changelog.ts'],
+    verification: [
+      '`npm run check` passed: root lint and TypeScript, 47 Vitest files / 288 tests, and Discord bot TypeScript all completed successfully. Lint reported only the seven pre-existing Next.js image-element advisories.',
+      'The revised guild slash-command schema, including `/fish toggle-pings`, was registered successfully with the configured KnowLeague Discord application.',
+      'Migration 203 was created locally and has not been pushed.',
+    ],
+  },
+  {
     id: 'patch-2026-10-31-harden-woodcutting-settlement',
     patch: 'patch-2026-10-31-harden-woodcutting-settlement',
     timestamp: '2026-10-31T20:57:39.781Z',

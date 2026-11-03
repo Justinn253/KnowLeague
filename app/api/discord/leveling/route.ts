@@ -183,6 +183,7 @@ type LevelingSettingsBody = {
   fishingSimulationRoleIds?: unknown;
   miningSimulationRoleIds?: unknown;
   roleRewards?: unknown;
+  riftboundCommandChannelIds?: unknown;
   skinClaimAllChannels?: unknown;
   skinClaimClaimGracePeriodSeconds?: unknown;
   skinClaimChannelIds?: unknown;
@@ -348,6 +349,7 @@ async function getLevelingData(guildId: string) {
     leaderboardExcludedRolesResult,
     channelsResult,
     generalCommandChannelsResult,
+    riftboundCommandChannelsResult,
     skinClaimSettingsResult,
     skinClaimChannelsResult,
     skinClaimCommandChannelsResult,
@@ -412,6 +414,11 @@ async function getLevelingData(guildId: string) {
       .eq('guild_id', guildId)
       .order('channel_id', { ascending: true })
       .returns<StoredGeneralCommandChannelRow[]>(),
+    supabase.from('discord_riftbound_command_channels')
+      .select('channel_id')
+      .eq('guild_id', guildId)
+      .order('channel_id', { ascending: true })
+      .returns<StoredChannelRow[]>(),
     supabase.from('discord_skin_claim_settings')
       .select('enabled, minimum_interval_minutes, maximum_interval_minutes, claim_window_minutes, all_channels')
       .eq('guild_id', guildId)
@@ -496,6 +503,7 @@ async function getLevelingData(guildId: string) {
   if (leaderboardExcludedRolesResult.error) throw leaderboardExcludedRolesResult.error;
   if (channelsResult.error) throw channelsResult.error;
   if (generalCommandChannelsResult.error) throw generalCommandChannelsResult.error;
+  if (riftboundCommandChannelsResult.error) throw riftboundCommandChannelsResult.error;
   if (skinClaimSettingsResult.error) throw skinClaimSettingsResult.error;
   if (skinClaimChannelsResult.error) throw skinClaimChannelsResult.error;
   if (skinClaimCommandChannelsResult.error) throw skinClaimCommandChannelsResult.error;
@@ -518,6 +526,7 @@ async function getLevelingData(guildId: string) {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
     collectionAdminRoleIds: (skinClaimAdminRolesResult.data ?? []).map((role) => role.discord_role_id),
     generalSettings: toGeneralSettings(generalCommandChannelsResult.data ?? []),
+    riftboundCommandChannelIds: (riftboundCommandChannelsResult.data ?? []).map((channel) => channel.channel_id),
     leaderboardExcludedRoleIds: (leaderboardExcludedRolesResult.data ?? []).map((role) => role.discord_role_id),
     manualXpRoleIds: (staffRolesResult.data ?? []).map((role) => role.discord_role_id),
     roleRewards: groupRoleRewards(rewardRolesResult.data ?? [], rewardMessagesResult.data ?? []),
@@ -787,6 +796,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const skinClaimMaximumIntervalMinutes = parsePositiveInteger(body.skinClaimMaximumIntervalMinutes, 'Skin-claim maximum interval', skinClaimMinimumIntervalMinutes, 10080);
     const skinClaimClaimWindowMinutes = parsePositiveInteger(body.skinClaimClaimWindowMinutes, 'Skin-claim window', 1, 1440);
     const generalCommandChannelIds = parseCommandChannelIds(body.generalCommandChannelIds, 'General');
+    const riftboundCommandChannelIds = parseCommandChannelIds(body.riftboundCommandChannelIds, 'Riftbound');
     const skinClaimCommandChannelIds = parseCommandChannelIds(body.skinClaimCommandChannelIds, 'Collections');
     const skinClaimSummonBaseCost = parsePositiveInteger(body.skinClaimSummonBaseCost, 'Summon base cost', 1, 1_000_000_000);
     const skinClaimDefaultCollectionCapacity = parsePositiveInteger(body.skinClaimDefaultCollectionCapacity, 'Default collection size', 1, 50);
@@ -895,6 +905,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (generalCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose General commands channels that are currently available to the KnowLeague bot.');
     }
+    if (riftboundCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
+      throw new ApiError(400, 'Choose Riftbound command channels that are currently available to the KnowLeague bot.');
+    }
     if (skinClaimChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose skin-claim channels that are currently available to the KnowLeague bot.');
     }
@@ -961,6 +974,12 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_updated_by: user.id,
     });
     if (generalCommandChannelsError) throw generalCommandChannelsError;
+    const { error: riftboundCommandChannelsError } = await supabase.rpc('replace_discord_riftbound_command_channels', {
+      p_command_channel_ids: riftboundCommandChannelIds,
+      p_guild_id: guildId,
+      p_updated_by: user.id,
+    });
+    if (riftboundCommandChannelsError) throw riftboundCommandChannelsError;
     const { error: collectionCommandChannelsError } = await supabase.rpc('replace_discord_skin_claim_command_channels', {
       p_command_channel_ids: skinClaimCommandChannelIds,
       p_guild_id: guildId,

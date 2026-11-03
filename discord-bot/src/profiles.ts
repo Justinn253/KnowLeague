@@ -3,6 +3,7 @@ import { createBotServiceClient } from './supabase.js';
 
 type LinkedProfile = {
   displayName: string;
+  userId: string;
   username: string;
 };
 
@@ -47,6 +48,7 @@ export async function findLinkedProfile(config: DiscordBotConfig, discordUserId:
 
   return {
     displayName: profile.display_name,
+    userId: link.user_id,
     username: profile.username,
   };
 }

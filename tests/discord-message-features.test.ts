@@ -5,19 +5,20 @@ import { isMessageLotteryWinner, messageLotteryRewardForRoll } from '../discord-
 import { formatSnipedMessage, getSnipeImageAttachments } from '../discord-bot/src/snipe';
 
 describe('Discord message-linked KnowBucks rewards', () => {
-  it('uses the requested one-percent trigger and weighted reward tiers', () => {
+  it('uses the requested one-in-one-thousand trigger and weighted reward tiers', () => {
     expect(isMessageLotteryWinner(0)).toBe(true);
     expect(isMessageLotteryWinner(1)).toBe(false);
 
-    expect(messageLotteryRewardForRoll(0).amount).toBe(1_000);
-    expect(messageLotteryRewardForRoll(74).amount).toBe(1_000);
-    expect(messageLotteryRewardForRoll(75).amount).toBe(2_500);
-    expect(messageLotteryRewardForRoll(89).amount).toBe(2_500);
-    expect(messageLotteryRewardForRoll(90).amount).toBe(5_000);
-    expect(messageLotteryRewardForRoll(94).amount).toBe(5_000);
-    expect(messageLotteryRewardForRoll(95).amount).toBe(10_000);
-    expect(messageLotteryRewardForRoll(98).amount).toBe(10_000);
-    expect(messageLotteryRewardForRoll(99).amount).toBe(25_000);
+    expect(messageLotteryRewardForRoll(0).amount).toBe(10_000);
+    expect(messageLotteryRewardForRoll(99).amount).toBe(10_000);
+    expect(messageLotteryRewardForRoll(100).amount).toBe(25_000);
+    expect(messageLotteryRewardForRoll(149).amount).toBe(25_000);
+    expect(messageLotteryRewardForRoll(150).amount).toBe(50_000);
+    expect(messageLotteryRewardForRoll(169).amount).toBe(50_000);
+    expect(messageLotteryRewardForRoll(170).amount).toBe(250_000);
+    expect(messageLotteryRewardForRoll(174).amount).toBe(250_000);
+    expect(messageLotteryRewardForRoll(175).amount).toBe(1_000_000);
+    expect(() => messageLotteryRewardForRoll(176)).toThrow('0 through 175');
   });
 });
 

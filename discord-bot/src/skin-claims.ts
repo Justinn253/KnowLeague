@@ -300,6 +300,11 @@ const COLLECTION_TIER_RARITIES: Record<number, CollectionRarity> = {
   5: 'Mythic',
 };
 const SUMMON_UPGRADE_RARITIES = ['Common', 'Rare', 'Epic', 'Legendary', 'Mythic'] as const;
+const AUTOMATIC_COLLECTION_CATEGORY_WEIGHTS: Readonly<Record<CollectionSpawnType, number>> = {
+  item: 25,
+  rune: 25,
+  skin: 50,
+};
 
 let catalogCache: CatalogSkin[] | null = null;
 let collectionItemCatalogCache: CollectionItemCatalogEntry[] | null = null;
@@ -464,37 +469,61 @@ function getCollectionEntryCatalog(type: CollectionSpawnType): readonly Collecti
   return loadSkinCatalog();
 }
 
-function chooseWeightedSkin(rarityWeights: ReadonlyMap<string, number>, catalog: readonly CatalogSkin[] = loadSkinCatalog()) {
-  const candidates = catalog.map((skin) => ({ skin, weight: rarityWeights.get(normalizeRarity(skin.rarity)) ?? 0 }))
+function chooseWeightedRarity<T>(
+  rarityWeights: ReadonlyMap<string, number>,
+  catalog: readonly T[],
+  getRarity: (entry: T) => string,
+  unavailableErrorMessage: string,
+) {
+  const availableRarities = [...new Set(catalog.map((entry) => getRarity(entry)))];
+  const candidates = availableRarities
+    .map((rarity) => ({ rarity, weight: rarityWeights.get(rarity) ?? 0 }))
     .filter((candidate) => candidate.weight > 0);
   const totalWeight = candidates.reduce((total, candidate) => total + candidate.weight, 0);
   if (totalWeight <= 0) {
-    throw new Error('Skin-claim rarity settings do not include a positive eligible weight.');
+    throw new Error(unavailableErrorMessage);
   }
   let selection = Math.random() * totalWeight;
   for (const candidate of candidates) {
     selection -= candidate.weight;
-    if (selection < 0) return candidate.skin;
+    if (selection < 0) return candidate.rarity;
   }
-  return candidates[candidates.length - 1]!.skin;
+  return candidates[candidates.length - 1]!.rarity;
+}
+
+function chooseWeightedSkin(rarityWeights: ReadonlyMap<string, number>, catalog: readonly CatalogSkin[] = loadSkinCatalog()) {
+  const rarity = chooseWeightedRarity(
+    rarityWeights,
+    catalog,
+    (skin) => normalizeRarity(skin.rarity),
+    'Skin-claim rarity settings do not include a positive eligible weight.',
+  );
+  const candidates = catalog.filter((skin) => normalizeRarity(skin.rarity) === rarity);
+  return candidates[Math.floor(Math.random() * candidates.length)]!;
 }
 
 function chooseWeightedCollectionEntry<T extends CollectionItemCatalogEntry | CollectionRuneCatalogEntry>(
   rarityWeights: ReadonlyMap<string, number>,
   catalog: readonly T[],
 ) {
-  const candidates = catalog.map((entry) => ({ entry, weight: rarityWeights.get(entry.rarity) ?? 0 }))
-    .filter((candidate) => candidate.weight > 0);
-  const totalWeight = candidates.reduce((total, candidate) => total + candidate.weight, 0);
-  if (totalWeight <= 0) {
-    throw new Error('Collection rarity settings do not include a positive eligible weight for this entry type.');
-  }
+  const rarity = chooseWeightedRarity(
+    rarityWeights,
+    catalog,
+    (entry) => entry.rarity,
+    'Collection rarity settings do not include a positive eligible weight for this entry type.',
+  );
+  const candidates = catalog.filter((entry) => entry.rarity === rarity);
+  return candidates[Math.floor(Math.random() * candidates.length)]!;
+}
+
+function chooseAutomaticCollectionCategory(types: readonly CollectionSpawnType[]) {
+  const totalWeight = types.reduce((total, type) => total + AUTOMATIC_COLLECTION_CATEGORY_WEIGHTS[type], 0);
   let selection = Math.random() * totalWeight;
-  for (const candidate of candidates) {
-    selection -= candidate.weight;
-    if (selection < 0) return candidate.entry;
+  for (const type of types) {
+    selection -= AUTOMATIC_COLLECTION_CATEGORY_WEIGHTS[type];
+    if (selection < 0) return type;
   }
-  return candidates[candidates.length - 1]!.entry;
+  return types[types.length - 1]!;
 }
 
 async function chooseAvailableWeightedSkin(config: DiscordBotConfig, rarityWeights: ReadonlyMap<string, number>) {
@@ -524,23 +553,35 @@ async function chooseAvailableCollectionEntry(
   if (error) throw new Error(`Unable to load claimed Discord collection entries: ${error.message}`);
 
   const lockedCatalogIds = new Set((data ?? []).map((entry) => entry.skin_catalog_id));
-  const types = requestedType
+  const eligibleCatalogues = (requestedType
     ? [requestedType]
-    : (['skin', 'item', 'rune'] as CollectionSpawnType[]).sort(() => Math.random() - 0.5);
+    : ['skin', 'item', 'rune'] as CollectionSpawnType[])
+    .map((type) => ({
+      catalog: getCollectionEntryCatalog(type).filter((entry) => !lockedCatalogIds.has(collectionCatalogId(entry))),
+      type,
+    }))
+    .filter(({ catalog, type }) => catalog.some((entry) => (
+      type === 'skin'
+        ? (rarityWeights.get(normalizeRarity((entry as CatalogSkin).rarity)) ?? 0) > 0
+        : (rarityWeights.get((entry as CollectionItemCatalogEntry | CollectionRuneCatalogEntry).rarity) ?? 0) > 0
+    )));
 
-  for (const type of types) {
-    const catalog = getCollectionEntryCatalog(type).filter((entry) => !lockedCatalogIds.has(collectionCatalogId(entry)));
-    if (!catalog.length) continue;
-    if (type === 'skin') {
-      if (!catalog.some((skin) => (rarityWeights.get(normalizeRarity(skin.rarity)) ?? 0) > 0)) continue;
+  if (eligibleCatalogues.length) {
+    const selectedType = requestedType
+      ? requestedType
+      : chooseAutomaticCollectionCategory(eligibleCatalogues.map(({ type }) => type));
+    const selected = eligibleCatalogues.find(({ type }) => type === selectedType);
+    if (!selected) throw new Error('No eligible collection category was available.');
+
+    if (selectedType === 'skin') {
+      const skinCatalog = selected.catalog as CatalogSkin[];
       return {
-        entry: chooseWeightedSkin(rarityWeights, catalog as CatalogSkin[]),
+        entry: chooseWeightedSkin(rarityWeights, skinCatalog),
         collectionCatalog: null,
-        skinCatalog: catalog as CatalogSkin[],
+        skinCatalog,
       };
     }
-    const collectionCatalog = catalog as (CollectionItemCatalogEntry | CollectionRuneCatalogEntry)[];
-    if (!collectionCatalog.some((entry) => (rarityWeights.get(entry.rarity) ?? 0) > 0)) continue;
+    const collectionCatalog = selected.catalog as (CollectionItemCatalogEntry | CollectionRuneCatalogEntry)[];
     return {
       entry: chooseWeightedCollectionEntry(rarityWeights, collectionCatalog),
       collectionCatalog,
@@ -581,16 +622,9 @@ export function calculateSkinRaritySpawnPercent(
   catalog: readonly Pick<CatalogSkin, 'rarity'>[] = loadSkinCatalog(),
 ) {
   const targetRarity = normalizeRarity(rarity);
-  let totalWeight = 0;
-  let rarityWeight = 0;
-
-  for (const skin of catalog) {
-    const skinRarity = normalizeRarity(skin.rarity);
-    const weight = rarityWeights.get(skinRarity) ?? 0;
-    if (weight <= 0) continue;
-    totalWeight += weight;
-    if (skinRarity === targetRarity) rarityWeight += weight;
-  }
+  const availableRarities = new Set(catalog.map((skin) => normalizeRarity(skin.rarity)));
+  const totalWeight = [...availableRarities].reduce((total, currentRarity) => total + Math.max(0, rarityWeights.get(currentRarity) ?? 0), 0);
+  const rarityWeight = availableRarities.has(targetRarity) ? Math.max(0, rarityWeights.get(targetRarity) ?? 0) : 0;
 
   return totalWeight > 0 ? (rarityWeight / totalWeight) * 100 : 0;
 }
@@ -601,14 +635,9 @@ function calculateCollectionRaritySpawnPercent(
   catalog: readonly (CollectionItemCatalogEntry | CollectionRuneCatalogEntry)[],
 ) {
   const targetRarity = normalizeRarity(rarity);
-  let totalWeight = 0;
-  let rarityWeight = 0;
-  for (const entry of catalog) {
-    const weight = rarityWeights.get(entry.rarity) ?? 0;
-    if (weight <= 0) continue;
-    totalWeight += weight;
-    if (entry.rarity === targetRarity) rarityWeight += weight;
-  }
+  const availableRarities = new Set(catalog.map((entry) => entry.rarity));
+  const totalWeight = [...availableRarities].reduce((total, currentRarity) => total + Math.max(0, rarityWeights.get(currentRarity) ?? 0), 0);
+  const rarityWeight = availableRarities.has(targetRarity as CollectionRarity) ? Math.max(0, rarityWeights.get(targetRarity) ?? 0) : 0;
   return totalWeight > 0 ? (rarityWeight / totalWeight) * 100 : 0;
 }
 
@@ -1136,9 +1165,10 @@ export async function getSkinClaimAdminRoleIds(config: DiscordBotConfig) {
 }
 
 /**
- * Configured command channels apply to every member-facing collection
- * command except the staff-only spawn command. An absent settings row keeps
- * the default open-channel behavior for guilds that have not configured drops.
+ * Configured command channels apply to member-facing Collection commands.
+ * Staff-only spawn and capacity-force-add commands bypass this restriction.
+ * An absent settings row keeps the default open-channel behavior for guilds
+ * that have not configured drops.
  */
 export async function isSkinCollectionCommandAllowedInChannel(config: DiscordBotConfig, channelId: string) {
   const allowedChannelIds = await getSkinCollectionCommandChannelIds(config);

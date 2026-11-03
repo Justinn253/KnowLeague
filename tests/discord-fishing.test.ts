@@ -57,6 +57,8 @@ type SerializedSubcommand = {
   choices?: readonly unknown[];
   name: string;
   options?: SerializedSubcommand[];
+  required?: boolean;
+  type?: number;
 };
 
 const starterEquipment: FishingEquipmentSnapshot = {
@@ -92,6 +94,9 @@ describe('Discord fishing command contract', () => {
     expect(fish?.options?.some((option) => option.name === 'help')).toBe(true);
     expect(fish?.options?.some((option) => option.name === 'event-help')).toBe(true);
     expect(fish?.options?.some((option) => option.name === 'event-catalogue')).toBe(true);
+    const togglePings = fish?.options?.find((option) => option.name === 'toggle-pings') as SerializedSubcommand | undefined;
+    const pingsEnabled = togglePings?.options?.find((option) => option.name === 'enabled');
+    expect(pingsEnabled).toMatchObject({ required: true, type: 5 });
     expect(biomeOption?.choices).toHaveLength(7);
     expect(lengthOption?.choices).toHaveLength(4);
     expect(fish?.options?.some((option) => option.name === 'chests-open')).toBe(false);
@@ -140,17 +145,18 @@ describe('Discord fishing command contract', () => {
     expect(getFishingShopSkillEmoji('money-mouser-2')).toBe('💰');
   });
 
-  it('documents and tracks the active Halloween event catalogue separately', () => {
+  it('reports no active event while retaining archived Halloween event records', () => {
     const help = buildFishingEventHelpPanel();
     const progress: FishingEventCatalogueProgress = {
       caughtFish: [{ name: 'Oarfish', rarity: 'Common' }],
       ownedTitleItemIds: new Set(['gear-title-ghoulish-seafarer']),
     };
     const catalogue = buildFishingEventCataloguePanel(progress);
-    expect(help.embeds[0]?.data.title).toContain('Halloween Event');
-    expect(help.embeds[0]?.data.description).toContain('25%');
-    expect(catalogue.embeds[0]?.data.title).toContain('Hellish Abyss');
-    expect(catalogue.embeds[0]?.data.fields?.some((field) => field.value.includes('Ghoulish Seafarer'))).toBe(true);
+    expect(help.embeds[0]?.data.title).toBe('Fishing events');
+    expect(help.embeds[0]?.data.description).toContain('no active fishing event');
+    expect(catalogue.embeds[0]?.data.title).toBe('Fishing event catalogue');
+    expect(catalogue.embeds[0]?.data.description).toContain('no active fishing event');
+    expect(FISHING_EVENTS.some((event) => event.title.itemId === 'gear-title-ghoulish-seafarer')).toBe(true);
   });
 
   it('shows only fish collection status and found relics in the biome catalogue', () => {
@@ -300,10 +306,10 @@ describe('Discord fishing reworked progression', () => {
     expect(first.fishingExpeditionXp).toBe(120 * FISHING_EXPEDITION_XP_PER_BASE_CATCH);
   });
 
-  it('resolves a snapshotted Halloween replacement with selected-biome values and event-only catalogue catches', () => {
+  it('does not route new expeditions to Halloween while resolving snapshotted Halloween trips', () => {
     const event = FISHING_EVENTS.find((entry) => entry.id === 'halloween');
     expect(event).toBeDefined();
-    expect(getFishingEventForOutcomeSeed(4)?.id).toBe('halloween');
+    expect(getFishingEventForOutcomeSeed(4)).toBeUndefined();
     expect(getFishingEventForOutcomeSeed(5)).toBeUndefined();
     expect(FISHING_HALLOWEEN_FISH_RARITY_WEIGHTS).toEqual({ Common: 1_000, Uncommon: 200, Rare: 50, Epic: 10, Legendary: 1, Mythic: 0.1 });
 

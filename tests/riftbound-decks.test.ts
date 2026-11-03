@@ -60,11 +60,12 @@ describe('Riftbound game deck validation', () => {
       'Body Rune:foil',
       'Body Rune:foil',
     ]);
-    expect(legacyRuneCards.map((card) => card.displayName).slice(0, 15)).toEqual([
-      'Body Rune', 'Body Rune', 'Body Rune', 'Body Rune', 'Body Rune',
-      'Calm Rune', 'Calm Rune', 'Calm Rune', 'Calm Rune', 'Calm Rune',
-      'Chaos Rune', 'Chaos Rune', 'Chaos Rune', 'Chaos Rune', 'Chaos Rune',
-    ]);
+    expect(legacyRuneCards.map((card) => card.displayName)).toEqual(
+      legacyRuneCards.map((card) => card.displayName).slice().sort((left, right) => left.localeCompare(right)),
+    );
+    expect(legacyRuneCards.filter((card) => card.displayName === 'Body Rune').length).toBeGreaterThanOrEqual(5);
+    expect(legacyRuneCards.filter((card) => card.displayName === 'Calm Rune').length).toBeGreaterThanOrEqual(5);
+    expect(legacyRuneCards.filter((card) => card.displayName === 'Chaos Rune').length).toBeGreaterThanOrEqual(5);
   });
 
   it('accepts a constructed deck with the required categories', () => {

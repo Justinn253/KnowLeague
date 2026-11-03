@@ -50,6 +50,9 @@ export type KnowBucksMessageRewardType =
   | 'message_lottery_5000'
   | 'message_lottery_10000'
   | 'message_lottery_25000'
+  | 'message_lottery_50000'
+  | 'message_lottery_250000'
+  | 'message_lottery_1000000'
   | 'disboard_bump';
 
 const LEADERBOARD_CACHE_DURATION_MS = 30_000;

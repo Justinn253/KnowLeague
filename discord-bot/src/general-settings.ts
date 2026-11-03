@@ -6,7 +6,7 @@ type GeneralCommandChannelRow = {
 };
 
 const GENERAL_COMMAND_SETTINGS_CACHE_MS = 30_000;
-const FEATURE_SCOPED_COMMAND_NAMES = new Set(['collections', 'fish', 'league']);
+const FEATURE_SCOPED_COMMAND_NAMES = new Set(['collections', 'fish', 'league', 'riftbound']);
 let cachedGeneralCommandChannels: { allowedChannelIds: Set<string> | null; expiresAt: number; guildId: string } | null = null;
 
 /**

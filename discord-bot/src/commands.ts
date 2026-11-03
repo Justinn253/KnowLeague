@@ -209,8 +209,65 @@ function createLeagueCommand() {
         .setDescription('View your private progress in today\'s Skindle.')));
 }
 
+const RIFTBOUND_MOCK_SET_CHOICES = [
+  { name: 'Origins', value: 'OGN' },
+  { name: 'Spiritforged', value: 'SFD' },
+  { name: 'Unleashed', value: 'UNL' },
+  { name: 'Vendetta', value: 'VEN' },
+  { name: 'Radiance', value: 'RAD' },
+] as const;
+
+function addRiftboundSetOption(command: SlashCommandSubcommandBuilder) {
+  return command.addStringOption((option) => option
+    .setName('set')
+    .setDescription('Riftbound set.')
+    .addChoices(...RIFTBOUND_MOCK_SET_CHOICES)
+    .setRequired(true));
+}
+
+function createRiftboundCommand() {
+  return new SlashCommandBuilder()
+    .setName('riftbound')
+    .setDescription('Buy and open mock Riftbound products with KnowBucks.')
+    .addSubcommand((subcommand) => subcommand
+      .setName('shop')
+      .setDescription('View this week\'s mock booster pack and box prices.'))
+    .addSubcommand((subcommand) => addRiftboundSetOption(subcommand
+      .setName('buy')
+      .setDescription('Buy unopened mock Riftbound packs or boxes.'))
+      .addStringOption((option) => option
+        .setName('product')
+        .setDescription('Mock sealed product to buy.')
+        .addChoices({ name: 'Pack', value: 'pack' }, { name: 'Booster box (24 packs)', value: 'box' })
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('How many sealed products to buy.')
+        .setMinValue(1)
+        .setMaxValue(120)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => addRiftboundSetOption(subcommand
+      .setName('open')
+      .setDescription('Open purchased mock packs individually or in bulk.'))
+      .addStringOption((option) => option
+        .setName('product')
+        .setDescription('Open packs or entire 24-pack booster boxes.')
+        .addChoices({ name: 'Pack', value: 'pack' }, { name: 'Booster box (24 packs)', value: 'box' })
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('amount')
+        .setDescription('How many sealed products to open.')
+        .setMinValue(1)
+        .setMaxValue(120)
+        .setRequired(true)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('inventory')
+      .setDescription('View unopened mock Riftbound products and open the website inventory.'));
+}
+
 export const commandDefinitions = [
   createLeagueCommand(),
+  createRiftboundCommand(),
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('See KnowLeague Discord bot commands and usage.'),
@@ -291,6 +348,13 @@ export const commandDefinitions = [
     .addSubcommand((subcommand) => subcommand
       .setName('expedition-progress')
       .setDescription('View active expeditions and your latest completed trip.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('toggle-pings')
+      .setDescription('Enable or disable Fishing expedition pings from KnowLeague.')
+      .addBooleanOption((option) => option
+        .setName('enabled')
+        .setDescription('Whether KnowLeague may ping you for Fishing updates.')
+        .setRequired(true)))
     .addSubcommand((subcommand) => subcommand
       .setName('shop')
       .setDescription('Browse fishing upgrades and spend KnowBucks.'))

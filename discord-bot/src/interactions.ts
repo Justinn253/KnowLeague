@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
@@ -13,6 +13,24 @@ import {
 import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
 import { importExternalMessageEmojis } from './emoji-import.js';
 import { findLinkedProfile } from './profiles.js';
+import {
+  formatRiftboundMockTreatment,
+  getRiftboundMockDisplayCards,
+  getRiftboundMockSetName,
+  isRiftboundMockHighlight,
+  isRiftboundMockSetCode,
+  openRiftboundMockProducts,
+  type RiftboundMockDisplayCard,
+  type RiftboundMockSetCode,
+} from './riftbound-mock.js';
+import {
+  getRiftboundMockBoxPrices,
+  getRiftboundMockOpening,
+  getRiftboundMockSealedInventory,
+  openRiftboundMockProduct,
+  purchaseRiftboundMockProduct,
+} from './riftbound-mock-storage.js';
+import { getRiftboundCommandChannelIds, isRiftboundCommandAllowedInChannel } from './riftbound-settings.js';
 import {
   attemptRobbery,
   getPlayerShopDisplayCost,
@@ -61,6 +79,7 @@ import {
   getFishingCatalogueProgress,
   getFishingEventCatalogueProgress,
   getFishingEvent,
+  getActiveFishingEvent,
   getFishingPlayerState,
   getVisibleFishingShopItems,
   getFishingUpgrade,
@@ -72,6 +91,7 @@ import {
   equipFishingUpgrade,
   parseFishingRepeatCustomId,
   reconcileDueFishingExpeditions,
+  setFishingExpeditionPings,
   startFishingExpedition,
   simulateFishingExpeditions,
   summarizeFishingSettlement,
@@ -210,7 +230,7 @@ function configuredChannelMentions(channelIds: readonly string[]) {
 
 async function replyWithCommandChannelLink(
   interaction: ChatInputCommandInteraction,
-  scope: 'Collections' | 'Fishing' | 'General' | 'Mining',
+  scope: 'Collections' | 'Fishing' | 'General' | 'Mining' | 'Riftbound',
   channelIds: readonly string[],
 ) {
   const destination = configuredChannelMentions(channelIds);
@@ -274,8 +294,296 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
     || commandName === 'steal-emoji';
 }
 
+export function requiresDefaultCommandChannel(commandName: string, subcommand: string | null) {
+  return usesDefaultCommandChannel(commandName)
+    && !isDiscordAdministrativeCommand(commandName, subcommand);
+}
+
 function formatXp(value: number) {
   return new Intl.NumberFormat().format(value);
+}
+
+function formatRiftboundMockMarketValue(value: number | null) {
+  return value === null
+    ? 'Unavailable'
+    : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+}
+
+const RIFTBOUND_MOCK_BUTTON_PREFIX = 'riftbound-mock';
+
+function riftboundMockInventoryUrl(config: DiscordBotConfig) {
+  return new URL('/riftbound/inventory?tab=mock', config.siteUrl).toString();
+}
+
+function riftboundMockInventoryButton(config: DiscordBotConfig) {
+  return new ButtonBuilder()
+    .setStyle(ButtonStyle.Link)
+    .setLabel('View Inventory')
+    .setURL(riftboundMockInventoryUrl(config));
+}
+
+function riftboundMockPromptLink(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  return interaction.reply({
+    components: [{ type: 1, components: [profileButton(config)] }],
+    embeds: [new EmbedBuilder()
+      .setColor(0xEF4444)
+      .setTitle('Link your KnowLeague account first')
+      .setDescription('Mock Riftbound purchases and cards are saved to your linked KnowLeague account. Open profile settings, link Discord, then run this command again.')],
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+function riftboundMockRarityRank(card: RiftboundMockDisplayCard) {
+  const treatmentRank = card.treatment === 'ultimate' ? 8
+    : card.treatment === 'signature' ? 7
+      : card.treatment === 'overnumbered' ? 6
+        : card.treatment === 'special_alt' ? 5
+          : card.treatment === 'alt_art' ? 4
+            : 0;
+  if (treatmentRank > 0) return treatmentRank;
+  return card.rarity === 'Epic' ? 3 : card.rarity === 'Rare' ? 2 : card.rarity === 'Uncommon' ? 1 : 0;
+}
+
+function sortRiftboundMockHighlights(cards: readonly RiftboundMockDisplayCard[]) {
+  return cards
+    .filter(isRiftboundMockHighlight)
+    .slice()
+    .sort((left, right) => riftboundMockRarityRank(left) - riftboundMockRarityRank(right)
+      || left.displayName.localeCompare(right.displayName)
+      || left.card_id.localeCompare(right.card_id));
+}
+
+function riftboundMockOpeningButtons(
+  ownerDiscordUserId: string,
+  openingId: string,
+  index: number,
+  total: number,
+  firstRareIndex: number,
+  config: DiscordBotConfig,
+) {
+  const previousIndex = Math.max(0, index - 1);
+  const nextIndex = Math.min(total - 1, index + 1);
+  return [{
+    type: 1 as const,
+    components: [
+      new ButtonBuilder()
+        .setCustomId(`${RIFTBOUND_MOCK_BUTTON_PREFIX}:${ownerDiscordUserId}:${openingId}:${previousIndex}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('Previous')
+        .setDisabled(index === 0),
+      new ButtonBuilder()
+        .setCustomId(`${RIFTBOUND_MOCK_BUTTON_PREFIX}:${ownerDiscordUserId}:${openingId}:${nextIndex}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('Next')
+        .setDisabled(index >= total - 1),
+      new ButtonBuilder()
+        .setCustomId(`${RIFTBOUND_MOCK_BUTTON_PREFIX}:${ownerDiscordUserId}:${openingId}:${Math.max(0, firstRareIndex)}`)
+        .setStyle(ButtonStyle.Primary)
+        .setLabel('Skip to Rare')
+        .setDisabled(firstRareIndex < 0 || index >= firstRareIndex),
+      riftboundMockInventoryButton(config),
+    ],
+  }];
+}
+
+function buildRiftboundMockOpeningGallery(
+  ownerDiscordUserId: string,
+  openingId: string,
+  setCode: RiftboundMockSetCode,
+  packsOpened: number,
+  cards: readonly RiftboundMockDisplayCard[],
+  index: number,
+  config: DiscordBotConfig,
+) {
+  const highlights = sortRiftboundMockHighlights(cards);
+  const safeIndex = Math.max(0, Math.min(index, Math.max(0, highlights.length - 1)));
+  const card = highlights[safeIndex];
+  if (!card) {
+    return {
+      components: [{ type: 1 as const, components: [riftboundMockInventoryButton(config)] }],
+      embeds: [new EmbedBuilder()
+        .setColor(0x8B5CF6)
+        .setTitle(`${getRiftboundMockSetName(setCode)} mock opening`)
+        .setDescription(`Opened ${formatXp(packsOpened)} pack${packsOpened === 1 ? '' : 's'}. Every card was added to your mock inventory, but this opening had no foil or Rare+ card images to display.`)],
+    };
+  }
+  const foilDetail = card.finish === 'foil' ? 'Foil' : 'Normal';
+  const treatment = formatRiftboundMockTreatment(card.treatment);
+  const pullDetail = card.treatment === 'standard' ? card.rarity : `${card.rarity} · ${treatment}`;
+  const firstRareIndex = highlights.findIndex((highlight) => highlight.rarity === 'Rare' || highlight.rarity === 'Epic');
+  return {
+    components: riftboundMockOpeningButtons(ownerDiscordUserId, openingId, safeIndex, highlights.length, firstRareIndex, config),
+    embeds: [new EmbedBuilder()
+      .setColor(card.treatment === 'ultimate' ? 0xF59E0B : card.treatment === 'signature' ? 0xD946EF : 0x8B5CF6)
+      .setTitle(`${getRiftboundMockSetName(setCode)} mock opening`)
+      .setDescription(`Opened ${formatXp(packsOpened)} pack${packsOpened === 1 ? '' : 's'} · all ${formatXp(cards.length)} collectible cards were added to your mock inventory.`)
+      .addFields(
+        { name: 'Card', value: `**${escapeMarkdown(card.displayName)}**`, inline: true },
+        { name: 'Pull', value: pullDetail, inline: true },
+        { name: 'Treatment', value: foilDetail, inline: true },
+        { name: 'Current TCGplayer market', value: formatRiftboundMockMarketValue(card.marketPriceUsd), inline: true },
+      )
+      .setFooter({ text: `Foil and Rare+ pull ${safeIndex + 1} of ${highlights.length} · ordered by rarity` })
+      .setImage(card.imageUrl)],
+  };
+}
+
+export function riftboundMockCommandErrorNote(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  if (message.includes('Insufficient KnowBucks balance')) {
+    return 'You do not have enough KnowBucks to buy that mock Riftbound product.';
+  }
+  if (message.includes('no current mock box price')) {
+    return 'Mock box prices have not been captured yet. A staff member needs to run the initial price capture before purchases can begin.';
+  }
+  if (message.includes('enough unopened packs or boxes')) {
+    return 'You do not have enough unopened packs or boxes from this set to complete that opening.';
+  }
+  if (message.includes('Open up to 10 boxes')) {
+    return 'Open up to 10 boxes at once so the pull gallery remains easy to browse.';
+  }
+  return 'That Riftbound mock command could not be completed right now. Please try again shortly.';
+}
+
+async function handleRiftboundMockCommandRequest(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  const profile = await findLinkedProfile(config, interaction.user.id);
+  if (!profile) {
+    await riftboundMockPromptLink(interaction, config);
+    return;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  if (subcommand === 'shop') {
+    const prices = await getRiftboundMockBoxPrices(config);
+    const fields = ['OGN', 'SFD', 'UNL', 'VEN', 'RAD'].map((setCode) => {
+      const price = prices.get(setCode as RiftboundMockSetCode);
+      return {
+        name: getRiftboundMockSetName(setCode as RiftboundMockSetCode),
+        value: price
+          ? `**Pack:** ${formatXp(price.pack_cost_knowbucks)} KnowBucks\n**Box (24 packs):** ${formatXp(price.box_cost_knowbucks)} KnowBucks\nTCGplayer market: $${(price.box_market_cents / 100).toFixed(2)} · week of ${price.week_start}`
+          : 'No current TCGplayer booster-box price is available. Try again after the Monday refresh.',
+      };
+    });
+    await interaction.reply({
+      components: [{ type: 1, components: [riftboundMockInventoryButton(config)] }],
+      embeds: [new EmbedBuilder()
+        .setColor(0x8B5CF6)
+        .setTitle('Mock Riftbound shop')
+        .setDescription('Weekly prices are the captured TCGplayer booster-box market price × 10. Individual packs cost 10% more per pack than a box.')
+        .addFields(fields)],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (subcommand === 'inventory') {
+    const sealedProducts = await getRiftboundMockSealedInventory(config, profile.userId);
+    const fields = ['OGN', 'SFD', 'UNL', 'VEN', 'RAD'].map((setCode) => {
+      const product = sealedProducts.find((entry) => entry.set_code === setCode);
+      return {
+        name: getRiftboundMockSetName(setCode as RiftboundMockSetCode),
+        value: product
+          ? `${formatXp(product.pack_quantity)} unopened pack${product.pack_quantity === 1 ? '' : 's'}\n${formatXp(product.box_quantity)} unopened box${product.box_quantity === 1 ? '' : 'es'}`
+          : 'No unopened products',
+        inline: true,
+      };
+    });
+    await interaction.reply({
+      components: [{ type: 1, components: [riftboundMockInventoryButton(config)] }],
+      embeds: [new EmbedBuilder().setColor(0x8B5CF6).setTitle('Mock Riftbound sealed inventory').addFields(fields)],
+    });
+    return;
+  }
+
+  const setOption = interaction.options.getString('set', true);
+  const productOption = interaction.options.getString('product', true);
+  const quantity = interaction.options.getInteger('amount', true);
+  if (!isRiftboundMockSetCode(setOption) || (productOption !== 'pack' && productOption !== 'box')) {
+    throw new Error('Invalid Riftbound mock product selection.');
+  }
+  const productKind = productOption;
+
+  if (subcommand === 'buy') {
+    let purchase: Awaited<ReturnType<typeof purchaseRiftboundMockProduct>>;
+    try {
+      purchase = await purchaseRiftboundMockProduct(config, interaction.user.id, setOption, productKind, quantity);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('no current mock box price')) {
+        await interaction.reply({
+          content: 'Mock box prices have not been captured yet. A staff member needs to run the initial price capture before purchases can begin.',
+        });
+        return;
+      }
+      if (error instanceof Error && error.message.includes('Insufficient KnowBucks balance')) {
+        await interaction.reply({
+          content: 'You do not have enough KnowBucks to buy that mock Riftbound product.',
+        });
+        return;
+      }
+      throw error;
+    }
+    await interaction.reply({
+      components: [{ type: 1, components: [riftboundMockInventoryButton(config)] }],
+      embeds: [new EmbedBuilder()
+        .setColor(0x8B5CF6)
+        .setTitle('Mock Riftbound purchase complete')
+        .setDescription(`Bought ${formatXp(quantity)} ${getRiftboundMockSetName(setOption)} ${productKind}${quantity === 1 ? '' : 's'} for **${formatXp(purchase.charged_knowbucks)} KnowBucks**.`)
+        .addFields(
+          { name: 'Remaining balance', value: `${formatXp(purchase.balance_after)} KnowBucks`, inline: true },
+          { name: 'Unopened packs', value: formatXp(purchase.pack_quantity), inline: true },
+          { name: 'Unopened boxes', value: formatXp(purchase.box_quantity), inline: true },
+        )],
+    });
+    return;
+  }
+
+  if (subcommand !== 'open') throw new Error('Unknown Riftbound mock command.');
+  if (productKind === 'box' && quantity > 10) {
+    throw new Error('Open up to 10 boxes at once so your foil and Rare+ gallery remains easy to browse.');
+  }
+
+  if (productKind === 'box') {
+    await interaction.deferReply();
+  } else {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  }
+  const packsOpened = productKind === 'box' ? quantity * 24 : quantity;
+  const opening = await openRiftboundMockProducts(setOption, packsOpened, undefined, productKind);
+  const openingId = randomUUID();
+  const storedOpening = await openRiftboundMockProduct(
+    config,
+    openingId,
+    interaction.user.id,
+    setOption,
+    productKind,
+    quantity,
+    opening.cards,
+  );
+  const displayCards = await getRiftboundMockDisplayCards(opening.cards);
+  await interaction.editReply(buildRiftboundMockOpeningGallery(
+    interaction.user.id,
+    storedOpening.opening_id,
+    setOption,
+    storedOpening.packs_opened,
+    displayCards,
+    0,
+    config,
+  ));
+}
+
+async function handleRiftboundMockCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  try {
+    await handleRiftboundMockCommandRequest(interaction, config);
+  } catch (error) {
+    const content = riftboundMockCommandErrorNote(error);
+    if (interaction.deferred) {
+      await interaction.editReply({ content, embeds: [], components: [] });
+      return;
+    }
+    if (!interaction.replied) {
+      await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    }
+  }
 }
 
 function buildCollectionUpkeepEmbed(overview: CollectionUpkeepOverview) {
@@ -365,7 +673,7 @@ function helpFields(tab: HelpTab): HelpField[] {
       { name: '/fish expedition-progress', value: 'View active expeditions and your latest return; completed trips include Fish again.' },
       { name: '/fish shop', value: 'Browse and buy Fishing rods, bait, boats, and crew contracts.' },
       { name: '/fish inventory', value: 'Inspect owned Fishing equipment and equip a rod or bait.' },
-      { name: '/fish catalogue, event-help, event-catalogue', value: 'Browse fish and event discoveries or review active Fishing event rules.' },
+      { name: '/fish catalogue, event-help, event-catalogue, toggle-pings', value: 'Browse fish and event discoveries, review active Fishing event rules, or manage Fishing pings.' },
       { name: '/fish help', value: 'Open focused Fishing command and progression guidance.' },
     ];
   }
@@ -409,6 +717,7 @@ function helpFields(tab: HelpTab): HelpField[] {
     { name: '/leaderboard [count]', value: 'Show the server’s active chat-XP leaderboard.' },
     { name: '/knowbucks balance, pay, coinflip, leaderboard', value: 'View, transfer, wager, or rank KnowBucks.' },
     { name: '/knowbucks add, remove, set', value: 'Manage balances. Requires a role selected in Discord Configuration.' },
+    { name: '/riftbound shop, buy, open, inventory', value: 'Use KnowBucks for linked-account mock Riftbound packs and boxes, then browse the separate Mock website inventory.' },
     { name: '/player stats, inventory, shop', value: 'View progression and equipment, or buy shared skills and robbery equipment.' },
     { name: '/rob user', value: 'Attempt a protected KnowBucks robbery against a current server member.' },
     { name: '/snipe', value: 'Spend 1,000 KnowBucks to show this channel’s latest cached deleted message.' },
@@ -1466,7 +1775,7 @@ function buildMiningSimulationPanel(depthId: MiningDepthId, results: Awaited<Ret
 }
 
 export function buildFishingEventHelpPanel() {
-  const event = FISHING_EVENTS[0];
+  const event = getActiveFishingEvent();
   if (!event) {
     return { embeds: [new EmbedBuilder().setColor(0x64748B).setTitle('Fishing events').setDescription('There is no active fishing event right now.')] };
   }
@@ -1502,7 +1811,7 @@ export function buildFishingEventHelpPanel() {
 }
 
 export function buildFishingEventCataloguePanel(progress: FishingEventCatalogueProgress) {
-  const event = FISHING_EVENTS[0];
+  const event = getActiveFishingEvent();
   if (!event) {
     return { embeds: [new EmbedBuilder().setColor(0x64748B).setTitle('Fishing event catalogue').setDescription('There is no active fishing event right now.')] };
   }
@@ -2156,6 +2465,10 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
               name: 'Active events',
               value: '`/fish event-help` explains the active event and its rewards. `/fish event-catalogue` tracks its fish and title discoveries.',
             },
+            {
+              name: 'Fishing pings',
+              value: '`/fish toggle-pings enabled:<true|false>` controls whether KnowLeague pings you for Fishing expedition completions and related Fishing notices.',
+            },
           ),
       ],
     });
@@ -2171,6 +2484,18 @@ async function handleFishingCommand(interaction: ChatInputCommandInteraction, co
     await interaction.deferReply();
     const progress = await getFishingEventCatalogueProgress(config, interaction.user.id);
     await interaction.editReply(buildFishingEventCataloguePanel(progress));
+    return;
+  }
+
+  if (subcommand === 'toggle-pings') {
+    const enabled = interaction.options.getBoolean('enabled', true);
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      await setFishingExpeditionPings(config, interaction.user.id, enabled);
+      await interaction.editReply({ content: `Fishing pings are now **${enabled ? 'enabled' : 'disabled'}**. This applies to expedition completions and other Fishing notices from KnowLeague.` });
+    } catch (error) {
+      await interaction.editReply({ content: error instanceof Error ? error.message.replace(/^Unable to update Fishing pings: /, '') : 'Fishing ping preferences could not be updated.' });
+    }
     return;
   }
 
@@ -2990,7 +3315,8 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
   const guild = interaction.guild;
   if (!guild) return;
   const subcommand = interaction.options.getSubcommand();
-  if (subcommand !== 'spawn' && !(await isSkinCollectionCommandAllowedInChannel(config, interaction.channelId))) {
+  if (!isDiscordAdministrativeCommand('collections', subcommand)
+    && !(await isSkinCollectionCommandAllowedInChannel(config, interaction.channelId))) {
     await replyWithCommandChannelLink(interaction, 'Collections', await getSkinCollectionCommandChannelIds(config));
     return;
   }
@@ -4048,9 +4374,51 @@ async function handleHelpButtonInteraction(interaction: ButtonInteraction) {
   return true;
 }
 
+async function handleRiftboundMockButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  const [prefix, ownerDiscordUserId, openingId, indexText, ...extra] = interaction.customId.split(':');
+  if (prefix !== RIFTBOUND_MOCK_BUTTON_PREFIX) return false;
+  if (!(await isRiftboundCommandAllowedInChannel(config, interaction.channelId))) {
+    const destination = configuredChannelMentions(await getRiftboundCommandChannelIds(config));
+    await interaction.reply({
+      content: destination
+        ? `Riftbound commands are not enabled here. Use them in: ${destination}`
+        : 'Riftbound commands are not enabled in this channel. An administrator can update Discord Configuration.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return true;
+  }
+  if (extra.length > 0 || !ownerDiscordUserId || !/^[0-9]{17,20}$/.test(ownerDiscordUserId) || !/^[0-9a-f-]{36}$/i.test(openingId ?? '') || !/^\d+$/.test(indexText ?? '')) {
+    await interaction.reply({ content: 'This Riftbound mock opening panel is outdated.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (interaction.user.id !== ownerDiscordUserId) {
+    await interaction.reply({ content: 'Only the member who opened these mock products can browse this gallery.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  await interaction.deferUpdate();
+  const opening = await getRiftboundMockOpening(config, openingId!, ownerDiscordUserId);
+  if (!opening) {
+    await interaction.editReply({ content: 'This mock opening is no longer available.', embeds: [], components: [] });
+    return true;
+  }
+  const displayCards = await getRiftboundMockDisplayCards(opening.cards);
+  await interaction.editReply(buildRiftboundMockOpeningGallery(
+    ownerDiscordUserId,
+    openingId!,
+    opening.set_code,
+    opening.packs_opened,
+    displayCards,
+    Number(indexText),
+    config,
+  ));
+  return true;
+}
+
 export async function handleButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
   if (interaction.guildId !== config.guildId) return;
   if (await handleHelpButtonInteraction(interaction)) return;
+  if (await handleRiftboundMockButtonInteraction(interaction, config)) return;
   if (await handlePlayerButtonInteraction(interaction, config)) return;
   if (await handleFishingButtonInteraction(interaction, config)) return;
   if (await handleWoodcuttingButtonInteraction(interaction, config)) return;
@@ -4173,9 +4541,15 @@ export async function handleChatInputCommand(
   config: DiscordBotConfig,
   storeAsMostRecent = true,
 ) {
-  if (usesDefaultCommandChannel(interaction.commandName)
+  const subcommand = interaction.options.getSubcommand(false);
+  if (requiresDefaultCommandChannel(interaction.commandName, subcommand)
     && !(await isDefaultCommandChannel(config, interaction.channelId))) {
     await replyWithCommandChannelLink(interaction, 'General', await getDefaultCommandChannelIds(config));
+    return;
+  }
+  if (interaction.commandName === 'riftbound'
+    && !(await isRiftboundCommandAllowedInChannel(config, interaction.channelId))) {
+    await replyWithCommandChannelLink(interaction, 'Riftbound', await getRiftboundCommandChannelIds(config));
     return;
   }
 
@@ -4208,6 +4582,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'knowbucks') {
     await handleKnowBucksCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'riftbound') {
+    await handleRiftboundMockCommand(interaction, config);
     return;
   }
 

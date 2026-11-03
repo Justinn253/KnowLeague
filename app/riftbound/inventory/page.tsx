@@ -13,6 +13,7 @@ type PageProps = {
 export function generateMetadata({ searchParams }: PageProps): Metadata {
   const tab = Array.isArray(searchParams?.tab) ? searchParams.tab[0] : searchParams?.tab;
   if (tab === 'inventory') return createNoIndexMetadata('My Riftbound Inventory');
+  if (tab === 'mock') return createNoIndexMetadata('My Riftbound Mock Inventory');
   if (tab === 'sets') return createNoIndexMetadata('Riftbound Set and Deck Builder');
 
   return createPageMetadata({

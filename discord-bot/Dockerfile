@@ -28,6 +28,7 @@ COPY --from=build /app/discord-bot/dist ./discord-bot/dist
 COPY data/catalogs/skin-items.json ./data/catalogs/skin-items.json
 COPY data/catalogs/discord-collection-items.json ./data/catalogs/discord-collection-items.json
 COPY data/catalogs/discord-collection-runes.json ./data/catalogs/discord-collection-runes.json
+COPY data/catalogs/riftbound-cards.json ./data/catalogs/riftbound-cards.json
 
 WORKDIR /app/discord-bot
 USER node

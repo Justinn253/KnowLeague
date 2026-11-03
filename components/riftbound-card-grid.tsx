@@ -15,6 +15,7 @@ import { RiftboundCompactDeckView } from '@/components/riftbound-compact-deck-vi
 import { RiftboundDeckPreview } from '@/components/riftbound-deck-preview';
 import { RiftboundMasterSet } from '@/components/riftbound-master-set';
 import { RiftboundInventoryHistory } from '@/components/riftbound-inventory-history';
+import { RiftboundMockInventory } from '@/components/riftbound-mock-inventory';
 import { RiftboundInventorySaleEditor, RiftboundSaleReceipt, RiftboundSaleReviewModal, RiftboundSalesHistory, type RiftboundPendingSaleItem, type RiftboundSaleEditorDraft } from '@/components/riftbound-sales';
 import {
   getRiftboundHistoryRangeDays,
@@ -61,7 +62,7 @@ import {
   type RiftboundDeckCardSelection,
 } from '@/lib/riftbound-decks';
 
-type InventoryTab = 'global' | 'inventory' | 'master-set' | 'sales' | 'history' | 'binders' | 'decks';
+type InventoryTab = 'global' | 'inventory' | 'master-set' | 'sales' | 'history' | 'mock' | 'binders' | 'decks';
 type RiftboundDeckViewMode = 'card' | 'list' | 'compact';
 
 type CatalogueSourceTab = 'global' | 'inventory';
@@ -687,7 +688,7 @@ const RIFTBOUND_DRAFT_STORAGE_PREFIX = 'knowleague:riftbound-inventory-draft:';
 const RIFTBOUND_CARD_IDS = new Set(RIFTBOUND_CARDS.map((card) => card.id));
 
 function parseInventoryTab(value: string | null): InventoryTab | null {
-  return value === 'global' || value === 'inventory' || value === 'master-set' || value === 'sales' || value === 'history' || value === 'binders' || value === 'decks' ? value : null;
+  return value === 'global' || value === 'inventory' || value === 'master-set' || value === 'sales' || value === 'history' || value === 'mock' || value === 'binders' || value === 'decks' ? value : null;
 }
 
 const RIFTBOUND_COLLECTION_JSON_FORMAT = 'knowleague-riftbound-collection';
@@ -3122,7 +3123,7 @@ export function RiftboundCardGrid() {
     }
   };
 
-  const inventoryWorkspaceActive = activeTab === 'inventory' || activeTab === 'master-set' || activeTab === 'sales' || activeTab === 'history';
+  const inventoryWorkspaceActive = activeTab === 'inventory' || activeTab === 'master-set' || activeTab === 'sales' || activeTab === 'history' || activeTab === 'mock';
 
   return (
     <main className="min-h-screen min-w-0 w-full overflow-x-clip bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-10" aria-label="Riftbound card catalogue">
@@ -3173,10 +3174,11 @@ export function RiftboundCardGrid() {
               <button type="button" role="tab" aria-selected={activeTab === 'master-set'} onClick={() => setActiveTab('master-set')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'master-set' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Master Set</button>
               <button type="button" role="tab" aria-selected={activeTab === 'sales'} onClick={() => setActiveTab('sales')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'sales' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Sales {salesLoaded ? `(${sales.length})` : ''}</button>
               <button type="button" role="tab" aria-selected={activeTab === 'history'} onClick={() => setActiveTab('history')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'history' ? 'bg-emerald-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>History</button>
+              <button type="button" role="tab" aria-selected={activeTab === 'mock'} onClick={() => setActiveTab('mock')} className={`rounded-lg px-3 py-2 text-xs font-black transition ${activeTab === 'mock' ? 'bg-violet-300 text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>Mock</button>
             </div>
           </div> : null}
 
-          {activeTab !== 'binders' && activeTab !== 'sales' && activeTab !== 'master-set' && activeTab !== 'history' ? <div className="mt-5 grid gap-4">
+          {activeTab !== 'binders' && activeTab !== 'sales' && activeTab !== 'master-set' && activeTab !== 'history' && activeTab !== 'mock' ? <div className="mt-5 grid gap-4">
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,15rem)_auto]">
               <div className="relative">
                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -3334,6 +3336,8 @@ export function RiftboundCardGrid() {
             </div>
           </section>
         ) : null}
+
+        {activeTab === 'mock' ? <RiftboundMockInventory session={session} /> : null}
 
         {activeTab === 'sales' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
@@ -3581,7 +3585,7 @@ export function RiftboundCardGrid() {
               </section>
             </div>
           )
-        ) : activeTab === 'binders' || activeTab === 'master-set' || activeTab === 'sales' || activeTab === 'history' ? null : activeTab === 'inventory' && !session ? (
+        ) : activeTab === 'binders' || activeTab === 'master-set' || activeTab === 'sales' || activeTab === 'history' || activeTab === 'mock' ? null : activeTab === 'inventory' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">
             <PackageOpen size={38} className="text-amber-200" />
             <div>

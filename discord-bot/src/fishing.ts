@@ -11,6 +11,7 @@ import {
   FISHING_FISH,
   FISHING_UPGRADES,
   formatFishingDuration,
+  getActiveFishingEvent,
   getFishingBiome,
   getFishingCrate,
   getFishingEvent,
@@ -44,6 +45,10 @@ type FishingPlayerRow = {
   crew_two_unlocked: boolean;
   equipped_bait_id: string;
   equipped_rod_id: string;
+};
+
+type FishingExpeditionPingPreferenceRow = {
+  expedition_pings_enabled: boolean;
 };
 
 type FishingInventoryRow = {
@@ -272,6 +277,34 @@ async function ensureFishingPlayer(config: DiscordBotConfig, discordUserId: stri
     p_guild_id: config.guildId,
   });
   if (error) throw new Error(`Unable to initialize Discord fishing: ${error.message}`);
+}
+
+export async function setFishingExpeditionPings(config: DiscordBotConfig, discordUserId: string, enabled: boolean) {
+  const { data, error } = await createBotServiceClient(config).rpc('set_discord_fishing_expedition_pings', {
+    p_discord_user_id: discordUserId,
+    p_enabled: enabled,
+    p_guild_id: config.guildId,
+  });
+  if (error) throw new Error(`Unable to update Fishing pings: ${error.message}`);
+  return data === true;
+}
+
+async function fishingExpeditionPingsAreEnabled(config: DiscordBotConfig, discordUserId: string) {
+  const { data, error } = await createBotServiceClient(config)
+    .from('discord_fishing_players')
+    .select('expedition_pings_enabled')
+    .eq('guild_id', config.guildId)
+    .eq('discord_user_id', discordUserId)
+    .maybeSingle<FishingExpeditionPingPreferenceRow>();
+  if (error) {
+    console.error(`Unable to load Fishing ping preference for ${discordUserId}.`, error);
+    return true;
+  }
+  return data?.expedition_pings_enabled !== false;
+}
+
+function fishingUserAllowedMentions(discordUserId: string, pingsEnabled: boolean) {
+  return pingsEnabled ? { users: [discordUserId] } : { parse: [] as const };
 }
 
 export async function getFishingPlayerState(config: DiscordBotConfig, discordUserId: string): Promise<FishingPlayerState> {
@@ -1035,7 +1068,7 @@ export async function getFishingEventCatalogueProgress(
   config: DiscordBotConfig,
   discordUserId: string,
 ): Promise<FishingEventCatalogueProgress> {
-  const activeEvent = FISHING_EVENTS[0];
+  const activeEvent = getActiveFishingEvent();
   if (!activeEvent) return { caughtFish: [], ownedTitleItemIds: new Set() };
   const [state, catchesResult] = await Promise.all([
     getFishingPlayerState(config, discordUserId),
@@ -1209,6 +1242,7 @@ async function launchGenesysLoopFollowUp(
   expedition: FishingExpeditionRow,
   equipment: FishingEquipmentSnapshot,
   notificationChannel: SendableChannels,
+  pingsEnabled: boolean,
 ) {
   if (!shouldRelaunchFishingExpeditionFromGenesysLoop(equipment, randomInt(0, 1_000_000) / 1_000_000)) return;
 
@@ -1225,7 +1259,7 @@ async function launchGenesysLoopFollowUp(
       [...member.roles.cache.keys()],
     );
     const launchMessage = await notificationChannel.send({
-      allowedMentions: { users: [expedition.discord_user_id] },
+      allowedMentions: fishingUserAllowedMentions(expedition.discord_user_id, pingsEnabled),
       content: `<@${expedition.discord_user_id}> **Genesys Loop** launched another ${launched.biomeName} expedition. ${launched.instantCompletion
         ? 'This trip completed immediately.'
         : `This trip takes about **${formatFishingDuration(launched.durationSeconds)}**.`}`,
@@ -1242,6 +1276,7 @@ async function announceFishingEventMilestones(
   result: FishingExpeditionResult,
   equipment: FishingEquipmentSnapshot,
   awardedGearItemIds: ReadonlySet<string>,
+  pingsEnabled: boolean,
 ) {
   const event = getFishingEvent(equipment.eventId);
   if (!event) return;
@@ -1249,13 +1284,13 @@ async function announceFishingEventMilestones(
   const mythicCatch = result.catches.find((catchItem) => catchItem.kind === 'fish' && catchItem.nonSellable);
   if (mythicCatch?.kind === 'fish') {
     await channel.send({
-      allowedMentions: { users: [discordUserId] },
+      allowedMentions: fishingUserAllowedMentions(discordUserId, pingsEnabled),
       content: `🌌 <@${discordUserId}> uncovered **${mythicCatch.name}**, the Mythic catch of the **${event.biomeName}**. It has been added to their inventory!`,
     });
   }
   if (awardedGearItemIds.has(event.title.itemId)) {
     await channel.send({
-      allowedMentions: { users: [discordUserId] },
+      allowedMentions: fishingUserAllowedMentions(discordUserId, pingsEnabled),
       content: `🏷️ <@${discordUserId}> earned the **${event.title.name}** title!`,
     });
   }
@@ -1281,6 +1316,7 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
   if (error) throw new Error(`Unable to settle Discord fishing expedition: ${error.message}`);
   const settled = getFirstResult(data as SettledExpeditionRow | SettledExpeditionRow[] | null);
   if (!settled?.settled || !settled.discord_user_id || !settled.notification_channel_id || !settled.result) return;
+  const pingsEnabled = await fishingExpeditionPingsAreEnabled(config, settled.discord_user_id);
 
   void reconcileFishingRolesAfterSettlement(config, guild, settled)
     .catch((roleError: unknown) => console.error(`Discord fishing expedition ${expedition.id} role reconciliation failed.`, roleError));
@@ -1311,7 +1347,7 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
       xpAwarded: settled.fishing_xp_awarded,
     };
   const completion = {
-    allowedMentions: { parse: [] as const },
+    allowedMentions: fishingUserAllowedMentions(settled.discord_user_id, pingsEnabled),
     components: buildFishingCompletionComponents({
       biomeId: expedition.biome_id,
       crewSlot: expedition.crew_slot,
@@ -1333,9 +1369,9 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
     try {
       const message = await channel.messages.fetch(expedition.notification_message_id);
       await message.edit(completion);
-      await announceFishingEventMilestones(channel, settled.discord_user_id, settled.result, equipment, awardedGearItemIds)
+      await announceFishingEventMilestones(channel, settled.discord_user_id, settled.result, equipment, awardedGearItemIds, pingsEnabled)
         .catch((announcementError: unknown) => console.warn(`Discord fishing expedition ${expedition.id} event announcement failed.`, announcementError));
-      await launchGenesysLoopFollowUp(config, guild, expedition, equipment, channel);
+      await launchGenesysLoopFollowUp(config, guild, expedition, equipment, channel, pingsEnabled);
       return;
     } catch (error) {
       console.warn(`Discord fishing expedition ${expedition.id} could not update its launch message; sending a completion notice instead.`, error);
@@ -1343,7 +1379,7 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
   }
 
   await channel.send({
-    allowedMentions: { users: [settled.discord_user_id] },
+    allowedMentions: fishingUserAllowedMentions(settled.discord_user_id, pingsEnabled),
     components: buildFishingCompletionComponents({
       biomeId: expedition.biome_id,
       crewSlot: expedition.crew_slot,
@@ -1360,9 +1396,9 @@ async function settleFishingExpedition(config: DiscordBotConfig, guild: Guild, e
       equipment.eventId,
     )],
   });
-  await announceFishingEventMilestones(channel, settled.discord_user_id, settled.result, equipment, awardedGearItemIds)
+  await announceFishingEventMilestones(channel, settled.discord_user_id, settled.result, equipment, awardedGearItemIds, pingsEnabled)
     .catch((announcementError: unknown) => console.warn(`Discord fishing expedition ${expedition.id} event announcement failed.`, announcementError));
-  await launchGenesysLoopFollowUp(config, guild, expedition, equipment, channel);
+  await launchGenesysLoopFollowUp(config, guild, expedition, equipment, channel, pingsEnabled);
 }
 
 async function settleDueFishingExpeditions(config: DiscordBotConfig, guild: Guild) {
@@ -1449,5 +1485,5 @@ export function summarizeFishingSettlement(result: FishingExpeditionResult) {
   return parts.length ? parts.join(' · ') : 'No catches recorded';
 }
 
-export { FISHING_BIOMES, FISHING_CRATES, FISHING_CRATE_LOOT, FISHING_EVENTS, FISHING_EXPEDITION_LENGTHS, FISHING_FISH, FISHING_UPGRADES, formatFishingDuration, getFishingBiome, getFishingCrate, getFishingEvent, getFishingExpeditionLength, getFishingUpgrade, getFishingUpgradeCost };
+export { FISHING_BIOMES, FISHING_CRATES, FISHING_CRATE_LOOT, FISHING_EVENTS, FISHING_EXPEDITION_LENGTHS, FISHING_FISH, FISHING_UPGRADES, formatFishingDuration, getActiveFishingEvent, getFishingBiome, getFishingCrate, getFishingEvent, getFishingExpeditionLength, getFishingUpgrade, getFishingUpgradeCost };
 export type { FishingBiomeId, FishingDurationTier, FishingUpgradeCategory };

@@ -19,12 +19,12 @@ describe('Discord skin-claim command contract', () => {
     expect(DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.allChannels).toBe(true);
   });
 
-  it('calculates each rarity chance from both configured weights and catalogue counts', () => {
+  it('calculates each rarity chance from configured weights without catalogue-count skew', () => {
     const weights = new Map([['Common', 1], ['Rare', 2]]);
     const catalog = [{ rarity: 'Common' }, { rarity: 'Common' }, { rarity: 'Common' }, { rarity: 'Rare' }];
 
-    expect(calculateSkinRaritySpawnPercent('Common', weights, catalog)).toBe(60);
-    expect(calculateSkinRaritySpawnPercent('Rare', weights, catalog)).toBe(40);
+    expect(calculateSkinRaritySpawnPercent('Common', weights, catalog)).toBeCloseTo(100 / 3);
+    expect(calculateSkinRaritySpawnPercent('Rare', weights, catalog)).toBeCloseTo(200 / 3);
   });
 
   it('keeps collection rune images displayable and retains only the current Unsealed Spellbook entry', () => {

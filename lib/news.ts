@@ -15,6 +15,26 @@ export type NewsEntry = {
 /** Manually add a post for each production release or announcement. Keep IDs unique. Use major.minor.patch versions for updates. */
 export const NEWS_ENTRIES: readonly NewsEntry[] = [
   {
+    id: 'update-2026-11-04-riftbound-mock-opening',
+    kind: 'update',
+    version: '0.5.0',
+    publishedAt: '2026-11-04T19:20:09.4970441Z',
+    title: 'Update 0.5.0 - Riftbound Mock Opening',
+    summary: 'Open for-fun Riftbound packs and boxes on KnowLeague, then reveal and revisit every pull.',
+    paragraphs: [],
+    sections: [
+      {
+        heading: 'New Feature',
+        items: [
+          'Mock Opening: open your Riftbound mock packs and boxes from the website, reveal pulls one card at a time, shuffle unrevealed cards, or reveal everything at once.',
+          'Mock shop: review weekly mock product prices, sealed pack and box counts, and packs opened for Origins, Spiritforged, Unleashed, Vendetta, and Radiance.',
+          'Opening history: revisit the latest 96 packs of pulls, grouped by opening, filtered by set, and sorted by recency or total market value.',
+          'Website and Discord mock cards now share the same account-owned mock inventory, while remaining separate from real Riftbound collection tracking.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'update-2026-10-14-champion-catalogue',
     kind: 'update',
     version: '0.4.0',

@@ -7,6 +7,7 @@ import type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
 import type { RiftboundBinder } from '@/lib/riftbound-binders';
 import type { RiftboundLatestPrice } from '@/lib/riftbound-market-values';
 import type { RiftboundInventoryHistoryGroup } from '@/lib/riftbound-inventory-history';
+import type { RiftboundMockInventoryItem, RiftboundMockSealedProduct } from '@/lib/riftbound-mock-inventory';
 import type { RiftboundInventoryMetadata, RiftboundSale } from '@/lib/riftbound-sales';
 
 export type { RiftboundInventoryItem } from '@/lib/riftbound-inventory';
@@ -67,6 +68,13 @@ export type RiftboundSalesResponse = {
 export type RiftboundInventoryHistoryResponse = {
   history?: RiftboundInventoryHistoryGroup[];
   error?: string;
+};
+
+export type RiftboundMockInventoryResponse = {
+  error?: string;
+  items?: RiftboundMockInventoryItem[];
+  sealedProducts?: RiftboundMockSealedProduct[];
+  totalOpenedPacks?: number;
 };
 
 type CachedResponse<T> = {
@@ -161,6 +169,17 @@ export function getRiftboundInventoryHistory(session: Session) {
 export function invalidateRiftboundInventoryHistory(session: Session | null) {
   if (!session) return;
   const key = `inventory-history:${session.user.id}`;
+  cacheGenerations.set(key, getCacheGeneration(key) + 1);
+  responseCache.delete(key);
+}
+
+export function getRiftboundMockInventory(session: Session) {
+  return requestRiftboundData<RiftboundMockInventoryResponse>(`mock-inventory:${session.user.id}`, '/api/riftbound/mock-inventory', session);
+}
+
+export function invalidateRiftboundMockInventory(session: Session | null) {
+  if (!session) return;
+  const key = `mock-inventory:${session.user.id}`;
   cacheGenerations.set(key, getCacheGeneration(key) + 1);
   responseCache.delete(key);
 }

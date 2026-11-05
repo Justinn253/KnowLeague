@@ -33,7 +33,7 @@ const RIFTBOUND_RARITY_TEXT_CLASSES: Record<string, string> = {
   Epic: 'text-amber-300',
   Promo: 'text-cyan-200',
   Showcase: 'text-yellow-200',
-  Overnumbered: 'text-orange-300',
+  Overnumbered: 'text-red-500',
   Signature: 'text-fuchsia-300',
   Token: 'text-cyan-200',
 };

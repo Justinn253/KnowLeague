@@ -40,6 +40,22 @@ body {
   gap: 1rem;
 }
 
+@keyframes riftbound-mock-unveil {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-riftbound-mock-unveil {
+  animation: riftbound-mock-unveil 250ms ease-out both;
+}
+
 .riftbound-deck-card-grid,
 .riftbound-deck-list-grid {
   display: grid;
@@ -189,6 +205,10 @@ select {
   .animate-\[champion-rune-spin_20s_linear_infinite\],
   .animate-\[champion-rune-spin_26s_linear_infinite\],
   .animate-\[champion-splash-reveal_900ms_ease-out_both\] {
+    animation: none;
+  }
+
+  .animate-riftbound-mock-unveil {
     animation: none;
   }
 

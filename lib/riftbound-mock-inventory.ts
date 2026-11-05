@@ -27,7 +27,7 @@ function isMockTreatment(value: string): value is RiftboundMockTreatment {
 
 export async function loadRiftboundMockInventory(userId: string) {
   const supabase = getSupabaseServiceClient();
-  const [inventoryResult, sealedProductsResult] = await Promise.all([
+  const [inventoryResult, sealedProductsResult, openedPacksResult] = await Promise.all([
     supabase
       .from('riftbound_mock_inventory')
       .select('card_id,finish,treatment,quantity,updated_at')
@@ -41,10 +41,18 @@ export async function loadRiftboundMockInventory(userId: string) {
       .eq('user_id', userId)
       .order('set_code', { ascending: true })
       .returns<RiftboundMockSealedProduct[]>(),
+    supabase
+      .from('riftbound_mock_openings')
+      .select('packs_opened')
+      .eq('user_id', userId)
+      .order('opened_at', { ascending: false })
+      .limit(10_000)
+      .returns<Array<{ packs_opened: number }>>(),
   ]);
 
   if (inventoryResult.error) throw inventoryResult.error;
   if (sealedProductsResult.error) throw sealedProductsResult.error;
+  if (openedPacksResult.error) throw openedPacksResult.error;
 
   return {
     items: (inventoryResult.data ?? []).flatMap((item): RiftboundMockInventoryItem[] => (
@@ -53,5 +61,6 @@ export async function loadRiftboundMockInventory(userId: string) {
         : []
     )),
     sealedProducts: sealedProductsResult.data ?? [],
+    totalOpenedPacks: (openedPacksResult.data ?? []).reduce((total, opening) => total + (Number.isInteger(opening.packs_opened) && opening.packs_opened > 0 ? opening.packs_opened : 0), 0),
   };
 }

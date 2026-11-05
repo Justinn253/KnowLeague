@@ -3337,7 +3337,9 @@ export function RiftboundCardGrid() {
           </section>
         ) : null}
 
-        {activeTab === 'mock' ? <RiftboundMockInventory session={session} /> : null}
+        <div hidden={activeTab !== 'mock'}>
+          <RiftboundMockInventory active={activeTab === 'mock'} session={session} />
+        </div>
 
         {activeTab === 'sales' && !session ? (
           <section className="grid justify-items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/80 px-6 py-16 text-center">

@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowRight, Dices, Menu, Package, Search, Sparkles, Swords, TrendingUp, Trophy, UserCircle, UserCog, Users, X } from 'lucide-react';
+import { ArrowRight, Dices, Menu, Package, PackageOpen, Search, Sparkles, Swords, TrendingUp, Trophy, UserCircle, UserCog, Users, X } from 'lucide-react';
 import { ContactUsWidget } from '@/components/contact-us-widget';
 import { SoundSettingsMenu } from '@/components/sound-settings-menu';
 import {
@@ -253,6 +253,15 @@ export function AppNavigationDrawer({
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-black">Inventory</span>
                         <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">Cards</span>
+                      </span>
+                    </Link>
+                    <Link href="/riftbound/mock-opening" onClick={closeDrawer} className={gameMenuItemClass}>
+                      <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${GAME_ACCENT_CLASSES.gold}`}>
+                        <PackageOpen size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black">Mock Opening</span>
+                        <span className="mt-0.5 block truncate text-[0.68rem] text-slate-500">Packs and boxes</span>
                       </span>
                     </Link>
                   </div>

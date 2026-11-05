@@ -41,10 +41,26 @@ type OpenResult = {
 function isOpeningCard(value: unknown): value is RiftboundMockOpenedCard {
   if (!value || typeof value !== 'object') return false;
   const card = value as Partial<RiftboundMockOpenedCard>;
+  const hasValidOptionalString = (optionalValue: unknown, maximumLength: number) => (
+    optionalValue === undefined || (typeof optionalValue === 'string' && optionalValue.length <= maximumLength)
+  );
+  const hasValidOptionalNumber = (optionalValue: unknown) => (
+    optionalValue === undefined || optionalValue === null || (typeof optionalValue === 'number' && Number.isFinite(optionalValue) && optionalValue >= 0)
+  );
+  const hasValidOptionalImageUrl = card.image_url === undefined
+    || card.image_url === null
+    || (typeof card.image_url === 'string' && card.image_url.length <= 2_048 && /^https:\/\//i.test(card.image_url));
+
   return typeof card.card_id === 'string'
+    && card.card_id.length > 0
+    && card.card_id.length <= 128
     && (card.finish === 'normal' || card.finish === 'foil')
     && (card.slot === 'common' || card.slot === 'uncommon' || card.slot === 'foil' || card.slot === 'rare' || card.slot === 'premium')
-    && (card.treatment === 'standard' || card.treatment === 'alt_art' || card.treatment === 'special_alt' || card.treatment === 'overnumbered' || card.treatment === 'signature' || card.treatment === 'ultimate');
+    && (card.treatment === 'standard' || card.treatment === 'alt_art' || card.treatment === 'special_alt' || card.treatment === 'overnumbered' || card.treatment === 'signature' || card.treatment === 'ultimate')
+    && hasValidOptionalString(card.display_name, 256)
+    && hasValidOptionalString(card.rarity, 64)
+    && hasValidOptionalImageUrl
+    && hasValidOptionalNumber(card.market_price_usd);
 }
 
 function isSetCode(value: string): value is RiftboundMockSetCode {
@@ -141,7 +157,15 @@ export async function getRiftboundMockOpening(
     .eq('discord_user_id', discordUserId)
     .maybeSingle<{ set_code: string; opening_kind: string; packs_opened: number; cards: unknown }>();
   if (error) throw new Error(`Unable to load Riftbound mock opening: ${error.message}`);
-  if (!data || !isSetCode(data.set_code) || (data.opening_kind !== 'pack' && data.opening_kind !== 'box') || !Array.isArray(data.cards) || !data.cards.every(isOpeningCard)) {
+  if (!data
+    || !isSetCode(data.set_code)
+    || (data.opening_kind !== 'pack' && data.opening_kind !== 'box')
+    || !Number.isSafeInteger(data.packs_opened)
+    || data.packs_opened < 1
+    || data.packs_opened > 2_880
+    || !Array.isArray(data.cards)
+    || data.cards.length !== data.packs_opened * 13
+    || !data.cards.every(isOpeningCard)) {
     return null;
   }
   return {

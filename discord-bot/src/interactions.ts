@@ -20,6 +20,7 @@ import {
   isRiftboundMockHighlight,
   isRiftboundMockSetCode,
   openRiftboundMockProducts,
+  snapshotRiftboundMockOpeningCards,
   type RiftboundMockDisplayCard,
   type RiftboundMockSetCode,
 } from './riftbound-mock.js';
@@ -310,6 +311,57 @@ function formatRiftboundMockMarketValue(value: number | null) {
 }
 
 const RIFTBOUND_MOCK_BUTTON_PREFIX = 'riftbound-mock';
+const RIFTBOUND_MOCK_GALLERY_CACHE_TTL_MS = 15 * 60_000;
+const RIFTBOUND_MOCK_GALLERY_CACHE_MAX_ENTRIES = 32;
+
+type RiftboundMockGalleryCacheEntry = {
+  cards: readonly RiftboundMockDisplayCard[];
+  expiresAt: number;
+  ownerDiscordUserId: string;
+  packsOpened: number;
+  setCode: RiftboundMockSetCode;
+};
+
+const riftboundMockGalleryCache = new Map<string, RiftboundMockGalleryCacheEntry>();
+
+function pruneRiftboundMockGalleryCache(now = Date.now()) {
+  for (const [openingId, entry] of riftboundMockGalleryCache) {
+    if (entry.expiresAt <= now) riftboundMockGalleryCache.delete(openingId);
+  }
+  while (riftboundMockGalleryCache.size >= RIFTBOUND_MOCK_GALLERY_CACHE_MAX_ENTRIES) {
+    const oldestOpeningId = riftboundMockGalleryCache.keys().next().value;
+    if (!oldestOpeningId) break;
+    riftboundMockGalleryCache.delete(oldestOpeningId);
+  }
+}
+
+function cacheRiftboundMockGallery(
+  ownerDiscordUserId: string,
+  openingId: string,
+  setCode: RiftboundMockSetCode,
+  packsOpened: number,
+  cards: readonly RiftboundMockDisplayCard[],
+) {
+  const now = Date.now();
+  pruneRiftboundMockGalleryCache(now);
+  riftboundMockGalleryCache.set(openingId, {
+    cards,
+    expiresAt: now + RIFTBOUND_MOCK_GALLERY_CACHE_TTL_MS,
+    ownerDiscordUserId,
+    packsOpened,
+    setCode,
+  });
+}
+
+function getCachedRiftboundMockGallery(openingId: string, ownerDiscordUserId: string) {
+  const entry = riftboundMockGalleryCache.get(openingId);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    riftboundMockGalleryCache.delete(openingId);
+    return null;
+  }
+  return entry.ownerDiscordUserId === ownerDiscordUserId ? entry : null;
+}
 
 function riftboundMockInventoryUrl(config: DiscordBotConfig) {
   return new URL('/riftbound/inventory?tab=mock', config.siteUrl).toString();
@@ -341,7 +393,9 @@ function riftboundMockRarityRank(card: RiftboundMockDisplayCard) {
           : card.treatment === 'alt_art' ? 4
             : 0;
   if (treatmentRank > 0) return treatmentRank;
-  return card.rarity === 'Epic' ? 3 : card.rarity === 'Rare' ? 2 : card.rarity === 'Uncommon' ? 1 : 0;
+  return card.rarity === 'Epic' ? 3
+    : card.rarity === 'Rare' || card.slot === 'rare' || card.slot === 'premium' ? 2
+      : card.rarity === 'Uncommon' ? 1 : 0;
 }
 
 function sortRiftboundMockHighlights(cards: readonly RiftboundMockDisplayCard[]) {
@@ -353,7 +407,7 @@ function sortRiftboundMockHighlights(cards: readonly RiftboundMockDisplayCard[])
       || left.card_id.localeCompare(right.card_id));
 }
 
-function riftboundMockOpeningButtons(
+export function riftboundMockOpeningButtons(
   ownerDiscordUserId: string,
   openingId: string,
   index: number,
@@ -377,7 +431,7 @@ function riftboundMockOpeningButtons(
         .setLabel('Next')
         .setDisabled(index >= total - 1),
       new ButtonBuilder()
-        .setCustomId(`${RIFTBOUND_MOCK_BUTTON_PREFIX}:${ownerDiscordUserId}:${openingId}:${Math.max(0, firstRareIndex)}`)
+        .setCustomId(`${RIFTBOUND_MOCK_BUTTON_PREFIX}:${ownerDiscordUserId}:${openingId}:skip:${Math.max(0, firstRareIndex)}`)
         .setStyle(ButtonStyle.Primary)
         .setLabel('Skip to Rare')
         .setDisabled(firstRareIndex < 0 || index >= firstRareIndex),
@@ -394,6 +448,7 @@ function buildRiftboundMockOpeningGallery(
   cards: readonly RiftboundMockDisplayCard[],
   index: number,
   config: DiscordBotConfig,
+  includeImage = true,
 ) {
   const highlights = sortRiftboundMockHighlights(cards);
   const safeIndex = Math.max(0, Math.min(index, Math.max(0, highlights.length - 1)));
@@ -410,13 +465,18 @@ function buildRiftboundMockOpeningGallery(
   const foilDetail = card.finish === 'foil' ? 'Foil' : 'Normal';
   const treatment = formatRiftboundMockTreatment(card.treatment);
   const pullDetail = card.treatment === 'standard' ? card.rarity : `${card.rarity} · ${treatment}`;
-  const firstRareIndex = highlights.findIndex((highlight) => highlight.rarity === 'Rare' || highlight.rarity === 'Epic');
+  const firstRareIndex = highlights.findIndex((highlight) => (
+    highlight.rarity === 'Rare'
+    || highlight.rarity === 'Epic'
+    || highlight.slot === 'rare'
+    || highlight.slot === 'premium'
+  ));
   return {
     components: riftboundMockOpeningButtons(ownerDiscordUserId, openingId, safeIndex, highlights.length, firstRareIndex, config),
     embeds: [new EmbedBuilder()
       .setColor(card.treatment === 'ultimate' ? 0xF59E0B : card.treatment === 'signature' ? 0xD946EF : 0x8B5CF6)
       .setTitle(`${getRiftboundMockSetName(setCode)} mock opening`)
-      .setDescription(`Opened ${formatXp(packsOpened)} pack${packsOpened === 1 ? '' : 's'} · all ${formatXp(cards.length)} collectible cards were added to your mock inventory.`)
+      .setDescription(`Opened ${formatXp(packsOpened)} pack${packsOpened === 1 ? '' : 's'} · all ${formatXp(cards.length)} cards were added to your mock inventory.`)
       .addFields(
         { name: 'Card', value: `**${escapeMarkdown(card.displayName)}**`, inline: true },
         { name: 'Pull', value: pullDetail, inline: true },
@@ -424,8 +484,36 @@ function buildRiftboundMockOpeningGallery(
         { name: 'Current TCGplayer market', value: formatRiftboundMockMarketValue(card.marketPriceUsd), inline: true },
       )
       .setFooter({ text: `Foil and Rare+ pull ${safeIndex + 1} of ${highlights.length} · ordered by rarity` })
-      .setImage(card.imageUrl)],
+      .setImage(includeImage ? card.imageUrl : null)],
   };
+}
+
+function validateRiftboundMockOpeningGallery(gallery: ReturnType<typeof buildRiftboundMockOpeningGallery>) {
+  for (const embed of gallery.embeds) embed.toJSON();
+  for (const row of gallery.components) {
+    for (const component of row.components) component.toJSON();
+  }
+}
+
+async function editRiftboundMockOpeningGallery(
+  interaction: ChatInputCommandInteraction | ButtonInteraction,
+  gallery: ReturnType<typeof buildRiftboundMockOpeningGallery>,
+  withoutImage: () => ReturnType<typeof buildRiftboundMockOpeningGallery>,
+) {
+  try {
+    await interaction.editReply(gallery);
+  } catch (imageReplyError) {
+    // Discord can reject an otherwise-valid message when an external image is
+    // unavailable or rejected by its proxy. Keep the pull browseable rather
+    // than leaving a saved opening stranded on that one image.
+    const fallbackGallery = withoutImage();
+    validateRiftboundMockOpeningGallery(fallbackGallery);
+    try {
+      await interaction.editReply(fallbackGallery);
+    } catch {
+      throw imageReplyError;
+    }
+  }
 }
 
 export function riftboundMockCommandErrorNote(error: unknown) {
@@ -441,6 +529,9 @@ export function riftboundMockCommandErrorNote(error: unknown) {
   }
   if (message.includes('Open up to 10 boxes')) {
     return 'Open up to 10 boxes at once so the pull gallery remains easy to browse.';
+  }
+  if (message.includes('opening was saved but the pull gallery could not be rendered')) {
+    return 'Your mock opening was saved, but Discord could not display its pull gallery. Your cards are in View Inventory.';
   }
   return 'That Riftbound mock command could not be completed right now. Please try again shortly.';
 }
@@ -498,7 +589,11 @@ async function handleRiftboundMockCommandRequest(interaction: ChatInputCommandIn
   const setOption = interaction.options.getString('set', true);
   const productOption = interaction.options.getString('product', true);
   const quantity = interaction.options.getInteger('amount', true);
-  if (!isRiftboundMockSetCode(setOption) || (productOption !== 'pack' && productOption !== 'box')) {
+  if (!isRiftboundMockSetCode(setOption)
+    || (productOption !== 'pack' && productOption !== 'box')
+    || !Number.isSafeInteger(quantity)
+    || quantity < 1
+    || quantity > 120) {
     throw new Error('Invalid Riftbound mock product selection.');
   }
   const productKind = productOption;
@@ -550,6 +645,20 @@ async function handleRiftboundMockCommandRequest(interaction: ChatInputCommandIn
   const packsOpened = productKind === 'box' ? quantity * 24 : quantity;
   const opening = await openRiftboundMockProducts(setOption, packsOpened, undefined, productKind);
   const openingId = randomUUID();
+  // Render and validate the gallery before touching sealed inventory. This
+  // prevents a malformed catalogue card or embed payload from awarding a pack
+  // that the member never gets to see.
+  const displayCards = await getRiftboundMockDisplayCards(opening.cards);
+  const gallery = buildRiftboundMockOpeningGallery(
+    interaction.user.id,
+    openingId,
+    setOption,
+    opening.packsOpened,
+    displayCards,
+    0,
+    config,
+  );
+  validateRiftboundMockOpeningGallery(gallery);
   const storedOpening = await openRiftboundMockProduct(
     config,
     openingId,
@@ -557,18 +666,30 @@ async function handleRiftboundMockCommandRequest(interaction: ChatInputCommandIn
     setOption,
     productKind,
     quantity,
-    opening.cards,
+    snapshotRiftboundMockOpeningCards(displayCards),
   );
-  const displayCards = await getRiftboundMockDisplayCards(opening.cards);
-  await interaction.editReply(buildRiftboundMockOpeningGallery(
+  cacheRiftboundMockGallery(
     interaction.user.id,
-    storedOpening.opening_id,
+    openingId,
     setOption,
     storedOpening.packs_opened,
     displayCards,
-    0,
-    config,
-  ));
+  );
+  try {
+    await editRiftboundMockOpeningGallery(interaction, gallery, () => buildRiftboundMockOpeningGallery(
+      interaction.user.id,
+      openingId,
+      setOption,
+      storedOpening.packs_opened,
+      displayCards,
+      0,
+      config,
+      false,
+    ));
+  } catch (error) {
+    console.error('Riftbound mock opening was saved but its gallery could not be rendered.', error);
+    throw new Error('Riftbound mock opening was saved but the pull gallery could not be rendered.');
+  }
 }
 
 async function handleRiftboundMockCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
@@ -576,6 +697,9 @@ async function handleRiftboundMockCommand(interaction: ChatInputCommandInteracti
     await handleRiftboundMockCommandRequest(interaction, config);
   } catch (error) {
     const content = riftboundMockCommandErrorNote(error);
+    if (content.startsWith('That Riftbound mock command could not be completed')) {
+      console.error('Riftbound mock command failed.', error);
+    }
     if (interaction.deferred) {
       await interaction.editReply({ content, embeds: [], components: [] });
       return;
@@ -4374,20 +4498,36 @@ async function handleHelpButtonInteraction(interaction: ButtonInteraction) {
   return true;
 }
 
-async function handleRiftboundMockButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
-  const [prefix, ownerDiscordUserId, openingId, indexText, ...extra] = interaction.customId.split(':');
-  if (prefix !== RIFTBOUND_MOCK_BUTTON_PREFIX) return false;
-  if (!(await isRiftboundCommandAllowedInChannel(config, interaction.channelId))) {
-    const destination = configuredChannelMentions(await getRiftboundCommandChannelIds(config));
-    await interaction.reply({
-      content: destination
-        ? `Riftbound commands are not enabled here. Use them in: ${destination}`
-        : 'Riftbound commands are not enabled in this channel. An administrator can update Discord Configuration.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return true;
+async function replyWithRiftboundMockGalleryFailure(interaction: ButtonInteraction) {
+  const content = 'This mock opening could not be loaded right now. Your saved cards are safe; please try the gallery control again shortly.';
+  try {
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+    } else {
+      await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    }
+  } catch (replyError) {
+    // The original interaction can already be expired when Discord rejects a
+    // response. Keep the failure contained so one stale panel cannot throw
+    // through the global interaction handler.
+    console.error('Riftbound mock gallery failure reply could not be sent.', replyError);
   }
-  if (extra.length > 0 || !ownerDiscordUserId || !/^[0-9]{17,20}$/.test(ownerDiscordUserId) || !/^[0-9a-f-]{36}$/i.test(openingId ?? '') || !/^\d+$/.test(indexText ?? '')) {
+}
+
+async function handleRiftboundMockButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {
+  const [prefix, ownerDiscordUserId, openingId, actionOrIndex, optionalIndexText, ...extra] = interaction.customId.split(':');
+  if (prefix !== RIFTBOUND_MOCK_BUTTON_PREFIX) return false;
+  const isSkipToRare = actionOrIndex === 'skip';
+  const indexText = isSkipToRare ? optionalIndexText : actionOrIndex;
+  const requestedIndex = Number(indexText);
+  if ((isSkipToRare ? extra.length > 0 : optionalIndexText !== undefined || extra.length > 0)
+    || !ownerDiscordUserId
+    || !/^[0-9]{17,20}$/.test(ownerDiscordUserId)
+    || !/^[0-9a-f-]{36}$/i.test(openingId ?? '')
+    || !/^\d+$/.test(indexText ?? '')
+    || !Number.isSafeInteger(requestedIndex)
+    || requestedIndex < 0
+    || requestedIndex > 10_000) {
     await interaction.reply({ content: 'This Riftbound mock opening panel is outdated.', flags: MessageFlags.Ephemeral });
     return true;
   }
@@ -4396,23 +4536,81 @@ async function handleRiftboundMockButtonInteraction(interaction: ButtonInteracti
     return true;
   }
 
-  await interaction.deferUpdate();
-  const opening = await getRiftboundMockOpening(config, openingId!, ownerDiscordUserId);
-  if (!opening) {
-    await interaction.editReply({ content: 'This mock opening is no longer available.', embeds: [], components: [] });
+  try {
+    const cachedGallery = getCachedRiftboundMockGallery(openingId!, ownerDiscordUserId);
+    if (cachedGallery) {
+      const gallery = buildRiftboundMockOpeningGallery(
+        ownerDiscordUserId,
+        openingId!,
+        cachedGallery.setCode,
+        cachedGallery.packsOpened,
+        cachedGallery.cards,
+        requestedIndex,
+        config,
+      );
+      validateRiftboundMockOpeningGallery(gallery);
+      await interaction.deferUpdate();
+      await editRiftboundMockOpeningGallery(interaction, gallery, () => buildRiftboundMockOpeningGallery(
+        ownerDiscordUserId,
+        openingId!,
+        cachedGallery.setCode,
+        cachedGallery.packsOpened,
+        cachedGallery.cards,
+        requestedIndex,
+        config,
+        false,
+      ));
+      return true;
+    }
+
+    if (!(await isRiftboundCommandAllowedInChannel(config, interaction.channelId))) {
+      const destination = configuredChannelMentions(await getRiftboundCommandChannelIds(config));
+      await interaction.reply({
+        content: destination
+          ? `Riftbound commands are not enabled here. Use them in: ${destination}`
+          : 'Riftbound commands are not enabled in this channel. An administrator can update Discord Configuration.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return true;
+    }
+
+    // A cold lookup can include database I/O. Acknowledge it before loading so
+    // Discord never expires a valid gallery click while the bot is recovering
+    // from a restart or a catalogue cache miss.
+    await interaction.deferUpdate();
+    const opening = await getRiftboundMockOpening(config, openingId!, ownerDiscordUserId);
+    if (!opening) {
+      await interaction.followUp({ content: 'This mock opening is no longer available.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const displayCards = await getRiftboundMockDisplayCards(opening.cards);
+    const gallery = buildRiftboundMockOpeningGallery(
+      ownerDiscordUserId,
+      openingId!,
+      opening.set_code,
+      opening.packs_opened,
+      displayCards,
+      requestedIndex,
+      config,
+    );
+    validateRiftboundMockOpeningGallery(gallery);
+    cacheRiftboundMockGallery(ownerDiscordUserId, openingId!, opening.set_code, opening.packs_opened, displayCards);
+    await editRiftboundMockOpeningGallery(interaction, gallery, () => buildRiftboundMockOpeningGallery(
+      ownerDiscordUserId,
+      openingId!,
+      opening.set_code,
+      opening.packs_opened,
+      displayCards,
+      requestedIndex,
+      config,
+      false,
+    ));
+    return true;
+  } catch (error) {
+    console.error('Riftbound mock gallery update failed.', error);
+    await replyWithRiftboundMockGalleryFailure(interaction);
     return true;
   }
-  const displayCards = await getRiftboundMockDisplayCards(opening.cards);
-  await interaction.editReply(buildRiftboundMockOpeningGallery(
-    ownerDiscordUserId,
-    openingId!,
-    opening.set_code,
-    opening.packs_opened,
-    displayCards,
-    Number(indexText),
-    config,
-  ));
-  return true;
 }
 
 export async function handleButtonInteraction(interaction: ButtonInteraction, config: DiscordBotConfig) {

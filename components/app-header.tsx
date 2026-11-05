@@ -16,6 +16,7 @@ import {
   LogOut,
   Menu,
   Package,
+  PackageOpen,
   Search,
   Swords,
   Trophy,
@@ -561,6 +562,14 @@ function RiftboundMenu() {
             iconClassName="border-violet-200/25 bg-violet-400 text-white"
             onSelect={closeMenu}
           />
+          <HeaderMenuLink
+            href="/riftbound/mock-opening"
+            label="Mock Opening"
+            description="Open for-fun packs and boxes"
+            icon={PackageOpen}
+            iconClassName="border-violet-200/25 bg-violet-400 text-white"
+            onSelect={closeMenu}
+          />
         </div>
       )}
     </HeaderDropdown>
@@ -761,6 +770,14 @@ function MobileHeaderMenu({
                 label="Inventory"
                 description="Cards and collection value"
                 icon={Package}
+                iconClassName="border-violet-200/25 bg-violet-400 text-white"
+                onSelect={closeMenu}
+              />
+              <HeaderMenuLink
+                href="/riftbound/mock-opening"
+                label="Mock Opening"
+                description="Open for-fun packs and boxes"
+                icon={PackageOpen}
                 iconClassName="border-violet-200/25 bg-violet-400 text-white"
                 onSelect={closeMenu}
               />

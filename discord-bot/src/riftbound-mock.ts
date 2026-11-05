@@ -33,7 +33,16 @@ type CatalogueCard = {
 
 export type RiftboundMockOpenedCard = {
   card_id: string;
+  /**
+   * A compact display snapshot captured when the pack is opened. These fields
+   * live alongside the immutable pull data in the opening JSON, not inventory,
+   * so an older public gallery remains usable after a catalogue refresh.
+   */
+  display_name?: string;
   finish: RiftboundMockFinish;
+  image_url?: string | null;
+  market_price_usd?: number | null;
+  rarity?: string;
   slot: RiftboundMockSlot;
   treatment: RiftboundMockTreatment;
 };
@@ -46,7 +55,7 @@ export type RiftboundMockOpening = {
 
 export type RiftboundMockDisplayCard = RiftboundMockOpenedCard & {
   displayName: string;
-  imageUrl: string;
+  imageUrl: string | null;
   marketPriceUsd: number | null;
   rarity: string;
 };
@@ -95,8 +104,7 @@ function isSpecialAlt(card: CatalogueCard) {
 
 function isAltArt(card: CatalogueCard) {
   return card.rarity === 'Showcase'
-    && /A$/i.test(card.collectorNumber)
-    && card.cardType !== 'Rune';
+    && /A$/i.test(card.collectorNumber);
 }
 
 async function cataloguePath() {
@@ -195,17 +203,27 @@ function isFoilEligible(card: CatalogueCard) {
   return card.finishOptions.includes('foil');
 }
 
+/** Standard foil slots exclude Runes; Showcase Rune pulls are premium cards. */
+function isFoilSlotEligible(card: CatalogueCard) {
+  return card.cardType !== 'Rune' && isFoilEligible(card);
+}
+
+function isAllowedFoilRune(card: CatalogueCard, treatment: RiftboundMockTreatment) {
+  return card.cardType !== 'Rune' || (treatment === 'alt_art' && isAltArt(card));
+}
+
 function getPool(cards: readonly CatalogueCard[], rarity: string) {
   return cards.filter((card) => card.rarity === rarity && !isTokenLike(card));
 }
 
 function makeOpenedCard(card: CatalogueCard, slot: RiftboundMockSlot, treatment: RiftboundMockTreatment = 'standard', forceFoil = false): RiftboundMockOpenedCard {
-  if ((forceFoil || treatment !== 'standard') && !isFoilEligible(card)) {
+  const isFoil = forceFoil || treatment !== 'standard' || !card.finishOptions.includes('normal');
+  if (isFoil && (!isFoilEligible(card) || !isAllowedFoilRune(card, treatment))) {
     throw new Error(`Riftbound mock attempted to foil an ineligible card: ${card.id}.`);
   }
-  const finish = forceFoil || treatment !== 'standard'
+  const finish = isFoil
     ? 'foil'
-    : (card.finishOptions.includes('normal') ? 'normal' : 'foil');
+    : 'normal';
   return { card_id: card.id, finish, slot, treatment };
 }
 
@@ -219,7 +237,7 @@ function chooseFoilCard(pools: Map<string, CatalogueCard[]>, higherRarityAlready
         ? 'Rare'
         : 'Epic';
   const eligibleRarity = higherRarityAlreadyPulled && rarity === 'Epic' ? 'Rare' : rarity;
-  const foilPool = (pools.get(eligibleRarity) ?? []).filter(isFoilEligible);
+  const foilPool = (pools.get(eligibleRarity) ?? []).filter(isFoilSlotEligible);
   return makeOpenedCard(chooseOne(foilPool, random), 'foil', 'standard', true);
 }
 
@@ -387,17 +405,68 @@ export async function openRiftboundMockProducts(
 }
 
 export async function getRiftboundMockDisplayCards(openingCards: readonly RiftboundMockOpenedCard[]) {
-  const cardsById = new Map((await getCatalogue()).map((card) => [card.id, card]));
-  return openingCards.flatMap((openingCard): RiftboundMockDisplayCard[] => {
+  const hasCompleteDisplaySnapshot = (openingCard: RiftboundMockOpenedCard): openingCard is RiftboundMockOpenedCard & {
+    display_name: string;
+    image_url: string | null;
+    market_price_usd: number | null;
+    rarity: string;
+  } => (
+    typeof openingCard.display_name === 'string'
+    && typeof openingCard.rarity === 'string'
+    && (typeof openingCard.image_url === 'string' || openingCard.image_url === null)
+    && (typeof openingCard.market_price_usd === 'number' || openingCard.market_price_usd === null)
+  );
+  const needsCatalogue = openingCards.some((openingCard) => !hasCompleteDisplaySnapshot(openingCard));
+  const cardsById = needsCatalogue
+    ? new Map((await getCatalogue()).map((card) => [card.id, card]))
+    : new Map<string, CatalogueCard>();
+
+  return openingCards.map((openingCard): RiftboundMockDisplayCard => {
+    if (hasCompleteDisplaySnapshot(openingCard)) {
+      return {
+        ...openingCard,
+        displayName: openingCard.display_name,
+        imageUrl: openingCard.image_url,
+        marketPriceUsd: openingCard.market_price_usd,
+        rarity: openingCard.rarity,
+      };
+    }
     const card = cardsById.get(openingCard.card_id);
-    return card ? [{
+    if (card) {
+      return {
+        ...openingCard,
+        displayName: card.displayName,
+        imageUrl: card.imageUrl,
+        marketPriceUsd: card.marketPrices?.[openingCard.finish] ?? null,
+        rarity: card.rarity,
+      };
+    }
+
+    // Do not make a persisted opening unbrowseable because a future catalogue
+    // update removed or renamed a print. This can occur for legacy rows that
+    // predate display snapshots. Its slot still lets the gallery show it.
+    return {
       ...openingCard,
-      displayName: card.displayName,
-      imageUrl: card.imageUrl,
-      marketPriceUsd: card.marketPrices?.[openingCard.finish] ?? null,
-      rarity: card.rarity,
-    }] : [];
+      displayName: `Unknown Riftbound card (${openingCard.card_id})`,
+      imageUrl: null,
+      marketPriceUsd: null,
+      rarity: 'Unknown',
+    };
   });
+}
+
+/** Adds the display data needed to render an opening after a catalogue deploy. */
+export function snapshotRiftboundMockOpeningCards(cards: readonly RiftboundMockDisplayCard[]): RiftboundMockOpenedCard[] {
+  return cards.map((card) => ({
+    card_id: card.card_id,
+    display_name: card.displayName,
+    finish: card.finish,
+    image_url: card.imageUrl,
+    market_price_usd: card.marketPriceUsd,
+    rarity: card.rarity,
+    slot: card.slot,
+    treatment: card.treatment,
+  }));
 }
 
 export function getRiftboundMockSetName(setCode: RiftboundMockSetCode) {
@@ -409,7 +478,12 @@ export function isRiftboundMockSetCode(value: string): value is RiftboundMockSet
 }
 
 export function isRiftboundMockHighlight(card: RiftboundMockDisplayCard) {
-  return card.finish === 'foil' || card.rarity === 'Rare' || card.rarity === 'Epic' || card.treatment !== 'standard';
+  return card.finish === 'foil'
+    || card.slot === 'rare'
+    || card.slot === 'premium'
+    || card.rarity === 'Rare'
+    || card.rarity === 'Epic'
+    || card.treatment !== 'standard';
 }
 
 export function formatRiftboundMockTreatment(treatment: RiftboundMockTreatment) {

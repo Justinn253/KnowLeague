@@ -18,6 +18,7 @@ const sections = [
       'Profile details you choose to save, such as display name, about me text, friend settings, Discord username, and linked Riot account name.',
       'Riot account information you search for or link, including Riot ID, platform/region, public summoner details, ranked entries, match history, champion mastery, and challenge data returned by Riot APIs.',
       'Game and multiplayer data, including lobby codes, player progress, chat messages, friend requests, direct messages, contact submissions, and local gameplay statistics.',
+      'If you enable Public Game Statistics, a limited aggregate projection of your game totals, streaks, win/loss record, and accuracy may be shown on your public profile. Individual guesses, game dates, item or skin details, and match identifiers are not included in that public projection.',
       'Technical information such as request logs, IP-derived rate limiting data, browser storage used for session recovery, and error diagnostics.',
     ],
   },
@@ -57,6 +58,7 @@ const sections = [
     title: 'Sharing',
     body: [
       'Public profile information may be visible to other users. Private account fields are intended to remain available only to the owner and server-side features.',
+      'Public Game Statistics are off by default. You can turn them on or off in Account Info at any time; turning them off stops public profile responses from including the aggregate projection.',
       'We do not sell personal information. Any future advertising, analytics, or payments will be disclosed before launch and handled according to the applicable service settings and consent choices.',
       'We may disclose information when required for security, abuse prevention, legal compliance, or service operation.',
     ],

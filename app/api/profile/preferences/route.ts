@@ -9,13 +9,14 @@ export const runtime = 'nodejs';
 type ProfilePreferencesBody = {
   profileStatus?: unknown;
   friendsListPublic?: unknown;
+  publicStatsEnabled?: unknown;
 };
 
 export const PUT = withApiMetrics('/api/profile/preferences', async function PUT(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     const body = await readJsonBody<ProfilePreferencesBody>(request);
-    const updates: { profileStatus?: string; friendsListPublic?: boolean } = {};
+    const updates: { profileStatus?: string; friendsListPublic?: boolean; publicStatsEnabled?: boolean } = {};
 
     if (body.profileStatus !== undefined) {
       if (typeof body.profileStatus !== 'string') {
@@ -32,6 +33,13 @@ export const PUT = withApiMetrics('/api/profile/preferences', async function PUT
         throw new Error('Friends-list visibility must be a boolean.');
       }
       updates.friendsListPublic = body.friendsListPublic;
+    }
+
+    if (body.publicStatsEnabled !== undefined) {
+      if (typeof body.publicStatsEnabled !== 'boolean') {
+        throw new Error('Public-statistics visibility must be a boolean.');
+      }
+      updates.publicStatsEnabled = body.publicStatsEnabled;
     }
 
     const settings = await updateProfileSettings(user.id, updates);

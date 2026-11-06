@@ -52,7 +52,7 @@ export const PATCH = withApiMetrics('/api/moderation/users', async function PATC
       throw new Error('role must be user or moderator.');
     }
 
-    await setStoredModeratorRole(targetUserId, role);
+    await setStoredModeratorRole(user.id, targetUserId, role);
     return NextResponse.json({ ok: true }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
@@ -70,7 +70,7 @@ export const POST = withApiMetrics('/api/moderation/users', async function POST(
       const message = requireString(body.message, 'message');
       await sendModerationDirectMessage(user.id, targetUserId, message);
     } else if (body.action === 'logout') {
-      await forceUserLogout(targetUserId);
+      await forceUserLogout(user.id, targetUserId);
     } else if (body.action === 'ban') {
       await setUserBanState(targetUserId, true, user.id, body.reason?.trim() || 'Moderation action');
     } else if (body.action === 'unban') {

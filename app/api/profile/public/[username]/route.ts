@@ -8,6 +8,7 @@ import { isAdminAuthUser } from '@/lib/moderation';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 import { getIpRateLimit } from '@/lib/abuse-controls';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
+import { createPublicProfileStats } from '@/lib/public-profile-stats';
 
 export const runtime = 'nodejs';
 const publicProfileRateLimit = getIpRateLimit('publicProfile');
@@ -25,9 +26,15 @@ type PublicProfileRow = {
   friend_requests_open: boolean;
   profile_status?: string | null;
   friends_list_public?: boolean | null;
+  public_stats_enabled?: boolean | null;
   selected_title_reward_id?: string | null;
   displayed_badge_reward_ids?: string[] | null;
   created_at: string;
+};
+
+type PrivateProfileStatsRow = {
+  player_game_stats: unknown;
+  detailed_game_stats: unknown;
 };
 
 type PrivateProfileDetailsRow = {
@@ -82,6 +89,17 @@ async function fetchPrivateDetails(userId: string) {
   return data;
 }
 
+async function fetchPrivateStats(userId: string) {
+  const { data, error } = await getSupabaseServiceClient()
+    .from('profile_private_details')
+    .select('player_game_stats, detailed_game_stats')
+    .eq('user_id', userId)
+    .maybeSingle<PrivateProfileStatsRow>();
+
+  if (error) throw error;
+  return data;
+}
+
 export const GET = withApiMetrics('/api/profile/public/[username]', async function GET(request: Request, { params }: { params: { username: string } }) {
   try {
     const rateLimitResponse = await enforceApiRateLimit(request, {
@@ -114,7 +132,7 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
 
     let { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, profile_visibility, friends_count, friend_requests_open, profile_status, friends_list_public, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+      .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, profile_visibility, friends_count, friend_requests_open, profile_status, friends_list_public, public_stats_enabled, selected_title_reward_id, displayed_badge_reward_ids, created_at')
       .eq('id', matchingProfile.id)
       .maybeSingle<PublicProfileRow>();
 
@@ -135,6 +153,16 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
         .eq('id', matchingProfile.id)
         .maybeSingle<Omit<PublicProfileRow, 'profile_status' | 'friends_list_public'>>();
       profile = fallback.data ? { ...fallback.data, profile_status: '', friends_list_public: true } : null;
+      error = fallback.error;
+    }
+
+    if (error && isMissingColumnError(error, 'public_stats_enabled')) {
+      const fallback = await supabase
+        .from('profiles')
+        .select('id, username, display_name, about_me, avatar_url, chat_color, chat_border, profile_visibility, friends_count, friend_requests_open, profile_status, friends_list_public, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .eq('id', matchingProfile.id)
+        .maybeSingle<Omit<PublicProfileRow, 'public_stats_enabled'>>();
+      profile = fallback.data ? { ...fallback.data, public_stats_enabled: false } : null;
       error = fallback.error;
     }
 
@@ -163,8 +191,12 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
     }
 
     const canViewLinkedAccountDetails = viewerIsAdmin || viewerId === profile.id;
-    const [privateDetails, relationshipDetails, achievements, moderationProfile] = await Promise.all([
+    const canViewPublicStats = canViewLinkedAccountDetails || (
+      profile.profile_visibility === 'public' && profile.public_stats_enabled === true
+    );
+    const [privateDetails, privateStats, relationshipDetails, achievements, moderationProfile] = await Promise.all([
       canViewLinkedAccountDetails ? fetchPrivateDetails(profile.id) : Promise.resolve(null),
+      canViewPublicStats ? fetchPrivateStats(profile.id) : Promise.resolve(null),
       viewerId ? getFriendRelationshipDetails(viewerId, profile.id) : { relationship: 'none' as const, friendNote: '', blocked: false, blockedByViewer: false },
       getUserAchievements(profile.id),
       viewerIsAdmin
@@ -187,6 +219,10 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
         riot_account_name: privateDetails?.riot_account_name ?? null,
         profile_status: profile.profile_status ?? '',
         friends_list_public: profile.friends_list_public !== false,
+        public_stats_visible: canViewPublicStats,
+        public_stats: canViewPublicStats
+          ? createPublicProfileStats(privateStats?.player_game_stats, privateStats?.detailed_game_stats)
+          : null,
         selected_title_reward_id: profile.selected_title_reward_id ?? null,
         displayed_badge_reward_ids: profile.displayed_badge_reward_ids ?? [],
         achievements,

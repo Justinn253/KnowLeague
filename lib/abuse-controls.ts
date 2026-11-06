@@ -82,6 +82,10 @@ export const ABUSE_RATE_LIMITS: Record<string, RateLimitRule | DualRateLimitRule
     ip: { limit: 60, windowMs: 60_000 },
     subject: { limit: 30, windowMs: 60_000 },
   },
+  friendPresence: {
+    ip: { limit: 60, windowMs: 60_000 },
+    subject: { limit: 20, windowMs: 60_000 },
+  },
   anonymousGameSubmission: { limit: 30, windowMs: 60_000 },
   gameAction: {
     ip: { limit: 120, windowMs: 60_000 },

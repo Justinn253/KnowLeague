@@ -15,6 +15,8 @@ export type FriendProfileSummary = {
   riotAccountName: string | null;
   profileStatus: string;
   online: boolean;
+  away: boolean;
+  presenceUpdatedAt: string | null;
   unreadCount: number;
   chatColor: string;
   chatBorder: string;
@@ -45,6 +47,12 @@ type ProfileRow = {
   profile_visibility?: 'public' | 'private' | null;
 };
 
+type SocialPresenceRow = {
+  user_id: string;
+  status: 'online' | 'away' | 'offline';
+  updated_at: string;
+};
+
 type PrivateProfileDetailsRow = {
   user_id: string;
   discord_username: string | null;
@@ -72,7 +80,7 @@ type FriendMessageRow = {
   chat_border?: string | null;
 };
 
-const ONLINE_WINDOW_MS = 20 * 1000;
+const SOCIAL_PRESENCE_STALE_MS = 6 * 60 * 1000;
 type FriendRequestResult = 'requested' | 'accepted';
 export type PublicFriendRelationship = 'friend' | 'pending' | 'none';
 export type FriendRelationshipDetails = {
@@ -84,8 +92,16 @@ export type FriendRelationshipDetails = {
 let endedAtColumnAvailable: boolean | null = null;
 let friendPreferenceColumnsAvailable: boolean | null = null;
 
-function isOnline(lastSeenAt?: string | null) {
-  return Boolean(lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < ONLINE_WINDOW_MS);
+function hasFreshPresence(updatedAt?: string | null) {
+  return Boolean(updatedAt && Date.now() - new Date(updatedAt).getTime() < SOCIAL_PRESENCE_STALE_MS);
+}
+
+function isOnline(presence?: SocialPresenceRow | null) {
+  return presence?.status === 'online' && hasFreshPresence(presence.updated_at);
+}
+
+function isAway(presence?: SocialPresenceRow | null) {
+  return presence?.status === 'away' && hasFreshPresence(presence.updated_at);
 }
 
 function getFriendId(friendship: FriendshipRow, userId: string) {
@@ -105,6 +121,7 @@ function toSummary(
     privateDetails?: PrivateProfileDetailsRow | null;
     friendNote?: string;
     favorite?: boolean;
+    presence?: SocialPresenceRow | null;
   } = {},
 ): FriendProfileSummary {
   return {
@@ -118,7 +135,9 @@ function toSummary(
     discordAvatarUrl: options.privateDetails?.discord_avatar_url ?? null,
     riotAccountName: options.privateDetails?.riot_account_name ?? null,
     profileStatus: profile.profile_status?.trim().slice(0, 50) ?? '',
-    online: isOnline(profile.last_seen_at),
+    online: isOnline(options.presence),
+    away: isAway(options.presence),
+    presenceUpdatedAt: options.presence?.updated_at ?? null,
     unreadCount,
     chatColor: normalizeChatColor(profile.chat_color),
     chatBorder: normalizeChatBorder(profile.chat_border),
@@ -247,6 +266,45 @@ async function selectProfilesByIds(supabase: ReturnType<typeof getSupabaseServic
 
   if (error) throw error;
   return data ?? [];
+}
+
+function isMissingSocialPresenceError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeError = error as { code?: string; message?: string; details?: string };
+  const text = `${maybeError.message ?? ''} ${maybeError.details ?? ''}`.toLowerCase();
+  return maybeError.code === '42P01'
+    || maybeError.code === 'PGRST205'
+    || text.includes('social_presence');
+}
+
+async function selectSocialPresenceByUserIds(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  ids: string[],
+) {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) {
+    return new Map<string, SocialPresenceRow>();
+  }
+
+  const { data, error } = await supabase
+    .from('social_presence')
+    .select('user_id, status, updated_at')
+    .in('user_id', uniqueIds)
+    .returns<SocialPresenceRow[]>();
+
+  // Keep normal profile and friendship features usable while this new migration
+  // rolls through environments. Presence simply renders offline until then.
+  if (isMissingSocialPresenceError(error)) {
+    return new Map<string, SocialPresenceRow>();
+  }
+  if (error) {
+    throw error;
+  }
+
+  return new Map((data ?? []).map((presence) => [presence.user_id, presence]));
 }
 
 function isMissingProfileStatusError(error: unknown) {
@@ -480,11 +538,12 @@ export async function getFriendDashboard(userId: string) {
       .returns<Array<{ friendship_id: string; last_read_at: string }>>()
     : Promise.resolve({ data: [] as Array<{ friendship_id: string; last_read_at: string }>, error: null });
 
-  const [profiles, privateDetailsByUserId, incomingResult, readRowsResult] = await Promise.all([
+  const [profiles, privateDetailsByUserId, incomingResult, readRowsResult, presenceByUserId] = await Promise.all([
     selectProfilesByIds(supabase, [userId, ...friendIds]),
     selectPrivateDetailsByUserIds(supabase, friendIds),
     incomingRequest,
     readRowsRequest,
+    selectSocialPresenceByUserIds(supabase, [userId, ...friendIds]),
   ]);
   const currentProfile = profiles.find((profile) => profile.id === userId) ?? null;
   const friendIdSet = new Set(friendIds);
@@ -520,23 +579,39 @@ export async function getFriendDashboard(userId: string) {
         privateDetails: privateDetailsByUserId.get(profile.id) ?? null,
         friendNote: viewerIsUserOne ? friendship?.user_one_note ?? '' : friendship?.user_two_note ?? '',
         favorite: viewerIsUserOne ? Boolean(friendship?.user_one_favorite) : Boolean(friendship?.user_two_favorite),
+        presence: presenceByUserId.get(profile.id) ?? null,
       });
     })
     .sort((left, right) => Number(right.favorite) - Number(left.favorite) || Number(right.online) - Number(left.online) || left.displayName.localeCompare(right.displayName));
 
   const incomingRequests: IncomingFriendRequest[] = (incoming ?? []).map((request) => ({
     id: request.id,
+    // A pending request is not a friendship. Do not expose the requester's
+    // operational presence before the relationship is accepted.
     requester: toSummary(request.requester),
     createdAt: request.created_at,
   }));
 
   return {
-    currentUser: currentProfile ? toSummary(currentProfile) : null,
+    currentUser: currentProfile ? toSummary(currentProfile, 0, '', {
+      presence: presenceByUserId.get(currentProfile.id) ?? null,
+    }) : null,
     friends,
     incomingRequests,
     pendingRequestCount: incomingRequests.length,
     onlineFriendCount: friends.filter((friend) => friend.online).length,
   };
+}
+
+export type SocialPresenceStatus = 'online' | 'away' | 'offline';
+
+export async function updateSocialPresence(userId: string, status: SocialPresenceStatus) {
+  const now = new Date().toISOString();
+  const { error } = await getSupabaseServiceClient()
+    .from('social_presence')
+    .upsert({ user_id: userId, status, updated_at: now }, { onConflict: 'user_id' });
+
+  if (error) throw error;
 }
 
 export type PublicFriendPreview = {
@@ -548,6 +623,7 @@ export type PublicFriendPreview = {
   profileStatus: string;
   createdAt: string | null;
   online: boolean;
+  away: boolean;
   favorite: boolean;
 };
 
@@ -583,6 +659,18 @@ export async function getPublicFriendList(targetUserId: string, viewerId: string
   const publicProfiles = viewerIsAdmin || viewerId === targetUserId
     ? profiles
     : profiles.filter((profile) => profile.profile_visibility !== 'private');
+  const viewerFriendIds = viewerId && !viewerIsAdmin && viewerId !== targetUserId
+    ? new Set((await getActiveFriendshipsForUser(supabase, viewerId)).map((friendship) => getFriendId(friendship, viewerId)))
+    : null;
+  const presenceVisibleIds = publicProfiles
+    .filter((profile) => (
+      viewerIsAdmin
+      || viewerId === targetUserId
+      || profile.id === viewerId
+      || viewerFriendIds?.has(profile.id)
+    ))
+    .map((profile) => profile.id);
+  const presenceByUserId = await selectSocialPresenceByUserIds(supabase, presenceVisibleIds);
 
   return {
     visible: true,
@@ -594,7 +682,8 @@ export async function getPublicFriendList(targetUserId: string, viewerId: string
       chatColor: normalizeChatColor(profile.chat_color),
       profileStatus: profile.profile_status?.trim().slice(0, 50) ?? '',
       createdAt: profile.created_at ?? null,
-      online: isOnline(profile.last_seen_at),
+      online: isOnline(presenceByUserId.get(profile.id)),
+      away: isAway(presenceByUserId.get(profile.id)),
       favorite: isFriendFavorite(friendshipByFriendId.get(profile.id), targetUserId),
     })),
   };
@@ -675,7 +764,10 @@ export async function searchFriendCandidates(userId: string, query: string) {
     request.requester_id === userId ? 'outgoing' : 'incoming',
   ]));
 
-  const privateDetailsByUserId = await selectPrivateDetailsByUserIds(supabase, (profileRows ?? []).map((profile) => profile.id));
+  const privateDetailsByUserId = await selectPrivateDetailsByUserIds(
+    supabase,
+    (profileRows ?? []).map((profile) => profile.id),
+  );
 
   return [...(profileRows ?? [])]
     .sort((left, right) => (
@@ -683,7 +775,9 @@ export async function searchFriendCandidates(userId: string, query: string) {
       || left.username.localeCompare(right.username)
     ))
     .map((profile) => ({
-    ...toSummary(profile, 0, '', { privateDetails: privateDetailsByUserId.get(profile.id) ?? null }),
+    ...toSummary(profile, 0, '', {
+      privateDetails: privateDetailsByUserId.get(profile.id) ?? null,
+    }),
     friendRequestsOpen: profile.friend_requests_open,
     blocked: blockedUserIds.has(profile.id),
     relationship: friendIds.has(profile.id) ? 'friend' : pendingByUserId.get(profile.id) ?? 'none',

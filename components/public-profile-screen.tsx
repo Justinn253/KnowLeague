@@ -14,6 +14,7 @@ import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import { ProfileScreen } from '@/components/profile-screen';
 import { ProfileFriendsMenu } from '@/components/profile-friends-menu';
 import { getProfileTabFromUrl, pushProfileTabToUrl } from '@/lib/profile-tabs';
+import type { PublicProfileStats, PublicQuizModeStats } from '@/lib/public-profile-stats';
 
 type PublicProfileRecord = {
   id: string;
@@ -28,6 +29,8 @@ type PublicProfileRecord = {
   friend_requests_open: boolean;
   profile_status: string;
   friends_list_public: boolean;
+  public_stats_visible: boolean;
+  public_stats: PublicProfileStats | null;
   discord_username: string | null;
   discord_avatar_url: string | null;
   discord_banner_url: string | null;
@@ -122,7 +125,15 @@ function PublicCompactStat({ label, value, title }: { label: string; value: stri
   );
 }
 
-function PublicQuizStatsSection({ title, statsTarget, isAdmin, onResetStats, resetBusy, resetConfirming }: { title: string; statsTarget: AdminStatsTarget; isAdmin: boolean; onResetStats: (target: AdminStatsTarget) => void; resetBusy: boolean; resetConfirming: boolean }) {
+function getQuizCorrectPercent(stats: PublicQuizModeStats) {
+  return stats.totalGuesses > 0 ? `${Math.round((stats.correctGuesses / stats.totalGuesses) * 100)}%` : '0%';
+}
+
+function getQuizWinPercent(stats: PublicQuizModeStats) {
+  return stats.matchesPlayed > 0 ? `${Math.round((stats.matchesWon / stats.matchesPlayed) * 100)}%` : '0%';
+}
+
+function PublicQuizStatsSection({ title, statsTarget, stats, isAdmin, onResetStats, resetBusy, resetConfirming }: { title: string; statsTarget: AdminStatsTarget; stats: PublicProfileStats['abilityBlitz']; isAdmin: boolean; onResetStats: (target: AdminStatsTarget) => void; resetBusy: boolean; resetConfirming: boolean }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
       <div className="mb-3 flex items-center justify-between gap-3 px-1">
@@ -142,26 +153,32 @@ function PublicQuizStatsSection({ title, statsTarget, isAdmin, onResetStats, res
         <span className="text-xs font-semibold text-slate-300">Current / Best streak</span>
       </div>
       <div className="grid gap-2">
-        {['Solo', 'Multiplayer'].map((mode) => (
+        {(['solo', 'multiplayer'] as const).map((mode) => {
+          const modeStats = stats[mode];
+          const multiplayer = mode === 'multiplayer';
+          return (
           <div key={mode} className="grid gap-2 rounded-xl border border-white/10 bg-slate-900/55 p-3 lg:grid-cols-[7rem_repeat(6,minmax(0,1fr))] lg:items-center">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-white">{mode}</p>
-              {mode === 'Multiplayer' ? <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">Not public</p> : null}
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-white">{multiplayer ? 'Multiplayer' : 'Solo'}</p>
+              {multiplayer ? <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">Aggregate record</p> : null}
             </div>
-            <PublicCompactStat label="Played" value="-" />
-            <PublicCompactStat label="Streak" value="- / -" title="Current streak / best streak" />
-            <PublicCompactStat label="Guesses" value="-" />
-            <PublicCompactStat label="Correct" value="-" />
-            <PublicCompactStat label="Avg/item" value="-" />
-            <PublicCompactStat label={mode === 'Multiplayer' ? 'Win %' : 'Record'} value="-" />
+            <PublicCompactStat label="Played" value={modeStats.totalPlayed} />
+            <PublicCompactStat label="Streak" value={`${modeStats.currentStreak} / ${modeStats.bestStreak}`} title="Current streak / best streak" />
+            <PublicCompactStat label="Guesses" value={modeStats.totalGuesses} />
+            <PublicCompactStat label="Correct" value={getQuizCorrectPercent(modeStats)} />
+            <PublicCompactStat label="Avg/item" value={`${modeStats.averageSecondsPerCompletedItem}s`} />
+            <PublicCompactStat label={multiplayer ? 'Win %' : 'Items'} value={multiplayer ? getQuizWinPercent(modeStats) : modeStats.completedItems} />
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
 }
 
-function PublicSmallStatsPanels({ isAdmin, onResetStats, resetBusy, resetConfirmTarget }: { isAdmin: boolean; onResetStats: (target: AdminStatsTarget) => void; resetBusy: boolean; resetConfirmTarget: AdminStatsTarget | null }) {
+function PublicSmallStatsPanels({ stats, isAdmin, onResetStats, resetBusy, resetConfirmTarget }: { stats: PublicProfileStats; isAdmin: boolean; onResetStats: (target: AdminStatsTarget) => void; resetBusy: boolean; resetConfirmTarget: AdminStatsTarget | null }) {
+  const skindle = stats.skindle;
+  const skincognito = stats.skincognito;
   return (
     <div className="grid gap-3 xl:grid-cols-2">
       <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
@@ -174,14 +191,14 @@ function PublicSmallStatsPanels({ isAdmin, onResetStats, resetBusy, resetConfirm
               </button>
             ) : null}
           </div>
-          <span title="Current streak / best streak" className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">- / -</span>
+          <span title="Current streak / best streak" className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">{skindle.currentStreak} / {skindle.highestStreak}</span>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <PublicCompactStat label="Played" value="-" />
-          <PublicCompactStat label="Avg guesses" value="-" />
-          <PublicCompactStat label="Total guesses" value="-" />
+          <PublicCompactStat label="Played" value={skindle.gamesCompleted} />
+          <PublicCompactStat label="Avg guesses" value={skindle.averageGuesses} />
+          <PublicCompactStat label="Total guesses" value={skindle.totalGuesses} />
         </div>
-        <p className="mt-3 text-xs text-slate-500">Public Skindle stats are not synced yet.</p>
+        <p className="mt-3 text-xs text-slate-500">Aggregate game statistics only.</p>
       </article>
 
       <article className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
@@ -194,19 +211,15 @@ function PublicSmallStatsPanels({ isAdmin, onResetStats, resetBusy, resetConfirm
               </button>
             ) : null}
           </div>
-          <span title="Current streak / best streak" className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">- / -</span>
+          <span title="Current streak / best streak" className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">{skincognito.currentStreak} / {skincognito.bestStreak}</span>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-4">
-          <PublicCompactStat label="Played" value="-" />
-          <PublicCompactStat label="Record" value="-" />
-          <PublicCompactStat label="Win %" value="-" />
-          <PublicCompactStat label="Guesses" value="-" />
-          <PublicCompactStat label="Correct" value="-" />
-          <PublicCompactStat label="Avg turns" value="-" />
-          <div className="rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 sm:col-span-2">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-500">Most guessed skin</p>
-            <p className="mt-0.5 truncate text-base font-black text-white">-</p>
-          </div>
+          <PublicCompactStat label="Played" value={skincognito.totalPlayed} />
+          <PublicCompactStat label="Record" value={`${skincognito.totalWins} / ${skincognito.totalLosses}`} />
+          <PublicCompactStat label="Win %" value={skincognito.totalPlayed > 0 ? `${Math.round((skincognito.totalWins / skincognito.totalPlayed) * 100)}%` : '0%'} />
+          <PublicCompactStat label="Guesses" value={skincognito.totalGuesses} />
+          <PublicCompactStat label="Correct" value={skincognito.totalGuesses > 0 ? `${Math.round((skincognito.correctGuesses / skincognito.totalGuesses) * 100)}%` : '0%'} />
+          <PublicCompactStat label="Avg turns" value={skincognito.averageVictoryTurns} />
         </div>
       </article>
     </div>
@@ -1569,6 +1582,13 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
 
               {activeTab === 'stats' ? (
                 <div className="mt-5 grid gap-3">
+                  {!profile.public_stats_visible || !profile.public_stats ? (
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-8 text-center">
+                      <p className="text-base font-black text-white">Game statistics are private</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">This player has not chosen to share aggregate game statistics on their public profile.</p>
+                    </div>
+                  ) : (
+                    <>
                   {isAdmin && ownerView === false ? (
                     <div className="flex justify-end">
                       <button
@@ -1584,6 +1604,7 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
                   <PublicQuizStatsSection
                     title="Ability Blitz"
                     statsTarget="ability-blitz"
+                    stats={profile.public_stats.abilityBlitz}
                     isAdmin={isAdmin && ownerView === false}
                     onResetStats={(target) => requestAdminConfirmation(`reset-stats-${target}`, 'reset_stats', { statsTarget: target }, 'Game stats reset.')}
                     resetBusy={adminBusy === 'reset_stats'}
@@ -1592,17 +1613,21 @@ export function PublicProfileScreen({ username }: PublicProfileScreenProps) {
                   <PublicQuizStatsSection
                     title="Skin Champion"
                     statsTarget="skin-champion"
+                    stats={profile.public_stats.skinChampion}
                     isAdmin={isAdmin && ownerView === false}
                     onResetStats={(target) => requestAdminConfirmation(`reset-stats-${target}`, 'reset_stats', { statsTarget: target }, 'Game stats reset.')}
                     resetBusy={adminBusy === 'reset_stats'}
                     resetConfirming={adminConfirmAction === 'reset-stats-skin-champion'}
                   />
                   <PublicSmallStatsPanels
+                    stats={profile.public_stats}
                     isAdmin={isAdmin && ownerView === false}
                     onResetStats={(target) => requestAdminConfirmation(`reset-stats-${target}`, 'reset_stats', { statsTarget: target }, 'Game stats reset.')}
                     resetBusy={adminBusy === 'reset_stats'}
                     resetConfirmTarget={adminConfirmAction.startsWith('reset-stats-') ? adminConfirmAction.replace('reset-stats-', '') as AdminStatsTarget : null}
                   />
+                    </>
+                  )}
                 </div>
               ) : null}
 

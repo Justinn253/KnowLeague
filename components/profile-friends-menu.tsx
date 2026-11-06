@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Search, Users, X } from 'lucide-react';
 import Link from 'next/link';
-import { subscribeToRealtimeChannel } from '@/components/multiplayer-realtime';
 import { ToggleSwitch } from '@/components/toggle-switch';
 import { getChatNameStyle } from '@/lib/chat-colors';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
@@ -19,12 +18,8 @@ type ProfileFriendPreview = {
   profileStatus: string;
   createdAt: string | null;
   online: boolean;
-  favorite: boolean;
-};
-
-type PresenceState = {
-  online: boolean;
   away: boolean;
+  favorite: boolean;
 };
 
 type ProfileFriendsMenuProps = {
@@ -41,9 +36,9 @@ function formatJoinDate(value: string | null) {
   return `Joined ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date)}`;
 }
 
-function getPresenceClass(presence: PresenceState | undefined, fallbackOnline: boolean) {
-  if (presence?.away) return 'bg-amber-300';
-  if (presence?.online ?? fallbackOnline) return 'bg-emerald-400';
+function getPresenceClass(online: boolean, away: boolean) {
+  if (away) return 'bg-amber-300';
+  if (online) return 'bg-emerald-400';
   return 'bg-slate-600';
 }
 
@@ -55,7 +50,6 @@ export function ProfileFriendsMenu({ username, count, isOwner, initialListPublic
   const [loading, setLoading] = useState(false);
   const [savingVisibility, setSavingVisibility] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [presenceByUserId, setPresenceByUserId] = useState<Map<string, PresenceState>>(new Map());
   const [error, setError] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -79,47 +73,6 @@ export function ProfileFriendsMenu({ username, count, isOwner, initialListPublic
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [open]);
-
-  useEffect(() => {
-    const supabase = getOptionalSupabaseClient();
-    if (!open || !supabase || friends.length === 0) {
-      setPresenceByUserId(new Map());
-      return undefined;
-    }
-
-    const channels = friends.map((friend) => {
-      const topic = `realtime:knowleague-user-presence:${friend.id}`;
-      const existingChannel = supabase.getChannels().find((channel) => channel.topic === topic);
-      return {
-        friendId: friend.id,
-        channel: existingChannel ?? supabase.channel(`knowleague-user-presence:${friend.id}`),
-        owned: !existingChannel,
-      };
-    });
-    const syncPresence = () => {
-      const nextPresence = new Map<string, PresenceState>();
-      channels.forEach(({ friendId, channel }) => {
-        const state = channel.presenceState<{ userId?: string; away?: boolean }>();
-        const entry = Object.values(state).flat().find((presence) => presence.userId === friendId);
-        if (entry) nextPresence.set(friendId, { online: !entry.away, away: Boolean(entry.away) });
-      });
-      setPresenceByUserId(nextPresence);
-    };
-
-    channels.forEach(({ channel }) => {
-      // The shared friends widget may already own the presence channel. Polling
-      // the channel state here avoids registering callbacks after subscribe().
-      subscribeToRealtimeChannel(channel, syncPresence);
-    });
-    const presencePoll = window.setInterval(syncPresence, 15_000);
-
-    return () => {
-      window.clearInterval(presencePoll);
-      channels.forEach(({ channel, owned }) => {
-        if (owned) void supabase.removeChannel(channel);
-      });
-    };
-  }, [friends, open]);
 
   const loadFriends = async () => {
     if (loading) return;
@@ -247,7 +200,6 @@ export function ProfileFriendsMenu({ username, count, isOwner, initialListPublic
           ) : (
             <div className={`mt-3 grid max-h-[min(28rem,calc(100dvh-14rem))] gap-2 overflow-x-hidden overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}>
               {filteredFriends.map((friend) => {
-                const presence = presenceByUserId.get(friend.id);
                 return (
                   <Link
                     key={friend.id}
@@ -264,7 +216,7 @@ export function ProfileFriendsMenu({ username, count, isOwner, initialListPublic
                       >
                         {friend.avatarUrl ? null : friend.displayName.slice(0, 1).toUpperCase()}
                       </span>
-                      <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 ${getPresenceClass(presence, friend.online)}`} />
+                      <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 ${getPresenceClass(friend.online, friend.away)}`} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-1.5">

@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server';
 import { logServerEvent } from '@/lib/server-log';
 import { MAX_API_BODY_BYTES } from '@/lib/abuse-controls';
 
+/**
+ * Apply this to successful responses containing account, staff, or
+ * viewer-specific data. Those responses must never be stored by a browser or
+ * intermediary cache where another session could receive them.
+ */
+export const PRIVATE_NO_STORE_HEADERS: Record<string, string> = {
+  'Cache-Control': 'private, no-store',
+};
+
 export class ApiError extends Error {
   readonly status: number;
 

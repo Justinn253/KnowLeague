@@ -130,6 +130,7 @@ export function ProfileFriendsMenu({ username, count, isOwner, initialListPublic
       const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
       const response = await fetch(`/api/profile/public/${encodeURIComponent(username)}/friends`, {
         headers: data.session ? { Authorization: `Bearer ${data.session.access_token}` } : undefined,
+        cache: 'no-store',
       });
       const body = await response.json() as { friends?: ProfileFriendPreview[]; visible?: boolean; error?: string };
       if (!response.ok) throw new Error(body.error ?? 'Unable to load friends.');

@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { getApiMetricSummary, withApiMetrics } from '@/lib/api-metrics';
+import { PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 
 export const runtime = 'nodejs';
 
-const privateJsonHeaders = { 'Cache-Control': 'private, no-store' };
 const staffJson = (body: unknown, status = 200) => NextResponse.json(body, {
   status,
-  headers: privateJsonHeaders,
+  headers: PRIVATE_NO_STORE_HEADERS,
 });
 
 export const GET = withApiMetrics('/api/staff/api-metrics', async function GET(request: Request) {

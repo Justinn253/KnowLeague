@@ -1,7 +1,7 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-server';
-import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody, requireString } from '@/lib/api-utils';
 import { listModerationContactSubmissions, requireModerationAccess, updateContactSubmissionModeration, type ModerationTicketStatus } from '@/lib/moderation';
 
 type ContactModerationBody = {
@@ -16,7 +16,10 @@ export const GET = withApiMetrics('/api/moderation/contacts', async function GET
   try {
     const user = await getAuthenticatedUser(request);
     await requireModerationAccess(user);
-    return NextResponse.json({ submissions: await listModerationContactSubmissions() });
+    return NextResponse.json(
+      { submissions: await listModerationContactSubmissions() },
+      { headers: PRIVATE_NO_STORE_HEADERS },
+    );
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -33,7 +36,7 @@ export const PATCH = withApiMetrics('/api/moderation/contacts', async function P
       status: body.status,
       severity: body.severity,
     });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

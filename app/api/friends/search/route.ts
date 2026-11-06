@@ -2,7 +2,7 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { searchExistingFriends, searchFriendCandidates } from '@/lib/friends';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getDualRateLimit } from '@/lib/abuse-controls';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
@@ -24,7 +24,7 @@ export const GET = withApiMetrics('/api/friends/search', async function GET(requ
     const results = scope === 'friends'
       ? await searchExistingFriends(userId, url.searchParams.get('q') ?? '')
       : await searchFriendCandidates(userId, url.searchParams.get('q') ?? '');
-    return NextResponse.json({ results });
+    return NextResponse.json({ results }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

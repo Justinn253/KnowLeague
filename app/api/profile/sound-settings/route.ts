@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { normalizeUiSoundSettings, type UiSoundSettings } from '@/lib/ui-sounds';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
@@ -30,7 +30,7 @@ export const GET = withApiMetrics('/api/profile/sound-settings', async function 
 
     return NextResponse.json({
       settings: data?.sound_settings ? normalizeUiSoundSettings(data.sound_settings) : null,
-    });
+    }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -53,7 +53,7 @@ export const PUT = withApiMetrics('/api/profile/sound-settings', async function 
       throw error;
     }
 
-    return NextResponse.json({ settings });
+    return NextResponse.json({ settings }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

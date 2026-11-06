@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
 import { getPublicFriendList } from '@/lib/friends';
 import { isAdminAuthUser } from '@/lib/moderation';
@@ -20,7 +20,15 @@ export const GET = withApiMetrics('/api/profile/public/[username]/friends', asyn
     });
     if (rateLimitResponse) return rateLimitResponse;
 
-    const username = decodeURIComponent(params.username).trim();
+    let username = '';
+    try {
+      username = decodeURIComponent(params.username).trim();
+    } catch {
+      throw new Error('Profile not found.');
+    }
+    if (!username) {
+      throw new Error('Profile not found.');
+    }
     const supabase = getSupabaseServiceClient();
     const { data: profile, error: profileError } = await supabase
       .rpc('find_profile_by_username_ci', { search_username: username })
@@ -30,9 +38,7 @@ export const GET = withApiMetrics('/api/profile/public/[username]/friends', asyn
 
     const viewer = await getOptionalAuthenticatedUser(request);
     const result = await getPublicFriendList(profile.id, viewer?.id ?? null, isAdminAuthUser(viewer));
-    return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
-    });
+    return NextResponse.json(result, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

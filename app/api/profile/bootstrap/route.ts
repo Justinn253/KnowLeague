@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import {
   normalizeDetailedGameStats,
@@ -48,7 +48,7 @@ export const GET = withApiMetrics('/api/profile/bootstrap', async function GET(r
       playerGameStatsResetAt: privateDetails?.player_game_stats_reset_at ?? {},
       detailedGameStats: normalizeDetailedGameStats(privateDetails?.detailed_game_stats),
       detailedGameStatsResetAt: privateDetails?.detailed_game_stats_reset_at ?? {},
-    });
+    }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

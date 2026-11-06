@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
 import { getUserAchievements } from '@/lib/achievements-server';
 import { getFriendRelationshipDetails } from '@/lib/friends';
@@ -196,7 +196,7 @@ export const GET = withApiMetrics('/api/profile/public/[username]', async functi
         blockedByViewer: relationshipDetails.blockedByViewer,
         ...(viewerIsAdmin ? { is_banned: Boolean(moderationProfile.data?.is_banned) } : {}),
       },
-    });
+    }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

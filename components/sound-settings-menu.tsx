@@ -32,6 +32,11 @@ type SoundSettingsMenuProps = {
   onOpenChange?: (isOpen: boolean) => void;
 };
 
+type PendingSoundSettingsSave = {
+  settings: UiSoundSettings;
+  accessToken: string;
+};
+
 export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }: SoundSettingsMenuProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = isOpen ?? uncontrolledOpen;
@@ -40,6 +45,7 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
   const sessionRef = useRef<Session | null>(null);
   const hydratingRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
+  const pendingSaveRef = useRef<PendingSoundSettingsSave | null>(null);
   const setMenuOpen = useCallback((nextOpen: boolean) => {
     if (onOpenChange) {
       onOpenChange(nextOpen);
@@ -49,7 +55,28 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
     setUncontrolledOpen(nextOpen);
   }, [onOpenChange]);
 
-  const saveAccountSettings = (nextSettings: UiSoundSettings) => {
+  const persistAccountSettings = useCallback((pendingSave: PendingSoundSettingsSave) => {
+    return fetch('/api/profile/sound-settings', {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${pendingSave.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ settings: pendingSave.settings }),
+    }).catch(() => undefined);
+  }, []);
+
+  const flushPendingAccountSettings = useCallback(() => {
+    const pendingSave = pendingSaveRef.current;
+    if (!pendingSave) {
+      return;
+    }
+
+    pendingSaveRef.current = null;
+    void persistAccountSettings(pendingSave);
+  }, [persistAccountSettings]);
+
+  const saveAccountSettings = useCallback((nextSettings: UiSoundSettings) => {
     const token = sessionRef.current?.access_token;
     if (!token || hydratingRef.current) {
       return;
@@ -59,18 +86,12 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
       window.clearTimeout(saveTimeoutRef.current);
     }
 
+    pendingSaveRef.current = { settings: nextSettings, accessToken: token };
     saveTimeoutRef.current = window.setTimeout(() => {
       saveTimeoutRef.current = null;
-      void fetch('/api/profile/sound-settings', {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ settings: nextSettings }),
-      }).catch(() => undefined);
+      flushPendingAccountSettings();
     }, 250);
-  };
+  }, [flushPendingAccountSettings]);
 
   useEffect(() => {
     setSettings(readUiSoundSettings());
@@ -81,9 +102,11 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
       window.removeEventListener('knowleague:sound-settings-changed', syncSettings);
       if (saveTimeoutRef.current) {
         window.clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
       }
+      flushPendingAccountSettings();
     };
-  }, []);
+  }, [flushPendingAccountSettings]);
 
   useEffect(() => {
     const supabase = getOptionalSupabaseClient();
@@ -118,7 +141,7 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
     });
 
     return () => unsubscribeFromAuthSession();
-  }, []);
+  }, [saveAccountSettings]);
 
   useEffect(() => {
     if (!open) {
@@ -170,7 +193,8 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
         }}
         aria-label="Sound settings"
         title={variant === 'header-icon' ? undefined : 'Sound settings'}
-        aria-expanded={variant === 'navigation' ? open : undefined}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         className={variant === 'navigation'
           ? 'order-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 ' + (open ? 'border-amber-200/70 bg-slate-900 ring-1 ring-amber-200/50' : '')
           : variant === 'drawer' || variant === 'mobile'
@@ -188,7 +212,10 @@ export function SoundSettingsMenu({ variant = 'floating', isOpen, onOpenChange }
       {variant === 'header-icon' ? <HeaderHoverNote>Sound settings</HeaderHoverNote> : null}
 
       {open ? (
-        <div className={variant === 'navigation'
+        <div
+          role="dialog"
+          aria-label="Sound settings"
+          className={variant === 'navigation'
           ? 'order-2 basis-full rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'
           : variant === 'mobile'
           ? 'fixed left-2 right-2 top-14 z-[105] max-h-[calc(100dvh-4.5rem)] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-3 sm:p-4'

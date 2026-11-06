@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { updateProfileSettings } from '@/lib/profile-settings';
 
@@ -35,7 +35,7 @@ export const PUT = withApiMetrics('/api/profile/preferences', async function PUT
     }
 
     const settings = await updateProfileSettings(user.id, updates);
-    return NextResponse.json({ settings });
+    return NextResponse.json({ settings }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

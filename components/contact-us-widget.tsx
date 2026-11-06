@@ -155,6 +155,8 @@ export function ContactUsWidget({
     <div ref={rootRef} className={variant === 'navigation' ? 'contents' : variant === 'header-icon' ? 'group relative' : 'relative'}>
       {isOpen ? (
         <div
+          role="dialog"
+          aria-label="Help Center"
           className={variant === 'navigation'
             ? 'order-2 basis-full rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
             : variant === 'drawer'
@@ -268,7 +270,8 @@ export function ContactUsWidget({
           }}
           aria-label="Help Center"
           title={variant === 'header-icon' ? undefined : 'Help Center'}
-          aria-expanded={variant === 'navigation' ? isOpen : undefined}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
           className={variant === 'navigation'
             ? 'order-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 ' + (isOpen ? 'border-amber-200/70 bg-slate-900 ring-1 ring-amber-200/50' : '')
             : variant === 'drawer'

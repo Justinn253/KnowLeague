@@ -74,7 +74,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
   const [contactDateFrom, setContactDateFrom] = useState('');
   const [contactDateTo, setContactDateTo] = useState('');
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
+  const [loadingTab, setLoadingTab] = useState<ModerationTab | null>(null);
   const [roleUpdatingUserId, setRoleUpdatingUserId] = useState<string | null>(null);
   const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
   const [messageTarget, setMessageTarget] = useState<{ id: string; label: string } | null>(null);
@@ -148,7 +148,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
       return;
     }
 
-    setLoading(true);
+    setLoadingTab('users');
     setStatus('');
     try {
       const data = await fetchModerationJson<{ users: ModerationUserResult[] }>(`/api/moderation/users?q=${encodeURIComponent(cleanQuery)}`);
@@ -156,12 +156,12 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to search users.');
     } finally {
-      setLoading(false);
+      setLoadingTab((current) => current === 'users' ? null : current);
     }
   }, []);
 
   const loadContactSubmissions = useCallback(async () => {
-    setLoading(true);
+    setLoadingTab('contact');
     setStatus('');
     try {
       const data = await fetchModerationJson<{ submissions: ModerationContactSubmission[] }>('/api/moderation/contacts');
@@ -169,12 +169,12 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load contact submissions.');
     } finally {
-      setLoading(false);
+      setLoadingTab((current) => current === 'contact' ? null : current);
     }
   }, []);
 
   const loadTeamMembers = useCallback(async () => {
-    setLoading(true);
+    setLoadingTab('team');
     setStatus('');
     try {
       const data = await fetchModerationJson<{ team: ModerationTeamMember[] }>('/api/moderation/team');
@@ -182,7 +182,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load moderation team.');
     } finally {
-      setLoading(false);
+      setLoadingTab((current) => current === 'team' ? null : current);
     }
   }, []);
 
@@ -191,13 +191,13 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
       return;
     }
 
-    if (contactSubmissions.length === 0) {
+    if (activeTab === 'contact' && contactSubmissions.length === 0) {
       void loadContactSubmissions();
     }
-    if (teamMembers.length === 0) {
+    if (activeTab === 'team' && teamMembers.length === 0) {
       void loadTeamMembers();
     }
-  }, [contactSubmissions.length, isOpen, loadContactSubmissions, loadTeamMembers, teamMembers.length]);
+  }, [activeTab, contactSubmissions.length, isOpen, loadContactSubmissions, loadTeamMembers, teamMembers.length]);
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'users' || !searchedUserPresenceKey) {
@@ -401,10 +401,10 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                 </div>
                 <button
                   type="submit"
-                  disabled={loading || userQuery.trim().length < 2}
+                  disabled={loadingTab === 'users' || userQuery.trim().length < 2}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                  {loadingTab === 'users' ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
                   Search
                 </button>
               </form>
@@ -520,10 +520,10 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                   <button
                     type="button"
                     onClick={() => void loadContactSubmissions()}
-                    disabled={loading}
+                    disabled={loadingTab === 'contact'}
                     className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-bold text-slate-200 transition hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+                    {loadingTab === 'contact' ? <Loader2 size={14} className="animate-spin" /> : null}
                     Refresh
                   </button>
                 </div>
@@ -562,7 +562,11 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                 </div>
               </div>
               <div className={`mt-3 grid max-h-[28rem] gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}>
-                {visibleContactSubmissions.length === 0 ? (
+                {loadingTab === 'contact' && contactSubmissions.length === 0 ? (
+                  <p className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-6 text-center text-sm text-slate-400">
+                    <Loader2 size={16} className="animate-spin text-amber-300" /> Loading contact submissions...
+                  </p>
+                ) : visibleContactSubmissions.length === 0 ? (
                   <p className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-6 text-center text-sm text-slate-500">
                     No contact submissions match the current filters.
                   </p>
@@ -655,15 +659,19 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                 <button
                   type="button"
                   onClick={() => void loadTeamMembers()}
-                  disabled={loading}
+                  disabled={loadingTab === 'team'}
                   className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 transition hover:bg-slate-800 disabled:opacity-60"
                 >
-                  {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {loadingTab === 'team' ? <Loader2 size={14} className="animate-spin" /> : null}
                   Refresh
                 </button>
               </div>
               <div className={`mt-3 grid max-h-[42rem] gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}>
-                {teamMembers.length === 0 ? (
+                {loadingTab === 'team' && teamMembers.length === 0 ? (
+                  <p className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-6 text-center text-sm text-slate-400">
+                    <Loader2 size={16} className="animate-spin text-amber-300" /> Loading moderation team...
+                  </p>
+                ) : teamMembers.length === 0 ? (
                   <p className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-6 text-center text-sm text-slate-500">
                     No team members loaded.
                   </p>

@@ -6,7 +6,8 @@ export const metadata = {
   title: 'Augment Binder | KnowLeague',
   description: 'Explore a player’s custom ARAM Mayhem augments.',
 };
-export default function AugmentBinderPage({ params }: { params: { owner: string } }) {
+export default async function AugmentBinderPage(props: { params: Promise<{ owner: string }> }) {
+  const params = await props.params;
   if (!isAugmentId(params.owner)) notFound();
   return <AugmentBinder owner={params.owner} />;
 }

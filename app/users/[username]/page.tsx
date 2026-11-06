@@ -10,7 +10,8 @@ function decodeUsername(value: string) {
   }
 }
 
-export function generateMetadata({ params }: { params: { username: string } }): Metadata {
+export async function generateMetadata(props: { params: Promise<{ username: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const username = decodeUsername(params.username);
   const displayName = username || 'League player';
 
@@ -21,6 +22,7 @@ export function generateMetadata({ params }: { params: { username: string } }): 
   });
 }
 
-export default function UserProfilePage({ params }: { params: { username: string } }) {
+export default async function UserProfilePage(props: { params: Promise<{ username: string }> }) {
+  const params = await props.params;
   return <PublicProfileScreen key={params.username} username={params.username} />;
 }

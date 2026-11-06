@@ -33,6 +33,8 @@ const nextConfig = {
     // boards, and icons. This bounds the number of Vercel image cache keys.
     deviceSizes: [360, 640, 960, 1280],
     imageSizes: [32, 48, 64, 96, 160, 240, 320],
+    // Next.js 16 requires explicit allow-listing for every requested quality.
+    qualities: [65, 75],
     formats: ['image/webp'],
     // Riot/CDN assets and hashed Riftbound catalogue assets are effectively
     // immutable. A month keeps normal revisits from re-transforming them.

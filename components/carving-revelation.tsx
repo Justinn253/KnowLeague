@@ -346,7 +346,7 @@ function CarvingRevelationPowerUpMenu({
   onActivate,
   onCancel,
 }: {
-  menuRef: RefObject<HTMLDivElement>;
+  menuRef: RefObject<HTMLDivElement | null>;
   open: boolean;
   phase: 'carve' | 'guess';
   busy: boolean;
@@ -513,7 +513,7 @@ function drawCoverImage(
 }
 
 function useShuffleImageRenderer(
-  canvasRef: RefObject<HTMLCanvasElement>,
+  canvasRef: RefObject<HTMLCanvasElement | null>,
   imageUrl: string | null,
   swaps: ShuffleImageSwap[],
   modifiers: { greyscale: boolean; blurred: boolean; cropped: boolean },
@@ -584,7 +584,7 @@ function useShuffleImageRenderer(
 }
 
 function useCanvasRenderer(
-  canvasRef: RefObject<HTMLCanvasElement>,
+  canvasRef: RefObject<HTMLCanvasElement | null>,
   actions: CarvingRevelationAction[],
   draftPath: RevealPoint[],
   currentRound: number,

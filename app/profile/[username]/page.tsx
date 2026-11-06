@@ -8,6 +8,7 @@ function decodeUsername(value: string) {
   }
 }
 
-export default function PublicProfilePage({ params }: { params: { username: string } }) {
+export default async function PublicProfilePage(props: { params: Promise<{ username: string }> }) {
+  const params = await props.params;
   permanentRedirect(`/users/${encodeURIComponent(decodeUsername(params.username) || params.username)}`);
 }

@@ -13,7 +13,14 @@ const mocks = vi.hoisted(() => ({
   community: vi.fn(),
   edit: vi.fn(),
 }));
-vi.mock('@/lib/api-metrics', () => ({ withApiMetrics: (_route: string, handler: unknown) => handler }));
+vi.mock('@/lib/api-metrics', () => ({
+  withApiMetrics: (
+    _route: string,
+    handler: (request: Request, context?: { params?: Record<string, string> }) => Response | Promise<Response>,
+  ) => async (request: Request, context?: { params?: Promise<Record<string, string>> }) => (
+    handler(request, context?.params ? { params: await context.params } : undefined)
+  ),
+}));
 vi.mock('@/lib/auth-server', () => ({
   getAuthenticatedUserId: mocks.authenticated,
   getOptionalAuthenticatedUserId: mocks.optional,
@@ -35,7 +42,8 @@ import { PATCH as edit, POST as vote, DELETE as remove, GET as load } from '../a
 import { GET as binder } from '../app/api/augment-binders/[owner]/route';
 import { ApiError } from '../lib/api-utils';
 
-const context = { params: { id: '8d73d0ad-3880-4e58-9d5a-20c9674b5bbc' } };
+const routeParams = { id: '8d73d0ad-3880-4e58-9d5a-20c9674b5bbc' };
+const context = { params: Promise.resolve(routeParams) };
 function request(body: unknown, method = 'POST', url = 'http://localhost/api/augments') {
   return new Request(url, { method, body: JSON.stringify(body) });
 }
@@ -47,7 +55,7 @@ beforeEach(() => {
 });
 describe('augment API boundaries', () => {
   it('permits guests but never takes creator attribution from their payload', async () => {
-    mocks.publish.mockResolvedValue({ id: context.params.id, author: null });
+    mocks.publish.mockResolvedValue({ id: routeParams.id, author: null });
     const response = await publish(request({ creator_id: 'spoofed', name: 'Example' }));
     expect(response.status).toBe(201);
     expect(mocks.publish).toHaveBeenCalledWith({ creator_id: 'spoofed', name: 'Example' }, null);
@@ -71,10 +79,10 @@ describe('augment API boundaries', () => {
     expect(mocks.community).not.toHaveBeenCalled();
   });
   it('passes the route ID and verified identity to owner edits', async () => {
-    mocks.edit.mockResolvedValue({ id: context.params.id });
-    const response = await edit(request({ id: context.params.id }, 'PATCH', 'http://localhost/api/augments/' + context.params.id), context);
+    mocks.edit.mockResolvedValue({ id: routeParams.id });
+    const response = await edit(request({ id: routeParams.id }, 'PATCH', 'http://localhost/api/augments/' + routeParams.id), context);
     expect(response.status).toBe(200);
-    expect(mocks.edit).toHaveBeenCalledWith({ id: context.params.id }, 'verified-user', context.params.id);
+    expect(mocks.edit).toHaveBeenCalledWith({ id: routeParams.id }, 'verified-user', routeParams.id);
   });
   it('uses verified account identity when publishing', async () => {
     mocks.optional.mockResolvedValue('verified-user');
@@ -98,13 +106,13 @@ describe('augment API boundaries', () => {
   });
   it('passes the verified identity to both vote and ownership checks', async () => {
     await vote(request({ kind: 'reaction', value: 1, user_id: 'spoofed' }), context);
-    expect(mocks.vote).toHaveBeenCalledWith(context.params.id, 'verified-user', {
+    expect(mocks.vote).toHaveBeenCalledWith(routeParams.id, 'verified-user', {
       kind: 'reaction',
       value: 1,
       user_id: 'spoofed',
     });
     await remove(request({ user_id: 'spoofed' }), context);
-    expect(mocks.remove).toHaveBeenCalledWith(context.params.id, 'verified-user');
+    expect(mocks.remove).toHaveBeenCalledWith(routeParams.id, 'verified-user');
   });
   it('disables caching of personalized ratings and validates binder pagination', async () => {
     const response = await load(new Request('http://localhost/api/augments/test'), context);
@@ -112,7 +120,7 @@ describe('augment API boundaries', () => {
     expect(
       (
         await binder(new Request('http://localhost/api/augment-binders/test?page=-1'), {
-          params: { owner: context.params.id },
+          params: Promise.resolve({ owner: routeParams.id }),
         })
       ).status,
     ).toBe(400);

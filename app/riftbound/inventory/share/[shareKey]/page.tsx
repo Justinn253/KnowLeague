@@ -4,6 +4,7 @@ import { createNoIndexMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = createNoIndexMetadata('Shared Riftbound Collection');
 
-export default function SharedRiftboundCollectionKeyPage({ params }: { params: { shareKey: string } }) {
+export default async function SharedRiftboundCollectionKeyPage(props: { params: Promise<{ shareKey: string }> }) {
+  const params = await props.params;
   return <RiftboundCollectionShare shareKey={params.shareKey} />;
 }

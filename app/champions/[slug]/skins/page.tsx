@@ -6,15 +6,16 @@ import { getChampionHubChampion } from '@/lib/champion-hub';
 import { createPageMetadata } from '@/lib/seo';
 
 type ChampionSkinsPageProps = {
-  params: { slug: string };
-  searchParams: { skin?: string | string[] };
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ skin?: string | string[] }>;
 };
 
 function skinQueryValue(value: string | string[] | undefined) {
   return typeof value === 'string' ? value : undefined;
 }
 
-export function generateMetadata({ params }: ChampionSkinsPageProps): Metadata {
+export async function generateMetadata(props: ChampionSkinsPageProps): Promise<Metadata> {
+  const params = await props.params;
   const champion = getChampionHubChampion(params.slug);
 
   if (!champion) {
@@ -42,7 +43,9 @@ export function generateMetadata({ params }: ChampionSkinsPageProps): Metadata {
   });
 }
 
-export default function ChampionSkinsPage({ params, searchParams }: ChampionSkinsPageProps) {
+export default async function ChampionSkinsPage(props: ChampionSkinsPageProps) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const champion = getChampionHubChampion(params.slug);
 
   if (!champion) {

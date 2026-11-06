@@ -45,6 +45,24 @@ type ApiRouteHandler<TRequest extends Request, TContext> = (
   context: TContext,
 ) => Response | Promise<Response>;
 
+/**
+ * Next.js 16 supplies dynamic route parameters lazily. Route handlers retain
+ * their resolved-parameter contract while this wrapper exposes the framework
+ * signature at the route boundary.
+ */
+type NextApiRouteContext<TContext> = TContext extends { params: infer TParams }
+  ? Omit<TContext, 'params'> & { params: Promise<TParams> }
+  : TContext;
+
+function hasAsyncRouteParams(context: unknown): context is { params: Promise<unknown> } {
+  return typeof context === 'object' && context !== null && 'params' in context;
+}
+
+async function resolveApiRouteContext<TContext>(context?: NextApiRouteContext<TContext>): Promise<TContext | undefined> {
+  if (!hasAsyncRouteParams(context)) return context as TContext | undefined;
+  return { ...context, params: await context.params } as TContext;
+}
+
 function getStatusBucket(status: number) {
   if (status >= 200 && status < 300) return '2xx';
   if (status >= 300 && status < 400) return '3xx';
@@ -92,15 +110,15 @@ export function withApiMetrics<TRequest extends Request, TResponse extends Respo
 export function withApiMetrics<TRequest extends Request, TContext, TResponse extends Response>(
   route: string,
   handler: ApiRouteHandler<TRequest, TContext>,
-): (request: TRequest, context: TContext) => Promise<TResponse>;
+): (request: TRequest, context: NextApiRouteContext<TContext>) => Promise<TResponse>;
 export function withApiMetrics<TRequest extends Request, TContext>(
   route: string,
   handler: (request: TRequest, context?: TContext) => Response | Promise<Response>,
 ) {
-  return async (request: TRequest, context?: TContext) => {
+  return async (request: TRequest, context?: NextApiRouteContext<TContext>) => {
     const startedAt = Date.now();
     try {
-      const response = await handler(request, context);
+      const response = await handler(request, await resolveApiRouteContext(context));
       void recordApiMetric(route, request.method, response.status, Date.now() - startedAt);
       return response;
     } catch (error) {

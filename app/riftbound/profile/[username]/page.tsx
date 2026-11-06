@@ -3,10 +3,11 @@ import { RiftboundProfile } from '@/components/riftbound-profile';
 import { createPageMetadata } from '@/lib/seo';
 
 type PageProps = {
-  params: { username: string };
+  params: Promise<{ username: string }>;
 };
 
-export function generateMetadata({ params }: PageProps): Metadata {
+export async function generateMetadata(props: PageProps): Promise<Metadata> {
+  const params = await props.params;
   const username = decodeURIComponent(params.username);
   return createPageMetadata({
     title: `${username}'s Riftbound Profile`,
@@ -16,6 +17,7 @@ export function generateMetadata({ params }: PageProps): Metadata {
   });
 }
 
-export default function PublicRiftboundProfilePage({ params }: PageProps) {
+export default async function PublicRiftboundProfilePage(props: PageProps) {
+  const params = await props.params;
   return <RiftboundProfile username={params.username} />;
 }

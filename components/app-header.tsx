@@ -9,7 +9,6 @@ import {
   BarChart3,
   ChevronDown,
   CircleDollarSign,
-  FileText,
   Gamepad2,
   Layers,
   LogIn,
@@ -790,15 +789,6 @@ function MobileHeaderMenu({
               {moderationRole ? (
                 <>
                   <HeaderIconButton
-                    label="Staff change log"
-                    icon={<FileText size={17} />}
-                    onClick={() => {
-                      closeMenu();
-                      router.push('/staff/changelog');
-                    }}
-                    className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
-                  />
-                  <HeaderIconButton
                     label="API metrics"
                     icon={<Activity size={17} />}
                     onClick={() => {
@@ -875,14 +865,6 @@ export function AppHeader({
           <div className="hidden items-center gap-1 xl:flex xl:gap-1 min-[1680px]:gap-2">
             <SoundSettingsMenu variant="header-icon" />
             <ContactUsWidget variant="header-icon" />
-            {moderationRole ? (
-              <HeaderIconButton
-                label="Staff change log"
-                icon={<FileText size={17} />}
-                onClick={() => router.push('/staff/changelog')}
-                className="border-amber-300/30 text-amber-100 hover:border-amber-200/70 hover:bg-amber-300/10"
-              />
-            ) : null}
             {moderationRole ? (
               <HeaderIconButton
                 label="API metrics"

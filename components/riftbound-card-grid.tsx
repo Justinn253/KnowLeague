@@ -28,6 +28,7 @@ import {
   type RiftboundPriceHistoryEntry,
 } from '@/components/riftbound-history-chart';
 import { subscribeToAuthSession } from '@/lib/auth-session-client';
+import { RIFTBOUND_CARD_SCANNER_ENABLED } from '@/lib/riftbound-scan';
 import { getRiftboundCardPreferences, updateRiftboundProfilePreference } from '@/lib/riftbound-community-client';
 import { getRiftboundCardDetailSetName, getRiftboundCardRarityTextClass, getRiftboundCardTierGroupId, getRiftboundDeckTypeLabel, getRiftboundDomainTextClass, getRiftboundRarityTextClass, mergeRiftboundCardMarketPrices, RIFTBOUND_CARDS, RIFTBOUND_RARITY_ORDER as RIFTBOUND_CARD_RARITY_ORDER, type RiftboundCard, type RiftboundCardTier } from '@/lib/riftbound';
 import type { RiftboundCardTierRating } from '@/lib/riftbound-community-types';
@@ -3299,9 +3300,9 @@ export function RiftboundCardGrid() {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{ownedCopyCount} total cards</span>
-                <button type="button" onClick={() => setScannerOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                <button type="button" disabled={!RIFTBOUND_CARD_SCANNER_ENABLED} title={RIFTBOUND_CARD_SCANNER_ENABLED ? undefined : 'Card scanning is temporarily unavailable.'} onClick={() => setScannerOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-amber-200/50 bg-amber-300 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-50">
                   <Camera size={14} />
-                  Scan Cards
+                  Scan Cards{RIFTBOUND_CARD_SCANNER_ENABLED ? '' : ' (Unavailable)'}
                 </button>
                 <button type="button" onClick={() => openCollectionShare(inventoryRows)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-white/25 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-200">
                   <Share2 size={14} />
@@ -3691,7 +3692,7 @@ export function RiftboundCardGrid() {
       {collectionHistoryOpen && session ? (
         <RiftboundCollectionValueHistoryModal session={session} onClose={() => setCollectionHistoryOpen(false)} />
       ) : null}
-      {scannerOpen && session ? (
+      {RIFTBOUND_CARD_SCANNER_ENABLED && scannerOpen && session ? (
         <RiftboundCardScannerModal
           cards={cards}
           accessToken={session.access_token}

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
+import { RIFTBOUND_CARD_SCANNER_ENABLED } from '@/lib/riftbound-scan';
 
 export const runtime = 'nodejs';
 
@@ -31,6 +32,13 @@ function readImageContent(value: unknown) {
 }
 
 export const POST = withApiMetrics('/api/riftbound/scan', async function POST(request: Request) {
+  if (!RIFTBOUND_CARD_SCANNER_ENABLED) {
+    return NextResponse.json(
+      { error: 'Card scanning is temporarily unavailable.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
   try {
     const userId = await getAuthenticatedUserId(request);
     const rateLimitResponse = await enforceApiRateLimit(request, {

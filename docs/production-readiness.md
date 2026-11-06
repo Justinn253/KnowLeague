@@ -7,7 +7,7 @@ This document separates safeguards implemented in the repository from controls t
 - `.github/workflows/ci.yml` runs `npm ci`, `npm run check`, and `npm run build` on pull requests and pushes to the default branch.
 - `GET /api/health` is a dependency-free liveness probe. It returns `200` only when the application process can serve a route and is deliberately exempt from API rate limiting.
 - `GET /api/health/ready` is a readiness probe. It checks required Supabase configuration, a service-role Supabase query, and shared Redis rate-limit configuration when production requires it. It returns `503` without exposing secret names or provider errors.
-- `next.config.mjs` adds baseline security headers, including clickjacking protection, MIME sniffing protection, referrer policy, a restricted permissions policy, and a minimal CSP. Camera access remains allowed because Riftbound scanning uses `getUserMedia`.
+- `next.config.mjs` adds baseline security headers, including clickjacking protection, MIME sniffing protection, referrer policy, a restricted permissions policy, and a minimal CSP. Camera access is disabled while Riftbound card scanning is unavailable.
 
 Configure an uptime monitor against `/api/health` and alert on any non-2xx response. Configure deployment or dependency monitors against `/api/health/ready`; a readiness failure should page only when it persists beyond the normal provider recovery window.
 

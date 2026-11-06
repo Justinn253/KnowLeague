@@ -9,6 +9,8 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const socialImageUrl = getAbsoluteSiteUrl(SOCIAL_IMAGE_PATH);
+const ADSENSE_CLIENT_ID = 'ca-pub-7559752825656959';
+const adsenseEnabled = process.env.ADSENSE_ENABLED === 'true';
 
 export const metadata: Metadata = {
   metadataBase: siteUrl ?? undefined,
@@ -18,9 +20,7 @@ export const metadata: Metadata = {
   },
   description: DEFAULT_DESCRIPTION,
   applicationName: SITE_NAME,
-  other: {
-    'google-adsense-account': 'ca-pub-7559752825656959',
-  },
+  ...(adsenseEnabled ? { other: { 'google-adsense-account': ADSENSE_CLIENT_ID } } : {}),
   openGraph: {
     type: 'website',
     siteName: SITE_NAME,
@@ -43,13 +43,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <Script
-          id="google-adsense"
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7559752825656959"
-          crossOrigin="anonymous"
-          strategy="beforeInteractive"
-        />
+        {adsenseEnabled ? (
+          <Script
+            id="google-adsense"
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        ) : null}
       </head>
       <body className="flex min-h-screen flex-col">
         <GlobalActions>
@@ -58,7 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteStructuredData />
         <Analytics />
         <SpeedInsights />
-        <SiteFooter />
+        <SiteFooter adsenseEnabled={adsenseEnabled} />
       </body>
 
     </html>

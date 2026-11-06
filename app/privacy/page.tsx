@@ -40,9 +40,9 @@ const sections = [
   {
     title: 'Advertising and Consent',
     body: [
-      'KnowLeague is preparing for possible Google AdSense use, but visible advertising is not active while the site addresses its AdSense content review.',
+      'Google AdSense, visible advertising, and related advertising scripts are disabled while KnowLeague addresses its AdSense content review.',
       'If advertising is enabled, Google may process information such as cookies or similar device signals to provide, measure, and limit advertising, subject to the consent choices shown by our privacy controls and the settings available from Google.',
-      'You can revisit the site privacy choices through the Privacy and cookie settings control in the footer. We will update this policy before introducing a new advertising or analytics service.',
+      'If advertising is enabled, you will be able to revisit the related privacy choices through the Privacy and cookie settings control in the footer. We will update this policy before enabling advertising.',
     ],
   },
   {

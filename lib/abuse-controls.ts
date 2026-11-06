@@ -65,6 +65,13 @@ export const ABUSE_RATE_LIMITS: Record<string, RateLimitRule | DualRateLimitRule
     ip: { limit: 10, windowMs: 60 * 60 * 1_000 },
     subject: { limit: 3, windowMs: 60 * 60 * 1_000 },
   },
+  // Contact submissions are persisted and may trigger staff moderation work.
+  // Apply this before any database lookups; the client ID is convenience
+  // state and must never be the primary abuse-control identity.
+  contactSubmission: {
+    ip: { limit: 1, windowMs: 30 * 60 * 1_000 },
+    subject: { limit: 1, windowMs: 30 * 60 * 1_000 },
+  },
   publicProfile: { limit: 60, windowMs: 60_000 },
   publicLeaderboard: { limit: 90, windowMs: 60_000 },
   leaderboardSubmission: {

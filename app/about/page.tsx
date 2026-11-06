@@ -113,7 +113,7 @@ export default function AboutPage() {
 
       <PublicContentSection id="monetization" eyebrow="Transparency" title="About advertising and monetization">
         <PublicProse>
-          <p>KnowLeague is currently an alpha service. We are preparing for possible Google AdSense use, but advertising is not active while the site addresses its AdSense content review. Any future advertising will be disclosed in the Privacy Policy and will not change the game rules, account data, or community moderation standards.</p>
+          <p>KnowLeague is currently an alpha service. Google AdSense, advertising, and related advertising scripts are disabled while the site addresses its AdSense content review. Any future advertising will be disclosed in the Privacy Policy and will not change the game rules, account data, or community moderation standards.</p>
           <p>We will keep paid features, if any are introduced, separate from Riot account data access and compliant with the relevant platform policies.</p>
         </PublicProse>
       </PublicContentSection>

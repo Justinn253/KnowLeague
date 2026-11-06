@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { createContactSubmission, isContactSubmissionCategory } from '@/lib/contact';
 import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
+import { getDualRateLimit } from '@/lib/abuse-controls';
 
 type ContactSubmissionBody = {
   category: string;
@@ -16,11 +17,13 @@ type ContactSubmissionBody = {
 };
 
 export const runtime = 'nodejs';
-const CONTACT_RATE_LIMIT_WINDOW_MS = 30 * 60 * 1000;
+const contactSubmissionRateLimit = getDualRateLimit('contactSubmission');
+const CONTACT_RATE_LIMIT_WINDOW_MS = contactSubmissionRateLimit.ip.windowMs;
+const MAX_CONTACT_SUBMISSION_BODY_BYTES = 10_000;
 
 export const POST = withApiMetrics('/api/contact', async function POST(request: Request) {
   try {
-    const body = await readJsonBody<ContactSubmissionBody>(request);
+    const body = await readJsonBody<ContactSubmissionBody>(request, MAX_CONTACT_SUBMISSION_BODY_BYTES);
     const category = requireString(body.category, 'category');
 
     if (!isContactSubmissionCategory(category)) {
@@ -32,6 +35,14 @@ export const POST = withApiMetrics('/api/contact', async function POST(request: 
     }
 
     const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim();
+    const rateLimitResponse = await enforceApiRateLimit(request, {
+      scope: 'contact-submission',
+      ip: contactSubmissionRateLimit.ip,
+      subject: token ? { id: token, ...contactSubmissionRateLimit.subject } : undefined,
+      errorMessage: 'Please wait 30 minutes before submitting another contact request.',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const supabase = getSupabaseServiceClient();
     let username = 'Guest';
     let userUid = 'Guest';
@@ -68,9 +79,6 @@ export const POST = withApiMetrics('/api/contact', async function POST(request: 
       }
     }
 
-    const rateLimitKey = userUid !== 'Guest'
-      ? `contact:user:${userUid}`
-      : `contact:${typeof body.clientId === 'string' && body.clientId.trim() ? `client:${body.clientId.trim()}` : `ip:${getClientIp(request)}`}`;
     const rateLimitCutoff = new Date(Date.now() - CONTACT_RATE_LIMIT_WINDOW_MS).toISOString();
     const recentSubmissionQuery = supabase
       .from('contact_submissions')
@@ -98,27 +106,10 @@ export const POST = withApiMetrics('/api/contact', async function POST(request: 
       );
     }
 
-    const rateLimit = await checkRateLimit({
-      key: rateLimitKey,
-      limit: 1,
-      windowMs: CONTACT_RATE_LIMIT_WINDOW_MS,
-    });
-
-    if (!rateLimit.allowed) {
-      const unavailable = rateLimit.source === 'unavailable';
-      return NextResponse.json(
-        { error: unavailable ? 'Request protection is temporarily unavailable. Please try again shortly.' : `Please wait ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minutes before submitting another contact request.` },
-        {
-          status: unavailable ? 503 : 429,
-          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
-        },
-      );
-    }
-
     const submission = await createContactSubmission({
       category,
       message,
-      clientId: typeof body.clientId === 'string' ? body.clientId : null,
+      clientId: typeof body.clientId === 'string' ? body.clientId.trim().slice(0, 100) : null,
       pagePath: typeof body.pagePath === 'string' ? body.pagePath : null,
       userAgent: request.headers.get('user-agent'),
       viewport: typeof body.viewport === 'string' ? body.viewport : null,

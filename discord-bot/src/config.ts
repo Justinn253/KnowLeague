@@ -2,7 +2,6 @@ import 'dotenv/config';
 
 export type DiscordBotConfig = {
   applicationId: string;
-  bumpChannelId: string | null;
   guildId: string;
   leagueAccountViewerBrowserWsEndpoint: string | null;
   leagueAccountViewerChromeExecutablePath: string | null;
@@ -59,15 +58,6 @@ function isPrivateOrLoopbackHostname(hostname: string) {
     || (first === 192 && second === 168);
 }
 
-function optionalSnowflakeEnvironmentVariable(name: string) {
-  const value = process.env[name]?.trim() ?? '';
-  if (!value) return null;
-  if (!/^[0-9]{17,20}$/.test(value)) {
-    throw new Error(`${name} must be a Discord snowflake when configured.`);
-  }
-  return value;
-}
-
 function leagueAccountViewerChromeExecutablePath() {
   const configuredPath = process.env.LEAGUE_ACCOUNT_VIEWER_CHROME_EXECUTABLE_PATH?.trim();
   if (configuredPath) return configuredPath;
@@ -97,7 +87,6 @@ function leagueAccountViewerBrowserWsEndpoint() {
 export function loadBotConfig(): DiscordBotConfig {
   return {
     applicationId: requiredEnvironmentVariable('DISCORD_APPLICATION_ID'),
-    bumpChannelId: optionalSnowflakeEnvironmentVariable('DISCORD_BUMP_CHANNEL_ID'),
     guildId: requiredEnvironmentVariable('DISCORD_GUILD_ID'),
     leagueAccountViewerBrowserWsEndpoint: leagueAccountViewerBrowserWsEndpoint(),
     leagueAccountViewerChromeExecutablePath: leagueAccountViewerChromeExecutablePath(),

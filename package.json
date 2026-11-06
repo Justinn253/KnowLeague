@@ -36,6 +36,8 @@
     "@supabase/supabase-js": "^2.0.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.1.0",
     "lucide-react": "^0.500.0",
     "next": "^14.2.35",
     "react": "^18.3.1",

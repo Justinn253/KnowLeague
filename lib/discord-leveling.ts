@@ -6,6 +6,8 @@ export const DISCORD_LEVELING_DEFAULT_LEVEL_UP_MESSAGE_TEMPLATE = '🎉 {user} r
 
 export type DiscordLevelingSettings = {
   cooldownSeconds: number;
+  disboardBumpChannelId: string | null;
+  disboardBumpReminderUserId: string | null;
   enabled: boolean;
   leaderboardTopRoleId: string | null;
   levelUpMessageEnabled: boolean;
@@ -28,6 +30,8 @@ export type DiscordGuildRole = {
 };
 
 export const DEFAULT_DISCORD_LEVELING_SETTINGS: DiscordLevelingSettings = {
+  disboardBumpChannelId: null,
+  disboardBumpReminderUserId: null,
   enabled: true,
   leaderboardTopRoleId: null,
   levelUpMessageEnabled: true,

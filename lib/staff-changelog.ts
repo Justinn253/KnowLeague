@@ -17,6 +17,31 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-11-06-add-disboard-bump-reminder',
+    patch: 'patch-2026-11-06-add-disboard-bump-reminder',
+    timestamp: '2026-11-06T03:23:53.4923507Z',
+    title: 'Add configurable DISBOARD bump reminders',
+    summary: 'Discord Configuration now controls the DISBOARD confirmation channel and optional two-hour reminder recipient, which the companion bot reads from Supabase at bump time.',
+    details: [
+      'Added nullable, snowflake-validated DISBOARD bump channel and reminder-user columns to the existing server-only Discord settings row.',
+      'Added a General-tab channel selector and user-ID field to the authenticated website Discord Configuration screen. The API validates the selected channel against synchronized sendable channels and rejects a reminder user without a bump channel.',
+      'Moved DISBOARD configuration out of the bot environment. The bot reads the saved setting only for messages from DISBOARD in the configured guild, so an administrator’s saved change applies to the next DISBOARD confirmation without a bot restart.',
+      'Centralized successful DISBOARD confirmation detection so the existing 2,500 KnowBucks reward and reminder share the same guild, channel, DISBOARD bot, and confirmation-text checks.',
+      'Each successful confirmation replaces the prior in-memory timer and sends one scoped user mention after two hours; allowed mentions are restricted to the configured user.',
+      'On bot startup, the reminder restores from the newest successful DISBOARD confirmation among the most recent messages in the configured channel, so a routine bot restart does not lose an outstanding reminder.',
+      'Shutdown clears the pending timer before disconnecting the Discord client.',
+    ],
+    impact: [
+      'Staff must apply migration 208, deploy the website and bot independently, then select the DISBOARD channel and optional reminder user in Profile > Discord Configuration > General. Leaving the user blank preserves the existing KnowBucks-only behavior.',
+      'The bot never invokes DISBOARD or impersonates a member; it only observes DISBOARD confirmations and posts a single reminder in the configured channel.',
+    ],
+    files: ['app/api/discord/leveling/route.ts', 'components/discord-leveling-settings.tsx', 'discord-bot/.env.example', 'discord-bot/README.md', 'discord-bot/src/config.ts', 'discord-bot/src/disboard.ts', 'discord-bot/src/index.ts', 'lib/discord-leveling.ts', 'supabase/migrations/208_add_discord_disboard_bump_configuration.sql', 'lib/staff-changelog.ts'],
+    verification: [
+      '`npm run check` passed: website and Discord bot TypeScript checks passed, and 50 Vitest files / 322 tests passed.',
+      "`git diff --check` passed. Lint completed with only the repository's existing Next.js <img> optimization warnings in profile and Riftbound components.",
+    ],
+  },
+  {
     id: 'patch-2026-11-05-refine-riftbound-mock-inventory-workspace',
     patch: 'patch-2026-11-05-refine-riftbound-mock-inventory-workspace',
     timestamp: '2026-11-05T21:07:50.8507806Z',

@@ -17,7 +17,7 @@ import { startDiscordFishingScheduler } from './fishing.js';
 import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panels.js';
 import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
-import { maybeAwardDisboardBump } from './disboard.js';
+import { handleDisboardBump, restoreDisboardBumpReminder, stopDisboardBumpReminder } from './disboard.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
 import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
@@ -65,6 +65,7 @@ async function replyWithFailure(interaction: Parameters<typeof handleChatInputCo
 
 async function shutdown(signal: NodeJS.Signals) {
   console.info(`Received ${signal}; disconnecting KnowLeague Discord bot.`);
+  stopDisboardBumpReminder();
   client.destroy();
   await closeLeagueAccountViewerBrowser();
 }
@@ -88,6 +89,8 @@ client.once(Events.ClientReady, (readyClient) => {
   startDiscordMiningTopRoleScheduler(config, guild);
   startMiningWebsitePanelDeliveryScheduler(config, guild);
   startDiscordSkindleShareScheduler(config, guild);
+  void restoreDisboardBumpReminder(config, guild)
+    .catch((error: unknown) => console.error('DISBOARD bump reminder restoration failed.', error));
   void syncDiscordGuildRoles(config, guild)
     .then(() => syncDiscordGuildTextChannels(config, guild))
     .then(() => syncDiscordLeaderboardRole(config, guild))
@@ -126,8 +129,8 @@ client.on(Events.MessageCreate, (message) => {
   void maybeAwardMessageKnowBucks(config, message)
     .catch((error: unknown) => console.error('Discord message KnowBucks reward failed.', error));
 
-  void maybeAwardDisboardBump(config, message)
-    .catch((error: unknown) => console.error('DISBOARD bump KnowBucks reward failed.', error));
+  void handleDisboardBump(config, message)
+    .catch((error: unknown) => console.error('DISBOARD bump processing failed.', error));
 
   void attemptSkinClaimDropFromMessage(config, message)
     .catch((error: unknown) => console.error('Discord skin-claim message trigger failed.', error));

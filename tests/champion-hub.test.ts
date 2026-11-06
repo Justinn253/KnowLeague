@@ -104,6 +104,8 @@ describe('Champion Hub catalogue', () => {
     expect(directoryChampions).toHaveLength(champions.length);
     expect(directoryChampions[0]).not.toHaveProperty('lore');
     expect(directoryChampions[0]).not.toHaveProperty('abilities');
+    expect(directoryChampions.find((champion) => champion.slug === 'fiddlesticks')?.splashUrl)
+      .toBe('https://ddragon.leagueoflegends.com/cdn/img/champion/centered/FiddleSticks_0.jpg');
     expect(ahri).toMatchObject({
       slug: 'ahri',
       classes: ['Mage', 'Assassin'],
@@ -127,6 +129,8 @@ describe('Champion Hub catalogue', () => {
       price: '975 RP',
       officialLore: expect.any(String),
     });
+    expect(getChampionHubChampion('fiddlesticks')?.splashUrl)
+      .toBe('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/FiddleSticks_0.jpg');
     expect(champions.every((champion) => (
       champion.skinCatalogueStatus === 'complete'
       && champion.skins.length > 0

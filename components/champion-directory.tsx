@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AppSelectMenu, type AppSelectOption } from '@/components/app-select-menu';
-import { GameIconImage, GameSplashImage } from '@/components/game-asset-image';
+import { GameDirectImage, GameIconImage } from '@/components/game-asset-image';
 import { type ChampionHubClass, type ChampionHubDirectoryChampion, type ChampionHubLane } from '@/lib/champion-hub';
 
 type ChampionDirectoryProps = {
@@ -162,14 +162,13 @@ export function ChampionDirectory({ champions }: ChampionDirectoryProps) {
                   href={`/champions/${champion.slug}`}
                   className="group relative isolate min-h-80 overflow-hidden rounded-2xl border border-red-300/20 bg-slate-950 transition-transform duration-300 hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-amber-200"
                 >
-                  <GameSplashImage
+                  <GameDirectImage
                     src={champion.splashUrl}
                     alt={`${champion.name} splash art`}
                     fill
                     sizes="(min-width: 1280px) 280px, (min-width: 1024px) 33vw, (min-width: 480px) 50vw, 100vw"
-                    className="object-cover object-[58%_top] transition duration-700 group-hover:scale-110"
+                    className="object-cover object-center transition duration-700 group-hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.02),rgba(2,6,23,0.95)_78%)]" />
                   <div className="pointer-events-none absolute -left-1/2 top-0 h-full w-1/3 -skew-x-12 bg-white/10 opacity-0 blur-md transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100" />
                   <div className="absolute inset-y-5 right-4 z-10 flex flex-col items-center gap-2">
                     {champion.classes.map((championClass) => (
@@ -186,8 +185,8 @@ export function ChampionDirectory({ champions }: ChampionDirectoryProps) {
                     </span>
                   </div>
                   <div className="absolute inset-x-0 bottom-0 p-5 pr-16">
-                    <h3 className="text-3xl font-black tracking-tight text-white">{champion.name}</h3>
-                    <p className="mt-1 text-sm font-semibold text-slate-300">{champion.title}</p>
+                    <h3 className="text-3xl font-black tracking-tight text-white [text-shadow:0_2px_10px_rgb(2_6_23/0.95)]">{champion.name}</h3>
+                    <p className="mt-1 text-sm font-semibold text-slate-100 [text-shadow:0_2px_8px_rgb(2_6_23/0.95)]">{champion.title}</p>
                   </div>
                 </Link>
               ))}

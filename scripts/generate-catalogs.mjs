@@ -410,11 +410,6 @@ async function refreshStoredMetadata() {
   ]);
   const speciesOverrides = await readChampionSpeciesOverrides();
   if (speciesOverrides.size > 0) {
-    Object.keys(championMetadata).forEach((championName) => {
-      if (!speciesOverrides.has(championName)) {
-        delete championMetadata[championName];
-      }
-    });
     speciesOverrides.forEach((species, championName) => {
       championMetadata[championName] = {
         ...(championMetadata[championName] ?? { gender: 'Unknown' }),

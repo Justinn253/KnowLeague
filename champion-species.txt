@@ -1,0 +1,175 @@
+# Canonical Skindle species. Keep this complete list in alphabetical order so
+# catalogue refreshes retain the same concise, present-tense clue vocabulary.
+Aatrox - Darkin
+Ahri - Vastayan
+Akali - Human
+Akshan - Human
+Alistar - Minotaur
+Ambessa - Human
+Amumu - Yordle
+Anivia - Spirit God
+Annie - Human
+Aphelios - Human
+Ashe - Human, Iceborn
+Aurelion Sol - Celestial Dragon
+Aurora - Vastayan
+Azir - God-Warrior
+Bard - Celestial
+Bel'Veth - Void-Being
+Blitzcrank - Golem
+Brand - Human, Magical Alteration
+Braum - Human, Iceborn
+Briar - Golem
+Caitlyn - Human
+Camille - Human, Cyborg
+Cassiopeia - Human, Magical Alteration
+Cho'Gath - Void-Being
+Corki - Yordle
+Darius - Human
+Diana - Human, Aspect Host
+Dr. Mundo - Human, Chemical Alteration
+Draven - Human
+Ekko - Human
+Elise - Human, Magical Alteration
+Evelynn - Demon
+Ezreal - Human
+Fiddlesticks - Demon
+Fiora - Human
+Fizz - Yordle
+Galio - Golem
+Gangplank - Human
+Garen - Human
+Gnar - Yordle
+Gragas - Human, Iceborn
+Graves - Human
+Gwen - Human, Magical Alteration
+Hecarim - Wraith
+Heimerdinger - Yordle
+Hwei - Human
+Illaoi - Human
+Irelia - Human
+Ivern - Human, Magical Alteration
+Janna - Spirit God
+Jarvan IV - Human
+Jax - Troll
+Jayce - Human
+Jhin - Human
+Jinx - Chemical Alteration
+K'Sante - Human
+Kai'Sa - Human, Void Touched
+Kalista - Wraith
+Karma - Human
+Karthus - Wraith
+Kassadin - Human, Void Touched
+Katarina - Human
+Kayle - Human, Aspect Host
+Kayn - Human, Darkin
+Kennen - Yordle
+Kha'Zix - Void-Being
+Kindred - Spirit God
+Kled - Yordle
+Kog'Maw - Void-Being
+LeBlanc - Magical Alteration
+Lee Sin - Human
+Leona - Human, Aspect Host
+Lillia - Fae Fawn
+Lissandra - Human, Iceborn
+Locke - Human
+Lucian - Human
+Lulu - Yordle
+Lux - Human
+Malphite - Golem
+Malzahar - Human, Void Touched
+Maokai - Treant
+Master Yi - Human
+Mel - Human
+Milio - Human
+Miss Fortune - Human
+Mordekaiser - Revenant
+Morgana - Human, Aspect Host
+Naafiri - Darkin
+Nami - Vastayan
+Nasus - God-Warrior
+Nautilus - Revenant
+Neeko - Vastayan
+Nidalee - Human, Vastayan
+Nilah - Human, Magical Alteration
+Nocturne - Demon
+Nunu & Willump - Human, Yeti
+Olaf - Human, Iceborn
+Orianna - Golem
+Ornn - Spirit God
+Pantheon - Human, Aspect Host
+Poppy - Yordle
+Pyke - Revenant
+Qiyana - Human
+Quinn - Human
+Rakan - Vastayan
+Rammus - Baccai
+Rek'Sai - Xer'Sai
+Rell - Human, Magical Alteration
+Renata Glasc - Human, Chemical Alteration
+Renekton - God-Warrior
+Rengar - Vastayan
+Riven - Human
+Rumble - Yordle
+Ryze - Human, Magical Alteration
+Samira - Human
+Sejuani - Human, Iceborn
+Senna - Human, Wraith
+Seraphine - Human
+Sett - Human, Vastayan
+Shaco - Demon
+Shen - Human
+Shyvana - Dragon, Magical Alteration
+Singed - Human, Chemical Alteration
+Sion - Revenant
+Sivir - Human
+Skarner - Brackern
+Smolder - Dragon
+Sona - Human
+Soraka - Celestial
+Swain - Human, Magical Alteration
+Sylas - Human
+Syndra - Human
+Tahm Kench - Demon
+Taliyah - Human
+Talon - Human
+Taric - Human, Aspect Host
+Teemo - Yordle
+Thresh - Wraith
+Tristana - Yordle
+Trundle - Troll
+Tryndamere - Human, Magical Alteration
+Twisted Fate - Human
+Twitch - Plague Rat, Chemical Alteration
+Udyr - Human, Vastayan
+Urgot - Human, Chemical Alteration, Cyborg
+Varus - Darkin
+Vayne - Human
+Veigar - Yordle
+Vel'Koz - Void-Being
+Vex - Yordle
+Vi - Human
+Viego - Wraith
+Viktor - Human, Cyborg
+Vladimir - Human, Magical Alteration
+Volibear - Spirit God
+Warwick - Human, Chemical Alteration, Cyborg
+Wukong - Shimon
+Xayah - Vastayan
+Xerath - Baccai
+Xin Zhao - Human
+Yasuo - Human
+Yone - Human, Magical Alteration
+Yorick - Human, Magical Alteration
+Yunara - Human
+Yuumi - Cat, Magical Alteration
+Zaahen - Darkin
+Zac - Golem
+Zed - Human, Magical Alteration
+Zeri - Human
+Ziggs - Yordle
+Zilean - Human
+Zoe - Aspect Host
+Zyra - Plant

@@ -17,6 +17,52 @@ export type StaffChangelogEntry = {
  */
 export const STAFF_CHANGELOG_ENTRIES: readonly StaffChangelogEntry[] = [
   {
+    id: 'patch-2026-11-06-refine-catalogue-center-and-search-results',
+    patch: 'patch-2026-11-06-refine-catalogue-center-and-search-results',
+    timestamp: '2026-11-06T16:49:27.2277490Z',
+    title: 'Center catalogue art and simplify leaderboard search results',
+    summary: 'Champion Catalogue cards now use Riot\'s centered splash assets, and an out-of-list token-leaderboard search now presents only its green result panel.',
+    details: [
+      'The lightweight Champion Catalogue directory payload converts Riot splash URLs to their centered variants while retaining direct CDN delivery, so the grid no longer crops champions using a generic object-position.',
+      'Moved the static PUUID availability notice directly below the back control and above the token header. Suppressed the supplemental rank note whenever the searched player is already represented by the green result panel.',
+      'Applied the requested canonical Skindle species corrections, including restored Magical Alteration, Chemical Alteration, Human, Wraith, Cyborg, and Aspect Host combinations. Updated the source list, human-readable audit, champion metadata, and all generated skin records together.',
+    ],
+    impact: [
+      'Champion art is framed for character recognition rather than the full-splash focal point, and token-leaderboard searches present one clear result state instead of duplicate panels.',
+      'Website and Discord Skindle comparisons continue to use the same revised species data. Deploy the website and Discord bot independently to publish the shared catalogue data.',
+    ],
+    files: ['champion-species.txt', 'components/riot-token-leaderboards.tsx', 'data/catalogs/champion-metadata.json', 'data/catalogs/skin-items.json', 'docs/skindle-species-audit.md', 'lib/champion-hub.ts', 'lib/staff-changelog.ts', 'tests/champion-hub.test.ts', 'tests/skindle.test.ts'],
+    verification: [
+      '`npm run check` passed: lint retained only the repository\'s existing <img> optimization warnings in profile and Riftbound components; website TypeScript and Discord bot TypeScript checks passed; 50 Vitest files / 323 tests passed.',
+      'Confirmed the 173-entry canonical source and audit agree, with every generated skin record using its champion\'s canonical species value.',
+      '`git diff --check` passed. No production build was run because repository guidance requires a safely stopped Next development server.',
+    ],
+  },
+  {
+    id: 'patch-2026-11-06-skindle-catalogue-and-token-polish',
+    patch: 'patch-2026-11-06-skindle-catalogue-and-token-polish',
+    timestamp: '2026-11-06T16:14:52.4855413Z',
+    title: 'Canonicalize Skindle species and sharpen catalogue discovery',
+    summary: 'Skindle now uses a concise, current species vocabulary across the website and Discord companion, while Champion Catalogue and token-leaderboard presentation fixes remove stale image treatment and misleading search feedback.',
+    details: [
+      'Added a complete, alphabetized 173-champion species source of truth and an accompanying current-to-canonical audit. It preserves present, gameplay-relevant identities such as Darkin, Vastayan, Spirit God, Aspect Host, Cyborg, and Void Touched while removing generic magical traits, obsolete former states, and mounts or companions.',
+      'Applied the canonical species values to generated champion metadata and every Skindle skin entry. The website API and Discord bot both consume this shared generated skin catalogue, so daily targets and comparison feedback stay identical on both surfaces.',
+      'Changed the catalogue generator to merge species overrides without deleting metadata for champions omitted from a future partial override file.',
+      'Changed Champion Catalogue cards to use direct Riot splash delivery, centered crops, and no dark image overlay. This avoids Vercel image transformations and stale transformed splash responses; the catalogue now also uses Riot\'s canonical FiddleSticks alias rather than the legacy Fiddlesticks splash path.',
+      'Disabled browser username/email autofill for the token-leaderboard Riot ID field, reports a searched player\'s actual rank when it falls outside the displayed top 250, and aligns the Change heading with the full right-side change/action column.',
+    ],
+    impact: [
+      'Players receive clearer Skindle species clues without losing meaningful partial-match categories. A website deployment and independent Discord bot image deployment are both required to publish the shared catalogue update.',
+      'Champion catalogue art renders brighter, centered, and at source quality; token-leaderboard searches no longer suggest an email address or imply that a ranked player has no position.',
+    ],
+    files: ['champion-species.txt', 'components/champion-directory.tsx', 'components/riot-token-leaderboards.tsx', 'data/catalogs/champion-hub-overviews.json', 'data/catalogs/champion-metadata.json', 'data/catalogs/skin-items.json', 'docs/skindle-species-audit.md', 'scripts/generate-catalogs.mjs', 'scripts/generate-champion-hub-overviews.mjs', 'tests/champion-hub.test.ts', 'lib/staff-changelog.ts'],
+    verification: [
+      '`npm run check` passed: lint retained only the repository\'s existing <img> optimization warnings in profile and Riftbound components; website TypeScript and Discord bot TypeScript checks passed; 50 Vitest files / 323 tests passed.',
+      'Confirmed all 173 canonical source entries match champion metadata and all 1,978 Skindle skin records, including Aatrox = Darkin and Annie = Human.',
+      '`git diff --check` passed. No production build was run because a Next dev process could not be safely confirmed stopped, and repository guidance prohibits sharing .next with a build.',
+    ],
+  },
+  {
     id: 'patch-2026-11-06-add-disboard-bump-reminder',
     patch: 'patch-2026-11-06-add-disboard-bump-reminder',
     timestamp: '2026-11-06T03:23:53.4923507Z',

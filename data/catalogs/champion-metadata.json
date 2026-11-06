@@ -1,13 +1,13 @@
 {
   "Lux": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Middle/Support"
   },
   "Aatrox": {
     "gender": "Male",
-    "species": "Darkin, God-Warrior, Human",
+    "species": "Darkin",
     "resourceType": "No Mana",
     "lane": "Top"
   },
@@ -49,13 +49,13 @@
   },
   "Annie": {
     "gender": "Female",
-    "species": "Human, Magical, Magical Alteration",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Middle"
   },
   "Aphelios": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Bottom"
   },
@@ -73,7 +73,7 @@
   },
   "Azir": {
     "gender": "Male",
-    "species": "God-Warrior, Undead, Human",
+    "species": "God-Warrior",
     "resourceType": "Mana",
     "lane": "Middle"
   },
@@ -85,13 +85,13 @@
   },
   "Blitzcrank": {
     "gender": "Other",
-    "species": "Techmaturgy, Golem",
+    "species": "Golem",
     "resourceType": "Mana",
     "lane": "Support"
   },
   "Brand": {
     "gender": "Male",
-    "species": "Human, Magical, Magical Alteration",
+    "species": "Human, Magical Alteration",
     "resourceType": "Mana",
     "lane": "Jungle/Middle/Support"
   },
@@ -127,7 +127,7 @@
   },
   "Corki": {
     "gender": "Male",
-    "species": "Spirit, Yordle",
+    "species": "Yordle",
     "resourceType": "Mana",
     "lane": "Middle"
   },
@@ -139,7 +139,7 @@
   },
   "Diana": {
     "gender": "Female",
-    "species": "Aspect Host, Human",
+    "species": "Human, Aspect Host",
     "resourceType": "Mana",
     "lane": "Jungle/Middle"
   },
@@ -175,7 +175,7 @@
   },
   "Ezreal": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Bottom"
   },
@@ -199,13 +199,13 @@
   },
   "Galio": {
     "gender": "Male",
-    "species": "Petricite, Golem",
+    "species": "Golem",
     "resourceType": "Mana",
     "lane": "Middle/Support"
   },
   "Gangplank": {
     "gender": "Male",
-    "species": "Human, Cyborg",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Top"
   },
@@ -241,7 +241,7 @@
   },
   "Hecarim": {
     "gender": "Male",
-    "species": "Wraith, Human, Horse",
+    "species": "Wraith",
     "resourceType": "Mana",
     "lane": "Jungle"
   },
@@ -253,13 +253,13 @@
   },
   "Illaoi": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Top"
   },
   "Irelia": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Top/Middle"
   },
@@ -295,13 +295,13 @@
   },
   "Jhin": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Bottom"
   },
   "Jinx": {
     "gender": "Female",
-    "species": "Human, Chemical Alteration",
+    "species": "Chemical Alteration",
     "resourceType": "Mana",
     "lane": "Bottom"
   },
@@ -313,19 +313,19 @@
   },
   "Kalista": {
     "gender": "Female",
-    "species": "Wraith, Human",
+    "species": "Wraith",
     "resourceType": "Mana",
     "lane": "Bottom"
   },
   "Karma": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Top/Middle/Support"
   },
   "Karthus": {
     "gender": "Male",
-    "species": "Wraith, Human",
+    "species": "Wraith",
     "resourceType": "Mana",
     "lane": "Jungle"
   },
@@ -337,19 +337,19 @@
   },
   "Katarina": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "No Mana",
     "lane": "Middle"
   },
   "Kayle": {
     "gender": "Female",
-    "species": "Human, Magical Alteration, Aspect Host",
+    "species": "Human, Aspect Host",
     "resourceType": "Mana",
     "lane": "Top"
   },
   "Kayn": {
     "gender": "Male",
-    "species": "Human, Magical Alteration, Darkin, God-Warrior",
+    "species": "Human, Darkin",
     "resourceType": "Mana",
     "lane": "Jungle"
   },
@@ -373,7 +373,7 @@
   },
   "Kled": {
     "gender": "Male",
-    "species": "Yordle, Drakalops",
+    "species": "Yordle",
     "resourceType": "Courage",
     "lane": "Top"
   },
@@ -385,19 +385,19 @@
   },
   "LeBlanc": {
     "gender": "Female",
-    "species": "Human, Magical, Magical Alteration",
+    "species": "Magical Alteration",
     "resourceType": "Mana",
     "lane": "Middle"
   },
   "Lee Sin": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Energy",
     "lane": "Jungle"
   },
   "Leona": {
     "gender": "Female",
-    "species": "Aspect Host, Human",
+    "species": "Human, Aspect Host",
     "resourceType": "Mana",
     "lane": "Support"
   },
@@ -433,7 +433,7 @@
   },
   "Malzahar": {
     "gender": "Male",
-    "species": "Human, Void Touched, Magical",
+    "species": "Human, Void Touched",
     "resourceType": "Mana",
     "lane": "Middle"
   },
@@ -445,7 +445,7 @@
   },
   "Master Yi": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Jungle"
   },
@@ -457,13 +457,13 @@
   },
   "Mordekaiser": {
     "gender": "Male",
-    "species": "Revenant, Human",
+    "species": "Revenant",
     "resourceType": "Shield",
     "lane": "Top"
   },
   "Morgana": {
     "gender": "Female",
-    "species": "Human, Magical Alteration, Aspect Host",
+    "species": "Human, Aspect Host",
     "resourceType": "Mana",
     "lane": "Support"
   },
@@ -475,13 +475,13 @@
   },
   "Nasus": {
     "gender": "Male",
-    "species": "God-Warrior, Human",
+    "species": "God-Warrior",
     "resourceType": "Mana",
     "lane": "Top"
   },
   "Nautilus": {
     "gender": "Male",
-    "species": "Revenant, Human",
+    "species": "Revenant",
     "resourceType": "Mana",
     "lane": "Support"
   },
@@ -493,7 +493,7 @@
   },
   "Nidalee": {
     "gender": "Female",
-    "species": "Human, Magical, Vastayan",
+    "species": "Human, Vastayan",
     "resourceType": "Mana",
     "lane": "Jungle"
   },
@@ -505,7 +505,7 @@
   },
   "Nunu & Willump": {
     "gender": "Male",
-    "species": "Half Animal, Human",
+    "species": "Human, Yeti",
     "resourceType": "Mana",
     "lane": "Jungle"
   },
@@ -517,7 +517,7 @@
   },
   "Orianna": {
     "gender": "Female",
-    "species": "Techmaturgy, Golem, Human",
+    "species": "Golem",
     "resourceType": "Mana",
     "lane": "Middle"
   },
@@ -541,13 +541,13 @@
   },
   "Pyke": {
     "gender": "Male",
-    "species": "Revenant, Human",
+    "species": "Revenant",
     "resourceType": "Mana",
     "lane": "Support"
   },
   "Qiyana": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Middle"
   },
@@ -577,13 +577,13 @@
   },
   "Rell": {
     "gender": "Female",
-    "species": "Human, Magical, Magical Alteration",
+    "species": "Human, Magical Alteration",
     "resourceType": "Mana",
     "lane": "Support"
   },
   "Renekton": {
     "gender": "Male",
-    "species": "God-Warrior, Human",
+    "species": "God-Warrior",
     "resourceType": "Fury",
     "lane": "Top"
   },
@@ -607,7 +607,7 @@
   },
   "Ryze": {
     "gender": "Male",
-    "species": "Human, Magical, Magical Alteration",
+    "species": "Human, Magical Alteration",
     "resourceType": "Mana",
     "lane": "Middle"
   },
@@ -625,19 +625,19 @@
   },
   "Senna": {
     "gender": "Female",
-    "species": "Wraith, Human",
+    "species": "Human, Wraith",
     "resourceType": "Mana",
     "lane": "Bottom/Support"
   },
   "Seraphine": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Bottom/Support"
   },
   "Sett": {
     "gender": "Male",
-    "species": "Human, Magical, Vastayan",
+    "species": "Human, Vastayan",
     "resourceType": "Grit",
     "lane": "Top"
   },
@@ -649,13 +649,13 @@
   },
   "Shen": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Energy",
     "lane": "Top/Support"
   },
   "Shyvana": {
     "gender": "Female",
-    "species": "Terrestrial Dragon, Magical Alteration",
+    "species": "Dragon, Magical Alteration",
     "resourceType": "Fury",
     "lane": "Jungle"
   },
@@ -667,7 +667,7 @@
   },
   "Sion": {
     "gender": "Male",
-    "species": "Revenant, Human",
+    "species": "Revenant",
     "resourceType": "Mana",
     "lane": "Top"
   },
@@ -685,7 +685,7 @@
   },
   "Sona": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Support"
   },
@@ -703,13 +703,13 @@
   },
   "Sylas": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Top/Middle"
   },
   "Syndra": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Middle"
   },
@@ -721,7 +721,7 @@
   },
   "Taliyah": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Jungle/Middle"
   },
@@ -733,7 +733,7 @@
   },
   "Taric": {
     "gender": "Male",
-    "species": "Aspect Host, Human",
+    "species": "Human, Aspect Host",
     "resourceType": "Mana",
     "lane": "Middle/Support"
   },
@@ -745,7 +745,7 @@
   },
   "Thresh": {
     "gender": "Male",
-    "species": "Wraith, Human",
+    "species": "Wraith",
     "resourceType": "Mana",
     "lane": "Support"
   },
@@ -757,7 +757,7 @@
   },
   "Trundle": {
     "gender": "Male",
-    "species": "Troll, Iceborn",
+    "species": "Troll",
     "resourceType": "Mana",
     "lane": "Top/Jungle"
   },
@@ -769,7 +769,7 @@
   },
   "Twisted Fate": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Top/Middle/Bottom"
   },
@@ -781,7 +781,7 @@
   },
   "Udyr": {
     "gender": "Male",
-    "species": "Human, Magical, Vastayan",
+    "species": "Human, Vastayan",
     "resourceType": "Mana",
     "lane": "Top/Jungle"
   },
@@ -793,7 +793,7 @@
   },
   "Varus": {
     "gender": "Male",
-    "species": "Darkin, Human, God-Warrior",
+    "species": "Darkin",
     "resourceType": "Mana",
     "lane": "Bottom"
   },
@@ -829,7 +829,7 @@
   },
   "Viego": {
     "gender": "Male",
-    "species": "Wraith, Human, Magical",
+    "species": "Wraith",
     "resourceType": "No Mana",
     "lane": "Jungle"
   },
@@ -871,7 +871,7 @@
   },
   "Xerath": {
     "gender": "Male",
-    "species": "Baccai, Human",
+    "species": "Baccai",
     "resourceType": "Mana",
     "lane": "Middle/Support"
   },
@@ -883,7 +883,7 @@
   },
   "Yasuo": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Flow",
     "lane": "Top/Middle/Bottom"
   },
@@ -895,7 +895,7 @@
   },
   "Yorick": {
     "gender": "Male",
-    "species": "Human, Magical, Magical Alteration",
+    "species": "Human, Magical Alteration",
     "resourceType": "Mana",
     "lane": "Top"
   },
@@ -919,7 +919,7 @@
   },
   "Zeri": {
     "gender": "Female",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Bottom"
   },
@@ -931,19 +931,19 @@
   },
   "Zilean": {
     "gender": "Male",
-    "species": "Human, Magical",
+    "species": "Human",
     "resourceType": "Mana",
     "lane": "Support"
   },
   "Zoe": {
     "gender": "Female",
-    "species": "Aspect Host, Human",
+    "species": "Aspect Host",
     "resourceType": "Mana",
     "lane": "Middle"
   },
   "Zyra": {
     "gender": "Female",
-    "species": "Plant / Human Hybrid",
+    "species": "Plant",
     "resourceType": "Mana",
     "lane": "Support"
   },
@@ -961,7 +961,7 @@
   },
   "Nilah": {
     "gender": "Female",
-    "species": "Human, Magical Alteration, Demon",
+    "species": "Human, Magical Alteration",
     "resourceType": "Mana",
     "lane": "Bottom"
   },
@@ -1036,5 +1036,11 @@
     "species": "Darkin",
     "resourceType": "No Mana",
     "lane": "Top"
+  },
+  "Locke": {
+    "gender": "Unknown",
+    "resourceType": "Unknown",
+    "lane": "Unknown",
+    "species": "Human"
   }
 }

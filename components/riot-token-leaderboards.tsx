@@ -374,7 +374,12 @@ export function RiotTokenLeaderboardDetail({ tokenId }: { tokenId: number }) {
     setSearchMessage(null);
     try {
       const result = await loadLeaderboard(platform, trimmed);
-      setSearchMessage(result.searchedPlayer ? null : 'That Riot ID was found, but no position was returned for this token in ' + displayRegion(platform) + '.');
+      const searchedPlayer = result.searchedPlayer;
+      setSearchMessage(
+        searchedPlayer
+          ? null
+          : 'That Riot ID was found, but it is currently unranked for this token in ' + displayRegion(platform) + '.',
+      );
     } catch (nextError) {
       setSearchMessage(nextError instanceof Error ? nextError.message : 'Unable to search this token leaderboard.');
     } finally {
@@ -395,6 +400,9 @@ export function RiotTokenLeaderboardDetail({ tokenId }: { tokenId: number }) {
     <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
       <section className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
         <Link href="/riot-account-viewer/token-leaderboards" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm font-bold text-slate-300 transition hover:border-amber-300/50 hover:text-amber-200"><ArrowLeft size={16} />Back to all token leaderboards</Link>
+        <p role="note" className="mt-4 rounded-2xl border border-amber-300/50 bg-amber-300/10 px-4 py-3 text-sm font-semibold leading-6 text-amber-100">
+          Due to the current Riot API key limitations, only PUUIDs are shown until their respective Riot ID is stored in our backend. Sorry for the inconvenience.
+        </p>
         <header className="mt-5 rounded-2xl border border-white/10 bg-slate-900/70 p-4 sm:p-5">
           {data ? <div className="flex items-center gap-3"><span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-amber-200/20 bg-slate-950/70"><GameIconImage src={data.token.iconUrl} alt="" width={56} height={56} className="h-14 w-14 object-contain" /></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-3"><p className="text-xs font-black uppercase tracking-[0.28em] text-amber-300">Token Leaderboard</p><span className={'rounded-full border px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.14em] ' + (data.token.status === 'active' ? 'border-emerald-300/40 bg-emerald-300/10 text-emerald-200' : 'border-slate-400/30 bg-slate-400/10 text-slate-300')}>{data.token.status === 'active' ? 'Active' : 'Inactive'}</span></div><h1 className="mt-1 text-3xl font-black text-white sm:text-4xl">{data.token.name}</h1><p className="mt-1 max-w-3xl text-sm leading-5 text-slate-400">{data.token.description}</p></div></div> : <div className="h-20 animate-pulse rounded-xl bg-slate-950/50" />}
         </header>
@@ -405,7 +413,7 @@ export function RiotTokenLeaderboardDetail({ tokenId }: { tokenId: number }) {
         </nav>
 
         <form onSubmit={searchLeaderboard} className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <label className="relative block"><span className="sr-only">Riot ID</span><Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" /><input value={riotId} onChange={(event) => setRiotId(event.target.value)} autoComplete="username" placeholder="Riot ID" className="block min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 pr-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40" /></label>
+          <label className="relative block"><span className="sr-only">Riot ID</span><Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" /><input value={riotId} onChange={(event) => setRiotId(event.target.value)} autoComplete="off" name="riot-id" placeholder="Riot ID" className="block min-h-12 w-full rounded-2xl border border-white/10 bg-slate-950 pl-11 pr-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300/70 focus:ring-1 focus:ring-amber-300/40" /></label>
           <button type="submit" disabled={searching || loading} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{searching ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}{searching ? 'Searching' : 'Search player'}</button>
         </form>
 
@@ -422,15 +430,12 @@ export function RiotTokenLeaderboardDetail({ tokenId }: { tokenId: number }) {
             <button type="button" onClick={showSearchedPlayerInList} className="inline-flex min-h-9 items-center justify-center rounded-xl border border-emerald-200/40 bg-emerald-300/10 px-3 text-xs font-black text-emerald-100 transition hover:border-emerald-100/70 hover:bg-emerald-300/20">Show in list</button>
           </div> : null}
         </section> : null}
-        <p role="note" className="mt-3 rounded-2xl border border-amber-300/50 bg-amber-300/10 px-4 py-3 text-sm font-semibold leading-6 text-amber-100">
-          Due to the current Riot API key limitations, only PUUIDs are shown until their respective Riot ID is stored in our backend. Sorry for the inconvenience.
-        </p>
         {searchMessage ? <p className="mt-3 rounded-2xl border border-amber-200/20 bg-amber-300/10 px-4 py-3 text-sm font-semibold text-amber-100">{searchMessage}</p> : null}
         {error ? <p className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-950/30 px-4 py-3 text-sm font-semibold text-rose-100">{error}</p> : null}
 
         <section className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-slate-950/50 px-4 py-4"><div><h2 className="text-lg font-black text-white">{listLabel}</h2>{data?.platform === 'ALL' ? <p className="mt-1 text-xs font-semibold text-slate-500">Combined from {data.availablePlatforms.length} cached region{data.availablePlatforms.length === 1 ? '' : 's'}.</p> : null}</div>{data ? <p className="text-xs font-semibold text-slate-500">Last refreshed: {formatRelativeRefresh(data.generatedAt)}</p> : null}</div>
-          {loading ? <div className="flex min-h-64 items-center justify-center"><Loader2 className="animate-spin text-amber-200" size={28} /></div> : data?.entries.length ? <div><div className="flex min-h-10 items-center gap-3 border-b border-white/10 px-3 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500"><span className="w-12 shrink-0 text-center">Rank</span><span className="flex-1">Player</span><span className="hidden w-16 shrink-0 text-right sm:block">Points</span><span className="w-16 shrink-0 text-right">Change</span><span className="w-5 shrink-0" /></div>{data.entries.map((entry) => <LeaderboardRow key={entry.rank + '-' + entry.platform} entry={entry} />)}{data.unresolvedNameCount > 0 ? <p className="border-t border-white/10 px-4 py-3 text-xs font-semibold text-slate-500"></p> : null}</div> : <p className="p-5 text-sm text-slate-400">No leaderboard entries were returned for this region.</p>}
+          {loading ? <div className="flex min-h-64 items-center justify-center"><Loader2 className="animate-spin text-amber-200" size={28} /></div> : data?.entries.length ? <div><div className="flex min-h-10 items-center gap-3 border-b border-white/10 px-3 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500"><span className="w-12 shrink-0 text-center">Rank</span><span className="flex-1">Player</span><span className="hidden w-16 shrink-0 text-right sm:block">Points</span><span className="w-24 shrink-0 text-right">Change</span></div>{data.entries.map((entry) => <LeaderboardRow key={entry.rank + '-' + entry.platform} entry={entry} />)}{data.unresolvedNameCount > 0 ? <p className="border-t border-white/10 px-4 py-3 text-xs font-semibold text-slate-500"></p> : null}</div> : <p className="p-5 text-sm text-slate-400">No leaderboard entries were returned for this region.</p>}
         </section>
       </section>
     </main>

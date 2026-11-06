@@ -5,6 +5,7 @@ import {
   matchesEarnedSkindleClues,
   type SkindleGuessResult,
 } from '@/lib/skindle';
+import { getSkinCatalog } from '@/lib/catalogs';
 import type { QuizItem } from '@/lib/quiz';
 
 function skin(overrides: Partial<QuizItem> = {}): QuizItem {
@@ -29,6 +30,19 @@ function skin(overrides: Partial<QuizItem> = {}): QuizItem {
 }
 
 describe('Skindle clue matching', () => {
+  it('uses concise, canonical species clues throughout the generated skin catalogue', () => {
+    const catalog = getSkinCatalog();
+    const speciesFor = (champion: string) => catalog.find((skin) => skin.champion === champion)?.race;
+
+    expect(speciesFor('Aatrox')).toBe('Darkin');
+    expect(speciesFor('Annie')).toBe('Human');
+    expect(speciesFor('Brand')).toBe('Human, Magical Alteration');
+    expect(speciesFor('Jinx')).toBe('Chemical Alteration');
+    expect(speciesFor('Kayn')).toBe('Human, Darkin');
+    expect(speciesFor('Nunu & Willump')).toBe('Human, Yeti');
+    expect(speciesFor('Warwick')).toBe('Human, Chemical Alteration, Cyborg');
+  });
+
   it('marks overlapping lanes as a partial match', () => {
     const target = skin({ id: 'target', lane: 'Middle' });
     const guess = compareGuess(skin({ id: 'guess', lane: 'Middle, Support' }), target);

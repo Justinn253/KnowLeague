@@ -5,12 +5,13 @@ import { RiftboundCatalogueStructuredData } from '@/components/riftbound-seo-str
 import { createNoIndexMetadata, createPageMetadata } from '@/lib/seo';
 
 type PageProps = {
-  searchParams?: {
+  searchParams?: Promise<{
     tab?: string | string[];
-  };
+  }>;
 };
 
-export function generateMetadata({ searchParams }: PageProps): Metadata {
+export async function generateMetadata(props: PageProps): Promise<Metadata> {
+  const searchParams = await props.searchParams;
   const tab = Array.isArray(searchParams?.tab) ? searchParams.tab[0] : searchParams?.tab;
   if (tab === 'inventory') return createNoIndexMetadata('My Riftbound Inventory');
   if (tab === 'mock') return createNoIndexMetadata('My Riftbound Mock Inventory');

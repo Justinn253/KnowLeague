@@ -10,7 +10,8 @@ export const metadata: Metadata = createPageMetadata({
   path: '/riot-account-viewer/token-leaderboards',
 });
 
-export default function RiotTokenLeaderboardPage({ params }: { params: { tokenId: string } }) {
+export default async function RiotTokenLeaderboardPage(props: { params: Promise<{ tokenId: string }> }) {
+  const params = await props.params;
   const tokenId = Number(params.tokenId);
   return <RiotTokenLeaderboardDetail tokenId={Number.isSafeInteger(tokenId) && tokenId > 0 ? tokenId : 0} />;
 }

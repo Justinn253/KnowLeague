@@ -4,9 +4,10 @@ import { AugmentOfficialView } from '@/components/augment-official-view';
 import officialCatalogue from '@/data/catalogs/official-augments.json';
 import { createPageMetadata } from '@/lib/seo';
 
-type OfficialAugmentPageProps = { params: { id: string } };
+type OfficialAugmentPageProps = { params: Promise<{ id: string }> };
 
-export function generateMetadata({ params }: OfficialAugmentPageProps): Metadata {
+export async function generateMetadata(props: OfficialAugmentPageProps): Promise<Metadata> {
+  const params = await props.params;
   const record = officialCatalogue.augments.find((item) => item.id === params.id);
   return createPageMetadata({
     title: record ? record.name + ' | Official Augment' : 'Official Augment',
@@ -15,7 +16,8 @@ export function generateMetadata({ params }: OfficialAugmentPageProps): Metadata
   });
 }
 
-export default function OfficialAugmentPage({ params }: OfficialAugmentPageProps) {
+export default async function OfficialAugmentPage(props: OfficialAugmentPageProps) {
+  const params = await props.params;
   const record = officialCatalogue.augments.find((item) => item.id === params.id);
   if (!record) notFound();
   return <AugmentOfficialView record={record} />;

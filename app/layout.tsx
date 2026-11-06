@@ -5,6 +5,8 @@ import { SiteStructuredData } from '@/components/seo-structured-data';
 import { SiteFooter } from '@/components/site-footer';
 import { DEFAULT_DESCRIPTION, DEFAULT_SITE_TITLE, getAbsoluteSiteUrl, SITE_NAME, SOCIAL_IMAGE_PATH, siteUrl } from '@/lib/seo';
 import './globals.css';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const socialImageUrl = getAbsoluteSiteUrl(SOCIAL_IMAGE_PATH);
 
@@ -54,6 +56,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="flex min-h-0 flex-1 flex-col">{children}</div>
         </GlobalActions>
         <SiteStructuredData />
+        <Analytics />
+        <SpeedInsights />
         <SiteFooter />
       </body>
 

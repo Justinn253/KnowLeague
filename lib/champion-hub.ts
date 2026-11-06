@@ -835,7 +835,7 @@ export function getChampionHubDirectoryChampions(): readonly ChampionHubDirector
     name: champion.name,
     title: champion.title,
     searchTerms: champion.searchTerms,
-    splashUrl: champion.splashUrl,
+    splashUrl: champion.splashUrl.replace('/splash/', '/centered/'),
     role: champion.role,
     lane: champion.lane,
     classes: champion.classes,

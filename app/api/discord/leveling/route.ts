@@ -48,6 +48,8 @@ export const runtime = 'nodejs';
 
 type StoredSettingsRow = {
   cooldown_seconds: number;
+  disboard_bump_channel_id: string | null;
+  disboard_bump_reminder_user_id: string | null;
   enabled: boolean;
   leaderboard_top_role_id: string | null;
   level_up_message_enabled: boolean;
@@ -167,6 +169,8 @@ type StoredMiningRoleRewardRow = { discord_role_id: string; level: number };
 type LevelingSettingsBody = {
   collectionAdminRoleIds?: unknown;
   cooldownSeconds?: unknown;
+  disboardBumpChannelId?: unknown;
+  disboardBumpReminderUserId?: unknown;
   generalCommandChannelIds?: unknown;
   enabled?: unknown;
   leaderboardExcludedRoleIds?: unknown;
@@ -219,6 +223,8 @@ function getDiscordGuildId() {
 function toSettings(row: StoredSettingsRow | null): DiscordLevelingSettings {
   return row ? {
     cooldownSeconds: row.cooldown_seconds,
+    disboardBumpChannelId: row.disboard_bump_channel_id,
+    disboardBumpReminderUserId: row.disboard_bump_reminder_user_id,
     enabled: row.enabled,
     leaderboardTopRoleId: row.leaderboard_top_role_id,
     levelUpMessageEnabled: row.level_up_message_enabled,
@@ -369,7 +375,7 @@ async function getLevelingData(guildId: string) {
     minigameSimulationRolesResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
-      .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id')
+      .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id, disboard_bump_channel_id, disboard_bump_reminder_user_id')
       .eq('guild_id', guildId)
       .maybeSingle<StoredSettingsRow>(),
     supabase.from('discord_guild_roles')
@@ -788,6 +794,11 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const levelUpMessageTemplate = parseOptionalMessageTemplate(body.levelUpMessageTemplate, 'Level-up message');
     if (!levelUpMessageTemplate) throw new ApiError(400, 'Level-up messages must contain between 1 and 500 characters.');
     const levelUpMessageChannelId = parseOptionalSnowflake(body.levelUpMessageChannelId, 'Level-up channel ID');
+    const disboardBumpChannelId = parseOptionalSnowflake(body.disboardBumpChannelId, 'DISBOARD bump channel ID');
+    const disboardBumpReminderUserId = parseOptionalSnowflake(body.disboardBumpReminderUserId, 'DISBOARD reminder user ID');
+    if (disboardBumpReminderUserId && !disboardBumpChannelId) {
+      throw new ApiError(400, 'Choose a DISBOARD bump channel before setting a reminder user.');
+    }
     const leaderboardTopRoleId = parseOptionalSnowflake(body.leaderboardTopRoleId, 'Leaderboard top role');
     const manualXpRoleIds = parseRoleIds(body.manualXpRoleIds, 'manual XP staff roles', 25);
     const collectionAdminRoleIds = parseRoleIds(body.collectionAdminRoleIds, 'collection admin roles', 25);
@@ -926,6 +937,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (miningWebsitePanelChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose Mining website result channels that are currently available to the KnowLeague bot.');
     }
+    if (disboardBumpChannelId && !sendableChannelIds.has(disboardBumpChannelId)) {
+      throw new ApiError(400, 'Choose a DISBOARD bump channel that is currently available to the KnowLeague bot.');
+    }
     if (body.skinClaimEnabled && (!sendableChannelIds.size || (!skinClaimAllChannels && !skinClaimChannelIds.length))) {
       throw new ApiError(400, 'Enable skin claims only after Discord has synced a sendable channel or you select at least one eligible channel.');
     }
@@ -968,6 +982,14 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_sell_values: skinClaimSellValues,
     });
     if (error) throw error;
+    const { error: disboardSettingsError } = await supabase
+      .from('discord_leveling_settings')
+      .update({
+        disboard_bump_channel_id: disboardBumpChannelId,
+        disboard_bump_reminder_user_id: disboardBumpReminderUserId,
+      })
+      .eq('guild_id', guildId);
+    if (disboardSettingsError) throw disboardSettingsError;
     const { error: generalCommandChannelsError } = await supabase.rpc('replace_discord_general_command_channels', {
       p_command_channel_ids: generalCommandChannelIds,
       p_guild_id: guildId,

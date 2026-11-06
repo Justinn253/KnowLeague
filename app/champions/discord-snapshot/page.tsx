@@ -14,10 +14,10 @@ export const metadata: Metadata = {
 };
 
 type ChampionDiscordSnapshotPageProps = {
-  searchParams: {
+  searchParams: Promise<{
     champion?: string | string[];
     section?: string | string[];
-  };
+  }>;
 };
 
 function normalizedChampionTerm(value: string) {
@@ -47,7 +47,8 @@ function sectionFromSearchTerm(value: string | string[] | undefined): ChampionDi
 }
 
 /** Non-indexed, static render target used only by the Discord Champion Catalogue capture flow. */
-export default function ChampionDiscordSnapshotPage({ searchParams }: ChampionDiscordSnapshotPageProps) {
+export default async function ChampionDiscordSnapshotPage(props: ChampionDiscordSnapshotPageProps) {
+  const searchParams = await props.searchParams;
   const champion = championFromSearchTerm(searchParams.champion);
   const section = sectionFromSearchTerm(searchParams.section);
 

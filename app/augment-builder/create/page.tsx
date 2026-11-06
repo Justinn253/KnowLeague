@@ -8,7 +8,10 @@ export const metadata: Metadata = createPageMetadata({
   path: '/augment-builder/create',
 });
 
-export default function AugmentBuilderPage({ searchParams }: { searchParams: { edit?: string; template?: string; fresh?: string } }) {
+export default async function AugmentBuilderPage(
+  props: { searchParams: Promise<{ edit?: string; template?: string; fresh?: string }> }
+) {
+  const searchParams = await props.searchParams;
   return <AugmentBuilder editId={searchParams.edit ?? null} templateId={searchParams.template ?? null} fresh={searchParams.fresh === '1'} />;
 }
 

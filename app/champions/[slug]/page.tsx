@@ -5,14 +5,15 @@ import { getChampionHubChampion, getChampionHubChampions } from '@/lib/champion-
 import { createPageMetadata } from '@/lib/seo';
 
 type ChampionPageProps = {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 };
 
 export function generateStaticParams() {
   return getChampionHubChampions().map((champion) => ({ slug: champion.slug }));
 }
 
-export function generateMetadata({ params }: ChampionPageProps): Metadata {
+export async function generateMetadata(props: ChampionPageProps): Promise<Metadata> {
+  const params = await props.params;
   const champion = getChampionHubChampion(params.slug);
 
   if (!champion) {
@@ -31,7 +32,8 @@ export function generateMetadata({ params }: ChampionPageProps): Metadata {
   });
 }
 
-export default function ChampionPage({ params }: ChampionPageProps) {
+export default async function ChampionPage(props: ChampionPageProps) {
+  const params = await props.params;
   const champion = getChampionHubChampion(params.slug);
 
   if (!champion) {

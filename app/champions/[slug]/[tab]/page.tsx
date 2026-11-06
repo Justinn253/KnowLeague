@@ -23,14 +23,15 @@ const FUTURE_TABS = {
 type FutureTab = keyof typeof FUTURE_TABS;
 
 type ChampionFutureTabPageProps = {
-  params: { slug: string; tab: string };
+  params: Promise<{ slug: string; tab: string }>;
 };
 
 function isFutureTab(value: string): value is FutureTab {
   return value in FUTURE_TABS;
 }
 
-export function generateMetadata({ params }: ChampionFutureTabPageProps): Metadata {
+export async function generateMetadata(props: ChampionFutureTabPageProps): Promise<Metadata> {
+  const params = await props.params;
   const champion = getChampionHubChampion(params.slug);
   const tab = isFutureTab(params.tab) ? FUTURE_TABS[params.tab] : null;
 
@@ -59,7 +60,8 @@ export function generateMetadata({ params }: ChampionFutureTabPageProps): Metada
   });
 }
 
-export default function ChampionFutureTabPage({ params }: ChampionFutureTabPageProps) {
+export default async function ChampionFutureTabPage(props: ChampionFutureTabPageProps) {
+  const params = await props.params;
   const champion = getChampionHubChampion(params.slug);
 
   if (!champion) {

@@ -50,12 +50,6 @@
 - Timer UI should follow the Category Clash pattern by default: amber/yellow timer value while normal, red text with `animate-pulse` when urgent, and a countdown tick from `playUiSound('timer-countdown')` once per displayed second during the urgent window. Use a 10-second urgent window unless an existing game rule uses a different threshold.
 - Use the shared `AppSelectMenu` for configurable game settings rather than native browser selects. It is the app-wide implementation of the exact Ability Blitz/Skin Champion Difficulty/Modifiers treatment: dark rounded trigger, explicit chevron padding, amber focus/open state, bordered popup with a labeled description area, spacing between individually bordered selectable options, and the established toggle/button styling. Popup menus must not add a background/drop shadow and must expand to show their complete settings content without an internal scrollbar. Settings toggles should match the same control height and dark-card styling.
 
-## Staff changelog workflow
-
-- Every impactful code, configuration, data, security, or operational patch must add a detailed entry to lib/staff-changelog.ts in the same change before verification; do not rely on the final response, git history, or a separate note to update the page.
-- Add the newest entry at the beginning of STAFF_CHANGELOG_ENTRIES so the API and staff page surface it first. Include a unique patch ID, UTC ISO 8601 timestamp, concise title and summary, exact behavior/data/security/operational changes, user and staff impact, affected files, and verification performed.
-- Do not log routine formatting-only edits, and never include secrets or sensitive user data.
-
 ## Context Routing
 - UI and game components: read `components/AGENTS.md`.
 - API routes: read `app/api/AGENTS.md`.

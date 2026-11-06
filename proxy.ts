@@ -9,7 +9,7 @@ export const config = {
   matcher: ['/api/:path*'],
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const isHealthPath = request.nextUrl.pathname === '/api/health';
   if (isHealthPath && (request.method === 'GET' || request.method === 'HEAD')) {
     // Liveness must remain available while Redis or Supabase is degraded. It

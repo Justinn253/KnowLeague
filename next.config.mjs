@@ -16,7 +16,7 @@ const nextConfig = {
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-      { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=()' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
       { key: 'Content-Security-Policy', value: "base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'" },
       { key: 'X-DNS-Prefetch-Control', value: 'on' },
       { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
@@ -33,6 +33,8 @@ const nextConfig = {
     // boards, and icons. This bounds the number of Vercel image cache keys.
     deviceSizes: [360, 640, 960, 1280],
     imageSizes: [32, 48, 64, 96, 160, 240, 320],
+    // Next.js 16 requires explicit allow-listing for every requested quality.
+    qualities: [65, 75],
     formats: ['image/webp'],
     // Riot/CDN assets and hashed Riftbound catalogue assets are effectively
     // immutable. A month keeps normal revisits from re-transforming them.

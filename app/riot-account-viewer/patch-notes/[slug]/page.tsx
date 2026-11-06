@@ -8,7 +8,8 @@ export const metadata: Metadata = createPageMetadata({
   path: '/riot-account-viewer/patch-notes',
 });
 
-export default function LeaguePatchNoteDetailPage({ params }: { params: { slug: string } }) {
+export default async function LeaguePatchNoteDetailPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   return (
     <main className="min-h-[100dvh] bg-slate-950 text-slate-100">
       <section className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10">

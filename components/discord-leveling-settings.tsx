@@ -613,6 +613,34 @@ export function DiscordLevelingSettings() {
               />
             </div>
           </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">DISBOARD bump reminder</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Choose the channel where DISBOARD confirms successful bumps. The existing 2,500 KnowBucks reward remains active for that channel. Optionally set one Discord user ID to receive a channel ping exactly two hours after each successful bump.</p>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <AppSelectMenu
+                label="DISBOARD bump channel"
+                value={data.settings.disboardBumpChannelId ?? ''}
+                onChange={(channelId) => updateSettings('disboardBumpChannelId', channelId || null)}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="DISBOARD confirmations from this channel award KnowBucks. Adding a reminder user below enables the two-hour ping."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: '', label: 'No DISBOARD bump channel', description: 'DISBOARD bump rewards and reminders remain disabled.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+              <label className="grid content-start gap-2">
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Reminder user ID</span>
+                <input type="text" inputMode="numeric" maxLength={20} value={data.settings.disboardBumpReminderUserId ?? ''} placeholder="Optional Discord user ID" onChange={(event) => updateSettings('disboardBumpReminderUserId', event.target.value.replace(/\s/g, '') || null)} className="h-12 rounded-2xl border border-white/10 bg-slate-900 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-1 focus:ring-amber-300" />
+                <span className="text-xs leading-5 text-slate-400">Enable Discord Developer Mode, then copy the intended member’s ID. Leave blank to keep the KnowBucks reward without a reminder.</span>
+              </label>
+            </div>
+          </section>
           </> : null}
           {activeTab === 'riftbound' ? <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>

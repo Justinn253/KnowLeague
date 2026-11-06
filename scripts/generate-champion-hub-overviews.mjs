@@ -5,6 +5,11 @@ import { fileURLToPath } from 'node:url';
 /** Explicitly pinned to the live Data Dragon version reviewed for this catalogue run. */
 const DATA_DRAGON_VERSION = '16.20.1';
 const DATA_DRAGON_BASE_URL = `https://ddragon.leagueoflegends.com/cdn/${DATA_DRAGON_VERSION}`;
+const CHAMPION_SPLASH_ALIASES = {
+  // Data Dragon retains this casing for the post-VGU base splash. The
+  // champion identifier uses `Fiddlesticks`, which resolves to the legacy art.
+  Fiddlesticks: 'FiddleSticks',
+};
 const RIOT_CHAMPION_PAGE_BASE_URL = 'https://www.leagueoflegends.com/en-us/champions';
 const REQUEST_CONCURRENCY = 6;
 const REQUEST_RETRIES = 3;
@@ -219,7 +224,7 @@ async function buildChampion(championId, gameplayMetadata, slugs) {
     lore: officialChampionLore(pageHtml, championId),
     officialUrl,
     portraitUrl: `${DATA_DRAGON_BASE_URL}/img/champion/${champion.image.full}`,
-    splashUrl: `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${champion.id}_0.jpg`,
+    splashUrl: `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${CHAMPION_SPLASH_ALIASES[champion.id] ?? champion.id}_0.jpg`,
     info: champion.info,
     stats: champion.stats,
     abilities,

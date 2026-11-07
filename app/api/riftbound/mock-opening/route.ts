@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withApiMetrics } from '@/lib/api-metrics';
-import { ApiError, getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { ApiError, getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { isRiftboundMockSetCode, type RiftboundMockSetCode } from '@/lib/riftbound-mock-opening-engine';
 import {
@@ -61,7 +61,7 @@ export const GET = withApiMetrics('/api/riftbound/mock-opening', async function 
   try {
     const userId = await getAuthenticatedUserId(request);
     return NextResponse.json(await loadRiftboundMockOpeningWorkspace(userId), {
-      headers: { 'Cache-Control': 'private, no-store' },
+      headers: PRIVATE_NO_STORE_HEADERS,
     });
   } catch (error) {
     return getRouteErrorResponse(error);

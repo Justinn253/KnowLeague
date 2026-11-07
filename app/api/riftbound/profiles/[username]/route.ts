@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
 import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { loadRiftboundProfile } from '@/lib/riftbound-community';
@@ -23,7 +23,7 @@ export const GET = withApiMetrics('/api/riftbound/profiles/[username]', async fu
     const profile = await loadRiftboundProfile(params.username, viewerId, isStaff);
     const response = NextResponse.json({ profile });
     response.headers.set('Cache-Control', viewerId
-      ? 'private, max-age=15, stale-while-revalidate=30'
+      ? PRIVATE_NO_STORE_HEADERS['Cache-Control']
       : 'public, max-age=30, s-maxage=120, stale-while-revalidate=600');
     response.headers.set('Vary', 'Authorization');
     return response;

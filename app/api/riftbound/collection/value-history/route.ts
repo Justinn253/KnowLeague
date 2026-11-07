@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
@@ -76,8 +76,7 @@ export const GET = withApiMetrics('/api/riftbound/collection/value-history', asy
         totalCopies: row.total_copies,
         ...(granularity === 'month' ? { granularity: 'month' as const } : {}),
       })),
-    });
-    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300');
+    }, { headers: PRIVATE_NO_STORE_HEADERS });
     return response;
   } catch (error) {
     return getRouteErrorResponse(error);

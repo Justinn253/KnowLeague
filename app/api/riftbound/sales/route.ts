@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getRiftboundCardById } from '@/lib/riftbound';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
@@ -102,7 +102,7 @@ function parseSaleItems(value: unknown) {
 export const GET = withApiMetrics('/api/riftbound/sales', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    return NextResponse.json({ sales: await loadRiftboundSales(userId) });
+    return NextResponse.json({ sales: await loadRiftboundSales(userId) }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

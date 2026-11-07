@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUserId } from '@/lib/auth-server';
 import { loadRiftboundSharedDeck } from '@/lib/riftbound-shared-decks';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
@@ -20,7 +20,7 @@ export const GET = withApiMetrics('/api/riftbound/shared-decks/[deckId]', async 
     const deck = await loadRiftboundSharedDeck(params.deckId, viewerId);
     const response = NextResponse.json({ deck });
     response.headers.set('Cache-Control', viewerId
-      ? 'private, max-age=15, stale-while-revalidate=30'
+      ? PRIVATE_NO_STORE_HEADERS['Cache-Control']
       : 'public, max-age=30, s-maxage=60, stale-while-revalidate=300');
     response.headers.set('Vary', 'Authorization');
     return response;

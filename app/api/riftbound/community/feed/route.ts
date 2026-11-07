@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getOptionalAuthenticatedUser } from '@/lib/auth-server';
 import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { getRiftboundCardById } from '@/lib/riftbound';
@@ -67,7 +67,7 @@ export const GET = withApiMetrics('/api/riftbound/community/feed', async functio
     });
     const response = NextResponse.json(payload);
     response.headers.set('Cache-Control', viewerId
-      ? 'private, max-age=15, stale-while-revalidate=30'
+      ? PRIVATE_NO_STORE_HEADERS['Cache-Control']
       : 'public, max-age=30, s-maxage=60, stale-while-revalidate=300');
     response.headers.set('Vary', 'Authorization');
     return response;

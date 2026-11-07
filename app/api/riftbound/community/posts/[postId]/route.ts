@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUser, getAuthenticatedUserId, getOptionalAuthenticatedUser } from '@/lib/auth-server';
 import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { deleteRiftboundPost, loadRiftboundPost, setRiftboundPostArchiveState, updateRiftboundPost } from '@/lib/riftbound-community';
@@ -23,7 +23,7 @@ export const GET = withApiMetrics('/api/riftbound/community/posts/[postId]', asy
     const post = await loadRiftboundPost(params.postId, viewerId, isStaff);
     const response = NextResponse.json({ post });
     response.headers.set('Cache-Control', viewerId
-      ? 'private, max-age=15, stale-while-revalidate=30'
+      ? PRIVATE_NO_STORE_HEADERS['Cache-Control']
       : 'public, max-age=30, s-maxage=120, stale-while-revalidate=600');
     response.headers.set('Vary', 'Authorization');
     return response;

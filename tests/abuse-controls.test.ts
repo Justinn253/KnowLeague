@@ -5,6 +5,7 @@ import { ApiError, readJsonBody } from '@/lib/api-utils';
 describe('API route abuse policies', () => {
   it('protects expensive, privileged, social, and game mutation families', () => {
     expect(getApiRouteRateLimitPolicy('/api/solo-quiz/attempt', 'POST')?.scope).toBe('api:game-action');
+    expect(getApiRouteRateLimitPolicy('/api/skindle/stats', 'POST')?.scope).toBe('api:anonymous-game-submission');
     expect(getApiRouteRateLimitPolicy('/api/mining', 'GET')?.scope).toBe('api:game-action');
     expect(getApiRouteRateLimitPolicy('/api/mining', 'POST')?.scope).toBe('api:game-action');
     expect(getApiRouteRateLimitPolicy('/api/riftbound/community/posts/abc/comments', 'POST')?.scope).toBe('api:community-write');

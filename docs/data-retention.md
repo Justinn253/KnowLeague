@@ -14,6 +14,8 @@ KnowLeague stores live multiplayer state and short-term product history, not an 
 | Riot searches and profile metrics | 180 days since last search | Keeps suggestion and percentile data current without retaining arbitrary account lookups forever. |
 | Solo quiz attempts | 45 days | The application only reads the current day’s attempts. |
 | Solo and Splash Scramble daily leaderboard entries | 120 days | Preserves a four-month diagnostic window; current UI reads the active daily board. |
+| Splash Scramble daily global statistics | 120 days | Bounded hourly cleanup removes one-way client deduplication keys before deleting empty daily summaries. |
+| Skindle daily global statistics | 120 days | Bounded hourly cleanup removes anonymous client rows and per-skin aggregates before deleting empty daily summaries. |
 | Contact feedback, bug reports, and suggestions | 365 days after closed/archived, severity 1–2 only | Removes low-risk resolved tickets. |
 
 Unresolved tickets, all `player_report` records, and higher-severity contact records are intentionally excluded. There is no separate moderation-action history table in the current schema. Set a reviewed legal/compliance policy before adding any automatic deletion for those records.
@@ -28,12 +30,12 @@ Unresolved tickets, all `player_report` records, and higher-severity contact rec
 ```sql
 select jobname, schedule, command
 from cron.job
-where jobname in ('knowleague-prune-application-data', 'knowleague-prune-cron-history');
+where jobname in ('knowleague-prune-application-data', 'knowleague-prune-skindle-daily-stats', 'knowleague-prune-splash-scramble-daily-stats', 'knowleague-prune-cron-history');
 ```
 
-The application cleanup runs hourly at `:15` and the Cron execution-history cleanup runs Sundays at `04:45` (database timezone). `pg_cron` does not purge its own run history automatically, so the second job prevents its metadata from becoming another source of disk growth.
+The application cleanup runs hourly at `:15`, Skindle cleanup runs hourly at `:25`, Splash Scramble cleanup runs hourly at `:35`, and the Cron execution-history cleanup runs Sundays at `04:45` (database timezone). `pg_cron` does not purge its own run history automatically, so the second job prevents its metadata from becoming another source of disk growth.
 
-If Cron was enabled after migration `072` was applied, run the scheduling block from that migration once in the Supabase SQL editor after reviewing it. Do not create duplicate jobs.
+If Cron was enabled after a retention migration was applied, run that migration's scheduling block once in the Supabase SQL editor after reviewing it. Do not create duplicate jobs.
 
 ## Monitoring and adjustment
 

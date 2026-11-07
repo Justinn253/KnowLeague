@@ -13,6 +13,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const publicLeaderboardRateLimit = getIpRateLimit('publicLeaderboard');
 const leaderboardSubmissionRateLimit = getDualRateLimit('leaderboardSubmission');
+const SPLASH_SCRAMBLE_LEADERBOARD_MAX_BODY_BYTES = 8_192;
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
@@ -44,7 +45,7 @@ export const POST = withApiMetrics('/api/splash-scramble/leaderboard', async fun
       errorMessage: 'Too many leaderboard submissions. Please wait a minute and try again.',
     });
     if (rateLimitResponse) return rateLimitResponse;
-    const body = await readJsonBody<{ moves?: unknown; completionTimeSeconds?: unknown }>(request);
+    const body = await readJsonBody<{ moves?: unknown; completionTimeSeconds?: unknown }>(request, SPLASH_SCRAMBLE_LEADERBOARD_MAX_BODY_BYTES);
     if (!isNonNegativeFiniteNumber(body.moves) || !isNonNegativeFiniteNumber(body.completionTimeSeconds)) {
       throw new Error('Invalid Splash Scramble leaderboard submission.');
     }

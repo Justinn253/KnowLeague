@@ -6,6 +6,7 @@ import { getSplashScrambleDailyStats, recordSplashScrambleSolve } from '@/lib/sp
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const SPLASH_SCRAMBLE_STATS_MAX_BODY_BYTES = 8_192;
 
 export const GET = withApiMetrics('/api/splash-scramble/stats', async function GET() {
   const dateKey = getDailyDateKey();
@@ -15,7 +16,7 @@ export const GET = withApiMetrics('/api/splash-scramble/stats', async function G
 
 export const POST = withApiMetrics('/api/splash-scramble/stats', async function POST(request: Request) {
   try {
-    const body = await readJsonBody<{ clientId?: unknown }>(request);
+    const body = await readJsonBody<{ clientId?: unknown }>(request, SPLASH_SCRAMBLE_STATS_MAX_BODY_BYTES);
 
     if (
       typeof body.clientId !== 'string'

@@ -4,6 +4,7 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { ApiError, getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { parseDraftHistoryInput } from '@/lib/randodraft-history';
 import { randodraftShareStoreConfigured, saveRandodraftShare } from '@/lib/randodraft-share-store';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +12,11 @@ type ShareRequest = { id?: unknown; draft?: unknown; completedAt?: unknown };
 
 export const POST = withApiMetrics('/api/randodraft/share', async function POST(request: Request) {
   try {
+    const limited = await enforceApiRateLimit(request, {
+      scope: 'randodraft:share-write',
+      ip: { limit: 20, windowMs: 60_000 },
+    });
+    if (limited) return limited;
     const body = await readJsonBody(request, 32_768) as ShareRequest;
     const draft = parseDraftHistoryInput(body.draft);
     const completedAt = typeof body.completedAt === 'string' && Number.isFinite(Date.parse(body.completedAt))

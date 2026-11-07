@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api-utils';
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(), from: vi.fn(), select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(), rpc: vi.fn(),
+  authenticate: vi.fn(), from: vi.fn(), select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(), rpc: vi.fn(), limit: vi.fn(),
 }));
 vi.mock('@/lib/auth-server', () => ({ getAuthenticatedUserId: mocks.authenticate }));
 vi.mock('@/lib/supabaseClient', () => ({ getSupabaseServiceClient: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
 vi.mock('@/lib/api-metrics', () => ({ withApiMetrics: (_route: string, handler: unknown) => handler }));
+vi.mock('@/lib/rate-limit', () => ({ enforceApiRateLimit: mocks.limit }));
 import { GET, POST } from '../app/api/randodraft/history/route';
 import { DRAFT_CHAMPION_BY_ID, generateDraftBuild, availableDraftValues, createDraftState, DEFAULT_DRAFT_SETTINGS, draftReducer, RANDODRAFT_VERSION } from '@/lib/randodraft';
 
@@ -19,6 +20,7 @@ describe('Randodraft history account boundary', () => {
     mocks.eq.mockReturnValue({ maybeSingle: mocks.maybeSingle });
     mocks.maybeSingle.mockResolvedValue({ data: { drafts: [] }, error: null });
     mocks.rpc.mockResolvedValue({ data: [], error: null });
+    mocks.limit.mockResolvedValue(null);
   });
 
   it('requires authentication for reads and writes', async () => {

@@ -104,6 +104,12 @@ describe('augment API boundaries', () => {
     expect(mocks.vote).not.toHaveBeenCalled();
     expect(mocks.remove).not.toHaveBeenCalled();
   });
+  it('does not delete when the dedicated deletion limit is exhausted', async () => {
+    mocks.limit.mockResolvedValue(new Response('{}', { status: 429 }));
+    const response = await remove(request({}, 'DELETE', 'http://localhost/api/augments/' + routeParams.id), context);
+    expect(response.status).toBe(429);
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
   it('passes the verified identity to both vote and ownership checks', async () => {
     await vote(request({ kind: 'reaction', value: 1, user_id: 'spoofed' }), context);
     expect(mocks.vote).toHaveBeenCalledWith(routeParams.id, 'verified-user', {

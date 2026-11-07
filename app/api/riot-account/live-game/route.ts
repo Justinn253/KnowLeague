@@ -1,7 +1,7 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
-import { getRiotLiveGameStatus, isRiotPlatformRoute } from '@/lib/riot-account-viewer';
+import { getRiotLiveGameStatus, isRiotPlatformRoute, parseRiotId } from '@/lib/riot-account-viewer';
 import { getServerCache, setServerCache } from '@/lib/server-memory-cache';
 import { logServerEvent } from '@/lib/server-log';
 
@@ -31,6 +31,7 @@ export const GET = withApiMetrics('/api/riot-account/live-game', async function 
     if (!riotId) {
       return NextResponse.json({ error: 'riotId is required.' }, { status: 400 });
     }
+    const normalizedRiotId = parseRiotId(riotId).normalized;
 
     if (!isRiotPlatformRoute(platform)) {
       return NextResponse.json({ error: 'platform is invalid.' }, { status: 400 });
@@ -45,7 +46,6 @@ export const GET = withApiMetrics('/api/riot-account/live-game', async function 
     if (!rateLimit.allowed) {
       const unavailable = rateLimit.source === 'unavailable';
       logServerEvent('warn', 'riot_live_game_rate_limited', {
-        clientIp,
         retryAfterSeconds: rateLimit.retryAfterSeconds,
       });
       return NextResponse.json(
@@ -61,7 +61,7 @@ export const GET = withApiMetrics('/api/riot-account/live-game', async function 
       );
     }
 
-    const cacheKey = `riot-live-game:${platform}:${riotId.toLowerCase()}`;
+    const cacheKey = `riot-live-game:${platform}:${normalizedRiotId.toLowerCase()}`;
     const cachedData = getServerCache<Awaited<ReturnType<typeof getRiotLiveGameStatus>>>(cacheKey);
     if (cachedData) {
       return NextResponse.json(cachedData, {
@@ -74,7 +74,7 @@ export const GET = withApiMetrics('/api/riot-account/live-game', async function 
       });
     }
 
-    const data = await getRiotLiveGameStatus(riotId, platform);
+    const data = await getRiotLiveGameStatus(normalizedRiotId, platform);
     setServerCache(cacheKey, data, cacheTtlMs);
 
     return NextResponse.json(data, {
@@ -89,9 +89,8 @@ export const GET = withApiMetrics('/api/riot-account/live-game', async function 
     const message = error instanceof Error ? error.message : 'Unable to load live game status.';
     const status = getErrorStatus(error);
     logServerEvent(status >= 500 ? 'error' : 'warn', 'riot_live_game_error', {
-      clientIp,
       status,
-      message,
+      errorType: error instanceof Error ? error.name : 'unknown',
     });
     return NextResponse.json({ error: message }, { status });
   }

@@ -10,6 +10,7 @@ import {
   hasRiotAccountViewerItemDetails,
   isRiotAccountProfileSnapshotFresh,
   isRiotPlatformRoute,
+  parseRiotId,
   recordRiotAccountSearch,
   saveRiotAccountProfileSnapshot,
   touchRiotAccountProfileSnapshot,
@@ -129,6 +130,8 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
       return NextResponse.json({ error: 'riotId or puuid is required.' }, { status: 400 });
     }
 
+    const normalizedRiotId = riotId ? parseRiotId(riotId).normalized : '';
+
     if (puuid && !/^[A-Za-z0-9_-]{20,128}$/.test(puuid)) {
       return NextResponse.json({ error: 'puuid is invalid.' }, { status: 400 });
     }
@@ -161,7 +164,7 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
       );
     }
 
-    const lookupKey = puuid ? `puuid:${puuid.toLowerCase()}` : `riot-id:${riotId.toLowerCase()}`;
+    const lookupKey = puuid ? `puuid:${puuid.toLowerCase()}` : `riot-id:${normalizedRiotId.toLowerCase()}`;
     const cacheKey = `riot-account-viewer:${platform}:${lookupKey}`;
     const cachedData = shouldRefresh ? null : getServerCache<ViewerData>(cacheKey);
     if (cachedData && hasRiotAccountViewerItemDetails(cachedData)) {
@@ -180,7 +183,7 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
       ? null
       : puuid
         ? await getRiotAccountProfileSnapshotByPuuid(puuid, platform)
-        : await getRiotAccountProfileSnapshot(riotId, platform);
+        : await getRiotAccountProfileSnapshot(normalizedRiotId, platform);
     if (profileSnapshot && isRiotAccountProfileSnapshotFresh(profileSnapshot) && hasRiotAccountViewerItemDetails(profileSnapshot.data)) {
       let currentGame = profileSnapshot.data.currentGame;
       const liveGameIsFresh = profileSnapshot.currentGameFetchedAt
@@ -213,7 +216,7 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
 
     const data = puuid
       ? await loadAndCacheAccountByPuuid(cacheKey, puuid, platform)
-      : await loadAndCacheAccount(cacheKey, riotId, platform);
+      : await loadAndCacheAccount(cacheKey, normalizedRiotId, platform);
     await recordViewerSearch(data, searchDedupeKey);
     return NextResponse.json(data, {
       headers: {
@@ -228,7 +231,7 @@ export const GET = withApiMetrics('/api/riot-account/viewer', async function GET
     const status = getRiotAccountViewerErrorStatus(error);
     logServerEvent(status >= 500 ? 'error' : 'warn', 'riot_account_viewer_error', {
       status,
-      message,
+      errorType: error instanceof Error ? error.name : 'unknown',
     });
     return NextResponse.json({ error: message }, { status });
   }

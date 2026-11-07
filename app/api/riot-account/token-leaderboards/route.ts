@@ -1,7 +1,7 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { getRiotTokenCatalog, getRiotTokenLeaderboard, RIOT_TOKEN_ALL_PLATFORM } from '@/lib/riot-token-leaderboards';
-import { isRiotPlatformRoute } from '@/lib/riot-account-viewer';
+import { isRiotPlatformRoute, parseRiotId } from '@/lib/riot-account-viewer';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -23,7 +23,11 @@ export const GET = withApiMetrics('/api/riot-account/token-leaderboards', async 
   const clientIp = getClientIp(request);
   const rateLimit = await checkRateLimit({ key: 'riot-token-leaderboards:' + clientIp, limit: rateLimitRequests, windowMs: rateLimitWindowMs });
   if (!rateLimit.allowed) {
-    return NextResponse.json({ error: 'Too many token leaderboard requests. Try again shortly.' }, { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } });
+    const unavailable = rateLimit.source === 'unavailable';
+    return NextResponse.json(
+      { error: unavailable ? 'Request protection is temporarily unavailable. Please try again shortly.' : 'Too many token leaderboard requests. Try again shortly.' },
+      { status: unavailable ? 503 : 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+    );
   }
 
   try {
@@ -43,7 +47,9 @@ export const GET = withApiMetrics('/api/riot-account/token-leaderboards', async 
       return NextResponse.json({ error: 'platform is invalid.' }, { status: 400 });
     }
 
-    const data = await getRiotTokenLeaderboard(tokenId, platform, riotId);
+    const normalizedRiotId = riotId ? parseRiotId(riotId).normalized : undefined;
+
+    const data = await getRiotTokenLeaderboard(tokenId, platform, normalizedRiotId);
     return NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store', 'X-RateLimit-Limit': String(rateLimitRequests), 'X-RateLimit-Remaining': String(rateLimit.remaining) } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load token leaderboard data.';

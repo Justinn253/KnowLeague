@@ -7,6 +7,10 @@ import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
+const MAX_BATCH_IDS = 24;
+const MAX_OFFICIAL_AUGMENT_ID_LENGTH = 150;
+const MAX_BATCH_IDS_PARAMETER_LENGTH = MAX_BATCH_IDS * (MAX_OFFICIAL_AUGMENT_ID_LENGTH + 1) - 1;
+
 export const GET = withApiMetrics('/api/official-augments', async (request: Request) => {
   try {
     const limited = await enforceApiRateLimit(request, {
@@ -14,7 +18,14 @@ export const GET = withApiMetrics('/api/official-augments', async (request: Requ
       ip: { limit: 60, windowMs: 60_000 },
     });
     if (limited) return limited;
-    const ids = new URL(request.url).searchParams.get('ids')?.split(',').map((id) => id.trim()).filter(Boolean) ?? [];
+    const rawIds = new URL(request.url).searchParams.get('ids') ?? '';
+    if (rawIds.length > MAX_BATCH_IDS_PARAMETER_LENGTH) {
+      return NextResponse.json({ error: `Choose up to ${MAX_BATCH_IDS} official augments.` }, { status: 400 });
+    }
+    const ids = rawIds.split(',').map((id) => id.trim()).filter(Boolean);
+    if (ids.length > MAX_BATCH_IDS) {
+      return NextResponse.json({ error: `Choose up to ${MAX_BATCH_IDS} official augments.` }, { status: 400 });
+    }
     return NextResponse.json(
       { ratings: await loadOfficialAugmentRatingsBatch(ids, await getOptionalAuthenticatedUserId(request)) },
       { headers: { 'Cache-Control': 'no-store' } },

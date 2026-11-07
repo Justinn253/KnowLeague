@@ -13,7 +13,11 @@ export const GET = withApiMetrics('/api/riot-account/patch-notes/search', async 
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {
-    return NextResponse.json({ error: 'Too many patch-note searches. Try again shortly.' }, { status: 429 });
+    const unavailable = rateLimit.source === 'unavailable';
+    return NextResponse.json(
+      { error: unavailable ? 'Request protection is temporarily unavailable. Please try again shortly.' : 'Too many patch-note searches. Try again shortly.' },
+      { status: unavailable ? 503 : 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+    );
   }
 
   const query = new URL(request.url).searchParams.get('q')?.trim() ?? '';

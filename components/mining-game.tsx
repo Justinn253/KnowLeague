@@ -4,6 +4,7 @@ import { Gem, Hammer, Layers3, Pickaxe, Send, Store, TimerReset, TriangleAlert }
 import { useEffect, useMemo, useState } from 'react';
 import { AppSelectMenu } from '@/components/app-select-menu';
 import { CompanionShell, CompanionTabBar, EmptyState, formatDuration, formatNumber, ProgressBar, useDiscordCompanionDashboard } from '@/components/discord-companion-ui';
+import { getMiningDashboardRefreshDelay } from '@/lib/discord-companion-refresh';
 
 type MiningResource = { depth: number; id: string; kind: 'ore' | 'gem' | 'fossil'; name: string; processorTier?: number; saleValue?: number };
 type MiningCargo = { cargo: Array<{ id: string; kind: MiningResource['kind']; name: string; quantity: number }>; discardedStone: number; gearItems?: Array<{ itemId: string; quantity: number }>; miningXpAwarded: number; stoneBroken: number; stoneStored: number; storageUsed: number };
@@ -44,11 +45,11 @@ export function MiningGame() {
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1_000); return () => window.clearInterval(timer); }, []);
   useEffect(() => { if (dashboard && !dashboard.depths.some((entry) => entry.id === depth && entry.unlocked)) setDepth(dashboard.depths.find((entry) => entry.unlocked)?.id ?? 1); }, [dashboard, depth]);
   useEffect(() => {
-    const returnsAt = dashboard?.activeExpedition?.returnsAt;
-    if (!returnsAt) return undefined;
-    const timeout = window.setTimeout(() => void refresh(), Math.max(250, new Date(returnsAt).getTime() - Date.now() + 750));
+    const delay = getMiningDashboardRefreshDelay(dashboard?.activeExpedition);
+    if (delay === null) return undefined;
+    const timeout = window.setTimeout(() => void refresh(), delay);
     return () => window.clearTimeout(timeout);
-  }, [dashboard?.activeExpedition?.returnsAt, refresh]);
+  }, [busyAction, dashboard?.activeExpedition, refresh]);
 
   const active = dashboard?.activeExpedition;
   const selectedDepth = dashboard?.depths.find((entry) => entry.id === depth);
@@ -56,7 +57,7 @@ export function MiningGame() {
   const primaryButton = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-200/40 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-45';
   const panel = 'rounded-2xl border border-white/10 bg-slate-900/70 p-4 sm:p-5';
 
-  return <CompanionShell balance={dashboard?.balance} eyebrow="Discord companion · Persistent expeditions" icon={Pickaxe} theme="amber" title="Mining Expedition" subtitle="Descend, make time-sensitive calls, and bring shared Discord resources back to the surface—without splitting your identity or inventory." onRefresh={() => void refresh()} refreshing={busyAction === 'refresh'}>
+  return <CompanionShell balance={dashboard?.balance} eyebrow="Discord companion · Persistent expeditions" icon={Pickaxe} theme="amber" title="Mining Expedition" subtitle="Descend, make time-sensitive calls, and bring shared Discord resources back to the surface—without splitting your identity or inventory." onRefresh={() => void refresh()} refreshing={busyAction !== null}>
     <CompanionTabBar tabs={tabs} active={tab} onChange={setTab} theme="amber" />
     {error ? <p role="alert" className="mt-5 rounded-2xl border border-rose-300/30 bg-rose-950/35 px-4 py-3 text-sm font-semibold text-rose-100">{error}</p> : null}
     {notice ? <p role="status" className="mt-5 rounded-2xl border border-emerald-300/30 bg-emerald-950/30 px-4 py-3 text-sm font-semibold text-emerald-100">{notice}</p> : null}

@@ -121,6 +121,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 client.on(Events.MessageCreate, (message) => {
+  if (!message.inGuild() || message.guildId !== config.guildId) {
+    return;
+  }
+
   trackSnipeMessage(config, message);
 
   void awardMessageXp(config, message)
@@ -142,26 +146,39 @@ client.on(Events.MessageCreate, (message) => {
 });
 
 client.on(Events.MessageDelete, (message) => {
+  if (message.guildId !== config.guildId) {
+    return;
+  }
   trackDeletedSnipeMessage(config, message.id);
 });
 
 client.on(Events.MessageUpdate, (_, message) => {
+  if (!message.inGuild() || message.guildId !== config.guildId) {
+    return;
+  }
   trackSnipeMessage(config, message);
 });
 
 client.on(Events.MessageBulkDelete, (messages) => {
   const deletedMessages = [...messages.values()].sort((first, second) => first.createdTimestamp - second.createdTimestamp);
   for (const message of deletedMessages) {
+    if (message.guildId !== config.guildId) continue;
     trackDeletedSnipeMessage(config, message.id);
   }
 });
 
 client.on(Events.MessageReactionAdd, (reaction, user) => {
+  if (reaction.message.guildId !== config.guildId) {
+    return;
+  }
   void handleSkinClaimReaction(config, reaction, user)
     .catch((error: unknown) => console.error('Discord skin-claim reaction failed.', error));
 });
 
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+  if (newState.guild.id !== config.guildId) {
+    return;
+  }
   void voiceXpInitialReconciliation
     .then(() => handleDiscordVoiceStateUpdate(config, oldState, newState))
     .catch((error: unknown) => console.error('Discord voice XP tracking failed.', error));

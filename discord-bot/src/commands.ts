@@ -619,6 +619,16 @@ export const commandDefinitions = [
       .setMaxLength(200)
       .setRequired(true)),
   new SlashCommandBuilder()
+    .setName('steal-sticker')
+    .setDescription('Import external stickers used in a message from this server.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addStringOption((option) => option
+      .setName('message-id')
+      .setDescription('Message ID in this channel, or a copied message link from this server.')
+      .setMinLength(17)
+      .setMaxLength(200)
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName('xp')
     .setDescription('Manage Discord chat leveling XP.')
     .addSubcommand((subcommand) => subcommand

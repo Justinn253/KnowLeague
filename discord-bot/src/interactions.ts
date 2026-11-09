@@ -12,6 +12,7 @@ import {
 } from './leveling.js';
 import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
 import { importExternalMessageEmojis } from './emoji-import.js';
+import { importExternalMessageStickers } from './sticker-import.js';
 import { findLinkedProfile } from './profiles.js';
 import {
   formatRiftboundMockTreatment,
@@ -292,7 +293,8 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
   return (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
     || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
     || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
-    || commandName === 'steal-emoji';
+    || commandName === 'steal-emoji'
+    || commandName === 'steal-sticker';
 }
 
 export function requiresDefaultCommandChannel(commandName: string, subcommand: string | null) {
@@ -846,6 +848,7 @@ function helpFields(tab: HelpTab): HelpField[] {
     { name: '/rob user', value: 'Attempt a protected KnowBucks robbery against a current server member.' },
     { name: '/snipe', value: 'Spend 1,000 KnowBucks to show this channel’s latest cached deleted message.' },
     { name: '/steal-emoji message-id', value: 'Administrator only: import external custom emoji from a selected message.' },
+    { name: '/steal-sticker message-id', value: 'Administrator only: import external stickers from a selected message.' },
   ];
 }
 
@@ -2297,11 +2300,11 @@ async function handleSnipeCommand(interaction: ChatInputCommandInteraction, conf
   }
 }
 
-type EmojiMessageReference =
+type SourceMessageReference =
   | { channelId: string; messageId: string; status: 'ok' }
   | { status: 'different-guild' | 'invalid' };
 
-function parseEmojiMessageReference(value: string, currentChannelId: string, guildId: string): EmojiMessageReference {
+function parseSourceMessageReference(value: string, currentChannelId: string, guildId: string): SourceMessageReference {
   const trimmed = value.trim();
   if (/^[0-9]{17,20}$/.test(trimmed)) {
     return { channelId: currentChannelId, messageId: trimmed, status: 'ok' };
@@ -2325,9 +2328,9 @@ function parseEmojiMessageReference(value: string, currentChannelId: string, gui
   }
 }
 
-async function fetchEmojiSourceMessage(
+async function fetchSourceMessage(
   interaction: ChatInputCommandInteraction,
-  reference: Extract<EmojiMessageReference, { status: 'ok' }>,
+  reference: Extract<SourceMessageReference, { status: 'ok' }>,
 ): Promise<Message | null> {
   if (!interaction.guild) return null;
   const channel = reference.channelId === interaction.channelId
@@ -2355,7 +2358,7 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
     return;
   }
 
-  const reference = parseEmojiMessageReference(
+  const reference = parseSourceMessageReference(
     interaction.options.getString('message-id', true),
     interaction.channelId,
     config.guildId,
@@ -2369,7 +2372,7 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
     return;
   }
 
-  const sourceMessage = await fetchEmojiSourceMessage(interaction, reference);
+  const sourceMessage = await fetchSourceMessage(interaction, reference);
   if (!sourceMessage) {
     await interaction.editReply({ content: 'KnowLeague could not read that message. Check the ID or link and its Read Message History permission.' });
     return;
@@ -2395,6 +2398,67 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
       new EmbedBuilder()
         .setColor(result.failed.length > 0 ? 0xF59E0B : 0x22C55E)
         .setTitle('External emoji import complete')
+        .setDescription(details.join('\n')),
+    ],
+  });
+}
+
+async function handleStealStickerCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: 'Only server administrators can use /steal-sticker.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const botMember = await interaction.guild.members.fetchMe();
+  const canCreateExpressions = botMember.permissions.has(PermissionFlagsBits.CreateGuildExpressions)
+    || botMember.permissions.has(PermissionFlagsBits.ManageGuildExpressions);
+  if (!canCreateExpressions) {
+    await interaction.editReply({ content: 'KnowLeague needs the Create Expressions permission before it can import stickers.' });
+    return;
+  }
+
+  const reference = parseSourceMessageReference(
+    interaction.options.getString('message-id', true),
+    interaction.channelId,
+    config.guildId,
+  );
+  if (reference.status !== 'ok') {
+    await interaction.editReply({
+      content: reference.status === 'different-guild'
+        ? 'The source message must be from this server. KnowLeague cannot read messages in another server.'
+        : 'Enter a message ID from this channel, or paste a Discord message link from this server.',
+    });
+    return;
+  }
+
+  const sourceMessage = await fetchSourceMessage(interaction, reference);
+  if (!sourceMessage) {
+    await interaction.editReply({ content: 'KnowLeague could not read that message. Check the ID or link and its Read Message History permission.' });
+    return;
+  }
+
+  const result = await importExternalMessageStickers(
+    interaction.guild,
+    sourceMessage,
+    `Imported by ${interaction.user.tag} through KnowLeague /steal-sticker`,
+  );
+  if (result.imported.length === 0 && result.skippedExisting.length === 0 && result.failed.length === 0) {
+    await interaction.editReply({ content: 'That message does not contain stickers from another server.' });
+    return;
+  }
+
+  const details = [
+    result.imported.length > 0 ? `Imported: ${result.imported.join(', ')}` : null,
+    result.skippedExisting.length > 0 ? `Already in this server: ${result.skippedExisting.join(', ')}` : null,
+    result.failed.length > 0 ? `Could not import: ${result.failed.join(', ')}` : null,
+  ].filter((value): value is string => value !== null);
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(result.failed.length > 0 ? 0xF59E0B : 0x22C55E)
+        .setTitle('External sticker import complete')
         .setDescription(details.join('\n')),
     ],
   });
@@ -4829,6 +4893,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'steal-emoji') {
     await handleStealEmojiCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'steal-sticker') {
+    await handleStealStickerCommand(interaction, config);
     return;
   }
 

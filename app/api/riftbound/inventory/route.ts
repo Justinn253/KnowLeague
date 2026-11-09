@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getRiftboundCardById } from '@/lib/riftbound';
 import { loadRiftboundInventory, loadRiftboundInventoryMetadata } from '@/lib/riftbound-server';
@@ -44,7 +44,7 @@ export const GET = withApiMetrics('/api/riftbound/inventory', async function GET
       loadRiftboundInventory(userId),
       loadRiftboundInventoryMetadata(userId),
     ]);
-    return NextResponse.json({ items, metadata });
+    return NextResponse.json({ items, metadata }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -78,9 +78,20 @@ function parseSalePriceCents(value: unknown) {
   return value;
 }
 
+function enforceInventoryWriteRateLimit(request: Request, userId: string) {
+  return enforceApiRateLimit(request, {
+    scope: 'riftbound:inventory-write',
+    ip: { limit: 60, windowMs: 60_000 },
+    subject: { id: userId, limit: 120, windowMs: 60_000 },
+    errorMessage: 'Too many inventory updates. Please wait a moment before trying again.',
+  });
+}
+
 export const PATCH = withApiMetrics('/api/riftbound/inventory', async function PATCH(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceInventoryWriteRateLimit(request, userId);
+    if (rateLimitResponse) return rateLimitResponse;
     const body = await readJsonBody<InventoryBody>(request);
     if (body.action !== 'metadata') throw new Error('Invalid inventory action.');
 
@@ -116,12 +127,7 @@ export const PATCH = withApiMetrics('/api/riftbound/inventory', async function P
 export const POST = withApiMetrics('/api/riftbound/inventory', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    const rateLimitResponse = await enforceApiRateLimit(request, {
-      scope: 'riftbound:inventory-write',
-      ip: { limit: 60, windowMs: 60_000 },
-      subject: { id: userId, limit: 120, windowMs: 60_000 },
-      errorMessage: 'Too many inventory updates. Please wait a moment before trying again.',
-    });
+    const rateLimitResponse = await enforceInventoryWriteRateLimit(request, userId);
     if (rateLimitResponse) return rateLimitResponse;
 
     const body = await readJsonBody<InventoryBody>(request);

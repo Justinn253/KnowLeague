@@ -90,6 +90,8 @@ export function GlobalActions({ children }: { children: ReactNode }) {
     let sessionValidationInFlight = false;
     let lastSessionValidationAt = 0;
     let lastValidatedAccessToken: string | null = null;
+    let moderationRoleAccessToken: string | null = null;
+    let moderationRoleRequest: Promise<void> | null = null;
     let profileChannel: ReturnType<typeof supabase.channel> | null = null;
     let subscribedProfileId: string | null = null;
 
@@ -155,30 +157,45 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       if (activeSession) void validateSession(activeSession);
     });
 
-    const updateModerationRole = async (session: Session, force = false) => {
-      try {
-        const response = await fetch('/api/moderation/me', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: force ? 'no-store' : 'default',
-        });
-        const data = await response.json() as { role?: AppRole | null };
-        if (!response.ok) {
-          throw new Error('Unable to load moderation role.');
-        }
-        const role = data.role;
-        setModerationRole(role === 'moderator' || role === 'admin' ? role : null);
-      } catch {
-        setModerationRole(null);
+    const updateModerationRole = async (session: Session) => {
+      if (moderationRoleAccessToken === session.access_token) return;
+      if (moderationRoleRequest) {
+        await moderationRoleRequest;
+        if (moderationRoleAccessToken === session.access_token) return;
       }
+
+      const requestedToken = session.access_token;
+      const request = (async () => {
+        try {
+          const response = await fetch('/api/moderation/me', {
+            headers: { Authorization: `Bearer ${requestedToken}` },
+            cache: 'no-store',
+          });
+          const data = await response.json() as { role?: AppRole | null };
+          if (!response.ok) {
+            throw new Error('Unable to load moderation role.');
+          }
+          if (activeSessionRef.current?.access_token !== requestedToken) return;
+          moderationRoleAccessToken = requestedToken;
+          const role = data.role;
+          setModerationRole(role === 'moderator' || role === 'admin' ? role : null);
+        } catch {
+          if (activeSessionRef.current?.access_token === requestedToken) setModerationRole(null);
+        } finally {
+          moderationRoleRequest = null;
+        }
+      })();
+      moderationRoleRequest = request;
+      return request;
     };
 
     const updateProfileAction = async (
       session?: Session | null,
       forceProfile = false,
-      forceModeration = false,
     ) => {
       activeSessionRef.current = session ?? null;
       if (!session) {
+        moderationRoleAccessToken = null;
         setProfileAway(false);
         setProfileAvatarUrl(null);
         setProfileUsername(null);
@@ -190,7 +207,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
       const userId = session.user.id;
 
       setIsLoggedIn(true);
-      void updateModerationRole(session, forceModeration);
+      void updateModerationRole(session);
       const firstLoginStorageKey = `knowleague:v1:achievement:first-login:${userId}`;
       if (!firstLoginSubmittedRef.current.has(userId) && window.localStorage.getItem(firstLoginStorageKey) !== 'synced') {
         firstLoginSubmittedRef.current.add(userId);
@@ -206,7 +223,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('username, display_name, avatar_url')
         .eq('id', userId)
-        .maybeSingle<{ username: string; display_name: string; avatar_url: string | null }>(), { force: forceProfile || forceModeration });
+        .maybeSingle<{ username: string; display_name: string; avatar_url: string | null }>(), { force: forceProfile });
       const { data } = profileResult;
       setProfileUsername(data?.username?.trim() || null);
       setProfileAvatarUrl(data?.avatar_url ?? null);
@@ -241,7 +258,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
             return;
           }
 
-          void updateProfileAction(activeSession, true, true);
+          void updateProfileAction(activeSession, true);
         })
         .on('postgres_changes', {
           event: 'INSERT',

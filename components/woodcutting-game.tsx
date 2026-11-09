@@ -41,7 +41,7 @@ export function WoodcuttingGame() {
   const stockableSaplings = dashboard?.shop.saplings.filter((sapling) => sapling.canBuy) ?? [];
 
   return (
-    <CompanionShell balance={dashboard?.balance} eyebrow="Discord companion · Continuous production" icon={TreeDeciduous} theme="emerald" title="Woodcutting Camp" subtitle="Hire lumberjacks, stock their saplings, and claim the exact continuous rewards managed by your Discord bot." onRefresh={() => void refresh()} refreshing={busyAction === 'refresh'}>
+    <CompanionShell balance={dashboard?.balance} eyebrow="Discord companion · Continuous production" icon={TreeDeciduous} theme="emerald" title="Woodcutting Camp" subtitle="Hire lumberjacks, stock their saplings, and claim the exact continuous rewards managed by your Discord bot." onRefresh={() => void refresh()} refreshing={busyAction !== null}>
       <CompanionTabBar tabs={tabs} active={tab} onChange={setTab} theme="emerald" />
       {error ? <p role="alert" className="mt-5 rounded-2xl border border-rose-300/30 bg-rose-950/35 px-4 py-3 text-sm font-semibold text-rose-100">{error}</p> : null}
       {notice ? <p role="status" className="mt-5 rounded-2xl border border-emerald-300/30 bg-emerald-950/30 px-4 py-3 text-sm font-semibold text-emerald-100">{notice}</p> : null}

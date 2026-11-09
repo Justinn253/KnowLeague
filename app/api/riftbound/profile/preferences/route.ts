@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { loadRiftboundCardPreferences } from '@/lib/riftbound-community';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
@@ -17,8 +17,7 @@ export const GET = withApiMetrics('/api/riftbound/profile/preferences', async fu
       errorMessage: 'Too many Riftbound preference requests. Please try again shortly.',
     });
     if (rateLimitResponse) return rateLimitResponse;
-    const response = NextResponse.json(await loadRiftboundCardPreferences(userId));
-    response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+    const response = NextResponse.json(await loadRiftboundCardPreferences(userId), { headers: PRIVATE_NO_STORE_HEADERS });
     return response;
   } catch (error) {
     return getRouteErrorResponse(error);

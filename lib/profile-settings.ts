@@ -3,11 +3,13 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 export type ProfileSettingsUpdate = {
   profileStatus?: string;
   friendsListPublic?: boolean;
+  publicStatsEnabled?: boolean;
 };
 
 export type ProfileSettings = {
   profile_status: string;
   friends_list_public: boolean;
+  public_stats_enabled: boolean;
 };
 
 export async function updateProfileSettings(userId: string, updates: ProfileSettingsUpdate) {
@@ -21,6 +23,9 @@ export async function updateProfileSettings(userId: string, updates: ProfileSett
   if (updates.friendsListPublic !== undefined) {
     databaseUpdate.friends_list_public = updates.friendsListPublic;
   }
+  if (updates.publicStatsEnabled !== undefined) {
+    databaseUpdate.public_stats_enabled = updates.publicStatsEnabled;
+  }
 
   if (Object.keys(databaseUpdate).length === 1) {
     throw new Error('At least one profile setting is required.');
@@ -30,7 +35,7 @@ export async function updateProfileSettings(userId: string, updates: ProfileSett
     .from('profiles')
     .update(databaseUpdate)
     .eq('id', userId)
-    .select('profile_status, friends_list_public')
+    .select('profile_status, friends_list_public, public_stats_enabled')
     .single<ProfileSettings>();
 
   if (error) {

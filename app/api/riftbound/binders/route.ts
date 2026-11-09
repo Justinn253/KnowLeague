@@ -1,10 +1,11 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getRiftboundCardById } from '@/lib/riftbound';
 import { getRiftboundBinderLimit, loadRiftboundBinders } from '@/lib/riftbound-server';
 import { RIFTBOUND_BINDER_PAGE_COUNT, RIFTBOUND_BINDER_SLOT_COUNT, type RiftboundBinderFinish } from '@/lib/riftbound-binders';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const runtime = 'nodejs';
@@ -93,10 +94,19 @@ async function getOwnedBinder(userId: string, binderId: string) {
   if (!data) throw new Error('Riftbound binder not found.');
 }
 
+function enforceBinderWriteRateLimit(request: Request, userId: string) {
+  return enforceApiRateLimit(request, {
+    scope: 'riftbound:binder-write',
+    ip: { limit: 60, windowMs: 60_000 },
+    subject: { id: userId, limit: 60, windowMs: 60_000 },
+    errorMessage: 'Too many Riftbound binder updates. Please try again shortly.',
+  });
+}
+
 export const GET = withApiMetrics('/api/riftbound/binders', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    return NextResponse.json({ binders: await loadRiftboundBinders(userId), limit: await getRiftboundBinderLimit(userId) });
+    return NextResponse.json({ binders: await loadRiftboundBinders(userId), limit: await getRiftboundBinderLimit(userId) }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -105,6 +115,8 @@ export const GET = withApiMetrics('/api/riftbound/binders', async function GET(r
 export const POST = withApiMetrics('/api/riftbound/binders', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceBinderWriteRateLimit(request, userId);
+    if (rateLimitResponse) return rateLimitResponse;
     const { name, description } = parseBinderDetails(await readJsonBody<BinderBody>(request));
     const { data, error } = await getSupabaseServiceClient()
       .rpc('create_riftbound_binder', { p_user_id: userId, p_name: name, p_description: description });
@@ -119,6 +131,8 @@ export const POST = withApiMetrics('/api/riftbound/binders', async function POST
 export const PATCH = withApiMetrics('/api/riftbound/binders', async function PATCH(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceBinderWriteRateLimit(request, userId);
+    if (rateLimitResponse) return rateLimitResponse;
     const body = await readJsonBody<BinderBody>(request);
     const action = body.action;
     const binderId = requireString(body.binderId, 'binderId');
@@ -177,6 +191,8 @@ export const PATCH = withApiMetrics('/api/riftbound/binders', async function PAT
 export const DELETE = withApiMetrics('/api/riftbound/binders', async function DELETE(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceBinderWriteRateLimit(request, userId);
+    if (rateLimitResponse) return rateLimitResponse;
     const binderId = requireString((await readJsonBody<BinderBody>(request)).binderId, 'binderId');
     const supabase = getSupabaseServiceClient();
     const { data: binder, error: binderError } = await supabase

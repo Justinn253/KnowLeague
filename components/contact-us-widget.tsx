@@ -1,13 +1,14 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, X } from 'lucide-react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MessageSquare, Search, Send, X } from 'lucide-react';
 import { HeaderHoverNote } from '@/components/header-hover-note';
 import { getOrCreateClientId } from '@/lib/game-storage';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
 import type { ContactSubmissionCategory } from '@/lib/contact';
 import { OPEN_CONTACT_REPORT_EVENT } from '@/lib/contact-navigation';
 import { playUiSound } from '@/lib/ui-sounds';
+import { searchHelpCenter } from '@/lib/help-center';
 
 const CONTACT_MESSAGE_MAX_LENGTH = 2000;
 
@@ -36,10 +37,12 @@ export function ContactUsWidget({
   const [category, setCategory] = useState<ContactSubmissionCategory>('feedback');
   const [message, setMessage] = useState('');
   const [reportedUsername, setReportedUsername] = useState('');
+  const [helpSearchQuery, setHelpSearchQuery] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const reportedUsernameInputRef = useRef<HTMLInputElement | null>(null);
+  const helpResults = useMemo(() => searchHelpCenter(helpSearchQuery), [helpSearchQuery]);
   const setMenuOpen = useCallback((nextOpen: boolean) => {
     if (onOpenChange) {
       onOpenChange(nextOpen);
@@ -155,6 +158,8 @@ export function ContactUsWidget({
     <div ref={rootRef} className={variant === 'navigation' ? 'contents' : variant === 'header-icon' ? 'group relative' : 'relative'}>
       {isOpen ? (
         <div
+          role="dialog"
+          aria-label="Help Center"
           className={variant === 'navigation'
             ? 'order-2 basis-full rounded-3xl border border-white/10 bg-slate-950 p-3 sm:p-4'
             : variant === 'drawer'
@@ -177,6 +182,33 @@ export function ContactUsWidget({
             >
               <X size={18} />
             </button>
+          </div>
+
+          <div className="mt-4">
+            <label className="relative block">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                value={helpSearchQuery}
+                onChange={(event) => setHelpSearchQuery(event.target.value.slice(0, 100))}
+                placeholder="Search help: privacy, friends, stats..."
+                className="min-h-11 w-full rounded-2xl border border-white/10 bg-slate-900 py-2 pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-amber-200/40 focus:ring-1 focus:ring-amber-200/30"
+              />
+            </label>
+            {helpSearchQuery.trim() ? (
+              <div className="mt-2 grid gap-2">
+                {helpResults.length > 0 ? helpResults.map((article) => (
+                  <article key={article.id} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2.5">
+                    <p className="text-[0.65rem] font-bold uppercase tracking-[0.16em] text-amber-200">{article.category}</p>
+                    <h3 className="mt-1 text-sm font-black text-white">{article.title}</h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-300">{article.summary}</p>
+                  </article>
+                )) : (
+                  <p className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-slate-400">No help article matches that search. Send a message below and staff can help.</p>
+                )}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500">Search help articles, or send a message to the team.</p>
+            )}
           </div>
 
           <form onSubmit={submitContactForm} className="mt-4 grid gap-3">
@@ -268,7 +300,8 @@ export function ContactUsWidget({
           }}
           aria-label="Help Center"
           title={variant === 'header-icon' ? undefined : 'Help Center'}
-          aria-expanded={variant === 'navigation' ? isOpen : undefined}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
           className={variant === 'navigation'
             ? 'order-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200 ' + (isOpen ? 'border-amber-200/70 bg-slate-900 ring-1 ring-amber-200/50' : '')
             : variant === 'drawer'

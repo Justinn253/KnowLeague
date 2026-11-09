@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, ArrowLeft, Clock3, RefreshCw, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import type { ApiMetricDurationBucket, ApiMetricRouteSummary, ApiMetricSummary } from '@/lib/api-metrics';
@@ -12,8 +12,10 @@ const WINDOWS = [
   { hours: 168, label: '7 days' },
 ] as const;
 
+const numberFormatter = new Intl.NumberFormat('en-US');
+
 function number(value: number) {
-  return new Intl.NumberFormat('en-US').format(value);
+  return numberFormatter.format(value);
 }
 
 function getSlowRequestCount(route: ApiMetricRouteSummary) {
@@ -60,11 +62,18 @@ export function StaffApiMetricsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const requestControllerRef = useRef<AbortController | null>(null);
 
   const loadMetrics = useCallback(async (nextHours: number, isRefresh = false) => {
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     const supabase = getOptionalSupabaseClient();
     if (!supabase) {
       setError('Supabase auth is not configured.');
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
       setLoading(false);
       return;
     }
@@ -79,14 +88,20 @@ export function StaffApiMetricsScreen() {
       const response = await fetch(`/api/staff/api-metrics?hours=${nextHours}`, {
         headers: { Authorization: `Bearer ${data.session.access_token}` },
         cache: 'no-store',
+        signal: controller.signal,
       });
       const payload = await response.json() as ApiMetricSummary & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Unable to load API metrics.');
+      if (requestControllerRef.current !== controller) return;
       setSummary(payload);
       setError('');
     } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
+      if (requestControllerRef.current !== controller) return;
       setError(loadError instanceof Error ? loadError.message : 'Unable to load API metrics.');
     } finally {
+      if (requestControllerRef.current !== controller) return;
+      requestControllerRef.current = null;
       setLoading(false);
       setRefreshing(false);
     }
@@ -94,6 +109,7 @@ export function StaffApiMetricsScreen() {
 
   useEffect(() => {
     void loadMetrics(hours);
+    return () => requestControllerRef.current?.abort();
   }, [hours, loadMetrics]);
 
   const routeRows = useMemo(() => summary?.routes ?? [], [summary]);

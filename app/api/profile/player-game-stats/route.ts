@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import {
   mergeDetailedGameStats,
@@ -49,7 +49,7 @@ export const GET = withApiMetrics('/api/profile/player-game-stats', async functi
     return NextResponse.json({
       stats: normalizePlayerGameStatsByGame(data?.player_game_stats),
       detailedStats: normalizeDetailedGameStats(data?.detailed_game_stats),
-    });
+    }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -88,7 +88,7 @@ export const PUT = withApiMetrics('/api/profile/player-game-stats', async functi
       throw error;
     }
 
-    return NextResponse.json({ stats, detailedStats });
+    return NextResponse.json({ stats, detailedStats }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

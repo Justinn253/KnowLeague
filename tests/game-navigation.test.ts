@@ -4,6 +4,7 @@ import {
   ORIGINAL_GAME_NAVIGATION_ITEMS,
 } from '@/lib/game-navigation';
 import { LEAGUE_GAMES_FOR_DRAWER, LEAGUE_GAMES_FOR_HEADER, LEAGUE_GAMES_FOR_HUB, RANDODRAFT_GAME } from '@/lib/app-navigation';
+import { GAME_FAMILY_BY_ROUTE } from '@/lib/game-families';
 
 describe('game navigation catalogue', () => {
   it('separates League and original games and nests original routes under the Games hub', () => {
@@ -21,5 +22,19 @@ describe('game navigation catalogue', () => {
     expect(LEAGUE_GAMES_FOR_HUB.some((game) => game.id === 'randodraft')).toBe(false);
     expect(LEAGUE_GAMES_FOR_HEADER.some((game) => game.id === 'randodraft')).toBe(false);
     expect(LEAGUE_GAMES_FOR_DRAWER.some((game) => game.id === 'randodraft')).toBe(false);
+  });
+
+  it('keeps every navigable game assigned to its declared family', () => {
+    const navigationIds = [
+      ...LEAGUE_GAME_NAVIGATION_ITEMS,
+      ...ORIGINAL_GAME_NAVIGATION_ITEMS,
+    ].map((game) => game.id);
+
+    expect(new Set(navigationIds).size).toBe(navigationIds.length);
+    expect(navigationIds.sort()).toEqual(Object.keys(GAME_FAMILY_BY_ROUTE).sort());
+
+    [...LEAGUE_GAME_NAVIGATION_ITEMS, ...ORIGINAL_GAME_NAVIGATION_ITEMS].forEach((game) => {
+      expect(game.family).toBe(GAME_FAMILY_BY_ROUTE[game.id]);
+    });
   });
 });

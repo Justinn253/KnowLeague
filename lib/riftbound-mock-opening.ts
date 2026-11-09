@@ -53,6 +53,11 @@ type OpeningRow = Omit<RiftboundMockOpeningRecord, 'cards' | 'opening_kind' | 'o
   set_code: string;
 };
 
+type OpeningTotalRow = {
+  packs_opened: number;
+  set_code: string;
+};
+
 type PurchaseCartResult = {
   balance_after: number;
   charged_knowbucks: number;
@@ -84,6 +89,14 @@ type StoredOpeningCard = Partial<RiftboundMockOpeningCard> & {
 };
 
 const cardsById = new Map(RIFTBOUND_CARDS.map((card) => [card.id, card]));
+
+function isMissingMockOpeningWorkspaceFunction(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return candidate.code === '42883'
+    || candidate.code === 'PGRST202'
+    || (typeof candidate.message === 'string' && /get_riftbound_mock_opening_(history|totals)|could not find the function|does not exist/i.test(candidate.message));
+}
 
 function hydrateOpeningCard(value: unknown): RiftboundMockOpeningCard | null {
   if (!value || typeof value !== 'object') return null;
@@ -212,10 +225,59 @@ async function getCurrentKnowBucks(userId: string) {
   return data?.balance ?? 0;
 }
 
+async function loadRiftboundMockOpeningHistory(userId: string): Promise<OpeningRow[]> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .rpc('get_riftbound_mock_opening_history', {
+      p_max_openings: 96,
+      p_max_packs: 96,
+      p_user_id: userId,
+    })
+    .returns<OpeningRow[]>();
+
+  if (!error) return Array.isArray(data) ? data : [];
+  if (!isMissingMockOpeningWorkspaceFunction(error)) throw error;
+
+  // Compatibility path while migration 214 is rolled out. The current UI
+  // renders no more than 96 packs, so avoid retrieving the former 240-row
+  // window even in an environment that has not received the bounded RPC yet.
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from('riftbound_mock_openings')
+    .select('id,set_code,opening_kind,packs_opened,cards,opened_at,opening_source,reveal_expires_at,revealed_at')
+    .eq('user_id', userId)
+    .order('opened_at', { ascending: false })
+    .limit(96)
+    .returns<OpeningRow[]>();
+  if (fallbackError) throw fallbackError;
+  return fallbackData ?? [];
+}
+
+async function loadRiftboundMockOpeningTotals(userId: string): Promise<OpeningTotalRow[]> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .rpc('get_riftbound_mock_opening_totals', { p_user_id: userId })
+    .returns<OpeningTotalRow[]>();
+
+  if (!error) return Array.isArray(data) ? data : [];
+  if (!isMissingMockOpeningWorkspaceFunction(error)) throw error;
+
+  // Compatibility path for deployments that have not applied migration 214.
+  // The RPC removes this 10,000-row transfer and retains exact totals.
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from('riftbound_mock_openings')
+    .select('set_code,packs_opened')
+    .eq('user_id', userId)
+    .order('opened_at', { ascending: false })
+    .limit(10_000)
+    .returns<OpeningTotalRow[]>();
+  if (fallbackError) throw fallbackError;
+  return fallbackData ?? [];
+}
+
 export async function loadRiftboundMockOpeningWorkspace(userId: string) {
   const supabase = getSupabaseServiceClient();
   const now = new Date().toISOString();
-  const [prices, sealedResult, activeResult, historyResult, totalsResult, knowBucks] = await Promise.all([
+  const [prices, sealedResult, activeResult, historyRows, totalRows, knowBucks] = await Promise.all([
     loadMockPrices(),
     supabase.from('discord_riftbound_mock_sealed_products')
       .select('set_code,pack_quantity,box_quantity')
@@ -231,37 +293,29 @@ export async function loadRiftboundMockOpeningWorkspace(userId: string) {
       .order('opened_at', { ascending: false })
       .limit(1)
       .returns<OpeningRow[]>(),
-    supabase.from('riftbound_mock_openings')
-      .select('id,set_code,opening_kind,packs_opened,cards,opened_at,opening_source,reveal_expires_at,revealed_at')
-      .eq('user_id', userId)
-      .order('opened_at', { ascending: false })
-      .limit(240)
-      .returns<OpeningRow[]>(),
-    supabase.from('riftbound_mock_openings')
-      .select('set_code,packs_opened')
-      .eq('user_id', userId)
-      .order('opened_at', { ascending: false })
-      .limit(10_000)
-      .returns<Array<{ packs_opened: number; set_code: string }>>(),
+    loadRiftboundMockOpeningHistory(userId),
+    loadRiftboundMockOpeningTotals(userId),
     getCurrentKnowBucks(userId),
   ]);
   if (sealedResult.error) throw sealedResult.error;
   if (activeResult.error) throw activeResult.error;
-  if (historyResult.error) throw historyResult.error;
-  if (totalsResult.error) throw totalsResult.error;
 
   const sealedProducts = (sealedResult.data ?? []).flatMap((row): RiftboundMockSealedProduct[] => (
     isRiftboundMockSetCode(row.set_code) ? [{ ...row, set_code: row.set_code }] : []
   ));
   const activeOpening = (activeResult.data ?? []).map(parseOpeningRow).find((opening): opening is RiftboundMockOpeningRecord => opening !== null) ?? null;
   const history = limitOpeningHistoryToPacks(
-    (historyResult.data ?? [])
+    historyRows
       .map(parseOpeningRow)
       .flatMap((opening): RiftboundMockOpeningRecord[] => opening ? [opening] : [])
       .filter((opening) => isHistoryOpening(opening, Date.parse(now))),
   );
   const packsOpenedBySet = RIFTBOUND_MOCK_SET_CODES.reduce<Record<RiftboundMockSetCode, number>>((totals, setCode) => {
-    totals[setCode] = (totalsResult.data ?? []).reduce((total, row) => total + (row.set_code === setCode ? row.packs_opened : 0), 0);
+    totals[setCode] = totalRows.reduce((total, row) => (
+      row.set_code === setCode && Number.isSafeInteger(row.packs_opened) && row.packs_opened >= 0
+        ? total + row.packs_opened
+        : total
+    ), 0);
     return totals;
   }, {} as Record<RiftboundMockSetCode, number>);
 

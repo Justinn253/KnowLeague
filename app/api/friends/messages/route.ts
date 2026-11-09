@@ -2,7 +2,7 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getFriendMessages, sendFriendMessage } from '@/lib/friends';
-import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody, requireString } from '@/lib/api-utils';
 import { getDualRateLimit } from '@/lib/abuse-controls';
 import { enforceApiRateLimit } from '@/lib/rate-limit';
 
@@ -22,7 +22,7 @@ export const GET = withApiMetrics('/api/friends/messages', async function GET(re
     const messages = await getFriendMessages(userId, friendId, {
       markRead: url.searchParams.get('markRead') !== 'false',
     });
-    return NextResponse.json(messages);
+    return NextResponse.json(messages, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -43,7 +43,7 @@ export const POST = withApiMetrics('/api/friends/messages', async function POST(
     if (rateLimitResponse) return rateLimitResponse;
 
     const sentMessage = await sendFriendMessage(userId, friendId, message);
-    return NextResponse.json({ message: sentMessage });
+    return NextResponse.json({ message: sentMessage }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

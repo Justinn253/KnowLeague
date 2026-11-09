@@ -4,6 +4,7 @@ import { Anchor, Bot, Fish, Gauge, Sailboat, ShoppingBag, Sparkles, TimerReset, 
 import { useEffect, useMemo, useState } from 'react';
 import { AppSelectMenu } from '@/components/app-select-menu';
 import { CompanionShell, CompanionTabBar, EmptyState, formatDuration, formatNumber, ProgressBar, useDiscordCompanionDashboard } from '@/components/discord-companion-ui';
+import { getFishingDashboardRefreshDelay } from '@/lib/discord-companion-refresh';
 import type { FishingDashboard } from '@/lib/fishing';
 
 type FishingTab = 'voyage' | 'ship' | 'market' | 'logbook';
@@ -43,6 +44,13 @@ export function FishingGame() {
     if (crewSlot > dashboard.crewSlots) setCrewSlot(1);
   }, [biomeId, crewSlot, dashboard, durationTier]);
 
+  useEffect(() => {
+    const delay = getFishingDashboardRefreshDelay(dashboard?.activeExpeditions);
+    if (delay === null) return undefined;
+    const timeout = window.setTimeout(() => void refresh(), delay);
+    return () => window.clearTimeout(timeout);
+  }, [busyAction, dashboard?.activeExpeditions, refresh]);
+
   const activeCrewSlots = useMemo(() => new Set(dashboard?.activeExpeditions.map((expedition) => expedition.crewSlot) ?? []), [dashboard?.activeExpeditions]);
   const selectedBiome = dashboard?.biomes.find((biome) => biome.id === biomeId);
   const selectedDuration = dashboard?.durations.find((duration) => duration.tier === durationTier);
@@ -60,7 +68,7 @@ export function FishingGame() {
       title="Fishing Fleet"
       subtitle="Choose a destination, send an available crew, and manage the exact Fishing progression your Discord bot settles and announces."
       onRefresh={() => void refresh()}
-      refreshing={busyAction === 'refresh'}
+      refreshing={busyAction !== null}
     >
       <CompanionTabBar tabs={tabs} active={tab} onChange={setTab} theme="sky" />
       {error ? <p role="alert" className="mt-5 rounded-2xl border border-rose-300/30 bg-rose-950/35 px-4 py-3 text-sm font-semibold text-rose-100">{error}</p> : null}

@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, MessageSquare, Play, RefreshCw, Send, SlidersHorizontal, Trophy, Users, X } from 'lucide-react';
+import Link from 'next/link';
 import { GameInfoMenu } from '@/components/game-info-menu';
 import { GameSettingsSection } from '@/components/game-settings-section';
 import {
@@ -924,9 +925,9 @@ export function CategoryClash() {
         <div className="mx-auto max-w-6xl">
           <header className="mb-5 flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-3 backdrop-blur-xl sm:gap-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-              <button type="button" onClick={() => { window.location.href = '/games'; }} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to games">
+              <Link href="/games" prefetch={false} className="rounded-2xl border border-white/10 bg-slate-950 p-3 text-slate-200 transition hover:text-white" aria-label="Back to games">
                 <ArrowLeft size={22} />
-              </button>
+              </Link>
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Multiplayer Game</p>
                 <h1 className="truncate text-xl font-black sm:text-2xl">Category Clash</h1>

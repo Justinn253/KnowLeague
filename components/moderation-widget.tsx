@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Search, ShieldAlert, ShieldCheck, UserCog, X } from 'lucide-react';
 import { THEMED_SCROLLBAR_CLASS } from '@/lib/scrollbar';
 import { getOptionalSupabaseClient } from '@/lib/supabaseClient';
-import type { AppRole, ModerationContactSubmission, ModerationTeamMember, ModerationUserResult, StoredAppRole } from '@/lib/moderation';
+import type { AppRole, ModerationContactSubmission, ModerationTeamMember, ModerationUserResult, StaffAuditLogEntry, StoredAppRole } from '@/lib/moderation';
 import { playUiSound } from '@/lib/ui-sounds';
 
 type ModerationWidgetProps = {
@@ -12,7 +12,8 @@ type ModerationWidgetProps = {
   variant?: 'floating' | 'drawer' | 'header-icon';
 };
 
-type ModerationTab = 'users' | 'contact' | 'team';
+type ModerationTab = 'users' | 'contact' | 'team' | 'audit';
+type PageState = { offset: number; limit: number; hasMore: boolean };
 
 async function getModerationAuthHeaders() {
   const supabase = getOptionalSupabaseClient();
@@ -65,7 +66,10 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
   const [userQuery, setUserQuery] = useState('');
   const [users, setUsers] = useState<ModerationUserResult[]>([]);
   const [contactSubmissions, setContactSubmissions] = useState<ModerationContactSubmission[]>([]);
+  const [contactPagination, setContactPagination] = useState<PageState>({ offset: 0, limit: 25, hasMore: false });
   const [teamMembers, setTeamMembers] = useState<ModerationTeamMember[]>([]);
+  const [auditEntries, setAuditEntries] = useState<StaffAuditLogEntry[]>([]);
+  const [auditPagination, setAuditPagination] = useState<PageState>({ offset: 0, limit: 50, hasMore: false });
   const [contactTypeFilter, setContactTypeFilter] = useState('all');
   const [contactStatusFilter, setContactStatusFilter] = useState('all');
   const [contactSeverityFilter, setContactSeverityFilter] = useState('all');
@@ -73,8 +77,9 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
   const [contactSortDirection, setContactSortDirection] = useState<'newest' | 'oldest'>('newest');
   const [contactDateFrom, setContactDateFrom] = useState('');
   const [contactDateTo, setContactDateTo] = useState('');
-  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
+  const [contactAssignedFilter, setContactAssignedFilter] = useState('all');
+  const [ticketNoteDrafts, setTicketNoteDrafts] = useState<Record<string, string>>({});
+  const [loadingTab, setLoadingTab] = useState<ModerationTab | null>(null);
   const [roleUpdatingUserId, setRoleUpdatingUserId] = useState<string | null>(null);
   const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
   const [messageTarget, setMessageTarget] = useState<{ id: string; label: string } | null>(null);
@@ -85,38 +90,6 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
   const canManageModerators = role === 'admin';
   const roleLabel = role === 'admin' ? 'Admin' : 'Moderator';
   const contactCategories = Array.from(new Set(contactSubmissions.map((submission) => submission.category))).sort();
-  const statusRank: Record<string, number> = { open: 0, archived: 1, closed: 2 };
-  const visibleContactSubmissions = contactSubmissions
-    .filter((submission) => contactTypeFilter === 'all' || submission.category === contactTypeFilter)
-    .filter((submission) => contactStatusFilter === 'all' || submission.status === contactStatusFilter)
-    .filter((submission) => contactSeverityFilter === 'all' || submission.severity === Number(contactSeverityFilter))
-    .filter((submission) => {
-      const createdAt = new Date(submission.createdAt).getTime();
-      if (contactDateFrom && createdAt < new Date(`${contactDateFrom}T00:00:00`).getTime()) return false;
-      if (contactDateTo && createdAt > new Date(`${contactDateTo}T23:59:59.999`).getTime()) return false;
-      return true;
-    })
-    .filter((submission) => {
-      const query = contactSearchQuery.trim().toLowerCase();
-      if (!query) return true;
-      return [
-        submission.category,
-        submission.message,
-        submission.status,
-        String(submission.severity),
-        submission.username,
-        submission.userUid,
-        submission.email,
-        submission.reportedUsername ?? '',
-      ].some((value) => value.toLowerCase().includes(query));
-    })
-    .sort((left, right) => {
-      const statusDelta = (statusRank[left.status] ?? 99) - (statusRank[right.status] ?? 99);
-      if (statusDelta !== 0) return statusDelta;
-      const leftTime = new Date(left.createdAt).getTime();
-      const rightTime = new Date(right.createdAt).getTime();
-      return contactSortDirection === 'newest' ? rightTime - leftTime : leftTime - rightTime;
-    });
   const searchedUserPresenceKey = useMemo(() => users
     .map((user) => user.id)
     .sort()
@@ -148,7 +121,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
       return;
     }
 
-    setLoading(true);
+    setLoadingTab('users');
     setStatus('');
     try {
       const data = await fetchModerationJson<{ users: ModerationUserResult[] }>(`/api/moderation/users?q=${encodeURIComponent(cleanQuery)}`);
@@ -156,25 +129,39 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to search users.');
     } finally {
-      setLoading(false);
+      setLoadingTab((current) => current === 'users' ? null : current);
     }
   }, []);
 
-  const loadContactSubmissions = useCallback(async () => {
-    setLoading(true);
+  const loadContactSubmissions = useCallback(async (offset = 0) => {
+    setLoadingTab('contact');
     setStatus('');
     try {
-      const data = await fetchModerationJson<{ submissions: ModerationContactSubmission[] }>('/api/moderation/contacts');
+      const params = new URLSearchParams({
+        offset: String(offset),
+        limit: '25',
+        sort: contactSortDirection,
+      });
+      if (contactSearchQuery.trim()) params.set('q', contactSearchQuery.trim());
+      if (contactTypeFilter !== 'all') params.set('category', contactTypeFilter);
+      if (contactStatusFilter !== 'all') params.set('status', contactStatusFilter);
+      if (contactSeverityFilter !== 'all') params.set('severity', contactSeverityFilter);
+      if (contactAssignedFilter !== 'all') params.set('assigned', contactAssignedFilter);
+      if (contactDateFrom) params.set('from', contactDateFrom);
+      if (contactDateTo) params.set('to', `${contactDateTo}T23:59:59.999Z`);
+      const data = await fetchModerationJson<{ submissions: ModerationContactSubmission[]; pagination: PageState }>(`/api/moderation/contacts?${params.toString()}`);
       setContactSubmissions(data.submissions);
+      setContactPagination(data.pagination);
+      setTicketNoteDrafts(Object.fromEntries(data.submissions.map((submission) => [submission.id, submission.internalNotes])));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load contact submissions.');
     } finally {
-      setLoading(false);
+      setLoadingTab((current) => current === 'contact' ? null : current);
     }
-  }, []);
+  }, [contactAssignedFilter, contactDateFrom, contactDateTo, contactSearchQuery, contactSeverityFilter, contactSortDirection, contactStatusFilter, contactTypeFilter]);
 
   const loadTeamMembers = useCallback(async () => {
-    setLoading(true);
+    setLoadingTab('team');
     setStatus('');
     try {
       const data = await fetchModerationJson<{ team: ModerationTeamMember[] }>('/api/moderation/team');
@@ -182,7 +169,21 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load moderation team.');
     } finally {
-      setLoading(false);
+      setLoadingTab((current) => current === 'team' ? null : current);
+    }
+  }, []);
+
+  const loadAuditEntries = useCallback(async (offset = 0) => {
+    setLoadingTab('audit');
+    setStatus('');
+    try {
+      const data = await fetchModerationJson<{ entries: StaffAuditLogEntry[]; pagination: PageState }>(`/api/moderation/audit?offset=${offset}&limit=50`);
+      setAuditEntries(data.entries);
+      setAuditPagination(data.pagination);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to load audit history.');
+    } finally {
+      setLoadingTab((current) => current === 'audit' ? null : current);
     }
   }, []);
 
@@ -191,17 +192,24 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
       return;
     }
 
-    if (contactSubmissions.length === 0) {
-      void loadContactSubmissions();
-    }
-    if (teamMembers.length === 0) {
+    if ((activeTab === 'contact' || activeTab === 'team') && teamMembers.length === 0) {
       void loadTeamMembers();
     }
-  }, [contactSubmissions.length, isOpen, loadContactSubmissions, loadTeamMembers, teamMembers.length]);
+    if (activeTab === 'audit' && auditEntries.length === 0) {
+      void loadAuditEntries();
+    }
+  }, [activeTab, auditEntries.length, isOpen, loadAuditEntries, loadTeamMembers, teamMembers.length]);
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'contact') return undefined;
+    const timeout = window.setTimeout(() => {
+      void loadContactSubmissions(0);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [activeTab, isOpen, loadContactSubmissions]);
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'users' || !searchedUserPresenceKey) {
-      setOnlineUserIds(new Set());
       return undefined;
     }
 
@@ -210,33 +218,29 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
       return undefined;
     }
 
-    const presenceChannels = searchedUserPresenceKey.split('|').map((userId) => ({
-      userId,
-      channel: supabase.channel(`knowleague-user-presence:${userId}`),
-    }));
-    const syncPresence = () => {
-      const nextOnlineUserIds = new Set<string>();
-      presenceChannels.forEach(({ userId, channel }) => {
-        const state = channel.presenceState<{ userId?: string }>();
-        if (Object.values(state).flat().some((presence) => presence.userId === userId)) {
-          nextOnlineUserIds.add(userId);
-        }
+    const channel = supabase.channel(`moderation-presence-batch:${searchedUserPresenceKey}`);
+    let refreshTimeout: number | null = null;
+    (['INSERT', 'UPDATE'] as const).forEach((event) => {
+      channel.on('postgres_changes', {
+        event,
+        schema: 'public',
+        table: 'social_presence',
+        filter: `user_id=in.(${searchedUserPresenceKey.split('|').join(',')})`,
+      }, () => {
+        if (refreshTimeout) window.clearTimeout(refreshTimeout);
+        refreshTimeout = window.setTimeout(() => {
+          refreshTimeout = null;
+          void searchUsers(userQuery);
+        }, 200);
       });
-      setOnlineUserIds(nextOnlineUserIds);
-    };
-
-    presenceChannels.forEach(({ channel }) => {
-      channel
-        .on('presence', { event: 'sync' }, syncPresence)
-        .subscribe();
     });
+    channel.subscribe();
 
     return () => {
-      presenceChannels.forEach(({ channel }) => {
-        void supabase.removeChannel(channel);
-      });
+      if (refreshTimeout) window.clearTimeout(refreshTimeout);
+      void supabase.removeChannel(channel);
     };
-  }, [activeTab, isOpen, searchedUserPresenceKey]);
+  }, [activeTab, isOpen, searchedUserPresenceKey, searchUsers, userQuery]);
 
   const submitUserSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -251,6 +255,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
     setContactSortDirection('newest');
     setContactDateFrom('');
     setContactDateTo('');
+    setContactAssignedFilter('all');
   };
 
   const updateUserRole = async (targetUserId: string, nextRole: StoredAppRole) => {
@@ -315,7 +320,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
     return 'border-white/10 bg-slate-900/65';
   };
 
-  const updateTicket = async (submissionId: string, updates: { status?: string; severity?: number }) => {
+  const updateTicket = async (submissionId: string, updates: { status?: string; severity?: number; assignedStaffUserId?: string | null; internalNotes?: string }) => {
     const actionKey = `${submissionId}:ticket`;
     setActionLoadingKey(actionKey);
     setStatus('');
@@ -324,9 +329,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
         method: 'PATCH',
         body: JSON.stringify({ submissionId, ...updates }),
       });
-      setContactSubmissions((current) => current.map((submission) => (
-        submission.id === submissionId ? { ...submission, ...updates } : submission
-      )));
+      await loadContactSubmissions(contactPagination.offset);
       setStatus('Ticket updated.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to update ticket.');
@@ -367,11 +370,12 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
               </header>
 
               <div className="min-h-0 flex-1 rounded-3xl border border-white/10 bg-slate-900/70 p-3 sm:p-6">
-          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-950/80 p-1">
+          <div className="grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-slate-950/80 p-1">
             {([
               ['users', 'Users'],
               ['contact', 'Contact Us'],
               ['team', 'Team'],
+              ['audit', 'Audit Log'],
             ] as const).map(([tab, label]) => (
               <button
                 key={tab}
@@ -401,10 +405,10 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                 </div>
                 <button
                   type="submit"
-                  disabled={loading || userQuery.trim().length < 2}
+                  disabled={loadingTab === 'users' || userQuery.trim().length < 2}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                  {loadingTab === 'users' ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
                   Search
                 </button>
               </form>
@@ -416,7 +420,7 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                   </p>
                 ) : null}
                 {users.map((user) => {
-                  const userOnline = user.online || onlineUserIds.has(user.id);
+                  const userOnline = user.online;
                   return (
                   <article key={user.id} className="rounded-2xl border border-white/10 bg-slate-900/65 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -520,15 +524,15 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                   <button
                     type="button"
                     onClick={() => void loadContactSubmissions()}
-                    disabled={loading}
+                    disabled={loadingTab === 'contact'}
                     className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-bold text-slate-200 transition hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+                    {loadingTab === 'contact' ? <Loader2 size={14} className="animate-spin" /> : null}
                     Refresh
                   </button>
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-3 lg:grid-cols-[1.4fr_repeat(5,minmax(0,1fr))]">
+              <div className="mt-3 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-3 lg:grid-cols-[1.4fr_repeat(6,minmax(0,1fr))]">
                 <div className="relative min-w-0">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
@@ -552,6 +556,12 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                   <option value="all">All Severity</option>
                   {[1, 2, 3, 4, 5].map((level) => <option key={level} value={level}>Severity {level}</option>)}
                 </select>
+                <select value={contactAssignedFilter} onChange={(event) => setContactAssignedFilter(event.target.value)} className="min-h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-bold text-slate-200 outline-none">
+                  <option value="all">All Assignees</option>
+                  <option value="unassigned">Unassigned</option>
+                  <option value="mine">Assigned to me</option>
+                  {teamMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
+                </select>
                 <select value={contactSortDirection} onChange={(event) => setContactSortDirection(event.target.value as 'newest' | 'oldest')} className="min-h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-bold text-slate-200 outline-none">
                   <option value="newest">Newest</option>
                   <option value="oldest">Oldest</option>
@@ -562,12 +572,16 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                 </div>
               </div>
               <div className={`mt-3 grid max-h-[28rem] gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}>
-                {visibleContactSubmissions.length === 0 ? (
+                {loadingTab === 'contact' && contactSubmissions.length === 0 ? (
+                  <p className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-6 text-center text-sm text-slate-400">
+                    <Loader2 size={16} className="animate-spin text-amber-300" /> Loading contact submissions...
+                  </p>
+                ) : contactSubmissions.length === 0 ? (
                   <p className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-6 text-center text-sm text-slate-500">
                     No contact submissions match the current filters.
                   </p>
                 ) : null}
-                {visibleContactSubmissions.map((submission) => (
+                {contactSubmissions.map((submission) => (
                   <article key={submission.id} className={`rounded-2xl border p-3 ${getTicketStatusClass(submission.status)}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -609,6 +623,16 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                         >
                           {[1, 2, 3, 4, 5].map((level) => <option key={level} value={level}>Severity {level}</option>)}
                         </select>
+                        <select
+                          value={submission.assignedStaff?.id ?? ''}
+                          onChange={(event) => void updateTicket(submission.id, { assignedStaffUserId: event.target.value || null })}
+                          disabled={actionLoadingKey === `${submission.id}:ticket`}
+                          className="min-h-9 max-w-40 rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 outline-none"
+                          aria-label="Assign ticket"
+                        >
+                          <option value="">Unassigned</option>
+                          {teamMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
+                        </select>
                         {submission.userUid !== 'Guest' ? (
                           <button
                             type="button"
@@ -644,26 +668,61 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                       </form>
                     ) : null}
                     <p className="mt-3 line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-slate-300">{submission.message}</p>
+                    <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/50 p-2">
+                      <label className="grid gap-1.5">
+                        <span className="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-slate-500">Internal staff notes</span>
+                        <textarea
+                          value={ticketNoteDrafts[submission.id] ?? submission.internalNotes}
+                          onChange={(event) => setTicketNoteDrafts((current) => ({ ...current, [submission.id]: event.target.value.slice(0, 4000) }))}
+                          rows={2}
+                          maxLength={4000}
+                          placeholder="Visible only to staff"
+                          className="resize-y rounded-lg border border-white/10 bg-slate-900 px-2.5 py-2 text-xs leading-5 text-slate-200 outline-none placeholder:text-slate-600 focus:border-amber-200/35"
+                        />
+                      </label>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="text-[0.68rem] text-slate-500">Assigned to {submission.assignedStaff?.displayName ?? 'no one'} · Updated {formatModerationDate(submission.updatedAt)}</p>
+                        <button
+                          type="button"
+                          onClick={() => void updateTicket(submission.id, { internalNotes: ticketNoteDrafts[submission.id] ?? submission.internalNotes })}
+                          disabled={actionLoadingKey === `${submission.id}:ticket` || (ticketNoteDrafts[submission.id] ?? submission.internalNotes) === submission.internalNotes}
+                          className="inline-flex min-h-8 items-center justify-center rounded-lg border border-white/10 bg-slate-900 px-2.5 text-[0.68rem] font-bold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Save note
+                        </button>
+                      </div>
+                    </div>
                   </article>
                 ))}
               </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">Showing {contactSubmissions.length} ticket{contactSubmissions.length === 1 ? '' : 's'} · page {Math.floor(contactPagination.offset / contactPagination.limit) + 1}</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => void loadContactSubmissions(Math.max(0, contactPagination.offset - contactPagination.limit))} disabled={loadingTab === 'contact' || contactPagination.offset === 0} className="inline-flex min-h-9 items-center rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+                  <button type="button" onClick={() => void loadContactSubmissions(contactPagination.offset + contactPagination.limit)} disabled={loadingTab === 'contact' || !contactPagination.hasMore} className="inline-flex min-h-9 items-center rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+                </div>
+              </div>
             </section>
-            ) : (
+            ) : activeTab === 'team' ? (
             <section className="mt-4 flex min-h-0 flex-col">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-slate-300">Moderation team</p>
                 <button
                   type="button"
                   onClick={() => void loadTeamMembers()}
-                  disabled={loading}
+                  disabled={loadingTab === 'team'}
                   className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 transition hover:bg-slate-800 disabled:opacity-60"
                 >
-                  {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {loadingTab === 'team' ? <Loader2 size={14} className="animate-spin" /> : null}
                   Refresh
                 </button>
               </div>
               <div className={`mt-3 grid max-h-[42rem] gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}>
-                {teamMembers.length === 0 ? (
+                {loadingTab === 'team' && teamMembers.length === 0 ? (
+                  <p className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-6 text-center text-sm text-slate-400">
+                    <Loader2 size={16} className="animate-spin text-amber-300" /> Loading moderation team...
+                  </p>
+                ) : teamMembers.length === 0 ? (
                   <p className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-6 text-center text-sm text-slate-500">
                     No team members loaded.
                   </p>
@@ -694,6 +753,52 @@ export function ModerationWidget({ role, variant = 'floating' }: ModerationWidge
                     </div>
                   </article>
                 ))}
+              </div>
+            </section>
+            ) : (
+            <section className="mt-4 flex min-h-0 flex-col">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-300">Immutable staff audit history</p>
+                  <p className="mt-1 text-xs text-slate-500">Every moderation action is recorded server-side and cannot be edited or removed.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadAuditEntries(auditPagination.offset)}
+                  disabled={loadingTab === 'audit'}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 transition hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {loadingTab === 'audit' ? <Loader2 size={14} className="animate-spin" /> : null}
+                  Refresh
+                </button>
+              </div>
+              <div className={`mt-3 grid max-h-[42rem] gap-2 overflow-y-auto pr-1 ${THEMED_SCROLLBAR_CLASS}`}>
+                {loadingTab === 'audit' && auditEntries.length === 0 ? (
+                  <p className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-6 text-center text-sm text-slate-400"><Loader2 size={16} className="animate-spin text-amber-300" /> Loading audit history...</p>
+                ) : auditEntries.length === 0 ? (
+                  <p className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-6 text-center text-sm text-slate-500">No staff actions have been recorded yet.</p>
+                ) : null}
+                {auditEntries.map((entry) => (
+                  <article key={entry.id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-white">{entry.action.replace(/[._]/g, ' ')}</p>
+                        <p className="mt-1 break-all text-xs text-slate-400">{entry.actor?.displayName ?? 'Former staff member'} · {entry.targetType}: {entry.targetId}</p>
+                      </div>
+                      <p className="text-xs text-slate-500">{formatModerationDate(entry.createdAt)}</p>
+                    </div>
+                    {Object.keys(entry.metadata).length > 0 ? (
+                      <pre className="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-slate-900/70 p-2 text-[0.68rem] leading-5 text-slate-300">{JSON.stringify(entry.metadata, null, 2)}</pre>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">Page {Math.floor(auditPagination.offset / auditPagination.limit) + 1}</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => void loadAuditEntries(Math.max(0, auditPagination.offset - auditPagination.limit))} disabled={loadingTab === 'audit' || auditPagination.offset === 0} className="inline-flex min-h-9 items-center rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+                  <button type="button" onClick={() => void loadAuditEntries(auditPagination.offset + auditPagination.limit)} disabled={loadingTab === 'audit' || !auditPagination.hasMore} className="inline-flex min-h-9 items-center rounded-xl border border-white/10 bg-slate-950 px-3 text-xs font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+                </div>
               </div>
             </section>
             )

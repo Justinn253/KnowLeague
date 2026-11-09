@@ -192,6 +192,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
     return (
       <Link
         href={game.href}
+        prefetch={false}
         onMouseEnter={() => playUiSound('autocomplete-hover')}
         onFocus={() => playUiSound('autocomplete-hover')}
         onClick={() => playUiSound('autocomplete-select')}
@@ -251,6 +252,7 @@ function GameCard({ game, stats }: { game: GameLink; stats?: PlayerGameStatsByGa
   return (
     <Link
       href={game.href}
+      prefetch={false}
       onMouseEnter={() => playUiSound('autocomplete-hover')}
       onFocus={() => playUiSound('autocomplete-hover')}
       onClick={() => playUiSound('autocomplete-select')}

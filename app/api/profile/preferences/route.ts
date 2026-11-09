@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { updateProfileSettings } from '@/lib/profile-settings';
 
@@ -9,13 +9,14 @@ export const runtime = 'nodejs';
 type ProfilePreferencesBody = {
   profileStatus?: unknown;
   friendsListPublic?: unknown;
+  publicStatsEnabled?: unknown;
 };
 
 export const PUT = withApiMetrics('/api/profile/preferences', async function PUT(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     const body = await readJsonBody<ProfilePreferencesBody>(request);
-    const updates: { profileStatus?: string; friendsListPublic?: boolean } = {};
+    const updates: { profileStatus?: string; friendsListPublic?: boolean; publicStatsEnabled?: boolean } = {};
 
     if (body.profileStatus !== undefined) {
       if (typeof body.profileStatus !== 'string') {
@@ -34,8 +35,15 @@ export const PUT = withApiMetrics('/api/profile/preferences', async function PUT
       updates.friendsListPublic = body.friendsListPublic;
     }
 
+    if (body.publicStatsEnabled !== undefined) {
+      if (typeof body.publicStatsEnabled !== 'boolean') {
+        throw new Error('Public-statistics visibility must be a boolean.');
+      }
+      updates.publicStatsEnabled = body.publicStatsEnabled;
+    }
+
     const settings = await updateProfileSettings(user.id, updates);
-    return NextResponse.json({ settings });
+    return NextResponse.json({ settings }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

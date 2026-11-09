@@ -35,6 +35,7 @@ export function useDiscordCompanionDashboard<TDashboard>(endpoint: string) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const loadedRef = useRef(false);
+  const operationRef = useRef<'action' | 'refresh' | null>(null);
 
   const request = useCallback(async (init?: RequestInit) => {
     const { data } = await getOptionalSupabaseClient()?.auth.getSession() ?? { data: { session: null } };
@@ -51,18 +52,27 @@ export function useDiscordCompanionDashboard<TDashboard>(endpoint: string) {
   }, [endpoint]);
 
   const refresh = useCallback(async () => {
+    if (operationRef.current) return false;
+    operationRef.current = 'refresh';
     setBusyAction('refresh');
     try {
       setDashboard(await request());
       setError('');
+      return true;
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to refresh this companion.');
+      return false;
     } finally {
-      setBusyAction(null);
+      if (operationRef.current === 'refresh') {
+        operationRef.current = null;
+        setBusyAction(null);
+      }
     }
   }, [request]);
 
   const act = useCallback(async (actionKey: string, body: Record<string, unknown>, successMessage: string) => {
+    if (operationRef.current) return false;
+    operationRef.current = 'action';
     setBusyAction(actionKey);
     playUiSound('autocomplete-select');
     try {
@@ -76,7 +86,10 @@ export function useDiscordCompanionDashboard<TDashboard>(endpoint: string) {
       playUiSound('skindle-guess-incorrect');
       return false;
     } finally {
-      setBusyAction(null);
+      if (operationRef.current === 'action') {
+        operationRef.current = null;
+        setBusyAction(null);
+      }
     }
   }, [request]);
 

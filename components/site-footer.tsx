@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { PrivacySettingsButton } from '@/components/privacy-settings-button';
 
-export function SiteFooter() {
+type SiteFooterProps = {
+  adsenseEnabled?: boolean;
+};
+
+export function SiteFooter({ adsenseEnabled = false }: SiteFooterProps) {
   return (
     <footer className="mt-auto border-t border-white/10 bg-slate-950 px-4 py-6 text-slate-400">
       <div className="mx-auto grid w-full max-w-7xl gap-4 text-xs leading-5 sm:px-6 lg:px-10">
@@ -11,7 +15,7 @@ export function SiteFooter() {
           <Link href="/contact" prefetch={false} className="transition hover:text-amber-200">Contact</Link>
           <Link href="/privacy" prefetch={false} className="transition hover:text-amber-200">Privacy Policy</Link>
           <Link href="/terms" prefetch={false} className="transition hover:text-amber-200">Terms of Service</Link>
-          <PrivacySettingsButton />
+          {adsenseEnabled ? <PrivacySettingsButton /> : null}
         </div>
         <p>
           KnowLeague isn&apos;t endorsed by Riot Games and doesn&apos;t reflect the views or opinions of Riot Games or anyone officially

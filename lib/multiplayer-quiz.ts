@@ -133,6 +133,8 @@ const modifierIds: Record<MultiplayerQuizGameMode, Set<string>> = {
   ability_blitz: new Set(['greyscale', 'pixelated', 'rotating', 'disappearing', 'hiddenTimer', 'confirmEntry']),
   skin_champion: new Set(['greyscale', 'blurred', 'cropped', 'hiddenTimer', 'confirmEntry']),
 };
+const gameCatalogCache = new Map<MultiplayerQuizGameMode, QuizItem[]>();
+const gameCatalogByIdCache = new Map<MultiplayerQuizGameMode, Map<string, QuizItem>>();
 
 export function parseMultiplayerQuizGameMode(value: unknown): MultiplayerQuizGameMode {
   if (value === 'ability_blitz' || value === 'skin_champion') {
@@ -220,11 +222,23 @@ async function addLobbyEvent(lobbyId: string, eventType: string, payload?: Recor
 }
 
 function getGameCatalog(gameMode: MultiplayerQuizGameMode) {
-  if (gameMode === 'ability_blitz') {
-    return getAbilityCatalog();
-  }
+  const cachedCatalog = gameCatalogCache.get(gameMode);
+  if (cachedCatalog) return cachedCatalog;
 
-  return getSkinThemeQuizItems(getSkinCatalog());
+  const catalog = gameMode === 'ability_blitz'
+    ? getAbilityCatalog()
+    : getSkinThemeQuizItems(getSkinCatalog());
+  gameCatalogCache.set(gameMode, catalog);
+  return catalog;
+}
+
+function getGameCatalogById(gameMode: MultiplayerQuizGameMode) {
+  const cachedCatalogById = gameCatalogByIdCache.get(gameMode);
+  if (cachedCatalogById) return cachedCatalogById;
+
+  const catalogById = new Map(getGameCatalog(gameMode).map((item) => [item.id, item]));
+  gameCatalogByIdCache.set(gameMode, catalogById);
+  return catalogById;
 }
 
 async function reconcileMultiplayerQuizLobby(lobby: MultiplayerQuizLobby, initialPlayers?: MultiplayerQuizPlayerRecord[]) {
@@ -391,7 +405,7 @@ async function getLobbyView(lobby: MultiplayerQuizLobby, clientId?: string | nul
     requestingPlayer: requestingPlayer ? toPublicPlayer(requestingPlayer) : null,
     players: players.map(toPublicPlayer),
     quizItems: reconciledLobby.quiz_item_ids
-      .map((itemId) => getGameCatalog(reconciledLobby.game_mode).find((item) => item.id === itemId))
+      .map((itemId) => getGameCatalogById(reconciledLobby.game_mode).get(itemId))
       .filter((item): item is QuizItem => Boolean(item)),
   };
 }

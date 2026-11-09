@@ -14,6 +14,10 @@ KnowLeague stores live multiplayer state and short-term product history, not an 
 | Riot searches and profile metrics | 180 days since last search | Keeps suggestion and percentile data current without retaining arbitrary account lookups forever. |
 | Solo quiz attempts | 45 days | The application only reads the current day’s attempts. |
 | Solo and Splash Scramble daily leaderboard entries | 120 days | Preserves a four-month diagnostic window; current UI reads the active daily board. |
+| Splash Scramble daily global statistics | 120 days | Bounded hourly cleanup removes one-way client deduplication keys before deleting empty daily summaries. |
+| Skindle daily global statistics | 120 days | Bounded hourly cleanup removes anonymous client rows and per-skin aggregates before deleting empty daily summaries. |
+| Completed Mining and Fishing expeditions | 120 days, retaining each player's latest completed expedition | Bounded hourly cleanup removes older result payloads while preserving Fishing's fallback notification channel and dormant-player result surface. |
+| Mining website result-delivery outbox | 30 days | Bounded hourly cleanup removes delivered receipts and undeliverable requests after their short retry/audit window. |
 | Contact feedback, bug reports, and suggestions | 365 days after closed/archived, severity 1–2 only | Removes low-risk resolved tickets. |
 
 Unresolved tickets, all `player_report` records, and higher-severity contact records are intentionally excluded. There is no separate moderation-action history table in the current schema. Set a reviewed legal/compliance policy before adding any automatic deletion for those records.
@@ -23,17 +27,17 @@ Unresolved tickets, all `player_report` records, and higher-severity contact rec
 1. Enable **Cron** in the Supabase Dashboard’s Integrations area before applying the migration.
 2. Review the retention table above with the product owner, particularly the 30-day lobby/chat and 365-day low-severity contact windows.
 3. Apply the pending migrations through the normal deployment process.
-4. Confirm both jobs exist:
+4. Confirm the scheduled cleanup jobs exist:
 
 ```sql
 select jobname, schedule, command
 from cron.job
-where jobname in ('knowleague-prune-application-data', 'knowleague-prune-cron-history');
+where jobname in ('knowleague-prune-discord-companion-history', 'knowleague-prune-application-data', 'knowleague-prune-skindle-daily-stats', 'knowleague-prune-splash-scramble-daily-stats', 'knowleague-prune-cron-history');
 ```
 
-The application cleanup runs hourly at `:15` and the Cron execution-history cleanup runs Sundays at `04:45` (database timezone). `pg_cron` does not purge its own run history automatically, so the second job prevents its metadata from becoming another source of disk growth.
+The Discord companion cleanup runs hourly at `:05`, application cleanup at `:15`, Skindle cleanup at `:25`, Splash Scramble cleanup at `:35`, and the Cron execution-history cleanup runs Sundays at `04:45` (database timezone). `pg_cron` does not purge its own run history automatically, so the second job prevents its metadata from becoming another source of disk growth.
 
-If Cron was enabled after migration `072` was applied, run the scheduling block from that migration once in the Supabase SQL editor after reviewing it. Do not create duplicate jobs.
+If Cron was enabled after a retention migration was applied, run that migration's scheduling block once in the Supabase SQL editor after reviewing it. Do not create duplicate jobs.
 
 ## Monitoring and adjustment
 

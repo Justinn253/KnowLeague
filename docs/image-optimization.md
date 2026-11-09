@@ -16,7 +16,7 @@ Responsive: 360, 640, 960, 1280
 Fixed:      32, 48, 64, 96, 160, 240, 320
 ```
 
-It emits WebP only and sets a seven-day minimum cache TTL. The week-long window is a deliberate balance: Riot assets are normally catalogued/versioned, but CommunityDragon `latest` sources should not remain stale for a full month. Reconsider the window after measuring cache-write rates and after a catalogue-refresh test.
+It emits WebP only and sets a 31-day minimum cache TTL. Riot/CDN assets and hashed Riftbound catalogue assets are effectively immutable, so the longer window avoids repeated transformations and cache writes. Reconsider the window if a non-versioned image source is added.
 
 ## Component rules
 

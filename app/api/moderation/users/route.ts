@@ -1,7 +1,7 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-server';
-import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody, requireString } from '@/lib/api-utils';
 import {
   forceUserLogout,
   requireAdminAccess,
@@ -32,7 +32,10 @@ export const GET = withApiMetrics('/api/moderation/users', async function GET(re
     const user = await getAuthenticatedUser(request);
     await requireModerationAccess(user);
     const query = new URL(request.url).searchParams.get('q') ?? '';
-    return NextResponse.json({ users: await searchModerationUsers(query, user.id) });
+    return NextResponse.json(
+      { users: await searchModerationUsers(query, user.id) },
+      { headers: PRIVATE_NO_STORE_HEADERS },
+    );
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -49,8 +52,8 @@ export const PATCH = withApiMetrics('/api/moderation/users', async function PATC
       throw new Error('role must be user or moderator.');
     }
 
-    await setStoredModeratorRole(targetUserId, role);
-    return NextResponse.json({ ok: true });
+    await setStoredModeratorRole(user.id, targetUserId, role);
+    return NextResponse.json({ ok: true }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -67,7 +70,7 @@ export const POST = withApiMetrics('/api/moderation/users', async function POST(
       const message = requireString(body.message, 'message');
       await sendModerationDirectMessage(user.id, targetUserId, message);
     } else if (body.action === 'logout') {
-      await forceUserLogout(targetUserId);
+      await forceUserLogout(user.id, targetUserId);
     } else if (body.action === 'ban') {
       await setUserBanState(targetUserId, true, user.id, body.reason?.trim() || 'Moderation action');
     } else if (body.action === 'unban') {
@@ -76,7 +79,7 @@ export const POST = withApiMetrics('/api/moderation/users', async function POST(
       throw new Error('Invalid moderation action.');
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

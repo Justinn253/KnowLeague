@@ -7,6 +7,7 @@ import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+const SPLASH_SCRAMBLE_STATE_MAX_BODY_BYTES = 512 * 1024;
 
 function assertState(state: unknown) {
   if (!state || typeof state !== 'object') {
@@ -69,7 +70,7 @@ export const GET = withApiMetrics('/api/splash-scramble/state', async function G
 export const PUT = withApiMetrics('/api/splash-scramble/state', async function PUT(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    const body = await readJsonBody<{ state?: unknown; stats?: unknown }>(request);
+    const body = await readJsonBody<{ state?: unknown; stats?: unknown }>(request, SPLASH_SCRAMBLE_STATE_MAX_BODY_BYTES);
     if (!('state' in body) && !('stats' in body)) {
       throw new Error('No splash scramble data was provided.');
     }

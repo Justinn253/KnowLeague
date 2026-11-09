@@ -53,7 +53,14 @@ export const POST = withApiMetrics('/api/augments/[id]', async (request: Request
 });
 export const DELETE = withApiMetrics('/api/augments/[id]', async (request: Request, { params }: Context) => {
   try {
-    await deleteAugment(params.id, await getAuthenticatedUserId(request));
+    const user = await getAuthenticatedUserId(request);
+    const limited = await enforceApiRateLimit(request, {
+      scope: 'augments:delete',
+      ip: { limit: 10, windowMs: 60_000 },
+      subject: { id: user, limit: 10, windowMs: 60_000 },
+    });
+    if (limited) return limited;
+    await deleteAugment(params.id, user);
     return NextResponse.json({ deleted: true });
   } catch (error) {
     return getRouteErrorResponse(error);

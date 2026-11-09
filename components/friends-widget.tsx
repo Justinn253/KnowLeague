@@ -25,6 +25,7 @@ type FriendSummary = {
   profileStatus: string;
   online: boolean;
   away?: boolean;
+  presenceUpdatedAt?: string | null;
   unreadCount: number;
   chatColor: string;
   chatBorder: string;
@@ -215,6 +216,21 @@ async function fetchAuthedJson(url: string, options: RequestInit = {}) {
   return data;
 }
 
+async function publishSocialPresence(status: 'online' | 'away' | 'offline', keepalive: boolean) {
+  const authHeaders = await getAuthHeaders();
+  if (!authHeaders) return;
+
+  const response = await fetch('/api/friends/presence', {
+    method: 'POST',
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+    keepalive,
+  });
+  if (!response.ok) {
+    throw new Error('Unable to update presence.');
+  }
+}
+
 async function broadcastFriendMessageNotification(friendId: string) {
   const supabase = getOptionalSupabaseClient();
   if (!supabase) return;
@@ -245,7 +261,6 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   const [isOpen, setIsOpen] = useState(false);
   const [dashboard, setDashboard] = useState<FriendDashboard | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [presenceByUserId, setPresenceByUserId] = useState<Map<string, { online: boolean; away: boolean }>>(new Map());
   const [activeFriend, setActiveFriend] = useState<FriendSummary | null>(null);
   const [messages, setMessages] = useState<FriendMessage[]>([]);
   const [messageProfiles, setMessageProfiles] = useState<Record<string, MessageProfile>>({});
@@ -290,9 +305,9 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   const refreshTimeoutRef = useRef<number | null>(null);
   const dashboardRefreshPromiseRef = useRef<Promise<void> | null>(null);
   const lastDashboardRefreshAtRef = useRef(0);
-  const presenceOwnerIdRef = useRef<string | null>(null);
   const lastActivityAtRef = useRef(Date.now());
-  const ownPresenceAwayRef = useRef(false);
+  const lastPresenceHeartbeatAtRef = useRef(0);
+  const socialPresenceStateRef = useRef<'online' | 'away' | 'offline'>('offline');
   const knownIncomingRequestIdsRef = useRef<Set<string>>(new Set());
   const knownMessageIdsRef = useRef<Set<string>>(new Set());
   const friendRealtimeSubscriptionKey = useMemo(() => (dashboard?.friends ?? [])
@@ -316,6 +331,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       friendshipIds: [...friendshipIds],
     };
   }, [friendRealtimeSubscriptionKey]);
+  const hasSocialPresenceAudience = friendRealtimeSubscriptions.friendIds.length > 0;
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -581,6 +597,32 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     }
   }, [currentUserId, scrollMessagesToBottom]);
 
+  const applyFriendPresenceUpdate = useCallback((friendId: string, statusValue: 'online' | 'away' | 'offline', updatedAt: string) => {
+    const currentDashboard = dashboardRef.current;
+    if (!currentDashboard) return;
+
+    const friendIndex = currentDashboard.friends.findIndex((friend) => friend.id === friendId);
+    if (friendIndex < 0 || currentDashboard.friends[friendIndex]?.presenceUpdatedAt === updatedAt) return;
+
+    const friends = currentDashboard.friends.map((friend) => (
+      friend.id === friendId
+        ? {
+            ...friend,
+            online: statusValue === 'online',
+            away: statusValue === 'away',
+            presenceUpdatedAt: updatedAt,
+          }
+        : friend
+    ));
+    const nextDashboard = {
+      ...currentDashboard,
+      friends,
+      onlineFriendCount: friends.filter((friend) => friend.online).length,
+    };
+    dashboardRef.current = nextDashboard;
+    setDashboard(nextDashboard);
+  }, []);
+
   useEffect(() => {
     activeFriendRef.current = activeFriend;
   }, [activeFriend]);
@@ -618,7 +660,6 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       const userId = data.session?.user.id ?? null;
       setCurrentUserId(userId);
       if (!userId) {
-        setPresenceByUserId(new Map());
         return;
       }
 
@@ -675,6 +716,32 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
           filter: `id=in.(${friendIds.join(',')})`,
         }, () => {
           scheduleDashboardRefresh();
+        });
+      });
+
+      getRealtimeFilterChunks(friendRealtimeSubscriptions.friendIds).forEach((friendIds) => {
+        (['INSERT', 'UPDATE'] as const).forEach((event) => {
+          nextSocialChannel.on('postgres_changes', {
+            event,
+            schema: 'public',
+            table: 'social_presence',
+            filter: `user_id=in.(${friendIds.join(',')})`,
+          }, (payload) => {
+            const presence = payload.new as {
+              user_id?: unknown;
+              status?: unknown;
+              updated_at?: unknown;
+            };
+            if (
+              typeof presence.user_id === 'string'
+              && (presence.status === 'online' || presence.status === 'away' || presence.status === 'offline')
+              && typeof presence.updated_at === 'string'
+            ) {
+              applyFriendPresenceUpdate(presence.user_id, presence.status, presence.updated_at);
+              return;
+            }
+            scheduleDashboardRefresh();
+          });
         });
       });
 
@@ -741,86 +808,54 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
         void supabase.removeChannel(socialChannel);
       }
     };
-  }, [appendFriendMessage, friendRealtimeSubscriptions, refreshDashboard, scheduleDashboardRefresh, scheduleMessageRead]);
+  }, [appendFriendMessage, applyFriendPresenceUpdate, friendRealtimeSubscriptions, refreshDashboard, scheduleDashboardRefresh, scheduleMessageRead]);
 
   useEffect(() => {
-    const supabase = getOptionalSupabaseClient();
-    if (!supabase || !currentUserId) {
-      setPresenceByUserId(new Map());
-      presenceOwnerIdRef.current = null;
-      return undefined;
-    }
+    if (!currentUserId) return undefined;
 
-    if (presenceOwnerIdRef.current !== currentUserId) {
-      presenceOwnerIdRef.current = currentUserId;
-      lastActivityAtRef.current = Date.now();
-      ownPresenceAwayRef.current = false;
-    }
-
-    const ownPresenceChannel = supabase.channel(`knowleague-user-presence:${currentUserId}`, {
-      config: { presence: { key: currentUserId } },
-    });
-    const friendPresenceChannels = friendRealtimeSubscriptions.friendIds.map((friendId) => ({
-      friendId,
-      channel: supabase.channel(`knowleague-user-presence:${friendId}`),
-    }));
-
-    const syncFriendPresence = () => {
-      const nextPresenceByUserId = new Map<string, { online: boolean; away: boolean }>();
-      friendPresenceChannels.forEach(({ friendId, channel }) => {
-        const state = channel.presenceState<{ userId?: string; away?: boolean }>();
-        const presence = Object.values(state).flat().find((entry) => entry.userId === friendId);
-        if (presence) {
-          nextPresenceByUserId.set(friendId, { online: !presence.away, away: Boolean(presence.away) });
-        }
-      });
-      setPresenceByUserId(nextPresenceByUserId);
-    };
-
-    const publishOwnPresence = (away: boolean) => {
-      window.dispatchEvent(new CustomEvent('knowleague:own-presence', {
-        detail: { userId: currentUserId, away },
-      }));
-    };
     const awayAfterMs = 5 * 60 * 1000;
-    const trackOwnPresence = (away: boolean) => {
-      if (ownPresenceAwayRef.current === away) return;
-      ownPresenceAwayRef.current = away;
-      publishOwnPresence(away);
-      void ownPresenceChannel.track({ userId: currentUserId, away });
+    const heartbeatMs = 4 * 60 * 1000;
+    lastActivityAtRef.current = Date.now();
+    lastPresenceHeartbeatAtRef.current = 0;
+    socialPresenceStateRef.current = 'offline';
+
+    const publishPresence = (statusValue: 'online' | 'away' | 'offline', force = false, keepalive = false) => {
+      if (!force && socialPresenceStateRef.current === statusValue) return;
+      socialPresenceStateRef.current = statusValue;
+      if (statusValue !== 'offline') lastPresenceHeartbeatAtRef.current = Date.now();
+      window.dispatchEvent(new CustomEvent('knowleague:own-presence', {
+        detail: { userId: currentUserId, away: statusValue === 'away' },
+      }));
+      // Presence is private to accepted friends. Avoid a server write entirely
+      // until there is at least one friend who can receive the state.
+      if (!hasSocialPresenceAudience) return;
+      void publishSocialPresence(statusValue, keepalive).catch(() => undefined);
     };
     const markActivity = () => {
       lastActivityAtRef.current = Date.now();
-      trackOwnPresence(false);
+      publishPresence('online');
     };
     const activityEvents = ['pointermove', 'keydown', 'mousedown', 'touchstart', 'scroll'] as const;
-    activityEvents.forEach((eventName) => document.addEventListener(eventName, markActivity));
-    const awayTimer = window.setInterval(() => {
-      if (Date.now() - lastActivityAtRef.current >= awayAfterMs) trackOwnPresence(true);
-    }, 15_000);
-
-    ownPresenceChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        publishOwnPresence(ownPresenceAwayRef.current);
-        void ownPresenceChannel.track({ userId: currentUserId, away: ownPresenceAwayRef.current });
+    activityEvents.forEach((eventName) => document.addEventListener(eventName, markActivity, { passive: true }));
+    const presenceTimer = window.setInterval(() => {
+      const inactiveFor = Date.now() - lastActivityAtRef.current;
+      if (inactiveFor >= awayAfterMs) {
+        publishPresence('away');
+      } else if (socialPresenceStateRef.current !== 'offline' && Date.now() - lastPresenceHeartbeatAtRef.current >= heartbeatMs) {
+        publishPresence(socialPresenceStateRef.current, true);
       }
-    });
-    friendPresenceChannels.forEach(({ channel }) => {
-      channel
-        .on('presence', { event: 'sync' }, syncFriendPresence);
-      subscribeToRealtimeChannel(channel, syncFriendPresence);
-    });
+    }, Math.min(15_000, heartbeatMs));
+    const sendOffline = () => publishPresence('offline', false, true);
+    window.addEventListener('pagehide', sendOffline);
+    publishPresence('online');
 
     return () => {
-      window.clearInterval(awayTimer);
+      window.clearInterval(presenceTimer);
       activityEvents.forEach((eventName) => document.removeEventListener(eventName, markActivity));
-      void ownPresenceChannel.untrack();
-      void supabase.removeChannel(ownPresenceChannel);
-      friendPresenceChannels.forEach(({ channel }) => {
-        void supabase.removeChannel(channel);
-      });
+      window.removeEventListener('pagehide', sendOffline);
+      sendOffline();
     };
-  }, [currentUserId, friendRealtimeSubscriptions]);
+  }, [currentUserId, hasSocialPresenceAudience]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -1121,11 +1156,7 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
   };
 
   const allFriends = useMemo(() => (dashboard?.friends ?? [])
-    .map((friend) => {
-      const presence = presenceByUserId.get(friend.id);
-      return { ...friend, online: presence?.online ?? friend.online, away: presence?.away ?? false };
-    })
-    .sort((left, right) => Number(right.favorite) - Number(left.favorite) || Number(right.online) - Number(left.online) || Number(right.away) - Number(left.away) || left.displayName.localeCompare(right.displayName)), [dashboard?.friends, presenceByUserId]);
+    .sort((left, right) => Number(right.favorite) - Number(left.favorite) || Number(right.online) - Number(left.online) || Number(right.away) - Number(left.away) || left.displayName.localeCompare(right.displayName)), [dashboard?.friends]);
   const onlineCount = useMemo(() => allFriends.filter((friend) => friend.online).length, [allFriends]);
   const awayCount = useMemo(() => allFriends.filter((friend) => friend.away).length, [allFriends]);
   const totalFriendCount = allFriends.length;
@@ -1137,8 +1168,8 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
       ))
     : allFriends, [allFriends, cleanSearchQuery]);
   const activeFriendView = useMemo(() => activeFriend
-    ? { ...(allFriends.find((friend) => friend.id === activeFriend.id) ?? activeFriend), ...(presenceByUserId.get(activeFriend.id) ?? { online: false, away: false }) }
-    : null, [activeFriend, allFriends, presenceByUserId]);
+    ? (allFriends.find((friend) => friend.id === activeFriend.id) ?? activeFriend)
+    : null, [activeFriend, allFriends]);
   const snapshotAboutIsLong = Boolean(activeFriendView?.aboutMe && activeFriendView.aboutMe.length > 140);
   const activeFriendLiveGameNote = getLiveGameNote(liveGameStatus, liveGameNow);
   const activeFriendAvatarUrl = activeFriendView?.avatarUrl || null;

@@ -3,6 +3,7 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { ApiError, getRouteErrorResponse } from '@/lib/api-utils';
 import { parseDraftHistoryInput } from '@/lib/randodraft-history';
 import { randodraftShareStoreConfigured, readRandodraftShare, type StoredRandodraftShare } from '@/lib/randodraft-share-store';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +14,11 @@ export const GET = withApiMetrics('/api/randodraft/share/[id]', async function G
   context: { params: { id: string } },
 ) {
   try {
+    const limited = await enforceApiRateLimit(_request, {
+      scope: 'randodraft:share-read',
+      ip: { limit: 60, windowMs: 60_000 },
+    });
+    if (limited) return limited;
     const id = context.params.id;
     if (!SHARE_ID_PATTERN.test(id)) throw new ApiError(404, 'Share not found.');
     if (!randodraftShareStoreConfigured()) throw new ApiError(503, 'Share storage is unavailable.');

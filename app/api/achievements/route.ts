@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getUserAchievements, recordAchievementEvent, recordAchievementEvents, resetUserAchievements } from '@/lib/achievements-server';
 import { isAchievementEventName } from '@/lib/achievements';
@@ -11,7 +11,7 @@ export const GET = withApiMetrics('/api/achievements', async function GET(reques
   try {
     const userId = await getAuthenticatedUserId(request);
     const achievements = await getUserAchievements(userId);
-    return NextResponse.json({ achievements });
+    return NextResponse.json({ achievements }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -39,7 +39,7 @@ export const POST = withApiMetrics('/api/achievements', async function POST(requ
         includeAchievements: body.includeAchievements === true,
         ignoreInvalidEvents: true,
       });
-      return NextResponse.json(result);
+      return NextResponse.json(result, { headers: PRIVATE_NO_STORE_HEADERS });
     }
     if (!isAchievementEventName(body.event)) {
       throw new Error('Achievement event is required.');
@@ -50,7 +50,7 @@ export const POST = withApiMetrics('/api/achievements', async function POST(requ
     const result = await recordAchievementEvent(userId, body.event, metadata, {
       includeAchievements: body.includeAchievements === true,
     });
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -60,7 +60,7 @@ export const DELETE = withApiMetrics('/api/achievements', async function DELETE(
   try {
     const userId = await getAuthenticatedUserId(request);
     await resetUserAchievements(userId);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }

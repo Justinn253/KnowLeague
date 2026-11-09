@@ -65,6 +65,13 @@ export const ABUSE_RATE_LIMITS: Record<string, RateLimitRule | DualRateLimitRule
     ip: { limit: 10, windowMs: 60 * 60 * 1_000 },
     subject: { limit: 3, windowMs: 60 * 60 * 1_000 },
   },
+  // Contact submissions are persisted and may trigger staff moderation work.
+  // Apply this before any database lookups; the client ID is convenience
+  // state and must never be the primary abuse-control identity.
+  contactSubmission: {
+    ip: { limit: 1, windowMs: 30 * 60 * 1_000 },
+    subject: { limit: 1, windowMs: 30 * 60 * 1_000 },
+  },
   publicProfile: { limit: 60, windowMs: 60_000 },
   publicLeaderboard: { limit: 90, windowMs: 60_000 },
   leaderboardSubmission: {
@@ -74,6 +81,10 @@ export const ABUSE_RATE_LIMITS: Record<string, RateLimitRule | DualRateLimitRule
   friendSearch: {
     ip: { limit: 60, windowMs: 60_000 },
     subject: { limit: 30, windowMs: 60_000 },
+  },
+  friendPresence: {
+    ip: { limit: 60, windowMs: 60_000 },
+    subject: { limit: 20, windowMs: 60_000 },
   },
   anonymousGameSubmission: { limit: 30, windowMs: 60_000 },
   gameAction: {
@@ -137,12 +148,14 @@ function isMutation(method: string) {
 export function getApiRouteRateLimitPolicy(pathname: string, method: string): ApiRouteRateLimitPolicy | null {
   const normalizedMethod = method.toUpperCase();
 
-  // The dashboard joins several private Mining records on every manual
-  // refresh. It is intentionally not polled, so apply the game-action budget
-  // to both reads and writes rather than leaving refreshes at the generic API
-  // rate alone.
-  if ((normalizedMethod === 'GET' || normalizedMethod === 'POST') && pathname === '/api/mining') {
-    return getPolicy('gameAction', 'api:game-action', 'Too many Mining requests. Please try again shortly.');
+  // These dashboards join several private records, and may refresh at a
+  // server-authoritative expedition transition. Keep both reads and writes
+  // inside the game-action budget rather than relying only on the global API
+  // limit.
+  if ((normalizedMethod === 'GET' || normalizedMethod === 'POST') && (
+    pathname === '/api/mining' || pathname === '/api/fishing' || pathname === '/api/woodcutting'
+  )) {
+    return getPolicy('gameAction', 'api:game-action', 'Too many companion game requests. Please try again shortly.');
   }
 
   if (normalizedMethod === 'POST' && (

@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUserId, getOptionalAuthenticatedUser } from '@/lib/auth-server';
 import { canAccessModeration, getAuthenticatedAppRole } from '@/lib/moderation';
 import { createRiftboundComment, decodeRiftboundCommentCursor, loadRiftboundComments } from '@/lib/riftbound-community';
@@ -25,7 +25,10 @@ export const GET = withApiMetrics('/api/riftbound/community/posts/[postId]/comme
     if (cursorValue && !cursor) throw new Error('Invalid comment cursor.');
     const parentIdValue = url.searchParams.get('parentId');
     const parentId = parentIdValue?.trim() || null;
-    return NextResponse.json(await loadRiftboundComments(params.postId, cursor, parentId ? 10 : 20, viewerId, isStaff, parentId));
+    return NextResponse.json(
+      await loadRiftboundComments(params.postId, cursor, parentId ? 10 : 20, viewerId, isStaff, parentId),
+      viewerId ? { headers: PRIVATE_NO_STORE_HEADERS } : undefined,
+    );
   } catch (error) {
     return getRouteErrorResponse(error);
   }

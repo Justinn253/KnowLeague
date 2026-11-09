@@ -1,10 +1,11 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getRouteErrorResponse, readJsonBody, requireString } from '@/lib/api-utils';
+import { getRouteErrorResponse, PRIVATE_NO_STORE_HEADERS, readJsonBody, requireString } from '@/lib/api-utils';
 import { getAuthenticatedUserId } from '@/lib/auth-server';
 import { getRiftboundCardById, RIFTBOUND_CARDS } from '@/lib/riftbound';
 import { isRiftboundChampionUnit, RIFTBOUND_DECK_MAX_COUNT, validateRiftboundDeck, type RiftboundDeckCategory, type RiftboundDeckCardSelection } from '@/lib/riftbound-decks';
 import { loadRiftboundDecks } from '@/lib/riftbound-server';
+import { enforceApiRateLimit } from '@/lib/rate-limit';
 import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export const runtime = 'nodejs';
@@ -92,10 +93,19 @@ function buildCardRows(deckId: string, cards: RiftboundDeckCardSelection[]) {
   return cards.map(({ cardId: card_id, category, quantity }) => ({ deck_id: deckId, card_id, category, quantity }));
 }
 
+function enforceDeckWriteRateLimit(request: Request, userId: string) {
+  return enforceApiRateLimit(request, {
+    scope: 'riftbound:deck-write',
+    ip: { limit: 60, windowMs: 60_000 },
+    subject: { id: userId, limit: 60, windowMs: 60_000 },
+    errorMessage: 'Too many Riftbound deck updates. Please try again shortly.',
+  });
+}
+
 export const GET = withApiMetrics('/api/riftbound/decks', async function GET(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
-    return NextResponse.json({ decks: await loadRiftboundDecks(userId) });
+    return NextResponse.json({ decks: await loadRiftboundDecks(userId) }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     return getRouteErrorResponse(error);
   }
@@ -104,6 +114,8 @@ export const GET = withApiMetrics('/api/riftbound/decks', async function GET(req
 export const POST = withApiMetrics('/api/riftbound/decks', async function POST(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceDeckWriteRateLimit(request, userId);
+    if (rateLimitResponse) return rateLimitResponse;
     const input = parseDeckInput(await readJsonBody<DeckBody>(request));
     const supabase = getSupabaseServiceClient();
     const { count, error: countError } = await supabase
@@ -135,6 +147,8 @@ export const POST = withApiMetrics('/api/riftbound/decks', async function POST(r
 export const PATCH = withApiMetrics('/api/riftbound/decks', async function PATCH(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceDeckWriteRateLimit(request, userId);
+    if (rateLimitResponse) return rateLimitResponse;
     const body = await readJsonBody<DeckBody>(request);
     const deckId = requireString(body.deckId, 'deckId');
     const input = parseDeckInput(body);
@@ -159,6 +173,8 @@ export const PATCH = withApiMetrics('/api/riftbound/decks', async function PATCH
 export const DELETE = withApiMetrics('/api/riftbound/decks', async function DELETE(request: Request) {
   try {
     const userId = await getAuthenticatedUserId(request);
+    const rateLimitResponse = await enforceDeckWriteRateLimit(request, userId);
+    if (rateLimitResponse) return rateLimitResponse;
     const body = await readJsonBody<{ deckId?: unknown }>(request);
     const deckId = requireString(body.deckId, 'deckId');
     const { data, error } = await getSupabaseServiceClient()

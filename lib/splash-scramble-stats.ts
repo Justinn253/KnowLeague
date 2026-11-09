@@ -1,19 +1,9 @@
-import { promises as fs } from 'fs';
-import path from 'path';
+import { createHash } from 'node:crypto';
+import { getSupabaseServiceClient } from '@/lib/supabaseClient';
 
 export type SplashScrambleDailyStatsSnapshot = {
   dateKey: string;
   correctSolves: number;
-};
-
-type SplashScrambleClientRecord = {
-  solved: boolean;
-};
-
-type SplashScrambleDailyStatsRecord = {
-  dateKey: string;
-  correctSolves: number;
-  clients: Record<string, SplashScrambleClientRecord>;
 };
 
 export type RecordSplashScrambleSolveInput = {
@@ -27,89 +17,62 @@ export type RecordSplashScrambleSolveResult = {
   clientAlreadySolved: boolean;
 };
 
-const STATS_PATH = path.join(process.cwd(), 'data', 'runtime', 'splash-scramble-stats.json');
-let writeQueue = Promise.resolve();
-let cachedStats: Record<string, SplashScrambleDailyStatsRecord> | null = null;
+type SplashScrambleStatsRow = {
+  date_key?: string;
+  correct_solves?: number | string;
+  accepted?: boolean;
+  client_already_solved?: boolean;
+};
 
-function createEmptyDailyRecord(dateKey: string): SplashScrambleDailyStatsRecord {
+function toFiniteNumber(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getFirstRow(data: unknown): SplashScrambleStatsRow {
+  if (Array.isArray(data)) {
+    return (data[0] ?? {}) as SplashScrambleStatsRow;
+  }
+
+  return (data ?? {}) as SplashScrambleStatsRow;
+}
+
+function toSnapshot(row: SplashScrambleStatsRow, fallbackDateKey: string): SplashScrambleDailyStatsSnapshot {
   return {
-    dateKey,
-    correctSolves: 0,
-    clients: {},
+    dateKey: typeof row.date_key === 'string' ? row.date_key : fallbackDateKey,
+    correctSolves: toFiniteNumber(row.correct_solves),
   };
 }
 
-async function readStatsFile() {
-  if (cachedStats) {
-    return cachedStats;
-  }
+function hashClientId(clientId: string) {
+  // The aggregate only needs a stable daily deduplication key. Persisting a
+  // one-way value avoids storing the browser's convenience identifier.
+  return createHash('sha256').update(clientId).digest('hex');
+}
 
-  try {
-    const rawStats = await fs.readFile(STATS_PATH, 'utf8');
-    cachedStats = JSON.parse(rawStats) as Record<string, SplashScrambleDailyStatsRecord>;
-    return cachedStats;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      cachedStats = {};
-      return cachedStats;
-    }
-
+async function callStatsRpc(functionName: string, args: Record<string, unknown>) {
+  const { data, error } = await getSupabaseServiceClient().rpc(functionName, args);
+  if (error) {
     throw error;
   }
-}
 
-async function writeStatsFile(stats: Record<string, SplashScrambleDailyStatsRecord>) {
-  await fs.mkdir(path.dirname(STATS_PATH), { recursive: true });
-  await fs.writeFile(STATS_PATH, JSON.stringify(stats), 'utf8');
-  cachedStats = stats;
-}
-
-function toSnapshot(record: SplashScrambleDailyStatsRecord): SplashScrambleDailyStatsSnapshot {
-  return {
-    dateKey: record.dateKey,
-    correctSolves: record.correctSolves,
-  };
+  return getFirstRow(data);
 }
 
 export async function getSplashScrambleDailyStats(dateKey: string): Promise<SplashScrambleDailyStatsSnapshot> {
-  const stats = await readStatsFile();
-  return toSnapshot(stats[dateKey] ?? createEmptyDailyRecord(dateKey));
+  const row = await callStatsRpc('get_splash_scramble_daily_stats', { p_date_key: dateKey });
+  return toSnapshot(row, dateKey);
 }
 
-export function recordSplashScrambleSolve(input: RecordSplashScrambleSolveInput): Promise<RecordSplashScrambleSolveResult> {
-  const operation = writeQueue.then(async () => {
-    const stats = { ...await readStatsFile() };
-    const storedDailyRecord = stats[input.dateKey] ?? createEmptyDailyRecord(input.dateKey);
-    const dailyRecord = {
-      ...storedDailyRecord,
-      clients: { ...storedDailyRecord.clients },
-    };
-    const clientRecord = dailyRecord.clients[input.clientId] ?? { solved: false };
-    const clientAlreadySolved = clientRecord.solved;
-    const accepted = !clientAlreadySolved;
-
-    if (accepted) {
-      dailyRecord.correctSolves += 1;
-      clientRecord.solved = true;
-    }
-
-    if (accepted) {
-      dailyRecord.clients[input.clientId] = clientRecord;
-      stats[input.dateKey] = dailyRecord;
-      await writeStatsFile(stats);
-    }
-
-    return {
-      snapshot: toSnapshot(dailyRecord),
-      accepted,
-      clientAlreadySolved,
-    };
+export async function recordSplashScrambleSolve(input: RecordSplashScrambleSolveInput): Promise<RecordSplashScrambleSolveResult> {
+  const row = await callStatsRpc('record_splash_scramble_daily_solve', {
+    p_date_key: input.dateKey,
+    p_client_hash: hashClientId(input.clientId),
   });
 
-  writeQueue = operation.then(
-    () => undefined,
-    () => undefined,
-  );
-
-  return operation;
+  return {
+    snapshot: toSnapshot(row, input.dateKey),
+    accepted: row.accepted === true,
+    clientAlreadySolved: row.client_already_solved === true,
+  };
 }

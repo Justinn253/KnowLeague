@@ -297,7 +297,7 @@ async function fishingExpeditionPingsAreEnabled(config: DiscordBotConfig, discor
     .eq('discord_user_id', discordUserId)
     .maybeSingle<FishingExpeditionPingPreferenceRow>();
   if (error) {
-    console.error(`Unable to load Fishing ping preference for ${discordUserId}.`, error);
+    console.error('Unable to load Fishing ping preference.', error);
     return true;
   }
   return data?.expedition_pings_enabled !== false;

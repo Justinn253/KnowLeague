@@ -1,4 +1,5 @@
 import { getSkinCatalog } from '@/lib/catalogs';
+import { CARVING_REVELATION_MAX_DRAW_POINTS } from '@/lib/game-api-limits';
 import {
   CHAT_COLOR_HEX,
   CHAT_COLOR_VALUES,
@@ -2113,7 +2114,7 @@ function normalizeRevealShape(input: DrawInput) {
   const clamp = (value: number) => Math.max(0, Math.min(1, value));
   const points = input.points
     .filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y))
-    .slice(0, 160)
+    .slice(0, CARVING_REVELATION_MAX_DRAW_POINTS)
     .map((point) => ({ x: clamp(point.x), y: clamp(point.y) }))
     .filter((point, index, allPoints) => {
       const previous = allPoints[index - 1];

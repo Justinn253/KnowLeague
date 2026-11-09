@@ -61,6 +61,7 @@ type ProfileRecord = {
   friend_requests_open: boolean;
   profile_status: string;
   friends_list_public: boolean;
+  public_stats_enabled: boolean;
   profile_visibility: 'public' | 'private';
   avatar_url: string | null;
   chat_color: string;
@@ -77,7 +78,7 @@ type ProfileRecord = {
 type ProfileTab = 'profile' | 'stats' | 'achievements' | 'account';
 const OWNER_PROFILE_TABS: readonly ProfileTab[] = ['profile', 'stats', 'achievements', 'account'];
 type ProfileVisibility = 'public' | 'private';
-type ProfilePreferenceKey = 'friendRequestsOpen' | 'profileVisibility';
+type ProfilePreferenceKey = 'friendRequestsOpen' | 'profileVisibility' | 'publicStatsEnabled';
 type ProfilePreferenceSavingState = Record<ProfilePreferenceKey, boolean>;
 type AchievementSortKey = 'completedAt' | 'globalRanking' | 'completionPercent' | 'alphabetical';
 type AchievementSortDirection = 'asc' | 'desc';
@@ -191,6 +192,7 @@ function createProfileFromInitialData(initialProfileData: Partial<ProfileRecord>
     friend_requests_open: initialProfileData.friend_requests_open ?? true,
     profile_status: initialProfileData.profile_status ?? '',
     friends_list_public: initialProfileData.friends_list_public ?? true,
+    public_stats_enabled: initialProfileData.public_stats_enabled ?? false,
     profile_visibility: normalizeProfileVisibility(initialProfileData.profile_visibility),
     avatar_url: initialProfileData.avatar_url ?? null,
     chat_color: normalizeChatColor(initialProfileData.chat_color),
@@ -543,6 +545,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const [pendingChatBorder, setPendingChatBorder] = useState<ChatBorder>(DEFAULT_CHAT_BORDER);
   const [friendRequestsOpen, setFriendRequestsOpen] = useState(true);
   const [profileVisibility, setProfileVisibility] = useState<ProfileVisibility>('public');
+  const [publicStatsEnabled, setPublicStatsEnabled] = useState(false);
   const [appRole, setAppRole] = useState<AppRole | null>(null);
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerGameStats[]>([]);
@@ -594,6 +597,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const [preferenceSaving, setPreferenceSaving] = useState<ProfilePreferenceSavingState>({
     friendRequestsOpen: false,
     profileVisibility: false,
+    publicStatsEnabled: false,
   });
   const [passwordResetSending, setPasswordResetSending] = useState(false);
   const [passwordResetCooldownEndsAt, setPasswordResetCooldownEndsAt] = useState(0);
@@ -601,10 +605,12 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
   const preferenceValuesRef = useRef({
     friendRequestsOpen: true,
     profileVisibility: 'public' as ProfileVisibility,
+    publicStatsEnabled: false,
   });
   const preferenceQueuesRef = useRef<Record<ProfilePreferenceKey, Promise<void>>>({
     friendRequestsOpen: Promise.resolve(),
     profileVisibility: Promise.resolve(),
+    publicStatsEnabled: Promise.resolve(),
   });
 
   useEffect(() => {
@@ -634,7 +640,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     displayedBadgeRewardIds.join('|') !== (profile.displayed_badge_reward_ids ?? []).join('|')
   ) : false;
   const hasAnySaveChanges = hasProfileChanges || hasAvatarChanges;
-  preferenceValuesRef.current = { friendRequestsOpen, profileVisibility };
+  preferenceValuesRef.current = { friendRequestsOpen, profileVisibility, publicStatsEnabled };
   const passwordResetCooldownSeconds = getEmailDeliveryCooldownSeconds(
     passwordResetCooldownEndsAt,
     passwordResetCooldownNow,
@@ -676,6 +682,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
     setDisplayedBadgeRewardIds(cachedState.profile?.displayed_badge_reward_ids ?? []);
     setFriendRequestsOpen(cachedState.friendRequestsOpen);
     setProfileVisibility(normalizeProfileVisibility(cachedState.profile?.profile_visibility));
+    setPublicStatsEnabled(cachedState.profile?.public_stats_enabled ?? false);
     setIncomingRequests(cachedState.incomingRequests);
     setBusy(false);
   }, []);
@@ -787,7 +794,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       } else {
       let { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+        .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, public_stats_enabled, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
         .eq('id', data.user.id)
         .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
       if (profileError && isMissingProfileColumnError(profileError, 'chat_color')) {
@@ -846,6 +853,15 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
         } : null;
         profileError = fallback.error;
       }
+      if (profileError && isMissingProfileColumnError(profileError, 'public_stats_enabled')) {
+        const fallback = await supabase
+          .from('profiles')
+          .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+          .eq('id', data.user.id)
+          .maybeSingle<Omit<ProfileRecord, 'discord_username' | 'riot_account_name' | 'public_stats_enabled'>>();
+        profileData = fallback.data ? { ...fallback.data, public_stats_enabled: false } : null;
+        profileError = fallback.error;
+      }
       let { data: privateData, error: privateError } = await supabase
         .from('profile_private_details')
         .select('discord_username, discord_avatar_url, discord_banner_url, riot_account_name')
@@ -889,6 +905,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
           chat_color: normalizeChatColor(profileData.chat_color),
           chat_border: normalizeChatBorder(profileData.chat_border),
           profile_visibility: normalizeProfileVisibility(profileData.profile_visibility),
+          public_stats_enabled: profileData.public_stats_enabled ?? false,
           discord_username: privateData?.discord_username ?? null,
           discord_avatar_url: privateData?.discord_avatar_url ?? null,
           discord_banner_url: privateData?.discord_banner_url ?? null,
@@ -904,6 +921,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
         setDisplayedBadgeRewardIds(profileData?.displayed_badge_reward_ids ?? []);
         setFriendRequestsOpen(profileData?.friend_requests_open ?? true);
         setProfileVisibility(normalizeProfileVisibility(profileData?.profile_visibility));
+        setPublicStatsEnabled(profileData?.public_stats_enabled ?? false);
         cachedProfileScreenState = {
           userId: data.user.id,
           email: data.user.email ?? '',
@@ -1101,6 +1119,13 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       previousValue = preferenceValuesRef.current.friendRequestsOpen;
       preferenceValuesRef.current.friendRequestsOpen = nextValue;
       setFriendRequestsOpen(nextValue);
+    } else if (key === 'publicStatsEnabled') {
+      if (typeof nextValue !== 'boolean') {
+        return;
+      }
+      previousValue = preferenceValuesRef.current.publicStatsEnabled;
+      preferenceValuesRef.current.publicStatsEnabled = nextValue;
+      setPublicStatsEnabled(nextValue);
     } else {
       if (nextValue !== 'public' && nextValue !== 'private') {
         return;
@@ -1112,10 +1137,14 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
 
     setPreferenceSaving((current) => ({ ...current, [key]: true }));
     const queuedSave = async () => {
-      const preferenceValue = key === 'friendRequestsOpen'
-        ? nextValue as boolean
-        : nextValue as ProfileVisibility;
-      const databaseField = key === 'friendRequestsOpen' ? 'friend_requests_open' : 'profile_visibility';
+      const preferenceValue = key === 'profileVisibility'
+        ? nextValue as ProfileVisibility
+        : nextValue as boolean;
+      const databaseField = key === 'friendRequestsOpen'
+        ? 'friend_requests_open'
+        : key === 'publicStatsEnabled'
+          ? 'public_stats_enabled'
+          : 'profile_visibility';
 
       try {
         const supabase = getOptionalSupabaseClient();
@@ -1135,6 +1164,9 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
           if (key === 'profileVisibility' && isMissingProfileColumnError(error, 'profile_visibility')) {
             throw new Error('Profile visibility cannot be saved until the latest profile migration is applied.');
           }
+          if (key === 'publicStatsEnabled' && isMissingProfileColumnError(error, 'public_stats_enabled')) {
+            throw new Error('Public statistics cannot be saved until the latest profile migration is applied.');
+          }
           throw error;
         }
 
@@ -1144,20 +1176,25 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
           }
           const nextProfile = key === 'friendRequestsOpen'
             ? { ...current, friend_requests_open: preferenceValue as boolean }
-            : { ...current, profile_visibility: preferenceValue as ProfileVisibility };
+            : key === 'publicStatsEnabled'
+              ? { ...current, public_stats_enabled: preferenceValue as boolean }
+              : { ...current, profile_visibility: preferenceValue as ProfileVisibility };
           if (cachedProfileScreenState?.userId === userId) {
             cachedProfileScreenState = { ...cachedProfileScreenState, profile: nextProfile };
           }
           return nextProfile;
         });
         notifyProfileUpdated(userId);
-        setMessage(key === 'friendRequestsOpen' ? 'Friend request preferences updated.' : 'Profile visibility updated.');
+        setMessage(key === 'friendRequestsOpen' ? 'Friend request preferences updated.' : key === 'publicStatsEnabled' ? 'Public statistics preference updated.' : 'Profile visibility updated.');
       } catch (error) {
         const currentValue = preferenceValuesRef.current[key];
         if (currentValue === preferenceValue) {
           if (key === 'friendRequestsOpen') {
             preferenceValuesRef.current.friendRequestsOpen = previousValue as boolean;
             setFriendRequestsOpen(previousValue as boolean);
+          } else if (key === 'publicStatsEnabled') {
+            preferenceValuesRef.current.publicStatsEnabled = previousValue as boolean;
+            setPublicStatsEnabled(previousValue as boolean);
           } else {
             preferenceValuesRef.current.profileVisibility = previousValue as ProfileVisibility;
             setProfileVisibility(previousValue as ProfileVisibility);
@@ -1169,7 +1206,9 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
             }
             const nextProfile = key === 'friendRequestsOpen'
               ? { ...current, friend_requests_open: previousValue as boolean }
-              : { ...current, profile_visibility: previousValue as ProfileVisibility };
+              : key === 'publicStatsEnabled'
+                ? { ...current, public_stats_enabled: previousValue as boolean }
+                : { ...current, profile_visibility: previousValue as ProfileVisibility };
             if (cachedProfileScreenState?.userId === userId) {
               cachedProfileScreenState = { ...cachedProfileScreenState, profile: nextProfile };
             }
@@ -1296,7 +1335,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       .from('profiles')
       .update(profileUpdate)
       .eq('id', userId)
-      .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
+      .select('username, display_name, about_me, friends_count, friend_requests_open, profile_visibility, profile_status, friends_list_public, public_stats_enabled, avatar_url, chat_color, chat_border, selected_title_reward_id, displayed_badge_reward_ids, created_at')
       .single<Omit<ProfileRecord, 'discord_username' | 'riot_account_name'>>();
     if (error && (isMissingProfileColumnError(error, 'profile_status') || isMissingProfileColumnError(error, 'friends_list_public'))) {
       const fallback = await supabase
@@ -1395,6 +1434,7 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
       chat_color: normalizeChatColor(data.chat_color),
       chat_border: normalizeChatBorder(data.chat_border),
       profile_visibility: normalizeProfileVisibility(profile?.profile_visibility),
+      public_stats_enabled: data.public_stats_enabled ?? profile?.public_stats_enabled ?? false,
       discord_username: profile?.discord_username ?? null,
       discord_avatar_url: profile?.discord_avatar_url ?? null,
       discord_banner_url: profile?.discord_banner_url ?? null,
@@ -2869,6 +2909,14 @@ export function ProfileScreen({ expectedUserId, expectedUsername, initialProfile
                       checked={profileVisibility === 'public'}
                       disabled={preferenceSaving.profileVisibility}
                       onToggle={() => updateProfilePreference('profileVisibility', profileVisibility === 'public' ? 'private' : 'public')}
+                    />
+                    <ProfilePreferenceToggle
+                      label="Public Game Statistics"
+                      valueLabel={publicStatsEnabled ? 'Aggregate statistics public' : 'Game statistics private'}
+                      description="Share aggregate totals on your public profile. Individual guesses, dates, and match records stay private."
+                      checked={publicStatsEnabled}
+                      disabled={preferenceSaving.publicStatsEnabled}
+                      onToggle={() => updateProfilePreference('publicStatsEnabled', !publicStatsEnabled)}
                     />
                   </div>
 

@@ -1,6 +1,6 @@
 import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
-import { getMasteryMasterProfile, isRiotPlatformRoute } from '@/lib/riot-account-viewer';
+import { getMasteryMasterProfile, isRiotPlatformRoute, parseRiotId } from '@/lib/riot-account-viewer';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { getServerCache, setServerCache } from '@/lib/server-memory-cache';
 
@@ -45,6 +45,7 @@ export const GET = withApiMetrics('/api/riot-account/mastery', async function GE
     const riotId = url.searchParams.get('riotId')?.trim() ?? '';
     const platform = (url.searchParams.get('platform') ?? 'NA1').trim().toUpperCase();
     if (!riotId) return NextResponse.json({ error: 'riotId is required.' }, { status: 400 });
+    const normalizedRiotId = parseRiotId(riotId).normalized;
     if (!isRiotPlatformRoute(platform)) return NextResponse.json({ error: 'platform is invalid.' }, { status: 400 });
 
     const rateLimit = await checkRateLimit({
@@ -60,9 +61,9 @@ export const GET = withApiMetrics('/api/riot-account/mastery', async function GE
       );
     }
 
-    const cacheKey = `riot-mastery-game:${platform}:${riotId.toLowerCase()}`;
+    const cacheKey = `riot-mastery-game:${platform}:${normalizedRiotId.toLowerCase()}`;
     const cached = getServerCache<MasteryProfile>(cacheKey);
-    const profile = cached ?? await loadProfile(cacheKey, riotId, platform);
+    const profile = cached ?? await loadProfile(cacheKey, normalizedRiotId, platform);
     return NextResponse.json(profile, {
       headers: {
         'Cache-Control': 'private, no-store',

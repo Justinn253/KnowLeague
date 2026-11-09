@@ -169,7 +169,14 @@ export async function getApiMetricSummary(requestedHours = 24): Promise<ApiMetri
   const keys = Array.from({ length: windowHours }, (_, index) => (
     `${METRICS_PREFIX}:${currentBucket - index * METRICS_BUCKET_MS}`
   ));
-  const hashes = await Promise.all(keys.map((key) => redis.hgetall<Record<string, string>>(key)));
+  // Redis REST pipelines batch the full time window into one request. This is
+  // particularly meaningful for the seven-day view, which previously made up
+  // to 168 independent reads from the staff metrics screen.
+  const pipeline = redis.pipeline();
+  keys.forEach((key) => {
+    pipeline.hgetall<Record<string, string>>(key);
+  });
+  const hashes = await pipeline.exec<Array<Record<string, string> | null>>();
   const summaries = new Map<string, ApiMetricRouteSummary>();
   let totalRequests = 0;
   let clientErrors = 0;

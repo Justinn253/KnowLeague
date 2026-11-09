@@ -21,7 +21,6 @@ export const GET = withApiMetrics('/api/riot-account/suggestions', async functio
   if (!rateLimit.allowed) {
     const unavailable = rateLimit.source === 'unavailable';
     logServerEvent('warn', 'riot_account_suggestions_rate_limited', {
-      clientIp,
       retryAfterSeconds: rateLimit.retryAfterSeconds,
     });
     return NextResponse.json(
@@ -39,6 +38,12 @@ export const GET = withApiMetrics('/api/riot-account/suggestions', async functio
 
   const query = url.searchParams.get('q') ?? '';
   const platform = url.searchParams.get('platform')?.toUpperCase() ?? null;
+  if (query.length > 80) {
+    return NextResponse.json({ suggestions: [], error: 'Search terms must be 80 characters or fewer.' }, { status: 400 });
+  }
+  if (platform && !isRiotPlatformRoute(platform)) {
+    return NextResponse.json({ suggestions: [], error: 'platform is invalid.' }, { status: 400 });
+  }
   const validatedPlatform = platform && isRiotPlatformRoute(platform) ? platform : undefined;
   const suggestions = await getRiotAccountSearchSuggestions(
     query,

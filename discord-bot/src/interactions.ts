@@ -4652,12 +4652,26 @@ export async function handleButtonInteraction(interaction: ButtonInteraction, co
 
 type StoredSlashCommand = {
   commandName: string;
+  expiresAt: number;
   optionValues: Record<string, boolean | number | string>;
   subcommand: string | null;
   subcommandGroup: string | null;
 };
 
+const MOST_RECENT_COMMAND_RETENTION_MS = 6 * 60 * 60 * 1_000;
+const MAX_MOST_RECENT_COMMANDS = 5_000;
 const mostRecentCommands = new Map<string, StoredSlashCommand>();
+
+function pruneMostRecentCommands(now = Date.now()) {
+  for (const [userId, command] of mostRecentCommands) {
+    if (command.expiresAt <= now) mostRecentCommands.delete(userId);
+  }
+  while (mostRecentCommands.size >= MAX_MOST_RECENT_COMMANDS) {
+    const oldestUserId = mostRecentCommands.keys().next().value;
+    if (!oldestUserId) break;
+    mostRecentCommands.delete(oldestUserId);
+  }
+}
 
 function collectSlashOptionValues(options: readonly unknown[], values: Record<string, boolean | number | string> = {}) {
   for (const option of options) {
@@ -4676,12 +4690,21 @@ function collectSlashOptionValues(options: readonly unknown[], values: Record<st
 }
 
 function storeMostRecentCommand(interaction: ChatInputCommandInteraction) {
+  pruneMostRecentCommands();
+  // Reinsert so eviction is based on the latest command, not first use.
+  mostRecentCommands.delete(interaction.user.id);
   mostRecentCommands.set(interaction.user.id, {
     commandName: interaction.commandName,
+    expiresAt: Date.now() + MOST_RECENT_COMMAND_RETENTION_MS,
     optionValues: collectSlashOptionValues(interaction.options.data),
     subcommand: interaction.options.getSubcommand(false),
     subcommandGroup: interaction.options.getSubcommandGroup(false),
   });
+}
+
+function getMostRecentCommand(discordUserId: string) {
+  pruneMostRecentCommands();
+  return mostRecentCommands.get(discordUserId) ?? null;
 }
 
 function repeatedInteraction(interaction: ChatInputCommandInteraction, command: StoredSlashCommand) {
@@ -4739,6 +4762,7 @@ export async function handleChatInputCommand(
   config: DiscordBotConfig,
   storeAsMostRecent = true,
 ) {
+  if (interaction.guildId !== config.guildId) return;
   const subcommand = interaction.options.getSubcommand(false);
   if (requiresDefaultCommandChannel(interaction.commandName, subcommand)
     && !(await isDefaultCommandChannel(config, interaction.channelId))) {
@@ -4752,7 +4776,7 @@ export async function handleChatInputCommand(
   }
 
   if (interaction.commandName === 'rc') {
-    const command = mostRecentCommands.get(interaction.user.id);
+    const command = getMostRecentCommand(interaction.user.id);
     if (!command) {
       await interaction.reply({ content: 'There is no command to repeat yet. Run another slash command first.', flags: MessageFlags.Ephemeral });
       return;

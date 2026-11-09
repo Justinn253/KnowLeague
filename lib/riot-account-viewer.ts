@@ -599,8 +599,15 @@ export function isRiotPlatformRoute(value: string): value is RiotPlatformRoute {
   return RIOT_PLATFORM_ROUTES.includes(value.toUpperCase() as RiotPlatformRoute);
 }
 
+// Riot IDs are used in upstream URL paths and short-lived cache keys. Keep a
+// deliberately generous, documented boundary before either of those uses.
+export const MAX_RIOT_ID_LENGTH = 100;
+
 export function parseRiotId(riotId: string) {
   const normalized = riotId.trim();
+  if (normalized.length > MAX_RIOT_ID_LENGTH) {
+    throw new Error(`Riot IDs must be ${MAX_RIOT_ID_LENGTH} characters or fewer.`);
+  }
   const separatorIndex = normalized.lastIndexOf('#');
   if (separatorIndex <= 0 || separatorIndex === normalized.length - 1) {
     throw new Error('Enter a Riot ID in the format GameName#TagLine.');

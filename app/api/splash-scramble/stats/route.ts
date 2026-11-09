@@ -2,11 +2,11 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { NextResponse } from 'next/server';
 import { getDailyDateKey } from '@/lib/game-storage';
+import { SPLASH_SCRAMBLE_STATS_MAX_BODY_BYTES } from '@/lib/game-api-limits';
 import { getSplashScrambleDailyStats, recordSplashScrambleSolve } from '@/lib/splash-scramble-stats';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const SPLASH_SCRAMBLE_STATS_MAX_BODY_BYTES = 8_192;
 
 export const GET = withApiMetrics('/api/splash-scramble/stats', async function GET() {
   const dateKey = getDailyDateKey();

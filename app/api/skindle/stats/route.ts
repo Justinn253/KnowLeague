@@ -2,6 +2,7 @@ import { withApiMetrics } from '@/lib/api-metrics';
 import { NextResponse } from 'next/server';
 import { getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getDailyDateKey } from '@/lib/game-storage';
+import { SKINDLE_STATS_MAX_BODY_BYTES } from '@/lib/game-api-limits';
 import { getSkindleDailyStats, recordSkindleGuess } from '@/lib/skindle-stats';
 
 export const runtime = 'nodejs';
@@ -10,7 +11,6 @@ const MAX_GUESSES_PER_REQUEST = 100;
 // A maximum-size valid batch is well below this limit, including multibyte
 // skin names. Keep anonymous stats submissions from allocating the generic
 // multi-megabyte API body allowance.
-export const SKINDLE_STATS_MAX_BODY_BYTES = 256 * 1024;
 
 type SkindleGuessPayload = {
   skinId: string;

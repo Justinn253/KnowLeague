@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  CARVING_REVELATION_DRAW_MAX_BODY_BYTES,
+  CARVING_REVELATION_MAX_DRAW_POINTS,
+} from '@/lib/game-api-limits';
 
 const mocks = vi.hoisted(() => ({ draw: vi.fn() }));
 
 vi.mock('@/lib/carving-revelation', () => ({ drawCarvingRevealStroke: mocks.draw }));
 
-import {
-  CARVING_REVELATION_DRAW_MAX_BODY_BYTES,
-  CARVING_REVELATION_MAX_DRAW_POINTS,
-  POST,
-} from '../app/api/carving-revelation/lobbies/[code]/draw/route';
+import { POST } from '../app/api/carving-revelation/lobbies/[code]/draw/route';
 
 describe('Carving Revelation draw API', () => {
   beforeEach(() => {

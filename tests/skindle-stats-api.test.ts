@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { POST, SKINDLE_STATS_MAX_BODY_BYTES } from '../app/api/skindle/stats/route';
+import { SKINDLE_STATS_MAX_BODY_BYTES } from '@/lib/game-api-limits';
+import { POST } from '../app/api/skindle/stats/route';
 
 describe('Skindle stats API', () => {
   it('rejects an oversized anonymous stats submission before reaching storage', async () => {

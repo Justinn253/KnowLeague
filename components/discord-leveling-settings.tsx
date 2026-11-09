@@ -576,7 +576,7 @@ export function DiscordLevelingSettings() {
                 onToggle={toggleGeneralCommandChannel}
                 disabled={!data.channels.some((channel) => channel.sendable)}
                 disabledDescription="No sendable Discord text channels have been synced yet."
-                headerDescription="All channels is the default. Otherwise, choose one or more channels for member-facing /help, /link, /profile, /xp, /leaderboard, /knowbucks, and /snipe commands. Staff-only XP and KnowBucks changes plus /steal-emoji remain available in any channel. Fishing, Collections, and /league Skindle keep their own feature rules."
+                headerDescription="All channels is the default. Otherwise, choose one or more channels for member-facing /help, /link, /profile, /xp, /leaderboard, /knowbucks, and /snipe commands. Staff-only XP and KnowBucks changes plus /steal-emoji and /steal-sticker remain available in any channel. Fishing, Collections, and /league Skindle keep their own feature rules."
                 searchable
                 searchPlaceholder="Type a channel name or ID"
                 options={[

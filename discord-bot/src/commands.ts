@@ -23,6 +23,28 @@ function addCollectionReorderOptions(command: SlashCommandSubcommandBuilder) {
   return configuredCommand;
 }
 
+function addRandodraftPlayerOptions(command: SlashCommandSubcommandBuilder) {
+  let configuredCommand = command;
+  for (let slot = 1; slot <= 10; slot += 1) {
+    configuredCommand = configuredCommand.addUserOption((option) => option
+      .setName(`player-${slot}`)
+      .setDescription(`Discord player ${slot}; an empty slot before a later player becomes a Wild Card.`)
+        .setRequired(false));
+  }
+  return configuredCommand;
+}
+
+function addRandodraftExclusionOptions(command: SlashCommandSubcommandBuilder) {
+  let configuredCommand = command;
+  for (let slot = 1; slot <= 10; slot += 1) {
+    configuredCommand = configuredCommand.addUserOption((option) => option
+      .setName(`exclude-${slot}`)
+      .setDescription(`Voice-channel member to exclude (${slot}).`)
+      .setRequired(false));
+  }
+  return configuredCommand;
+}
+
 function createCollectionsCommand() {
   return new SlashCommandBuilder()
     .setName('collections')
@@ -189,6 +211,44 @@ function createLeagueCommand() {
           value: section.value,
         })))
         .setRequired(true)))
+    .addSubcommand((subcommand) => addRandodraftPlayerOptions(subcommand
+      .setName('randodraft')
+      .setDescription('Draft random champions and Random builds for selected Discord players.')
+      .addStringOption((option) => option
+        .setName('mode')
+        .setDescription('League game mode.')
+        .addChoices(
+          { name: 'Summoner\'s Rift (SR)', value: 'summoners-rift' },
+          { name: 'ARAM', value: 'aram' },
+        )
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('teams')
+        .setDescription('Create one team or two evenly sized teams.')
+        .addChoices(
+          { name: 'One team', value: 1 },
+          { name: 'Two teams', value: 2 },
+        )
+        .setRequired(true))))
+    .addSubcommand((subcommand) => addRandodraftExclusionOptions(subcommand
+      .setName('randodraft-vc')
+      .setDescription('Draft members from your current voice channel with Random builds.')
+      .addStringOption((option) => option
+        .setName('mode')
+        .setDescription('League game mode.')
+        .addChoices(
+          { name: 'Summoner\'s Rift (SR)', value: 'summoners-rift' },
+          { name: 'ARAM', value: 'aram' },
+        )
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('teams')
+        .setDescription('Create one team or two evenly sized teams.')
+        .addChoices(
+          { name: 'One team', value: 1 },
+          { name: 'Two teams', value: 2 },
+        )
+        .setRequired(true))))
     .addSubcommandGroup((group) => group
       .setName('skindle')
       .setDescription('Play the daily Skindle puzzle.')
@@ -611,6 +671,16 @@ export const commandDefinitions = [
   new SlashCommandBuilder()
     .setName('steal-emoji')
     .setDescription('Import external custom emoji used in a message from this server.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addStringOption((option) => option
+      .setName('message-id')
+      .setDescription('Message ID in this channel, or a copied message link from this server.')
+      .setMinLength(17)
+      .setMaxLength(200)
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('steal-sticker')
+    .setDescription('Import external stickers used in a message from this server.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option) => option
       .setName('message-id')

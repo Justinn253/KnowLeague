@@ -29,6 +29,7 @@ COPY data/catalogs/skin-items.json ./data/catalogs/skin-items.json
 COPY data/catalogs/discord-collection-items.json ./data/catalogs/discord-collection-items.json
 COPY data/catalogs/discord-collection-runes.json ./data/catalogs/discord-collection-runes.json
 COPY data/catalogs/riftbound-cards.json ./data/catalogs/riftbound-cards.json
+COPY data/catalogs/randodraft.json ./data/catalogs/randodraft.json
 
 WORKDIR /app/discord-bot
 USER node

@@ -41,7 +41,7 @@ const client = new Client({ intents: [
   // This is the collection lifecycle contract; no member profiles are stored.
   GatewayIntentBits.GuildMembers,
   GatewayIntentBits.GuildVoiceStates,
-  // Required for the deliberately narrow snipe, external-emoji import, and
+  // Required for the deliberately narrow snipe, external-expression import, and
   // DISBOARD confirmation flows. See discord-bot/AGENTS.md for retention.
   GatewayIntentBits.MessageContent,
 ], partials: [Partials.Channel, Partials.Message, Partials.Reaction] });

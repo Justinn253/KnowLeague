@@ -12,6 +12,7 @@ import {
 } from './leveling.js';
 import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
 import { importExternalMessageEmojis } from './emoji-import.js';
+import { importExternalMessageStickers } from './sticker-import.js';
 import { findLinkedProfile } from './profiles.js';
 import {
   formatRiftboundMockTreatment,
@@ -53,12 +54,24 @@ import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from 
 import {
   captureChampionCatalogue,
   captureLeagueAccountViewer,
+  captureRandodraftSnapshot,
   ChampionCatalogueSnapshotError,
   getChampionCatalogueSnapshotRequestWeight,
   LEAGUE_ACCOUNT_VIEWER_SNAPSHOT_REQUEST_WEIGHT,
   LeagueAccountViewerSnapshotError,
   normalizeLeagueRiotId,
+  RANDODRAFT_SNAPSHOT_REQUEST_WEIGHT,
+  RandodraftSnapshotError,
 } from './league-account-viewer.js';
+import {
+  createDiscordRandodraft,
+  getDiscordRandodraftChampion,
+  getDiscordRandodraftItem,
+  type DiscordRandodraftDraft,
+  type DiscordRandodraftGameMode,
+  type DiscordRandodraftPlayer,
+} from './randodraft.js';
+import { encodeDiscordRandodraftShare } from './randodraft-share.js';
 import {
   buildDiscordSkindleGuessEmbed,
   buildDiscordSkindleShareEmbed,
@@ -292,7 +305,8 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
   return (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
     || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
     || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
-    || commandName === 'steal-emoji';
+    || commandName === 'steal-emoji'
+    || commandName === 'steal-sticker';
 }
 
 export function requiresDefaultCommandChannel(commandName: string, subcommand: string | null) {
@@ -786,6 +800,8 @@ function helpFields(tab: HelpTab): HelpField[] {
       { name: '/league account riot-id region', value: 'Post League Account Viewer snapshots for any Riot ID and selected region.' },
       { name: '/league account-link, account-mine', value: 'Save your Riot ID and region privately, then open the linked account without entering them again.' },
       { name: '/league champion champion section', value: 'Post the requested Champion Catalogue image section from the local catalogue.' },
+      { name: '/league randodraft mode teams player-N', value: 'Draft 2–10 selected members with Random builds; empty slots before a later player become Wild Cards.' },
+      { name: '/league randodraft-vc mode teams [exclude-N]', value: 'Draft eligible members from your current voice channel, skipping listed exclusions.' },
       { name: '/league skindle play', value: 'Post a Daily Skindle activity card with a link to play on KnowLeague.' },
       { name: '/league skindle guess skin', value: 'Submit an exact skin name. Champion names show that champion’s complete skin list.' },
       { name: '/league skindle status', value: 'View your private Daily Skindle progress.' },
@@ -846,6 +862,7 @@ function helpFields(tab: HelpTab): HelpField[] {
     { name: '/rob user', value: 'Attempt a protected KnowBucks robbery against a current server member.' },
     { name: '/snipe', value: 'Spend 1,000 KnowBucks to show this channel’s latest cached deleted message.' },
     { name: '/steal-emoji message-id', value: 'Administrator only: import external custom emoji from a selected message.' },
+    { name: '/steal-sticker message-id', value: 'Administrator only: import external stickers from a selected message.' },
   ];
 }
 
@@ -2297,11 +2314,11 @@ async function handleSnipeCommand(interaction: ChatInputCommandInteraction, conf
   }
 }
 
-type EmojiMessageReference =
+type SourceMessageReference =
   | { channelId: string; messageId: string; status: 'ok' }
   | { status: 'different-guild' | 'invalid' };
 
-function parseEmojiMessageReference(value: string, currentChannelId: string, guildId: string): EmojiMessageReference {
+function parseSourceMessageReference(value: string, currentChannelId: string, guildId: string): SourceMessageReference {
   const trimmed = value.trim();
   if (/^[0-9]{17,20}$/.test(trimmed)) {
     return { channelId: currentChannelId, messageId: trimmed, status: 'ok' };
@@ -2325,9 +2342,9 @@ function parseEmojiMessageReference(value: string, currentChannelId: string, gui
   }
 }
 
-async function fetchEmojiSourceMessage(
+async function fetchSourceMessage(
   interaction: ChatInputCommandInteraction,
-  reference: Extract<EmojiMessageReference, { status: 'ok' }>,
+  reference: Extract<SourceMessageReference, { status: 'ok' }>,
 ): Promise<Message | null> {
   if (!interaction.guild) return null;
   const channel = reference.channelId === interaction.channelId
@@ -2355,7 +2372,7 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
     return;
   }
 
-  const reference = parseEmojiMessageReference(
+  const reference = parseSourceMessageReference(
     interaction.options.getString('message-id', true),
     interaction.channelId,
     config.guildId,
@@ -2369,7 +2386,7 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
     return;
   }
 
-  const sourceMessage = await fetchEmojiSourceMessage(interaction, reference);
+  const sourceMessage = await fetchSourceMessage(interaction, reference);
   if (!sourceMessage) {
     await interaction.editReply({ content: 'KnowLeague could not read that message. Check the ID or link and its Read Message History permission.' });
     return;
@@ -2395,6 +2412,67 @@ async function handleStealEmojiCommand(interaction: ChatInputCommandInteraction,
       new EmbedBuilder()
         .setColor(result.failed.length > 0 ? 0xF59E0B : 0x22C55E)
         .setTitle('External emoji import complete')
+        .setDescription(details.join('\n')),
+    ],
+  });
+}
+
+async function handleStealStickerCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: 'Only server administrators can use /steal-sticker.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const botMember = await interaction.guild.members.fetchMe();
+  const canCreateExpressions = botMember.permissions.has(PermissionFlagsBits.CreateGuildExpressions)
+    || botMember.permissions.has(PermissionFlagsBits.ManageGuildExpressions);
+  if (!canCreateExpressions) {
+    await interaction.editReply({ content: 'KnowLeague needs the Create Expressions permission before it can import stickers.' });
+    return;
+  }
+
+  const reference = parseSourceMessageReference(
+    interaction.options.getString('message-id', true),
+    interaction.channelId,
+    config.guildId,
+  );
+  if (reference.status !== 'ok') {
+    await interaction.editReply({
+      content: reference.status === 'different-guild'
+        ? 'The source message must be from this server. KnowLeague cannot read messages in another server.'
+        : 'Enter a message ID from this channel, or paste a Discord message link from this server.',
+    });
+    return;
+  }
+
+  const sourceMessage = await fetchSourceMessage(interaction, reference);
+  if (!sourceMessage) {
+    await interaction.editReply({ content: 'KnowLeague could not read that message. Check the ID or link and its Read Message History permission.' });
+    return;
+  }
+
+  const result = await importExternalMessageStickers(
+    interaction.guild,
+    sourceMessage,
+    `Imported by ${interaction.user.tag} through KnowLeague /steal-sticker`,
+  );
+  if (result.imported.length === 0 && result.skippedExisting.length === 0 && result.failed.length === 0) {
+    await interaction.editReply({ content: 'That message does not contain stickers from another server.' });
+    return;
+  }
+
+  const details = [
+    result.imported.length > 0 ? `Imported: ${result.imported.join(', ')}` : null,
+    result.skippedExisting.length > 0 ? `Already in this server: ${result.skippedExisting.join(', ')}` : null,
+    result.failed.length > 0 ? `Could not import: ${result.failed.join(', ')}` : null,
+  ].filter((value): value is string => value !== null);
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(result.failed.length > 0 ? 0xF59E0B : 0x22C55E)
+        .setTitle('External sticker import complete')
         .setDescription(details.join('\n')),
     ],
   });
@@ -3226,6 +3304,227 @@ async function postLeagueAccountViewer(
   }
 }
 
+class RandodraftCommandInputError extends Error {}
+
+async function getRandodraftPlayers(interaction: ChatInputCommandInteraction): Promise<DiscordRandodraftPlayer[]> {
+  if (!interaction.guild) throw new RandodraftCommandInputError('Randodraft is available only in the configured server.');
+
+  const players: DiscordRandodraftPlayer[] = [];
+  const selectedUserIds = new Set<string>();
+  const submittedPlayers = Array.from({ length: 10 }, (_, index) => interaction.options.getUser(`player-${index + 1}`, false));
+  const lastSubmittedSlot = submittedPlayers.reduce((lastSlot, user, index) => user ? index + 1 : lastSlot, 0);
+  for (let slot = 1; slot <= lastSubmittedSlot; slot += 1) {
+    const user = submittedPlayers[slot - 1];
+    if (!user) {
+      players.push({ displayName: 'Wild Card', userId: `wild-card-${slot}` });
+      continue;
+    }
+    if (selectedUserIds.has(user.id)) {
+      throw new RandodraftCommandInputError('Choose each Randodraft player only once.');
+    }
+
+    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (!member || member.user.bot) {
+      players.push({ displayName: 'Wild Card', userId: `wild-card-${slot}` });
+      continue;
+    }
+    selectedUserIds.add(user.id);
+    players.push({ displayName: member.displayName, userId: user.id });
+  }
+  return players;
+}
+
+function getRandodraftCommandSettings(interaction: ChatInputCommandInteraction) {
+  const submittedMode = interaction.options.getString('mode', true);
+  const gameMode: DiscordRandodraftGameMode | null = submittedMode === 'summoners-rift' || submittedMode === 'aram'
+    ? submittedMode
+    : null;
+  const submittedTeamCount = interaction.options.getInteger('teams', true);
+  const teamCount: 1 | 2 | null = submittedTeamCount === 1 || submittedTeamCount === 2
+    ? submittedTeamCount
+    : null;
+  if (!gameMode || !teamCount) {
+    throw new RandodraftCommandInputError('Choose Summoner\'s Rift or ARAM and one or two teams.');
+  }
+  return { gameMode, teamCount };
+}
+
+function validateRandodraftPlayerCount(players: readonly DiscordRandodraftPlayer[], teamCount: 1 | 2) {
+  if (players.length < 2) {
+    throw new RandodraftCommandInputError('Choose at least two Randodraft players.');
+  }
+  if (teamCount === 1 && players.length > 5) {
+    throw new RandodraftCommandInputError('One-team Randodrafts support 2 to 5 players. Choose two teams for 6 to 10 players.');
+  }
+  if (teamCount === 2 && (players.length % 2 !== 0 || players.length > 10)) {
+    throw new RandodraftCommandInputError('Two-team Randodrafts need 2, 4, 6, 8, or 10 players so teams stay even.');
+  }
+}
+
+async function getRandodraftVoiceChannelPlayers(
+  interaction: ChatInputCommandInteraction,
+  teamCount: 1 | 2,
+): Promise<DiscordRandodraftPlayer[]> {
+  if (!interaction.guild) throw new RandodraftCommandInputError('Randodraft is available only in the configured server.');
+
+  const excludedUserIds = new Set<string>();
+  for (let slot = 1; slot <= 10; slot += 1) {
+    const excludedUser = interaction.options.getUser(`exclude-${slot}`, false);
+    if (!excludedUser) continue;
+    if (excludedUserIds.has(excludedUser.id)) {
+      throw new RandodraftCommandInputError('Choose each voice-channel exclusion only once.');
+    }
+    excludedUserIds.add(excludedUser.id);
+  }
+
+  const requestingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+  const voiceChannel = requestingMember?.voice.channel;
+  if (!voiceChannel) {
+    throw new RandodraftCommandInputError('Join a voice channel before using `/league randodraft-vc`.');
+  }
+
+  const maximumPlayers = teamCount === 1 ? 5 : 10;
+  const candidates = [...voiceChannel.members.values()]
+    .filter((member) => !member.user.bot && !excludedUserIds.has(member.id));
+  const selectedMembers = candidates.slice(0, maximumPlayers);
+  if (teamCount === 2 && selectedMembers.length % 2 !== 0) selectedMembers.pop();
+  const players = selectedMembers.map((member) => ({ displayName: member.displayName, userId: member.id }));
+  if (players.length < 2) {
+    throw new RandodraftCommandInputError('Your voice channel needs at least two eligible members after exclusions.');
+  }
+  return players;
+}
+
+function buildRandodraftTeamsPanel(draft: DiscordRandodraftDraft) {
+  const { gameMode, playersPerTeam, secondTeam } = draft.settings;
+  const formatPick = (pick: DiscordRandodraftDraft['picks'][number]) => {
+    const champion = getDiscordRandodraftChampion(pick.champion);
+    const items = pick.build
+      .map((itemId) => getDiscordRandodraftItem(itemId)?.name)
+      .filter((itemName): itemName is string => Boolean(itemName));
+    return `**${escapeMarkdown(pick.name)}** **${escapeMarkdown(champion?.name ?? 'Unknown champion')}** — ${items.map((itemName) => escapeMarkdown(itemName)).join(' · ') || 'Unavailable'}`;
+  };
+  const chunkLines = (lines: readonly string[]) => {
+    const chunks: string[] = [];
+    let current = '';
+    for (const line of lines) {
+      const next = current ? `${current}\n${line}` : line;
+      if (next.length > 1_024 && current) {
+        chunks.push(current);
+        current = line;
+      } else {
+        current = next;
+      }
+    }
+    if (current) chunks.push(current);
+    return chunks;
+  };
+  const teamOne = chunkLines(draft.picks.slice(0, playersPerTeam).map(formatPick));
+  const teamTwo = chunkLines(draft.picks.slice(playersPerTeam, playersPerTeam * 2).map(formatPick));
+  const panel = new EmbedBuilder()
+    .setColor(0xF8D56B)
+    .setTitle(`Randodraft teams · ${gameMode === 'aram' ? 'ARAM' : "Summoner's Rift"}`);
+  if (!secondTeam) {
+    return panel.addFields(teamOne.map((value, index) => ({
+      name: index === 0 ? 'Team 1' : 'Team 1 (continued)',
+      value,
+      inline: false,
+    })));
+  }
+
+  const columnCount = Math.max(teamOne.length, teamTwo.length);
+  return panel.addFields(Array.from({ length: columnCount }, (_, index) => ([
+    {
+      name: index === 0 ? 'Team 1' : 'Team 1 (continued)',
+      value: teamOne[index] ?? '\u200B',
+      inline: true,
+    },
+    {
+      name: index === 0 ? 'Team 2' : 'Team 2 (continued)',
+      value: teamTwo[index] ?? '\u200B',
+      inline: true,
+    },
+  ])).flat());
+}
+
+async function postRandodraftCommand(
+  interaction: ChatInputCommandInteraction,
+  config: DiscordBotConfig,
+  gameMode: DiscordRandodraftGameMode,
+  players: DiscordRandodraftPlayer[],
+  teamCount: 1 | 2,
+) {
+  const retryAfterSeconds = leagueSnapshotCaptureAvailability(interaction.user.id, RANDODRAFT_SNAPSHOT_REQUEST_WEIGHT);
+  if (retryAfterSeconds !== null) {
+    await interaction.reply({
+      content: `Randodraft images are limited while this test is running. Please try again in ${retryAfterSeconds} seconds.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply();
+  try {
+    const draft = createDiscordRandodraft({ gameMode, players, teamCount });
+    const share = encodeDiscordRandodraftShare(draft);
+    const snapshot = await captureRandodraftSnapshot(config, share);
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      content: `Randodraft complete · ${gameMode === 'aram' ? 'ARAM' : "Summoner's Rift"} · ${teamCount === 2 ? '2 teams' : '1 team'}.`,
+      files: [{ attachment: snapshot.buffer, name: 'knowleague-randodraft.png' }],
+    });
+    await interaction.followUp({
+      allowedMentions: { parse: [] },
+      embeds: [buildRandodraftTeamsPanel(draft)],
+    });
+  } catch (error) {
+    const message = error instanceof RandodraftSnapshotError
+      ? error.message
+      : 'KnowLeague could not create that Randodraft. Please try again shortly.';
+    await interaction.editReply({ content: message });
+  }
+}
+
+async function handleRandodraftCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  let players: DiscordRandodraftPlayer[];
+  let gameMode: DiscordRandodraftGameMode;
+  let teamCount: 1 | 2;
+  try {
+    ({ gameMode, teamCount } = getRandodraftCommandSettings(interaction));
+    players = await getRandodraftPlayers(interaction);
+    validateRandodraftPlayerCount(players, teamCount);
+  } catch (error) {
+    await interaction.reply({
+      content: error instanceof RandodraftCommandInputError
+        ? error.message
+        : 'KnowLeague could not read those Randodraft players. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  await postRandodraftCommand(interaction, config, gameMode, players, teamCount);
+}
+
+async function handleRandodraftVoiceCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  let players: DiscordRandodraftPlayer[];
+  let gameMode: DiscordRandodraftGameMode;
+  let teamCount: 1 | 2;
+  try {
+    ({ gameMode, teamCount } = getRandodraftCommandSettings(interaction));
+    players = await getRandodraftVoiceChannelPlayers(interaction, teamCount);
+    validateRandodraftPlayerCount(players, teamCount);
+  } catch (error) {
+    await interaction.reply({
+      content: error instanceof RandodraftCommandInputError
+        ? error.message
+        : 'KnowLeague could not read that voice channel. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  await postRandodraftCommand(interaction, config, gameMode, players, teamCount);
+}
+
 async function handleLeagueCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   const group = interaction.options.getSubcommandGroup();
   const subcommand = interaction.options.getSubcommand();
@@ -3309,6 +3608,16 @@ async function handleLeagueCommand(interaction: ChatInputCommandInteraction, con
         : 'KnowLeague could not create the Champion Catalogue snapshots. Please try again shortly.';
       await interaction.editReply({ content: message });
     }
+    return;
+  }
+
+  if (group === null && subcommand === 'randodraft') {
+    await handleRandodraftCommand(interaction, config);
+    return;
+  }
+
+  if (group === null && subcommand === 'randodraft-vc') {
+    await handleRandodraftVoiceCommand(interaction, config);
     return;
   }
 
@@ -4829,6 +5138,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'steal-emoji') {
     await handleStealEmojiCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'steal-sticker') {
+    await handleStealStickerCommand(interaction, config);
     return;
   }
 

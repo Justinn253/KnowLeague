@@ -45,6 +45,7 @@ begin
 exception
   when duplicate_object then null;
 end;
+$$;
 
 alter table public.contact_submissions
   add column if not exists assigned_staff_user_id uuid references public.profiles(id) on delete set null,

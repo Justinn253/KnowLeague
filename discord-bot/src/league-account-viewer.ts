@@ -87,6 +87,9 @@ export type LeagueAccountViewerPlatform = (typeof LEAGUE_ACCOUNT_VIEWER_PLATFORM
 
 export class LeagueAccountViewerSnapshotError extends Error {}
 export class ChampionCatalogueSnapshotError extends LeagueAccountViewerSnapshotError {}
+export class RandodraftSnapshotError extends LeagueAccountViewerSnapshotError {}
+
+export const RANDODRAFT_SNAPSHOT_REQUEST_WEIGHT = 1;
 
 type DiscordSnapshotFile = {
   buffer: Buffer;
@@ -106,6 +109,11 @@ type ChampionCatalogueSnapshot = {
   championName: string;
   files: DiscordSnapshotFile[];
   section: ChampionCatalogueSnapshotSection;
+  viewerUrl: string;
+};
+
+type RandodraftSnapshot = {
+  buffer: Buffer;
   viewerUrl: string;
 };
 
@@ -273,6 +281,18 @@ export function buildLeagueAccountViewerSnapshotUrl(
   const viewerUrl = new URL('/riot-account-viewer/discord-snapshot', config.siteUrl);
   viewerUrl.searchParams.set('riotId', riotId);
   viewerUrl.searchParams.set('platform', platform);
+  return viewerUrl.toString();
+}
+
+export function buildRandodraftSnapshotUrl(config: Pick<DiscordBotConfig, 'siteUrl'>, share: string) {
+  const snapshotUrl = new URL('/randodraft/discord-snapshot', config.siteUrl);
+  snapshotUrl.searchParams.set('share', share);
+  return snapshotUrl.toString();
+}
+
+export function buildRandodraftViewerUrl(config: Pick<DiscordBotConfig, 'siteUrl'>, share: string) {
+  const viewerUrl = new URL('/randodraft', config.siteUrl);
+  viewerUrl.searchParams.set('share', share);
   return viewerUrl.toString();
 }
 
@@ -694,6 +714,89 @@ export async function captureChampionCatalogue(
         ? 'Champion Catalogue snapshots are busy. Please try again shortly.'
         : 'The Champion Catalogue screenshot browser is temporarily unavailable. Please try again shortly.';
       throw new ChampionCatalogueSnapshotError(message);
+    }
+    throw error;
+  }
+}
+
+export async function captureRandodraftSnapshot(
+  config: Pick<DiscordBotConfig, 'leagueAccountViewerBrowserWsEndpoint' | 'leagueAccountViewerChromeExecutablePath' | 'siteUrl'>,
+  share: string,
+): Promise<RandodraftSnapshot> {
+  const snapshotUrl = buildRandodraftSnapshotUrl(config, share);
+  const viewerUrl = buildRandodraftViewerUrl(config, share);
+
+  try {
+    return await runOneCapture(async () => {
+      let context: BrowserContext | null = null;
+      let captureStage: LeagueAccountViewerCaptureStage = 'start-browser';
+      try {
+        const browserConnection = await getBrowser(config);
+        captureStage = 'create-context';
+        context = await browserConnection.browser.createBrowserContext();
+        const page = await context.newPage();
+        await configureSnapshotPage(page, snapshotUrl);
+
+        captureStage = 'load-viewer';
+        const navigationResponse = await page.goto(snapshotUrl, { timeout: PAGE_LOAD_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
+        if (navigationResponse && navigationResponse.status() >= 500) {
+          throw new RandodraftSnapshotError('The KnowLeague website is temporarily unavailable. Please try again shortly.');
+        }
+        if (navigationResponse && navigationResponse.status() >= 400) {
+          throw new RandodraftSnapshotError('The Randodraft image could not be opened. Please try again shortly.');
+        }
+
+        const finalSnapshotUrl = new URL(page.url());
+        if (!isTrustedLeagueAccountViewerOrigin(finalSnapshotUrl.toString(), snapshotUrl) || !isLeagueAccountViewerPage(finalSnapshotUrl, '/randodraft/discord-snapshot')) {
+          throw new RandodraftSnapshotError('The Randodraft image redirected unexpectedly. Please try again shortly.');
+        }
+
+        captureStage = 'wait-for-viewer';
+        await page.waitForSelector('[data-randodraft-capture-ready="true"], [data-randodraft-capture-error="true"]', {
+          timeout: PAGE_LOAD_TIMEOUT_MS,
+        });
+        const snapshotError = await page.$('[data-randodraft-capture-error="true"]');
+        if (snapshotError) {
+          throw new RandodraftSnapshotError('The Randodraft image could not be created. Please try again shortly.');
+        }
+
+        captureStage = 'capture-image';
+        const image = await page.$('[data-randodraft-capture-image="true"]');
+        const source = await image?.evaluate((element) => element.getAttribute('src') ?? '');
+        const dataUrl = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(source ?? '');
+        if (!dataUrl) {
+          throw new RandodraftSnapshotError('The Randodraft image could not be created. Please try again shortly.');
+        }
+        const buffer = Buffer.from(dataUrl[1], 'base64');
+        if (!buffer.byteLength) {
+          throw new RandodraftSnapshotError('The Randodraft image could not be created. Please try again shortly.');
+        }
+        const attachmentError = getLeagueAccountViewerAttachmentError(buffer.byteLength);
+        if (attachmentError) {
+          throw new RandodraftSnapshotError('The Randodraft image is too large to attach. Please open the interactive draft instead.');
+        }
+
+        return { buffer, viewerUrl };
+      } catch (error) {
+        if (error instanceof RandodraftSnapshotError) throw error;
+        console.warn('Discord Randodraft snapshot capture failed.', {
+          errorName: error instanceof Error ? error.name : 'non-error',
+          stage: captureStage,
+        });
+        throw new RandodraftSnapshotError(captureStage === 'capture-image'
+          ? 'The Randodraft image could not be created. Please try again shortly.'
+          : 'The Randodraft image browser is temporarily unavailable. Please try again shortly.');
+      } finally {
+        await context?.close().catch(() => undefined);
+      }
+    }, 'Randodraft images are busy. Please try again shortly.');
+  } catch (error) {
+    if (error instanceof RandodraftSnapshotError) throw error;
+    if (error instanceof LeagueAccountViewerSnapshotError) {
+      const message = error.message.includes('images are busy')
+        ? 'Randodraft images are busy. Please try again shortly.'
+        : 'The Randodraft image browser is temporarily unavailable. Please try again shortly.';
+      throw new RandodraftSnapshotError(message);
     }
     throw error;
   }

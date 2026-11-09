@@ -19,6 +19,7 @@ const SESSION_VALIDATION_INTERVAL_MS = 5 * 60_000;
 const DISCORD_SNAPSHOT_PATHS = new Set([
   '/riot-account-viewer/discord-snapshot',
   '/champions/discord-snapshot',
+  '/randodraft/discord-snapshot',
 ]);
 
 function dispatchAchievementNotification(row: unknown) {

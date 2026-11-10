@@ -60,8 +60,10 @@ type AppHeaderProps = {
   profileUsername: string | null;
   profileAway: boolean;
   pendingFriendRequests: number;
+  unreadFriendMessageCount: number;
   moderationRole: Extract<AppRole, 'moderator' | 'admin'> | null;
   onPendingFriendRequestsChange: (count: number) => void;
+  onUnreadFriendMessageCountChange: (count: number) => void;
   onLogOut: () => void;
 };
 
@@ -614,7 +616,15 @@ function MobileMenuDisclosure({
   );
 }
 
-function FriendsHeaderButton({ pendingFriendRequests }: { pendingFriendRequests: number }) {
+function FriendsHeaderButton({
+  pendingFriendRequests,
+  unreadFriendMessageCount,
+}: {
+  pendingFriendRequests: number;
+  unreadFriendMessageCount: number;
+}) {
+  const notificationCount = pendingFriendRequests + unreadFriendMessageCount;
+
   return (
     <button
       type="button"
@@ -624,15 +634,15 @@ function FriendsHeaderButton({ pendingFriendRequests }: { pendingFriendRequests:
         playUiSound('autocomplete-select');
         window.dispatchEvent(new Event('knowleague:toggle-friends'));
       }}
-      aria-label="Friends"
+      aria-label={notificationCount ? `Friends, ${notificationCount} unread notifications` : 'Friends'}
       title="Friends"
       data-friends-trigger="true"
       className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
     >
       <Users size={18} />
-      {pendingFriendRequests > 0 ? (
-        <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 py-0.5 text-[0.6rem] font-black leading-none text-white">
-          {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
+      {notificationCount > 0 ? (
+        <span className="absolute -right-2 -top-2 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+          {notificationCount > 99 ? '99+' : notificationCount}
         </span>
       ) : null}
     </button>
@@ -824,8 +834,10 @@ export function AppHeader({
   profileUsername,
   profileAway,
   pendingFriendRequests,
+  unreadFriendMessageCount,
   moderationRole,
   onPendingFriendRequestsChange,
+  onUnreadFriendMessageCountChange,
   onLogOut,
 }: AppHeaderProps) {
   const router = useRouter();
@@ -837,7 +849,7 @@ export function AppHeader({
           <MobileHeaderMenu
             moderationRole={moderationRole}
           />
-          {isLoggedIn ? <FriendsHeaderButton pendingFriendRequests={pendingFriendRequests} /> : null}
+          {isLoggedIn ? <FriendsHeaderButton pendingFriendRequests={pendingFriendRequests} unreadFriendMessageCount={unreadFriendMessageCount} /> : null}
         </div>
 
         <nav aria-label="Primary navigation" className="hidden min-w-0 items-center justify-start gap-1 min-[1200px]:flex min-[1200px]:gap-1 min-[1680px]:gap-2">
@@ -899,7 +911,7 @@ export function AppHeader({
           <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 min-[1200px]:block min-[1680px]:mx-2" />
 
           {isLoggedIn ? (
-            <FriendsWidget onPendingRequestCountChange={onPendingFriendRequestsChange} variant="responsive" />
+            <FriendsWidget onPendingRequestCountChange={onPendingFriendRequestsChange} onUnreadCountChange={onUnreadFriendMessageCountChange} variant="responsive" />
           ) : null}
           <div className="flex items-center gap-1 min-[1200px]:gap-1 min-[1680px]:gap-2">
             {isLoggedIn

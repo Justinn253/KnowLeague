@@ -80,6 +80,7 @@ type FriendDashboard = {
 
 type FriendsWidgetProps = {
   onPendingRequestCountChange?: (count: number) => void;
+  onUnreadCountChange?: (count: number) => void;
   variant?: 'floating' | 'header' | 'responsive';
 };
 
@@ -257,7 +258,7 @@ async function broadcastFriendMessageNotification(friendId: string) {
   });
 }
 
-export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating' }: FriendsWidgetProps) {
+export function FriendsWidget({ onPendingRequestCountChange, onUnreadCountChange, variant = 'floating' }: FriendsWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [dashboard, setDashboard] = useState<FriendDashboard | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -1183,6 +1184,10 @@ export function FriendsWidget({ onPendingRequestCountChange, variant = 'floating
     (total, friend) => total + (friend.id === activeFriend?.id ? 0 : friend.unreadCount),
     0,
   ) ?? 0, [activeFriend?.id, dashboard?.friends]);
+
+  useEffect(() => {
+    onUnreadCountChange?.(unreadTotal);
+  }, [onUnreadCountChange, unreadTotal]);
 
   useEffect(() => {
     const riotAccount = activeFriendView?.riotAccountName?.trim();

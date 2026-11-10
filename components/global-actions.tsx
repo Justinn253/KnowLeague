@@ -44,6 +44,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
+  const [unreadFriendMessageCount, setUnreadFriendMessageCount] = useState(0);
   const [moderationRole, setModerationRole] = useState<Extract<AppRole, 'moderator' | 'admin'> | null>(null);
   const firstLoginSubmittedRef = useRef<Set<string>>(new Set());
   const activeSessionRef = useRef<Session | null>(null);
@@ -202,6 +203,7 @@ export function GlobalActions({ children }: { children: ReactNode }) {
         setProfileUsername(null);
         setIsLoggedIn(false);
         setPendingFriendRequests(0);
+        setUnreadFriendMessageCount(0);
         setModerationRole(null);
         return;
       }
@@ -333,8 +335,10 @@ export function GlobalActions({ children }: { children: ReactNode }) {
           profileUsername={profileUsername}
           profileAway={profileAway}
           pendingFriendRequests={pendingFriendRequests}
+          unreadFriendMessageCount={unreadFriendMessageCount}
           moderationRole={moderationRole}
           onPendingFriendRequestsChange={setPendingFriendRequests}
+          onUnreadFriendMessageCountChange={setUnreadFriendMessageCount}
           onLogOut={() => void logOut()}
         />
       ) : null}

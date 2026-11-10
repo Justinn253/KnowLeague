@@ -25,7 +25,7 @@ type LandingCardProps = {
 
 function LandingCard({ href, title, description, icon, theme, backgroundImage, children }: LandingCardProps) {
   return (
-    <article className={`group relative isolate overflow-hidden rounded-3xl border bg-slate-950 ${theme.border} transition-[transform,border-color] duration-300 hover:-translate-y-1`}>
+    <article className={`group relative isolate overflow-hidden rounded-3xl border bg-slate-950 ${theme.border} transition-[transform,border-color] duration-200 ease-out hover:-translate-y-0.5`}>
       <div className="flex min-w-0 flex-1 flex-col min-[1000px]:flex-row">
         <Link
           href={href}
@@ -33,7 +33,7 @@ function LandingCard({ href, title, description, icon, theme, backgroundImage, c
           onMouseEnter={() => playUiSound('autocomplete-hover')}
           onFocus={() => playUiSound('autocomplete-hover')}
           onClick={() => playUiSound('autocomplete-select')}
-          className="group/card flex min-w-0 flex-1 flex-col outline-none transition-colors hover:bg-white/[0.025] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-200 min-[1000px]:flex-row"
+          className="group/card flex min-w-0 flex-1 flex-col outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-200 min-[1000px]:flex-row"
         >
           <div className="relative h-20 shrink-0 overflow-hidden border-b border-white/15 bg-slate-950/80 sm:h-24 min-[1000px]:h-auto min-[1000px]:min-h-40 min-[1000px]:w-80 min-[1000px]:border-b-0 min-[1000px]:border-r lg:w-[22rem]">
             <GameSplashImage
@@ -41,13 +41,13 @@ function LandingCard({ href, title, description, icon, theme, backgroundImage, c
               alt=""
               fill
               sizes="(min-width: 1280px) 22rem, (min-width: 1000px) 20rem, 100vw"
-              className="object-contain p-2"
+              className="object-contain p-2 transition-transform duration-300 ease-out group-hover:scale-[1.025]"
             />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/10 via-transparent to-slate-950/25" />
           </div>
-          <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-3 bg-slate-950/95 p-3 sm:gap-4 sm:p-4 min-[1000px]:flex-nowrap min-[1000px]:gap-4 min-[1000px]:p-6">
+          <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-3 bg-slate-950/95 p-3 transition-colors duration-200 ease-out group-hover:bg-slate-900/95 sm:gap-4 sm:p-4 min-[1000px]:flex-nowrap min-[1000px]:gap-4 min-[1000px]:p-6">
             <div className="grid w-full min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 min-[1000px]:grid-cols-[auto_auto_minmax(0,1fr)_auto] min-[1000px]:gap-4">
-              <span className={`inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border p-2 transition duration-300 group-hover:border-white/55 min-[1000px]:h-16 min-[1000px]:w-16 min-[1000px]:p-3 ${theme.icon}`}>
+              <span className={`inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border p-2 transition-[background-color,border-color,transform] duration-200 ease-out group-hover:scale-[1.02] group-hover:border-white/55 group-hover:bg-white/[0.06] min-[1000px]:h-16 min-[1000px]:w-16 min-[1000px]:p-3 ${theme.icon}`}>
                 {icon}
               </span>
               <span aria-hidden="true" className={`hidden h-14 w-px shrink-0 bg-gradient-to-b from-transparent via-current to-transparent min-[1000px]:block ${theme.divider}`} />
@@ -55,11 +55,11 @@ function LandingCard({ href, title, description, icon, theme, backgroundImage, c
                 <span className={`block text-xl font-black leading-tight tracking-tight text-white transition-colors sm:text-2xl min-[1000px]:text-3xl ${theme.title}`}>{title}</span>
                 <span className="mt-1.5 block max-w-3xl text-[0.8125rem] leading-5 text-slate-200 min-[1000px]:mt-2 min-[1000px]:text-sm min-[1000px]:leading-6">{description}</span>
               </span>
-              <ArrowRight size={20} className="h-5 w-5 shrink-0 text-slate-400 transition duration-300 group-hover:translate-x-1 group-hover:text-amber-200 min-[1000px]:h-6 min-[1000px]:w-6" />
+              <ArrowRight size={20} className="h-5 w-5 shrink-0 text-slate-400 transition-[color,transform] duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-amber-200 min-[1000px]:h-6 min-[1000px]:w-6" />
             </div>
           </div>
         </Link>
-        {children ? <div className="w-full shrink-0 border-t border-white/10 bg-slate-950/80 p-3 min-[1000px]:flex min-[1000px]:w-56 min-[1000px]:items-center min-[1000px]:border-l min-[1000px]:border-t-0 min-[1000px]:p-5">{children}</div> : null}
+        {children ? <div className="w-full shrink-0 border-t border-white/10 bg-slate-950/80 p-3 transition-colors duration-200 ease-out group-hover:bg-slate-900/90 min-[1000px]:flex min-[1000px]:w-56 min-[1000px]:items-center min-[1000px]:border-l min-[1000px]:border-t-0 min-[1000px]:p-5">{children}</div> : null}
       </div>
     </article>
   );

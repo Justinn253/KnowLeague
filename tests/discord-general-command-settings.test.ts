@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { isAllowedCommandChannel, usesDefaultCommandChannel } from '../discord-bot/src/general-settings';
 
 describe('Discord General command-channel scope', () => {
-  it('applies the default channel only to commands without a feature channel scope', () => {
+  it('applies the default channel only to commands that are neither feature-scoped nor available everywhere', () => {
     expect(usesDefaultCommandChannel('help')).toBe(true);
     expect(usesDefaultCommandChannel('knowbucks')).toBe(true);
-    expect(usesDefaultCommandChannel('snipe')).toBe(true);
+    expect(usesDefaultCommandChannel('snipe')).toBe(false);
     expect(usesDefaultCommandChannel('xp')).toBe(true);
 
     expect(usesDefaultCommandChannel('collections')).toBe(false);

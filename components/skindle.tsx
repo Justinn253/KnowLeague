@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, ChevronDown, Flame, Search, Sparkles, Swords, X } from 'lucide-react';
 import { GAME_SKIN_THUMBNAIL_SIZES, GameCatalogThumbnailImage, GameSplashImage } from '@/components/game-asset-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -76,6 +76,32 @@ const SKINDLE_SUGGESTION_OVERSCAN = 1;
 const CATEGORY_NOTE_TOOLTIP_HALF_WIDTH = 128;
 
 const categoryById = Object.fromEntries(categories.map((category) => [category.id, category])) as Record<CategoryId, CategoryDefinition>;
+const championCatalogueSlugOverrides: Record<string, string> = {
+  nunuwillump: 'nunu',
+  renataglasc: 'renata',
+  wukong: 'monkeyking',
+};
+
+function getChampionCatalogueHref(champion: string) {
+  const normalizedChampion = normalizeAnswer(champion);
+  return `/champions/${championCatalogueSlugOverrides[normalizedChampion] ?? normalizedChampion}`;
+}
+
+function ChampionCatalogueLink({ champion, children, className }: { champion: string; children: string; className: string }) {
+  return (
+    <Link
+      href={getChampionCatalogueHref(champion)}
+      prefetch={false}
+      aria-label={`View ${champion} in the Champion Catalogue`}
+      onMouseEnter={() => playUiSound('autocomplete-hover')}
+      onFocus={() => playUiSound('autocomplete-hover')}
+      onClick={() => playUiSound('autocomplete-select')}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+}
 
 type GuessResult = SkindleGuessResult;
 
@@ -303,8 +329,15 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
           : 'border-slate-300/70 bg-red-500/85 text-white '
       }`}
     >
-      <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold leading-5 ${compact ? 'text-sm' : 'text-base'}`}>
-        <span className="line-clamp-2 min-w-0 break-words">{guess.values[categoryId]}</span>
+        <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold leading-5 ${compact ? 'text-sm' : 'text-base'}`}>
+          {categoryId === 'champion' ? (
+            <ChampionCatalogueLink
+              champion={guess.item.champion}
+              className="line-clamp-2 min-w-0 break-words underline decoration-white/60 decoration-dotted underline-offset-4 transition hover:text-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+            >
+              {guess.values[categoryId]}
+            </ChampionCatalogueLink>
+          ) : <span className="line-clamp-2 min-w-0 break-words">{guess.values[categoryId]}</span>}
         {categoryId === 'releaseYear' && guess.releaseYearDirection === 'higher' ? (
           <ArrowUp size={compact ? 15 : 18} strokeWidth={2.5} aria-label="Target year is higher" className="shrink-0" />
         ) : null}
@@ -331,7 +364,14 @@ const SkindleGuessRow = memo(function SkindleGuessRow({
         {categoryById[categoryId].label}
       </p>
       <span className="mt-1 flex min-w-0 items-center gap-1 text-sm font-semibold leading-5">
-        <span className="line-clamp-2 min-w-0 break-words">{guess.values[categoryId]}</span>
+        {categoryId === 'champion' ? (
+          <ChampionCatalogueLink
+            champion={guess.item.champion}
+            className="line-clamp-2 min-w-0 break-words underline decoration-white/60 decoration-dotted underline-offset-4 transition hover:text-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+          >
+            {guess.values[categoryId]}
+          </ChampionCatalogueLink>
+        ) : <span className="line-clamp-2 min-w-0 break-words">{guess.values[categoryId]}</span>}
         {categoryId === 'releaseYear' && guess.releaseYearDirection === 'higher' ? (
           <ArrowUp size={15} strokeWidth={2.5} aria-label="Target year is higher" className="shrink-0" />
         ) : null}
@@ -992,6 +1032,17 @@ export function Skindle() {
               'Each guess compares champion, skin line, rarity, species, gender, role, lane, release year, and resource against the target.',
               'Green means a match, orange means a partial match, and release year arrows point toward the target.',
             ]} />
+            <Link
+              href="/champions"
+              prefetch={false}
+              onMouseEnter={() => playUiSound('autocomplete-hover')}
+              onFocus={() => playUiSound('autocomplete-hover')}
+              onClick={() => playUiSound('autocomplete-select')}
+              className="inline-flex h-12 items-center gap-2 rounded-2xl border border-red-200/30 bg-red-400/10 px-4 text-sm font-semibold text-red-100 transition hover:border-red-200/60 hover:bg-red-400/20 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            >
+              <Swords size={16} />
+              Champion Catalogue
+            </Link>
             <div ref={playerStatsMenuRef} className="relative">
               <button
                 type="button"

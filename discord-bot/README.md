@@ -43,7 +43,7 @@ All non-administrative slash-command responses are public to the server, includi
 
 ## General command channel
 
-KnowLeague administrators can select one or more optional default commands channels in **Profile > Discord Account > Discord Configuration > General**. The selection applies to `/help`, `/rc`, `/link`, `/profile`, `/xp`, `/leaderboard`, `/knowbucks`, `/player`, `/rob`, `/snipe`, `/steal-emoji`, and `/steal-sticker`; choosing **All channels** restores the default unrestricted behavior. Fishing, Collections, and `/league` retain their own feature boundaries and do not inherit this setting.
+KnowLeague administrators can select one or more optional default commands channels in **Profile > Discord Account > Discord Configuration > General**. The selection applies to `/help`, `/rc`, `/link`, `/profile`, `/xp`, `/leaderboard`, `/knowbucks`, `/player`, and `/rob`; choosing **All channels** restores the default unrestricted behavior. `/snipe`, administrator-only commands, Fishing, Collections, and `/league` retain their own feature boundaries and do not inherit this setting.
 
 The General tab can also select one optional website-Skindle results channel. When it is configured, a player who has linked their KnowLeague account to Discord gets their completed website Skindle result queued to the bot, which posts the same spoiler-free green/yellow/black grid format used by Discord Skindle. Unlinked players, guests, and servers with no selected sharing channel never create a post. The bot verifies that the profile still has the same Discord link immediately before posting.
 

@@ -60,8 +60,10 @@ type AppHeaderProps = {
   profileUsername: string | null;
   profileAway: boolean;
   pendingFriendRequests: number;
+  unreadFriendMessageCount: number;
   moderationRole: Extract<AppRole, 'moderator' | 'admin'> | null;
   onPendingFriendRequestsChange: (count: number) => void;
+  onUnreadFriendMessageCountChange: (count: number) => void;
   onLogOut: () => void;
 };
 
@@ -327,10 +329,10 @@ function LoginAction({ mobile = false }: { mobile?: boolean }) {
       onClick={() => playUiSound('autocomplete-select')}
       className={mobile
         ? 'inline-flex min-h-11 w-full items-center justify-start gap-3 rounded-xl border border-amber-300/40 bg-amber-300 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200'
-        : 'inline-flex h-9 w-auto items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-300 px-3 text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 xl:w-9 xl:gap-0 xl:px-0 min-[1680px]:h-10 min-[1680px]:w-auto min-[1680px]:gap-2 min-[1680px]:px-3'}
+        : 'inline-flex h-9 w-auto items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-300 px-3 text-slate-950 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 min-[1200px]:w-9 min-[1200px]:gap-0 min-[1200px]:px-0 min-[1680px]:h-10 min-[1680px]:w-auto min-[1680px]:gap-2 min-[1680px]:px-3'}
     >
       <LogIn size={17} />
-      <span className={`${mobile ? '' : 'inline xl:hidden min-[1680px]:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Log in</span>
+      <span className={`${mobile ? '' : 'inline min-[1200px]:hidden min-[1680px]:inline'} text-xs font-black uppercase tracking-[0.12em]`}>Log in</span>
     </Link>
   );
 }
@@ -394,16 +396,16 @@ function HeaderDropdown({
         aria-controls={menuId}
         aria-expanded={open}
         aria-haspopup="menu"
-        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-2.5 text-xs font-black uppercase tracking-[0.12em] outline-none transition focus:ring-2 focus:ring-amber-200 xl:h-9 xl:px-2 min-[1680px]:h-10 min-[1680px]:px-3 ${toneClasses[tone]} ${open ? 'bg-slate-900 ring-1 ring-amber-200/50' : 'bg-slate-950/90'}`}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-2.5 text-xs font-black uppercase tracking-[0.12em] outline-none transition focus:ring-2 focus:ring-amber-200 min-[1200px]:h-9 min-[1200px]:px-2 min-[1680px]:h-10 min-[1680px]:px-3 ${toneClasses[tone]} ${open ? 'bg-slate-900 ring-1 ring-amber-200/50' : 'bg-slate-950/90'}`}
       >
         {iconNode ?? <Icon size={16} />}
         {compactLabel ? (
           <>
-            <span className="hidden xl:inline min-[1680px]:hidden">{compactLabel}</span>
+            <span className="hidden min-[1200px]:inline min-[1680px]:hidden">{compactLabel}</span>
             <span className="hidden min-[1680px]:inline">{label}</span>
           </>
-        ) : <span className="hidden xl:inline">{label}</span>}
-        <ChevronDown size={14} className={`hidden xl:block transition ${open ? 'rotate-180 text-amber-200' : 'text-slate-400'}`} />
+        ) : <span className="hidden min-[1200px]:inline">{label}</span>}
+        <ChevronDown size={14} className={`hidden min-[1200px]:block transition ${open ? 'rotate-180 text-amber-200' : 'text-slate-400'}`} />
       </button>
       <div
         id={menuId}
@@ -614,7 +616,15 @@ function MobileMenuDisclosure({
   );
 }
 
-function FriendsHeaderButton({ pendingFriendRequests }: { pendingFriendRequests: number }) {
+function FriendsHeaderButton({
+  pendingFriendRequests,
+  unreadFriendMessageCount,
+}: {
+  pendingFriendRequests: number;
+  unreadFriendMessageCount: number;
+}) {
+  const notificationCount = pendingFriendRequests + unreadFriendMessageCount;
+
   return (
     <button
       type="button"
@@ -624,15 +634,15 @@ function FriendsHeaderButton({ pendingFriendRequests }: { pendingFriendRequests:
         playUiSound('autocomplete-select');
         window.dispatchEvent(new Event('knowleague:toggle-friends'));
       }}
-      aria-label="Friends"
+      aria-label={notificationCount ? `Friends, ${notificationCount} unread notifications` : 'Friends'}
       title="Friends"
       data-friends-trigger="true"
       className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/90 text-slate-100 transition hover:border-amber-200/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
     >
       <Users size={18} />
-      {pendingFriendRequests > 0 ? (
-        <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 py-0.5 text-[0.6rem] font-black leading-none text-white">
-          {pendingFriendRequests > 99 ? '99+' : pendingFriendRequests}
+      {notificationCount > 0 ? (
+        <span className="absolute -right-2 -top-2 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+          {notificationCount > 99 ? '99+' : notificationCount}
         </span>
       ) : null}
     </button>
@@ -681,7 +691,7 @@ function MobileHeaderMenu({
   };
 
   return (
-    <div ref={rootRef} className="relative xl:hidden">
+    <div ref={rootRef} className="relative min-[1200px]:hidden">
       <button
         type="button"
         onMouseEnter={() => playUiSound('autocomplete-hover')}
@@ -824,23 +834,25 @@ export function AppHeader({
   profileUsername,
   profileAway,
   pendingFriendRequests,
+  unreadFriendMessageCount,
   moderationRole,
   onPendingFriendRequestsChange,
+  onUnreadFriendMessageCountChange,
   onLogOut,
 }: AppHeaderProps) {
   const router = useRouter();
 
   return (
     <header className="sticky top-0 z-[90] border-b border-white/10 bg-slate-950/95 text-slate-100 backdrop-blur">
-      <div className="relative flex h-14 w-full items-center justify-between px-2 xl:grid xl:min-h-14 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-2 xl:px-3 min-[1680px]:gap-4 min-[1680px]:px-6">
-        <div className="flex items-center gap-1 xl:hidden">
+      <div className="relative flex h-14 w-full items-center justify-between px-2 min-[1200px]:grid min-[1200px]:min-h-14 min-[1200px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] min-[1200px]:gap-2 min-[1200px]:px-3 min-[1680px]:gap-4 min-[1680px]:px-6">
+        <div className="flex items-center gap-1 min-[1200px]:hidden">
           <MobileHeaderMenu
             moderationRole={moderationRole}
           />
-          {isLoggedIn ? <FriendsHeaderButton pendingFriendRequests={pendingFriendRequests} /> : null}
+          {isLoggedIn ? <FriendsHeaderButton pendingFriendRequests={pendingFriendRequests} unreadFriendMessageCount={unreadFriendMessageCount} /> : null}
         </div>
 
-        <nav aria-label="Primary navigation" className="hidden min-w-0 items-center justify-start gap-1 xl:flex xl:gap-1 min-[1680px]:gap-2">
+        <nav aria-label="Primary navigation" className="hidden min-w-0 items-center justify-start gap-1 min-[1200px]:flex min-[1200px]:gap-1 min-[1680px]:gap-2">
           <GamesMenu />
           <LavMenu />
           <RiftboundMenu />
@@ -853,7 +865,7 @@ export function AppHeader({
           onMouseEnter={() => playUiSound('autocomplete-hover')}
           onFocus={() => playUiSound('autocomplete-hover')}
           onClick={() => playUiSound('autocomplete-select')}
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-2xl font-black tracking-tight text-amber-100 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 xl:static xl:translate-x-0 xl:translate-y-0 xl:justify-self-center xl:text-xl min-[1680px]:text-2xl"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-2xl font-black tracking-tight text-amber-100 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 min-[1200px]:static min-[1200px]:translate-x-0 min-[1200px]:translate-y-0 min-[1200px]:justify-self-center min-[1200px]:text-xl min-[1680px]:text-2xl"
         >
           <span className="inline-flex items-center gap-1.5">
             KnowLeague
@@ -861,8 +873,8 @@ export function AppHeader({
           </span>
         </Link>
 
-        <nav aria-label="Account and support navigation" className="flex min-w-0 items-center justify-end gap-1 xl:gap-1 min-[1680px]:gap-2">
-          <div className="hidden items-center gap-1 xl:flex xl:gap-1 min-[1680px]:gap-2">
+        <nav aria-label="Account and support navigation" className="flex min-w-0 items-center justify-end gap-1 min-[1200px]:gap-1 min-[1680px]:gap-2">
+          <div className="hidden items-center gap-1 min-[1200px]:flex min-[1200px]:gap-1 min-[1680px]:gap-2">
             <SoundSettingsMenu variant="header-icon" />
             <ContactUsWidget variant="header-icon" />
             {moderationRole ? (
@@ -876,9 +888,9 @@ export function AppHeader({
             {moderationRole ? <ModerationWidget role={moderationRole} variant="header-icon" /> : null}
           </div>
 
-          <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 xl:block min-[1680px]:mx-2" />
+          <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 min-[1200px]:block min-[1680px]:mx-2" />
 
-          <div className="hidden items-center gap-1 xl:flex xl:gap-1 min-[1680px]:gap-2">
+          <div className="hidden items-center gap-1 min-[1200px]:flex min-[1200px]:gap-1 min-[1680px]:gap-2">
             <HeaderIconButton
               label="Join Discord server"
               icon={<DiscordMark className="h-[18px] w-[18px]" />}
@@ -896,12 +908,12 @@ export function AppHeader({
             />
           </div>
 
-          <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 xl:block min-[1680px]:mx-2" />
+          <span aria-hidden="true" className="mx-1 hidden h-6 border-l border-white/20 min-[1200px]:block min-[1680px]:mx-2" />
 
           {isLoggedIn ? (
-            <FriendsWidget onPendingRequestCountChange={onPendingFriendRequestsChange} variant="responsive" />
+            <FriendsWidget onPendingRequestCountChange={onPendingFriendRequestsChange} onUnreadCountChange={onUnreadFriendMessageCountChange} variant="responsive" />
           ) : null}
-          <div className="flex items-center gap-1 xl:gap-1 min-[1680px]:gap-2">
+          <div className="flex items-center gap-1 min-[1200px]:gap-1 min-[1680px]:gap-2">
             {isLoggedIn
               ? <ProfileAction profileAvatarUrl={profileAvatarUrl} profileUsername={profileUsername} profileAway={profileAway} pendingFriendRequests={pendingFriendRequests} />
               : <LoginAction />}

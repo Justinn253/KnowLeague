@@ -7,15 +7,18 @@ type GeneralCommandChannelRow = {
 
 const GENERAL_COMMAND_SETTINGS_CACHE_MS = 30_000;
 const FEATURE_SCOPED_COMMAND_NAMES = new Set(['collections', 'fish', 'league', 'riftbound']);
+const EVERY_CHANNEL_COMMAND_NAMES = new Set(['snipe']);
 let cachedGeneralCommandChannels: { allowedChannelIds: Set<string> | null; expiresAt: number; guildId: string } | null = null;
 
 /**
- * Commands with their own feature boundary deliberately do not inherit the
- * server-wide General channel. Their feature configuration remains the source
- * of truth, and future feature channel controls can follow the same pattern.
+ * Feature-scoped commands and commands intentionally available everywhere do
+ * not inherit the server-wide General channel. Feature configuration remains
+ * the source of truth for the former, while channel-local utilities such as
+ * /snipe remain usable wherever the bot can read the channel.
  */
 export function usesDefaultCommandChannel(commandName: string) {
-  return !FEATURE_SCOPED_COMMAND_NAMES.has(commandName);
+  return !FEATURE_SCOPED_COMMAND_NAMES.has(commandName)
+    && !EVERY_CHANNEL_COMMAND_NAMES.has(commandName);
 }
 
 export function isAllowedCommandChannel(channelId: string, allowedChannelIds: ReadonlySet<string>) {

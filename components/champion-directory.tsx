@@ -155,7 +155,7 @@ export function ChampionDirectory({ champions }: ChampionDirectoryProps) {
           </div>
 
           {results.length ? (
-            <div className="grid gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-6">
               {results.map((champion) => (
                 <Link
                   key={champion.id}
@@ -166,7 +166,7 @@ export function ChampionDirectory({ champions }: ChampionDirectoryProps) {
                     src={champion.splashUrl}
                     alt={`${champion.name} splash art`}
                     fill
-                    sizes="(min-width: 1280px) 280px, (min-width: 1024px) 33vw, (min-width: 480px) 50vw, 100vw"
+                    sizes="(min-width: 1280px) 200px, (min-width: 1024px) 25vw, 50vw"
                     className="object-cover object-center transition duration-700 group-hover:scale-110"
                   />
                   <div className="pointer-events-none absolute -left-1/2 top-0 h-full w-1/3 -skew-x-12 bg-white/10 opacity-0 blur-md transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100" />

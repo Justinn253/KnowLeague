@@ -17,6 +17,7 @@ describe('Discord slash-command visibility', () => {
     expect(requiresDefaultCommandChannel('xp', 'add')).toBe(false);
     expect(requiresDefaultCommandChannel('knowbucks', 'set')).toBe(false);
     expect(requiresDefaultCommandChannel('steal-emoji', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('snipe', null)).toBe(false);
     expect(requiresDefaultCommandChannel('xp', 'view')).toBe(true);
     expect(requiresDefaultCommandChannel('knowbucks', 'balance')).toBe(true);
     expect(requiresDefaultCommandChannel('collections', 'spawn')).toBe(false);

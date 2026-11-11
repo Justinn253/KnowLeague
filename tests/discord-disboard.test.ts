@@ -26,7 +26,7 @@ describe('DISBOARD bump confirmations', () => {
     expect(isSuccessfulDisboardBump(config, {
       ...disboardMessage(''),
       embeds: [{ description: 'Check it out on DISBOARD.', title: 'Bump done!' }],
-    }, BUMP_CHANNEL_ID)).toBe(true);
+    } as unknown as Message, BUMP_CHANNEL_ID)).toBe(true);
     expect(isSuccessfulDisboardBump(config, disboardMessage('You can bump again in 2 hours.'), BUMP_CHANNEL_ID)).toBe(false);
     expect(isSuccessfulDisboardBump(config, disboardMessage('Bump done!', '323456789012345678'), BUMP_CHANNEL_ID)).toBe(false);
   });

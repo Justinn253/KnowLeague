@@ -689,6 +689,13 @@ export const commandDefinitions = [
       .setMaxLength(200)
       .setRequired(true)),
   new SlashCommandBuilder()
+    .setName('temp')
+    .setDescription('Temporary server-administration tools.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addSubcommand((subcommand) => subcommand
+      .setName('update-leave-info')
+      .setDescription('Backfill current members for future leave-information panels.')),
+  new SlashCommandBuilder()
     .setName('xp')
     .setDescription('Manage Discord chat leveling XP.')
     .addSubcommand((subcommand) => subcommand

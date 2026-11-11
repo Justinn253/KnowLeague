@@ -23,6 +23,10 @@ function disboardMessage(content: string, channelId = BUMP_CHANNEL_ID) {
 describe('DISBOARD bump confirmations', () => {
   it('recognizes only successful confirmations in the configured server channel', () => {
     expect(isSuccessfulDisboardBump(config, disboardMessage('Bump done!'), BUMP_CHANNEL_ID)).toBe(true);
+    expect(isSuccessfulDisboardBump(config, {
+      ...disboardMessage(''),
+      embeds: [{ description: 'Check it out on DISBOARD.', title: 'Bump done!' }],
+    }, BUMP_CHANNEL_ID)).toBe(true);
     expect(isSuccessfulDisboardBump(config, disboardMessage('You can bump again in 2 hours.'), BUMP_CHANNEL_ID)).toBe(false);
     expect(isSuccessfulDisboardBump(config, disboardMessage('Bump done!', '323456789012345678'), BUMP_CHANNEL_ID)).toBe(false);
   });

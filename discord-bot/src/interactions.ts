@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, MessageFlags, PermissionFlagsBits, type Attachment, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   addManualXp,
@@ -13,7 +13,15 @@ import {
 import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
 import { importExternalMessageEmojis } from './emoji-import.js';
 import { importExternalMessageStickers } from './sticker-import.js';
-import { backfillDiscordMemberLeaveInfo } from './member-lifecycle.js';
+import {
+  backfillDiscordMemberLeaveInfo,
+  getDiscordInviteTrackingStatus,
+  getDiscordInviteLeaderboard,
+  importDiscordInviteLeaderboard,
+  importDiscordInvitedMembers,
+  parseInviteTrackerInvitedMembersCsv,
+  parseInviteTrackerLeaderboardCsv,
+} from './member-lifecycle.js';
 import { getDisboardBumpReminderStatus } from './disboard.js';
 import { findLinkedProfile } from './profiles.js';
 import {
@@ -858,6 +866,7 @@ function helpFields(tab: HelpTab): HelpField[] {
     { name: '/xp view [member]', value: 'View chat level and XP progress for yourself or a member.' },
     { name: '/xp add, /xp set-level', value: 'Manage chat XP. Requires a role selected in Discord Configuration.' },
     { name: '/leaderboard [count]', value: 'Show the server’s active chat-XP leaderboard.' },
+    { name: '/invite leaderboard [user]', value: 'Show the top ten inviters or a member’s current invite total.' },
     { name: '/knowbucks balance, pay, coinflip, leaderboard', value: 'View, transfer, wager, or rank KnowBucks.' },
     { name: '/knowbucks add, remove, set', value: 'Manage balances. Requires a role selected in Discord Configuration.' },
     { name: '/riftbound shop, buy, open, inventory', value: 'Use KnowBucks for linked-account mock Riftbound packs and boxes, then browse the separate Mock website inventory.' },
@@ -2123,6 +2132,60 @@ async function handleLeaderboardCommand(interaction: ChatInputCommandInteraction
   });
 }
 
+async function handleInviteLeaderboardCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+
+  const now = Date.now();
+  if (now >= leaderboardCommandCooldownPruneAfter) {
+    leaderboardCommandCooldownPruneAfter = now + 5 * 60 * 1_000;
+    for (const [userId, expiry] of leaderboardCommandAvailableAtByUserId) {
+      if (expiry <= now) leaderboardCommandAvailableAtByUserId.delete(userId);
+    }
+  }
+  const cooldownKey = `${interaction.commandName}:${interaction.options.getSubcommand()}:${interaction.user.id}`;
+  const availableAt = leaderboardCommandAvailableAtByUserId.get(cooldownKey) ?? 0;
+  if (availableAt > now) {
+    const seconds = Math.ceil((availableAt - now) / 1_000);
+    await interaction.reply({ content: `Please wait ${seconds} second${seconds === 1 ? '' : 's'} before using /invite leaderboard again.` });
+    return;
+  }
+  leaderboardCommandAvailableAtByUserId.set(cooldownKey, now + LEADERBOARD_COMMAND_COOLDOWN_MS);
+
+  const targetUser = interaction.options.getUser('user');
+  await interaction.deferReply();
+  const entries = await getDiscordInviteLeaderboard(config, targetUser?.id);
+  if (targetUser) {
+    const inviteCount = entries[0]?.inviteCount ?? 0;
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xF59E0B)
+          .setTitle('KnowLeague invite count')
+          .setDescription(`<@${targetUser.id}> has **${formatXp(inviteCount)}** invite${inviteCount === 1 ? '' : 's'}.`),
+      ],
+    });
+    return;
+  }
+  if (!entries.length) {
+    await interaction.editReply({ content: 'No attributed invites have been recorded yet.' });
+    return;
+  }
+
+  await interaction.editReply({
+    allowedMentions: { parse: [] },
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xF59E0B)
+        .setTitle('KnowLeague invite leaderboard')
+        .setDescription(entries.map((entry, index) => (
+          `**${index + 1}.** <@${entry.userId}> - **${formatXp(entry.inviteCount)}** invite${entry.inviteCount === 1 ? '' : 's'}`
+        )).join('\n'))
+        .setFooter({ text: `Top ${entries.length} inviter${entries.length === 1 ? '' : 's'} by current tracked invites` }),
+    ],
+  });
+}
+
 async function handleKnowBucksLeaderboardCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
 
@@ -2481,6 +2544,58 @@ async function handleStealStickerCommand(interaction: ChatInputCommandInteractio
   });
 }
 
+const INVITE_TRACKER_IMPORT_MAX_BYTES = 2_000_000;
+
+async function readInviteTrackerCsv(attachment: Attachment) {
+  if (attachment.size < 1 || attachment.size > INVITE_TRACKER_IMPORT_MAX_BYTES) {
+    throw new Error('The Invite Tracker CSV must be between 1 byte and 2 MB.');
+  }
+  const url = new URL(attachment.url);
+  if (url.protocol !== 'https:' || !['cdn.discordapp.com', 'media.discordapp.net', 'attachments.discordapp.net'].includes(url.hostname)) {
+    throw new Error('Upload the CSV directly to this command as a Discord attachment.');
+  }
+  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error('Discord could not provide the uploaded Invite Tracker CSV. Please upload it again.');
+  const csv = await response.text();
+  if (csv.length > INVITE_TRACKER_IMPORT_MAX_BYTES) throw new Error('The Invite Tracker CSV is too large.');
+  return csv;
+}
+
+function importedMemberRoleSnapshot(member: GuildMember) {
+  return [...member.roles.cache.values()]
+    .filter((role) => role.id !== member.guild.id)
+    .sort((left, right) => right.position - left.position || left.name.localeCompare(right.name))
+    .map((role) => ({ id: role.id, name: role.name }));
+}
+
+async function buildInvitedMemberImports(interaction: ChatInputCommandInteraction, csv: string) {
+  if (!interaction.guild) return { members: [], skipped: 0 };
+  const invitees = parseInviteTrackerInvitedMembersCsv(csv);
+  const members = [] as Array<{
+    joinedAt: Date;
+    memberDisplayName: string;
+    memberUsername: string;
+    roleSnapshot: Array<{ id: string; name: string }>;
+    userId: string;
+  }>;
+  let skipped = 0;
+  for (const invitee of invitees) {
+    const member = await interaction.guild.members.fetch(invitee.userId).catch(() => null);
+    if (!member || member.user.bot || !member.joinedAt) {
+      skipped += 1;
+      continue;
+    }
+    members.push({
+      joinedAt: member.joinedAt,
+      memberDisplayName: member.displayName || member.user.username || member.id,
+      memberUsername: member.user.username || member.id,
+      roleSnapshot: importedMemberRoleSnapshot(member),
+      userId: member.id,
+    });
+  }
+  return { members, skipped };
+}
+
 async function handleTemporaryAdminCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
@@ -2488,13 +2603,57 @@ async function handleTemporaryAdminCommand(interaction: ChatInputCommandInteract
     return;
   }
   const subcommand = interaction.options.getSubcommand(false);
-  if (subcommand !== 'update-leave-info' && subcommand !== 'disboard-reminder-status') return;
+  if (subcommand === null || !['update-leave-info', 'disboard-reminder-status', 'invite-tracker-status', 'import-invite-leaderboard', 'import-invited-members'].includes(subcommand)) return;
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   if (subcommand === 'update-leave-info') {
     const updated = await backfillDiscordMemberLeaveInfo(config, interaction.guild);
     await interaction.editReply({
       content: `Stored leave-information snapshots for **${formatXp(updated)}** current non-bot members. Invite sources are available for future joins; last-message links are retained when already known and recorded from now on.`,
+    });
+    return;
+  }
+
+  if (subcommand === 'import-invite-leaderboard') {
+    const attachment = interaction.options.getAttachment('csv', true);
+    const entries = parseInviteTrackerLeaderboardCsv(await readInviteTrackerCsv(attachment));
+    const imported = await importDiscordInviteLeaderboard(config, entries);
+    await interaction.editReply({
+      content: `Reconciled **${formatXp(imported)}** Invite Tracker leaderboard entr${imported === 1 ? 'y' : 'ies'}. Re-importing a newer export replaces the imported baseline instead of adding duplicate invites.`,
+    });
+    return;
+  }
+
+  if (subcommand === 'invite-tracker-status') {
+    const status = await getDiscordInviteTrackingStatus(config, interaction.guild);
+    await interaction.editReply({
+      content: [
+        `Manage Server permission: ${status.canReadInviteUses ? 'available' : 'missing'}.`,
+        status.activeInviteCount === null
+          ? 'Invite cache: not loaded in this bot process.'
+          : `Invite cache: ${formatXp(status.activeInviteCount)} active server invite${status.activeInviteCount === 1 ? '' : 's'} (${Math.floor((status.cacheAgeMilliseconds ?? 0) / 1_000)} seconds old).`,
+        `Last attribution: ${status.lastResolution ?? 'No member join has been processed since this bot process started.'}`,
+      ].join('\n'),
+      allowedMentions: { parse: [] },
+    });
+    return;
+  }
+
+  if (subcommand === 'import-invited-members') {
+    const inviter = interaction.options.getUser('inviter', true);
+    const attachment = interaction.options.getAttachment('csv', true);
+    const { members, skipped } = await buildInvitedMemberImports(interaction, await readInviteTrackerCsv(attachment));
+    if (!members.length) {
+      await interaction.editReply({ content: 'The export did not contain any current, non-bot members to import. Fake and departed accounts are intentionally skipped.' });
+      return;
+    }
+    const imported = await importDiscordInvitedMembers(config, {
+      userId: inviter.id,
+      username: inviter.username,
+    }, members);
+    await interaction.editReply({
+      content: `Imported **${formatXp(imported)}** current invitee${imported === 1 ? '' : 's'} for ${inviter}. Their future departures will reduce that inviter's total. ${skipped ? `Skipped **${formatXp(skipped)}** departed or bot account${skipped === 1 ? '' : 's'}.` : ''}`,
+      allowedMentions: { parse: [] },
     });
     return;
   }
@@ -5213,6 +5372,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'leaderboard') {
     await handleLeaderboardCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'invite') {
+    await handleInviteLeaderboardCommand(interaction, config);
     return;
   }
 

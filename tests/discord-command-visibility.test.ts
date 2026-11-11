@@ -21,6 +21,7 @@ describe('Discord slash-command visibility', () => {
     expect(requiresDefaultCommandChannel('snipe', null)).toBe(false);
     expect(requiresDefaultCommandChannel('temp', 'update-leave-info')).toBe(false);
     expect(requiresDefaultCommandChannel('xp', 'view')).toBe(true);
+    expect(requiresDefaultCommandChannel('invite', 'leaderboard')).toBe(true);
     expect(requiresDefaultCommandChannel('knowbucks', 'balance')).toBe(true);
     expect(requiresDefaultCommandChannel('collections', 'spawn')).toBe(false);
     expect(requiresDefaultCommandChannel('riftbound', 'buy')).toBe(false);

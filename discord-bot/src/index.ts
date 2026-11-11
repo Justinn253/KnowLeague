@@ -18,7 +18,7 @@ import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panel
 import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
 import { handleDisboardBump, restoreDisboardBumpReminder, stopDisboardBumpReminder } from './disboard.js';
-import { handleDiscordMemberJoin, handleDiscordMemberLeave, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage } from './member-lifecycle.js';
+import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage } from './member-lifecycle.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
 import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
@@ -212,7 +212,15 @@ client.on(Events.GuildMemberRemove, (member) => {
   void clearSkinCollection(config, member.id)
     .catch((error: unknown) => console.error('Discord member collection cleanup failed.', error));
   void handleDiscordMemberLeave(config, member)
-    .catch((error: unknown) => console.error('Discord member leave processing failed.', error));
+    .catch(async (error: unknown) => {
+      console.error('Discord member leave processing failed.', error);
+      try {
+        const posted = await postDiscordMemberLeaveFailure(config, member);
+        if (!posted) console.warn('Discord member leave fallback could not be posted because no usable leave channel is configured.');
+      } catch (fallbackError) {
+        console.error('Discord member leave fallback failed.', fallbackError);
+      }
+    });
 });
 
 client.on(Events.GuildMemberAdd, (member) => {
@@ -234,7 +242,8 @@ client.on(Events.InviteDelete, (invite) => {
   if (invite.guild?.id !== config.guildId) return;
   const guild = client.guilds.cache.get(config.guildId);
   if (!guild) return;
-  void refreshDiscordInviteCache(config, guild)
+  void rememberDiscordInviteDeletion(config, invite)
+    .then(() => refreshDiscordInviteCache(config, guild))
     .catch((error: unknown) => console.error('Discord invite cache refresh failed.', error));
 });
 

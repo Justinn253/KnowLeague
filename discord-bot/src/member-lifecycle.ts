@@ -107,9 +107,9 @@ const deletedInviteSnapshotsByGuildId = new Map<string, Map<string, DeletedInvit
 const inviteCacheQueuesByGuildId = new Map<string, Promise<void>>();
 const pendingInviteAttributionsByGuildId = new Map<string, PendingInviteAttribution[]>();
 const lastInviteResolutionByGuildId = new Map<string, { at: number; detail: string }>();
-const DELETED_INVITE_FALLBACK_WINDOW_MS = 60_000;
-const PENDING_INVITE_ATTRIBUTION_WINDOW_MS = 15_000;
-const INVITE_RESOLUTION_RETRY_DELAYS_MS = [0, 750, 1_500] as const;
+const DELETED_INVITE_FALLBACK_WINDOW_MS = 5 * 60_000;
+const PENDING_INVITE_ATTRIBUTION_WINDOW_MS = 30_000;
+const INVITE_RESOLUTION_RETRY_DELAYS_MS = [0, 1_000, 2_000, 4_000] as const;
 
 function enqueueInviteCacheTask<T>(guildId: string, task: () => Promise<T>) {
   const previous = inviteCacheQueuesByGuildId.get(guildId) ?? Promise.resolve();

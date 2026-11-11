@@ -2,11 +2,11 @@ import type { Guild, Message, SendableChannels } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import { createBotServiceClient } from './supabase.js';
 
-const DISBOARD_BOT_ID = '302050872383242240';
 const DISBOARD_BUMP_REMINDER_DELAY_MS = 2 * 60 * 60 * 1_000;
 const DISBOARD_RECONCILIATION_INTERVAL_MS = 30_000;
 const DISBOARD_RECONCILIATION_WINDOW_MS = 3 * 60 * 60 * 1_000;
 const DISBOARD_RECONCILIATION_MESSAGE_LIMIT = 25;
+const DISBOARD_MESSAGE_SETTLE_DELAY_MS = 3_000;
 
 let bumpReminderTimer: NodeJS.Timeout | null = null;
 let bumpReconciliationTimer: NodeJS.Timeout | null = null;
@@ -42,11 +42,7 @@ function recordDisboardObservation(detail: string) {
 
 export function isDisboardBumpSuccessText(value: string) {
   const normalized = value.toLocaleLowerCase();
-  return normalized.includes('bump done') || /\bbumped this server\b/.test(normalized);
-}
-
-function isDisboardApplicationMessage(message: Message) {
-  return message.author.id === DISBOARD_BOT_ID || message.applicationId === DISBOARD_BOT_ID;
+  return normalized.includes('bump done') || /\bbumped\b/.test(normalized);
 }
 
 function messageText(message: Message) {
@@ -68,9 +64,20 @@ export function isSuccessfulDisboardBump(config: DiscordBotConfig, message: Mess
     && message.inGuild()
     && message.guildId === config.guildId
     && message.channelId === bumpChannelId
-    && isDisboardApplicationMessage(message)
     && isDisboardBumpSuccessText(messageText(message)),
   );
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function settleDisboardMessage(message: Message) {
+  const elapsed = Date.now() - message.createdTimestamp;
+  if (elapsed < DISBOARD_MESSAGE_SETTLE_DELAY_MS) {
+    await delay(DISBOARD_MESSAGE_SETTLE_DELAY_MS - elapsed);
+  }
+  return message.fetch().catch(() => message);
 }
 
 async function getDisboardBumpSettings(config: DiscordBotConfig): Promise<DisboardBumpSettings> {
@@ -170,21 +177,20 @@ export async function scheduleDisboardBumpReminder(
 }
 
 export async function handleDisboardBump(config: DiscordBotConfig, message: Message) {
-  if (!message.inGuild() || message.guildId !== config.guildId) return false;
+  if (!message.author.bot && !message.applicationId) return false;
+  const settledMessage = await settleDisboardMessage(message);
+  if (!settledMessage.inGuild() || settledMessage.guildId !== config.guildId || (!settledMessage.author.bot && !settledMessage.applicationId)) return false;
   const settings = await getDisboardBumpSettings(config);
-  if (!settings.channelId || message.channelId !== settings.channelId || !isDisboardApplicationMessage(message)) return false;
-  if (!isDisboardBumpSuccessText(messageText(message))) {
-    recordDisboardObservation('DISBOARD response received, but it was not a successful bump confirmation');
+  if (!settings.channelId || settledMessage.channelId !== settings.channelId) return false;
+  if (!isDisboardBumpSuccessText(messageText(settledMessage))) return false;
+  if (!settledMessage.channel.isSendable()) {
+    recordDisboardObservation('Successful bump text detected, but the configured channel is not sendable');
     return false;
   }
-  if (!message.channel.isSendable()) {
-    recordDisboardObservation('Successful DISBOARD bump detected, but the configured channel is not sendable');
-    return false;
-  }
-  const scheduled = await scheduleDisboardBumpReminder(config, message.channel, message);
+  const scheduled = await scheduleDisboardBumpReminder(config, settledMessage.channel, settledMessage);
   recordDisboardObservation(scheduled
-    ? 'Successful DISBOARD bump detected and reminder scheduled'
-    : 'Successful DISBOARD bump was already recorded');
+    ? 'Successful bump text detected and reminder scheduled'
+    : 'Successful bump text was already recorded');
   return scheduled;
 }
 
@@ -200,7 +206,8 @@ export async function reconcileDisboardBumpHistory(config: DiscordBotConfig, gui
 
   const cutoff = Date.now() - DISBOARD_RECONCILIATION_WINDOW_MS;
   const messages = [...(await channel.messages.fetch({ limit: DISBOARD_RECONCILIATION_MESSAGE_LIMIT })).values()]
-    .filter((message) => message.createdTimestamp >= cutoff
+    .filter((message) => (message.author.bot || message.applicationId)
+      && message.createdTimestamp >= cutoff
       && message.createdTimestamp + DISBOARD_BUMP_REMINDER_DELAY_MS > Date.now())
     .sort((left, right) => left.createdTimestamp - right.createdTimestamp);
   let scheduled = 0;

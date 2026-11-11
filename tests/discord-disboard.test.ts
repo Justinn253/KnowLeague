@@ -5,13 +5,11 @@ import { isDisboardBumpSuccessText, isSuccessfulDisboardBump } from '../discord-
 
 const GUILD_ID = '123456789012345678';
 const BUMP_CHANNEL_ID = '223456789012345678';
-const DISBOARD_BOT_ID = '302050872383242240';
-
 const config = { guildId: GUILD_ID } as DiscordBotConfig;
 
 function disboardMessage(content: string, channelId = BUMP_CHANNEL_ID) {
   return {
-    author: { id: DISBOARD_BOT_ID },
+    author: { id: '302050872383242240' },
     channelId,
     content,
     embeds: [],
@@ -37,12 +35,14 @@ describe('DISBOARD bump confirmations', () => {
     expect(isDisboardBumpSuccessText('A bump is available soon.')).toBe(false);
   });
 
-  it('does not accept a generic authenticated DISBOARD interaction without a success confirmation', () => {
+  it('requires a successful bump phrase even when the sender metadata is unavailable', () => {
     expect(isSuccessfulDisboardBump(config, {
-      ...disboardMessage(''),
-      applicationId: DISBOARD_BOT_ID,
+      ...disboardMessage('A normal bump is available.'),
       author: { id: '999999999999999999' },
-      interaction: { commandName: 'bump' },
     } as unknown as Message, BUMP_CHANNEL_ID)).toBe(false);
+    expect(isSuccessfulDisboardBump(config, {
+      ...disboardMessage('Bumped early with DISBOARD Pro.'),
+      author: { id: '999999999999999999' },
+    } as unknown as Message, BUMP_CHANNEL_ID)).toBe(true);
   });
 });

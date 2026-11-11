@@ -35,6 +35,14 @@ describe('Discord member lifecycle', () => {
         options: [expect.objectContaining({ name: 'user', required: false, type: 6 })],
         type: 1,
       }),
+      expect.objectContaining({
+        name: 'set-invite-count',
+        options: expect.arrayContaining([
+          expect.objectContaining({ name: 'user', required: true, type: 6 }),
+          expect.objectContaining({ name: 'count', required: true, type: 4, min_value: 0, max_value: 1_000_000 }),
+        ]),
+        type: 1,
+      }),
     ]));
   });
 

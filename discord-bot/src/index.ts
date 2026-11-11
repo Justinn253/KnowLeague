@@ -18,7 +18,7 @@ import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panel
 import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
 import { handleDisboardBump, restoreDisboardBumpReminder, startDisboardBumpReconciliation, stopDisboardBumpReminder } from './disboard.js';
-import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage, trackDiscordSingleUseInvite } from './member-lifecycle.js';
+import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteCreation, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage, trackDiscordSingleUseInvite } from './member-lifecycle.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
 import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
@@ -239,20 +239,15 @@ client.on(Events.GuildMemberAdd, (member) => {
 
 client.on(Events.InviteCreate, (invite) => {
   if (invite.guild?.id !== config.guildId) return;
-  const guild = client.guilds.cache.get(config.guildId);
-  if (!guild) return;
-  void trackDiscordSingleUseInvite(config, invite)
-    .then(() => refreshDiscordInviteCache(config, guild))
+  void rememberDiscordInviteCreation(config, invite)
+    .then(() => trackDiscordSingleUseInvite(config, invite))
     .catch((error: unknown) => console.error('Discord invite-create tracking failed.', error));
 });
 
 client.on(Events.InviteDelete, (invite) => {
   if (invite.guild?.id !== config.guildId) return;
-  const guild = client.guilds.cache.get(config.guildId);
-  if (!guild) return;
   void rememberDiscordInviteDeletion(config, invite)
-    .then(() => refreshDiscordInviteCache(config, guild))
-    .catch((error: unknown) => console.error('Discord invite cache refresh failed.', error));
+    .catch((error: unknown) => console.error('Discord invite-delete tracking failed.', error));
 });
 
 function syncGuildRolesOnChange(guildId: string) {

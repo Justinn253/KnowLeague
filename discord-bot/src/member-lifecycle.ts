@@ -110,6 +110,10 @@ type StoredSingleUseInviteClaim = {
 
 let cachedSettings: { expiresAt: number; guildId: string; value: MemberLifecycleSettings } | null = null;
 const inviteCacheByGuildId = new Map<string, InviteCache>();
+// InviteCreate can arrive while the first ready-time REST snapshot is still
+// being fetched. Keep the event's zero-use state so that snapshot cannot turn
+// a just-consumed direct invite into its own baseline.
+const pendingInviteCreationsByGuildId = new Map<string, Map<string, InviteSnapshot>>();
 const deletedInviteSnapshotsByGuildId = new Map<string, Map<string, DeletedInviteSnapshot>>();
 const inviteCacheQueuesByGuildId = new Map<string, Promise<void>>();
 const pendingInviteAttributionsByGuildId = new Map<string, PendingInviteAttribution[]>();
@@ -202,6 +206,27 @@ export async function getDiscordInviteLeaderboard(config: DiscordBotConfig, user
       ? [{ inviteCount: result.invite_count, userId: result.discord_user_id, username: result.inviter_username ?? null }]
       : [];
   });
+}
+
+/**
+ * Stores an administrator-supplied total as a baseline. New verified joins
+ * remain additive, and verified departures still decrement the total, just as
+ * they do for an imported Invite Tracker baseline.
+ */
+export async function setDiscordInviteCount(
+  config: DiscordBotConfig,
+  inviter: Pick<InviteLeaderboardEntry, 'userId' | 'username'>,
+  inviteCount: number,
+) {
+  const { data, error } = await createBotServiceClient(config).rpc('set_discord_invite_count', {
+    p_guild_id: config.guildId,
+    p_invite_count: inviteCount,
+    p_inviter_discord_user_id: inviter.userId,
+    p_inviter_username: inviter.username,
+  });
+  if (error) throw new Error(`Unable to set Discord invite count: ${error.message}`);
+  if (typeof data !== 'number') throw new Error('Discord invite count update did not return a total.');
+  return data;
 }
 
 export async function importDiscordInviteLeaderboard(config: DiscordBotConfig, entries: readonly InviteLeaderboardEntry[]) {
@@ -572,7 +597,40 @@ export async function refreshDiscordInviteCache(config: DiscordBotConfig, guild:
   if (guild.id !== config.guildId) return;
   await enqueueInviteCacheTask(guild.id, async () => {
     const cache = await readGuildInvites(guild);
-    if (cache) inviteCacheByGuildId.set(guild.id, cache);
+    if (!cache) return;
+    const pendingCreations = pendingInviteCreationsByGuildId.get(guild.id);
+    if (pendingCreations) {
+      for (const invite of pendingCreations.values()) cache.invites.set(invite.code, invite);
+      pendingInviteCreationsByGuildId.delete(guild.id);
+    }
+    inviteCacheByGuildId.set(guild.id, cache);
+  });
+}
+
+/**
+ * Keep the use count observed at Discord's invite-create event. Refetching at
+ * this point is racy for a one-use direct invite: the recipient may join and
+ * consume it before REST returns, incorrectly making use #1 the baseline.
+ */
+export async function rememberDiscordInviteCreation(config: DiscordBotConfig, invite: Invite) {
+  const guild = invite.guild;
+  if (!guild || guild.id !== config.guildId) return;
+  await enqueueInviteCacheTask(guild.id, async () => {
+    const cache = inviteCacheByGuildId.get(guild.id);
+    const snapshot = {
+      code: invite.code,
+      inviterId: invite.inviter?.id ?? null,
+      inviterUsername: invite.inviter?.username ?? null,
+      uses: invite.uses ?? 0,
+    };
+    if (!cache) {
+      const pendingCreations = pendingInviteCreationsByGuildId.get(guild.id) ?? new Map<string, InviteSnapshot>();
+      pendingCreations.set(invite.code, snapshot);
+      pendingInviteCreationsByGuildId.set(guild.id, pendingCreations);
+      return;
+    }
+    cache.invites.set(invite.code, snapshot);
+    cache.capturedAt = Date.now();
   });
 }
 
@@ -646,7 +704,8 @@ export async function rememberDiscordInviteDeletion(config: DiscordBotConfig, in
   const guild = invite.guild;
   if (!guild || guild.id !== config.guildId) return;
   await enqueueInviteCacheTask(guild.id, async () => {
-    const previous = inviteCacheByGuildId.get(guild.id)?.invites.get(invite.code);
+    const cache = inviteCacheByGuildId.get(guild.id);
+    const previous = cache?.invites.get(invite.code);
     const deleted = deletedInviteSnapshotsByGuildId.get(guild.id) ?? new Map<string, DeletedInviteSnapshot>();
     deleted.set(invite.code, {
       deletedAt: Date.now(),
@@ -658,6 +717,8 @@ export async function rememberDiscordInviteDeletion(config: DiscordBotConfig, in
       },
     });
     deletedInviteSnapshotsByGuildId.set(guild.id, deleted);
+    cache?.invites.delete(invite.code);
+    if (cache) cache.capturedAt = Date.now();
     pruneDeletedInviteSnapshots(guild.id, Date.now());
   });
   const { error } = await createBotServiceClient(config).rpc('mark_discord_single_use_invite_deleted', {

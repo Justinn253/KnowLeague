@@ -21,6 +21,7 @@ import {
   importDiscordInvitedMembers,
   parseInviteTrackerInvitedMembersCsv,
   parseInviteTrackerLeaderboardCsv,
+  setDiscordInviteCount,
 } from './member-lifecycle.js';
 import { getDisboardBumpReminderStatus } from './disboard.js';
 import { findLinkedProfile } from './profiles.js';
@@ -315,6 +316,7 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
   return (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
     || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
     || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
+    || (commandName === 'invite' && subcommand === 'set-invite-count')
     || commandName === 'steal-emoji'
     || commandName === 'steal-sticker'
     || commandName === 'temp';
@@ -2135,6 +2137,35 @@ async function handleLeaderboardCommand(interaction: ChatInputCommandInteraction
 async function handleInviteLeaderboardCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
 
+  const subcommand = interaction.options.getSubcommand();
+  if (subcommand === 'set-invite-count') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({
+        content: 'Only server administrators can set invite totals.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const targetUser = interaction.options.getUser('user', true);
+    const requestedCount = interaction.options.getInteger('count', true);
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const inviteCount = await setDiscordInviteCount(config, {
+      userId: targetUser.id,
+      username: targetUser.username,
+    }, requestedCount);
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xF59E0B)
+          .setTitle('Invite total updated')
+          .setDescription(`<@${targetUser.id}> now has **${formatXp(inviteCount)}** invite${inviteCount === 1 ? '' : 's'}.`)
+          .setFooter({ text: 'This administrator update is private.' }),
+      ],
+    });
+    return;
+  }
+
   const now = Date.now();
   if (now >= leaderboardCommandCooldownPruneAfter) {
     leaderboardCommandCooldownPruneAfter = now + 5 * 60 * 1_000;
@@ -2671,7 +2702,8 @@ async function handleTemporaryAdminCommand(interaction: ChatInputCommandInteract
       `Bump channel: <#${status.channelId}>`,
       `Reminder user: ${status.reminderUserId ? `<@${status.reminderUserId}>` : 'Not configured'}`,
       scheduled,
-      `This bot process timer: ${status.timerArmed ? 'armed' : 'not armed'}.`,
+      `This bot process timer: ${status.timerArmed ? `armed for source message ID \`${status.timerSourceMessageId}\`` : 'not armed'}.`,
+      `Visible confirmation message: ${status.confirmationMessageId ? `\`${status.confirmationMessageId}\`` : 'None'}.`,
       `Bump history reconciliation: ${status.reconciliationActive ? 'active' : 'not active'}.`,
       `Last DISBOARD observation: ${status.lastObservation ?? 'No matching message has been observed since this process started.'}`,
     ].join('\n'),

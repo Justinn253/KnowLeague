@@ -16,6 +16,7 @@ let lastDisboardObservation: { at: number; detail: string } | null = null;
 
 type DisboardBumpSettings = {
   channelId: string | null;
+  confirmationMessageId: string | null;
   reminderDueAt: Date | null;
   reminderSourceMessageId: string | null;
   reminderUserId: string | null;
@@ -23,6 +24,7 @@ type DisboardBumpSettings = {
 
 type StoredDisboardBumpSettingsRow = {
   disboard_bump_channel_id: string | null;
+  disboard_bump_confirmation_message_id: string | null;
   disboard_bump_reminder_due_at: string | null;
   disboard_bump_reminder_source_message_id: string | null;
   disboard_bump_reminder_user_id: string | null;
@@ -30,11 +32,13 @@ type StoredDisboardBumpSettingsRow = {
 
 export type DisboardBumpReminderStatus = {
   channelId: string | null;
+  confirmationMessageId: string | null;
   dueAt: Date | null;
   lastObservation: string | null;
   reconciliationActive: boolean;
   reminderUserId: string | null;
   sourceMessageId: string | null;
+  timerSourceMessageId: string | null;
   timerArmed: boolean;
 };
 
@@ -91,12 +95,13 @@ async function settleDisboardMessage(message: Message) {
 async function getDisboardBumpSettings(config: DiscordBotConfig): Promise<DisboardBumpSettings> {
   const { data, error } = await createBotServiceClient(config)
     .from('discord_leveling_settings')
-    .select('disboard_bump_channel_id, disboard_bump_reminder_due_at, disboard_bump_reminder_source_message_id, disboard_bump_reminder_user_id')
+    .select('disboard_bump_channel_id, disboard_bump_confirmation_message_id, disboard_bump_reminder_due_at, disboard_bump_reminder_source_message_id, disboard_bump_reminder_user_id')
     .eq('guild_id', config.guildId)
     .maybeSingle<StoredDisboardBumpSettingsRow>();
   if (error) throw new Error(`Unable to load DISBOARD bump settings: ${error.message}`);
   return {
     channelId: data?.disboard_bump_channel_id ?? null,
+    confirmationMessageId: data?.disboard_bump_confirmation_message_id ?? null,
     reminderDueAt: data?.disboard_bump_reminder_due_at ? new Date(data.disboard_bump_reminder_due_at) : null,
     reminderSourceMessageId: data?.disboard_bump_reminder_source_message_id ?? null,
     reminderUserId: data?.disboard_bump_reminder_user_id ?? null,
@@ -107,6 +112,7 @@ export async function getDisboardBumpReminderStatus(config: DiscordBotConfig): P
   const settings = await getDisboardBumpSettings(config);
   return {
     channelId: settings.channelId,
+    confirmationMessageId: settings.confirmationMessageId,
     dueAt: settings.reminderDueAt,
     lastObservation: lastDisboardObservation
       ? `${lastDisboardObservation.detail} <t:${Math.floor(lastDisboardObservation.at / 1_000)}:R>`
@@ -114,6 +120,7 @@ export async function getDisboardBumpReminderStatus(config: DiscordBotConfig): P
     reconciliationActive: bumpReconciliationTimer !== null,
     reminderUserId: settings.reminderUserId,
     sourceMessageId: settings.reminderSourceMessageId,
+    timerSourceMessageId: bumpReminderTimer ? scheduledBumpMessageId : null,
     timerArmed: Boolean(
       bumpReminderTimer
       && settings.reminderSourceMessageId
@@ -156,6 +163,13 @@ function armDisboardBumpReminder(config: DiscordBotConfig, channel: SendableChan
   bumpReminderTimer.unref();
 }
 
+async function deletePreviousDisboardConfirmation(channel: SendableChannels, messageId: string | null) {
+  if (!messageId) return;
+  const message = await channel.messages.fetch(messageId).catch(() => null);
+  if (!message?.deletable) return;
+  await message.delete().catch((error: unknown) => console.warn(`Unable to delete prior DISBOARD confirmation ${messageId}.`, error));
+}
+
 export async function scheduleDisboardBumpReminder(
   config: DiscordBotConfig,
   channel: SendableChannels,
@@ -163,25 +177,36 @@ export async function scheduleDisboardBumpReminder(
   announce = true,
 ) {
   const dueAt = new Date(bumpMessage.createdTimestamp + DISBOARD_BUMP_REMINDER_DELAY_MS);
-  const { data: recorded, error } = await createBotServiceClient(config).rpc('record_disboard_bump_reminder', {
+  const { data, error } = await createBotServiceClient(config).rpc('record_disboard_bump_reminder_v2', {
     p_bumped_at: new Date(bumpMessage.createdTimestamp).toISOString(),
     p_guild_id: config.guildId,
     p_reminder_due_at: dueAt.toISOString(),
     p_source_message_id: bumpMessage.id,
   });
   if (error) throw new Error(`Unable to persist DISBOARD bump reminder: ${error.message}`);
-  if (recorded !== true) return false;
+  const result = (Array.isArray(data) ? data[0] : data) as { previous_confirmation_message_id?: string | null; recorded?: boolean } | null;
+  if (result?.recorded !== true) return false;
 
   armDisboardBumpReminder(config, channel, bumpMessage.id, dueAt);
   if (!announce) return true;
+  await deletePreviousDisboardConfirmation(channel, result.previous_confirmation_message_id ?? null);
   const settings = await getDisboardBumpSettings(config);
   const recipient = settings.reminderUserId
     ? `The configured reminder will be sent <t:${Math.floor(dueAt.getTime() / 1_000)}:F> (<t:${Math.floor(dueAt.getTime() / 1_000)}:R>).`
     : `The next reminder time is <t:${Math.floor(dueAt.getTime() / 1_000)}:F>, but no reminder user is configured yet.`;
-  await channel.send({
+  const confirmation = await channel.send({
     allowedMentions: { parse: [] },
     content: `DISBOARD bump confirmed. ${recipient}`,
   });
+  const { data: attached, error: attachError } = await createBotServiceClient(config).rpc('attach_disboard_bump_confirmation', {
+    p_confirmation_message_id: confirmation.id,
+    p_guild_id: config.guildId,
+    p_source_message_id: bumpMessage.id,
+  });
+  if (attachError) throw new Error(`Unable to store DISBOARD confirmation message: ${attachError.message}`);
+  if (attached !== true) {
+    await confirmation.delete().catch((deleteError: unknown) => console.warn('Unable to delete superseded DISBOARD confirmation.', deleteError));
+  }
   return true;
 }
 

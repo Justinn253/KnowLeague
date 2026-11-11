@@ -35,12 +35,16 @@ export function isDisboardBumpSuccessText(value: string) {
   return value.toLocaleLowerCase().includes('bump done');
 }
 
+function isDisboardApplicationMessage(message: Message) {
+  return message.author.id === DISBOARD_BOT_ID || message.applicationId === DISBOARD_BOT_ID;
+}
+
 export function isSuccessfulDisboardBump(config: DiscordBotConfig, message: Message, bumpChannelId: string | null) {
   if (!bumpChannelId
     || !message.inGuild()
     || message.guildId !== config.guildId
     || message.channelId !== bumpChannelId
-    || message.author.id !== DISBOARD_BOT_ID) {
+    || !isDisboardApplicationMessage(message)) {
     return false;
   }
 
@@ -49,6 +53,24 @@ export function isSuccessfulDisboardBump(config: DiscordBotConfig, message: Mess
     ...message.embeds.flatMap((embed) => [embed.title ?? '', embed.description ?? '']),
   ].join('\n');
   return isDisboardBumpSuccessText(confirmationText);
+}
+
+/**
+ * Discord can redact message content and embeds when Message Content Intent is
+ * disabled in the Developer Portal. A DISBOARD application-command response
+ * still identifies its application and command, which is enough to schedule a
+ * reminder but deliberately not enough to award KnowBucks.
+ */
+export function isDisboardBumpReminderCandidate(config: DiscordBotConfig, message: Message, bumpChannelId: string | null) {
+  if (isSuccessfulDisboardBump(config, message, bumpChannelId)) return true;
+  return Boolean(
+    bumpChannelId
+    && message.inGuild()
+    && message.guildId === config.guildId
+    && message.channelId === bumpChannelId
+    && message.applicationId === DISBOARD_BOT_ID
+    && message.interaction?.commandName.toLocaleLowerCase().split(/\s+/)[0] === 'bump',
+  );
 }
 
 async function getDisboardBumpSettings(config: DiscordBotConfig): Promise<DisboardBumpSettings> {
@@ -205,15 +227,16 @@ export async function restoreDisboardBumpReminder(config: DiscordBotConfig, guil
 }
 
 export async function handleDisboardBump(config: DiscordBotConfig, message: Message) {
-  if (!message.inGuild() || message.guildId !== config.guildId || message.author.id !== DISBOARD_BOT_ID) return;
+  if (!message.inGuild() || message.guildId !== config.guildId || !isDisboardApplicationMessage(message)) return;
 
   const settings = await getDisboardBumpSettings(config);
-  if (!isSuccessfulDisboardBump(config, message, settings.channelId)) return;
+  const confirmedSuccess = isSuccessfulDisboardBump(config, message, settings.channelId);
+  if (!isDisboardBumpReminderCandidate(config, message, settings.channelId)) return;
 
   if (message.channel.isSendable()) {
     await scheduleDisboardBumpReminder(config, message.channel, message);
   }
-  await maybeAwardDisboardBump(config, message, settings.channelId!);
+  if (confirmedSuccess) await maybeAwardDisboardBump(config, message, settings.channelId!);
 }
 
 export function stopDisboardBumpReminder() {

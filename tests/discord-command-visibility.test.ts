@@ -11,6 +11,7 @@ describe('Discord slash-command visibility', () => {
     expect(isDiscordAdministrativeCommand('collections', 'capacity-force-add')).toBe(true);
     expect(isDiscordAdministrativeCommand('leaderboard', null)).toBe(false);
     expect(isDiscordAdministrativeCommand('steal-emoji', null)).toBe(true);
+    expect(isDiscordAdministrativeCommand('temp', 'update-leave-info')).toBe(true);
   });
 
   it('enforces the General channel selection only for member-facing command shapes', () => {
@@ -18,6 +19,7 @@ describe('Discord slash-command visibility', () => {
     expect(requiresDefaultCommandChannel('knowbucks', 'set')).toBe(false);
     expect(requiresDefaultCommandChannel('steal-emoji', null)).toBe(false);
     expect(requiresDefaultCommandChannel('snipe', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('temp', 'update-leave-info')).toBe(false);
     expect(requiresDefaultCommandChannel('xp', 'view')).toBe(true);
     expect(requiresDefaultCommandChannel('knowbucks', 'balance')).toBe(true);
     expect(requiresDefaultCommandChannel('collections', 'spawn')).toBe(false);

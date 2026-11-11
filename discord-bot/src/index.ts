@@ -18,6 +18,7 @@ import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panel
 import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
 import { handleDisboardBump, restoreDisboardBumpReminder, stopDisboardBumpReminder } from './disboard.js';
+import { handleDiscordMemberJoin, handleDiscordMemberLeave, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage } from './member-lifecycle.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
 import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
@@ -35,6 +36,9 @@ const config = loadBotConfig();
 const client = new Client({ intents: [
   GatewayIntentBits.Guilds,
   GatewayIntentBits.GuildMessages,
+  // Tracks invite creation and deletion so member joins can be attributed to
+  // the invite whose use count increased.
+  GatewayIntentBits.GuildInvites,
   GatewayIntentBits.GuildMessageReactions,
   GatewayIntentBits.GuildModeration,
   // Required only to release claimed skins when a member leaves or is kicked.
@@ -91,6 +95,8 @@ client.once(Events.ClientReady, (readyClient) => {
   startDiscordSkindleShareScheduler(config, guild);
   void restoreDisboardBumpReminder(config, guild)
     .catch((error: unknown) => console.error('DISBOARD bump reminder restoration failed.', error));
+  void refreshDiscordInviteCache(config, guild)
+    .catch((error: unknown) => console.error('Discord invite cache initialization failed.', error));
   void syncDiscordGuildRoles(config, guild)
     .then(() => syncDiscordGuildTextChannels(config, guild))
     .then(() => syncDiscordLeaderboardRole(config, guild))
@@ -126,6 +132,9 @@ client.on(Events.MessageCreate, (message) => {
   }
 
   trackSnipeMessage(config, message);
+
+  void trackDiscordMemberLastMessage(config, message)
+    .catch((error: unknown) => console.error('Discord member last-message tracking failed.', error));
 
   void awardMessageXp(config, message)
     .catch((error: unknown) => console.error('Discord chat leveling failed.', error));
@@ -202,6 +211,31 @@ client.on(Events.GuildMemberRemove, (member) => {
 
   void clearSkinCollection(config, member.id)
     .catch((error: unknown) => console.error('Discord member collection cleanup failed.', error));
+  void handleDiscordMemberLeave(config, member)
+    .catch((error: unknown) => console.error('Discord member leave processing failed.', error));
+});
+
+client.on(Events.GuildMemberAdd, (member) => {
+  if (member.guild.id !== config.guildId) return;
+  void resolveDiscordJoinSource(config, member.guild)
+    .then((source) => handleDiscordMemberJoin(config, member, source))
+    .catch((error: unknown) => console.error('Discord member join processing failed.', error));
+});
+
+client.on(Events.InviteCreate, (invite) => {
+  if (invite.guild?.id !== config.guildId) return;
+  const guild = client.guilds.cache.get(config.guildId);
+  if (!guild) return;
+  void refreshDiscordInviteCache(config, guild)
+    .catch((error: unknown) => console.error('Discord invite cache refresh failed.', error));
+});
+
+client.on(Events.InviteDelete, (invite) => {
+  if (invite.guild?.id !== config.guildId) return;
+  const guild = client.guilds.cache.get(config.guildId);
+  if (!guild) return;
+  void refreshDiscordInviteCache(config, guild)
+    .catch((error: unknown) => console.error('Discord invite cache refresh failed.', error));
 });
 
 function syncGuildRolesOnChange(guildId: string) {

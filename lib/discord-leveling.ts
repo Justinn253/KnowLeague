@@ -2,18 +2,26 @@ export const DISCORD_LEVELING_DEFAULT_XP_PER_MESSAGE = 15;
 export const DISCORD_LEVELING_DEFAULT_COOLDOWN_SECONDS = 5;
 export const DISCORD_LEVELING_MIN_LEVEL = 0;
 export const DISCORD_LEVELING_LEVEL_UP_MESSAGE_TEMPLATE_MAX_LENGTH = 500;
+export const DISCORD_MEMBER_LIFECYCLE_MESSAGE_TEMPLATE_MAX_LENGTH = 500;
+export const DISCORD_DEFAULT_INVITE_JOIN_MESSAGE_TEMPLATE = '**{user}** has been invited by {inviter}! They now have {inviteCount} invites.';
+export const DISCORD_DEFAULT_WELCOME_JOIN_MESSAGE_TEMPLATE = '**{user}** joined the server! Check out <#1541690751132500008> and <#1539079954153865246> for server information. Also, please assign your extra roles in <#1558207698548293754>!';
 export const DISCORD_LEVELING_DEFAULT_LEVEL_UP_MESSAGE_TEMPLATE = '🎉 {user} reached level {level}!';
 
 export type DiscordLevelingSettings = {
   cooldownSeconds: number;
   disboardBumpChannelId: string | null;
   disboardBumpReminderUserId: string | null;
+  inviteJoinMessageChannelId: string | null;
+  inviteJoinMessageTemplate: string;
+  leaveMessageChannelId: string | null;
   enabled: boolean;
   leaderboardTopRoleId: string | null;
   levelUpMessageEnabled: boolean;
   levelUpMessageChannelId: string | null;
   levelUpMessageTemplate: string;
   xpPerMessage: number;
+  welcomeJoinMessageChannelId: string | null;
+  welcomeJoinMessageTemplate: string;
 };
 
 export type DiscordLevelingRoleReward = {
@@ -32,12 +40,17 @@ export type DiscordGuildRole = {
 export const DEFAULT_DISCORD_LEVELING_SETTINGS: DiscordLevelingSettings = {
   disboardBumpChannelId: null,
   disboardBumpReminderUserId: null,
+  inviteJoinMessageChannelId: null,
+  inviteJoinMessageTemplate: DISCORD_DEFAULT_INVITE_JOIN_MESSAGE_TEMPLATE,
+  leaveMessageChannelId: null,
   enabled: true,
   leaderboardTopRoleId: null,
   levelUpMessageEnabled: true,
   levelUpMessageChannelId: null,
   levelUpMessageTemplate: DISCORD_LEVELING_DEFAULT_LEVEL_UP_MESSAGE_TEMPLATE,
   xpPerMessage: DISCORD_LEVELING_DEFAULT_XP_PER_MESSAGE,
+  welcomeJoinMessageChannelId: null,
+  welcomeJoinMessageTemplate: DISCORD_DEFAULT_WELCOME_JOIN_MESSAGE_TEMPLATE,
   cooldownSeconds: DISCORD_LEVELING_DEFAULT_COOLDOWN_SECONDS,
 };
 

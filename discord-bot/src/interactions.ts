@@ -13,6 +13,7 @@ import {
 import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBucks, purchaseSnipe, updateKnowBucks } from './knowbucks.js';
 import { importExternalMessageEmojis } from './emoji-import.js';
 import { importExternalMessageStickers } from './sticker-import.js';
+import { backfillDiscordMemberLeaveInfo } from './member-lifecycle.js';
 import { findLinkedProfile } from './profiles.js';
 import {
   formatRiftboundMockTreatment,
@@ -306,7 +307,8 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
     || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
     || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
     || commandName === 'steal-emoji'
-    || commandName === 'steal-sticker';
+    || commandName === 'steal-sticker'
+    || commandName === 'temp';
 }
 
 export function requiresDefaultCommandChannel(commandName: string, subcommand: string | null) {
@@ -2475,6 +2477,21 @@ async function handleStealStickerCommand(interaction: ChatInputCommandInteractio
         .setTitle('External sticker import complete')
         .setDescription(details.join('\n')),
     ],
+  });
+}
+
+async function handleTemporaryAdminCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  if (!interaction.guild) return;
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: 'Only server administrators can use /temp update-leave-info.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (interaction.options.getSubcommand(false) !== 'update-leave-info') return;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const updated = await backfillDiscordMemberLeaveInfo(config, interaction.guild);
+  await interaction.editReply({
+    content: `Stored leave-information snapshots for **${formatXp(updated)}** current non-bot members. Invite sources are available for future joins; last-message links are retained when already known and recorded from now on.`,
   });
 }
 
@@ -5143,6 +5160,11 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'steal-sticker') {
     await handleStealStickerCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'temp') {
+    await handleTemporaryAdminCommand(interaction, config);
     return;
   }
 

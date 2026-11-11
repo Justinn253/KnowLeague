@@ -11,11 +11,15 @@ let scheduledBumpMessageId: string | null = null;
 
 type DisboardBumpSettings = {
   channelId: string | null;
+  reminderDueAt: Date | null;
+  reminderSourceMessageId: string | null;
   reminderUserId: string | null;
 };
 
 type StoredDisboardBumpSettingsRow = {
   disboard_bump_channel_id: string | null;
+  disboard_bump_reminder_due_at: string | null;
+  disboard_bump_reminder_source_message_id: string | null;
   disboard_bump_reminder_user_id: string | null;
 };
 
@@ -42,12 +46,14 @@ export function isSuccessfulDisboardBump(config: DiscordBotConfig, message: Mess
 async function getDisboardBumpSettings(config: DiscordBotConfig): Promise<DisboardBumpSettings> {
   const { data, error } = await createBotServiceClient(config)
     .from('discord_leveling_settings')
-    .select('disboard_bump_channel_id, disboard_bump_reminder_user_id')
+    .select('disboard_bump_channel_id, disboard_bump_reminder_due_at, disboard_bump_reminder_source_message_id, disboard_bump_reminder_user_id')
     .eq('guild_id', config.guildId)
     .maybeSingle<StoredDisboardBumpSettingsRow>();
   if (error) throw new Error(`Unable to load DISBOARD bump settings: ${error.message}`);
   return {
     channelId: data?.disboard_bump_channel_id ?? null,
+    reminderDueAt: data?.disboard_bump_reminder_due_at ? new Date(data.disboard_bump_reminder_due_at) : null,
+    reminderSourceMessageId: data?.disboard_bump_reminder_source_message_id ?? null,
     reminderUserId: data?.disboard_bump_reminder_user_id ?? null,
   };
 }
@@ -84,19 +90,30 @@ async function maybeAwardDisboardBump(config: DiscordBotConfig, message: Message
   });
 }
 
-export function scheduleDisboardBumpReminder(config: DiscordBotConfig, channel: SendableChannels, bumpMessage: Pick<Message, 'createdTimestamp' | 'id'>) {
+function armDisboardBumpReminder(config: DiscordBotConfig, channel: SendableChannels, sourceMessageId: string, dueAt: Date) {
   if (bumpReminderTimer) clearTimeout(bumpReminderTimer);
-  scheduledBumpMessageId = bumpMessage.id;
+  scheduledBumpMessageId = sourceMessageId;
 
-  const reminderDelay = Math.max(0, bumpMessage.createdTimestamp + DISBOARD_BUMP_REMINDER_DELAY_MS - Date.now());
+  const reminderDelay = Math.max(0, dueAt.getTime() - Date.now());
   bumpReminderTimer = setTimeout(() => {
-    if (scheduledBumpMessageId !== bumpMessage.id) return;
+    if (scheduledBumpMessageId !== sourceMessageId) return;
     bumpReminderTimer = null;
     scheduledBumpMessageId = null;
 
     void getDisboardBumpSettings(config)
       .then(async (settings) => {
-        if (settings.channelId !== channel.id || !settings.reminderUserId) return;
+        if (settings.channelId !== channel.id || !settings.reminderDueAt || settings.reminderSourceMessageId !== sourceMessageId) return;
+        const { data: claimed, error } = await createBotServiceClient(config).rpc('claim_disboard_bump_reminder', {
+          p_due_at: dueAt.toISOString(),
+          p_guild_id: config.guildId,
+          p_source_message_id: sourceMessageId,
+        });
+        if (error) throw new Error(`Unable to claim DISBOARD bump reminder: ${error.message}`);
+        if (claimed !== true) return;
+        if (!settings.reminderUserId) {
+          await channel.send({ content: 'The scheduled DISBOARD reminder was not sent because no reminder user is configured.' });
+          return;
+        }
         await channel.send({
           allowedMentions: { parse: [], users: [settings.reminderUserId] },
           content: `<@${settings.reminderUserId}> It has been two hours since the last successful DISBOARD bump. You can use /bump again.`,
@@ -107,10 +124,38 @@ export function scheduleDisboardBumpReminder(config: DiscordBotConfig, channel: 
   bumpReminderTimer.unref();
 }
 
+export async function scheduleDisboardBumpReminder(
+  config: DiscordBotConfig,
+  channel: SendableChannels,
+  bumpMessage: Pick<Message, 'createdTimestamp' | 'id'>,
+  announce = true,
+) {
+  const dueAt = new Date(bumpMessage.createdTimestamp + DISBOARD_BUMP_REMINDER_DELAY_MS);
+  const { error } = await createBotServiceClient(config)
+    .from('discord_leveling_settings')
+    .update({
+      disboard_bump_reminder_due_at: dueAt.toISOString(),
+      disboard_bump_reminder_source_message_id: bumpMessage.id,
+    })
+    .eq('guild_id', config.guildId);
+  if (error) throw new Error(`Unable to persist DISBOARD bump reminder: ${error.message}`);
+
+  armDisboardBumpReminder(config, channel, bumpMessage.id, dueAt);
+  if (!announce) return;
+  const settings = await getDisboardBumpSettings(config);
+  const recipient = settings.reminderUserId
+    ? `The configured reminder will be sent <t:${Math.floor(dueAt.getTime() / 1_000)}:F> (<t:${Math.floor(dueAt.getTime() / 1_000)}:R>).`
+    : `The next reminder time is <t:${Math.floor(dueAt.getTime() / 1_000)}:F>, but no reminder user is configured yet.`;
+  await channel.send({
+    allowedMentions: { parse: [] },
+    content: `DISBOARD bump confirmed. ${recipient}`,
+  });
+}
+
 export async function restoreDisboardBumpReminder(config: DiscordBotConfig, guild: Guild) {
   if (guild.id !== config.guildId) return;
   const settings = await getDisboardBumpSettings(config);
-  if (!settings.channelId || !settings.reminderUserId) return;
+  if (!settings.channelId) return;
 
   const channel = await guild.channels.fetch(settings.channelId).catch(() => null);
   if (!channel?.isTextBased() || !channel.isSendable()) {
@@ -118,13 +163,21 @@ export async function restoreDisboardBumpReminder(config: DiscordBotConfig, guil
     return;
   }
 
+  if (settings.reminderDueAt && settings.reminderSourceMessageId) {
+    armDisboardBumpReminder(config, channel, settings.reminderSourceMessageId, settings.reminderDueAt);
+    return;
+  }
+
+  // Preserve one existing in-memory schedule across the first deployment of
+  // durable reminder state. All later reminders restore from the stored due
+  // time above, so high message volume cannot hide the successful bump.
   const messages = await channel.messages.fetch({ limit: 100 });
   const lastSuccessfulBump = [...messages.values()].reduce<Message | null>((latest, message) => {
     if (!isSuccessfulDisboardBump(config, message, settings.channelId)) return latest;
     return !latest || message.createdTimestamp > latest.createdTimestamp ? message : latest;
   }, null);
   if (lastSuccessfulBump) {
-    scheduleDisboardBumpReminder(config, channel, lastSuccessfulBump);
+    await scheduleDisboardBumpReminder(config, channel, lastSuccessfulBump, false);
   }
 }
 
@@ -134,8 +187,8 @@ export async function handleDisboardBump(config: DiscordBotConfig, message: Mess
   const settings = await getDisboardBumpSettings(config);
   if (!isSuccessfulDisboardBump(config, message, settings.channelId)) return;
 
-  if (settings.reminderUserId && message.channel.isSendable()) {
-    scheduleDisboardBumpReminder(config, message.channel, message);
+  if (message.channel.isSendable()) {
+    await scheduleDisboardBumpReminder(config, message.channel, message);
   }
   await maybeAwardDisboardBump(config, message, settings.channelId!);
 }

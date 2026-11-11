@@ -4,6 +4,7 @@ import { ApiError, getRouteErrorResponse, readJsonBody } from '@/lib/api-utils';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import {
   DEFAULT_DISCORD_LEVELING_SETTINGS,
+  DISCORD_MEMBER_LIFECYCLE_MESSAGE_TEMPLATE_MAX_LENGTH,
   DISCORD_LEVELING_LEVEL_UP_MESSAGE_TEMPLATE_MAX_LENGTH,
   type DiscordGuildRole,
   type DiscordLevelingRoleReward,
@@ -51,11 +52,16 @@ type StoredSettingsRow = {
   disboard_bump_channel_id: string | null;
   disboard_bump_reminder_user_id: string | null;
   enabled: boolean;
+  invite_join_message_channel_id: string | null;
+  invite_join_message_template: string;
+  leave_message_channel_id: string | null;
   leaderboard_top_role_id: string | null;
   level_up_message_enabled: boolean;
   level_up_message_channel_id: string | null;
   level_up_message_template: string;
   xp_per_message: number;
+  welcome_join_message_channel_id: string | null;
+  welcome_join_message_template: string;
 };
 
 type StoredRoleRow = {
@@ -171,6 +177,9 @@ type LevelingSettingsBody = {
   cooldownSeconds?: unknown;
   disboardBumpChannelId?: unknown;
   disboardBumpReminderUserId?: unknown;
+  inviteJoinMessageChannelId?: unknown;
+  inviteJoinMessageTemplate?: unknown;
+  leaveMessageChannelId?: unknown;
   generalCommandChannelIds?: unknown;
   enabled?: unknown;
   leaderboardExcludedRoleIds?: unknown;
@@ -210,6 +219,8 @@ type LevelingSettingsBody = {
   fishingTopFisherRoleId?: unknown;
   fishingWeekdayPhenomena?: unknown;
   xpPerMessage?: unknown;
+  welcomeJoinMessageChannelId?: unknown;
+  welcomeJoinMessageTemplate?: unknown;
 };
 
 function getDiscordGuildId() {
@@ -226,11 +237,16 @@ function toSettings(row: StoredSettingsRow | null): DiscordLevelingSettings {
     disboardBumpChannelId: row.disboard_bump_channel_id,
     disboardBumpReminderUserId: row.disboard_bump_reminder_user_id,
     enabled: row.enabled,
+    inviteJoinMessageChannelId: row.invite_join_message_channel_id,
+    inviteJoinMessageTemplate: row.invite_join_message_template,
+    leaveMessageChannelId: row.leave_message_channel_id,
     leaderboardTopRoleId: row.leaderboard_top_role_id,
     levelUpMessageEnabled: row.level_up_message_enabled,
     levelUpMessageChannelId: row.level_up_message_channel_id,
     levelUpMessageTemplate: row.level_up_message_template,
     xpPerMessage: row.xp_per_message,
+    welcomeJoinMessageChannelId: row.welcome_join_message_channel_id,
+    welcomeJoinMessageTemplate: row.welcome_join_message_template,
   } : DEFAULT_DISCORD_LEVELING_SETTINGS;
 }
 
@@ -375,7 +391,7 @@ async function getLevelingData(guildId: string) {
     minigameSimulationRolesResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
-      .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id, disboard_bump_channel_id, disboard_bump_reminder_user_id')
+      .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id, disboard_bump_channel_id, disboard_bump_reminder_user_id, invite_join_message_channel_id, invite_join_message_template, welcome_join_message_channel_id, welcome_join_message_template, leave_message_channel_id')
       .eq('guild_id', guildId)
       .maybeSingle<StoredSettingsRow>(),
     supabase.from('discord_guild_roles')
@@ -575,6 +591,15 @@ function parseOptionalMessageTemplate(value: unknown, label: string) {
   const template = value.trim();
   if (!template || template.length > DISCORD_LEVELING_LEVEL_UP_MESSAGE_TEMPLATE_MAX_LENGTH) {
     throw new ApiError(400, `${label} must contain between 1 and ${DISCORD_LEVELING_LEVEL_UP_MESSAGE_TEMPLATE_MAX_LENGTH} characters.`);
+  }
+  return template;
+}
+
+function parseRequiredMemberLifecycleMessageTemplate(value: unknown, label: string) {
+  if (typeof value !== 'string') throw new ApiError(400, `${label} must be text.`);
+  const template = value.trim();
+  if (!template || template.length > DISCORD_MEMBER_LIFECYCLE_MESSAGE_TEMPLATE_MAX_LENGTH) {
+    throw new ApiError(400, `${label} must contain between 1 and ${DISCORD_MEMBER_LIFECYCLE_MESSAGE_TEMPLATE_MAX_LENGTH} characters.`);
   }
   return template;
 }
@@ -799,6 +824,11 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (disboardBumpReminderUserId && !disboardBumpChannelId) {
       throw new ApiError(400, 'Choose a DISBOARD bump channel before setting a reminder user.');
     }
+    const inviteJoinMessageChannelId = parseOptionalSnowflake(body.inviteJoinMessageChannelId, 'Invite-tracker channel ID');
+    const inviteJoinMessageTemplate = parseRequiredMemberLifecycleMessageTemplate(body.inviteJoinMessageTemplate, 'Invite-tracker message');
+    const welcomeJoinMessageChannelId = parseOptionalSnowflake(body.welcomeJoinMessageChannelId, 'Welcome-message channel ID');
+    const welcomeJoinMessageTemplate = parseRequiredMemberLifecycleMessageTemplate(body.welcomeJoinMessageTemplate, 'Welcome message');
+    const leaveMessageChannelId = parseOptionalSnowflake(body.leaveMessageChannelId, 'Leave-message channel ID');
     const leaderboardTopRoleId = parseOptionalSnowflake(body.leaderboardTopRoleId, 'Leaderboard top role');
     const manualXpRoleIds = parseRoleIds(body.manualXpRoleIds, 'manual XP staff roles', 25);
     const collectionAdminRoleIds = parseRoleIds(body.collectionAdminRoleIds, 'collection admin roles', 25);
@@ -940,6 +970,15 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (disboardBumpChannelId && !sendableChannelIds.has(disboardBumpChannelId)) {
       throw new ApiError(400, 'Choose a DISBOARD bump channel that is currently available to the KnowLeague bot.');
     }
+    if (inviteJoinMessageChannelId && !sendableChannelIds.has(inviteJoinMessageChannelId)) {
+      throw new ApiError(400, 'Choose an invite-tracker channel that is currently available to the KnowLeague bot.');
+    }
+    if (welcomeJoinMessageChannelId && !sendableChannelIds.has(welcomeJoinMessageChannelId)) {
+      throw new ApiError(400, 'Choose a welcome-message channel that is currently available to the KnowLeague bot.');
+    }
+    if (leaveMessageChannelId && !sendableChannelIds.has(leaveMessageChannelId)) {
+      throw new ApiError(400, 'Choose a leave-message channel that is currently available to the KnowLeague bot.');
+    }
     if (body.skinClaimEnabled && (!sendableChannelIds.size || (!skinClaimAllChannels && !skinClaimChannelIds.length))) {
       throw new ApiError(400, 'Enable skin claims only after Discord has synced a sendable channel or you select at least one eligible channel.');
     }
@@ -987,6 +1026,11 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       .update({
         disboard_bump_channel_id: disboardBumpChannelId,
         disboard_bump_reminder_user_id: disboardBumpReminderUserId,
+        invite_join_message_channel_id: inviteJoinMessageChannelId,
+        invite_join_message_template: inviteJoinMessageTemplate,
+        leave_message_channel_id: leaveMessageChannelId,
+        welcome_join_message_channel_id: welcomeJoinMessageChannelId,
+        welcome_join_message_template: welcomeJoinMessageTemplate,
       })
       .eq('guild_id', guildId);
     if (disboardSettingsError) throw disboardSettingsError;

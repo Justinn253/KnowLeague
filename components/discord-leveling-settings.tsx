@@ -590,6 +590,79 @@ export function DiscordLevelingSettings() {
           </section>
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>
+              <h2 className="text-lg font-black text-white">Invite tracking</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Post an attribution message when a member joins through an invite. The KnowLeague bot needs Discord’s Manage Server permission to identify invite uses; joins that cannot be attributed are labeled as an unknown source.</p>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+              <AppSelectMenu
+                label="Invite-tracker channel"
+                value={data.settings.inviteJoinMessageChannelId ?? ''}
+                onChange={(channelId) => updateSettings('inviteJoinMessageChannelId', channelId || null)}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="Choose where invite attribution messages are posted, or leave it disabled while invite history is still recorded."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: '', label: 'No invite-tracker channel', description: 'Invite history is still recorded without posting a message.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+              <label className="grid gap-2">
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Invite-tracker message</span>
+                <textarea rows={3} maxLength={500} value={data.settings.inviteJoinMessageTemplate} onChange={(event) => updateSettings('inviteJoinMessageTemplate', event.target.value)} className="resize-y rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-1 focus:ring-amber-300" />
+                <span className="text-xs leading-5 text-slate-400">Use <code>{'{user}'}</code> for the joining member, <code>{'{inviter}'}</code> for the inviter or source, and <code>{'{inviteCount}'}</code> for that inviter’s recorded total.</span>
+              </label>
+            </div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Welcome and leave messages</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Welcome messages are separate from invite tracking. Leave panels preserve the member’s roles, join source, join date, chat level, and most recently observed message link without storing message content.</p>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+              <AppSelectMenu
+                label="Welcome-message channel"
+                value={data.settings.welcomeJoinMessageChannelId ?? ''}
+                onChange={(channelId) => updateSettings('welcomeJoinMessageChannelId', channelId || null)}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="Choose where every new member receives the configured server welcome, or leave it disabled."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: '', label: 'No welcome-message channel', description: 'New members are still recorded without a welcome post.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+              <label className="grid gap-2">
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Welcome message</span>
+                <textarea rows={3} maxLength={500} value={data.settings.welcomeJoinMessageTemplate} onChange={(event) => updateSettings('welcomeJoinMessageTemplate', event.target.value)} className="resize-y rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-amber-300 focus:ring-1 focus:ring-amber-300" />
+                <span className="text-xs leading-5 text-slate-400">Use <code>{'{user}'}</code> to mention the joining member. Discord channel references such as <code>&lt;#123&gt;</code> render as channel links.</span>
+              </label>
+            </div>
+            <div className="mt-4 max-w-xl">
+              <AppSelectMenu
+                label="Leave-panel channel"
+                value={data.settings.leaveMessageChannelId ?? ''}
+                onChange={(channelId) => updateSettings('leaveMessageChannelId', channelId || null)}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="Choose where member-leave information panels are posted, or leave it disabled while snapshots continue to be retained."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: '', label: 'No leave-panel channel', description: 'Member lifecycle snapshots are still retained without public leave panels.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
               <h2 className="text-lg font-black text-white">Website Skindle results</h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Optionally choose one or more channels for players who have linked their KnowLeague and Discord accounts to share a completed website Skindle. The bot posts the same spoiler-free result grid used by Discord Skindle.</p>
             </div>

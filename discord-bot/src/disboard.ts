@@ -23,6 +23,14 @@ type StoredDisboardBumpSettingsRow = {
   disboard_bump_reminder_user_id: string | null;
 };
 
+export type DisboardBumpReminderStatus = {
+  channelId: string | null;
+  dueAt: Date | null;
+  reminderUserId: string | null;
+  sourceMessageId: string | null;
+  timerArmed: boolean;
+};
+
 export function isDisboardBumpSuccessText(value: string) {
   return value.toLocaleLowerCase().includes('bump done');
 }
@@ -55,6 +63,21 @@ async function getDisboardBumpSettings(config: DiscordBotConfig): Promise<Disboa
     reminderDueAt: data?.disboard_bump_reminder_due_at ? new Date(data.disboard_bump_reminder_due_at) : null,
     reminderSourceMessageId: data?.disboard_bump_reminder_source_message_id ?? null,
     reminderUserId: data?.disboard_bump_reminder_user_id ?? null,
+  };
+}
+
+export async function getDisboardBumpReminderStatus(config: DiscordBotConfig): Promise<DisboardBumpReminderStatus> {
+  const settings = await getDisboardBumpSettings(config);
+  return {
+    channelId: settings.channelId,
+    dueAt: settings.reminderDueAt,
+    reminderUserId: settings.reminderUserId,
+    sourceMessageId: settings.reminderSourceMessageId,
+    timerArmed: Boolean(
+      bumpReminderTimer
+      && settings.reminderSourceMessageId
+      && scheduledBumpMessageId === settings.reminderSourceMessageId,
+    ),
   };
 }
 

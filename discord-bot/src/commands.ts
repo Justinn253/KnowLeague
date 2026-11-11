@@ -694,7 +694,10 @@ export const commandDefinitions = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((subcommand) => subcommand
       .setName('update-leave-info')
-      .setDescription('Backfill current members for future leave-information panels.')),
+      .setDescription('Backfill current members for future leave-information panels.'))
+    .addSubcommand((subcommand) => subcommand
+      .setName('disboard-reminder-status')
+      .setDescription('Show the configured and scheduled DISBOARD reminder state.')),
   new SlashCommandBuilder()
     .setName('xp')
     .setDescription('Manage Discord chat leveling XP.')

@@ -101,6 +101,13 @@ type StoredLevel = {
   level: number;
 };
 
+type StoredSingleUseInviteClaim = {
+  invite_code: string | null;
+  inviter_discord_user_id: string | null;
+  inviter_username: string | null;
+  status: 'ambiguous' | 'matched' | 'none';
+};
+
 let cachedSettings: { expiresAt: number; guildId: string; value: MemberLifecycleSettings } | null = null;
 const inviteCacheByGuildId = new Map<string, InviteCache>();
 const deletedInviteSnapshotsByGuildId = new Map<string, Map<string, DeletedInviteSnapshot>>();
@@ -653,13 +660,61 @@ export async function rememberDiscordInviteDeletion(config: DiscordBotConfig, in
     deletedInviteSnapshotsByGuildId.set(guild.id, deleted);
     pruneDeletedInviteSnapshots(guild.id, Date.now());
   });
+  const { error } = await createBotServiceClient(config).rpc('mark_discord_single_use_invite_deleted', {
+    p_guild_id: guild.id,
+    p_invite_code: invite.code,
+  });
+  if (error) throw new Error(`Unable to mark a Discord single-use invite as deleted: ${error.message}`);
 }
 
-export async function resolveDiscordJoinSource(config: DiscordBotConfig, guild: Guild): Promise<DiscordJoinSource> {
+export async function trackDiscordSingleUseInvite(config: DiscordBotConfig, invite: Invite) {
+  const guild = invite.guild;
+  if (!guild || guild.id !== config.guildId || invite.maxUses !== 1) return;
+  const { error } = await createBotServiceClient(config).rpc('record_discord_single_use_invite', {
+    p_created_at: (invite.createdAt ?? new Date()).toISOString(),
+    p_expires_at: invite.expiresAt?.toISOString() ?? null,
+    p_guild_id: guild.id,
+    p_invite_code: invite.code,
+    p_inviter_discord_user_id: invite.inviter?.id ?? null,
+    p_inviter_username: invite.inviter?.username ?? null,
+  });
+  if (error) throw new Error(`Unable to record a Discord single-use invite: ${error.message}`);
+}
+
+async function resolveStoredSingleUseInvite(config: DiscordBotConfig, member: GuildMember) {
+  try {
+    const { data, error } = await createBotServiceClient(config).rpc('claim_discord_single_use_invite', {
+      p_guild_id: member.guild.id,
+      p_joining_discord_user_id: member.id,
+    });
+    if (error) throw new Error(error.message);
+    const result = (Array.isArray(data) ? data[0] : data) as Partial<StoredSingleUseInviteClaim> | null;
+    if (result?.status === 'matched' && result.invite_code && result.inviter_discord_user_id) {
+      return {
+        kind: 'invite' as const,
+        inviteCode: result.invite_code,
+        inviterId: result.inviter_discord_user_id,
+        inviterUsername: result.inviter_username ?? null,
+      };
+    }
+    return result?.status === 'ambiguous' ? 'ambiguous' as const : null;
+  } catch (error) {
+    console.error(`Unable to resolve stored Discord single-use invite for joining member ${member.id}.`, error);
+    return null;
+  }
+}
+
+export async function resolveDiscordJoinSource(config: DiscordBotConfig, member: GuildMember): Promise<DiscordJoinSource> {
+  const guild = member.guild;
   if (guild.id !== config.guildId) return { kind: 'unknown' };
   return enqueueInviteCacheTask(guild.id, async () => {
     const previous = inviteCacheByGuildId.get(guild.id);
     if (!previous) {
+      const storedInvite = await resolveStoredSingleUseInvite(config, member);
+      if (storedInvite && storedInvite !== 'ambiguous') {
+        recordInviteResolution(guild.id, 'Matched stored single-use invite while the normal invite cache was unavailable');
+        return storedInvite;
+      }
       recordInviteResolution(guild.id, 'Unknown: the invite cache was not ready');
       return { kind: 'unknown' };
     }
@@ -714,6 +769,15 @@ export async function resolveDiscordJoinSource(config: DiscordBotConfig, guild: 
       if (retryDelay === INVITE_RESOLUTION_RETRY_DELAYS_MS[INVITE_RESOLUTION_RETRY_DELAYS_MS.length - 1]) {
         inviteCacheByGuildId.set(guild.id, current);
       }
+    }
+    const storedInvite = await resolveStoredSingleUseInvite(config, member);
+    if (storedInvite && storedInvite !== 'ambiguous') {
+      recordInviteResolution(guild.id, 'Matched the only eligible stored single-use invite');
+      return storedInvite;
+    }
+    if (storedInvite === 'ambiguous') {
+      recordInviteResolution(guild.id, 'Unknown: multiple stored single-use invites are eligible');
+      return { kind: 'unknown' };
     }
     recordInviteResolution(guild.id, 'Unknown: no active server invite use changed after retries');
     return { kind: 'unknown' };

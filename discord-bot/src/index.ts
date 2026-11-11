@@ -18,7 +18,7 @@ import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panel
 import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
 import { handleDisboardBump, restoreDisboardBumpReminder, startDisboardBumpReconciliation, stopDisboardBumpReminder } from './disboard.js';
-import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage } from './member-lifecycle.js';
+import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage, trackDiscordSingleUseInvite } from './member-lifecycle.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
 import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
@@ -94,8 +94,8 @@ client.once(Events.ClientReady, (readyClient) => {
   startMiningWebsitePanelDeliveryScheduler(config, guild);
   startDiscordSkindleShareScheduler(config, guild);
   void restoreDisboardBumpReminder(config, guild)
-    .then(() => startDisboardBumpReconciliation(config, guild))
-    .catch((error: unknown) => console.error('DISBOARD bump reminder restoration failed.', error));
+    .catch((error: unknown) => console.error('DISBOARD bump reminder restoration failed.', error))
+    .finally(() => startDisboardBumpReconciliation(config, guild));
   void refreshDiscordInviteCache(config, guild)
     .catch((error: unknown) => console.error('Discord invite cache initialization failed.', error));
   void syncDiscordGuildRoles(config, guild)
@@ -232,7 +232,7 @@ client.on(Events.GuildMemberRemove, (member) => {
 
 client.on(Events.GuildMemberAdd, (member) => {
   if (member.guild.id !== config.guildId) return;
-  void resolveDiscordJoinSource(config, member.guild)
+  void resolveDiscordJoinSource(config, member)
     .then((source) => handleDiscordMemberJoin(config, member, source))
     .catch((error: unknown) => console.error('Discord member join processing failed.', error));
 });
@@ -241,8 +241,9 @@ client.on(Events.InviteCreate, (invite) => {
   if (invite.guild?.id !== config.guildId) return;
   const guild = client.guilds.cache.get(config.guildId);
   if (!guild) return;
-  void refreshDiscordInviteCache(config, guild)
-    .catch((error: unknown) => console.error('Discord invite cache refresh failed.', error));
+  void trackDiscordSingleUseInvite(config, invite)
+    .then(() => refreshDiscordInviteCache(config, guild))
+    .catch((error: unknown) => console.error('Discord invite-create tracking failed.', error));
 });
 
 client.on(Events.InviteDelete, (invite) => {

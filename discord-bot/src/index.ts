@@ -17,8 +17,8 @@ import { startDiscordFishingScheduler } from './fishing.js';
 import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panels.js';
 import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
-import { handleDisboardBump, restoreDisboardBumpReminder, stopDisboardBumpReminder } from './disboard.js';
-import { handleDiscordMemberJoin, handleDiscordMemberLeave, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage } from './member-lifecycle.js';
+import { handleDisboardBump, restoreDisboardBumpReminder, startDisboardBumpReconciliation, stopDisboardBumpReminder } from './disboard.js';
+import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage } from './member-lifecycle.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
 import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
@@ -94,6 +94,7 @@ client.once(Events.ClientReady, (readyClient) => {
   startMiningWebsitePanelDeliveryScheduler(config, guild);
   startDiscordSkindleShareScheduler(config, guild);
   void restoreDisboardBumpReminder(config, guild)
+    .then(() => startDisboardBumpReconciliation(config, guild))
     .catch((error: unknown) => console.error('DISBOARD bump reminder restoration failed.', error));
   void refreshDiscordInviteCache(config, guild)
     .catch((error: unknown) => console.error('Discord invite cache initialization failed.', error));
@@ -166,6 +167,12 @@ client.on(Events.MessageUpdate, (_, message) => {
     return;
   }
   trackSnipeMessage(config, message);
+  void (message.partial ? message.fetch().catch(() => null) : Promise.resolve(message))
+    .then((updatedMessage) => {
+      if (!updatedMessage || !updatedMessage.inGuild() || updatedMessage.guildId !== config.guildId) return;
+      return handleDisboardBump(config, updatedMessage);
+    })
+    .catch((error: unknown) => console.error('DISBOARD bump update processing failed.', error));
 });
 
 client.on(Events.MessageBulkDelete, (messages) => {
@@ -212,7 +219,15 @@ client.on(Events.GuildMemberRemove, (member) => {
   void clearSkinCollection(config, member.id)
     .catch((error: unknown) => console.error('Discord member collection cleanup failed.', error));
   void handleDiscordMemberLeave(config, member)
-    .catch((error: unknown) => console.error('Discord member leave processing failed.', error));
+    .catch(async (error: unknown) => {
+      console.error('Discord member leave processing failed.', error);
+      try {
+        const posted = await postDiscordMemberLeaveFailure(config, member);
+        if (!posted) console.warn('Discord member leave fallback could not be posted because no usable leave channel is configured.');
+      } catch (fallbackError) {
+        console.error('Discord member leave fallback failed.', fallbackError);
+      }
+    });
 });
 
 client.on(Events.GuildMemberAdd, (member) => {
@@ -234,7 +249,8 @@ client.on(Events.InviteDelete, (invite) => {
   if (invite.guild?.id !== config.guildId) return;
   const guild = client.guilds.cache.get(config.guildId);
   if (!guild) return;
-  void refreshDiscordInviteCache(config, guild)
+  void rememberDiscordInviteDeletion(config, invite)
+    .then(() => refreshDiscordInviteCache(config, guild))
     .catch((error: unknown) => console.error('Discord invite cache refresh failed.', error));
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from 'discord.js';
 import type { DiscordBotConfig } from '../discord-bot/src/config';
-import { isDisboardBumpReminderCandidate, isDisboardBumpSuccessText, isSuccessfulDisboardBump } from '../discord-bot/src/disboard';
+import { isDisboardBumpSuccessText, isSuccessfulDisboardBump } from '../discord-bot/src/disboard';
 
 const GUILD_ID = '123456789012345678';
 const BUMP_CHANNEL_ID = '223456789012345678';
@@ -29,6 +29,7 @@ describe('DISBOARD bump confirmations', () => {
     } as unknown as Message, BUMP_CHANNEL_ID)).toBe(true);
     expect(isSuccessfulDisboardBump(config, disboardMessage('You can bump again in 2 hours.'), BUMP_CHANNEL_ID)).toBe(false);
     expect(isSuccessfulDisboardBump(config, disboardMessage('Bump done!', '323456789012345678'), BUMP_CHANNEL_ID)).toBe(false);
+    expect(isSuccessfulDisboardBump(config, disboardMessage('✅ <@123> bumped this server.'), BUMP_CHANNEL_ID)).toBe(true);
   });
 
   it('matches DISBOARD confirmation text without making cooldown messages eligible', () => {
@@ -36,14 +37,12 @@ describe('DISBOARD bump confirmations', () => {
     expect(isDisboardBumpSuccessText('A bump is available soon.')).toBe(false);
   });
 
-  it('can schedule an authenticated DISBOARD bump response when Discord redacts its content', () => {
-    const contentRedactedInteractionResponse = {
+  it('does not accept a generic authenticated DISBOARD interaction without a success confirmation', () => {
+    expect(isSuccessfulDisboardBump(config, {
       ...disboardMessage(''),
       applicationId: DISBOARD_BOT_ID,
       author: { id: '999999999999999999' },
       interaction: { commandName: 'bump' },
-    } as unknown as Message;
-    expect(isSuccessfulDisboardBump(config, contentRedactedInteractionResponse, BUMP_CHANNEL_ID)).toBe(false);
-    expect(isDisboardBumpReminderCandidate(config, contentRedactedInteractionResponse, BUMP_CHANNEL_ID)).toBe(true);
+    } as unknown as Message, BUMP_CHANNEL_ID)).toBe(false);
   });
 });

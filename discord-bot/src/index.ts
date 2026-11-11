@@ -94,8 +94,8 @@ client.once(Events.ClientReady, (readyClient) => {
   startMiningWebsitePanelDeliveryScheduler(config, guild);
   startDiscordSkindleShareScheduler(config, guild);
   void restoreDisboardBumpReminder(config, guild)
-    .then(() => startDisboardBumpReconciliation(config, guild))
-    .catch((error: unknown) => console.error('DISBOARD bump reminder restoration failed.', error));
+    .catch((error: unknown) => console.error('DISBOARD bump reminder restoration failed.', error))
+    .finally(() => startDisboardBumpReconciliation(config, guild));
   void refreshDiscordInviteCache(config, guild)
     .catch((error: unknown) => console.error('Discord invite cache initialization failed.', error));
   void syncDiscordGuildRoles(config, guild)

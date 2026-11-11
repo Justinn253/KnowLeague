@@ -2672,6 +2672,7 @@ async function handleTemporaryAdminCommand(interaction: ChatInputCommandInteract
       `Reminder user: ${status.reminderUserId ? `<@${status.reminderUserId}>` : 'Not configured'}`,
       scheduled,
       `This bot process timer: ${status.timerArmed ? 'armed' : 'not armed'}.`,
+      `Bump history reconciliation: ${status.reconciliationActive ? 'active' : 'not active'}.`,
       `Last DISBOARD observation: ${status.lastObservation ?? 'No matching message has been observed since this process started.'}`,
     ].join('\n'),
     allowedMentions: { parse: [] },

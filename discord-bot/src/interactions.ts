@@ -14,6 +14,7 @@ import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBuc
 import { importExternalMessageEmojis } from './emoji-import.js';
 import { importExternalMessageStickers } from './sticker-import.js';
 import { backfillDiscordMemberLeaveInfo } from './member-lifecycle.js';
+import { getDisboardBumpReminderStatus } from './disboard.js';
 import { findLinkedProfile } from './profiles.js';
 import {
   formatRiftboundMockTreatment,
@@ -2483,15 +2484,37 @@ async function handleStealStickerCommand(interaction: ChatInputCommandInteractio
 async function handleTemporaryAdminCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    await interaction.reply({ content: 'Only server administrators can use /temp update-leave-info.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Only server administrators can use /temp commands.', flags: MessageFlags.Ephemeral });
     return;
   }
-  if (interaction.options.getSubcommand(false) !== 'update-leave-info') return;
+  const subcommand = interaction.options.getSubcommand(false);
+  if (subcommand !== 'update-leave-info' && subcommand !== 'disboard-reminder-status') return;
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const updated = await backfillDiscordMemberLeaveInfo(config, interaction.guild);
+  if (subcommand === 'update-leave-info') {
+    const updated = await backfillDiscordMemberLeaveInfo(config, interaction.guild);
+    await interaction.editReply({
+      content: `Stored leave-information snapshots for **${formatXp(updated)}** current non-bot members. Invite sources are available for future joins; last-message links are retained when already known and recorded from now on.`,
+    });
+    return;
+  }
+
+  const status = await getDisboardBumpReminderStatus(config);
+  if (!status.channelId) {
+    await interaction.editReply({ content: 'No DISBOARD bump channel is configured. Set one in Discord Configuration → General.' });
+    return;
+  }
+  const scheduled = status.dueAt && status.sourceMessageId
+    ? `Scheduled for <t:${Math.floor(status.dueAt.getTime() / 1_000)}:F> (<t:${Math.floor(status.dueAt.getTime() / 1_000)}:R>) from message ID \`${status.sourceMessageId}\`.`
+    : 'No successful bump is currently scheduled.';
   await interaction.editReply({
-    content: `Stored leave-information snapshots for **${formatXp(updated)}** current non-bot members. Invite sources are available for future joins; last-message links are retained when already known and recorded from now on.`,
+    content: [
+      `Bump channel: <#${status.channelId}>`,
+      `Reminder user: ${status.reminderUserId ? `<@${status.reminderUserId}>` : 'Not configured'}`,
+      scheduled,
+      `This bot process timer: ${status.timerArmed ? 'armed' : 'not armed'}.`,
+    ].join('\n'),
+    allowedMentions: { parse: [] },
   });
 }
 

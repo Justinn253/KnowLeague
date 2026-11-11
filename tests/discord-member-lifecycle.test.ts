@@ -15,6 +15,7 @@ describe('Discord member lifecycle', () => {
     expect(command?.default_member_permissions).toBeDefined();
     expect(command?.options).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'update-leave-info', type: 1 }),
+      expect.objectContaining({ name: 'disboard-reminder-status', type: 1 }),
     ]));
   });
 });

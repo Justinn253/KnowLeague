@@ -594,7 +594,20 @@ export const commandDefinitions = [
       .addUserOption((option) => option
         .setName('user')
         .setDescription('Member whose invite count to show. Defaults to the top ten.')
-        .setRequired(false))),
+        .setRequired(false)))
+    .addSubcommand((subcommand) => subcommand
+      .setName('set-invite-count')
+      .setDescription('Set a member\'s current invite total. Administrator only.')
+      .addUserOption((option) => option
+        .setName('user')
+        .setDescription('Member whose invite total should be set.')
+        .setRequired(true))
+      .addIntegerOption((option) => option
+        .setName('count')
+        .setDescription('Current total invite count, from 0 to 1,000,000.')
+        .setMinValue(0)
+        .setMaxValue(1_000_000)
+        .setRequired(true))),
   new SlashCommandBuilder()
     .setName('knowbucks')
     .setDescription('View, pay, or manage KnowBucks.')

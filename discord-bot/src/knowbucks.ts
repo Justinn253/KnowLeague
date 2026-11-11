@@ -52,8 +52,7 @@ export type KnowBucksMessageRewardType =
   | 'message_lottery_25000'
   | 'message_lottery_50000'
   | 'message_lottery_250000'
-  | 'message_lottery_1000000'
-  | 'disboard_bump';
+  | 'message_lottery_1000000';
 
 const LEADERBOARD_CACHE_DURATION_MS = 30_000;
 const LEADERBOARD_MAX_MEMBER_SCAN = 500;

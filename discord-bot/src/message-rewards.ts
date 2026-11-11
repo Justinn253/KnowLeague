@@ -5,7 +5,7 @@ import { awardKnowBucksMessageReward, type KnowBucksMessageRewardType } from './
 
 export type MessageLotteryReward = {
   amount: number;
-  type: Exclude<KnowBucksMessageRewardType, 'disboard_bump'>;
+  type: KnowBucksMessageRewardType;
 };
 
 const MESSAGE_LOTTERY_REWARDS: readonly MessageLotteryReward[] = [

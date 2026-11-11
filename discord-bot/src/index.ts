@@ -17,7 +17,7 @@ import { startDiscordFishingScheduler } from './fishing.js';
 import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panels.js';
 import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
-import { handleDisboardBump, restoreDisboardBumpReminder, stopDisboardBumpReminder } from './disboard.js';
+import { handleDisboardBump, restoreDisboardBumpReminder, startDisboardBumpReconciliation, stopDisboardBumpReminder } from './disboard.js';
 import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage } from './member-lifecycle.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
@@ -94,6 +94,7 @@ client.once(Events.ClientReady, (readyClient) => {
   startMiningWebsitePanelDeliveryScheduler(config, guild);
   startDiscordSkindleShareScheduler(config, guild);
   void restoreDisboardBumpReminder(config, guild)
+    .then(() => startDisboardBumpReconciliation(config, guild))
     .catch((error: unknown) => console.error('DISBOARD bump reminder restoration failed.', error));
   void refreshDiscordInviteCache(config, guild)
     .catch((error: unknown) => console.error('Discord invite cache initialization failed.', error));
@@ -166,6 +167,12 @@ client.on(Events.MessageUpdate, (_, message) => {
     return;
   }
   trackSnipeMessage(config, message);
+  void (message.partial ? message.fetch().catch(() => null) : Promise.resolve(message))
+    .then((updatedMessage) => {
+      if (!updatedMessage || !updatedMessage.inGuild() || updatedMessage.guildId !== config.guildId) return;
+      return handleDisboardBump(config, updatedMessage);
+    })
+    .catch((error: unknown) => console.error('DISBOARD bump update processing failed.', error));
 });
 
 client.on(Events.MessageBulkDelete, (messages) => {

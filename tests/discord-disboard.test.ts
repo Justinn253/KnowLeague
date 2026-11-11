@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from 'discord.js';
 import type { DiscordBotConfig } from '../discord-bot/src/config';
-import { isDisboardBumpSuccessText, isSuccessfulDisboardBump } from '../discord-bot/src/disboard';
+import { isDisboardBumpReminderCandidate, isDisboardBumpSuccessText, isSuccessfulDisboardBump } from '../discord-bot/src/disboard';
 
 const GUILD_ID = '123456789012345678';
 const BUMP_CHANNEL_ID = '223456789012345678';
@@ -34,5 +34,16 @@ describe('DISBOARD bump confirmations', () => {
   it('matches DISBOARD confirmation text without making cooldown messages eligible', () => {
     expect(isDisboardBumpSuccessText('BUMP DONE')).toBe(true);
     expect(isDisboardBumpSuccessText('A bump is available soon.')).toBe(false);
+  });
+
+  it('can schedule an authenticated DISBOARD bump response when Discord redacts its content', () => {
+    const contentRedactedInteractionResponse = {
+      ...disboardMessage(''),
+      applicationId: DISBOARD_BOT_ID,
+      author: { id: '999999999999999999' },
+      interaction: { commandName: 'bump' },
+    } as unknown as Message;
+    expect(isSuccessfulDisboardBump(config, contentRedactedInteractionResponse, BUMP_CHANNEL_ID)).toBe(false);
+    expect(isDisboardBumpReminderCandidate(config, contentRedactedInteractionResponse, BUMP_CHANNEL_ID)).toBe(true);
   });
 });

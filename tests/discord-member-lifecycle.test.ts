@@ -3,6 +3,7 @@ import { serializedCommandDefinitions } from '../discord-bot/src/commands';
 import {
   buildDiscordLeaveFailurePanel,
   formatMemberLifecycleTemplate,
+  isSafeSingleUseUnavailableInviteMatch,
   parseInviteTrackerInvitedMembersCsv,
   parseInviteTrackerLeaderboardCsv,
 } from '../discord-bot/src/member-lifecycle';
@@ -60,6 +61,19 @@ describe('Discord member lifecycle', () => {
     ].join('\n'))).toEqual([
       { joinedAt: new Date('2026-11-01T12:00:00.000Z'), userId: '12345678901234567' },
     ]);
+  });
+
+  it('only treats one unavailable single-use invite in the join window as a fallback source', () => {
+    const joinedAt = Date.parse('2026-11-12T12:00:00.000Z');
+    const safeCandidate = {
+      createdAt: joinedAt - 60_000,
+      expiresAt: joinedAt + 60_000,
+      maxUses: 1,
+    };
+    expect(isSafeSingleUseUnavailableInviteMatch(safeCandidate, joinedAt, joinedAt + 4_000)).toBe(true);
+    expect(isSafeSingleUseUnavailableInviteMatch({ ...safeCandidate, maxUses: 2 }, joinedAt, joinedAt + 4_000)).toBe(false);
+    expect(isSafeSingleUseUnavailableInviteMatch({ ...safeCandidate, expiresAt: joinedAt - 6_000 }, joinedAt, joinedAt + 4_000)).toBe(false);
+    expect(isSafeSingleUseUnavailableInviteMatch(safeCandidate, joinedAt, joinedAt + 21_000)).toBe(false);
   });
 
   it('builds a generic leave-panel fallback without exposing internal errors', () => {

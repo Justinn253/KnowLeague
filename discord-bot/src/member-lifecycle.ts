@@ -25,8 +25,11 @@ type StoredMemberLifecycleSettings = {
 
 type InviteSnapshot = {
   code: string;
+  createdAt: number;
+  expiresAt: number | null;
   inviterId: string | null;
   inviterUsername: string | null;
+  maxUses: number;
   uses: number;
 };
 
@@ -74,6 +77,7 @@ export type InviteMemberImport = {
 export type DiscordInviteTrackingStatus = {
   activeInviteCount: number | null;
   cacheAgeMilliseconds: number | null;
+  canReceiveInviteEvents: boolean;
   canReadInviteUses: boolean;
   lastResolution: string | null;
 };
@@ -120,6 +124,8 @@ const pendingInviteAttributionsByGuildId = new Map<string, PendingInviteAttribut
 const lastInviteResolutionByGuildId = new Map<string, { at: number; detail: string }>();
 const DELETED_INVITE_FALLBACK_WINDOW_MS = 5 * 60_000;
 const PENDING_INVITE_ATTRIBUTION_WINDOW_MS = 30_000;
+const SINGLE_USE_INVITE_PRE_JOIN_GRACE_MS = 5_000;
+const SINGLE_USE_INVITE_POST_JOIN_WINDOW_MS = 20_000;
 const INVITE_RESOLUTION_RETRY_DELAYS_MS = [0, 1_000, 2_000, 4_000] as const;
 
 function enqueueInviteCacheTask<T>(guildId: string, task: () => Promise<T>) {
@@ -562,15 +568,22 @@ export async function trackDiscordMemberLastMessage(config: DiscordBotConfig, me
   if (error) throw new Error(`Unable to record Discord member last message: ${error.message}`);
 }
 
+function inviteSnapshotFromInvite(invite: Invite, previous?: InviteSnapshot): InviteSnapshot {
+  return {
+    code: invite.code,
+    createdAt: invite.createdAt?.getTime() ?? previous?.createdAt ?? Date.now(),
+    expiresAt: invite.expiresAt?.getTime() ?? previous?.expiresAt ?? null,
+    inviterId: invite.inviter?.id ?? previous?.inviterId ?? null,
+    inviterUsername: invite.inviter?.username ?? previous?.inviterUsername ?? null,
+    maxUses: invite.maxUses ?? previous?.maxUses ?? 0,
+    uses: invite.uses ?? previous?.uses ?? 0,
+  };
+}
+
 function inviteCacheFromGuild(invites: Awaited<ReturnType<Guild['invites']['fetch']>>, vanityUses: number | null): InviteCache {
   return {
     capturedAt: Date.now(),
-    invites: new Map([...invites.values()].map((invite) => [invite.code, {
-      code: invite.code,
-      inviterId: invite.inviter?.id ?? null,
-      inviterUsername: invite.inviter?.username ?? null,
-      uses: invite.uses ?? 0,
-    }])),
+    invites: new Map([...invites.values()].map((invite) => [invite.code, inviteSnapshotFromInvite(invite)])),
     vanityUses,
   };
 }
@@ -617,12 +630,7 @@ export async function rememberDiscordInviteCreation(config: DiscordBotConfig, in
   if (!guild || guild.id !== config.guildId) return;
   await enqueueInviteCacheTask(guild.id, async () => {
     const cache = inviteCacheByGuildId.get(guild.id);
-    const snapshot = {
-      code: invite.code,
-      inviterId: invite.inviter?.id ?? null,
-      inviterUsername: invite.inviter?.username ?? null,
-      uses: invite.uses ?? 0,
-    };
+    const snapshot = inviteSnapshotFromInvite(invite, cache?.invites.get(invite.code));
     if (!cache) {
       const pendingCreations = pendingInviteCreationsByGuildId.get(guild.id) ?? new Map<string, InviteSnapshot>();
       pendingCreations.set(invite.code, snapshot);
@@ -636,7 +644,13 @@ export async function rememberDiscordInviteCreation(config: DiscordBotConfig, in
 
 export async function getDiscordInviteTrackingStatus(config: DiscordBotConfig, guild: Guild): Promise<DiscordInviteTrackingStatus> {
   if (guild.id !== config.guildId) {
-    return { activeInviteCount: null, cacheAgeMilliseconds: null, canReadInviteUses: false, lastResolution: null };
+    return {
+      activeInviteCount: null,
+      cacheAgeMilliseconds: null,
+      canReceiveInviteEvents: false,
+      canReadInviteUses: false,
+      lastResolution: null,
+    };
   }
   const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
   const cache = inviteCacheByGuildId.get(guild.id);
@@ -644,6 +658,7 @@ export async function getDiscordInviteTrackingStatus(config: DiscordBotConfig, g
   return {
     activeInviteCount: cache?.invites.size ?? null,
     cacheAgeMilliseconds: cache ? Math.max(0, Date.now() - cache.capturedAt) : null,
+    canReceiveInviteEvents: Boolean(botMember?.permissions.has(PermissionFlagsBits.ManageChannels)),
     canReadInviteUses: Boolean(botMember?.permissions.has(PermissionFlagsBits.ManageGuild)),
     lastResolution: latest ? `${latest.detail} <t:${Math.floor(latest.at / 1_000)}:R>` : null,
   };
@@ -685,14 +700,36 @@ function takePendingInviteAttribution(guildId: string, now: number) {
   return attribution?.invite ?? null;
 }
 
-function takeDeletedInviteAttribution(guildId: string, previous: InviteCache, current: InviteCache, now: number) {
+export function isSafeSingleUseUnavailableInviteMatch(
+  invite: Pick<InviteSnapshot, 'createdAt' | 'expiresAt' | 'maxUses'>,
+  joinedAt: number,
+  unavailableAt: number,
+) {
+  return invite.maxUses === 1
+    && invite.createdAt <= joinedAt + SINGLE_USE_INVITE_PRE_JOIN_GRACE_MS
+    && (invite.expiresAt === null || invite.expiresAt >= joinedAt - SINGLE_USE_INVITE_PRE_JOIN_GRACE_MS)
+    && unavailableAt >= joinedAt - SINGLE_USE_INVITE_PRE_JOIN_GRACE_MS
+    && unavailableAt <= joinedAt + SINGLE_USE_INVITE_POST_JOIN_WINDOW_MS;
+}
+
+function takeDeletedInviteAttribution(
+  guildId: string,
+  previous: InviteCache,
+  current: InviteCache,
+  joinedAt: number,
+  now: number,
+) {
   pruneDeletedInviteSnapshots(guildId, now);
   const candidates = new Map<string, InviteSnapshot>();
   for (const invite of previous.invites.values()) {
-    if (!current.invites.has(invite.code)) candidates.set(invite.code, invite);
+    if (!current.invites.has(invite.code) && isSafeSingleUseUnavailableInviteMatch(invite, joinedAt, now)) {
+      candidates.set(invite.code, invite);
+    }
   }
   for (const deleted of deletedInviteSnapshotsByGuildId.get(guildId)?.values() ?? []) {
-    candidates.set(deleted.invite.code, deleted.invite);
+    if (isSafeSingleUseUnavailableInviteMatch(deleted.invite, joinedAt, deleted.deletedAt)) {
+      candidates.set(deleted.invite.code, deleted.invite);
+    }
   }
   if (candidates.size !== 1) return null;
   const invite = candidates.values().next().value as InviteSnapshot;
@@ -703,23 +740,19 @@ function takeDeletedInviteAttribution(guildId: string, previous: InviteCache, cu
 export async function rememberDiscordInviteDeletion(config: DiscordBotConfig, invite: Invite) {
   const guild = invite.guild;
   if (!guild || guild.id !== config.guildId) return;
+  const unavailableAt = Date.now();
   await enqueueInviteCacheTask(guild.id, async () => {
     const cache = inviteCacheByGuildId.get(guild.id);
     const previous = cache?.invites.get(invite.code);
     const deleted = deletedInviteSnapshotsByGuildId.get(guild.id) ?? new Map<string, DeletedInviteSnapshot>();
     deleted.set(invite.code, {
-      deletedAt: Date.now(),
-      invite: {
-        code: invite.code,
-        inviterId: invite.inviter?.id ?? previous?.inviterId ?? null,
-        inviterUsername: invite.inviter?.username ?? previous?.inviterUsername ?? null,
-        uses: invite.uses ?? previous?.uses ?? 0,
-      },
+      deletedAt: unavailableAt,
+      invite: inviteSnapshotFromInvite(invite, previous),
     });
     deletedInviteSnapshotsByGuildId.set(guild.id, deleted);
     cache?.invites.delete(invite.code);
     if (cache) cache.capturedAt = Date.now();
-    pruneDeletedInviteSnapshots(guild.id, Date.now());
+    pruneDeletedInviteSnapshots(guild.id, unavailableAt);
   });
   const { error } = await createBotServiceClient(config).rpc('mark_discord_single_use_invite_deleted', {
     p_guild_id: guild.id,
@@ -747,6 +780,7 @@ async function resolveStoredSingleUseInvite(config: DiscordBotConfig, member: Gu
     const { data, error } = await createBotServiceClient(config).rpc('claim_discord_single_use_invite', {
       p_guild_id: member.guild.id,
       p_joining_discord_user_id: member.id,
+      p_joined_at: memberJoinedAt(member).toISOString(),
     });
     if (error) throw new Error(error.message);
     const result = (Array.isArray(data) ? data[0] : data) as Partial<StoredSingleUseInviteClaim> | null;
@@ -763,6 +797,15 @@ async function resolveStoredSingleUseInvite(config: DiscordBotConfig, member: Gu
     console.error(`Unable to resolve stored Discord single-use invite for joining member ${member.id}.`, error);
     return null;
   }
+}
+
+async function markStoredSingleUseInviteConsumed(config: DiscordBotConfig, member: GuildMember, inviteCode: string) {
+  const { error } = await createBotServiceClient(config).rpc('consume_discord_single_use_invite', {
+    p_guild_id: member.guild.id,
+    p_invite_code: inviteCode,
+    p_joining_discord_user_id: member.id,
+  });
+  if (error) throw new Error(`Unable to mark a Discord single-use invite as consumed: ${error.message}`);
 }
 
 export async function resolveDiscordJoinSource(config: DiscordBotConfig, member: GuildMember): Promise<DiscordJoinSource> {
@@ -804,15 +847,24 @@ export async function resolveDiscordJoinSource(config: DiscordBotConfig, member:
         return { kind: 'vanity' };
       }
 
-      // One-use and expiring links can vanish instead of exposing an increased
-      // use count. A single vanished invite concurrent with this join is the
-      // best source Discord makes available, so retain its cached owner.
+      // Discord can remove a consumed one-use invite before a use-count
+      // increment is readable. Only use it as a fallback if it was active at
+      // this member's join, disappeared in the narrow join window, and is the
+      // sole candidate. Never match an active or merely recent invite.
       const now = Date.now();
       if (increasedInvites.length === 0) {
-        const deletedInvite = takeDeletedInviteAttribution(guild.id, previous, current, now);
+        const deletedInvite = takeDeletedInviteAttribution(
+          guild.id,
+          previous,
+          current,
+          memberJoinedAt(member).getTime(),
+          now,
+        );
         if (deletedInvite) {
           inviteCacheByGuildId.set(guild.id, current);
-          recordInviteResolution(guild.id, 'Matched a single-use or expired server invite');
+          await markStoredSingleUseInviteConsumed(config, member, deletedInvite.code)
+            .catch((error: unknown) => console.warn('Unable to persist a directly matched single-use invite consumption.', error));
+          recordInviteResolution(guild.id, 'Matched the sole single-use invite that became unavailable at this join');
           return inviteSource(deletedInvite);
         }
         const pendingInvite = takePendingInviteAttribution(guild.id, now);

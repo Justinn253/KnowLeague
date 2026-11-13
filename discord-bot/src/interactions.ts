@@ -2660,6 +2660,7 @@ async function handleTemporaryAdminCommand(interaction: ChatInputCommandInteract
     await interaction.editReply({
       content: [
         `Manage Server permission: ${status.canReadInviteUses ? 'available' : 'missing'}.`,
+        `Manage Channels permission: ${status.canReceiveInviteEvents ? 'available' : 'missing'} (it must also be allowed in every channel where invites can be created).`,
         status.activeInviteCount === null
           ? 'Invite cache: not loaded in this bot process.'
           : `Invite cache: ${formatXp(status.activeInviteCount)} active server invite${status.activeInviteCount === 1 ? '' : 's'} (${Math.floor((status.cacheAgeMilliseconds ?? 0) / 1_000)} seconds old).`,

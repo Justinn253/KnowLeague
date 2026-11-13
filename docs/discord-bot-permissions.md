@@ -11,9 +11,9 @@ Create or re-authorize the bot with these OAuth2 scopes:
 | `bot` | Adds the bot user to the server. |
 | `applications.commands` | Registers and serves KnowLeague's guild slash commands. |
 
-## Standard production bot role — select all nine
+## Standard production bot role — select all ten
 
-For the full current KnowLeague product, select these exact nine permissions in **OAuth2 > URL Generator** and grant them to the bot role in every configured KnowLeague channel. This is the recommended production grant; it covers Collections, leveling, member lifecycle and invite tracking, Fishing, Mining, Woodcutting, league captures, and external-expression imports without granting Administrator.
+For the full current KnowLeague product, select these exact ten permissions in **OAuth2 > URL Generator** and grant them to the bot role in every configured KnowLeague channel. **Manage Channels** must additionally apply to every channel where members may create server invites. This is the recommended production grant; it covers Collections, leveling, member lifecycle and invite tracking, Fishing, Mining, Woodcutting, league captures, and external-expression imports without granting Administrator.
 
 | # | Permission | Product behavior |
 | --- | --- | --- |
@@ -26,6 +26,7 @@ For the full current KnowLeague product, select these exact nine permissions in 
 | 7 | **Manage Roles** | Applies/removes chat, Fishing, and Mining level rewards plus Chat/Fishing/Mining top-player roles. The bot role must be above every role it manages. |
 | 8 | **Create Expressions** | Lets server administrators use `/steal-emoji` to import custom emoji. The server must have an available emoji slot. |
 | 9 | **Manage Server** | Reads invite use counts so member joins can be attributed to the invite that brought them in. It does not modify server settings. |
+| 10 | **Manage Channels** | Required by Discord for the bot to receive invite-create and invite-delete events from a channel. It does not modify channels in KnowLeague. |
 
 **Manage Expressions** is an acceptable alternative to **Create Expressions** for `/steal-emoji`; grant one of them, not both. The command itself accepts either permission.
 
@@ -53,12 +54,12 @@ Gateway intents are configured in the Discord Developer Portal under **Bot > Pri
 
 ## Not required
 
-Do **not** add these solely for KnowLeague: **Administrator**, **View Audit Log**, **Manage Channels**, **Manage Webhooks**, **Manage Events**, **Moderate Members**, **Add Reactions**, **Use External Emojis**, **Mention Everyone**, **Connect**, or **Speak**. The bot also does not need the Presence Intent.
+Do **not** add these solely for KnowLeague: **Administrator**, **View Audit Log**, **Manage Webhooks**, **Manage Events**, **Moderate Members**, **Add Reactions**, **Use External Emojis**, **Mention Everyone**, **Connect**, or **Speak**. The bot also does not need the Presence Intent.
 
 ## Recommended configuration checklist
 
 1. Invite/re-authorize with `bot` and `applications.commands`.
-2. Select and grant all **nine** permissions in the standard production table in every configured KnowLeague channel. Substitute **Manage Expressions** for **Create Expressions** only if preferred.
+2. Select and grant all **ten** permissions in the standard production table in every configured KnowLeague channel, including **Manage Channels** anywhere members can create server invites. Substitute **Manage Expressions** for **Create Expressions** only if preferred.
 3. Place the bot role above every role it is allowed to manage for level rewards or top-player roles.
 4. Add **Send Messages in Threads** only when a configured KnowLeague channel is a thread.
 5. Enable **Server Members Intent** and **Message Content Intent** in the Developer Portal; keep Presence disabled.

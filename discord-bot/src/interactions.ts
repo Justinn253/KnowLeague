@@ -4248,7 +4248,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
         return;
       }
       if (result.status === 'lost') {
-        await interaction.editReply({ content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.` });
+        await interaction.editReply({ content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned. You can level up your luck using /player shop.` });
         return;
       }
       if (result.status === 'active-drop') {
@@ -4925,7 +4925,7 @@ async function handleClaimedSkinActionButton(interaction: ButtonInteraction, con
     if (result.status === 'lost') {
       await interaction.editReply({
         components: [],
-        content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.`,
+        content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned. You can level up your luck using /player shop.`,
         embeds: [],
       });
       return true;
@@ -5007,7 +5007,7 @@ async function handleSkinCollectionActionButton(interaction: ButtonInteraction, 
       if (result.status === 'spawned') {
         notice = null;
       } else if (result.status === 'lost') {
-        notice = `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.`;
+        notice = `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned. You can level up your luck using /player shop.`;
       } else if (result.status === 'active-drop') {
         notice = 'A live skin drop already exists, so this skin was not consumed.';
       } else {

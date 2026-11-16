@@ -128,6 +128,7 @@ type ClaimedSkinDrop = {
   champion_name: string;
   claimed: boolean;
   claimed_at?: string | null;
+  claim_result?: 'already_claimed' | 'claimed' | 'collection_full' | 'expired' | 'reserved' | 'unavailable';
   collection_metadata?: CollectionMetadata;
   collection_tier?: number | null;
   collection_type?: CollectionSpawnType;
@@ -270,6 +271,7 @@ const DISCORD_DROP_IMAGE_FETCH_TIMEOUT_MS = 8_000;
 const DISCORD_DROP_IMAGE_MAXIMUM_BYTES = 8 * 1024 * 1024;
 const COLLECTION_IMAGE_SOURCE_HOSTS = new Set(['ddragon.leagueoflegends.com', 'raw.communitydragon.org']);
 const COLLECTION_UPKEEP_FREE_SKIN_COUNT = 10;
+const COLLECTION_FULL_CLAIM_NOTICE_RETENTION_MS = 60 * 60 * 1_000;
 export const COLLECTION_UPKEEP_ALLOCATION_MAXIMUM = 100_000;
 export const SKIN_CLAIM_ACTION_BUTTON_PREFIX = 'skin-claim-action';
 const RARITY_ALIASES: Record<string, string> = {
@@ -316,6 +318,7 @@ let timedDropInFlight: Promise<void> | null = null;
 let collectionUpkeepScheduler: NodeJS.Timeout | null = null;
 let collectionUpkeepInFlight: Promise<CollectionUpkeepSettlement[]> | null = null;
 const cachedDiscordDropImages = new Map<string, Buffer>();
+const collectionFullClaimNoticeExpiresByKey = new Map<string, number>();
 let cachedDiscordDropImageBytes = 0;
 
 function getFirstResult<T>(data: T | T[] | null) {
@@ -1404,6 +1407,21 @@ export function startDiscordSkinCollectionUpkeepScheduler(config: DiscordBotConf
     });
 }
 
+export function getCollectionFullClaimNotice() {
+  return 'Your collection is full, so you could not claim this drop. Use `/collections capacity-add slots` to buy more space, up to 50 slots.';
+}
+
+async function sendCollectionFullClaimNotice(user: User, messageId: string) {
+  const now = Date.now();
+  for (const [key, expiresAt] of collectionFullClaimNoticeExpiresByKey) {
+    if (expiresAt <= now) collectionFullClaimNoticeExpiresByKey.delete(key);
+  }
+  const noticeKey = `${messageId}:${user.id}`;
+  if ((collectionFullClaimNoticeExpiresByKey.get(noticeKey) ?? 0) > now) return;
+  collectionFullClaimNoticeExpiresByKey.set(noticeKey, now + COLLECTION_FULL_CLAIM_NOTICE_RETENTION_MS);
+  await user.send({ content: getCollectionFullClaimNotice() }).catch(() => undefined);
+}
+
 export async function handleSkinClaimReaction(
   config: DiscordBotConfig,
   reaction: MessageReaction | PartialMessageReaction,
@@ -1421,7 +1439,12 @@ export async function handleSkinClaimReaction(
   });
   if (error) throw new Error(`Unable to claim Discord skin drop: ${error.message}`);
   const claim = getFirstResult(data as ClaimedSkinDrop | ClaimedSkinDrop[] | null);
-  if (!claim?.claimed) return;
+  if (!claim?.claimed) {
+    if (claim?.claim_result === 'collection_full') {
+      await sendCollectionFullClaimNotice(resolvedUser, message.id);
+    }
+    return;
+  }
   const settings = await getSkinClaimSettings(config);
   const attachedImage = message.attachments.find((attachment) => attachment.name?.startsWith('collection-drop-'));
   const claimedAt = claim.claimed_at ?? new Date().toISOString();

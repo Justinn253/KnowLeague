@@ -3,7 +3,7 @@ import type { DiscordBotConfig } from './config.js';
 import { createBotServiceClient } from './supabase.js';
 
 const DISBOARD_BOT_ID = '302050872383242240';
-const DISBOARD_BUMP_REMINDER_DELAY_MS = 2 * 60 * 60 * 1_000;
+export const DISBOARD_BUMP_REMINDER_DELAY_MS = 90 * 60 * 1_000;
 const DISBOARD_RECONCILIATION_INTERVAL_MS = 30_000;
 const DISBOARD_RECONCILIATION_WINDOW_MS = 3 * 60 * 60 * 1_000;
 const DISBOARD_RECONCILIATION_MESSAGE_LIMIT = 25;
@@ -155,7 +155,7 @@ function armDisboardBumpReminder(config: DiscordBotConfig, channel: SendableChan
         }
         await channel.send({
           allowedMentions: { parse: [], users: [settings.reminderUserId] },
-          content: `<@${settings.reminderUserId}> It has been two hours since the last successful DISBOARD bump. You can use /bump again.`,
+          content: `<@${settings.reminderUserId}> It has been 1.5 hours since the last successful DISBOARD bump. You can use /bump again.`,
         });
       })
       .catch((error: unknown) => console.error('DISBOARD bump reminder failed.', error));

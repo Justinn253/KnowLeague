@@ -728,7 +728,7 @@ export function DiscordLevelingSettings() {
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>
               <h2 className="text-lg font-black text-white">DISBOARD bump reminder</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Choose the channel where DISBOARD confirms successful bumps. The existing 2,500 KnowBucks reward remains active for that channel. Optionally set one Discord user ID to receive a channel ping exactly two hours after each successful bump.</p>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Choose the channel where DISBOARD confirms successful bumps. The existing 2,500 KnowBucks reward remains active for that channel. Optionally set one Discord user ID to receive a channel ping exactly 1.5 hours after each successful bump.</p>
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <AppSelectMenu
@@ -737,7 +737,7 @@ export function DiscordLevelingSettings() {
                 onChange={(channelId) => updateSettings('disboardBumpChannelId', channelId || null)}
                 disabled={!data.channels.some((channel) => channel.sendable)}
                 disabledDescription="No sendable Discord text channels have been synced yet."
-                headerDescription="DISBOARD confirmations from this channel award KnowBucks. Adding a reminder user below enables the two-hour ping."
+                headerDescription="DISBOARD confirmations from this channel award KnowBucks. Adding a reminder user below enables the 1.5-hour ping."
                 searchable
                 searchPlaceholder="Type a channel name or ID"
                 options={[

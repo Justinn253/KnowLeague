@@ -5,7 +5,7 @@ import {
   getDiscordTotalXpForLevel,
   getDiscordXpRequiredForLevel,
 } from '@/lib/discord-leveling';
-import { renderLevelUpMessage } from '../discord-bot/src/leveling';
+import { isEligibleForDiscordMessageXp, renderLevelUpMessage } from '../discord-bot/src/leveling';
 
 describe('Discord chat leveling curve', () => {
   it('enables a safe default level-up announcement template', () => {
@@ -43,5 +43,20 @@ describe('Discord chat leveling curve', () => {
       { userId: '123456789012345678', username: 'KnowLeagueUser' },
       { current_level: 12, previous_level: 11, total_xp: 12_345 },
     )).toBe('Congratulations KnowLeagueUser; level 12 at 12,345 XP.');
+  });
+
+  it('skips chat XP for traditional dollar and dot-prefixed messages', () => {
+    const config = { guildId: '12345678901234567' } as never;
+    const message = (content: string) => ({
+      author: { bot: false },
+      content,
+      guildId: '12345678901234567',
+      inGuild: () => true,
+      system: false,
+    }) as never;
+
+    expect(isEligibleForDiscordMessageXp(config, message('A normal member message'))).toBe(true);
+    expect(isEligibleForDiscordMessageXp(config, message('$legacy-command'))).toBe(false);
+    expect(isEligibleForDiscordMessageXp(config, message('.legacy-command'))).toBe(false);
   });
 });

@@ -1,0 +1,94 @@
+KnowLeague Discord slash-command inventory
+==========================================
+
+Administrative means the command is restricted at execution time. “Configured
+staff role” is set in Discord Configuration; “Discord Administrator” requires
+the Discord Administrator permission. All other commands are member-facing.
+
+/league account | No
+/league account-link | No
+/league account-mine | No
+/league champion | No
+/league randodraft | No
+/league randodraft-vc | No
+/league skindle play | No
+/league skindle guess | No
+/league skindle status | No
+/riftbound shop | No
+/riftbound buy | No
+/riftbound open | No
+/riftbound inventory | No
+/help | No
+/rc | No
+/link | No
+/profile | No
+/player shop | No
+/player inventory | No
+/player stats | No
+/rob | No
+/fish help | No
+/fish expedition-set | No
+/fish expedition-progress | No
+/fish toggle-pings | No
+/fish shop | No
+/fish inventory | No
+/fish simulate | Yes — configured simulation role
+/fish catalogue | No
+/fish event-help | No
+/fish event-catalogue | No
+/mining expedition set | No
+/mining expedition view | No
+/mining expedition return | No
+/mining shop | No
+/mining inventory | No
+/mining simulate | Yes — configured simulation role
+/mining catalogue | No
+/mining sell | No
+/mining help | No
+/woodcutting claim | No
+/woodcutting hire | No
+/woodcutting craft-axe | No
+/woodcutting buy-saplings | No
+/woodcutting assign | No
+/woodcutting assign-auto | No
+/woodcutting craft-upgrade | No
+/woodcutting shop | No
+/woodcutting inventory | No
+/woodcutting catalogue | No
+/woodcutting help | No
+/collections collection | No
+/collections upkeep-view | No
+/collections upkeep-pay | No
+/collections give | No
+/collections spawn | Yes — configured staff role
+/collections summon | No
+/collections summon-force | No
+/collections capacity-add | No
+/collections capacity-force-add | Yes — configured staff role
+/collections steal | No
+/collections favorite | No
+/collections collection-reorder | No
+/collections gamble | No
+/collections search | No
+/collections sell | No
+/leaderboard | No
+/invite leaderboard | No
+/invite set-invite-count | Yes — Discord Administrator
+/knowbucks balance | No
+/knowbucks pay | No
+/knowbucks coinflip | No
+/knowbucks leaderboard | No
+/knowbucks add | Yes — configured staff role
+/knowbucks remove | Yes — configured staff role
+/knowbucks set | Yes — configured staff role
+/snipe | No
+/steal-emoji | Yes — Discord Administrator
+/steal-sticker | Yes — Discord Administrator
+/temp update-leave-info | Yes — Discord Administrator
+/temp disboard-reminder-status | Yes — Discord Administrator
+/temp invite-tracker-status | Yes — Discord Administrator
+/temp import-invite-leaderboard | Yes — Discord Administrator
+/temp import-invited-members | Yes — Discord Administrator
+/xp add | Yes — configured staff role
+/xp set-level | Yes — configured staff role
+/xp view | No

@@ -55,6 +55,8 @@ type StoredSettingsRow = {
   invite_join_message_channel_id: string | null;
   invite_join_message_template: string;
   leave_message_channel_id: string | null;
+  message_delete_log_channel_id: string | null;
+  message_edit_log_channel_id: string | null;
   leaderboard_top_role_id: string | null;
   level_up_message_enabled: boolean;
   level_up_message_channel_id: string | null;
@@ -180,6 +182,8 @@ type LevelingSettingsBody = {
   inviteJoinMessageChannelId?: unknown;
   inviteJoinMessageTemplate?: unknown;
   leaveMessageChannelId?: unknown;
+  messageDeleteLogChannelId?: unknown;
+  messageEditLogChannelId?: unknown;
   generalCommandChannelIds?: unknown;
   enabled?: unknown;
   leaderboardExcludedRoleIds?: unknown;
@@ -240,6 +244,8 @@ function toSettings(row: StoredSettingsRow | null): DiscordLevelingSettings {
     inviteJoinMessageChannelId: row.invite_join_message_channel_id,
     inviteJoinMessageTemplate: row.invite_join_message_template,
     leaveMessageChannelId: row.leave_message_channel_id,
+    messageDeleteLogChannelId: row.message_delete_log_channel_id,
+    messageEditLogChannelId: row.message_edit_log_channel_id,
     leaderboardTopRoleId: row.leaderboard_top_role_id,
     levelUpMessageEnabled: row.level_up_message_enabled,
     levelUpMessageChannelId: row.level_up_message_channel_id,
@@ -391,7 +397,7 @@ async function getLevelingData(guildId: string) {
     minigameSimulationRolesResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
-      .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id, disboard_bump_channel_id, disboard_bump_reminder_user_id, invite_join_message_channel_id, invite_join_message_template, welcome_join_message_channel_id, welcome_join_message_template, leave_message_channel_id')
+      .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id, disboard_bump_channel_id, disboard_bump_reminder_user_id, invite_join_message_channel_id, invite_join_message_template, welcome_join_message_channel_id, welcome_join_message_template, leave_message_channel_id, message_delete_log_channel_id, message_edit_log_channel_id')
       .eq('guild_id', guildId)
       .maybeSingle<StoredSettingsRow>(),
     supabase.from('discord_guild_roles')
@@ -829,6 +835,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const welcomeJoinMessageChannelId = parseOptionalSnowflake(body.welcomeJoinMessageChannelId, 'Welcome-message channel ID');
     const welcomeJoinMessageTemplate = parseRequiredMemberLifecycleMessageTemplate(body.welcomeJoinMessageTemplate, 'Welcome message');
     const leaveMessageChannelId = parseOptionalSnowflake(body.leaveMessageChannelId, 'Leave-message channel ID');
+    const messageDeleteLogChannelId = parseOptionalSnowflake(body.messageDeleteLogChannelId, 'Deleted-message log channel ID');
+    const messageEditLogChannelId = parseOptionalSnowflake(body.messageEditLogChannelId, 'Edited-message log channel ID');
     const leaderboardTopRoleId = parseOptionalSnowflake(body.leaderboardTopRoleId, 'Leaderboard top role');
     const manualXpRoleIds = parseRoleIds(body.manualXpRoleIds, 'manual XP staff roles', 25);
     const collectionAdminRoleIds = parseRoleIds(body.collectionAdminRoleIds, 'collection admin roles', 25);
@@ -1029,6 +1037,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
         invite_join_message_channel_id: inviteJoinMessageChannelId,
         invite_join_message_template: inviteJoinMessageTemplate,
         leave_message_channel_id: leaveMessageChannelId,
+        message_delete_log_channel_id: messageDeleteLogChannelId,
+        message_edit_log_channel_id: messageEditLogChannelId,
         welcome_join_message_channel_id: welcomeJoinMessageChannelId,
         welcome_join_message_template: welcomeJoinMessageTemplate,
       })

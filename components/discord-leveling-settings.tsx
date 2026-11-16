@@ -619,7 +619,7 @@ export function DiscordLevelingSettings() {
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>
               <h2 className="text-lg font-black text-white">Welcome and leave messages</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Welcome messages are separate from invite tracking. Leave panels preserve the member’s roles, join source, join date, chat level, and most recently observed message link without storing message content.</p>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Welcome messages are separate from invite tracking. Leave panels preserve the member’s roles, join source, join date, chat level, and verified departure reason without storing message content.</p>
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
               <AppSelectMenu
@@ -660,6 +660,45 @@ export function DiscordLevelingSettings() {
                 menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
               />
             </div>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Message activity logs</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Choose where deleted and edited member messages are posted. Bot messages are never logged. KnowLeague keeps message text only in its bounded in-memory cache, never in Supabase; logs can include messages sent within the prior hour.</p>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <AppSelectMenu
+                label="Deleted-message log channel"
+                value={data.settings.messageDeleteLogChannelId ?? ''}
+                onChange={(channelId) => updateSettings('messageDeleteLogChannelId', channelId || null)}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="Post a red moderation panel for deleted member messages. Bulk deletions first list the affected members, then post one panel for each cached human message. Panels identify self-deletions, bans, bulk purges, or the recorded moderator when Discord exposes it."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: '', label: 'No deleted-message log channel', description: 'Deleted member messages are not posted anywhere.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+              <AppSelectMenu
+                label="Edited-message log channel"
+                value={data.settings.messageEditLogChannelId ?? ''}
+                onChange={(channelId) => updateSettings('messageEditLogChannelId', channelId || null)}
+                disabled={!data.channels.some((channel) => channel.sendable)}
+                disabledDescription="No sendable Discord text channels have been synced yet."
+                headerDescription="Post an amber panel showing the cached text before an edit and the current text after it."
+                searchable
+                searchPlaceholder="Type a channel name or ID"
+                options={[
+                  { value: '', label: 'No edited-message log channel', description: 'Edited member messages are not posted anywhere.' },
+                  ...data.channels.filter((channel) => channel.sendable).map((channel) => ({ value: channel.id, label: `#${channel.name}`, description: `Discord channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">For exact kick, ban, moderator-delete, and bulk-purge attribution, grant the bot Discord’s View Audit Log permission. Without it, the panel clearly marks a deletion reason as unavailable instead of guessing.</p>
           </section>
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>

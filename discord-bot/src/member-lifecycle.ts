@@ -1,4 +1,5 @@
 import { EmbedBuilder, PermissionFlagsBits, type Guild, type GuildMember, type Invite, type Message, type PartialGuildMember } from 'discord.js';
+import { resolveDiscordMemberLeaveReason, type DiscordAuditReason } from './audit-log-reasons.js';
 import type { DiscordBotConfig } from './config.js';
 import { getDiscordLevelProgress } from './leveling.js';
 import { createBotServiceClient } from './supabase.js';
@@ -94,9 +95,6 @@ type StoredLeaveSnapshot = {
   inviter_username: string | null;
   joined_at: string;
   join_source: 'invite' | 'vanity' | 'unknown';
-  last_message_at: string | null;
-  last_message_channel_id: string | null;
-  last_message_id: string | null;
   role_snapshot: unknown;
 };
 
@@ -386,7 +384,33 @@ function joinSourceLabel(source: DiscordJoinSource) {
   return 'an unknown source';
 }
 
-async function sendLifecycleMessage(guild: Guild, channelId: string | null, content: string, mentionedUserId: string) {
+function joinSourceSubtitle(source: DiscordJoinSource, inviteCount: number | null) {
+  if (source.kind === 'invite') {
+    const inviteTotal = inviteCount === null
+      ? ''
+      : ` · They now have ${inviteCount} invite${inviteCount === 1 ? '' : 's'}`;
+    return `Joined via invite from ${joinSourceLabel(source)}${inviteTotal}`;
+  }
+  if (source.kind === 'vanity') return 'Joined via the server vanity URL';
+  return 'Join source: unknown';
+}
+
+export function buildDiscordJoinPanel(content: string, source: DiscordJoinSource, inviteCount: number | null = null) {
+  return new EmbedBuilder()
+    .setColor(0x57F287)
+    .setDescription(content)
+    .setFooter({ text: joinSourceSubtitle(source, inviteCount) });
+}
+
+async function sendLifecycleJoinPanel(
+  guild: Guild,
+  channelId: string | null,
+  content: string,
+  mentionedUserId: string,
+  source: DiscordJoinSource,
+  inviteCount: number | null,
+  shouldMentionMember: boolean,
+) {
   if (!channelId) return;
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased() || !channel.isSendable()) {
@@ -395,7 +419,8 @@ async function sendLifecycleMessage(guild: Guild, channelId: string | null, cont
   }
   await channel.send({
     allowedMentions: { parse: [], users: [mentionedUserId] },
-    content,
+    content: shouldMentionMember ? `<@${mentionedUserId}>` : undefined,
+    embeds: [buildDiscordJoinPanel(content, source, inviteCount)],
   });
 }
 
@@ -422,13 +447,16 @@ export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: 
   const settings = await getMemberLifecycleSettings(config);
   const userMention = `<@${member.id}>`;
   await Promise.all([
-    sendLifecycleMessage(
+    sendLifecycleJoinPanel(
       member.guild,
       settings.welcomeJoinMessageChannelId,
       formatMemberLifecycleTemplate(settings.welcomeJoinMessageTemplate, { user: userMention }),
       member.id,
+      source,
+      source.kind === 'invite' ? inviteCount : null,
+      true,
     ),
-    sendLifecycleMessage(
+    sendLifecycleJoinPanel(
       member.guild,
       settings.inviteJoinMessageChannelId,
       formatMemberLifecycleTemplate(settings.inviteJoinMessageTemplate, {
@@ -437,6 +465,9 @@ export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: 
         user: userMention,
       }),
       member.id,
+      source,
+      source.kind === 'invite' ? inviteCount : null,
+      false,
     ),
   ]);
 }
@@ -463,13 +494,14 @@ function truncate(value: string, maximum: number) {
   return value.length <= maximum ? value : `${value.slice(0, Math.max(0, maximum - 1))}…`;
 }
 
-function buildLeavePanel(guild: Guild, member: GuildMember | PartialGuildMember, snapshot: StoredLeaveSnapshot) {
+export function buildDiscordLeavePanel(
+  member: GuildMember | PartialGuildMember,
+  snapshot: StoredLeaveSnapshot,
+  leaveReason: DiscordAuditReason,
+) {
   const joinedAtSeconds = Math.floor(new Date(snapshot.joined_at).getTime() / 1_000);
   const roles = deserializeRoles(snapshot.role_snapshot);
   const roleText = roles.length ? roles.map((role) => `<@&${role.id}>`).join(' · ') : 'No roles beyond @everyone';
-  const lastMessage = snapshot.last_message_id && snapshot.last_message_channel_id
-    ? `[Open message](https://discord.com/channels/${guild.id}/${snapshot.last_message_channel_id}/${snapshot.last_message_id})${snapshot.last_message_at ? ` · <t:${Math.floor(new Date(snapshot.last_message_at).getTime() / 1_000)}:R>` : ''}`
-    : 'Not available (the bot had not yet observed a message)';
   return new EmbedBuilder()
     .setColor(0xEF4444)
     .setTitle('Member left')
@@ -477,7 +509,7 @@ function buildLeavePanel(guild: Guild, member: GuildMember | PartialGuildMember,
     .addFields(
       { name: 'Joined server', value: `<t:${joinedAtSeconds}:F> · <t:${joinedAtSeconds}:R>`, inline: true },
       { name: 'Chat XP level', value: String(snapshot.chat_xp_level), inline: true },
-      { name: 'Last observed message', value: lastMessage, inline: false },
+      { name: leaveReason.label, value: truncate(leaveReason.detail, 1_024), inline: false },
       { name: `Roles (${roles.length})`, value: truncate(roleText, 1_024), inline: false },
     )
     .setTimestamp();
@@ -516,8 +548,9 @@ export async function handleDiscordMemberLeave(config: DiscordBotConfig, member:
   // Resolve the configured destination first. This also caches it so the
   // guarded fallback can still post if a later database write fails.
   const settings = await getMemberLifecycleSettings(config);
-  const [identity, level] = await Promise.all([
+  const [identity, leaveReason, level] = await Promise.all([
     Promise.resolve(memberIdentity(member)),
+    resolveDiscordMemberLeaveReason(member.guild, member.id),
     getDiscordLevelProgress(config, member.id)
       .then((progress) => progress.level)
       .catch((error: unknown) => {
@@ -546,7 +579,7 @@ export async function handleDiscordMemberLeave(config: DiscordBotConfig, member:
   }
   await channel.send({
     allowedMentions: { parse: [] },
-    embeds: [buildLeavePanel(member.guild, member, snapshot)],
+    embeds: [buildDiscordLeavePanel(member, snapshot, leaveReason)],
   });
 }
 

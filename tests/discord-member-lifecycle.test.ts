@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
 import {
+  buildDiscordJoinPanel,
+  buildDiscordLeavePanel,
   buildDiscordLeaveFailurePanel,
   formatMemberLifecycleTemplate,
   isSafeSingleUseUnavailableInviteMatch,
@@ -14,6 +16,19 @@ describe('Discord member lifecycle', () => {
       '**{user}** joined through {inviter} ({inviteCount}). {unknown}',
       { inviteCount: 7, inviter: 'Inviter', user: '<@123>' },
     )).toBe('**<@123>** joined through Inviter (7). {unknown}');
+  });
+
+  it('renders a headerless join panel with the configured message and join source as subtext', () => {
+    const panel = buildDiscordJoinPanel('Welcome <@123>!', {
+      kind: 'invite',
+      inviteCode: 'abc123',
+      inviterId: '12345678901234567',
+      inviterUsername: 'Inviter',
+    }, 7).toJSON();
+    expect(panel.title).toBeUndefined();
+    expect(panel.author).toBeUndefined();
+    expect(panel.description).toBe('Welcome <@123>!');
+    expect(panel.footer?.text).toBe('Joined via invite from Inviter · They now have 7 invites');
   });
 
   it('registers the temporary leave-information backfill as an administrator command', () => {
@@ -84,5 +99,29 @@ describe('Discord member lifecycle', () => {
     expect(panel.title).toBe('Member left - details unavailable');
     expect(panel.description).toContain('<@12345678901234567>');
     expect(panel.description).not.toContain('Supabase');
+  });
+
+  it('shows a verified leave reason without exposing the last observed message', () => {
+    const panel = buildDiscordLeavePanel({
+      id: '12345678901234567',
+      user: { username: 'DepartedMember' },
+    } as never, {
+      chat_xp_level: 8,
+      invite_code: 'welcome',
+      inviter_discord_user_id: '12345678901234568',
+      inviter_username: 'Inviter',
+      joined_at: '2026-11-01T00:00:00.000Z',
+      join_source: 'invite',
+      role_snapshot: [],
+    } as never, {
+      label: 'Kicked',
+      detail: 'Action by <@12345678901234569> (Moderator).',
+    }).toJSON();
+    expect(panel.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Kicked' }),
+    ]));
+    expect(panel.fields).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Last observed message' }),
+    ]));
   });
 });

@@ -341,6 +341,15 @@ export const commandDefinitions = [
     .setName('profile')
     .setDescription('View your linked KnowLeague profile.'),
   new SlashCommandBuilder()
+    .setName('dice-roll')
+    .setDescription('Roll a number from 1 to an upper limit.')
+    .addIntegerOption((option) => option
+      .setName('upper-limit')
+      .setDescription('Highest number that can be rolled.')
+      .setMinValue(2)
+      .setMaxValue(1_000_000)
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName('player')
     .setDescription('Browse your player progression, shared skills, and shop.')
     .addSubcommand((subcommand) => subcommand
@@ -711,37 +720,6 @@ export const commandDefinitions = [
       .setMinLength(17)
       .setMaxLength(200)
       .setRequired(true)),
-  new SlashCommandBuilder()
-    .setName('temp')
-    .setDescription('Temporary server-administration tools.')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand((subcommand) => subcommand
-      .setName('update-leave-info')
-      .setDescription('Backfill current members for future leave-information panels.'))
-    .addSubcommand((subcommand) => subcommand
-      .setName('disboard-reminder-status')
-      .setDescription('Show the configured and scheduled DISBOARD reminder state.'))
-    .addSubcommand((subcommand) => subcommand
-      .setName('invite-tracker-status')
-      .setDescription('Show invite-attribution cache and permission status.'))
-    .addSubcommand((subcommand) => subcommand
-      .setName('import-invite-leaderboard')
-      .setDescription('Reconcile Invite Tracker totals from its /exportleaderboard invites CSV.')
-      .addAttachmentOption((option) => option
-        .setName('csv')
-        .setDescription('The Invite Tracker invite-leaderboard CSV export.')
-        .setRequired(true)))
-    .addSubcommand((subcommand) => subcommand
-      .setName('import-invited-members')
-      .setDescription('Import a member list so future leaves reduce the correct inviter total.')
-      .addUserOption((option) => option
-        .setName('inviter')
-        .setDescription('The inviter who owns the exported invited-members list.')
-        .setRequired(true))
-      .addAttachmentOption((option) => option
-        .setName('csv')
-        .setDescription('The Invite Tracker /exportinvitedlist CSV for that inviter.')
-        .setRequired(true))),
   new SlashCommandBuilder()
     .setName('xp')
     .setDescription('Manage Discord chat leveling XP.')

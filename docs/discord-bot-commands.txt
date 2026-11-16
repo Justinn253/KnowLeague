@@ -4,6 +4,8 @@ KnowLeague Discord slash-command inventory
 Administrative means the command is restricted at execution time. “Configured
 staff role” is set in Discord Configuration; “Discord Administrator” requires
 the Discord Administrator permission. All other commands are member-facing.
+`hidden=true` means the command response is private to the sending member and
+can be used in any channel where that member may use application commands.
 
 /league account | No
 /league account-link | No
@@ -19,9 +21,10 @@ the Discord Administrator permission. All other commands are member-facing.
 /riftbound open | No
 /riftbound inventory | No
 /help | No
+/dice-roll upper-limit | No
 /rc | No
-/link | No
-/profile | No
+/link | No | hidden=true
+/profile | No | hidden=true
 /player shop | No
 /player inventory | No
 /player stats | No
@@ -60,11 +63,11 @@ the Discord Administrator permission. All other commands are member-facing.
 /collections upkeep-view | No
 /collections upkeep-pay | No
 /collections give | No
-/collections spawn | Yes — configured staff role
+/collections spawn | Yes — configured staff role | hidden=true
 /collections summon | No
 /collections summon-force | No
 /collections capacity-add | No
-/collections capacity-force-add | Yes — configured staff role
+/collections capacity-force-add | Yes — configured staff role | hidden=true
 /collections steal | No
 /collections favorite | No
 /collections collection-reorder | No
@@ -73,22 +76,17 @@ the Discord Administrator permission. All other commands are member-facing.
 /collections sell | No
 /leaderboard | No
 /invite leaderboard | No
-/invite set-invite-count | Yes — Discord Administrator
+/invite set-invite-count | Yes — Discord Administrator | hidden=true
 /knowbucks balance | No
 /knowbucks pay | No
 /knowbucks coinflip | No
 /knowbucks leaderboard | No
-/knowbucks add | Yes — configured staff role
-/knowbucks remove | Yes — configured staff role
-/knowbucks set | Yes — configured staff role
+/knowbucks add | Yes — configured staff role | hidden=true
+/knowbucks remove | Yes — configured staff role | hidden=true
+/knowbucks set | Yes — configured staff role | hidden=true
 /snipe | No
-/steal-emoji | Yes — Discord Administrator
-/steal-sticker | Yes — Discord Administrator
-/temp update-leave-info | Yes — Discord Administrator
-/temp disboard-reminder-status | Yes — Discord Administrator
-/temp invite-tracker-status | Yes — Discord Administrator
-/temp import-invite-leaderboard | Yes — Discord Administrator
-/temp import-invited-members | Yes — Discord Administrator
-/xp add | Yes — configured staff role
-/xp set-level | Yes — configured staff role
+/steal-emoji | Yes — Discord Administrator | hidden=true
+/steal-sticker | Yes — Discord Administrator | hidden=true
+/xp add | Yes — configured staff role | hidden=true
+/xp set-level | Yes — configured staff role | hidden=true
 /xp view | No

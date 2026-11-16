@@ -12,7 +12,6 @@ const DISBOARD_MESSAGE_SETTLE_DELAY_MS = 3_000;
 let bumpReminderTimer: NodeJS.Timeout | null = null;
 let bumpReconciliationTimer: NodeJS.Timeout | null = null;
 let scheduledBumpMessageId: string | null = null;
-let lastDisboardObservation: { at: number; detail: string } | null = null;
 
 type DisboardBumpSettings = {
   channelId: string | null;
@@ -29,22 +28,6 @@ type StoredDisboardBumpSettingsRow = {
   disboard_bump_reminder_source_message_id: string | null;
   disboard_bump_reminder_user_id: string | null;
 };
-
-export type DisboardBumpReminderStatus = {
-  channelId: string | null;
-  confirmationMessageId: string | null;
-  dueAt: Date | null;
-  lastObservation: string | null;
-  reconciliationActive: boolean;
-  reminderUserId: string | null;
-  sourceMessageId: string | null;
-  timerSourceMessageId: string | null;
-  timerArmed: boolean;
-};
-
-function recordDisboardObservation(detail: string) {
-  lastDisboardObservation = { at: Date.now(), detail };
-}
 
 function isDisboardMessage(message: Message) {
   return message.author.id === DISBOARD_BOT_ID
@@ -105,27 +88,6 @@ async function getDisboardBumpSettings(config: DiscordBotConfig): Promise<Disboa
     reminderDueAt: data?.disboard_bump_reminder_due_at ? new Date(data.disboard_bump_reminder_due_at) : null,
     reminderSourceMessageId: data?.disboard_bump_reminder_source_message_id ?? null,
     reminderUserId: data?.disboard_bump_reminder_user_id ?? null,
-  };
-}
-
-export async function getDisboardBumpReminderStatus(config: DiscordBotConfig): Promise<DisboardBumpReminderStatus> {
-  const settings = await getDisboardBumpSettings(config);
-  return {
-    channelId: settings.channelId,
-    confirmationMessageId: settings.confirmationMessageId,
-    dueAt: settings.reminderDueAt,
-    lastObservation: lastDisboardObservation
-      ? `${lastDisboardObservation.detail} <t:${Math.floor(lastDisboardObservation.at / 1_000)}:R>`
-      : null,
-    reconciliationActive: bumpReconciliationTimer !== null,
-    reminderUserId: settings.reminderUserId,
-    sourceMessageId: settings.reminderSourceMessageId,
-    timerSourceMessageId: bumpReminderTimer ? scheduledBumpMessageId : null,
-    timerArmed: Boolean(
-      bumpReminderTimer
-      && settings.reminderSourceMessageId
-      && scheduledBumpMessageId === settings.reminderSourceMessageId,
-    ),
   };
 }
 
@@ -216,13 +178,9 @@ export async function handleDisboardBump(config: DiscordBotConfig, message: Mess
   const settings = await getDisboardBumpSettings(config);
   if (!settings.channelId || settledMessage.channelId !== settings.channelId) return false;
   if (!settledMessage.channel.isSendable()) {
-    recordDisboardObservation('DISBOARD message detected, but the configured channel is not sendable');
     return false;
   }
   const scheduled = await scheduleDisboardBumpReminder(config, settledMessage.channel, settledMessage);
-  recordDisboardObservation(scheduled
-    ? 'DISBOARD message detected and reminder scheduled'
-    : 'DISBOARD message was already recorded');
   return scheduled;
 }
 

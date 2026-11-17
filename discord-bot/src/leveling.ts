@@ -562,6 +562,48 @@ export async function syncDiscordGuildTextChannels(config: DiscordBotConfig, gui
   }
 }
 
+/** Stores selectable voice-channel metadata for temporary-voice configuration. */
+export async function syncDiscordGuildVoiceChannels(config: DiscordBotConfig, guild: Guild) {
+  if (guild.id !== config.guildId) return;
+
+  const [botMember, channels] = await Promise.all([guild.members.fetchMe(), guild.channels.fetch()]);
+  const channelRows = channels
+    .filter((channel) => channel?.type === ChannelType.GuildVoice)
+    .map((channel) => {
+      const permissions = channel!.permissionsFor(botMember);
+      return {
+        category_id: channel!.parentId,
+        channel_id: channel!.id,
+        channel_name: channel!.name.slice(0, 100),
+        guild_id: guild.id,
+        manageable: Boolean(permissions?.has([
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ManageChannels,
+          PermissionFlagsBits.MoveMembers,
+        ])),
+        position: channel!.rawPosition,
+        updated_at: new Date().toISOString(),
+      };
+    });
+  const supabase = createBotServiceClient(config);
+  const { error: settingsError } = await supabase
+    .from('discord_leveling_settings')
+    .upsert({ guild_id: guild.id }, { onConflict: 'guild_id', ignoreDuplicates: true });
+  if (settingsError) throw new Error(`Unable to initialize Discord voice-channel metadata: ${settingsError.message}`);
+
+  const { error: deleteError } = await supabase
+    .from('discord_guild_voice_channels')
+    .delete()
+    .eq('guild_id', guild.id);
+  if (deleteError) throw new Error(`Unable to replace Discord voice-channel metadata: ${deleteError.message}`);
+  if (channelRows.length > 0) {
+    const { error: upsertError } = await supabase
+      .from('discord_guild_voice_channels')
+      .upsert(channelRows, { onConflict: 'guild_id,channel_id' });
+    if (upsertError) throw new Error(`Unable to save Discord voice-channel metadata: ${upsertError.message}`);
+  }
+}
+
 export async function grantEligibleLevelRoles(config: DiscordBotConfig, member: GuildMember, level: number) {
   const rewards = await getConfiguredLevelRewards(config);
   const missingRoleIds = rewards

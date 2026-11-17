@@ -10,8 +10,10 @@ import {
   resetBannedMemberXp,
   syncDiscordGuildRoles,
   syncDiscordGuildTextChannels,
+  syncDiscordGuildVoiceChannels,
   syncDiscordLeaderboardRole,
 } from './leveling.js';
+import { forgetDiscordTemporaryVoiceChannel, handleDiscordTemporaryVoiceStateUpdate, reconcileDiscordTemporaryVoiceChannels } from './temporary-voice-channels.js';
 import { attemptSkinClaimDropFromMessage, clearSkinCollection, handleSkinClaimReaction, startDiscordSkinClaimScheduler, startDiscordSkinCollectionUpkeepScheduler } from './skin-claims.js';
 import { startDiscordFishingScheduler } from './fishing.js';
 import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panels.js';
@@ -102,9 +104,14 @@ client.once(Events.ClientReady, (readyClient) => {
   void refreshDiscordInviteCache(config, guild)
     .catch((error: unknown) => console.error('Discord invite cache initialization failed.', error));
   void syncDiscordGuildRoles(config, guild)
-    .then(() => syncDiscordGuildTextChannels(config, guild))
+    .then(() => Promise.all([
+      syncDiscordGuildTextChannels(config, guild),
+      syncDiscordGuildVoiceChannels(config, guild),
+    ]))
     .then(() => syncDiscordLeaderboardRole(config, guild))
     .catch((error: unknown) => console.error('Discord role synchronization failed.', error));
+  void reconcileDiscordTemporaryVoiceChannels(config, guild)
+    .catch((error: unknown) => console.error('Discord temporary voice-channel reconciliation failed.', error));
   voiceXpInitialReconciliation = reconcileDiscordVoiceXpSessions(config, guild)
     .catch((error: unknown) => console.error('Discord voice XP session reconciliation failed.', error));
 });
@@ -213,8 +220,11 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
     return;
   }
   void voiceXpInitialReconciliation
-    .then(() => handleDiscordVoiceStateUpdate(config, oldState, newState))
-    .catch((error: unknown) => console.error('Discord voice XP tracking failed.', error));
+    .then(() => Promise.all([
+      handleDiscordVoiceStateUpdate(config, oldState, newState),
+      handleDiscordTemporaryVoiceStateUpdate(config, oldState, newState),
+    ]))
+    .catch((error: unknown) => console.error('Discord voice-state handling failed.', error));
 });
 
 client.on(Events.GuildBanAdd, (ban) => {
@@ -280,14 +290,17 @@ function syncGuildRolesOnChange(guildId: string) {
   }
 }
 
-function syncGuildTextChannelsOnChange(guildId: string) {
+function syncGuildChannelsOnChange(guildId: string) {
   if (guildId !== config.guildId) {
     return;
   }
   const guild = client.guilds.cache.get(guildId);
   if (guild) {
-    void syncDiscordGuildTextChannels(config, guild)
-      .catch((error: unknown) => console.error('Discord text-channel synchronization failed.', error));
+    void Promise.all([
+      syncDiscordGuildTextChannels(config, guild),
+      syncDiscordGuildVoiceChannels(config, guild),
+    ])
+      .catch((error: unknown) => console.error('Discord channel synchronization failed.', error));
   }
 }
 
@@ -295,13 +308,16 @@ client.on(Events.GuildRoleCreate, (role) => syncGuildRolesOnChange(role.guild.id
 client.on(Events.GuildRoleUpdate, (_, role) => syncGuildRolesOnChange(role.guild.id));
 client.on(Events.GuildRoleDelete, (role) => syncGuildRolesOnChange(role.guild.id));
 client.on(Events.ChannelCreate, (channel) => {
-  if ('guild' in channel) syncGuildTextChannelsOnChange(channel.guild.id);
+  if ('guild' in channel) syncGuildChannelsOnChange(channel.guild.id);
 });
 client.on(Events.ChannelUpdate, (_, channel) => {
-  if ('guild' in channel) syncGuildTextChannelsOnChange(channel.guild.id);
+  if ('guild' in channel) syncGuildChannelsOnChange(channel.guild.id);
 });
 client.on(Events.ChannelDelete, (channel) => {
-  if ('guild' in channel) syncGuildTextChannelsOnChange(channel.guild.id);
+  if (!('guild' in channel)) return;
+  syncGuildChannelsOnChange(channel.guild.id);
+  void forgetDiscordTemporaryVoiceChannel(config, channel.id)
+    .catch((error: unknown) => console.error('Discord temporary voice-channel cleanup failed.', error));
 });
 
 client.on(Events.Error, (error) => {

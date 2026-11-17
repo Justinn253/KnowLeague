@@ -22,6 +22,11 @@ import {
   type DiscordAnonymizeSettings,
 } from '@/lib/discord-anonymize';
 import {
+  DEFAULT_DISCORD_TEMPORARY_VOICE_SETTINGS,
+  type DiscordGuildVoiceChannel,
+  type DiscordTemporaryVoiceSettings,
+} from '@/lib/discord-temporary-voice';
+import {
   DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS,
   DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES,
   DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
@@ -58,6 +63,9 @@ type LevelingSettingsResponse = {
   anonymizeUseRoleIds: string[];
   anonymizeViewRoleIds: string[];
   channels: DiscordGuildChannel[];
+  temporaryVoiceCreatorRoleIds: string[];
+  temporaryVoiceSettings: DiscordTemporaryVoiceSettings;
+  voiceChannels: DiscordGuildVoiceChannel[];
   collectionAdminRoleIds: string[];
   generalSettings: DiscordGeneralSettings;
   leaderboardExcludedRoleIds: string[];
@@ -92,6 +100,9 @@ const EMPTY_RESPONSE: LevelingSettingsResponse = {
   anonymizeUseRoleIds: [],
   anonymizeViewRoleIds: [],
   channels: [],
+  temporaryVoiceCreatorRoleIds: [],
+  temporaryVoiceSettings: DEFAULT_DISCORD_TEMPORARY_VOICE_SETTINGS,
+  voiceChannels: [],
   collectionAdminRoleIds: [],
   generalSettings: DEFAULT_DISCORD_GENERAL_SETTINGS,
   leaderboardExcludedRoleIds: [],
@@ -248,8 +259,8 @@ export function DiscordLevelingSettings() {
     try {
       const response = await fetch('/api/discord/leveling', { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.anonymizeSettings || !body.anonymizeCommandChannelIds || !body.anonymizeUseRoleIds || !body.anonymizeViewRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.miningRoleRewards || !body.miningRoleSettings || !body.riftboundCommandChannelIds || !body.fishingSimulationRoleIds || !body.miningSimulationRoleIds || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
-      setData({ anonymizeCommandChannelIds: body.anonymizeCommandChannelIds, anonymizeSettings: body.anonymizeSettings, anonymizeUseRoleIds: body.anonymizeUseRoleIds, anonymizeViewRoleIds: body.anonymizeViewRoleIds, channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), riftboundCommandChannelIds: body.riftboundCommandChannelIds, roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, miningRoleRewards: sortFishingRewards(body.miningRoleRewards), miningRoleSettings: body.miningRoleSettings, fishingSimulationRoleIds: body.fishingSimulationRoleIds, miningSimulationRoleIds: body.miningSimulationRoleIds, skindleShareChannelIds: body.skindleShareChannelIds });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.anonymizeSettings || !body.anonymizeCommandChannelIds || !body.anonymizeUseRoleIds || !body.anonymizeViewRoleIds || !body.temporaryVoiceSettings || !body.temporaryVoiceCreatorRoleIds || !body.voiceChannels || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.miningRoleRewards || !body.miningRoleSettings || !body.riftboundCommandChannelIds || !body.fishingSimulationRoleIds || !body.miningSimulationRoleIds || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to load Discord Configuration.');
+      setData({ anonymizeCommandChannelIds: body.anonymizeCommandChannelIds, anonymizeSettings: body.anonymizeSettings, anonymizeUseRoleIds: body.anonymizeUseRoleIds, anonymizeViewRoleIds: body.anonymizeViewRoleIds, channels: body.channels, temporaryVoiceCreatorRoleIds: body.temporaryVoiceCreatorRoleIds, temporaryVoiceSettings: body.temporaryVoiceSettings, voiceChannels: body.voiceChannels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), riftboundCommandChannelIds: body.riftboundCommandChannelIds, roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, miningRoleRewards: sortFishingRewards(body.miningRoleRewards), miningRoleSettings: body.miningRoleSettings, fishingSimulationRoleIds: body.fishingSimulationRoleIds, miningSimulationRoleIds: body.miningSimulationRoleIds, skindleShareChannelIds: body.skindleShareChannelIds });
       setMessage('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load Discord Configuration.');
@@ -312,6 +323,9 @@ export function DiscordLevelingSettings() {
   };
   const updateAnonymizeSettings = <TKey extends keyof DiscordAnonymizeSettings>(key: TKey, value: DiscordAnonymizeSettings[TKey]) => {
     setData((current) => ({ ...current, anonymizeSettings: { ...current.anonymizeSettings, [key]: value } }));
+  };
+  const updateTemporaryVoiceSettings = <TKey extends keyof DiscordTemporaryVoiceSettings>(key: TKey, value: DiscordTemporaryVoiceSettings[TKey]) => {
+    setData((current) => ({ ...current, temporaryVoiceSettings: { ...current.temporaryVoiceSettings, [key]: value } }));
   };
   const updateSkinClaimSettings = <TKey extends keyof DiscordSkinClaimSettings>(key: TKey, value: DiscordSkinClaimSettings[TKey]) => {
     setData((current) => ({ ...current, skinClaimSettings: { ...current.skinClaimSettings, [key]: value } }));
@@ -390,6 +404,7 @@ export function DiscordLevelingSettings() {
   });
   const toggleAnonymizeUseRole = (roleId: string) => setData((current) => ({ ...current, anonymizeUseRoleIds: toggleId(current.anonymizeUseRoleIds, roleId) }));
   const toggleAnonymizeViewRole = (roleId: string) => setData((current) => ({ ...current, anonymizeViewRoleIds: toggleId(current.anonymizeViewRoleIds, roleId) }));
+  const toggleTemporaryVoiceCreatorRole = (roleId: string) => setData((current) => ({ ...current, temporaryVoiceCreatorRoleIds: toggleId(current.temporaryVoiceCreatorRoleIds, roleId) }));
   const toggleRiftboundCommandChannel = (channelId: string) => setData((current) => {
     if (channelId === ALL_RIFTBOUND_COMMAND_CHANNELS_VALUE) {
       return current.riftboundCommandChannelIds.length
@@ -528,6 +543,8 @@ export function DiscordLevelingSettings() {
           anonymizeReportChannelId: data.anonymizeSettings.reportChannelId,
           anonymizeUseRoleIds: data.anonymizeUseRoleIds,
           anonymizeViewRoleIds: data.anonymizeViewRoleIds,
+          temporaryVoiceJoinToCreateChannelId: data.temporaryVoiceSettings.joinToCreateChannelId,
+          temporaryVoiceCreatorRoleIds: data.temporaryVoiceCreatorRoleIds,
           riftboundCommandChannelIds: data.riftboundCommandChannelIds,
           collectionAdminRoleIds: data.collectionAdminRoleIds,
           leaderboardExcludedRoleIds: data.leaderboardExcludedRoleIds,
@@ -567,8 +584,8 @@ export function DiscordLevelingSettings() {
         }),
       });
       const body = await response.json() as Partial<LevelingSettingsResponse> & { error?: string };
-      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.anonymizeSettings || !body.anonymizeCommandChannelIds || !body.anonymizeUseRoleIds || !body.anonymizeViewRoleIds || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.miningRoleRewards || !body.miningRoleSettings || !body.riftboundCommandChannelIds || !body.fishingSimulationRoleIds || !body.miningSimulationRoleIds || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
-      setData({ anonymizeCommandChannelIds: body.anonymizeCommandChannelIds, anonymizeSettings: body.anonymizeSettings, anonymizeUseRoleIds: body.anonymizeUseRoleIds, anonymizeViewRoleIds: body.anonymizeViewRoleIds, channels: body.channels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), riftboundCommandChannelIds: body.riftboundCommandChannelIds, roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, miningRoleRewards: sortFishingRewards(body.miningRoleRewards), miningRoleSettings: body.miningRoleSettings, fishingSimulationRoleIds: body.fishingSimulationRoleIds, miningSimulationRoleIds: body.miningSimulationRoleIds, skindleShareChannelIds: body.skindleShareChannelIds });
+      if (!response.ok || !body.settings || !body.roles || !body.roleRewards || !body.manualXpRoleIds || !body.collectionAdminRoleIds || !body.generalSettings || !body.anonymizeSettings || !body.anonymizeCommandChannelIds || !body.anonymizeUseRoleIds || !body.anonymizeViewRoleIds || !body.temporaryVoiceSettings || !body.temporaryVoiceCreatorRoleIds || !body.voiceChannels || !body.leaderboardExcludedRoleIds || !body.channels || !body.skinClaimSettings || !body.skinClaimChannelIds || !body.skinClaimCommandChannelIds || !body.skinClaimRarityWeights || !body.skinClaimSellValues || !body.fishingCommandSettings || !body.fishingCommandChannelIds || !body.fishingBonusSettings || !body.fishingRoleRewards || !body.fishingRoleSettings || !body.miningCommandSettings || !body.miningCommandChannelIds || !body.miningWebsitePanelChannelIds || !body.miningRoleRewards || !body.miningRoleSettings || !body.riftboundCommandChannelIds || !body.fishingSimulationRoleIds || !body.miningSimulationRoleIds || !body.skindleShareChannelIds) throw new Error(body.error ?? 'Unable to save Discord Configuration.');
+      setData({ anonymizeCommandChannelIds: body.anonymizeCommandChannelIds, anonymizeSettings: body.anonymizeSettings, anonymizeUseRoleIds: body.anonymizeUseRoleIds, anonymizeViewRoleIds: body.anonymizeViewRoleIds, channels: body.channels, temporaryVoiceCreatorRoleIds: body.temporaryVoiceCreatorRoleIds, temporaryVoiceSettings: body.temporaryVoiceSettings, voiceChannels: body.voiceChannels, collectionAdminRoleIds: body.collectionAdminRoleIds, generalSettings: body.generalSettings, leaderboardExcludedRoleIds: body.leaderboardExcludedRoleIds, manualXpRoleIds: body.manualXpRoleIds, roleRewards: sortRewards(body.roleRewards), riftboundCommandChannelIds: body.riftboundCommandChannelIds, roles: body.roles, settings: body.settings, skinClaimChannelIds: body.skinClaimChannelIds, skinClaimCommandChannelIds: body.skinClaimCommandChannelIds, skinClaimRarityWeights: body.skinClaimRarityWeights, skinClaimSellValues: body.skinClaimSellValues, skinClaimSettings: body.skinClaimSettings, fishingCommandChannelIds: body.fishingCommandChannelIds, fishingCommandSettings: body.fishingCommandSettings, fishingBonusSettings: body.fishingBonusSettings, fishingRoleRewards: sortFishingRewards(body.fishingRoleRewards), fishingRoleSettings: body.fishingRoleSettings, miningCommandChannelIds: body.miningCommandChannelIds, miningCommandSettings: body.miningCommandSettings, miningWebsitePanelChannelIds: body.miningWebsitePanelChannelIds, miningRoleRewards: sortFishingRewards(body.miningRoleRewards), miningRoleSettings: body.miningRoleSettings, fishingSimulationRoleIds: body.fishingSimulationRoleIds, miningSimulationRoleIds: body.miningSimulationRoleIds, skindleShareChannelIds: body.skindleShareChannelIds });
       setMessage('Discord Configuration saved. Fishing reward roles are granted when eligible members next gain Fishing XP.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save Discord Configuration.');
@@ -693,6 +710,44 @@ export function DiscordLevelingSettings() {
               />
             </div>
             <p className="mt-3 text-xs leading-5 text-slate-400">Anonymous message text and its sender are retained so reports and authorized identity lookups work. The public panel never links or pings the sender.</p>
+          </section>
+          <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+            <div>
+              <h2 className="text-lg font-black text-white">Temporary voice channels</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Members who join the selected voice channel receive a private temporary channel in the same category. The selected channel&apos;s category is also where authorized members create channels with <code>/create-vc</code>.</p>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <AppSelectMenu
+                label="Join to Create voice channel"
+                value={data.temporaryVoiceSettings.joinToCreateChannelId ?? ''}
+                onChange={(channelId) => updateTemporaryVoiceSettings('joinToCreateChannelId', channelId || null)}
+                disabled={!data.voiceChannels.some((channel) => channel.manageable && channel.categoryId)}
+                disabledDescription="No voice channel inside a category is currently manageable by KnowLeague. Grant View Channel, Manage Channels, and Move Members, then wait for the bot to sync."
+                headerDescription="Choose the dedicated voice channel members join to create their own channel. New temporary channels are created at the bottom of this channel's category."
+                searchable
+                searchPlaceholder="Type a voice channel name or ID"
+                options={[
+                  { value: '', label: 'No Join to Create channel', description: 'Temporary voice channels are disabled.' },
+                  ...data.voiceChannels.filter((channel) => channel.manageable && channel.categoryId).map((channel) => ({ value: channel.id, label: channel.name, description: `Voice channel ID: ${channel.id}` })),
+                ]}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+              <AppSelectMenu
+                label="Roles allowed to use /create-vc"
+                value={data.temporaryVoiceCreatorRoleIds[0] ?? ''}
+                selectedValues={data.temporaryVoiceCreatorRoleIds}
+                multiple
+                onToggle={toggleTemporaryVoiceCreatorRole}
+                disabled={!data.roles.length}
+                disabledDescription="No Discord roles have been synced yet."
+                headerDescription="Members need at least one selected role to use /create-vc. Leave this empty to keep command-based temporary channels disabled."
+                searchable
+                searchPlaceholder="Type a role name or ID"
+                options={data.roles.map((role) => ({ value: role.id, label: role.name, description: `Discord role ID: ${role.id}` }))}
+                menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+              />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">Join-created channels delete as soon as they are empty. Command-created channels delete after one minute if nobody joins, then also delete when empty. Their owner can use <code>/config-vc</code> from inside the channel to rename it, set its status or limit, exclude members, or lock and unlock it.</p>
           </section>
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>

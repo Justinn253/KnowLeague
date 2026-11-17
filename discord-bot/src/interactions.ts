@@ -63,6 +63,10 @@ import {
   getDiscordAnonymizedMessage,
   normalizeAnonymizeId,
 } from './anonymize.js';
+import {
+  configureDiscordTemporaryVoiceChannel,
+  createDiscordTemporaryVoiceChannelFromCommand,
+} from './temporary-voice-channels.js';
 import { getLinkedLeagueAccount, linkLeagueAccount } from './league-accounts.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
@@ -321,6 +325,7 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
     || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
     || (commandName === 'invite' && subcommand === 'set-invite-count')
     || commandName === 'anonymize-view'
+    || commandName === 'create-vc'
     || commandName === 'steal-emoji'
     || commandName === 'steal-sticker';
 }
@@ -328,6 +333,8 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
 export function isDiscordHiddenCommand(commandName: string, subcommand: string | null) {
   return commandName === 'link'
     || commandName === 'profile'
+    || commandName === 'create-vc'
+    || commandName === 'config-vc'
     || commandName === 'anonymize-report'
     || commandName === 'anonymize-view'
     || (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
@@ -470,6 +477,74 @@ async function handleAnonymizeViewCommand(interaction: ChatInputCommandInteracti
       .setTitle(`Sender for ${formatAnonymizeId(message.anonymizeId)}`)
       .setDescription(`${authorName} (<@${message.authorDiscordUserId}>)`)],
   });
+}
+
+function temporaryVoiceExcludedUserIds(interaction: ChatInputCommandInteraction) {
+  const userIds: string[] = [];
+  for (let slot = 1; slot <= 10; slot += 1) {
+    const user = interaction.options.getUser(`exclude-user-${slot}`);
+    if (user) userIds.push(user.id);
+  }
+  return userIds;
+}
+
+function temporaryVoiceErrorNote(error: unknown) {
+  return error instanceof Error && error.message
+    ? error.message
+    : 'KnowLeague could not update that temporary voice channel. Please try again shortly.';
+}
+
+async function handleCreateTemporaryVoiceChannelCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const channel = await createDiscordTemporaryVoiceChannelFromCommand(config, interaction, {
+      excludedUserIds: temporaryVoiceExcludedUserIds(interaction),
+      maximumUsers: interaction.options.getInteger('maximum-users') ?? 0,
+      name: interaction.options.getString('name', true),
+      status: interaction.options.getString('status'),
+    });
+    await interaction.editReply({
+      content: `Created temporary voice channel <#${channel.id}>. It will delete in one minute if nobody joins it.`,
+    });
+  } catch (error) {
+    await interaction.editReply({ content: temporaryVoiceErrorNote(error) });
+  }
+}
+
+async function handleConfigureTemporaryVoiceChannelCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  const excludedUserIds = temporaryVoiceExcludedUserIds(interaction);
+  const clearExclusions = interaction.options.getBoolean('clear-exclusions') ?? false;
+  if (clearExclusions && excludedUserIds.length > 0) {
+    await interaction.reply({ content: 'Use either excluded members or clear-exclusions, not both.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const visibility = interaction.options.getString('visibility');
+  const name = interaction.options.getString('name');
+  const status = interaction.options.getString('status');
+  const maximumUsers = interaction.options.getInteger('maximum-users');
+  if (!visibility && name === null && status === null && maximumUsers === null && excludedUserIds.length === 0 && !clearExclusions) {
+    await interaction.reply({
+      content: 'Choose at least one setting to update: name, status, maximum-users, visibility, excluded members, or clear-exclusions.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const channel = await configureDiscordTemporaryVoiceChannel(config, interaction, {
+      ...(clearExclusions ? { excludedUserIds: [] } : excludedUserIds.length ? { excludedUserIds } : {}),
+      ...(maximumUsers === null ? {} : { maximumUsers }),
+      ...(name === null ? {} : { name }),
+      ...(status === null ? {} : { status }),
+      ...(visibility === 'lock' ? { isLocked: true } : visibility === 'unlock' ? { isLocked: false } : {}),
+    });
+    const visibilityNote = channel.isLocked ? ' It is locked.' : ' It is unlocked.';
+    await interaction.editReply({ content: `Updated <#${channel.channelId}>.${visibilityNote}` });
+  } catch (error) {
+    await interaction.editReply({ content: temporaryVoiceErrorNote(error) });
+  }
 }
 
 function formatXp(value: number) {
@@ -1011,6 +1086,8 @@ function helpFields(tab: HelpTab): HelpField[] {
     { name: '/rc', value: 'Repeat your most recent slash command with the same options.' },
     { name: '/link, /profile', value: 'Link your Discord account to KnowLeague or open your linked public profile.' },
     { name: '/dice-roll upper-limit', value: 'Roll a random number from 1 through the chosen upper limit.' },
+    { name: '/create-vc name [status] [maximum-users]', value: 'Privately create a configured temporary voice channel. Requires a temporary-voice creator role.' },
+    { name: '/config-vc [visibility] [...]', value: 'Privately update the temporary voice channel you own while you are in it.' },
     { name: '/anonymize message', value: 'Post a configured anonymous message panel with a reportable ID.' },
     { name: '/anonymize-report anonymize-id', value: 'Privately report an anonymous message to the configured staff channel.' },
     { name: '/anonymize-view anonymize-id', value: 'Privately identify a sender. Requires a configured Anonymize viewer role.' },
@@ -5397,7 +5474,9 @@ export async function handleChatInputCommand(
     return;
   }
 
-  if (storeAsMostRecent && interaction.commandName !== 'anonymize') storeMostRecentCommand(interaction);
+  if (storeAsMostRecent && !['anonymize', 'create-vc', 'config-vc'].includes(interaction.commandName)) {
+    storeMostRecentCommand(interaction);
+  }
 
   if (interaction.commandName === 'help') {
     await interaction.reply(buildHelpPanel('general'));
@@ -5427,6 +5506,16 @@ export async function handleChatInputCommand(
         .setColor(0xF59E0B)
         .setDescription(`🎲 **${result}** of ${formatXp(upperLimit)}`)],
     });
+    return;
+  }
+
+  if (interaction.commandName === 'create-vc') {
+    await handleCreateTemporaryVoiceChannelCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'config-vc') {
+    await handleConfigureTemporaryVoiceChannelCommand(interaction, config);
     return;
   }
 

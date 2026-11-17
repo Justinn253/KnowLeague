@@ -19,6 +19,11 @@ import {
   type DiscordAnonymizeSettings,
 } from '@/lib/discord-anonymize';
 import {
+  DEFAULT_DISCORD_TEMPORARY_VOICE_SETTINGS,
+  type DiscordGuildVoiceChannel,
+  type DiscordTemporaryVoiceSettings,
+} from '@/lib/discord-temporary-voice';
+import {
   DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS,
   DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES,
   DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
@@ -104,6 +109,18 @@ type StoredGuildChannelRow = {
   channel_name: string;
   position: number;
   sendable: boolean;
+};
+
+type StoredGuildVoiceChannelRow = {
+  category_id: string | null;
+  channel_id: string;
+  channel_name: string;
+  manageable: boolean;
+  position: number;
+};
+
+type StoredTemporaryVoiceSettingsRow = {
+  join_to_create_channel_id: string | null;
 };
 
 type StoredGeneralCommandChannelRow = {
@@ -243,6 +260,8 @@ type LevelingSettingsBody = {
   xpPerMessage?: unknown;
   welcomeJoinMessageChannelId?: unknown;
   welcomeJoinMessageTemplate?: unknown;
+  temporaryVoiceCreatorRoleIds?: unknown;
+  temporaryVoiceJoinToCreateChannelId?: unknown;
 };
 
 function getDiscordGuildId() {
@@ -280,6 +299,20 @@ function toGuildRole(row: StoredRoleRow): DiscordGuildRole {
 
 function toGuildChannel(row: StoredGuildChannelRow): DiscordGuildChannel {
   return { id: row.channel_id, name: row.channel_name, position: row.position, sendable: row.sendable };
+}
+
+function toGuildVoiceChannel(row: StoredGuildVoiceChannelRow): DiscordGuildVoiceChannel {
+  return {
+    categoryId: row.category_id,
+    id: row.channel_id,
+    manageable: row.manageable,
+    name: row.channel_name,
+    position: row.position,
+  };
+}
+
+function toTemporaryVoiceSettings(row: StoredTemporaryVoiceSettingsRow | null): DiscordTemporaryVoiceSettings {
+  return row ? { joinToCreateChannelId: row.join_to_create_channel_id } : DEFAULT_DISCORD_TEMPORARY_VOICE_SETTINGS;
 }
 
 function toGeneralSettings(rows: StoredGeneralCommandChannelRow[]): DiscordGeneralSettings {
@@ -400,6 +433,9 @@ async function getLevelingData(guildId: string) {
     skinClaimAdminRolesResult,
     leaderboardExcludedRolesResult,
     channelsResult,
+    voiceChannelsResult,
+    temporaryVoiceSettingsResult,
+    temporaryVoiceCreatorRolesResult,
     generalCommandChannelsResult,
     anonymizeSettingsResult,
     anonymizeCommandChannelsResult,
@@ -465,6 +501,21 @@ async function getLevelingData(guildId: string) {
       .order('position', { ascending: true })
       .order('channel_name', { ascending: true })
       .returns<StoredGuildChannelRow[]>(),
+    supabase.from('discord_guild_voice_channels')
+      .select('channel_id, channel_name, category_id, position, manageable')
+      .eq('guild_id', guildId)
+      .order('position', { ascending: true })
+      .order('channel_name', { ascending: true })
+      .returns<StoredGuildVoiceChannelRow[]>(),
+    supabase.from('discord_temporary_voice_settings')
+      .select('join_to_create_channel_id')
+      .eq('guild_id', guildId)
+      .maybeSingle<StoredTemporaryVoiceSettingsRow>(),
+    supabase.from('discord_temporary_voice_creator_roles')
+      .select('discord_role_id')
+      .eq('guild_id', guildId)
+      .order('discord_role_id', { ascending: true })
+      .returns<StoredStaffRoleRow[]>(),
     supabase.from('discord_general_command_channels')
       .select('channel_id')
       .eq('guild_id', guildId)
@@ -577,6 +628,9 @@ async function getLevelingData(guildId: string) {
   if (skinClaimAdminRolesResult.error) throw skinClaimAdminRolesResult.error;
   if (leaderboardExcludedRolesResult.error) throw leaderboardExcludedRolesResult.error;
   if (channelsResult.error) throw channelsResult.error;
+  if (voiceChannelsResult.error) throw voiceChannelsResult.error;
+  if (temporaryVoiceSettingsResult.error) throw temporaryVoiceSettingsResult.error;
+  if (temporaryVoiceCreatorRolesResult.error) throw temporaryVoiceCreatorRolesResult.error;
   if (generalCommandChannelsResult.error) throw generalCommandChannelsResult.error;
   if (anonymizeSettingsResult.error) throw anonymizeSettingsResult.error;
   if (anonymizeCommandChannelsResult.error) throw anonymizeCommandChannelsResult.error;
@@ -603,6 +657,9 @@ async function getLevelingData(guildId: string) {
 
   return {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
+    voiceChannels: (voiceChannelsResult.data ?? []).map(toGuildVoiceChannel),
+    temporaryVoiceSettings: toTemporaryVoiceSettings(temporaryVoiceSettingsResult.data),
+    temporaryVoiceCreatorRoleIds: (temporaryVoiceCreatorRolesResult.data ?? []).map((role) => role.discord_role_id),
     collectionAdminRoleIds: (skinClaimAdminRolesResult.data ?? []).map((role) => role.discord_role_id),
     generalSettings: toGeneralSettings(generalCommandChannelsResult.data ?? []),
     anonymizeSettings: toAnonymizeSettings(anonymizeSettingsResult.data),
@@ -908,6 +965,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const anonymizeReportChannelId = parseOptionalSnowflake(body.anonymizeReportChannelId, 'Anonymize report channel ID');
     const anonymizeUseRoleIds = parseRoleIds(body.anonymizeUseRoleIds, 'Anonymize use roles', 25);
     const anonymizeViewRoleIds = parseRoleIds(body.anonymizeViewRoleIds, 'Anonymize identity-view roles', 25);
+    const temporaryVoiceJoinToCreateChannelId = parseOptionalSnowflake(body.temporaryVoiceJoinToCreateChannelId, 'Join to Create voice channel ID');
+    const temporaryVoiceCreatorRoleIds = parseRoleIds(body.temporaryVoiceCreatorRoleIds, 'temporary voice creator roles', 25);
     const riftboundCommandChannelIds = parseCommandChannelIds(body.riftboundCommandChannelIds, 'Riftbound');
     const skinClaimCommandChannelIds = parseCommandChannelIds(body.skinClaimCommandChannelIds, 'Collections');
     const skinClaimSummonBaseCost = parsePositiveInteger(body.skinClaimSummonBaseCost, 'Summon base cost', 1, 1_000_000_000);
@@ -953,6 +1012,11 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       .eq('guild_id', guildId)
       .returns<Array<Pick<StoredGuildChannelRow, 'channel_id' | 'sendable'>>>();
     if (channelsError) throw channelsError;
+    const { data: voiceChannels, error: voiceChannelsError } = await supabase.from('discord_guild_voice_channels')
+      .select('channel_id, category_id, manageable')
+      .eq('guild_id', guildId)
+      .returns<Array<Pick<StoredGuildVoiceChannelRow, 'category_id' | 'channel_id' | 'manageable'>>>();
+    if (voiceChannelsError) throw voiceChannelsError;
 
     const assignableRoleIds = new Set((roles ?? []).filter((role) => role.assignable).map((role) => role.role_id));
     if (roleRewards.some((reward) => reward.roleIds.some((roleId) => !assignableRoleIds.has(roleId)))) {
@@ -971,6 +1035,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     }
     if (anonymizeUseRoleIds.some((roleId) => !syncedRoleIds.has(roleId)) || anonymizeViewRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose Anonymize roles that are currently synced from Discord.');
+    }
+    if (temporaryVoiceCreatorRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
+      throw new ApiError(400, 'Choose temporary voice creator roles that are currently synced from Discord.');
     }
     if (leaderboardExcludedRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose leaderboard exclusion roles that are currently synced from Discord.');
@@ -1017,6 +1084,11 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       throw new ApiError(400, 'Keep the top Miner role dedicated to the Mining leaderboard.');
     }
     const sendableChannelIds = new Set((channels ?? []).filter((channel) => channel.sendable).map((channel) => channel.channel_id));
+    if (temporaryVoiceJoinToCreateChannelId && !(voiceChannels ?? []).some((channel) => (
+      channel.channel_id === temporaryVoiceJoinToCreateChannelId && channel.manageable && channel.category_id !== null
+    ))) {
+      throw new ApiError(400, 'Choose a Join to Create voice channel inside a category where KnowLeague can view, manage channels, and move members.');
+    }
     if (generalCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose General commands channels that are currently available to the KnowLeague bot.');
     }
@@ -1135,6 +1207,13 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_view_role_ids: anonymizeViewRoleIds,
     });
     if (anonymizeConfigurationError) throw anonymizeConfigurationError;
+    const { error: temporaryVoiceConfigurationError } = await supabase.rpc('replace_discord_temporary_voice_configuration', {
+      p_creator_role_ids: temporaryVoiceCreatorRoleIds,
+      p_guild_id: guildId,
+      p_join_to_create_channel_id: temporaryVoiceJoinToCreateChannelId,
+      p_updated_by: user.id,
+    });
+    if (temporaryVoiceConfigurationError) throw temporaryVoiceConfigurationError;
     const { error: riftboundCommandChannelsError } = await supabase.rpc('replace_discord_riftbound_command_channels', {
       p_command_channel_ids: riftboundCommandChannelIds,
       p_guild_id: guildId,

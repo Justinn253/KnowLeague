@@ -350,6 +350,33 @@ export const commandDefinitions = [
       .setMaxValue(1_000_000)
       .setRequired(true)),
   new SlashCommandBuilder()
+    .setName('anonymize')
+    .setDescription('Post a message anonymously.')
+    .addStringOption((option) => option
+      .setName('message')
+      .setDescription('Message to post without your account being shown.')
+      .setMinLength(1)
+      .setMaxLength(4_000)
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('anonymize-report')
+    .setDescription('Report an anonymous message to server staff.')
+    .addStringOption((option) => option
+      .setName('anonymize-id')
+      .setDescription('The ANON identifier shown on the anonymous message.')
+      .setMinLength(12)
+      .setMaxLength(17)
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('anonymize-view')
+    .setDescription('View the sender of an anonymous message.')
+    .addStringOption((option) => option
+      .setName('anonymize-id')
+      .setDescription('The ANON identifier shown on the anonymous message.')
+      .setMinLength(12)
+      .setMaxLength(17)
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName('player')
     .setDescription('Browse your player progression, shared skills, and shop.')
     .addSubcommand((subcommand) => subcommand

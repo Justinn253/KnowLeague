@@ -22,6 +22,9 @@ can be used in any channel where that member may use application commands.
 /riftbound inventory | No
 /help | No
 /dice-roll upper-limit | No
+/anonymize message | Yes — configured Anonymize role
+/anonymize-report anonymize-id | No | hidden=true
+/anonymize-view anonymize-id | Yes — configured Anonymize viewer role | hidden=true
 /rc | No
 /link | No | hidden=true
 /profile | No | hidden=true

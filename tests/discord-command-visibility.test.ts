@@ -11,6 +11,8 @@ describe('Discord slash-command visibility', () => {
     expect(isDiscordAdministrativeCommand('collections', 'summon')).toBe(false);
     expect(isDiscordAdministrativeCommand('collections', 'capacity-force-add')).toBe(true);
     expect(isDiscordAdministrativeCommand('leaderboard', null)).toBe(false);
+    expect(isDiscordAdministrativeCommand('anonymize', null)).toBe(false);
+    expect(isDiscordAdministrativeCommand('anonymize-view', null)).toBe(true);
     expect(isDiscordAdministrativeCommand('steal-emoji', null)).toBe(true);
     expect(isDiscordAdministrativeCommand('invite', 'set-invite-count')).toBe(true);
   });
@@ -19,6 +21,8 @@ describe('Discord slash-command visibility', () => {
     const hiddenCommands = [
       ['link', null],
       ['profile', null],
+      ['anonymize-report', null],
+      ['anonymize-view', null],
       ['collections', 'spawn'],
       ['collections', 'capacity-force-add'],
       ['invite', 'set-invite-count'],
@@ -38,13 +42,22 @@ describe('Discord slash-command visibility', () => {
     expect(isDiscordHiddenCommand('xp', 'view')).toBe(false);
   });
 
-  it('registers the public dice roll and removes the temporary command group', () => {
+  it('registers public dice roll and scoped anonymize command shapes without the temporary group', () => {
     const diceRoll = serializedCommandDefinitions().find((command) => command.name === 'dice-roll');
 
     expect(diceRoll?.options).toEqual([
       expect.objectContaining({ name: 'upper-limit', required: true, type: 4, min_value: 2, max_value: 1_000_000 }),
     ]);
     expect(serializedCommandDefinitions().some((command) => command.name === 'temp')).toBe(false);
+    expect(serializedCommandDefinitions().find((command) => command.name === 'anonymize')?.options).toEqual([
+      expect.objectContaining({ name: 'message', required: true, type: 3, min_length: 1, max_length: 4_000 }),
+    ]);
+    expect(serializedCommandDefinitions().find((command) => command.name === 'anonymize-report')?.options).toEqual([
+      expect.objectContaining({ name: 'anonymize-id', required: true, type: 3, min_length: 12, max_length: 17 }),
+    ]);
+    expect(serializedCommandDefinitions().find((command) => command.name === 'anonymize-view')?.options).toEqual([
+      expect.objectContaining({ name: 'anonymize-id', required: true, type: 3, min_length: 12, max_length: 17 }),
+    ]);
   });
 
   it('enforces the General channel selection only for member-facing command shapes', () => {
@@ -60,6 +73,8 @@ describe('Discord slash-command visibility', () => {
     expect(requiresDefaultCommandChannel('knowbucks', 'balance')).toBe(true);
     expect(requiresDefaultCommandChannel('collections', 'spawn')).toBe(false);
     expect(requiresDefaultCommandChannel('riftbound', 'buy')).toBe(false);
+    expect(requiresDefaultCommandChannel('anonymize', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('anonymize-report', null)).toBe(false);
   });
 
   it('turns expected Riftbound persistence failures into member-facing notes', () => {

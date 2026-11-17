@@ -29,6 +29,16 @@ describe('Discord member lifecycle', () => {
     expect(panel.footer?.text).toBe('Joined via invite from Inviter · They now have 7 invites');
   });
 
+  it('keeps invite-tracker panels from repeating source text already in their message body', () => {
+    const panel = buildDiscordJoinPanel('**<@123>** has been invited by Inviter! They now have 7 invites.', {
+      kind: 'invite',
+      inviteCode: 'abc123',
+      inviterId: '12345678901234567',
+      inviterUsername: 'Inviter',
+    }, 7, 'invite-total').toJSON();
+    expect(panel.footer?.text).toBe('They now have 7 invites');
+  });
+
   it('registers a member-facing invite leaderboard with an optional user', () => {
     const command = serializedCommandDefinitions().find((entry) => entry.name === 'invite');
     expect(command?.options).toEqual(expect.arrayContaining([

@@ -16,10 +16,16 @@ export type SnipedMessage = {
 };
 
 type TrackedMessage = SnipedMessage & {
+  authorAvatarUrl: string;
+  authorId: string;
+  authorIsBot: boolean;
   channelId: string;
   guildId: string;
   expiresAt: number;
+  messageId: string;
 };
+
+export type TrackedSnipeMessage = Omit<TrackedMessage, 'expiresAt'>;
 
 const TRACKED_MESSAGE_RETENTION_MS = 6 * 60 * 60 * 1_000;
 const SNIPED_MESSAGE_RETENTION_MS = 60 * 60 * 1_000;
@@ -54,12 +60,16 @@ export function trackSnipeMessage(config: DiscordBotConfig, message: Message) {
       name: attachment.name ?? 'Attachment',
       url: attachment.url,
     })),
+    authorAvatarUrl: message.author.displayAvatarURL({ extension: 'png', size: 128 }),
     authorDisplayName: message.member?.displayName ?? message.author.globalName ?? message.author.username,
+    authorId: message.author.id,
+    authorIsBot: message.author.bot,
     channelId: message.channelId,
     content: message.content,
     deletedAt: 0,
     expiresAt: now + TRACKED_MESSAGE_RETENTION_MS,
     guildId: config.guildId,
+    messageId: message.id,
     sentAt: message.createdTimestamp,
   });
 
@@ -68,6 +78,19 @@ export function trackSnipeMessage(config: DiscordBotConfig, message: Message) {
     if (!oldestMessageId) break;
     trackedMessagesById.delete(oldestMessageId);
   }
+}
+
+/**
+ * Returns the current bounded in-memory message snapshot without consuming it.
+ * Message activity logs use this to compare an edit or show a deletion; general
+ * message content is never written to Supabase.
+ */
+export function getTrackedSnipeMessage(messageId: string): TrackedSnipeMessage | null {
+  pruneExpiredMessages(Date.now());
+  const tracked = trackedMessagesById.get(messageId);
+  if (!tracked) return null;
+  const { expiresAt: _, ...snapshot } = tracked;
+  return snapshot;
 }
 
 export function trackDeletedSnipeMessage(config: DiscordBotConfig, messageId: string) {

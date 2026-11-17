@@ -3,7 +3,7 @@ import type { DiscordBotConfig } from './config.js';
 import { createBotServiceClient } from './supabase.js';
 
 const DISBOARD_BOT_ID = '302050872383242240';
-const DISBOARD_BUMP_REMINDER_DELAY_MS = 2 * 60 * 60 * 1_000;
+export const DISBOARD_BUMP_REMINDER_DELAY_MS = 90 * 60 * 1_000;
 const DISBOARD_RECONCILIATION_INTERVAL_MS = 30_000;
 const DISBOARD_RECONCILIATION_WINDOW_MS = 3 * 60 * 60 * 1_000;
 const DISBOARD_RECONCILIATION_MESSAGE_LIMIT = 25;
@@ -12,7 +12,6 @@ const DISBOARD_MESSAGE_SETTLE_DELAY_MS = 3_000;
 let bumpReminderTimer: NodeJS.Timeout | null = null;
 let bumpReconciliationTimer: NodeJS.Timeout | null = null;
 let scheduledBumpMessageId: string | null = null;
-let lastDisboardObservation: { at: number; detail: string } | null = null;
 
 type DisboardBumpSettings = {
   channelId: string | null;
@@ -29,22 +28,6 @@ type StoredDisboardBumpSettingsRow = {
   disboard_bump_reminder_source_message_id: string | null;
   disboard_bump_reminder_user_id: string | null;
 };
-
-export type DisboardBumpReminderStatus = {
-  channelId: string | null;
-  confirmationMessageId: string | null;
-  dueAt: Date | null;
-  lastObservation: string | null;
-  reconciliationActive: boolean;
-  reminderUserId: string | null;
-  sourceMessageId: string | null;
-  timerSourceMessageId: string | null;
-  timerArmed: boolean;
-};
-
-function recordDisboardObservation(detail: string) {
-  lastDisboardObservation = { at: Date.now(), detail };
-}
 
 function isDisboardMessage(message: Message) {
   return message.author.id === DISBOARD_BOT_ID
@@ -108,27 +91,6 @@ async function getDisboardBumpSettings(config: DiscordBotConfig): Promise<Disboa
   };
 }
 
-export async function getDisboardBumpReminderStatus(config: DiscordBotConfig): Promise<DisboardBumpReminderStatus> {
-  const settings = await getDisboardBumpSettings(config);
-  return {
-    channelId: settings.channelId,
-    confirmationMessageId: settings.confirmationMessageId,
-    dueAt: settings.reminderDueAt,
-    lastObservation: lastDisboardObservation
-      ? `${lastDisboardObservation.detail} <t:${Math.floor(lastDisboardObservation.at / 1_000)}:R>`
-      : null,
-    reconciliationActive: bumpReconciliationTimer !== null,
-    reminderUserId: settings.reminderUserId,
-    sourceMessageId: settings.reminderSourceMessageId,
-    timerSourceMessageId: bumpReminderTimer ? scheduledBumpMessageId : null,
-    timerArmed: Boolean(
-      bumpReminderTimer
-      && settings.reminderSourceMessageId
-      && scheduledBumpMessageId === settings.reminderSourceMessageId,
-    ),
-  };
-}
-
 function armDisboardBumpReminder(config: DiscordBotConfig, channel: SendableChannels, sourceMessageId: string, dueAt: Date) {
   if (bumpReminderTimer) clearTimeout(bumpReminderTimer);
   scheduledBumpMessageId = sourceMessageId;
@@ -155,7 +117,7 @@ function armDisboardBumpReminder(config: DiscordBotConfig, channel: SendableChan
         }
         await channel.send({
           allowedMentions: { parse: [], users: [settings.reminderUserId] },
-          content: `<@${settings.reminderUserId}> It has been two hours since the last successful DISBOARD bump. You can use /bump again.`,
+          content: `<@${settings.reminderUserId}> It has been 1.5 hours since the last successful DISBOARD bump. You can use /bump again.`,
         });
       })
       .catch((error: unknown) => console.error('DISBOARD bump reminder failed.', error));
@@ -216,13 +178,9 @@ export async function handleDisboardBump(config: DiscordBotConfig, message: Mess
   const settings = await getDisboardBumpSettings(config);
   if (!settings.channelId || settledMessage.channelId !== settings.channelId) return false;
   if (!settledMessage.channel.isSendable()) {
-    recordDisboardObservation('DISBOARD message detected, but the configured channel is not sendable');
     return false;
   }
   const scheduled = await scheduleDisboardBumpReminder(config, settledMessage.channel, settledMessage);
-  recordDisboardObservation(scheduled
-    ? 'DISBOARD message detected and reminder scheduled'
-    : 'DISBOARD message was already recorded');
   return scheduled;
 }
 

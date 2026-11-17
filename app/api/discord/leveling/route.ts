@@ -15,6 +15,10 @@ import {
   type DiscordGeneralSettings,
 } from '@/lib/discord-general-settings';
 import {
+  DEFAULT_DISCORD_ANONYMIZE_SETTINGS,
+  type DiscordAnonymizeSettings,
+} from '@/lib/discord-anonymize';
+import {
   DEFAULT_DISCORD_SKIN_CLAIM_RARITY_WEIGHTS,
   DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES,
   DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS,
@@ -55,6 +59,8 @@ type StoredSettingsRow = {
   invite_join_message_channel_id: string | null;
   invite_join_message_template: string;
   leave_message_channel_id: string | null;
+  message_delete_log_channel_id: string | null;
+  message_edit_log_channel_id: string | null;
   leaderboard_top_role_id: string | null;
   level_up_message_enabled: boolean;
   level_up_message_channel_id: string | null;
@@ -102,6 +108,15 @@ type StoredGuildChannelRow = {
 
 type StoredGeneralCommandChannelRow = {
   channel_id: string;
+};
+
+type StoredAnonymizeSettingsRow = {
+  all_channels: boolean;
+  report_channel_id: string | null;
+};
+
+type StoredAnonymizeRoleRow = {
+  discord_role_id: string;
 };
 
 type StoredSkinClaimSettingsRow = {
@@ -173,6 +188,11 @@ type StoredMinigameSimulationRoleRow = { discord_role_id: string; game_id: 'fish
 type StoredMiningRoleRewardRow = { discord_role_id: string; level: number };
 
 type LevelingSettingsBody = {
+  anonymizeAllChannels?: unknown;
+  anonymizeCommandChannelIds?: unknown;
+  anonymizeReportChannelId?: unknown;
+  anonymizeUseRoleIds?: unknown;
+  anonymizeViewRoleIds?: unknown;
   collectionAdminRoleIds?: unknown;
   cooldownSeconds?: unknown;
   disboardBumpChannelId?: unknown;
@@ -180,6 +200,8 @@ type LevelingSettingsBody = {
   inviteJoinMessageChannelId?: unknown;
   inviteJoinMessageTemplate?: unknown;
   leaveMessageChannelId?: unknown;
+  messageDeleteLogChannelId?: unknown;
+  messageEditLogChannelId?: unknown;
   generalCommandChannelIds?: unknown;
   enabled?: unknown;
   leaderboardExcludedRoleIds?: unknown;
@@ -240,6 +262,8 @@ function toSettings(row: StoredSettingsRow | null): DiscordLevelingSettings {
     inviteJoinMessageChannelId: row.invite_join_message_channel_id,
     inviteJoinMessageTemplate: row.invite_join_message_template,
     leaveMessageChannelId: row.leave_message_channel_id,
+    messageDeleteLogChannelId: row.message_delete_log_channel_id,
+    messageEditLogChannelId: row.message_edit_log_channel_id,
     leaderboardTopRoleId: row.leaderboard_top_role_id,
     levelUpMessageEnabled: row.level_up_message_enabled,
     levelUpMessageChannelId: row.level_up_message_channel_id,
@@ -260,6 +284,12 @@ function toGuildChannel(row: StoredGuildChannelRow): DiscordGuildChannel {
 
 function toGeneralSettings(rows: StoredGeneralCommandChannelRow[]): DiscordGeneralSettings {
   return rows.length ? { commandChannelIds: rows.map((row) => row.channel_id) } : DEFAULT_DISCORD_GENERAL_SETTINGS;
+}
+
+function toAnonymizeSettings(row: StoredAnonymizeSettingsRow | null): DiscordAnonymizeSettings {
+  return row
+    ? { allChannels: row.all_channels, reportChannelId: row.report_channel_id }
+    : DEFAULT_DISCORD_ANONYMIZE_SETTINGS;
 }
 
 function toSkinClaimSettings(
@@ -371,6 +401,10 @@ async function getLevelingData(guildId: string) {
     leaderboardExcludedRolesResult,
     channelsResult,
     generalCommandChannelsResult,
+    anonymizeSettingsResult,
+    anonymizeCommandChannelsResult,
+    anonymizeUseRolesResult,
+    anonymizeViewRolesResult,
     riftboundCommandChannelsResult,
     skinClaimSettingsResult,
     skinClaimChannelsResult,
@@ -391,7 +425,7 @@ async function getLevelingData(guildId: string) {
     minigameSimulationRolesResult,
   ] = await Promise.all([
     supabase.from('discord_leveling_settings')
-      .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id, disboard_bump_channel_id, disboard_bump_reminder_user_id, invite_join_message_channel_id, invite_join_message_template, welcome_join_message_channel_id, welcome_join_message_template, leave_message_channel_id')
+      .select('enabled, xp_per_message, cooldown_seconds, level_up_message_enabled, level_up_message_channel_id, level_up_message_template, leaderboard_top_role_id, disboard_bump_channel_id, disboard_bump_reminder_user_id, invite_join_message_channel_id, invite_join_message_template, welcome_join_message_channel_id, welcome_join_message_template, leave_message_channel_id, message_delete_log_channel_id, message_edit_log_channel_id')
       .eq('guild_id', guildId)
       .maybeSingle<StoredSettingsRow>(),
     supabase.from('discord_guild_roles')
@@ -436,6 +470,25 @@ async function getLevelingData(guildId: string) {
       .eq('guild_id', guildId)
       .order('channel_id', { ascending: true })
       .returns<StoredGeneralCommandChannelRow[]>(),
+    supabase.from('discord_anonymize_settings')
+      .select('all_channels, report_channel_id')
+      .eq('guild_id', guildId)
+      .maybeSingle<StoredAnonymizeSettingsRow>(),
+    supabase.from('discord_anonymize_command_channels')
+      .select('channel_id')
+      .eq('guild_id', guildId)
+      .order('channel_id', { ascending: true })
+      .returns<StoredChannelRow[]>(),
+    supabase.from('discord_anonymize_use_roles')
+      .select('discord_role_id')
+      .eq('guild_id', guildId)
+      .order('discord_role_id', { ascending: true })
+      .returns<StoredAnonymizeRoleRow[]>(),
+    supabase.from('discord_anonymize_view_roles')
+      .select('discord_role_id')
+      .eq('guild_id', guildId)
+      .order('discord_role_id', { ascending: true })
+      .returns<StoredAnonymizeRoleRow[]>(),
     supabase.from('discord_riftbound_command_channels')
       .select('channel_id')
       .eq('guild_id', guildId)
@@ -525,6 +578,10 @@ async function getLevelingData(guildId: string) {
   if (leaderboardExcludedRolesResult.error) throw leaderboardExcludedRolesResult.error;
   if (channelsResult.error) throw channelsResult.error;
   if (generalCommandChannelsResult.error) throw generalCommandChannelsResult.error;
+  if (anonymizeSettingsResult.error) throw anonymizeSettingsResult.error;
+  if (anonymizeCommandChannelsResult.error) throw anonymizeCommandChannelsResult.error;
+  if (anonymizeUseRolesResult.error) throw anonymizeUseRolesResult.error;
+  if (anonymizeViewRolesResult.error) throw anonymizeViewRolesResult.error;
   if (riftboundCommandChannelsResult.error) throw riftboundCommandChannelsResult.error;
   if (skinClaimSettingsResult.error) throw skinClaimSettingsResult.error;
   if (skinClaimChannelsResult.error) throw skinClaimChannelsResult.error;
@@ -548,6 +605,10 @@ async function getLevelingData(guildId: string) {
     channels: (channelsResult.data ?? []).map(toGuildChannel),
     collectionAdminRoleIds: (skinClaimAdminRolesResult.data ?? []).map((role) => role.discord_role_id),
     generalSettings: toGeneralSettings(generalCommandChannelsResult.data ?? []),
+    anonymizeSettings: toAnonymizeSettings(anonymizeSettingsResult.data),
+    anonymizeCommandChannelIds: (anonymizeCommandChannelsResult.data ?? []).map((channel) => channel.channel_id),
+    anonymizeUseRoleIds: (anonymizeUseRolesResult.data ?? []).map((role) => role.discord_role_id),
+    anonymizeViewRoleIds: (anonymizeViewRolesResult.data ?? []).map((role) => role.discord_role_id),
     riftboundCommandChannelIds: (riftboundCommandChannelsResult.data ?? []).map((channel) => channel.channel_id),
     leaderboardExcludedRoleIds: (leaderboardExcludedRolesResult.data ?? []).map((role) => role.discord_role_id),
     manualXpRoleIds: (staffRolesResult.data ?? []).map((role) => role.discord_role_id),
@@ -829,6 +890,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const welcomeJoinMessageChannelId = parseOptionalSnowflake(body.welcomeJoinMessageChannelId, 'Welcome-message channel ID');
     const welcomeJoinMessageTemplate = parseRequiredMemberLifecycleMessageTemplate(body.welcomeJoinMessageTemplate, 'Welcome message');
     const leaveMessageChannelId = parseOptionalSnowflake(body.leaveMessageChannelId, 'Leave-message channel ID');
+    const messageDeleteLogChannelId = parseOptionalSnowflake(body.messageDeleteLogChannelId, 'Deleted-message log channel ID');
+    const messageEditLogChannelId = parseOptionalSnowflake(body.messageEditLogChannelId, 'Edited-message log channel ID');
     const leaderboardTopRoleId = parseOptionalSnowflake(body.leaderboardTopRoleId, 'Leaderboard top role');
     const manualXpRoleIds = parseRoleIds(body.manualXpRoleIds, 'manual XP staff roles', 25);
     const collectionAdminRoleIds = parseRoleIds(body.collectionAdminRoleIds, 'collection admin roles', 25);
@@ -837,6 +900,14 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const skinClaimMaximumIntervalMinutes = parsePositiveInteger(body.skinClaimMaximumIntervalMinutes, 'Skin-claim maximum interval', skinClaimMinimumIntervalMinutes, 10080);
     const skinClaimClaimWindowMinutes = parsePositiveInteger(body.skinClaimClaimWindowMinutes, 'Skin-claim window', 1, 1440);
     const generalCommandChannelIds = parseCommandChannelIds(body.generalCommandChannelIds, 'General');
+    if (typeof body.anonymizeAllChannels !== 'boolean') {
+      throw new ApiError(400, 'Anonymize channel scope must be all channels or selected channels.');
+    }
+    const anonymizeAllChannels = body.anonymizeAllChannels;
+    const anonymizeCommandChannelIds = anonymizeAllChannels ? [] : parseCommandChannelIds(body.anonymizeCommandChannelIds, 'Anonymize');
+    const anonymizeReportChannelId = parseOptionalSnowflake(body.anonymizeReportChannelId, 'Anonymize report channel ID');
+    const anonymizeUseRoleIds = parseRoleIds(body.anonymizeUseRoleIds, 'Anonymize use roles', 25);
+    const anonymizeViewRoleIds = parseRoleIds(body.anonymizeViewRoleIds, 'Anonymize identity-view roles', 25);
     const riftboundCommandChannelIds = parseCommandChannelIds(body.riftboundCommandChannelIds, 'Riftbound');
     const skinClaimCommandChannelIds = parseCommandChannelIds(body.skinClaimCommandChannelIds, 'Collections');
     const skinClaimSummonBaseCost = parsePositiveInteger(body.skinClaimSummonBaseCost, 'Summon base cost', 1, 1_000_000_000);
@@ -898,6 +969,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (collectionAdminRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose collection admin roles that are currently synced from Discord.');
     }
+    if (anonymizeUseRoleIds.some((roleId) => !syncedRoleIds.has(roleId)) || anonymizeViewRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
+      throw new ApiError(400, 'Choose Anonymize roles that are currently synced from Discord.');
+    }
     if (leaderboardExcludedRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose leaderboard exclusion roles that are currently synced from Discord.');
     }
@@ -946,6 +1020,12 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     if (generalCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose General commands channels that are currently available to the KnowLeague bot.');
     }
+    if (anonymizeCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
+      throw new ApiError(400, 'Choose Anonymize command channels that are currently available to the KnowLeague bot.');
+    }
+    if (anonymizeReportChannelId && !sendableChannelIds.has(anonymizeReportChannelId)) {
+      throw new ApiError(400, 'Choose an Anonymize report channel that is currently available to the KnowLeague bot.');
+    }
     if (riftboundCommandChannelIds.some((channelId) => !sendableChannelIds.has(channelId))) {
       throw new ApiError(400, 'Choose Riftbound command channels that are currently available to the KnowLeague bot.');
     }
@@ -984,6 +1064,9 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     }
     if (!fishingCommandAllChannels && !fishingCommandChannelIds.length) {
       throw new ApiError(400, 'Choose at least one channel when fishing commands are not enabled in all channels.');
+    }
+    if (!anonymizeAllChannels && !anonymizeCommandChannelIds.length) {
+      throw new ApiError(400, 'Choose at least one channel when Anonymize is not enabled in all channels.');
     }
     if (!miningCommandAllChannels && !miningCommandChannelIds.length) {
       throw new ApiError(400, 'Choose at least one channel when Mining commands are not enabled in all channels.');
@@ -1029,6 +1112,8 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
         invite_join_message_channel_id: inviteJoinMessageChannelId,
         invite_join_message_template: inviteJoinMessageTemplate,
         leave_message_channel_id: leaveMessageChannelId,
+        message_delete_log_channel_id: messageDeleteLogChannelId,
+        message_edit_log_channel_id: messageEditLogChannelId,
         welcome_join_message_channel_id: welcomeJoinMessageChannelId,
         welcome_join_message_template: welcomeJoinMessageTemplate,
       })
@@ -1040,6 +1125,16 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_updated_by: user.id,
     });
     if (generalCommandChannelsError) throw generalCommandChannelsError;
+    const { error: anonymizeConfigurationError } = await supabase.rpc('replace_discord_anonymize_configuration', {
+      p_all_channels: anonymizeAllChannels,
+      p_command_channel_ids: anonymizeCommandChannelIds,
+      p_guild_id: guildId,
+      p_report_channel_id: anonymizeReportChannelId,
+      p_updated_by: user.id,
+      p_use_role_ids: anonymizeUseRoleIds,
+      p_view_role_ids: anonymizeViewRoleIds,
+    });
+    if (anonymizeConfigurationError) throw anonymizeConfigurationError;
     const { error: riftboundCommandChannelsError } = await supabase.rpc('replace_discord_riftbound_command_channels', {
       p_command_channel_ids: riftboundCommandChannelIds,
       p_guild_id: guildId,

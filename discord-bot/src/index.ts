@@ -1,6 +1,6 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
 import { loadBotConfig } from './config.js';
-import { handleButtonInteraction, handleChatInputCommand, isDiscordAdministrativeCommand } from './interactions.js';
+import { handleButtonInteraction, handleChatInputCommand, isDiscordAdministrativeCommand, isDiscordHiddenCommand } from './interactions.js';
 import { closeLeagueAccountViewerBrowser } from './league-account-viewer.js';
 import {
   awardMessageXp,
@@ -18,7 +18,9 @@ import { startMiningWebsitePanelDeliveryScheduler } from './mining-website-panel
 import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
 import { handleDisboardBump, restoreDisboardBumpReminder, startDisboardBumpReconciliation, stopDisboardBumpReminder } from './disboard.js';
+import { rememberDiscordMemberBan } from './audit-log-reasons.js';
 import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteCreation, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage, trackDiscordSingleUseInvite } from './member-lifecycle.js';
+import { logDiscordBulkMessageDeletion, logDiscordMessageDeletion, logDiscordMessageEdit } from './message-logs.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
 import { trackDeletedSnipeMessage, trackSnipeMessage } from './snipe.js';
@@ -54,7 +56,8 @@ let voiceXpInitialReconciliation: Promise<void> = Promise.resolve();
 async function replyWithFailure(interaction: Parameters<typeof handleChatInputCommand>[0] | Parameters<typeof handleButtonInteraction>[0]) {
   const message = 'KnowLeague could not complete that request. Please try again shortly.';
   const ephemeral = !interaction.isChatInputCommand()
-    || isDiscordAdministrativeCommand(interaction.commandName, interaction.options.getSubcommand(false));
+    || isDiscordAdministrativeCommand(interaction.commandName, interaction.options.getSubcommand(false))
+    || isDiscordHiddenCommand(interaction.commandName, interaction.options.getSubcommand(false));
   if (interaction.deferred) {
     await interaction.editReply({ content: message });
     return;
@@ -159,6 +162,11 @@ client.on(Events.MessageDelete, (message) => {
   if (message.guildId !== config.guildId) {
     return;
   }
+  const guild = client.guilds.cache.get(config.guildId);
+  if (guild) {
+    void logDiscordMessageDeletion(config, guild, message.id)
+      .catch((error: unknown) => console.error('Discord deleted-message logging failed.', error));
+  }
   trackDeletedSnipeMessage(config, message.id);
 });
 
@@ -166,10 +174,12 @@ client.on(Events.MessageUpdate, (_, message) => {
   if (!message.inGuild() || message.guildId !== config.guildId) {
     return;
   }
-  trackSnipeMessage(config, message);
   void (message.partial ? message.fetch().catch(() => null) : Promise.resolve(message))
     .then((updatedMessage) => {
       if (!updatedMessage || !updatedMessage.inGuild() || updatedMessage.guildId !== config.guildId) return;
+      void logDiscordMessageEdit(config, updatedMessage)
+        .catch((error: unknown) => console.error('Discord edited-message logging failed.', error));
+      trackSnipeMessage(config, updatedMessage);
       return handleDisboardBump(config, updatedMessage);
     })
     .catch((error: unknown) => console.error('DISBOARD bump update processing failed.', error));
@@ -177,6 +187,13 @@ client.on(Events.MessageUpdate, (_, message) => {
 
 client.on(Events.MessageBulkDelete, (messages) => {
   const deletedMessages = [...messages.values()].sort((first, second) => first.createdTimestamp - second.createdTimestamp);
+  const guild = client.guilds.cache.get(config.guildId);
+  if (guild) {
+    void logDiscordBulkMessageDeletion(config, guild, deletedMessages
+      .filter((message) => message.guildId === config.guildId)
+      .map((message) => message.id))
+      .catch((error: unknown) => console.error('Discord bulk-message logging failed.', error));
+  }
   for (const message of deletedMessages) {
     if (message.guildId !== config.guildId) continue;
     trackDeletedSnipeMessage(config, message.id);
@@ -205,6 +222,7 @@ client.on(Events.GuildBanAdd, (ban) => {
     return;
   }
 
+  rememberDiscordMemberBan(ban.guild.id, ban.user.id);
   void resetBannedMemberXp(config, ban.user.id)
     .catch((error: unknown) => console.error('Discord ban XP reset failed.', error));
   void clearSkinCollection(config, ban.user.id)

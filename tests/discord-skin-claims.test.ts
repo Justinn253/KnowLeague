@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { serializedCommandDefinitions } from '../discord-bot/src/commands';
-import { buildSkinCollectionEmbed, buildSkinSearchEmbed, calculateCollectionDailyUpkeep, calculateSkinRaritySpawnPercent, skinDropEmbed } from '../discord-bot/src/skin-claims';
+import { buildSkinCollectionEmbed, buildSkinSearchEmbed, calculateCollectionDailyUpkeep, calculateSkinRaritySpawnPercent, getCollectionFullClaimNotice, skinDropEmbed } from '../discord-bot/src/skin-claims';
 import { DEFAULT_DISCORD_SKIN_CLAIM_SELL_VALUES, DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS } from '../lib/discord-skin-claims';
 
 type SerializedSubcommand = {
@@ -15,6 +15,11 @@ type SerializedSubcommand = {
 };
 
 describe('Discord skin-claim command contract', () => {
+  it('gives members with full collections a private capacity upgrade path', () => {
+    expect(getCollectionFullClaimNotice()).toContain('Your collection is full');
+    expect(getCollectionFullClaimNotice()).toContain('/collections capacity-add slots');
+  });
+
   it('defaults the channel scope to all sendable Discord text channels', () => {
     expect(DEFAULT_DISCORD_SKIN_CLAIM_SETTINGS.allChannels).toBe(true);
   });
@@ -47,6 +52,14 @@ describe('Discord skin-claim command contract', () => {
 
     expect(migration).toContain('returning claimed_drop.claimed_at into v_claimed_at;');
     expect(migration).not.toContain('returning claimed_at into v_claimed_at;');
+  });
+
+  it('returns a distinct result when a reaction cannot claim because the collection is full', () => {
+    const migrationPath = path.join(process.cwd(), 'supabase', 'migrations', '222_discord_skin_claim_result_status.sql');
+    const migration = readFileSync(migrationPath, 'utf8');
+
+    expect(migration).toContain('claim_result text');
+    expect(migration).toContain("'collection_full'");
   });
 
   it('registers the full Collections command set without a /cl alias', () => {

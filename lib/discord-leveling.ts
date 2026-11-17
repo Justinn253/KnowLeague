@@ -14,6 +14,8 @@ export type DiscordLevelingSettings = {
   inviteJoinMessageChannelId: string | null;
   inviteJoinMessageTemplate: string;
   leaveMessageChannelId: string | null;
+  messageDeleteLogChannelId: string | null;
+  messageEditLogChannelId: string | null;
   enabled: boolean;
   leaderboardTopRoleId: string | null;
   levelUpMessageEnabled: boolean;
@@ -43,6 +45,8 @@ export const DEFAULT_DISCORD_LEVELING_SETTINGS: DiscordLevelingSettings = {
   inviteJoinMessageChannelId: null,
   inviteJoinMessageTemplate: DISCORD_DEFAULT_INVITE_JOIN_MESSAGE_TEMPLATE,
   leaveMessageChannelId: null,
+  messageDeleteLogChannelId: null,
+  messageEditLogChannelId: null,
   enabled: true,
   leaderboardTopRoleId: null,
   levelUpMessageEnabled: true,

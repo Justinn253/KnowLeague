@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, MessageFlags, PermissionFlagsBits, type Attachment, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
 import type { DiscordBotConfig } from './config.js';
 import {
   addManualXp,
@@ -14,16 +14,9 @@ import { flipKnowBucks, getKnowBucksBalance, getKnowBucksLeaderboard, payKnowBuc
 import { importExternalMessageEmojis } from './emoji-import.js';
 import { importExternalMessageStickers } from './sticker-import.js';
 import {
-  backfillDiscordMemberLeaveInfo,
-  getDiscordInviteTrackingStatus,
   getDiscordInviteLeaderboard,
-  importDiscordInviteLeaderboard,
-  importDiscordInvitedMembers,
-  parseInviteTrackerInvitedMembersCsv,
-  parseInviteTrackerLeaderboardCsv,
   setDiscordInviteCount,
 } from './member-lifecycle.js';
-import { getDisboardBumpReminderStatus } from './disboard.js';
 import { findLinkedProfile } from './profiles.js';
 import {
   formatRiftboundMockTreatment,
@@ -46,6 +39,7 @@ import {
 import { getRiftboundCommandChannelIds, isRiftboundCommandAllowedInChannel } from './riftbound-settings.js';
 import {
   attemptRobbery,
+  getPlayerEquipmentInventory,
   getPlayerShopDisplayCost,
   getPlayerInventory,
   getPlayerShopItem,
@@ -60,6 +54,15 @@ import {
   type RobberyResult,
 } from './player.js';
 import { getDefaultCommandChannelIds, isDefaultCommandChannel, usesDefaultCommandChannel } from './general-settings.js';
+import {
+  anonymizeMemberHasRole,
+  createDiscordAnonymizedMessage,
+  deleteDiscordAnonymizedMessage,
+  formatAnonymizeId,
+  getDiscordAnonymizeConfiguration,
+  getDiscordAnonymizedMessage,
+  normalizeAnonymizeId,
+} from './anonymize.js';
 import { getLinkedLeagueAccount, linkLeagueAccount } from './league-accounts.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
@@ -255,7 +258,7 @@ function configuredChannelMentions(channelIds: readonly string[]) {
 
 async function replyWithCommandChannelLink(
   interaction: ChatInputCommandInteraction,
-  scope: 'Collections' | 'Fishing' | 'General' | 'Mining' | 'Riftbound',
+  scope: 'Anonymize' | 'Collections' | 'Fishing' | 'General' | 'Mining' | 'Riftbound',
   channelIds: readonly string[],
 ) {
   const destination = configuredChannelMentions(channelIds);
@@ -317,14 +320,156 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
     || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
     || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
     || (commandName === 'invite' && subcommand === 'set-invite-count')
+    || commandName === 'anonymize-view'
     || commandName === 'steal-emoji'
-    || commandName === 'steal-sticker'
-    || commandName === 'temp';
+    || commandName === 'steal-sticker';
+}
+
+export function isDiscordHiddenCommand(commandName: string, subcommand: string | null) {
+  return commandName === 'link'
+    || commandName === 'profile'
+    || commandName === 'anonymize-report'
+    || commandName === 'anonymize-view'
+    || (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
+    || (commandName === 'knowbucks' && (subcommand === 'add' || subcommand === 'remove' || subcommand === 'set'))
+    || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
+    || (commandName === 'invite' && subcommand === 'set-invite-count')
+    || commandName === 'steal-emoji'
+    || commandName === 'steal-sticker';
 }
 
 export function requiresDefaultCommandChannel(commandName: string, subcommand: string | null) {
   return usesDefaultCommandChannel(commandName)
-    && !isDiscordAdministrativeCommand(commandName, subcommand);
+    && !isDiscordAdministrativeCommand(commandName, subcommand)
+    && !isDiscordHiddenCommand(commandName, subcommand);
+}
+
+function buildAnonymousMessagePanel(messageContent: string, anonymizeId: string) {
+  return new EmbedBuilder()
+    .setColor(0x64748B)
+    .setDescription(messageContent)
+    .setFooter({ text: `Anonymize ID: ${formatAnonymizeId(anonymizeId)}` });
+}
+
+async function getInteractionMember(interaction: ChatInputCommandInteraction) {
+  if (!interaction.guild) return null;
+  return interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+}
+
+async function handleAnonymizeCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  const settings = await getDiscordAnonymizeConfiguration(config);
+  if (settings.useRoleIds.size === 0) {
+    await interaction.reply({ content: 'Anonymous posting has not been configured for this server yet.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (!settings.allChannels && !settings.commandChannelIds.has(interaction.channelId)) {
+    await replyWithCommandChannelLink(interaction, 'Anonymize', [...settings.commandChannelIds]);
+    return;
+  }
+
+  const member = await getInteractionMember(interaction);
+  if (!member || !anonymizeMemberHasRole(member.roles.cache.keys(), settings.useRoleIds)) {
+    await interaction.reply({ content: 'You do not have a Discord role allowed to use /anonymize.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const messageContent = interaction.options.getString('message', true).trim();
+  if (!messageContent) {
+    await interaction.reply({ content: 'Enter a message with at least one non-space character.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const destinationChannel = interaction.guild
+    ? await interaction.guild.channels.fetch(interaction.channelId).catch(() => null)
+    : null;
+  if (!destinationChannel?.isSendable()) {
+    await interaction.editReply({ content: 'This channel is unavailable for anonymous-message posting. Ask an administrator to update Discord Configuration.' });
+    return;
+  }
+  const message = await createDiscordAnonymizedMessage(config, interaction.user.id, messageContent);
+  try {
+    await destinationChannel.send({
+      allowedMentions: { parse: [] },
+      embeds: [buildAnonymousMessagePanel(message.messageContent, message.anonymizeId)],
+    });
+  } catch (error) {
+    await deleteDiscordAnonymizedMessage(config, message.anonymizeId).catch((deletionError: unknown) => {
+      console.error('Unable to remove an anonymous message that could not be posted.', deletionError);
+    });
+    throw error;
+  }
+  await interaction.editReply({ content: 'Your anonymous message was posted.' });
+}
+
+async function handleAnonymizeReportCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  const settings = await getDiscordAnonymizeConfiguration(config);
+  if (!settings.reportChannelId) {
+    await interaction.reply({ content: 'Anonymous-message reporting has not been configured for this server yet.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const anonymizeId = normalizeAnonymizeId(interaction.options.getString('anonymize-id', true));
+  if (!anonymizeId) {
+    await interaction.reply({ content: 'Enter the 12-character Anonymize ID shown on the message panel.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const message = await getDiscordAnonymizedMessage(config, anonymizeId);
+  if (!message) {
+    await interaction.editReply({ content: 'No anonymous message exists for that Anonymize ID.' });
+    return;
+  }
+  const reportChannel = interaction.guild
+    ? await interaction.guild.channels.fetch(settings.reportChannelId).catch(() => null)
+    : null;
+  if (!reportChannel?.isSendable()) {
+    await interaction.editReply({ content: 'The configured anonymous-message report channel is unavailable. Ask an administrator to update Discord Configuration.' });
+    return;
+  }
+  await reportChannel.send({
+    allowedMentions: { parse: [] },
+    embeds: [new EmbedBuilder()
+      .setColor(0xEF4444)
+      .setTitle('Anonymous message report')
+      .setDescription(message.messageContent)
+      .addFields(
+        { name: 'Anonymize ID', value: formatAnonymizeId(message.anonymizeId), inline: true },
+        { name: 'Reported by', value: `${escapeMarkdown(interaction.user.username)} (<@${interaction.user.id}>)`, inline: true },
+      )],
+  });
+  await interaction.editReply({ content: 'Your anonymous-message report was sent to the server staff channel.' });
+}
+
+async function handleAnonymizeViewCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  const settings = await getDiscordAnonymizeConfiguration(config);
+  if (settings.viewRoleIds.size === 0) {
+    await interaction.reply({ content: 'Anonymous sender lookup has not been configured for this server yet.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const member = await getInteractionMember(interaction);
+  if (!member || !anonymizeMemberHasRole(member.roles.cache.keys(), settings.viewRoleIds)) {
+    await interaction.reply({ content: 'You do not have a Discord role allowed to use /anonymize-view.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const anonymizeId = normalizeAnonymizeId(interaction.options.getString('anonymize-id', true));
+  if (!anonymizeId) {
+    await interaction.reply({ content: 'Enter the 12-character Anonymize ID shown on the message panel.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const message = await getDiscordAnonymizedMessage(config, anonymizeId);
+  if (!message) {
+    await interaction.editReply({ content: 'No anonymous message exists for that Anonymize ID.' });
+    return;
+  }
+  const author = await interaction.client.users.fetch(message.authorDiscordUserId).catch(() => null);
+  const authorName = author ? escapeMarkdown(author.username) : 'Former or unavailable Discord user';
+  await interaction.editReply({
+    allowedMentions: { parse: [] },
+    embeds: [new EmbedBuilder()
+      .setColor(0xF59E0B)
+      .setTitle(`Sender for ${formatAnonymizeId(message.anonymizeId)}`)
+      .setDescription(`${authorName} (<@${message.authorDiscordUserId}>)`)],
+  });
 }
 
 function formatXp(value: number) {
@@ -865,6 +1010,10 @@ function helpFields(tab: HelpTab): HelpField[] {
     { name: '/help', value: 'Open this command guide.' },
     { name: '/rc', value: 'Repeat your most recent slash command with the same options.' },
     { name: '/link, /profile', value: 'Link your Discord account to KnowLeague or open your linked public profile.' },
+    { name: '/dice-roll upper-limit', value: 'Roll a random number from 1 through the chosen upper limit.' },
+    { name: '/anonymize message', value: 'Post a configured anonymous message panel with a reportable ID.' },
+    { name: '/anonymize-report anonymize-id', value: 'Privately report an anonymous message to the configured staff channel.' },
+    { name: '/anonymize-view anonymize-id', value: 'Privately identify a sender. Requires a configured Anonymize viewer role.' },
     { name: '/xp view [member]', value: 'View chat level and XP progress for yourself or a member.' },
     { name: '/xp add, /xp set-level', value: 'Manage chat XP. Requires a role selected in Discord Configuration.' },
     { name: '/leaderboard [count]', value: 'Show the server’s active chat-XP leaderboard.' },
@@ -2575,143 +2724,6 @@ async function handleStealStickerCommand(interaction: ChatInputCommandInteractio
   });
 }
 
-const INVITE_TRACKER_IMPORT_MAX_BYTES = 2_000_000;
-
-async function readInviteTrackerCsv(attachment: Attachment) {
-  if (attachment.size < 1 || attachment.size > INVITE_TRACKER_IMPORT_MAX_BYTES) {
-    throw new Error('The Invite Tracker CSV must be between 1 byte and 2 MB.');
-  }
-  const url = new URL(attachment.url);
-  if (url.protocol !== 'https:' || !['cdn.discordapp.com', 'media.discordapp.net', 'attachments.discordapp.net'].includes(url.hostname)) {
-    throw new Error('Upload the CSV directly to this command as a Discord attachment.');
-  }
-  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-  if (!response.ok) throw new Error('Discord could not provide the uploaded Invite Tracker CSV. Please upload it again.');
-  const csv = await response.text();
-  if (csv.length > INVITE_TRACKER_IMPORT_MAX_BYTES) throw new Error('The Invite Tracker CSV is too large.');
-  return csv;
-}
-
-function importedMemberRoleSnapshot(member: GuildMember) {
-  return [...member.roles.cache.values()]
-    .filter((role) => role.id !== member.guild.id)
-    .sort((left, right) => right.position - left.position || left.name.localeCompare(right.name))
-    .map((role) => ({ id: role.id, name: role.name }));
-}
-
-async function buildInvitedMemberImports(interaction: ChatInputCommandInteraction, csv: string) {
-  if (!interaction.guild) return { members: [], skipped: 0 };
-  const invitees = parseInviteTrackerInvitedMembersCsv(csv);
-  const members = [] as Array<{
-    joinedAt: Date;
-    memberDisplayName: string;
-    memberUsername: string;
-    roleSnapshot: Array<{ id: string; name: string }>;
-    userId: string;
-  }>;
-  let skipped = 0;
-  for (const invitee of invitees) {
-    const member = await interaction.guild.members.fetch(invitee.userId).catch(() => null);
-    if (!member || member.user.bot || !member.joinedAt) {
-      skipped += 1;
-      continue;
-    }
-    members.push({
-      joinedAt: member.joinedAt,
-      memberDisplayName: member.displayName || member.user.username || member.id,
-      memberUsername: member.user.username || member.id,
-      roleSnapshot: importedMemberRoleSnapshot(member),
-      userId: member.id,
-    });
-  }
-  return { members, skipped };
-}
-
-async function handleTemporaryAdminCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
-  if (!interaction.guild) return;
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    await interaction.reply({ content: 'Only server administrators can use /temp commands.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const subcommand = interaction.options.getSubcommand(false);
-  if (subcommand === null || !['update-leave-info', 'disboard-reminder-status', 'invite-tracker-status', 'import-invite-leaderboard', 'import-invited-members'].includes(subcommand)) return;
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  if (subcommand === 'update-leave-info') {
-    const updated = await backfillDiscordMemberLeaveInfo(config, interaction.guild);
-    await interaction.editReply({
-      content: `Stored leave-information snapshots for **${formatXp(updated)}** current non-bot members. Invite sources are available for future joins; last-message links are retained when already known and recorded from now on.`,
-    });
-    return;
-  }
-
-  if (subcommand === 'import-invite-leaderboard') {
-    const attachment = interaction.options.getAttachment('csv', true);
-    const entries = parseInviteTrackerLeaderboardCsv(await readInviteTrackerCsv(attachment));
-    const imported = await importDiscordInviteLeaderboard(config, entries);
-    await interaction.editReply({
-      content: `Reconciled **${formatXp(imported)}** Invite Tracker leaderboard entr${imported === 1 ? 'y' : 'ies'}. Re-importing a newer export replaces the imported baseline instead of adding duplicate invites.`,
-    });
-    return;
-  }
-
-  if (subcommand === 'invite-tracker-status') {
-    const status = await getDiscordInviteTrackingStatus(config, interaction.guild);
-    await interaction.editReply({
-      content: [
-        `Manage Server permission: ${status.canReadInviteUses ? 'available' : 'missing'}.`,
-        `Manage Channels permission: ${status.canReceiveInviteEvents ? 'available' : 'missing'} (it must also be allowed in every channel where invites can be created).`,
-        status.activeInviteCount === null
-          ? 'Invite cache: not loaded in this bot process.'
-          : `Invite cache: ${formatXp(status.activeInviteCount)} active server invite${status.activeInviteCount === 1 ? '' : 's'} (${Math.floor((status.cacheAgeMilliseconds ?? 0) / 1_000)} seconds old).`,
-        `Last attribution: ${status.lastResolution ?? 'No member join has been processed since this bot process started.'}`,
-      ].join('\n'),
-      allowedMentions: { parse: [] },
-    });
-    return;
-  }
-
-  if (subcommand === 'import-invited-members') {
-    const inviter = interaction.options.getUser('inviter', true);
-    const attachment = interaction.options.getAttachment('csv', true);
-    const { members, skipped } = await buildInvitedMemberImports(interaction, await readInviteTrackerCsv(attachment));
-    if (!members.length) {
-      await interaction.editReply({ content: 'The export did not contain any current, non-bot members to import. Fake and departed accounts are intentionally skipped.' });
-      return;
-    }
-    const imported = await importDiscordInvitedMembers(config, {
-      userId: inviter.id,
-      username: inviter.username,
-    }, members);
-    await interaction.editReply({
-      content: `Imported **${formatXp(imported)}** current invitee${imported === 1 ? '' : 's'} for ${inviter}. Their future departures will reduce that inviter's total. ${skipped ? `Skipped **${formatXp(skipped)}** departed or bot account${skipped === 1 ? '' : 's'}.` : ''}`,
-      allowedMentions: { parse: [] },
-    });
-    return;
-  }
-
-  const status = await getDisboardBumpReminderStatus(config);
-  if (!status.channelId) {
-    await interaction.editReply({ content: 'No DISBOARD bump channel is configured. Set one in Discord Configuration → General.' });
-    return;
-  }
-  const scheduled = status.dueAt && status.sourceMessageId
-    ? `Scheduled for <t:${Math.floor(status.dueAt.getTime() / 1_000)}:F> (<t:${Math.floor(status.dueAt.getTime() / 1_000)}:R>) from message ID \`${status.sourceMessageId}\`.`
-    : 'No successful bump is currently scheduled.';
-  await interaction.editReply({
-    content: [
-      `Bump channel: <#${status.channelId}>`,
-      `Reminder user: ${status.reminderUserId ? `<@${status.reminderUserId}>` : 'Not configured'}`,
-      scheduled,
-      `This bot process timer: ${status.timerArmed ? `armed for source message ID \`${status.timerSourceMessageId}\`` : 'not armed'}.`,
-      `Visible confirmation message: ${status.confirmationMessageId ? `\`${status.confirmationMessageId}\`` : 'None'}.`,
-      `Bump history reconciliation: ${status.reconciliationActive ? 'active' : 'not active'}.`,
-      `Last DISBOARD observation: ${status.lastObservation ?? 'No matching message has been observed since this process started.'}`,
-    ].join('\n'),
-    allowedMentions: { parse: [] },
-  });
-}
-
 async function getCurrentNonBotMember(interaction: ChatInputCommandInteraction, userId: string) {
   if (!interaction.guild) return null;
   const member = await interaction.guild.members.fetch(userId).catch(() => null);
@@ -2778,6 +2790,57 @@ function robberyBodyguardDetail(targetUser: { toString(): string }, result: Robb
     : '';
 }
 
+async function postRobberyResultWithoutInteractionAttribution(
+  interaction: ChatInputCommandInteraction,
+  resultEmbed: EmbedBuilder,
+) {
+  if (!interaction.guild) return false;
+  const destinationChannel = await interaction.guild.channels.fetch(interaction.channelId).catch(() => null);
+  if (!destinationChannel?.isSendable()) return false;
+  await destinationChannel.send({ allowedMentions: { parse: [] }, embeds: [resultEmbed] });
+  return true;
+}
+
+async function handleMaskedRobCommandResult(
+  interaction: ChatInputCommandInteraction,
+  targetUser: { toString(): string },
+  result: RobberyResult,
+) {
+  if (result.outcome === 'cooldown') {
+    await interaction.editReply({ content: `Your next robbery attempt is available ${robberyCooldownRelativeTime(result.cooldownAvailableAt)}.` });
+    return;
+  }
+  if (result.outcome === 'target-empty') {
+    await interaction.editReply({ content: 'That member has no KnowBucks available to rob. No cooldown was used.' });
+    return;
+  }
+
+  const robberIdentity = result.masked ? 'An unknown robber' : `${interaction.user}`;
+  const resultEmbed = result.outcome === 'success'
+    ? new EmbedBuilder()
+      .setColor(0x22C55E)
+      .setTitle(result.stolenAmount > 0 ? 'Robbery succeeded' : 'Robbery found no unprotected funds')
+      .setDescription(`${result.stolenAmount > 0
+        ? `${robberIdentity} robbed ${targetUser} for **${formatXp(result.stolenAmount)} KnowBucks** (${result.theftPercent}% outcome).`
+        : `${robberIdentity} got past ${targetUser}'s defenses, but their Safe protected every available KnowBuck.`}${robberyBodyguardDetail(targetUser, result)}\nRobber balance: **${formatXp(result.robberBalance)} KnowBucks**. Next attempt: ${robberyCooldownRelativeTime(result.cooldownAvailableAt)}.`)
+    : new EmbedBuilder()
+      .setColor(0xEF4444)
+      .setTitle('Robbery failed')
+      .setDescription(`${result.failurePenalty > 0
+        ? `${result.revealed ? interaction.user : robberIdentity} failed to rob ${targetUser} and forfeited **${formatXp(result.failurePenalty)} KnowBucks** to them.`
+        : `${result.revealed ? interaction.user : robberIdentity} failed to rob ${targetUser}, but had no KnowBucks to forfeit.`}${robberyBodyguardDetail(targetUser, result)}\nRobber balance: **${formatXp(result.robberBalance)} KnowBucks**. Next attempt: ${robberyCooldownRelativeTime(result.cooldownAvailableAt)}.`);
+
+  if (!(await postRobberyResultWithoutInteractionAttribution(interaction, resultEmbed))) {
+    await interaction.editReply({ content: 'Your robbery result could not be posted because this channel is unavailable.' });
+    return;
+  }
+  await interaction.editReply({
+    content: result.masked
+      ? 'Your anonymous robbery result was posted.'
+      : 'Your robbery result was posted. A defending Bodyguard revealed your identity.',
+  });
+}
+
 async function handleRobCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
   if (!interaction.guild) return;
   const targetUser = interaction.options.getUser('user', true);
@@ -2794,9 +2857,15 @@ async function handleRobCommand(interaction: ChatInputCommandInteraction, config
     return;
   }
 
-  await interaction.deferReply();
+  const equipment = await getPlayerEquipmentInventory(config, interaction.user.id);
+  const hasMask = equipment.some((entry) => entry.item.id === 'mask' && entry.quantity > 0);
+  await interaction.deferReply(hasMask ? { flags: MessageFlags.Ephemeral } : undefined);
   try {
     const result = await attemptRobbery(config, interaction.user.id, targetUser.id);
+    if (hasMask) {
+      await handleMaskedRobCommandResult(interaction, targetUser, result);
+      return;
+    }
     if (result.outcome === 'cooldown') {
       await interaction.editReply({ content: `Your next robbery attempt is available ${robberyCooldownRelativeTime(result.cooldownAvailableAt)}.` });
       return;
@@ -4248,7 +4317,7 @@ async function handleCollectionsCommand(interaction: ChatInputCommandInteraction
         return;
       }
       if (result.status === 'lost') {
-        await interaction.editReply({ content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.` });
+        await interaction.editReply({ content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned. You can level up your luck using /player shop.` });
         return;
       }
       if (result.status === 'active-drop') {
@@ -4925,7 +4994,7 @@ async function handleClaimedSkinActionButton(interaction: ButtonInteraction, con
     if (result.status === 'lost') {
       await interaction.editReply({
         components: [],
-        content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.`,
+        content: `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned. You can level up your luck using /player shop.`,
         embeds: [],
       });
       return true;
@@ -5007,7 +5076,7 @@ async function handleSkinCollectionActionButton(interaction: ButtonInteraction, 
       if (result.status === 'spawned') {
         notice = null;
       } else if (result.status === 'lost') {
-        notice = `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned.`;
+        notice = `**${interaction.user.username}** gambled **${result.skinName}** - #${skinCollectionCode(skinCode)} at a ${result.successChancePercent ?? 25}% chance, but no new skin spawned. You can level up your luck using /player shop.`;
       } else if (result.status === 'active-drop') {
         notice = 'A live skin drop already exists, so this skin was not consumed.';
       } else {
@@ -5328,7 +5397,7 @@ export async function handleChatInputCommand(
     return;
   }
 
-  if (storeAsMostRecent) storeMostRecentCommand(interaction);
+  if (storeAsMostRecent && interaction.commandName !== 'anonymize') storeMostRecentCommand(interaction);
 
   if (interaction.commandName === 'help') {
     await interaction.reply(buildHelpPanel('general'));
@@ -5347,6 +5416,32 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'knowbucks') {
     await handleKnowBucksCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'dice-roll') {
+    const upperLimit = interaction.options.getInteger('upper-limit', true);
+    const result = randomInt(1, upperLimit + 1);
+    await interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(0xF59E0B)
+        .setDescription(`🎲 **${result}** of ${formatXp(upperLimit)}`)],
+    });
+    return;
+  }
+
+  if (interaction.commandName === 'anonymize') {
+    await handleAnonymizeCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'anonymize-report') {
+    await handleAnonymizeReportCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'anonymize-view') {
+    await handleAnonymizeViewCommand(interaction, config);
     return;
   }
 
@@ -5377,11 +5472,6 @@ export async function handleChatInputCommand(
 
   if (interaction.commandName === 'steal-sticker') {
     await handleStealStickerCommand(interaction, config);
-    return;
-  }
-
-  if (interaction.commandName === 'temp') {
-    await handleTemporaryAdminCommand(interaction, config);
     return;
   }
 
@@ -5423,6 +5513,7 @@ export async function handleChatInputCommand(
           .setColor(0xF59E0B)
           .setDescription('Open your KnowLeague profile, choose **Link Discord**, and approve the Discord account connection. Then use `/profile` here to confirm it.'),
       ],
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -5437,6 +5528,7 @@ export async function handleChatInputCommand(
             .setColor(0xEF4444)
             .setDescription('This Discord account is not linked to a KnowLeague profile yet. Link it from your profile settings, then try `/profile` again.'),
         ],
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -5449,6 +5541,7 @@ export async function handleChatInputCommand(
           .setTitle(profile.displayName)
           .setDescription(`Linked as \`@${profile.username}\` on KnowLeague.`),
       ],
+      flags: MessageFlags.Ephemeral,
     });
   }
 }

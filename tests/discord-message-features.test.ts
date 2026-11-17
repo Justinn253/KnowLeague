@@ -3,6 +3,7 @@ import { extractCustomEmojiReferences } from '../discord-bot/src/emoji-import';
 import { isDisboardBumpSuccessText } from '../discord-bot/src/disboard';
 import { isMessageLotteryWinner, messageLotteryRewardForRoll } from '../discord-bot/src/message-rewards';
 import { formatSnipedMessage, getSnipeImageAttachments } from '../discord-bot/src/snipe';
+import { buildDiscordDeletedMessagePanel, buildDiscordEditedMessagePanel } from '../discord-bot/src/message-logs';
 
 describe('Discord message-linked KnowBucks rewards', () => {
   it('uses the requested one-in-one-thousand trigger and weighted reward tiers', () => {
@@ -54,5 +55,42 @@ describe('Snipe attachment presentation', () => {
     expect(getSnipeImageAttachments(sniped)).toEqual([sniped.attachments[0]]);
     expect(formatSnipedMessage(sniped)).not.toContain('deleted-image.png');
     expect(formatSnipedMessage(sniped)).toContain('[notes.pdf](https://cdn.discordapp.com/attachments/notes.pdf)');
+  });
+});
+
+describe('Discord message activity logs', () => {
+  const snapshot = {
+    attachments: [],
+    authorAvatarUrl: 'https://cdn.discordapp.com/avatars/123/avatar.png',
+    authorDisplayName: 'Member',
+    authorId: '12345678901234567',
+    authorIsBot: false,
+    channelId: '12345678901234568',
+    content: 'Original message',
+    deletedAt: 0,
+    guildId: '12345678901234569',
+    messageId: '12345678901234570',
+    sentAt: Date.now(),
+  };
+
+  it('shows the deletion cause and only cached message text', () => {
+    const panel = buildDiscordDeletedMessagePanel(snapshot, {
+      label: 'Self-deleted',
+      detail: 'No matching moderator-deletion audit record was found.',
+    }).toJSON();
+    expect(panel.author?.name).toBe('Message deleted');
+    expect(panel.description).toBe('Original message');
+    expect(panel.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Self-deleted' }),
+    ]));
+  });
+
+  it('shows the before and after text for a member edit', () => {
+    const panel = buildDiscordEditedMessagePanel(snapshot, 'Updated message').toJSON();
+    expect(panel.author?.name).toBe('Message edited');
+    expect(panel.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Before', value: 'Original message' }),
+      expect.objectContaining({ name: 'After', value: 'Updated message' }),
+    ]));
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from 'discord.js';
 import type { DiscordBotConfig } from '../discord-bot/src/config';
-import { isDisboardBumpSuccessText, isSuccessfulDisboardBump } from '../discord-bot/src/disboard';
+import { DISBOARD_BUMP_REMINDER_DELAY_MS, isDisboardBumpSuccessText, isSuccessfulDisboardBump } from '../discord-bot/src/disboard';
 
 const GUILD_ID = '123456789012345678';
 const BUMP_CHANNEL_ID = '223456789012345678';
@@ -19,6 +19,10 @@ function disboardMessage(content: string, channelId = BUMP_CHANNEL_ID) {
 }
 
 describe('DISBOARD bump confirmations', () => {
+  it('schedules reminders 90 minutes after a successful bump', () => {
+    expect(DISBOARD_BUMP_REMINDER_DELAY_MS).toBe(90 * 60 * 1_000);
+  });
+
   it('recognizes only successful confirmations in the configured server channel', () => {
     expect(isSuccessfulDisboardBump(config, disboardMessage('Bump done!'), BUMP_CHANNEL_ID)).toBe(true);
     expect(isSuccessfulDisboardBump(config, {

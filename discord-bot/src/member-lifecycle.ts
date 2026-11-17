@@ -1,4 +1,5 @@
 import { EmbedBuilder, PermissionFlagsBits, type Guild, type GuildMember, type Invite, type Message, type PartialGuildMember } from 'discord.js';
+import { resolveDiscordMemberLeaveReason, type DiscordAuditReason } from './audit-log-reasons.js';
 import type { DiscordBotConfig } from './config.js';
 import { getDiscordLevelProgress } from './leveling.js';
 import { createBotServiceClient } from './supabase.js';
@@ -61,27 +62,6 @@ export type InviteLeaderboardEntry = {
   username: string | null;
 };
 
-export type InviteTrackerInvitee = {
-  joinedAt: Date;
-  userId: string;
-};
-
-export type InviteMemberImport = {
-  joinedAt: Date;
-  memberDisplayName: string;
-  memberUsername: string;
-  roleSnapshot: Array<{ id: string; name: string }>;
-  userId: string;
-};
-
-export type DiscordInviteTrackingStatus = {
-  activeInviteCount: number | null;
-  cacheAgeMilliseconds: number | null;
-  canReceiveInviteEvents: boolean;
-  canReadInviteUses: boolean;
-  lastResolution: string | null;
-};
-
 export type DiscordJoinSource =
   | { kind: 'invite'; inviteCode: string; inviterId: string | null; inviterUsername: string | null }
   | { kind: 'vanity' }
@@ -94,15 +74,7 @@ type StoredLeaveSnapshot = {
   inviter_username: string | null;
   joined_at: string;
   join_source: 'invite' | 'vanity' | 'unknown';
-  last_message_at: string | null;
-  last_message_channel_id: string | null;
-  last_message_id: string | null;
   role_snapshot: unknown;
-};
-
-type StoredLevel = {
-  discord_user_id: string;
-  level: number;
 };
 
 type StoredSingleUseInviteClaim = {
@@ -121,7 +93,6 @@ const pendingInviteCreationsByGuildId = new Map<string, Map<string, InviteSnapsh
 const deletedInviteSnapshotsByGuildId = new Map<string, Map<string, DeletedInviteSnapshot>>();
 const inviteCacheQueuesByGuildId = new Map<string, Promise<void>>();
 const pendingInviteAttributionsByGuildId = new Map<string, PendingInviteAttribution[]>();
-const lastInviteResolutionByGuildId = new Map<string, { at: number; detail: string }>();
 const DELETED_INVITE_FALLBACK_WINDOW_MS = 5 * 60_000;
 const PENDING_INVITE_ATTRIBUTION_WINDOW_MS = 30_000;
 const SINGLE_USE_INVITE_PRE_JOIN_GRACE_MS = 5_000;
@@ -137,10 +108,6 @@ function enqueueInviteCacheTask<T>(guildId: string, task: () => Promise<T>) {
     if (inviteCacheQueuesByGuildId.get(guildId) === tail) inviteCacheQueuesByGuildId.delete(guildId);
   });
   return current;
-}
-
-function recordInviteResolution(guildId: string, detail: string) {
-  lastInviteResolutionByGuildId.set(guildId, { at: Date.now(), detail });
 }
 
 function delay(milliseconds: number) {
@@ -213,7 +180,6 @@ export async function getDiscordInviteLeaderboard(config: DiscordBotConfig, user
       : [];
   });
 }
-
 /**
  * Stores an administrator-supplied total as a baseline. New verified joins
  * remain additive, and verified departures still decrement the total, just as
@@ -235,136 +201,8 @@ export async function setDiscordInviteCount(
   return data;
 }
 
-export async function importDiscordInviteLeaderboard(config: DiscordBotConfig, entries: readonly InviteLeaderboardEntry[]) {
-  const { data, error } = await createBotServiceClient(config).rpc('import_discord_invite_leaderboard', {
-    p_entries: entries.map((entry) => ({
-      discord_user_id: entry.userId,
-      invite_count: entry.inviteCount,
-      inviter_username: entry.username,
-    })),
-    p_guild_id: config.guildId,
-  });
-  if (error) throw new Error(`Unable to import Discord invite leaderboard: ${error.message}`);
-  return typeof data === 'number' ? data : entries.length;
-}
-
-export async function importDiscordInvitedMembers(
-  config: DiscordBotConfig,
-  inviter: { userId: string; username: string },
-  members: readonly InviteMemberImport[],
-) {
-  const { data, error } = await createBotServiceClient(config).rpc('import_discord_invited_members', {
-    p_guild_id: config.guildId,
-    p_inviter_discord_user_id: inviter.userId,
-    p_inviter_username: inviter.username,
-    p_members: members.map((member) => ({
-      discord_user_id: member.userId,
-      joined_at: member.joinedAt.toISOString(),
-      member_display_name: member.memberDisplayName,
-      member_username: member.memberUsername,
-      role_snapshot: member.roleSnapshot,
-    })),
-  });
-  if (error) throw new Error(`Unable to import Discord invited members: ${error.message}`);
-  return typeof data === 'number' ? data : members.length;
-}
-
 export function formatMemberLifecycleTemplate(template: string, values: Record<string, string | number>) {
   return template.replace(/\{(user|inviter|inviteCount)\}/g, (placeholder, key: keyof typeof values) => String(values[key] ?? placeholder));
-}
-
-function parseCsvRows(csv: string) {
-  const rows: string[][] = [];
-  let field = '';
-  let row: string[] = [];
-  let quoted = false;
-
-  for (let index = 0; index < csv.length; index += 1) {
-    const character = csv[index];
-    if (character === '"') {
-      if (quoted && csv[index + 1] === '"') {
-        field += '"';
-        index += 1;
-      } else {
-        quoted = !quoted;
-      }
-      continue;
-    }
-    if (!quoted && character === ',') {
-      row.push(field);
-      field = '';
-      continue;
-    }
-    if (!quoted && character === '\n') {
-      row.push(field.replace(/\r$/, ''));
-      if (row.some((value) => value.length > 0)) rows.push(row);
-      row = [];
-      field = '';
-      continue;
-    }
-    field += character;
-  }
-  if (quoted) throw new Error('The CSV has an unclosed quoted value.');
-  row.push(field.replace(/\r$/, ''));
-  if (row.some((value) => value.length > 0)) rows.push(row);
-  return rows;
-}
-
-function parseInviteTrackerCsv(csv: string) {
-  const rows = parseCsvRows(csv);
-  if (rows.length < 2) throw new Error('The CSV does not contain any invite entries.');
-  const header = rows[0].map((value) => value.replace(/^\uFEFF/, '').trim().toLowerCase());
-  const entries = rows.slice(1).map((row) => Object.fromEntries(header.map((key, index) => [key, row[index]?.trim() ?? ''])));
-  return entries;
-}
-
-function parseNonNegativeInteger(value: string, description: string) {
-  if (!/^(?:0|[1-9]\d*)$/.test(value)) throw new Error(`${description} must be a whole number.`);
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed > 1_000_000) throw new Error(`${description} is outside the supported range.`);
-  return parsed;
-}
-
-function requireInviteTrackerColumn(rows: Array<Record<string, string>>, column: string) {
-  if (!rows.length || !(column in rows[0])) throw new Error(`The CSV must include an \`${column}\` column from Invite Tracker.`);
-}
-
-export function parseInviteTrackerLeaderboardCsv(csv: string): InviteLeaderboardEntry[] {
-  const rows = parseInviteTrackerCsv(csv);
-  requireInviteTrackerColumn(rows, 'user_id');
-  requireInviteTrackerColumn(rows, 'invites');
-  const userIds = new Set<string>();
-  return rows.map((row, index) => {
-    const userId = row.user_id;
-    if (!/^\d{17,20}$/.test(userId)) throw new Error(`Row ${index + 2} has an invalid Discord user ID.`);
-    if (userIds.has(userId)) throw new Error(`The CSV has duplicate entries for Discord user ${userId}.`);
-    userIds.add(userId);
-    return {
-      inviteCount: parseNonNegativeInteger(row.invites, `Row ${index + 2} invite count`),
-      userId,
-      username: null,
-    };
-  });
-}
-
-export function parseInviteTrackerInvitedMembersCsv(csv: string): InviteTrackerInvitee[] {
-  const rows = parseInviteTrackerCsv(csv);
-  requireInviteTrackerColumn(rows, 'user_id');
-  requireInviteTrackerColumn(rows, 'joined_at');
-  requireInviteTrackerColumn(rows, 'fake');
-  const userIds = new Set<string>();
-  return rows.flatMap((row, index) => {
-    const userId = row.user_id;
-    if (!/^\d{17,20}$/.test(userId)) throw new Error(`Row ${index + 2} has an invalid Discord user ID.`);
-    if (userIds.has(userId)) throw new Error(`The CSV has duplicate entries for Discord user ${userId}.`);
-    userIds.add(userId);
-    const fake = row.fake.toLowerCase();
-    if (!['0', 'false', 'no', '1', 'true', 'yes'].includes(fake)) throw new Error(`Row ${index + 2} has an invalid fake-invite value.`);
-    if (['1', 'true', 'yes'].includes(fake)) return [];
-    const joinedAt = new Date(row.joined_at);
-    if (Number.isNaN(joinedAt.getTime())) throw new Error(`Row ${index + 2} has an invalid joined_at timestamp.`);
-    return [{ joinedAt, userId }];
-  });
 }
 
 function joinSourceDatabaseFields(source: DiscordJoinSource) {
@@ -386,7 +224,33 @@ function joinSourceLabel(source: DiscordJoinSource) {
   return 'an unknown source';
 }
 
-async function sendLifecycleMessage(guild: Guild, channelId: string | null, content: string, mentionedUserId: string) {
+function joinSourceSubtitle(source: DiscordJoinSource, inviteCount: number | null) {
+  if (source.kind === 'invite') {
+    const inviteTotal = inviteCount === null
+      ? ''
+      : ` · They now have ${inviteCount} invite${inviteCount === 1 ? '' : 's'}`;
+    return `Joined via invite from ${joinSourceLabel(source)}${inviteTotal}`;
+  }
+  if (source.kind === 'vanity') return 'Joined via the server vanity URL';
+  return 'Join source: unknown';
+}
+
+export function buildDiscordJoinPanel(content: string, source: DiscordJoinSource, inviteCount: number | null = null) {
+  return new EmbedBuilder()
+    .setColor(0x57F287)
+    .setDescription(content)
+    .setFooter({ text: joinSourceSubtitle(source, inviteCount) });
+}
+
+async function sendLifecycleJoinPanel(
+  guild: Guild,
+  channelId: string | null,
+  content: string,
+  mentionedUserId: string,
+  source: DiscordJoinSource,
+  inviteCount: number | null,
+  shouldMentionMember: boolean,
+) {
   if (!channelId) return;
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased() || !channel.isSendable()) {
@@ -395,7 +259,8 @@ async function sendLifecycleMessage(guild: Guild, channelId: string | null, cont
   }
   await channel.send({
     allowedMentions: { parse: [], users: [mentionedUserId] },
-    content,
+    content: shouldMentionMember ? `<@${mentionedUserId}>` : undefined,
+    embeds: [buildDiscordJoinPanel(content, source, inviteCount)],
   });
 }
 
@@ -422,13 +287,16 @@ export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: 
   const settings = await getMemberLifecycleSettings(config);
   const userMention = `<@${member.id}>`;
   await Promise.all([
-    sendLifecycleMessage(
+    sendLifecycleJoinPanel(
       member.guild,
       settings.welcomeJoinMessageChannelId,
       formatMemberLifecycleTemplate(settings.welcomeJoinMessageTemplate, { user: userMention }),
       member.id,
+      source,
+      source.kind === 'invite' ? inviteCount : null,
+      true,
     ),
-    sendLifecycleMessage(
+    sendLifecycleJoinPanel(
       member.guild,
       settings.inviteJoinMessageChannelId,
       formatMemberLifecycleTemplate(settings.inviteJoinMessageTemplate, {
@@ -437,6 +305,9 @@ export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: 
         user: userMention,
       }),
       member.id,
+      source,
+      source.kind === 'invite' ? inviteCount : null,
+      false,
     ),
   ]);
 }
@@ -463,13 +334,14 @@ function truncate(value: string, maximum: number) {
   return value.length <= maximum ? value : `${value.slice(0, Math.max(0, maximum - 1))}…`;
 }
 
-function buildLeavePanel(guild: Guild, member: GuildMember | PartialGuildMember, snapshot: StoredLeaveSnapshot) {
+export function buildDiscordLeavePanel(
+  member: GuildMember | PartialGuildMember,
+  snapshot: StoredLeaveSnapshot,
+  leaveReason: DiscordAuditReason,
+) {
   const joinedAtSeconds = Math.floor(new Date(snapshot.joined_at).getTime() / 1_000);
   const roles = deserializeRoles(snapshot.role_snapshot);
   const roleText = roles.length ? roles.map((role) => `<@&${role.id}>`).join(' · ') : 'No roles beyond @everyone';
-  const lastMessage = snapshot.last_message_id && snapshot.last_message_channel_id
-    ? `[Open message](https://discord.com/channels/${guild.id}/${snapshot.last_message_channel_id}/${snapshot.last_message_id})${snapshot.last_message_at ? ` · <t:${Math.floor(new Date(snapshot.last_message_at).getTime() / 1_000)}:R>` : ''}`
-    : 'Not available (the bot had not yet observed a message)';
   return new EmbedBuilder()
     .setColor(0xEF4444)
     .setTitle('Member left')
@@ -477,7 +349,7 @@ function buildLeavePanel(guild: Guild, member: GuildMember | PartialGuildMember,
     .addFields(
       { name: 'Joined server', value: `<t:${joinedAtSeconds}:F> · <t:${joinedAtSeconds}:R>`, inline: true },
       { name: 'Chat XP level', value: String(snapshot.chat_xp_level), inline: true },
-      { name: 'Last observed message', value: lastMessage, inline: false },
+      { name: leaveReason.label, value: truncate(leaveReason.detail, 1_024), inline: false },
       { name: `Roles (${roles.length})`, value: truncate(roleText, 1_024), inline: false },
     )
     .setTimestamp();
@@ -516,8 +388,9 @@ export async function handleDiscordMemberLeave(config: DiscordBotConfig, member:
   // Resolve the configured destination first. This also caches it so the
   // guarded fallback can still post if a later database write fails.
   const settings = await getMemberLifecycleSettings(config);
-  const [identity, level] = await Promise.all([
+  const [identity, leaveReason, level] = await Promise.all([
     Promise.resolve(memberIdentity(member)),
+    resolveDiscordMemberLeaveReason(member.guild, member.id),
     getDiscordLevelProgress(config, member.id)
       .then((progress) => progress.level)
       .catch((error: unknown) => {
@@ -546,7 +419,7 @@ export async function handleDiscordMemberLeave(config: DiscordBotConfig, member:
   }
   await channel.send({
     allowedMentions: { parse: [] },
-    embeds: [buildLeavePanel(member.guild, member, snapshot)],
+    embeds: [buildDiscordLeavePanel(member, snapshot, leaveReason)],
   });
 }
 
@@ -640,28 +513,6 @@ export async function rememberDiscordInviteCreation(config: DiscordBotConfig, in
     cache.invites.set(invite.code, snapshot);
     cache.capturedAt = Date.now();
   });
-}
-
-export async function getDiscordInviteTrackingStatus(config: DiscordBotConfig, guild: Guild): Promise<DiscordInviteTrackingStatus> {
-  if (guild.id !== config.guildId) {
-    return {
-      activeInviteCount: null,
-      cacheAgeMilliseconds: null,
-      canReceiveInviteEvents: false,
-      canReadInviteUses: false,
-      lastResolution: null,
-    };
-  }
-  const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
-  const cache = inviteCacheByGuildId.get(guild.id);
-  const latest = lastInviteResolutionByGuildId.get(guild.id);
-  return {
-    activeInviteCount: cache?.invites.size ?? null,
-    cacheAgeMilliseconds: cache ? Math.max(0, Date.now() - cache.capturedAt) : null,
-    canReceiveInviteEvents: Boolean(botMember?.permissions.has(PermissionFlagsBits.ManageChannels)),
-    canReadInviteUses: Boolean(botMember?.permissions.has(PermissionFlagsBits.ManageGuild)),
-    lastResolution: latest ? `${latest.detail} <t:${Math.floor(latest.at / 1_000)}:R>` : null,
-  };
 }
 
 function inviteSource(invite: InviteSnapshot): DiscordJoinSource {
@@ -816,10 +667,8 @@ export async function resolveDiscordJoinSource(config: DiscordBotConfig, member:
     if (!previous) {
       const storedInvite = await resolveStoredSingleUseInvite(config, member);
       if (storedInvite && storedInvite !== 'ambiguous') {
-        recordInviteResolution(guild.id, 'Matched stored single-use invite while the normal invite cache was unavailable');
         return storedInvite;
       }
-      recordInviteResolution(guild.id, 'Unknown: the invite cache was not ready');
       return { kind: 'unknown' };
     }
 
@@ -827,7 +676,6 @@ export async function resolveDiscordJoinSource(config: DiscordBotConfig, member:
       if (retryDelay) await delay(retryDelay);
       const current = await readGuildInvites(guild);
       if (!current) {
-        recordInviteResolution(guild.id, 'Unknown: Discord invite uses could not be read');
         return { kind: 'unknown' };
       }
 
@@ -838,12 +686,10 @@ export async function resolveDiscordJoinSource(config: DiscordBotConfig, member:
         const priorUses = previous.invites.get(invite.code)?.uses ?? 0;
         queuePendingInviteAttributions(guild.id, invite, Math.max(0, invite.uses - priorUses - 1), Date.now());
         inviteCacheByGuildId.set(guild.id, current);
-        recordInviteResolution(guild.id, `Matched active server invite (${invite.uses - priorUses} new use${invite.uses - priorUses === 1 ? '' : 's'})`);
         return inviteSource(invite);
       }
       if (current.vanityUses !== null && previous.vanityUses !== null && current.vanityUses > previous.vanityUses) {
         inviteCacheByGuildId.set(guild.id, current);
-        recordInviteResolution(guild.id, 'Matched the server vanity URL');
         return { kind: 'vanity' };
       }
 
@@ -864,19 +710,16 @@ export async function resolveDiscordJoinSource(config: DiscordBotConfig, member:
           inviteCacheByGuildId.set(guild.id, current);
           await markStoredSingleUseInviteConsumed(config, member, deletedInvite.code)
             .catch((error: unknown) => console.warn('Unable to persist a directly matched single-use invite consumption.', error));
-          recordInviteResolution(guild.id, 'Matched the sole single-use invite that became unavailable at this join');
           return inviteSource(deletedInvite);
         }
         const pendingInvite = takePendingInviteAttribution(guild.id, now);
         if (pendingInvite) {
           inviteCacheByGuildId.set(guild.id, current);
-          recordInviteResolution(guild.id, 'Matched a queued use of an active server invite');
           return inviteSource(pendingInvite);
         }
       }
       if (increasedInvites.length > 1) {
         inviteCacheByGuildId.set(guild.id, current);
-        recordInviteResolution(guild.id, 'Unknown: multiple server invite use counts changed together');
         return { kind: 'unknown' };
       }
       if (retryDelay === INVITE_RESOLUTION_RETRY_DELAYS_MS[INVITE_RESOLUTION_RETRY_DELAYS_MS.length - 1]) {
@@ -885,56 +728,11 @@ export async function resolveDiscordJoinSource(config: DiscordBotConfig, member:
     }
     const storedInvite = await resolveStoredSingleUseInvite(config, member);
     if (storedInvite && storedInvite !== 'ambiguous') {
-      recordInviteResolution(guild.id, 'Matched the only eligible stored single-use invite');
       return storedInvite;
     }
     if (storedInvite === 'ambiguous') {
-      recordInviteResolution(guild.id, 'Unknown: multiple stored single-use invites are eligible');
       return { kind: 'unknown' };
     }
-    recordInviteResolution(guild.id, 'Unknown: no active server invite use changed after retries');
     return { kind: 'unknown' };
   });
-}
-
-function batches<T>(entries: readonly T[], size: number) {
-  const output: T[][] = [];
-  for (let index = 0; index < entries.length; index += size) output.push(entries.slice(index, index + size));
-  return output;
-}
-
-export async function backfillDiscordMemberLeaveInfo(config: DiscordBotConfig, guild: Guild) {
-  if (guild.id !== config.guildId) return 0;
-  const members = [...(await guild.members.fetch()).values()].filter((member) => !member.user.bot);
-  const supabase = createBotServiceClient(config);
-  let updated = 0;
-  for (const memberBatch of batches(members, 100)) {
-    const memberIds = memberBatch.map((member) => member.id);
-    const { data: levels, error: levelsError } = await supabase
-      .from('discord_leveling_members')
-      .select('discord_user_id, level')
-      .eq('guild_id', config.guildId)
-      .in('discord_user_id', memberIds)
-      .returns<StoredLevel[]>();
-    if (levelsError) throw new Error(`Unable to load Discord levels for leave backfill: ${levelsError.message}`);
-    const levelByMemberId = new Map((levels ?? []).map((entry) => [entry.discord_user_id, entry.level]));
-    const snapshots = memberBatch.map((member) => {
-      const identity = memberIdentity(member);
-      return {
-        chat_xp_level: levelByMemberId.get(member.id) ?? 0,
-        discord_user_id: member.id,
-        joined_at: memberJoinedAt(member).toISOString(),
-        member_display_name: identity.displayName,
-        member_username: identity.username,
-        role_snapshot: memberRoles(member),
-      };
-    });
-    const { data, error } = await supabase.rpc('backfill_discord_member_lifecycle_snapshots', {
-      p_guild_id: config.guildId,
-      p_members: snapshots,
-    });
-    if (error) throw new Error(`Unable to backfill Discord member leave snapshots: ${error.message}`);
-    updated += typeof data === 'number' ? data : snapshots.length;
-  }
-  return updated;
 }

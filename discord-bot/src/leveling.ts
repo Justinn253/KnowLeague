@@ -803,10 +803,17 @@ export async function handleDiscordVoiceStateUpdate(
   }
 }
 
-export async function awardMessageXp(config: DiscordBotConfig, message: Message) {
+export function isEligibleForDiscordMessageXp(config: DiscordBotConfig, message: Pick<Message, 'author' | 'content' | 'guildId' | 'system'> & { inGuild(): boolean }) {
   if (!message.inGuild() || message.guildId !== config.guildId || message.author.bot || message.system) {
-    return;
+    return false;
   }
+  return !message.content.startsWith('$') && !message.content.startsWith('.');
+}
+
+export async function awardMessageXp(config: DiscordBotConfig, message: Message) {
+  if (!isEligibleForDiscordMessageXp(config, message)) return;
+  const guild = message.guild;
+  if (!guild) return;
 
   const settings = await getXpAwardSettings(config);
   if (!settings.enabled || !shouldAttemptChatXp(message.author.id, settings.cooldown_seconds)) {
@@ -827,11 +834,11 @@ export async function awardMessageXp(config: DiscordBotConfig, message: Message)
     return;
   }
 
-  const member = message.member ?? await message.guild.members.fetch(message.author.id);
+  const member = message.member ?? await guild.members.fetch(message.author.id);
   await grantEligibleLevelRoles(config, member, award.current_level);
   if (award.current_level > award.previous_level) {
     await grantCurrentFishingLevelRoles(config, member);
-    await syncDiscordFishingTopRole(config, message.guild!);
-    await announceLevelUp(config, message.guild!, member, award, message.channel);
+    await syncDiscordFishingTopRole(config, guild);
+    await announceLevelUp(config, guild, member, award, message.channel);
   }
 }

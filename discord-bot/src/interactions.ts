@@ -63,6 +63,17 @@ import {
   getDiscordAnonymizedMessage,
   normalizeAnonymizeId,
 } from './anonymize.js';
+import {
+  buildDiscordTemporaryVoiceSettingsPanel,
+  configureDiscordTemporaryVoiceChannel,
+  createDiscordTemporaryVoiceChannelFromCommand,
+  createDiscordTemporaryVoiceChannelFromPreset,
+  parseTemporaryVoiceUserList,
+  runDiscordTemporaryVoiceMemberAction,
+  saveDiscordTemporaryVoiceChannelPreset,
+  updateDiscordTemporaryVoiceAutoPing,
+  type DiscordTemporaryVoiceMemberAction,
+} from './temporary-voice-channels.js';
 import { getLinkedLeagueAccount, linkLeagueAccount } from './league-accounts.js';
 import { formatSnipedMessage, getSnipeImageAttachments, getSnipedMessage } from './snipe.js';
 import {
@@ -321,13 +332,40 @@ export function isDiscordAdministrativeCommand(commandName: string, subcommand: 
     || (commandName === 'collections' && (subcommand === 'spawn' || subcommand === 'capacity-force-add'))
     || (commandName === 'invite' && subcommand === 'set-invite-count')
     || commandName === 'anonymize-view'
+    || commandName === 'create-vc'
+    || commandName === 'create-vc-preset'
     || commandName === 'steal-emoji'
     || commandName === 'steal-sticker';
 }
 
+const TEMPORARY_VOICE_PRIVATE_COMMANDS = new Set([
+  'config-vc-remove-autoping',
+  'config-vc-unset-priority-speaker',
+  'config-vc-set-autoping',
+  'config-vc-set-priority-speaker',
+  'config-vc',
+  'config-vc-ban',
+  'config-vc-deafen',
+  'config-vc-deafen-all',
+  'config-vc-kick',
+  'config-vc-mute',
+  'config-vc-mute-all',
+  'config-vc-remove-admin',
+  'config-vc-save',
+  'config-vc-set-admin',
+  'config-vc-undeafen',
+  'config-vc-undeafen-all',
+  'config-vc-undeafon',
+  'config-vc-unmute',
+  'config-vc-unmute-all',
+  'create-vc',
+  'create-vc-preset',
+]);
+
 export function isDiscordHiddenCommand(commandName: string, subcommand: string | null) {
   return commandName === 'link'
     || commandName === 'profile'
+    || TEMPORARY_VOICE_PRIVATE_COMMANDS.has(commandName)
     || commandName === 'anonymize-report'
     || commandName === 'anonymize-view'
     || (commandName === 'xp' && (subcommand === 'add' || subcommand === 'set-level'))
@@ -470,6 +508,167 @@ async function handleAnonymizeViewCommand(interaction: ChatInputCommandInteracti
       .setTitle(`Sender for ${formatAnonymizeId(message.anonymizeId)}`)
       .setDescription(`${authorName} (<@${message.authorDiscordUserId}>)`)],
   });
+}
+
+function temporaryVoiceErrorNote(error: unknown) {
+  return error instanceof Error && error.message
+    ? error.message
+    : 'KnowLeague could not update that temporary voice channel. Please try again shortly.';
+}
+
+async function handleCreateTemporaryVoiceChannelCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const excludedUsers = parseTemporaryVoiceUserList(interaction.options.getString('excluded-users'));
+    const includedUsers = parseTemporaryVoiceUserList(interaction.options.getString('included-users'));
+    if (includedUsers.all) throw new Error('All is not valid for included-users. Leave the inclusion list empty to allow everyone.');
+    const created = await createDiscordTemporaryVoiceChannelFromCommand(config, interaction, {
+      excludedAll: excludedUsers.all,
+      excludedUserIds: excludedUsers.userIds,
+      includedUserIds: includedUsers.userIds,
+      maximumUsers: interaction.options.getInteger('maximum-users') ?? 0,
+      name: interaction.options.getString('name', true),
+      status: interaction.options.getString('status'),
+    });
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      content: `Created temporary voice channel <#${created.channel.id}>. It will delete in one minute if nobody joins it. You can edit the config of this voice channel with /config-vc.`,
+    });
+  } catch (error) {
+    await interaction.editReply({ content: temporaryVoiceErrorNote(error) });
+  }
+}
+
+async function handleConfigureTemporaryVoiceChannelCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const excludedUsers = parseTemporaryVoiceUserList(interaction.options.getString('excluded-users'));
+    const clearedExcludedUsers = parseTemporaryVoiceUserList(interaction.options.getString('clear-exclusions'));
+    const includedUsers = parseTemporaryVoiceUserList(interaction.options.getString('included-users'));
+    const clearedIncludedUsers = parseTemporaryVoiceUserList(interaction.options.getString('clear-inclusions'));
+    const visibility = interaction.options.getString('visibility');
+    const name = interaction.options.getString('name');
+    const status = interaction.options.getString('status');
+    const maximumUsers = interaction.options.getInteger('maximum-users');
+    if (includedUsers.all) throw new Error('All is not valid for included-users. Leave the inclusion list empty to allow everyone.');
+    if (excludedUsers.all && clearedExcludedUsers.all) throw new Error('Use All in either excluded-users or clear-exclusions, not both.');
+    if (!visibility && name === null && status === null && maximumUsers === null
+      && !excludedUsers.all && excludedUsers.userIds.length === 0
+      && !clearedExcludedUsers.all && clearedExcludedUsers.userIds.length === 0
+      && includedUsers.userIds.length === 0
+      && !clearedIncludedUsers.all && clearedIncludedUsers.userIds.length === 0) {
+      await interaction.editReply({
+        content: 'Choose at least one setting to update: name, status, maximum-users, visibility, exclusions, or inclusions.',
+      });
+      return;
+    }
+    const channel = await configureDiscordTemporaryVoiceChannel(config, interaction, {
+      ...(excludedUsers.all ? { excludeAll: true } : excludedUsers.userIds.length ? { addExcludedUserIds: excludedUsers.userIds } : {}),
+      ...(clearedExcludedUsers.all ? { clearAllExclusions: true } : clearedExcludedUsers.userIds.length ? { removeExcludedUserIds: clearedExcludedUsers.userIds } : {}),
+      ...(includedUsers.userIds.length ? { addIncludedUserIds: includedUsers.userIds } : {}),
+      ...(clearedIncludedUsers.all ? { clearAllInclusions: true } : clearedIncludedUsers.userIds.length ? { removeIncludedUserIds: clearedIncludedUsers.userIds } : {}),
+      ...(maximumUsers === null ? {} : { maximumUsers }),
+      ...(name === null ? {} : { name }),
+      ...(status === null ? {} : { status }),
+      ...(visibility === 'lock' ? { isLocked: true } : visibility === 'unlock' ? { isLocked: false } : {}),
+    });
+    const visibilityNote = visibility === 'lock' ? ' It is locked.' : visibility === 'unlock' ? ' It is unlocked.' : '';
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      content: `Updated <#${channel.channelId}>.${visibilityNote}`,
+      embeds: [buildDiscordTemporaryVoiceSettingsPanel(channel)],
+    });
+  } catch (error) {
+    await interaction.editReply({ content: temporaryVoiceErrorNote(error) });
+  }
+}
+
+async function handleSaveTemporaryVoiceChannelPresetCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const record = await saveDiscordTemporaryVoiceChannelPreset(config, interaction);
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      content: 'Saved this temporary voice-channel configuration. Use /create-vc-preset to create another channel with it.',
+      embeds: [buildDiscordTemporaryVoiceSettingsPanel(record)],
+    });
+  } catch (error) {
+    await interaction.editReply({ content: temporaryVoiceErrorNote(error) });
+  }
+}
+
+async function handleCreateTemporaryVoiceChannelPresetCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const created = await createDiscordTemporaryVoiceChannelFromPreset(config, interaction);
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      content: `Created temporary voice channel <#${created.channel.id}> from your saved preset. It will delete in one minute if nobody joins it. You can edit the config of this voice channel with /config-vc.`,
+    });
+  } catch (error) {
+    await interaction.editReply({ content: temporaryVoiceErrorNote(error) });
+  }
+}
+
+const TEMPORARY_VOICE_MEMBER_ACTIONS: Readonly<Record<string, DiscordTemporaryVoiceMemberAction>> = {
+  'config-vc-ban': 'ban',
+  'config-vc-deafen': 'deafen',
+  'config-vc-deafen-all': 'deafen-all',
+  'config-vc-kick': 'kick',
+  'config-vc-mute': 'mute',
+  'config-vc-mute-all': 'mute-all',
+  'config-vc-remove-admin': 'remove-admin',
+  'config-vc-undeafen': 'undeafen',
+  'config-vc-undeafon': 'undeafen',
+  'config-vc-undeafen-all': 'undeafen-all',
+  'config-vc-unmute': 'unmute',
+  'config-vc-unmute-all': 'unmute-all',
+  'config-vc-set-admin': 'set-admin',
+  'config-vc-set-priority-speaker': 'set-priority-speaker',
+  'config-vc-unset-priority-speaker': 'remove-priority-speaker',
+};
+
+function temporaryVoiceActionLabel(action: DiscordTemporaryVoiceMemberAction) {
+  return action.replace(/-/g, ' ');
+}
+
+async function handleTemporaryVoiceMemberActionCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig, action: DiscordTemporaryVoiceMemberAction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const user = interaction.options.getUser('user');
+    const result = await runDiscordTemporaryVoiceMemberAction(config, interaction, action, user?.id);
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      content: action === 'kick'
+        ? `Removed <@${user?.id}> from this temporary voice channel. They can rejoin.`
+        : `Updated this temporary voice channel: ${temporaryVoiceActionLabel(action)}${user ? ` <@${user.id}>` : ''}.`,
+      ...(result.configurationChanged ? { embeds: [buildDiscordTemporaryVoiceSettingsPanel(result.record)] } : {}),
+    });
+  } catch (error) {
+    await interaction.editReply({ content: temporaryVoiceErrorNote(error) });
+  }
+}
+
+async function handleTemporaryVoiceAutoPingCommand(interaction: ChatInputCommandInteraction, config: DiscordBotConfig, action: 'remove' | 'set') {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const role = interaction.options.getRole('target');
+    const user = interaction.options.getUser('target');
+    const target = role ?? user;
+    if (!target) throw new Error('Choose a current Discord user or role.');
+    const record = await updateDiscordTemporaryVoiceAutoPing(config, interaction, action, {
+      kind: role ? 'role' : 'user',
+      message: interaction.options.getString('message', true),
+      targetId: target.id,
+    });
+    await interaction.editReply({
+      allowedMentions: { parse: [] },
+      content: action === 'set' ? 'Added the automatic ping to this temporary voice channel.' : 'Removed the automatic ping from this temporary voice channel.',
+      embeds: [buildDiscordTemporaryVoiceSettingsPanel(record)],
+    });
+  } catch (error) {
+    await interaction.editReply({ content: temporaryVoiceErrorNote(error) });
+  }
 }
 
 function formatXp(value: number) {
@@ -1011,6 +1210,9 @@ function helpFields(tab: HelpTab): HelpField[] {
     { name: '/rc', value: 'Repeat your most recent slash command with the same options.' },
     { name: '/link, /profile', value: 'Link your Discord account to KnowLeague or open your linked public profile.' },
     { name: '/dice-roll upper-limit', value: 'Roll a random number from 1 through the chosen upper limit.' },
+    { name: '/create-vc name [status] [maximum-users] [excluded-users] [included-users]', value: 'Privately create a configured temporary voice channel. Access lists accept @mentions or IDs; excluded-users also accepts All. Requires a creator role.' },
+    { name: '/config-vc [visibility] [...]', value: 'Privately update the temporary voice channel you own while you are in it. Add or clear exclusion and inclusion lists; clear either list with All.' },
+    { name: '/config-vc-save, /create-vc-preset', value: 'Privately save your current temporary voice configuration, then create another channel with it. Creating from a preset requires a creator role.' },
     { name: '/anonymize message', value: 'Post a configured anonymous message panel with a reportable ID.' },
     { name: '/anonymize-report anonymize-id', value: 'Privately report an anonymous message to the configured staff channel.' },
     { name: '/anonymize-view anonymize-id', value: 'Privately identify a sender. Requires a configured Anonymize viewer role.' },
@@ -5397,7 +5599,9 @@ export async function handleChatInputCommand(
     return;
   }
 
-  if (storeAsMostRecent && interaction.commandName !== 'anonymize') storeMostRecentCommand(interaction);
+  if (storeAsMostRecent && interaction.commandName !== 'anonymize' && !TEMPORARY_VOICE_PRIVATE_COMMANDS.has(interaction.commandName)) {
+    storeMostRecentCommand(interaction);
+  }
 
   if (interaction.commandName === 'help') {
     await interaction.reply(buildHelpPanel('general'));
@@ -5427,6 +5631,42 @@ export async function handleChatInputCommand(
         .setColor(0xF59E0B)
         .setDescription(`🎲 **${result}** of ${formatXp(upperLimit)}`)],
     });
+    return;
+  }
+
+  if (interaction.commandName === 'create-vc') {
+    await handleCreateTemporaryVoiceChannelCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'config-vc') {
+    await handleConfigureTemporaryVoiceChannelCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'config-vc-save') {
+    await handleSaveTemporaryVoiceChannelPresetCommand(interaction, config);
+    return;
+  }
+
+  if (interaction.commandName === 'create-vc-preset') {
+    await handleCreateTemporaryVoiceChannelPresetCommand(interaction, config);
+    return;
+  }
+
+  const temporaryVoiceAction = TEMPORARY_VOICE_MEMBER_ACTIONS[interaction.commandName];
+  if (temporaryVoiceAction) {
+    await handleTemporaryVoiceMemberActionCommand(interaction, config, temporaryVoiceAction);
+    return;
+  }
+
+  if (interaction.commandName === 'config-vc-set-autoping') {
+    await handleTemporaryVoiceAutoPingCommand(interaction, config, 'set');
+    return;
+  }
+
+  if (interaction.commandName === 'config-vc-remove-autoping') {
+    await handleTemporaryVoiceAutoPingCommand(interaction, config, 'remove');
     return;
   }
 

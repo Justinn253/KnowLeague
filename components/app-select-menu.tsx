@@ -108,9 +108,9 @@ export function AppSelectMenu<T extends string | number | null>({
   }, [open, searchable]);
 
   return (
-    <div ref={rootRef} className={`relative grid gap-2 ${open ? 'z-[100]' : 'z-0'} ${disabledDescription ? 'group' : ''} ${className}`}>
+    <div ref={rootRef} className={`relative grid min-w-0 gap-2 ${open ? 'z-[100]' : 'z-0'} ${disabledDescription ? 'group' : ''} ${className}`}>
       {!hideLabel ? <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span> : null}
-      <div className="relative">
+      <div className="relative min-w-0">
         <button
           type="button"
           disabled={disabled}
@@ -127,7 +127,7 @@ export function AppSelectMenu<T extends string | number | null>({
           title={disabled ? disabledDescription : undefined}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`flex h-12 w-full items-center justify-between gap-3 rounded-2xl border bg-slate-950/90 py-2 pl-4 pr-5 text-left text-sm font-semibold text-white outline-none transition hover:bg-slate-900 focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-60 ${open ? 'border-amber-300' : 'border-white/10'} ${triggerClassName}`}
+          className={`flex h-12 w-full min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border bg-slate-950/90 py-2 pl-4 pr-5 text-left text-sm font-semibold text-white outline-none transition hover:bg-slate-900 focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-60 ${open ? 'border-amber-300' : 'border-white/10'} ${triggerClassName}`}
         >
           <span className="min-w-0 truncate">{selectedLabel}</span>
           <ChevronDown size={17} className={`mr-1 shrink-0 text-slate-400 transition ${open ? 'rotate-180 text-amber-200' : ''}`} />

@@ -13,6 +13,10 @@ describe('Discord slash-command visibility', () => {
     expect(isDiscordAdministrativeCommand('leaderboard', null)).toBe(false);
     expect(isDiscordAdministrativeCommand('anonymize', null)).toBe(false);
     expect(isDiscordAdministrativeCommand('anonymize-view', null)).toBe(true);
+    expect(isDiscordAdministrativeCommand('create-vc', null)).toBe(true);
+    expect(isDiscordAdministrativeCommand('create-vc-preset', null)).toBe(true);
+    expect(isDiscordAdministrativeCommand('config-vc', null)).toBe(false);
+    expect(isDiscordAdministrativeCommand('config-vc-save', null)).toBe(false);
     expect(isDiscordAdministrativeCommand('steal-emoji', null)).toBe(true);
     expect(isDiscordAdministrativeCommand('invite', 'set-invite-count')).toBe(true);
   });
@@ -21,6 +25,27 @@ describe('Discord slash-command visibility', () => {
     const hiddenCommands = [
       ['link', null],
       ['profile', null],
+      ['create-vc', null],
+      ['config-vc', null],
+      ['config-vc-save', null],
+      ['create-vc-preset', null],
+      ['config-vc-kick', null],
+      ['config-vc-ban', null],
+      ['config-vc-mute', null],
+      ['config-vc-unmute', null],
+      ['config-vc-mute-all', null],
+      ['config-vc-unmute-all', null],
+      ['config-vc-deafen', null],
+      ['config-vc-undeafen', null],
+      ['config-vc-undeafon', null],
+      ['config-vc-deafen-all', null],
+      ['config-vc-undeafen-all', null],
+      ['config-vc-set-admin', null],
+      ['config-vc-remove-admin', null],
+      ['config-vc-set-priority-speaker', null],
+      ['config-vc-unset-priority-speaker', null],
+      ['config-vc-set-autoping', null],
+      ['config-vc-remove-autoping', null],
       ['anonymize-report', null],
       ['anonymize-view', null],
       ['collections', 'spawn'],
@@ -58,6 +83,37 @@ describe('Discord slash-command visibility', () => {
     expect(serializedCommandDefinitions().find((command) => command.name === 'anonymize-view')?.options).toEqual([
       expect.objectContaining({ name: 'anonymize-id', required: true, type: 3, min_length: 12, max_length: 17 }),
     ]);
+    const createVoiceChannel = serializedCommandDefinitions().find((command) => command.name === 'create-vc');
+    expect(createVoiceChannel?.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'name', required: true, type: 3, min_length: 1, max_length: 100 }),
+      expect.objectContaining({ name: 'status', required: false, type: 3, min_length: 1, max_length: 500 }),
+      expect.objectContaining({ name: 'maximum-users', required: false, type: 4, min_value: 0, max_value: 99 }),
+      expect.objectContaining({ name: 'excluded-users', required: false, type: 3, max_length: 4_000 }),
+      expect.objectContaining({ name: 'included-users', required: false, type: 3, max_length: 4_000 }),
+    ]));
+    expect(serializedCommandDefinitions().find((command) => command.name === 'config-vc')?.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'visibility', required: false, type: 3 }),
+      expect.objectContaining({ name: 'clear-exclusions', required: false, type: 3, max_length: 4_000 }),
+      expect.objectContaining({ name: 'excluded-users', required: false, type: 3, max_length: 4_000 }),
+      expect.objectContaining({ name: 'included-users', required: false, type: 3, max_length: 4_000 }),
+      expect.objectContaining({ name: 'clear-inclusions', required: false, type: 3, max_length: 4_000 }),
+    ]));
+    expect(serializedCommandDefinitions().find((command) => command.name === 'config-vc-save')?.options).toEqual([]);
+    expect(serializedCommandDefinitions().find((command) => command.name === 'create-vc-preset')?.options).toEqual([]);
+    for (const commandName of ['config-vc-kick', 'config-vc-ban', 'config-vc-mute', 'config-vc-unmute', 'config-vc-deafen', 'config-vc-undeafen', 'config-vc-undeafon', 'config-vc-set-admin', 'config-vc-remove-admin', 'config-vc-set-priority-speaker', 'config-vc-unset-priority-speaker']) {
+      expect(serializedCommandDefinitions().find((command) => command.name === commandName)?.options).toEqual([
+        expect.objectContaining({ name: 'user', required: true, type: 6 }),
+      ]);
+    }
+    for (const commandName of ['config-vc-mute-all', 'config-vc-unmute-all', 'config-vc-deafen-all', 'config-vc-undeafen-all']) {
+      expect(serializedCommandDefinitions().find((command) => command.name === commandName)?.options).toEqual([]);
+    }
+    for (const commandName of ['config-vc-set-autoping', 'config-vc-remove-autoping']) {
+      expect(serializedCommandDefinitions().find((command) => command.name === commandName)?.options).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'target', required: true, type: 9 }),
+        expect.objectContaining({ name: 'message', required: true, type: 3, min_length: 1, max_length: 1_500 }),
+      ]));
+    }
   });
 
   it('enforces the General channel selection only for member-facing command shapes', () => {
@@ -75,6 +131,12 @@ describe('Discord slash-command visibility', () => {
     expect(requiresDefaultCommandChannel('riftbound', 'buy')).toBe(false);
     expect(requiresDefaultCommandChannel('anonymize', null)).toBe(false);
     expect(requiresDefaultCommandChannel('anonymize-report', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('create-vc', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('config-vc', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('config-vc-save', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('create-vc-preset', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('config-vc-kick', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('config-vc-set-autoping', null)).toBe(false);
   });
 
   it('turns expected Riftbound persistence failures into member-facing notes', () => {

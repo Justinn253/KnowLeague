@@ -224,7 +224,16 @@ function joinSourceLabel(source: DiscordJoinSource) {
   return 'an unknown source';
 }
 
-function joinSourceSubtitle(source: DiscordJoinSource, inviteCount: number | null) {
+type JoinPanelSubtitleVariant = 'invite-total' | 'source';
+
+function joinSourceSubtitle(
+  source: DiscordJoinSource,
+  inviteCount: number | null,
+  variant: JoinPanelSubtitleVariant,
+) {
+  if (variant === 'invite-total' && source.kind === 'invite') {
+    return `They now have ${inviteCount ?? 0} invite${inviteCount === 1 ? '' : 's'}`;
+  }
   if (source.kind === 'invite') {
     const inviteTotal = inviteCount === null
       ? ''
@@ -235,11 +244,16 @@ function joinSourceSubtitle(source: DiscordJoinSource, inviteCount: number | nul
   return 'Join source: unknown';
 }
 
-export function buildDiscordJoinPanel(content: string, source: DiscordJoinSource, inviteCount: number | null = null) {
+export function buildDiscordJoinPanel(
+  content: string,
+  source: DiscordJoinSource,
+  inviteCount: number | null = null,
+  subtitleVariant: JoinPanelSubtitleVariant = 'source',
+) {
   return new EmbedBuilder()
     .setColor(0x57F287)
     .setDescription(content)
-    .setFooter({ text: joinSourceSubtitle(source, inviteCount) });
+    .setFooter({ text: joinSourceSubtitle(source, inviteCount, subtitleVariant) });
 }
 
 async function sendLifecycleJoinPanel(
@@ -250,6 +264,7 @@ async function sendLifecycleJoinPanel(
   source: DiscordJoinSource,
   inviteCount: number | null,
   shouldMentionMember: boolean,
+  subtitleVariant: JoinPanelSubtitleVariant,
 ) {
   if (!channelId) return;
   const channel = await guild.channels.fetch(channelId).catch(() => null);
@@ -260,7 +275,7 @@ async function sendLifecycleJoinPanel(
   await channel.send({
     allowedMentions: { parse: [], users: [mentionedUserId] },
     content: shouldMentionMember ? `<@${mentionedUserId}>` : undefined,
-    embeds: [buildDiscordJoinPanel(content, source, inviteCount)],
+    embeds: [buildDiscordJoinPanel(content, source, inviteCount, subtitleVariant)],
   });
 }
 
@@ -295,6 +310,7 @@ export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: 
       source,
       source.kind === 'invite' ? inviteCount : null,
       true,
+      'source',
     ),
     sendLifecycleJoinPanel(
       member.guild,
@@ -308,6 +324,7 @@ export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: 
       source,
       source.kind === 'invite' ? inviteCount : null,
       false,
+      'invite-total',
     ),
   ]);
 }

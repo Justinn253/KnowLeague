@@ -22,6 +22,27 @@ can be used in any channel where that member may use application commands.
 /riftbound inventory | No
 /help | No
 /dice-roll upper-limit | No
+/create-vc name [status] [maximum-users] [excluded-users] [included-users] | Yes — configured temporary voice creator role | hidden=true
+/config-vc [name] [status] [maximum-users] [visibility] [excluded-users] [clear-exclusions] [included-users] [clear-inclusions] | No — temporary voice channel owner | hidden=true
+/config-vc-save | No — temporary voice channel owner | hidden=true
+/create-vc-preset | Yes — configured temporary voice creator role | hidden=true
+/config-vc-kick user | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-ban user | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-mute user | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-unmute user | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-mute-all | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-unmute-all | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-deafen user | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-undeafen user | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-undeafon user | No — compatibility alias for /config-vc-undeafen | hidden=true
+/config-vc-deafen-all | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-undeafen-all | No — temporary voice channel owner or delegated VC administrator | hidden=true
+/config-vc-set-admin user | No — temporary voice channel owner | hidden=true
+/config-vc-remove-admin user | No — temporary voice channel owner | hidden=true
+/config-vc-set-priority-speaker user | No — temporary voice channel owner | hidden=true
+/config-vc-unset-priority-speaker user | No — temporary voice channel owner | hidden=true
+/config-vc-set-autoping target message | No — temporary voice channel owner | hidden=true
+/config-vc-remove-autoping target message | No — temporary voice channel owner | hidden=true
 /anonymize message | Yes — configured Anonymize role
 /anonymize-report anonymize-id | No | hidden=true
 /anonymize-view anonymize-id | Yes — configured Anonymize viewer role | hidden=true

@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, SlashCommandBuilder, type SlashCommandOptionsOnlyBuilder, type SlashCommandSubcommandBuilder } from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder, type SlashCommandSubcommandBuilder } from 'discord.js';
 import { CHAMPION_CATALOGUE_SNAPSHOT_SECTION_OPTIONS, LEAGUE_ACCOUNT_VIEWER_PLATFORM_OPTIONS } from './league-account-viewer.js';
 
 function addSkinIdOption(command: SlashCommandSubcommandBuilder) {
@@ -40,17 +40,6 @@ function addRandodraftExclusionOptions(command: SlashCommandSubcommandBuilder) {
     configuredCommand = configuredCommand.addUserOption((option) => option
       .setName(`exclude-${slot}`)
       .setDescription(`Voice-channel member to exclude (${slot}).`)
-      .setRequired(false));
-  }
-  return configuredCommand;
-}
-
-function addTemporaryVoiceExclusionOptions(command: SlashCommandOptionsOnlyBuilder) {
-  let configuredCommand = command;
-  for (let slot = 1; slot <= 10; slot += 1) {
-    configuredCommand = configuredCommand.addUserOption((option) => option
-      .setName(`exclude-user-${slot}`)
-      .setDescription(`Member ${slot} who cannot see or join the voice channel.`)
       .setRequired(false));
   }
   return configuredCommand;
@@ -360,64 +349,92 @@ export const commandDefinitions = [
       .setMinValue(2)
       .setMaxValue(1_000_000)
       .setRequired(true)),
-  addTemporaryVoiceExclusionOptions(
-    new SlashCommandBuilder()
-      .setName('create-vc')
-      .setDescription('Create a temporary voice channel.')
-      .addStringOption((option) => option
-        .setName('name')
-        .setDescription('Name for the temporary voice channel.')
-        .setMinLength(1)
-        .setMaxLength(100)
-        .setRequired(true))
-      .addStringOption((option) => option
-        .setName('status')
-        .setDescription('Optional status shown on the temporary voice channel.')
-        .setMinLength(1)
-        .setMaxLength(500)
-        .setRequired(false))
-      .addIntegerOption((option) => option
-        .setName('maximum-users')
-        .setDescription('Maximum users; use 0 or leave empty for no limit.')
-        .setMinValue(0)
-        .setMaxValue(99)
-        .setRequired(false)),
-  ),
-  addTemporaryVoiceExclusionOptions(
-    new SlashCommandBuilder()
-      .setName('config-vc')
-      .setDescription('Configure the temporary voice channel you own and are in.')
-      .addStringOption((option) => option
-        .setName('name')
-        .setDescription('New name for the temporary voice channel.')
-        .setMinLength(1)
-        .setMaxLength(100)
-        .setRequired(false))
-      .addStringOption((option) => option
-        .setName('status')
-        .setDescription('New status for the temporary voice channel.')
-        .setMinLength(1)
-        .setMaxLength(500)
-        .setRequired(false))
-      .addIntegerOption((option) => option
-        .setName('maximum-users')
-        .setDescription('Maximum users; use 0 for no limit or leave empty to keep it.')
-        .setMinValue(0)
-        .setMaxValue(99)
-        .setRequired(false))
-      .addStringOption((option) => option
-        .setName('visibility')
-        .setDescription('Lock hides the channel; unlock restores its category visibility.')
-        .addChoices(
-          { name: 'Lock', value: 'lock' },
-          { name: 'Unlock', value: 'unlock' },
-        )
-        .setRequired(false))
-      .addBooleanOption((option) => option
-        .setName('clear-exclusions')
-        .setDescription('Remove all member exclusions from the channel.')
-        .setRequired(false)),
-  ),
+  new SlashCommandBuilder()
+    .setName('create-vc')
+    .setDescription('Create a temporary voice channel.')
+    .addStringOption((option) => option
+      .setName('name')
+      .setDescription('Name for the temporary voice channel.')
+      .setMinLength(1)
+      .setMaxLength(100)
+      .setRequired(true))
+    .addStringOption((option) => option
+      .setName('status')
+      .setDescription('Optional status shown on the temporary voice channel.')
+      .setMinLength(1)
+      .setMaxLength(500)
+      .setRequired(false))
+    .addIntegerOption((option) => option
+      .setName('maximum-users')
+      .setDescription('Maximum users; use 0 or leave empty for no limit.')
+      .setMinValue(0)
+      .setMaxValue(99)
+      .setRequired(false))
+    .addStringOption((option) => option
+      .setName('excluded-users')
+      .setDescription('Optional @mentions, IDs, or All to deny access.')
+      .setMaxLength(4_000)
+      .setRequired(false))
+    .addStringOption((option) => option
+      .setName('included-users')
+      .setDescription('Optional @mentions or IDs allowed into a members-only channel.')
+      .setMaxLength(4_000)
+      .setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('config-vc')
+    .setDescription('Configure the temporary voice channel you own and are in.')
+    .addStringOption((option) => option
+      .setName('name')
+      .setDescription('New name for the temporary voice channel.')
+      .setMinLength(1)
+      .setMaxLength(100)
+      .setRequired(false))
+    .addStringOption((option) => option
+      .setName('status')
+      .setDescription('New status for the temporary voice channel.')
+      .setMinLength(1)
+      .setMaxLength(500)
+      .setRequired(false))
+    .addIntegerOption((option) => option
+      .setName('maximum-users')
+      .setDescription('Maximum users; use 0 for no limit or leave empty to keep it.')
+      .setMinValue(0)
+      .setMaxValue(99)
+      .setRequired(false))
+    .addStringOption((option) => option
+      .setName('visibility')
+      .setDescription('Lock hides the channel; unlock restores its access-list visibility.')
+      .addChoices(
+        { name: 'Lock', value: 'lock' },
+        { name: 'Unlock', value: 'unlock' },
+      )
+      .setRequired(false))
+    .addStringOption((option) => option
+      .setName('excluded-users')
+      .setDescription('Optional @mentions, IDs, or All to deny access.')
+      .setMaxLength(4_000)
+      .setRequired(false))
+    .addStringOption((option) => option
+      .setName('clear-exclusions')
+      .setDescription('Optional @mentions, IDs, or All to clear exclusions.')
+      .setMaxLength(4_000)
+      .setRequired(false))
+    .addStringOption((option) => option
+      .setName('included-users')
+      .setDescription('Optional @mentions or IDs allowed into an access-list channel.')
+      .setMaxLength(4_000)
+      .setRequired(false))
+    .addStringOption((option) => option
+      .setName('clear-inclusions')
+      .setDescription('Optional @mentions, IDs, or All to clear the access list.')
+      .setMaxLength(4_000)
+      .setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('config-vc-save')
+    .setDescription('Save the current temporary voice channel settings as your preset.'),
+  new SlashCommandBuilder()
+    .setName('create-vc-preset')
+    .setDescription('Create a temporary voice channel from your saved preset.'),
   new SlashCommandBuilder()
     .setName('anonymize')
     .setDescription('Post a message anonymously.')

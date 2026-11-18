@@ -262,6 +262,7 @@ type LevelingSettingsBody = {
   welcomeJoinMessageTemplate?: unknown;
   temporaryVoiceCreatorRoleIds?: unknown;
   temporaryVoiceJoinToCreateChannelId?: unknown;
+  temporaryVoiceNonExcludableRoleIds?: unknown;
 };
 
 function getDiscordGuildId() {
@@ -436,6 +437,7 @@ async function getLevelingData(guildId: string) {
     voiceChannelsResult,
     temporaryVoiceSettingsResult,
     temporaryVoiceCreatorRolesResult,
+    temporaryVoiceNonExcludableRolesResult,
     generalCommandChannelsResult,
     anonymizeSettingsResult,
     anonymizeCommandChannelsResult,
@@ -512,6 +514,11 @@ async function getLevelingData(guildId: string) {
       .eq('guild_id', guildId)
       .maybeSingle<StoredTemporaryVoiceSettingsRow>(),
     supabase.from('discord_temporary_voice_creator_roles')
+      .select('discord_role_id')
+      .eq('guild_id', guildId)
+      .order('discord_role_id', { ascending: true })
+      .returns<StoredStaffRoleRow[]>(),
+    supabase.from('discord_temporary_voice_non_excludable_roles')
       .select('discord_role_id')
       .eq('guild_id', guildId)
       .order('discord_role_id', { ascending: true })
@@ -631,6 +638,7 @@ async function getLevelingData(guildId: string) {
   if (voiceChannelsResult.error) throw voiceChannelsResult.error;
   if (temporaryVoiceSettingsResult.error) throw temporaryVoiceSettingsResult.error;
   if (temporaryVoiceCreatorRolesResult.error) throw temporaryVoiceCreatorRolesResult.error;
+  if (temporaryVoiceNonExcludableRolesResult.error) throw temporaryVoiceNonExcludableRolesResult.error;
   if (generalCommandChannelsResult.error) throw generalCommandChannelsResult.error;
   if (anonymizeSettingsResult.error) throw anonymizeSettingsResult.error;
   if (anonymizeCommandChannelsResult.error) throw anonymizeCommandChannelsResult.error;
@@ -660,6 +668,7 @@ async function getLevelingData(guildId: string) {
     voiceChannels: (voiceChannelsResult.data ?? []).map(toGuildVoiceChannel),
     temporaryVoiceSettings: toTemporaryVoiceSettings(temporaryVoiceSettingsResult.data),
     temporaryVoiceCreatorRoleIds: (temporaryVoiceCreatorRolesResult.data ?? []).map((role) => role.discord_role_id),
+    temporaryVoiceNonExcludableRoleIds: (temporaryVoiceNonExcludableRolesResult.data ?? []).map((role) => role.discord_role_id),
     collectionAdminRoleIds: (skinClaimAdminRolesResult.data ?? []).map((role) => role.discord_role_id),
     generalSettings: toGeneralSettings(generalCommandChannelsResult.data ?? []),
     anonymizeSettings: toAnonymizeSettings(anonymizeSettingsResult.data),
@@ -967,6 +976,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     const anonymizeViewRoleIds = parseRoleIds(body.anonymizeViewRoleIds, 'Anonymize identity-view roles', 25);
     const temporaryVoiceJoinToCreateChannelId = parseOptionalSnowflake(body.temporaryVoiceJoinToCreateChannelId, 'Join to Create voice channel ID');
     const temporaryVoiceCreatorRoleIds = parseRoleIds(body.temporaryVoiceCreatorRoleIds, 'temporary voice creator roles', 25);
+    const temporaryVoiceNonExcludableRoleIds = parseRoleIds(body.temporaryVoiceNonExcludableRoleIds, 'temporary voice protected roles', 25);
     const riftboundCommandChannelIds = parseCommandChannelIds(body.riftboundCommandChannelIds, 'Riftbound');
     const skinClaimCommandChannelIds = parseCommandChannelIds(body.skinClaimCommandChannelIds, 'Collections');
     const skinClaimSummonBaseCost = parsePositiveInteger(body.skinClaimSummonBaseCost, 'Summon base cost', 1, 1_000_000_000);
@@ -1038,6 +1048,12 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
     }
     if (temporaryVoiceCreatorRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose temporary voice creator roles that are currently synced from Discord.');
+    }
+    if (temporaryVoiceNonExcludableRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
+      throw new ApiError(400, 'Choose temporary voice protected roles that are currently synced from Discord.');
+    }
+    if (temporaryVoiceNonExcludableRoleIds.includes(guildId)) {
+      throw new ApiError(400, 'The @everyone role cannot be protected from temporary voice exclusions.');
     }
     if (leaderboardExcludedRoleIds.some((roleId) => !syncedRoleIds.has(roleId))) {
       throw new ApiError(400, 'Choose leaderboard exclusion roles that are currently synced from Discord.');
@@ -1211,6 +1227,7 @@ export const PUT = withApiMetrics('/api/discord/leveling', async function PUT(re
       p_creator_role_ids: temporaryVoiceCreatorRoleIds,
       p_guild_id: guildId,
       p_join_to_create_channel_id: temporaryVoiceJoinToCreateChannelId,
+      p_non_excludable_role_ids: temporaryVoiceNonExcludableRoleIds,
       p_updated_by: user.id,
     });
     if (temporaryVoiceConfigurationError) throw temporaryVoiceConfigurationError;

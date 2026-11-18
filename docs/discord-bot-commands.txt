@@ -22,8 +22,10 @@ can be used in any channel where that member may use application commands.
 /riftbound inventory | No
 /help | No
 /dice-roll upper-limit | No
-/create-vc name [status] [maximum-users] [exclude-user-N] | Yes — configured temporary voice creator role | hidden=true
-/config-vc [name] [status] [maximum-users] [visibility] [exclude-user-N] [clear-exclusions] | No — temporary voice channel owner | hidden=true
+/create-vc name [status] [maximum-users] [excluded-users] [included-users] | Yes — configured temporary voice creator role | hidden=true
+/config-vc [name] [status] [maximum-users] [visibility] [excluded-users] [clear-exclusions] [included-users] [clear-inclusions] | No — temporary voice channel owner | hidden=true
+/config-vc-save | No — temporary voice channel owner | hidden=true
+/create-vc-preset | Yes — configured temporary voice creator role | hidden=true
 /anonymize message | Yes — configured Anonymize role
 /anonymize-report anonymize-id | No | hidden=true
 /anonymize-view anonymize-id | Yes — configured Anonymize viewer role | hidden=true

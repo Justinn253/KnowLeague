@@ -14,7 +14,9 @@ describe('Discord slash-command visibility', () => {
     expect(isDiscordAdministrativeCommand('anonymize', null)).toBe(false);
     expect(isDiscordAdministrativeCommand('anonymize-view', null)).toBe(true);
     expect(isDiscordAdministrativeCommand('create-vc', null)).toBe(true);
+    expect(isDiscordAdministrativeCommand('create-vc-preset', null)).toBe(true);
     expect(isDiscordAdministrativeCommand('config-vc', null)).toBe(false);
+    expect(isDiscordAdministrativeCommand('config-vc-save', null)).toBe(false);
     expect(isDiscordAdministrativeCommand('steal-emoji', null)).toBe(true);
     expect(isDiscordAdministrativeCommand('invite', 'set-invite-count')).toBe(true);
   });
@@ -25,6 +27,8 @@ describe('Discord slash-command visibility', () => {
       ['profile', null],
       ['create-vc', null],
       ['config-vc', null],
+      ['config-vc-save', null],
+      ['create-vc-preset', null],
       ['anonymize-report', null],
       ['anonymize-view', null],
       ['collections', 'spawn'],
@@ -67,13 +71,18 @@ describe('Discord slash-command visibility', () => {
       expect.objectContaining({ name: 'name', required: true, type: 3, min_length: 1, max_length: 100 }),
       expect.objectContaining({ name: 'status', required: false, type: 3, min_length: 1, max_length: 500 }),
       expect.objectContaining({ name: 'maximum-users', required: false, type: 4, min_value: 0, max_value: 99 }),
-      expect.objectContaining({ name: 'exclude-user-10', required: false, type: 6 }),
+      expect.objectContaining({ name: 'excluded-users', required: false, type: 3, max_length: 4_000 }),
+      expect.objectContaining({ name: 'included-users', required: false, type: 3, max_length: 4_000 }),
     ]));
     expect(serializedCommandDefinitions().find((command) => command.name === 'config-vc')?.options).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'visibility', required: false, type: 3 }),
-      expect.objectContaining({ name: 'clear-exclusions', required: false, type: 5 }),
-      expect.objectContaining({ name: 'exclude-user-10', required: false, type: 6 }),
+      expect.objectContaining({ name: 'clear-exclusions', required: false, type: 3, max_length: 4_000 }),
+      expect.objectContaining({ name: 'excluded-users', required: false, type: 3, max_length: 4_000 }),
+      expect.objectContaining({ name: 'included-users', required: false, type: 3, max_length: 4_000 }),
+      expect.objectContaining({ name: 'clear-inclusions', required: false, type: 3, max_length: 4_000 }),
     ]));
+    expect(serializedCommandDefinitions().find((command) => command.name === 'config-vc-save')?.options).toEqual([]);
+    expect(serializedCommandDefinitions().find((command) => command.name === 'create-vc-preset')?.options).toEqual([]);
   });
 
   it('enforces the General channel selection only for member-facing command shapes', () => {
@@ -93,6 +102,8 @@ describe('Discord slash-command visibility', () => {
     expect(requiresDefaultCommandChannel('anonymize-report', null)).toBe(false);
     expect(requiresDefaultCommandChannel('create-vc', null)).toBe(false);
     expect(requiresDefaultCommandChannel('config-vc', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('config-vc-save', null)).toBe(false);
+    expect(requiresDefaultCommandChannel('create-vc-preset', null)).toBe(false);
   });
 
   it('turns expected Riftbound persistence failures into member-facing notes', () => {

@@ -11,9 +11,9 @@ Create or re-authorize the bot with these OAuth2 scopes:
 | `bot` | Adds the bot user to the server. |
 | `applications.commands` | Registers and serves KnowLeague's guild slash commands. |
 
-## Standard production bot role — select all thirteen
+## Standard production bot role — select all fourteen
 
-For the full current KnowLeague product, select these exact thirteen permissions in **OAuth2 > URL Generator** and grant them to the bot role in every configured KnowLeague channel. **Manage Channels** and **Move Members** must additionally apply to the configured Join to Create channel and its category. This is the recommended production grant; it covers Collections, leveling, member lifecycle, message activity logs, invite tracking, temporary voice channels, Fishing, Mining, Woodcutting, league captures, and external-expression imports without granting Administrator.
+For the full current KnowLeague product, select these exact fourteen permissions in **OAuth2 > URL Generator** and grant them to the bot role in every configured KnowLeague channel. **Send Messages**, **Manage Channels**, **Move Members**, and **Deafen Members** must additionally apply to the configured Join to Create channel and its category. This is the recommended production grant; it covers Collections, leveling, member lifecycle, message activity logs, invite tracking, temporary voice channels, Fishing, Mining, Woodcutting, league captures, and external-expression imports without granting Administrator.
 
 | # | Permission | Product behavior |
 | --- | --- | --- |
@@ -30,6 +30,7 @@ For the full current KnowLeague product, select these exact thirteen permissions
 | 11 | **View Audit Log** | Identifies moderator message deletions, bulk purges, kicks, and bans in configured activity and leave panels. Without it, KnowLeague explicitly marks the cause as unknown rather than guessing. |
 | 12 | **Move Members** | Moves a member from the dedicated Join to Create channel into the temporary voice channel created for them. |
 | 13 | **Set Voice Channel Status** | Lets `/create-vc` and `/config-vc` apply the optional status shown on a temporary voice channel. |
+| 14 | **Deafen Members** | Applies and releases temporary-voice deafen settings while a selected member is in that channel. |
 
 **Manage Expressions** is an acceptable alternative to **Create Expressions** for `/steal-emoji`; grant one of them, not both. The command itself accepts either permission.
 
@@ -62,7 +63,7 @@ Do **not** add these solely for KnowLeague: **Administrator**, **Manage Webhooks
 ## Recommended configuration checklist
 
 1. Invite/re-authorize with `bot` and `applications.commands`.
-2. Select and grant all **thirteen** permissions in the standard production table in every configured KnowLeague channel, including **Manage Channels** where members can create server invites and both **Manage Channels** and **Move Members** on the configured Join to Create channel/category. Substitute **Manage Expressions** for **Create Expressions** only if preferred.
+2. Select and grant all **fourteen** permissions in the standard production table in every configured KnowLeague channel, including **Manage Channels** where members can create server invites and **Send Messages**, **Manage Channels**, **Move Members**, and **Deafen Members** on the configured Join to Create channel/category. Substitute **Manage Expressions** for **Create Expressions** only if preferred.
 3. Place the bot role above every role it is allowed to manage for level rewards or top-player roles.
 4. Add **Send Messages in Threads** only when a configured KnowLeague channel is a thread.
 5. Enable **Server Members Intent** and **Message Content Intent** in the Developer Portal; keep Presence disabled.

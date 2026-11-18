@@ -726,7 +726,7 @@ export function DiscordLevelingSettings() {
                 value={data.temporaryVoiceSettings.joinToCreateChannelId ?? ''}
                 onChange={(channelId) => updateTemporaryVoiceSettings('joinToCreateChannelId', channelId || null)}
                 disabled={!data.voiceChannels.some((channel) => channel.manageable && channel.categoryId)}
-                disabledDescription="No voice channel inside a category is currently manageable by KnowLeague. Grant View Channel, Manage Channels, and Move Members, then wait for the bot to sync."
+                disabledDescription="No voice channel inside a category is currently manageable by KnowLeague. Grant View Channel, Send Messages, Manage Channels, Move Members, and Deafen Members, then wait for the bot to sync."
                 headerDescription="Choose the dedicated voice channel members join to create their own channel. New temporary channels are created at the bottom of this channel's category."
                 searchable
                 searchPlaceholder="Type a voice channel name or ID"
@@ -765,7 +765,7 @@ export function DiscordLevelingSettings() {
                 menuClassName="min-w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
               />
             </div>
-            <p className="mt-3 text-xs leading-5 text-slate-400">Join-created channels delete as soon as they are empty. Command-created channels delete after one minute if nobody joins, then also delete when empty. Their owner can use <code>/config-vc</code> from inside the channel to rename it, set its status or limit, exclude members, or lock and unlock it. Exclusion options accept a space- or comma-separated list of @mentions.</p>
+            <p className="mt-3 text-xs leading-5 text-slate-400">Join-created channels delete as soon as they are empty. Command-created channels delete after one minute if nobody joins, then also delete when empty. Their owner can use <code>/config-vc</code> from the channel&apos;s own chat to rename it, set its status or limit, manage access lists, and lock or unlock it. That chat also contains the private-voice moderation and preset controls. Exclusion options accept a space- or comma-separated list of @mentions.</p>
           </section>
           <section className="rounded-3xl border border-white/10 bg-slate-950/80 p-4 sm:p-5">
             <div>

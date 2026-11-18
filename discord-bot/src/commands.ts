@@ -23,6 +23,20 @@ function addCollectionReorderOptions(command: SlashCommandSubcommandBuilder) {
   return configuredCommand;
 }
 
+function temporaryVoiceUserCommand(name: string, description: string) {
+  return new SlashCommandBuilder()
+    .setName(name)
+    .setDescription(description)
+    .addUserOption((option) => option
+      .setName('user')
+      .setDescription('Member to update for this temporary voice channel.')
+      .setRequired(true));
+}
+
+function temporaryVoiceAllCommand(name: string, description: string) {
+  return new SlashCommandBuilder().setName(name).setDescription(description);
+}
+
 function addRandodraftPlayerOptions(command: SlashCommandSubcommandBuilder) {
   let configuredCommand = command;
   for (let slot = 1; slot <= 10; slot += 1) {
@@ -435,6 +449,47 @@ export const commandDefinitions = [
   new SlashCommandBuilder()
     .setName('create-vc-preset')
     .setDescription('Create a temporary voice channel from your saved preset.'),
+  temporaryVoiceUserCommand('config-vc-kick', 'Remove a member from this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-ban', 'Exclude and remove a member from this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-mute', 'Mute a member in this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-unmute', 'Unmute a member in this temporary voice channel.'),
+  temporaryVoiceAllCommand('config-vc-mute-all', 'Mute every member in this temporary voice channel.'),
+  temporaryVoiceAllCommand('config-vc-unmute-all', 'Unmute every member in this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-deafen', 'Deafen a member while they are in this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-undeafen', 'Undeafen a member in this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-undeafon', 'Compatibility alias for /config-vc-undeafen.'),
+  temporaryVoiceAllCommand('config-vc-deafen-all', 'Deafen every member while they are in this temporary voice channel.'),
+  temporaryVoiceAllCommand('config-vc-undeafen-all', 'Undeafen every member in this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-set-admin', 'Let a member manage this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-remove-admin', 'Remove a member as a temporary voice channel administrator.'),
+  temporaryVoiceUserCommand('config-vc-set-priority-speaker', 'Give a member priority speaker in this temporary voice channel.'),
+  temporaryVoiceUserCommand('config-vc-unset-priority-speaker', 'Remove a member as a priority speaker in this temporary voice channel.'),
+  new SlashCommandBuilder()
+    .setName('config-vc-set-autoping')
+    .setDescription('Add a user or role ping for preset-created temporary voice channels.')
+    .addMentionableOption((option) => option
+      .setName('target')
+      .setDescription('User or role to ping when this saved configuration creates a channel.')
+      .setRequired(true))
+    .addStringOption((option) => option
+      .setName('message')
+      .setDescription('Message to send with the ping.')
+      .setMinLength(1)
+      .setMaxLength(1_500)
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('config-vc-remove-autoping')
+    .setDescription('Remove a configured user or role automatic ping.')
+    .addMentionableOption((option) => option
+      .setName('target')
+      .setDescription('User or role used by the configured automatic ping.')
+      .setRequired(true))
+    .addStringOption((option) => option
+      .setName('message')
+      .setDescription('Exact message from the configured automatic ping.')
+      .setMinLength(1)
+      .setMaxLength(1_500)
+      .setRequired(true)),
   new SlashCommandBuilder()
     .setName('anonymize')
     .setDescription('Post a message anonymously.')

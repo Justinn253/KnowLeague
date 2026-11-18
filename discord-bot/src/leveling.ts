@@ -578,8 +578,10 @@ export async function syncDiscordGuildVoiceChannels(config: DiscordBotConfig, gu
         guild_id: guild.id,
         manageable: Boolean(permissions?.has([
           PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
           PermissionFlagsBits.ManageChannels,
           PermissionFlagsBits.MoveMembers,
+          PermissionFlagsBits.DeafenMembers,
         ])),
         position: channel!.rawPosition,
         updated_at: new Date().toISOString(),

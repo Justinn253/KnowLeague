@@ -21,7 +21,7 @@ import { startDiscordMiningTopRoleScheduler } from './mining.js';
 import { startDiscordSkindleShareScheduler } from './skindle-shares.js';
 import { handleDisboardBump, restoreDisboardBumpReminder, startDisboardBumpReconciliation, stopDisboardBumpReminder } from './disboard.js';
 import { rememberDiscordMemberBan } from './audit-log-reasons.js';
-import { handleDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteCreation, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, trackDiscordMemberLastMessage, trackDiscordSingleUseInvite } from './member-lifecycle.js';
+import { completeDiscordMemberJoin, handleDiscordMemberLeave, postDiscordMemberLeaveFailure, rememberDiscordInviteCreation, rememberDiscordInviteDeletion, refreshDiscordInviteCache, resolveDiscordJoinSource, startDiscordMemberJoinAnnouncements, trackDiscordMemberLastMessage, trackDiscordSingleUseInvite } from './member-lifecycle.js';
 import { logDiscordBulkMessageDeletion, logDiscordMessageDeletion, logDiscordMessageEdit } from './message-logs.js';
 import { maybeAwardMessageKnowBucks } from './message-rewards.js';
 import { writeDiscordMinigameTierReferences } from './minigame-tier-references.js';
@@ -260,8 +260,20 @@ client.on(Events.GuildMemberRemove, (member) => {
 
 client.on(Events.GuildMemberAdd, (member) => {
   if (member.guild.id !== config.guildId) return;
-  void resolveDiscordJoinSource(config, member)
-    .then((source) => handleDiscordMemberJoin(config, member, source))
+  const sourceResolution = resolveDiscordJoinSource(config, member);
+  void (async () => {
+    let announcements = null;
+    try {
+      announcements = await startDiscordMemberJoinAnnouncements(config, member);
+    } catch (error) {
+      // Announcements are intentionally independent from attribution. A
+      // temporarily unavailable destination must not stop the join record or
+      // make later members wait behind this join's invite comparison.
+      console.error('Discord immediate join announcement failed.', error);
+    }
+    const source = await sourceResolution;
+    await completeDiscordMemberJoin(config, member, source, announcements);
+  })()
     .catch((error: unknown) => console.error('Discord member join processing failed.', error));
 });
 

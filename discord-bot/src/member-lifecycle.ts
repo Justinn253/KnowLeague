@@ -67,6 +67,14 @@ export type DiscordJoinSource =
   | { kind: 'vanity' }
   | { kind: 'unknown' };
 
+type DiscordJoinPanelSource = DiscordJoinSource | { kind: 'pending' };
+
+type DiscordJoinAnnouncements = {
+  invite: Message | null;
+  settings: MemberLifecycleSettings;
+  welcome: Message | null;
+};
+
 type StoredLeaveSnapshot = {
   chat_xp_level: number;
   invite_code: string | null;
@@ -98,6 +106,11 @@ const PENDING_INVITE_ATTRIBUTION_WINDOW_MS = 30_000;
 const SINGLE_USE_INVITE_PRE_JOIN_GRACE_MS = 5_000;
 const SINGLE_USE_INVITE_POST_JOIN_WINDOW_MS = 20_000;
 const INVITE_RESOLUTION_RETRY_DELAYS_MS = [0, 1_000, 2_000, 4_000] as const;
+const INVITE_READ_TIMEOUT_MS = 5_000;
+const VANITY_USE_REFRESH_MS = 60_000;
+
+const vanityUsesByGuildId = new Map<string, { fetchedAt: number; uses: number | null }>();
+const vanityUseRefreshesByGuildId = new Map<string, Promise<void>>();
 
 function enqueueInviteCacheTask<T>(guildId: string, task: () => Promise<T>) {
   const previous = inviteCacheQueuesByGuildId.get(guildId) ?? Promise.resolve();
@@ -112,6 +125,20 @@ function enqueueInviteCacheTask<T>(guildId: string, task: () => Promise<T>) {
 
 function delay(milliseconds: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function withTimeout<T>(task: Promise<T>, timeoutMs: number, message: string) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function defaultSettings(): MemberLifecycleSettings {
@@ -227,10 +254,11 @@ function joinSourceLabel(source: DiscordJoinSource) {
 type JoinPanelSubtitleVariant = 'invite-total' | 'source';
 
 function joinSourceSubtitle(
-  source: DiscordJoinSource,
+  source: DiscordJoinPanelSource,
   inviteCount: number | null,
   variant: JoinPanelSubtitleVariant,
 ) {
+  if (source.kind === 'pending') return 'Join source: verifying';
   if (variant === 'invite-total' && source.kind === 'invite') {
     return `They now have ${inviteCount ?? 0} invite${inviteCount === 1 ? '' : 's'}`;
   }
@@ -246,7 +274,7 @@ function joinSourceSubtitle(
 
 export function buildDiscordJoinPanel(
   content: string,
-  source: DiscordJoinSource,
+  source: DiscordJoinPanelSource,
   inviteCount: number | null = null,
   subtitleVariant: JoinPanelSubtitleVariant = 'source',
 ) {
@@ -261,26 +289,79 @@ async function sendLifecycleJoinPanel(
   channelId: string | null,
   content: string,
   mentionedUserId: string,
-  source: DiscordJoinSource,
+  source: DiscordJoinPanelSource,
   inviteCount: number | null,
   shouldMentionMember: boolean,
   subtitleVariant: JoinPanelSubtitleVariant,
 ) {
-  if (!channelId) return;
+  if (!channelId) return null;
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased() || !channel.isSendable()) {
     console.warn(`Discord lifecycle channel ${channelId} is unavailable, not text-based, or not sendable.`);
-    return;
+    return null;
   }
-  await channel.send({
+  return channel.send({
     allowedMentions: { parse: [], users: [mentionedUserId] },
     content: shouldMentionMember ? `<@${mentionedUserId}>` : undefined,
     embeds: [buildDiscordJoinPanel(content, source, inviteCount, subtitleVariant)],
   });
 }
 
-export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: GuildMember, source: DiscordJoinSource) {
-  if (member.guild.id !== config.guildId || member.user.bot) return;
+function welcomeJoinContent(settings: MemberLifecycleSettings, member: GuildMember) {
+  return formatMemberLifecycleTemplate(settings.welcomeJoinMessageTemplate, { user: `<@${member.id}>` });
+}
+
+function inviteJoinContent(settings: MemberLifecycleSettings, member: GuildMember, source: DiscordJoinSource, inviteCount: number) {
+  return formatMemberLifecycleTemplate(settings.inviteJoinMessageTemplate, {
+    inviteCount,
+    inviter: joinSourceLabel(source),
+    user: `<@${member.id}>`,
+  });
+}
+
+async function sendDiscordJoinPanels(
+  member: GuildMember,
+  settings: MemberLifecycleSettings,
+  source: DiscordJoinPanelSource,
+  inviteCount: number | null,
+  pending = false,
+) {
+  const resolvedSource = source.kind === 'pending' ? { kind: 'unknown' } as const : source;
+  const inviteContent = pending
+    ? `**<@${member.id}>** joined the server. Verifying their invite source…`
+    : inviteJoinContent(settings, member, resolvedSource, inviteCount ?? 0);
+  const [welcome, invite] = await Promise.all([
+    sendLifecycleJoinPanel(
+      member.guild,
+      settings.welcomeJoinMessageChannelId,
+      welcomeJoinContent(settings, member),
+      member.id,
+      source,
+      source.kind === 'invite' ? inviteCount : null,
+      true,
+      'source',
+    ).catch((error: unknown) => {
+      console.error(`Unable to send the immediate Discord welcome panel for ${member.id}.`, error);
+      return null;
+    }),
+    sendLifecycleJoinPanel(
+      member.guild,
+      settings.inviteJoinMessageChannelId,
+      inviteContent,
+      member.id,
+      source,
+      source.kind === 'invite' ? inviteCount : null,
+      false,
+      'invite-total',
+    ).catch((error: unknown) => {
+      console.error(`Unable to send the immediate Discord invite-tracker panel for ${member.id}.`, error);
+      return null;
+    }),
+  ]);
+  return { invite, welcome };
+}
+
+async function recordDiscordMemberJoin(config: DiscordBotConfig, member: GuildMember, source: DiscordJoinSource) {
   const identity = memberIdentity(member);
   const fields = joinSourceDatabaseFields(source);
   const { data, error } = await createBotServiceClient(config).rpc('record_discord_member_join', {
@@ -298,35 +379,69 @@ export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: 
   if (error) throw new Error(`Unable to record Discord member join: ${error.message}`);
 
   const inviteCountRow = Array.isArray(data) ? data[0] as { invite_count?: number } | undefined : undefined;
-  const inviteCount = typeof inviteCountRow?.invite_count === 'number' ? inviteCountRow.invite_count : 0;
+  return typeof inviteCountRow?.invite_count === 'number' ? inviteCountRow.invite_count : 0;
+}
+
+export async function startDiscordMemberJoinAnnouncements(config: DiscordBotConfig, member: GuildMember): Promise<DiscordJoinAnnouncements | null> {
+  if (member.guild.id !== config.guildId || member.user.bot) return null;
   const settings = await getMemberLifecycleSettings(config);
-  const userMention = `<@${member.id}>`;
+  return { settings, ...await sendDiscordJoinPanels(member, settings, { kind: 'pending' }, null, true) };
+}
+
+async function updateDiscordJoinPanel(
+  message: Message | null,
+  content: string,
+  member: GuildMember,
+  source: DiscordJoinSource,
+  inviteCount: number | null,
+  subtitleVariant: JoinPanelSubtitleVariant,
+  shouldMentionMember: boolean,
+) {
+  if (!message) return;
+  await message.edit({
+    allowedMentions: { parse: [] },
+    content: shouldMentionMember ? `<@${member.id}>` : undefined,
+    embeds: [buildDiscordJoinPanel(content, source, inviteCount, subtitleVariant)],
+  }).catch((error: unknown) => console.warn(`Unable to update the Discord join panel for ${member.id}.`, error));
+}
+
+export async function completeDiscordMemberJoin(
+  config: DiscordBotConfig,
+  member: GuildMember,
+  source: DiscordJoinSource,
+  announcements: DiscordJoinAnnouncements | null,
+) {
+  if (member.guild.id !== config.guildId || member.user.bot) return;
+  const inviteCount = await recordDiscordMemberJoin(config, member, source);
+  if (!announcements) {
+    const settings = await getMemberLifecycleSettings(config);
+    await sendDiscordJoinPanels(member, settings, source, source.kind === 'invite' ? inviteCount : null);
+    return;
+  }
   await Promise.all([
-    sendLifecycleJoinPanel(
-      member.guild,
-      settings.welcomeJoinMessageChannelId,
-      formatMemberLifecycleTemplate(settings.welcomeJoinMessageTemplate, { user: userMention }),
-      member.id,
+    updateDiscordJoinPanel(
+      announcements.welcome,
+      welcomeJoinContent(announcements.settings, member),
+      member,
       source,
       source.kind === 'invite' ? inviteCount : null,
-      true,
       'source',
+      true,
     ),
-    sendLifecycleJoinPanel(
-      member.guild,
-      settings.inviteJoinMessageChannelId,
-      formatMemberLifecycleTemplate(settings.inviteJoinMessageTemplate, {
-        inviteCount,
-        inviter: joinSourceLabel(source),
-        user: userMention,
-      }),
-      member.id,
+    updateDiscordJoinPanel(
+      announcements.invite,
+      inviteJoinContent(announcements.settings, member, source, inviteCount),
+      member,
       source,
       source.kind === 'invite' ? inviteCount : null,
-      false,
       'invite-total',
+      false,
     ),
   ]);
+}
+
+export async function handleDiscordMemberJoin(config: DiscordBotConfig, member: GuildMember, source: DiscordJoinSource) {
+  await completeDiscordMemberJoin(config, member, source, null);
 }
 
 function deserializeRoles(value: unknown) {
@@ -479,21 +594,53 @@ function inviteCacheFromGuild(invites: Awaited<ReturnType<Guild['invites']['fetc
 }
 
 async function readGuildInvites(guild: Guild): Promise<InviteCache | null> {
-  const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
+  const botMember = guild.members.me ?? await withTimeout(
+    guild.members.fetchMe(),
+    INVITE_READ_TIMEOUT_MS,
+    `Discord bot-member read timed out for guild ${guild.id}.`,
+  ).catch(() => null);
   if (!botMember?.permissions.has(PermissionFlagsBits.ManageGuild)) {
     console.warn(`KnowLeague cannot track Discord invite uses in guild ${guild.id}; grant the bot Manage Server.`);
     return null;
   }
   try {
-    const [invites, vanity] = await Promise.all([
-      guild.invites.fetch(),
-      guild.fetchVanityData().catch(() => null),
-    ]);
-    return inviteCacheFromGuild(invites, vanity?.uses ?? null);
+    const invites = await withTimeout(guild.invites.fetch(), INVITE_READ_TIMEOUT_MS, `Discord invite read timed out for guild ${guild.id}.`);
+    const now = Date.now();
+    const cachedVanity = vanityUsesByGuildId.get(guild.id);
+    const vanityUses = cachedVanity?.uses ?? inviteCacheByGuildId.get(guild.id)?.vanityUses ?? null;
+    if (!cachedVanity || now - cachedVanity.fetchedAt >= VANITY_USE_REFRESH_MS) {
+      refreshDiscordVanityUses(guild, now);
+    }
+    return inviteCacheFromGuild(invites, vanityUses);
   } catch (error) {
     console.error(`Could not read Discord invites for guild ${guild.id}.`, error);
     return null;
   }
+}
+
+function refreshDiscordVanityUses(guild: Guild, requestedAt: number) {
+  if (vanityUseRefreshesByGuildId.has(guild.id)) return;
+  const refresh = withTimeout(
+    guild.fetchVanityData(),
+    INVITE_READ_TIMEOUT_MS,
+    `Discord vanity invite read timed out for guild ${guild.id}.`,
+  )
+    .then((vanity) => {
+      vanityUsesByGuildId.set(guild.id, { fetchedAt: requestedAt, uses: vanity.uses ?? null });
+    })
+    .catch(() => {
+      // A guild without a vanity URL commonly rejects this endpoint. Preserve
+      // a previous count when available, and do not let that REST call delay
+      // a serial invite-use comparison.
+      const priorUses = vanityUsesByGuildId.get(guild.id)?.uses ?? inviteCacheByGuildId.get(guild.id)?.vanityUses ?? null;
+      vanityUsesByGuildId.set(guild.id, { fetchedAt: requestedAt, uses: priorUses });
+    })
+    .finally(() => {
+      if (vanityUseRefreshesByGuildId.get(guild.id) === refresh) {
+        vanityUseRefreshesByGuildId.delete(guild.id);
+      }
+    });
+  vanityUseRefreshesByGuildId.set(guild.id, refresh);
 }
 
 export async function refreshDiscordInviteCache(config: DiscordBotConfig, guild: Guild) {

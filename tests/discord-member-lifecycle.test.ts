@@ -39,6 +39,11 @@ describe('Discord member lifecycle', () => {
     expect(panel.footer?.text).toBe('They now have 7 invites');
   });
 
+  it('marks an immediate join panel as pending while invite attribution is resolving', () => {
+    const panel = buildDiscordJoinPanel('Welcome <@123>!', { kind: 'pending' }).toJSON();
+    expect(panel.footer?.text).toBe('Join source: verifying');
+  });
+
   it('registers a member-facing invite leaderboard with an optional user', () => {
     const command = serializedCommandDefinitions().find((entry) => entry.name === 'invite');
     expect(command?.options).toEqual(expect.arrayContaining([
